@@ -32,6 +32,17 @@ Feature: Cross-session awareness and directory recap
     When querying active sessions in the directory
     Then the dead session is pruned from the registry
 
+  Scenario: A recently dead session is reported as exited instead of vanishing
+    Given a registered session whose PID is no longer running and whose record is still fresh
+    When querying active sessions in the directory
+    Then the session is reported with status "exited" so the user can see recent work
+    And its record is deleted once it is stale or already marked exited
+
+  Scenario: Shutdown clears the record from every directory the session registered under
+    Given a session that registered in a parent directory and later moved to a worktree directory
+    When session_shutdown fires
+    Then no record for that session remains in either directory
+
   Scenario: Registry records from multiple writers merge into one logical session
     Given one live session process registered twice under different id conventions
     And the first record carries goal, recap, and modified files while the second is a bare glow record

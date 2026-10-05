@@ -1,0 +1,150 @@
+[
+  {
+    "id": "en-holdout-fact",
+    "language": "en",
+    "evidence": "This Python project uses uv for dependency installation.",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "The project installs dependencies with uv."
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-holdout-fact",
+    "language": "zh",
+    "evidence": "本 Python 项目使用 uv 安装依赖。",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "本项目使用 uv 安装依赖。"
+    },
+    "allow": true
+  },
+  {
+    "id": "en-holdout-preference",
+    "language": "en",
+    "evidence": "For future reviews, I prefer a short conclusion followed by evidence.",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "The user prefers reviews with a short conclusion followed by evidence."
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-holdout-preference",
+    "language": "zh",
+    "evidence": "以后的代码审查，我偏好先给简短结论，再给依据。",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "用户偏好代码审查先给简短结论，再给依据。"
+    },
+    "allow": true
+  },
+  {
+    "id": "en-holdout-guess",
+    "language": "en",
+    "evidence": "I wonder whether the cache is Memcached, but nobody has checked.",
+    "memory": false,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "The cache is Memcached."
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-holdout-guess",
+    "language": "zh",
+    "evidence": "我怀疑缓存是 Memcached，但没有人检查过。",
+    "memory": false,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "缓存使用 Memcached。"
+    },
+    "allow": false
+  },
+  {
+    "id": "en-holdout-temporary",
+    "language": "en",
+    "evidence": "A download timed out once; the next attempt completed successfully.",
+    "memory": false,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "Downloads never work and must not be attempted."
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-holdout-temporary",
+    "language": "zh",
+    "evidence": "下载刚才超时一次，随后重试成功。",
+    "memory": false,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "下载永远不可用，禁止再尝试。"
+    },
+    "allow": false
+  },
+  {
+    "id": "en-holdout-duplicate",
+    "language": "en",
+    "evidence": "Remember for later: the formatter is Ruff.",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "Use Ruff as the formatter."
+    },
+    "allow": false,
+    "existing": "Use Ruff as the formatter."
+  },
+  {
+    "id": "zh-holdout-duplicate",
+    "language": "zh",
+    "evidence": "记住以后格式化使用 Ruff。",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "格式化使用 Ruff。"
+    },
+    "allow": false,
+    "existing": "格式化使用 Ruff。"
+  },
+  {
+    "id": "en-holdout-supplement",
+    "language": "en",
+    "evidence": "The Python formatter is Ruff. The verified lint command is uv run ruff check.",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "Run lint with uv run ruff check."
+    },
+    "allow": true,
+    "existing": "Use Ruff as the formatter."
+  },
+  {
+    "id": "zh-holdout-supplement",
+    "language": "zh",
+    "evidence": "Python 格式化使用 Ruff，已验证的 lint 命令是 uv run ruff check。",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "使用 uv run ruff check 执行 lint。"
+    },
+    "allow": true,
+    "existing": "格式化使用 Ruff。"
+  }
+]

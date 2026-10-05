@@ -26,6 +26,7 @@
     "index.ts",
     "src",
     "fixtures",
+    "session-control",
     "README.md",
     "README.zh-CN.md"
   ],

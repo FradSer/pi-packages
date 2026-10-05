@@ -61,9 +61,7 @@ function renderSource(definition: ProcedureDefinition): string {
 }
 
 function resolvedBundle(root: string, definitions: ProcedureDefinition[]): ResolvedProcedureBundle {
-  const unique = definitions.filter((definition, index) => (
-    definitions.findIndex((candidate) => candidate.id === definition.id) === index
-  ));
+  const unique = [...new Map(definitions.map((definition) => [definition.id, definition])).values()];
   const content = unique.map(renderSource).join("\n\n");
   const byteLength = Buffer.byteLength(content, "utf8");
   if (byteLength > MAX_PROCEDURE_BUNDLE_BYTES) {
@@ -133,6 +131,18 @@ export interface ProcedureDelta {
 }
 
 /**
+ * Delivery ids are persisted session data, so they can outlive catalog aliases
+ * and may contain entries from a previous package revision. Keep only canonical
+ * ids that still exist; otherwise an old alias can cause a procedure to be
+ * delivered twice, while an unknown id needlessly grows every future state.
+ */
+function canonicalDeliveryIds(delivered: string[] | undefined): string[] {
+  return [...new Set((delivered ?? [])
+    .map((id) => findProcedure(id)?.id)
+    .filter((id): id is string => id !== undefined))];
+}
+
+/**
  * The part of the active context this session has not been shown yet.
  *
  * A workflow re-delivers its prompt on every transition, and a procedure's bundle carries
@@ -144,14 +154,15 @@ export interface ProcedureDelta {
 export function resolveProcedureDelta(
   activeProcedure: string,
   loadedReferences: string[],
-  delivered: string[],
+  delivered?: string[],
 ): ProcedureDelta {
   const context = resolveWorkflowContext(activeProcedure, loadedReferences);
-  const already = new Set(delivered);
+  const canonicalDelivered = canonicalDeliveryIds(delivered);
+  const already = new Set(canonicalDelivered);
   const pending = context.loaded.filter((id) => !already.has(id));
   return {
     content: pending.map((id) => renderSource(requireDefinition(id))).join("\n\n"),
-    delivered: [...new Set([...delivered, ...context.loaded])],
+    delivered: [...new Set([...canonicalDelivered, ...context.loaded])],
     availableReferences: context.availableReferences,
   };
 }

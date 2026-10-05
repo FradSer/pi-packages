@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import {
   CHECK_TOOLS,
   buildCheckPrompt,
@@ -70,6 +70,24 @@ await scenario("the check really spawns a child and reads its verdict", async ()
   assert.equal(result.usage?.totalTokens, 80);
 });
 
+await scenario("an answer with no verdict marker is an error, not a refusal", async () => {
+  process.env.GOAL_CHECK_REPORT = "The required independent review evidence is missing.";
+  const result = await runCompletionCheck({ ...base, claim: "done" });
+  assert.equal(result.met, false, "it does not close the goal");
+  // An error is what keeps it out of the refusal accounting: only a verdict the
+  // checker actually gave may spend one of the three valid attempts.
+  assert.ok(result.error, `a marker-less answer must carry an error, got ${JSON.stringify(result)}`);
+  assert.equal(result.report, "", "and it decides nothing at all");
+});
+
+await scenario("a refusal carrying a real marker stays countable", async () => {
+  process.env.GOAL_CHECK_REPORT = "The export has no test.\nNOT MET";
+  const result = await runCompletionCheck({ ...base, claim: "done" });
+  assert.equal(result.met, false);
+  assert.equal(result.error, undefined, "a real refusal is not an error");
+  assert.match(result.report, /no test/, "and it keeps the reason the goal was refused");
+});
+
 await scenario("the child is granted no tools at all", async () => {
   assert.deepEqual([...CHECK_TOOLS], [], "the guarantee is the empty grant, so it is asserted");
   const args = JSON.parse(await import("node:fs").then((fs) => fs.readFileSync(argsFile, "utf-8"))) as string[];
@@ -85,13 +103,23 @@ await scenario("the verdict is the report's last line, or there is no verdict", 
   // One scenario because it is one rule: trailing MET approves, MET anywhere
   // else or nowhere rejects, and a rejection names what to do. Splitting it
   // into three would test the same branch three times.
-  assert.deepEqual(parseCheckVerdict("All present.\nMET"), { met: true, report: "All present." });
-  assert.deepEqual(parseCheckVerdict("The tests were never written.\nNOT MET"), { met: false, report: "The tests were never written." });
+  assert.deepEqual(parseCheckVerdict("All present.\nMET"), { met: true, report: "All present.", valid: true });
+  assert.deepEqual(parseCheckVerdict("The tests were never written.\nNOT MET"), { met: false, report: "The tests were never written.", valid: true });
   assert.equal(parseCheckVerdict("Looks done.\nMET\nActually the migration is missing.").met, false);
   assert.equal(parseCheckVerdict("I would say MET if the tests passed.").met, false);
   const verdict = parseCheckVerdict("I could not tell from what you gave me.");
   assert.equal(verdict.met, false);
   assert.match(describeUnmet({ ...verdict }), /not met/, "and the executor is told what to do");
+  // An answer that never said MET or NOT MET is not a decision. It must be
+  // marked unusable so the refusal accounting cannot spend one of the three
+  // valid attempts on an answer that gave no verdict at all.
+  assert.equal(parseCheckVerdict("All present.\nMET").valid, true);
+  assert.equal(parseCheckVerdict("The tests were never written.\nNOT MET").valid, true);
+  assert.equal(
+    parseCheckVerdict("The required independent review evidence is missing.").valid,
+    false,
+    "an answer with no verdict marker is not a valid refusal",
+  );
 });
 
 await scenario("the objective and contract reach the check, the claim is marked untrusted", () => {

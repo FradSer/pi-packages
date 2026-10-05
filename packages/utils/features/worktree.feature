@@ -1,17 +1,32 @@
 Feature: git worktree path redirect
   The utils package restores the `git worktree add` path redirect: any bash
   command that runs `git worktree add` has its target path rewritten to live
-  inside `.pi/worktrees/<name>`, so linked worktrees stay inside the repo
-  instead of scattering sibling directories next to it.
+  inside the repository's `.pi/worktrees/<name>`, so linked worktrees stay
+  inside the repo instead of scattering sibling directories next to it. The
+  bash tool runs in the session cwd, so a command issued from a subdirectory is
+  rewritten to the absolute repository root rather than a path relative to
+  wherever the shell happened to be.
 
   Background:
     Given the pi-utils-fradser package is installed
 
   Scenario: A `git worktree add` path is redirected into .pi/worktrees
-    Given the agent runs `git worktree add ../foo feature/foo`
+    Given the agent runs `git worktree add ../foo feature/foo` at the repository root
     When the bash tool call is intercepted
     Then the command is rewritten to `mkdir -p .pi/worktrees && git worktree add .pi/worktrees/foo feature/foo`
     And the user is notified of the redirect
+
+  Scenario: The redirect targets the repository root, not the shell directory
+    Given the agent runs `git worktree add ../foo feature/foo` in a repository subdirectory
+    When the bash tool call is intercepted
+    Then the rewritten path is the absolute `<repo root>/.pi/worktrees/foo`
+    And no `.pi` directory is created inside the subdirectory
+
+  Scenario: An unignored managed directory is reported
+    Given a repository that does not git-ignore `.pi/`
+    When a worktree path is redirected
+    Then the user is told to add `.pi/` to .gitignore or the worktree shows up as untracked
+    And the extension does not edit the repository's .gitignore
 
   Scenario: Worktree redirect notifications use the shared Pi-kit notification adapter
     Given a git worktree add path is redirected

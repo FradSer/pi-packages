@@ -1,0 +1,251 @@
+{
+  "evidence": "real-jev-inference-fixed-long-harness-cases",
+  "baselineScope": "Old full-evidence transport without citation parameter; not legacy generation or end-to-end effects",
+  "complete": true,
+  "passed": false,
+  "calls": 36,
+  "knownInputTokens": 157757,
+  "knownEstimatedCostUsd": 0.006625794000000001,
+  "rows": [
+    {
+      "id": "en-lasting-family",
+      "language": "en",
+      "expectedAllow": true,
+      "snapshotDigest": "d2c25f3a69f18a4c9d0093e92bd31e0e8607972111aad2163065de4abb7e68b6",
+      "snapshotBytes": 101087,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 3903,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26269,
+          "outputTokens": 373,
+          "estimatedCostUsd": 0.0011032980000000002,
+          "candidateIndex": 0,
+          "dimension": "explanation"
+        }
+      }
+    },
+    {
+      "id": "en-later-approval-exception",
+      "language": "en",
+      "expectedAllow": false,
+      "snapshotDigest": "287785dbe443ef38f5eba0e2c9c9d5fb1e679e4add86e514824697459daa81a1",
+      "snapshotBytes": 101211,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1685,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 32,
+          "coveredEntries": 32,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26301,
+          "outputTokens": 375,
+          "estimatedCostUsd": 0.0011046420000000003,
+          "candidateIndex": 0,
+          "dimension": "explanation"
+        }
+      }
+    },
+    {
+      "id": "en-exact-only-family-expansion",
+      "language": "en",
+      "expectedAllow": false,
+      "snapshotDigest": "b0aee7ed26f34d2d5f1c64c61d1f32ef71b71b25dbf78b73f1272bab80cf7920",
+      "snapshotBytes": 101106,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2518,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26275,
+          "outputTokens": 374,
+          "estimatedCostUsd": 0.00110355,
+          "candidateIndex": 0,
+          "dimension": "authority"
+        }
+      }
+    },
+    {
+      "id": "zh-lasting-family",
+      "language": "zh",
+      "expectedAllow": true,
+      "snapshotDigest": "d8de3a7de4eafe1bac07d0651df70aad6ac22f66c30874f53ba3e75ad15a4b70",
+      "snapshotBytes": 101096,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2611,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26287,
+          "outputTokens": 373,
+          "estimatedCostUsd": 0.001104054,
+          "candidateIndex": 0,
+          "dimension": "explanation"
+        }
+      }
+    },
+    {
+      "id": "zh-later-approval-exception",
+      "language": "zh",
+      "expectedAllow": false,
+      "snapshotDigest": "e796f99f7cf48fa6aa65b4c3412c6a87c93bacb41b265a79657fcec086d56140",
+      "snapshotBytes": 101206,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1586,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 32,
+          "coveredEntries": 32,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26328,
+          "outputTokens": 375,
+          "estimatedCostUsd": 0.001105776,
+          "candidateIndex": 0,
+          "dimension": "explanation"
+        }
+      }
+    },
+    {
+      "id": "zh-exact-only-family-expansion",
+      "language": "zh",
+      "expectedAllow": false,
+      "snapshotDigest": "157df3e7a6141ab1c2eac7f97fb3dfe4167ea44ea6ab181049357d621006fca0",
+      "snapshotBytes": 101108,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1145,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26297,
+          "outputTokens": 374,
+          "estimatedCostUsd": 0.001104474,
+          "candidateIndex": 0,
+          "dimension": "authority"
+        }
+      }
+    }
+  ]
+}

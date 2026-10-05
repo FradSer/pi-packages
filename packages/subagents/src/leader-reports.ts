@@ -1,15 +1,33 @@
-export const TEAMMATE_REPORT_MESSAGE_TYPE = "agent-teams-report";
-export const TEAMMATE_HARNESS_MESSAGE_TYPE = "agent-teams-harness";
+export const AGENT_REPORT_MESSAGE_TYPE = "agent-teams-report";
+export const AGENT_HARNESS_MESSAGE_TYPE = "agent-teams-harness";
+
+/**
+ * A report as it may still be found in a transcript written before the sender's
+ * key was renamed. Read, never written: the old key is kept for transcripts alone,
+ * and it lives in one reader rather than in the domain type, so a report is
+ * described in one word everywhere else.
+ */
+type LegacyLeaderReport = LeaderReport & { teammate?: string };
+
+/** Whose report this is. The one key, on the way in and on the way out. */
+function senderOf(report: LeaderReport | LegacyLeaderReport): string | undefined {
+  return report.agent ?? (report as LegacyLeaderReport).teammate;
+}
 
 export interface LeaderReport {
-  teammate?: string;
+  /** Who sent it. The name the recipient addresses. */
   agent?: string;
+  /** The role it ran, when the sender's role is worth recording. */
+  role?: string;
+  inputId?: string;
   spawnId?: string;
   assignmentId?: string;
   workId?: string;
   body: string;
-  /** Worker-authored reports are the default; harness events use a separate envelope. */
-  origin?: "teammate" | "harness";
+  /** Agent-authored reports are the default; harness events use a separate
+   *  envelope. A report written before the rename carries the previous word for
+   *  this origin, which reads as an agent report either way. */
+  origin?: "agent" | "harness";
   harnessEvent?: {
     type: string;
     subject: string;
@@ -17,7 +35,7 @@ export interface LeaderReport {
   finished?: boolean;
   /** Original append-only outbox event identifier, retained for session forensics. */
   eventId?: string;
-  /** Original worker status, including omitted status, retained for session forensics. */
+  /** Original Agent status, including omitted status, retained for session forensics. */
   status?: "in_progress" | "completed" | "failed" | "inform" | "request" | "handoff";
   runId?: string;
   /** Wall-clock time the message was authored, not when Pi consumed it. */
@@ -28,24 +46,24 @@ export interface LeaderReport {
 }
 
 export interface LeaderReportGroup {
-  teammate: string;
+  agent: string;
   reports: LeaderReport[];
 }
 
-export function groupReportsByTeammate(reports: LeaderReport[]): LeaderReportGroup[] {
+export function groupReportsByAgent(reports: LeaderReport[]): LeaderReportGroup[] {
   const groups = new Map<string, LeaderReportGroup>();
   for (const report of reports) {
-    const teammate = report.teammate ?? report.agent ?? "teammate";
+    const agent = senderOf(report) ?? "agent";
     if (report.origin === "harness" || report.harnessEvent) {
-      groups.set(`harness:${groups.size}:${teammate}`, { teammate, reports: [report] });
+      groups.set(`harness:${groups.size}:${agent}`, { agent, reports: [report] });
       continue;
     }
-    const key = `message:${teammate}`;
+    const key = `message:${agent}`;
     const group = groups.get(key);
     if (group) {
       group.reports.push(report);
     } else {
-      groups.set(key, { teammate, reports: [report] });
+      groups.set(key, { agent, reports: [report] });
     }
   }
   return [...groups.values()];
@@ -57,32 +75,46 @@ export function annotateReportDelivery(report: LeaderReport, deliveredAt: number
 }
 
 function timestampAttribute(name: string, timestamp: number | undefined): string {
-  return timestamp !== undefined && Number.isFinite(timestamp)
+  return validTimestamp(timestamp)
     ? ` ${name}="${new Date(timestamp).toISOString()}"`
     : "";
+}
+
+// Date#toISOString throws outside ECMAScript's representable time range even
+// when the report carries a finite number. Report formatting is a readback
+// boundary, so omit malformed timestamps while preserving the authored body.
+const MAX_DATE_MILLISECONDS = 8_640_000_000_000_000;
+
+function validTimestamp(timestamp: number | undefined): timestamp is number {
+  return timestamp !== undefined && Number.isFinite(timestamp)
+    && Math.abs(timestamp) <= MAX_DATE_MILLISECONDS;
 }
 
 export function formatReports(reports: LeaderReport[]): string {
   return reports
     .map((report) => {
-      const { teammate, body, timestamp, origin, harnessEvent } = report;
+      const { body, timestamp, origin, harnessEvent } = report;
       const at = timestampAttribute("at", timestamp);
       if (origin === "harness" || harnessEvent) {
         const type = escapeAttribute(harnessEvent?.type ?? "event");
         const subject = escapeAttribute(harnessEvent?.subject ?? "Agent Teams event");
         return `<harness-event type="${type}" subject="${subject}"${at}>\n${body}\n</harness-event>`;
       }
-      const name = teammate ?? "teammate";
+      // Grouping already resolves the sender, so the envelope has to as well: a
+      // delivered report reading `from="agent"` attributes a message to nobody
+      // while the group it sits in is labelled with the Agent that sent it.
+      const name = senderOf(report) ?? "agent";
       const delivery = timestampAttribute("delivered-at", report.deliveredAt);
       const stopped = timestampAttribute("process-stopped-at", report.processStoppedAt);
       const late = report.deliveredAfterStop ? ' delivery="after-stop"' : "";
+      const input = report.inputId ? ` input="${escapeAttribute(report.inputId)}"` : "";
       const work = report.workId ? ` work="${escapeAttribute(report.workId)}"` : "";
       const assignment = report.assignmentId ? ` assignment="${escapeAttribute(report.assignmentId)}"` : "";
       const status = report.status ? ` status="${escapeAttribute(report.status)}"` : "";
       const note = report.deliveredAfterStop
         ? "Delivery note: this report was queued before shutdown and delivered after the process stopped. It does not reopen the assignment.\n\n"
         : "";
-      return `<agent-message from="${escapeAttribute(name)}"${at}${delivery}${stopped}${late}${work}${assignment}${status}>\n${note}${body}\n</agent-message>`;
+      return `<agent-message from="${escapeAttribute(name)}"${at}${delivery}${stopped}${late}${input}${work}${assignment}${status}>\n${note}${body}\n</agent-message>`;
     })
     .join("\n\n");
 }

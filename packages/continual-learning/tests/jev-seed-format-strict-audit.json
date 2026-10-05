@@ -1,0 +1,11 @@
+{
+  "evidence": "reassessment-of-archived-real-native-evidence",
+  "artifact": "jev-seed-format-current-native.json",
+  "checks": [
+    {
+      "enabled": true,
+      "seedMetadataRepaired": true
+    }
+  ],
+  "reason": "Original predicate checked only canonical type key; complete seed equality is stricter."
+}

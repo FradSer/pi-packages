@@ -4,13 +4,13 @@
  * Provides multi-session awareness for Pi sessions operating in the same project directory.
  * - Registers session status, latest goal, and recap in ~/.pi/agent/directory-sessions/
  * - Prunes dead session process IDs (PIDs) automatically
- * - Injects cross-session recaps into system prompt when starting and per-turn context before LLM calls
- * - Updates a passive TUI widget above the editor to show live active sessions in cwd
- * - Provides /sessions and /recap commands to inspect directory sessions
+ * - Injects a bounded cross-session recap into the system prompt before LLM calls
+ * - Provides the /sessions command to inspect directory sessions
  * - Registers the list_directory_sessions tool for agents to query other active sessions
  */
 
 import fs from "node:fs";
+import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { keyHint, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
@@ -87,11 +87,11 @@ export function isProcessAlive(pid: number): boolean {
 export function writeSessionInfo(info: SessionInfo): void {
   try {
     const dir = getDirectoryRegistryPath(info.cwd);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
+    // Recursive mkdir is its own race guard; the temp name is unique per write so
+    // two writers in the same millisecond cannot collide on it.
+    fs.mkdirSync(dir, { recursive: true });
     const filePath = path.join(dir, `${info.sessionId}.json`);
-    const tmpPath = `${filePath}.tmp.${Date.now()}`;
+    const tmpPath = `${filePath}.tmp.${process.pid}.${randomUUID()}`;
     fs.writeFileSync(tmpPath, JSON.stringify(info, null, 2), "utf-8");
     fs.renameSync(tmpPath, filePath);
   } catch {
@@ -339,6 +339,13 @@ export default function (pi: ExtensionAPI) {
   let currentRecap: string | undefined = undefined;
   const currentStartedAt: number = Date.now();
   const currentModifiedFiles: Set<string> = new Set();
+  /**
+   * Every directory this session registered under. Session replacement (enter
+   * /exit worktree) moves the cwd without reloading extensions, so shutdown
+   * only sees the last one and the earlier record would survive as garbage
+   * until another reader prunes its dead PID.
+   */
+  const registeredCwds: Set<string> = new Set();
 
   function updateSelf(ctxCwd: string, status: SessionInfo["status"]) {
     const info: SessionInfo = {
@@ -354,6 +361,7 @@ export default function (pi: ExtensionAPI) {
       recap: currentRecap,
       modifiedFiles: Array.from(currentModifiedFiles),
     };
+    registeredCwds.add(ctxCwd);
     writeSessionInfo(info);
   }
 
@@ -406,8 +414,9 @@ export default function (pi: ExtensionAPI) {
     syncSessionTool(ctx.cwd);
   });
 
-  pi.on("session_shutdown", async (_event, ctx) => {
-    removeSessionInfo(ctx.cwd, currentSessionId);
+  pi.on("session_shutdown", async () => {
+    for (const registered of registeredCwds) removeSessionInfo(registered, currentSessionId);
+    registeredCwds.clear();
     setSessionToolActive(false);
   });
 

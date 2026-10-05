@@ -1,0 +1,16 @@
+[
+  {
+    "id": "click-r5-semantic-rejected-plan",
+    "snapshot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/click-on/memory/runs/--work-click--/run_muveeta5_100a1d8eab7fa8e8/snapshot.json",
+    "plan": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/click-on/memory/runs/--work-click--/run_muveeta5_100a1d8eab7fa8e8/semantic-rejected-plan.json",
+    "snapshotHash": "2c36d08a81e2a1d636388975e7a647d607cbe55fec9090595c17b2c41b2cddf4",
+    "planHash": "c115770b40bd2943344a3add692fa7655c991c3cf4ca64b206ecee7c3584c7be"
+  },
+  {
+    "id": "click-r5-semantic-repair-plan",
+    "snapshot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/click-on/memory/runs/--work-click--/run_muveeta5_100a1d8eab7fa8e8/snapshot.json",
+    "plan": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/click-on/memory/runs/--work-click--/run_muveeta5_100a1d8eab7fa8e8/semantic-repair-plan.json",
+    "snapshotHash": "2c36d08a81e2a1d636388975e7a647d607cbe55fec9090595c17b2c41b2cddf4",
+    "planHash": "2abfe81ae4a38345b2daa09413d23697caf633aa7f61330df4b94ffc9c471c34"
+  }
+]

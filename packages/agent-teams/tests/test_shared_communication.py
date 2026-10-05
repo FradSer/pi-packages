@@ -69,8 +69,8 @@ def test_message_registered_on_worker_and_allowed_in_universe():
     tools the loaded worker extensions declare, so this asserts the contribution
     rather than a hardcoded list."""
     script = """
-    import { registerWorkerCapabilities } from "./src/worker.ts";
-    import { unknownWorkerTools, workerToolUniverse, resolveWorkerTools } from "@fradser/pi-subagents";
+    import { registerChildCapabilities } from "./src/worker.ts";
+    import { unknownAgentTools, agentToolUniverse, resolveAgentTools } from "@fradser/pi-subagents";
     import { WORKER_CAPABILITY_TOOLS } from "./src/capability-tools.ts";
     
     const subscriptions = new Map();
@@ -84,23 +84,23 @@ def test_message_registered_on_worker_and_allowed_in_universe():
     };
 
     fakePi.on = (event, handler) => subscriptions.set(event, handler);
-    registerWorkerCapabilities(fakePi);
+    registerChildCapabilities(fakePi);
     
     const hasWorkerEvent = registeredTools.has("message");
-    const unknownWithEvent = unknownWorkerTools(["message", "read"], WORKER_CAPABILITY_TOOLS);
-    const resolvedTools = resolveWorkerTools([], WORKER_CAPABILITY_TOOLS);
+    const unknownWithEvent = unknownAgentTools(["message", "read"], WORKER_CAPABILITY_TOOLS);
+    const resolvedTools = resolveAgentTools([], WORKER_CAPABILITY_TOOLS);
     // Every declared capability tool must be something this extension registers,
     // otherwise a spawn advertises an id nothing implements.
     const declaredButUnregistered = WORKER_CAPABILITY_TOOLS.filter((name) => !registeredTools.has(name));
     // With no contributed capability set, nothing beyond pi built-ins is grantable.
-    const bareUnknown = unknownWorkerTools(["message", "read"], []);
+    const bareUnknown = unknownAgentTools(["message", "read"], []);
     
     console.log(JSON.stringify({
       hasWorkerEvent,
       lifecycleEvents: [...subscriptions.keys()],
       unknownWithEvent,
       hasInResolved: resolvedTools.includes("message"),
-      universeHasEvent: workerToolUniverse(WORKER_CAPABILITY_TOOLS).includes("message"),
+      universeHasEvent: agentToolUniverse(WORKER_CAPABILITY_TOOLS).includes("message"),
       declaredButUnregistered,
       bareUnknown
     }));

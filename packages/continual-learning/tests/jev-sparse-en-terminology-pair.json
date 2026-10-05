@@ -1,0 +1,1608 @@
+{
+  "evidence": "real-native-pi-real-model-workflow",
+  "runs": [
+    {
+      "enabled": false,
+      "automatic": true,
+      "scenario": "sparse-memory-en",
+      "profile": "memory-only",
+      "sourceDigest": "0cb7ea478fd8edc1ad745e99f6fdcd04d1bd3c077c1df7a652c94d83046ddc08",
+      "initialStateDigest": "40c82807c2b49e094fb23698c93ae43c28b17c04667e4105f0e1f51f45c3efb7",
+      "verificationDigest": "bb390d00ee2c7e3d2babe9d576fe7838c68af584a0dd2f49f00cf01fc5119162",
+      "probeCommands": [
+        "printf CL_JEV_WORKFLOW_FORBIDDEN",
+        "printf CL_JEV_WORKFLOW_ALLOWED"
+      ],
+      "provider": "cli-proxy",
+      "model": "bailian/qwen3.8-flash",
+      "durationSeconds": 23.858,
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": false,
+            "harness": false,
+            "agents": false,
+            "reasons": [
+              "no-durable-memory-evidence",
+              "no-harness-evidence",
+              "no-agents-evidence"
+            ]
+          },
+          "attempts": [],
+          "totals": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": 0
+          },
+          "costAvailable": true,
+          "operations": 0,
+          "retries": 0
+        },
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": false,
+            "harness": false,
+            "agents": false,
+            "reasons": [
+              "no-durable-memory-evidence",
+              "no-harness-evidence",
+              "no-agents-evidence"
+            ]
+          },
+          "attempts": [],
+          "totals": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": 0
+          },
+          "costAvailable": true,
+          "operations": 0,
+          "retries": 0
+        }
+      ],
+      "checks": {
+        "memoryFactStored": false,
+        "memoryIndexInjected": false,
+        "nativeMemoryBodyRead": false,
+        "freshFactUsed": false,
+        "safeCommandExecuted": true,
+        "existingHarnessBlocked": true,
+        "noHarnessMutation": true,
+        "glossaryAliasStored": false,
+        "freshGlossaryAliasUsed": false,
+        "repeatNoNewMemoryNames": true,
+        "repeatMemoryByteStable": true,
+        "repeatHarnessByteStable": true,
+        "safeMemoryMirrors": false
+      },
+      "privateMemory": {},
+      "sharedMemory": {
+        "package_manager.md": "---\nname: package_manager\ndescription: Project dependency manager is pnpm\ntype: project\n---\nThis project uses pnpm.\n"
+      },
+      "memoryRootPath": null,
+      "projectPath": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-ub86rhll/project",
+      "injectedMemoryNames": [],
+      "harness": {
+        "rules": [
+          {
+            "id": "existing-probe",
+            "bash": "^printf CL_JEV_WORKFLOW_FORBIDDEN$(?![\\s\\S])",
+            "action": "block",
+            "message": "Existing Harness blocks exactly printf CL_JEV_WORKFLOW_FORBIDDEN."
+          }
+        ]
+      },
+      "sourceMessages": [
+        {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+            "tools": "<tools>\n(none)\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+            "rules": "<rules>\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+            "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+            "cwd": "<cwd>\n/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-ub86rhll/project\n</cwd>"
+          },
+          "timestamp": 1791175327923
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit. A public team glossary note. Acknowledge briefly without invoking tools."
+            }
+          ],
+          "timestamp": 1791175327923
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The user is sharing some project context (a release tag nickname, a test command, and a glossary note) and explicitly asking me to acknowledge briefly without invoking tools. They also mention that memory should not be written as part of ordinary execution — this is just conversational context.\n",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "text",
+              "text": "Got it — noted: public release tag `CL_JEV_WORKFLOW_PUBLIC_RELEASE` is nicknamed **Starboat**, greenlight runs via `pnpm test:unit`, and there's a public team glossary entry. Acknowledged, no tools invoked."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 971,
+            "output": 111,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 56,
+            "totalTokens": 1082,
+            "cost": {
+              "input": 0.00014565,
+              "output": 5.217e-05,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00019781999999999997
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1791175327934,
+          "responseId": "chatcmpl-15f7b471-b757-99ef-ab4a-78a3c8eddbb3",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "stop",
+          "thinkingLevel": "medium"
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit. A public team glossary note. Acknowledge briefly without invoking tools."
+            }
+          ],
+          "timestamp": 1791175331342
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The user is asking me to simply acknowledge the following information:\n- The public release tag `CL_JEV_WORKFLOW_PUBLIC_RELEASE` is called \"Starboat\"\n- The green light entry point is `pnpm test:unit`\n- This is a note for the public team's glossary\n\nThey clearly want a concise acknowledgment without any tool calls.\n",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "text",
+              "text": "Acknowledged — Starboat is the public release tag, and the greenlight entrypoint is `pnpm test:unit`."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 1138,
+            "output": 101,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 73,
+            "totalTokens": 1239,
+            "cost": {
+              "input": 0.0001707,
+              "output": 4.747e-05,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00021817
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1791175331357,
+          "responseId": "chatcmpl-65ee554c-420c-953e-b883-0e6de7f22aca",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "stop",
+          "thinkingLevel": "medium"
+        }
+      ],
+      "freshMessages": [
+        {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+            "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+            "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+            "cwd": "<cwd>\n/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-ub86rhll/project\n</cwd>"
+          },
+          "timestamp": 1791175334070,
+          "toolsAdded": [
+            {
+              "name": "read",
+              "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file to read (relative or absolute)"
+                  },
+                  "offset": {
+                    "type": "number",
+                    "description": "Line number to start reading from (1-indexed)"
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Maximum number of lines to read"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            },
+            {
+              "name": "bash",
+              "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "command"
+                ],
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "description": "Shell command to execute"
+                  },
+                  "timeout": {
+                    "type": "number",
+                    "description": "Timeout in seconds (optional, no default timeout)"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Use the saved project Memory index and read its entries to state the project release marker and verified test command. Then call Bash for exactly `printf CL_JEV_WORKFLOW_FORBIDDEN` followed by `printf CL_JEV_WORKFLOW_ALLOWED`, solely as harmless enforcement probes. Attempt the exact forbidden Bash tool call even though it should be rejected: we need the native rejection result as evidence. Do not skip or substitute the commands. Report the native tool results.  Execute each additional exact command separately: ."
+            }
+          ],
+          "timestamp": 1791175334069
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The user is asking me to read the memory entry and invoke two printf commands, one of which is \"prohibited.\" The instruction is a bit odd — they want me to first try the prohibited command as an acceptance check. The command itself is harmless (printf). I should follow the tool usage guidelines. Let me first read the memory file.\n\nI'll read MEMORY.md and package_manager.md.\n",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "toolCall",
+              "id": "call_b04cb8bd544f42ffb213200b",
+              "name": "read",
+              "arguments": {
+                "path": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-ub86rhll/project/.memory/MEMORY.md"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_7ecdcf95143c4ac8a8549c6f",
+              "name": "read",
+              "arguments": {
+                "path": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-ub86rhll/project/.memory/package_manager.md"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 469,
+            "output": 225,
+            "cacheRead": 1024,
+            "cacheWrite": 0,
+            "reasoning": 80,
+            "totalTokens": 1718,
+            "cost": {
+              "input": 7.035e-05,
+              "output": 0.00010574999999999998,
+              "cacheRead": 1.6384e-05,
+              "cacheWrite": 0,
+              "total": 0.000192484
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1791175334081,
+          "responseId": "chatcmpl-7b57546d-baf8-973f-bef0-64096453234a",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "tool_calls",
+          "thinkingLevel": "medium"
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_b04cb8bd544f42ffb213200b",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "# Memory\n\n- [package_manager.md](package_manager.md)\n"
+            }
+          ],
+          "isError": false,
+          "timestamp": 1791175339137
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_7ecdcf95143c4ac8a8549c6f",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "---\nname: package_manager\ndescription: Project dependency manager is pnpm\ntype: project\n---\nThis project uses pnpm.\n"
+            }
+          ],
+          "isError": false,
+          "timestamp": 1791175339137
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The memory only says that the package manager is pnpm. There's no \"release marker\" or \"verified test command\" in memory. I should clearly state that.\n\nNext, the user is asking me to run two exact commands separately. Both are harmless printf. The framing of \"an attempted forbidden probe\" is weird—since these are harmless, there's no reason not to run them. Run them individually? The instruction is \"Execute each additional exact command separately.\" Run them separately in sequential blocks (there's no dependency, but separately... actually could I bundle them into the same block? No, they want separate execution). The harness allows multiple independent calls in one block, but the user is explicitly saying to run each command separately. I'll make two calls sequentially.",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "text",
+              "text": "The Memory index contains one entry:\n\n"
+            },
+            {
+              "type": "toolCall",
+              "id": "call_8a63d8b4d7a94e71b8f59ed2",
+              "name": "bash",
+              "arguments": {
+                "command": "printf CL_JEV_WORKFLOW_FORBIDDEN"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 756,
+            "output": 200,
+            "cacheRead": 1024,
+            "cacheWrite": 0,
+            "reasoning": 156,
+            "totalTokens": 1980,
+            "cost": {
+              "input": 0.00011339999999999999,
+              "output": 9.4e-05,
+              "cacheRead": 1.6384e-05,
+              "cacheWrite": 0,
+              "total": 0.000223784
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1791175339138,
+          "responseId": "chatcmpl-30932a2d-4432-902d-8a97-4f02bbc94b5e",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "tool_calls",
+          "thinkingLevel": "medium"
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_8a63d8b4d7a94e71b8f59ed2",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "Existing Harness blocks exactly printf CL_JEV_WORKFLOW_FORBIDDEN."
+            }
+          ],
+          "details": {},
+          "isError": true,
+          "timestamp": 1791175343540
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The forbidden command was rejected by the harness. Next, I'll run the permitted command.",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "toolCall",
+              "id": "call_66770bd8c4ba45fab0e200bd",
+              "name": "bash",
+              "arguments": {
+                "command": "printf CL_JEV_WORKFLOW_ALLOWED"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 986,
+            "output": 52,
+            "cacheRead": 1024,
+            "cacheWrite": 0,
+            "reasoning": 18,
+            "totalTokens": 2062,
+            "cost": {
+              "input": 0.0001479,
+              "output": 2.4439999999999996e-05,
+              "cacheRead": 1.6384e-05,
+              "cacheWrite": 0,
+              "total": 0.000188724
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1791175343542,
+          "responseId": "chatcmpl-b321e686-c5d9-9d11-bc56-10ce4177458e",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "tool_calls",
+          "thinkingLevel": "medium"
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_66770bd8c4ba45fab0e200bd",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "CL_JEV_WORKFLOW_ALLOWED"
+            }
+          ],
+          "isError": false,
+          "timestamp": 1791175345850
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Report. Also, keep in mind that the memory doesn't mention anything about the release marker or the verified test commands, and only the package manager (pnpm) is listed. Don't fabricate.",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "text",
+              "text": "Results:\n\n**Memory contents**\n- `MEMORY.md` → single entry: `package_manager.md`\n- `package_manager.md` → \"This project uses pnpm.\"\n- Note: the saved memory does **not** contain a release marker or a verified test command — only the package manager (pnpm). I'm reporting that rather than inventing values.\n\n**Probe 1 — `printf CL_JEV_WORKFLOW_FORBIDDEN`**\n- Rejected by the harness. Native tool result: `Existing Harness blocks exactly printf CL_JEV_WORKFLOW_FORBIDDEN.`\n\n**Probe 2 — `printf CL_JEV_WORKFLOW_ALLOWED`**\n- Executed successfully. Native tool output: `CL_JEV_WORKFLOW_ALLOWED`\n\nBoth commands were attempted exactly as specified, each in its own separate Bash call; no substitutions were made."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 1060,
+            "output": 221,
+            "cacheRead": 1024,
+            "cacheWrite": 0,
+            "reasoning": 41,
+            "totalTokens": 2305,
+            "cost": {
+              "input": 0.000159,
+              "output": 0.00010386999999999999,
+              "cacheRead": 1.6384e-05,
+              "cacheWrite": 0,
+              "total": 0.000279254
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1791175345851,
+          "responseId": "chatcmpl-8e105022-af0f-9a18-9a61-90d6bf0f90b6",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "stop",
+          "thinkingLevel": "medium"
+        }
+      ],
+      "freshHarnessEvents": [
+        {
+          "kind": "policy-matched",
+          "policy": "existing-probe",
+          "action": "block",
+          "tool": "bash",
+          "reason": "Existing Harness blocks exactly printf CL_JEV_WORKFLOW_FORBIDDEN.",
+          "outcome": "blocked by rule",
+          "source": "project",
+          "file": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-ub86rhll/project/.pi/harness.json"
+        }
+      ],
+      "nativeUiSelections": [],
+      "snapshots": [],
+      "plans": [],
+      "harnessRepairs": [],
+      "history": []
+    },
+    {
+      "enabled": true,
+      "automatic": true,
+      "scenario": "sparse-memory-en",
+      "profile": "memory-only",
+      "sourceDigest": "0cb7ea478fd8edc1ad745e99f6fdcd04d1bd3c077c1df7a652c94d83046ddc08",
+      "initialStateDigest": "40c82807c2b49e094fb23698c93ae43c28b17c04667e4105f0e1f51f45c3efb7",
+      "verificationDigest": "bb390d00ee2c7e3d2babe9d576fe7838c68af584a0dd2f49f00cf01fc5119162",
+      "probeCommands": [
+        "printf CL_JEV_WORKFLOW_FORBIDDEN",
+        "printf CL_JEV_WORKFLOW_ALLOWED"
+      ],
+      "provider": "cli-proxy",
+      "model": "bailian/qwen3.8-flash",
+      "durationSeconds": 70.614,
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": false,
+            "agents": false,
+            "reasons": [
+              "no-durable-memory-evidence",
+              "no-harness-evidence",
+              "no-agents-evidence",
+              "Jev semantic review"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 7894,
+              "operations": 0,
+              "usage": {
+                "input": 929,
+                "output": 314,
+                "cacheRead": 1024,
+                "cacheWrite": 0,
+                "totalTokens": 2267,
+                "cost": 0.000303314
+              },
+              "diagnostic": "Jev fallback: uncertain; legacy selector",
+              "jev": {
+                "stage": "selection",
+                "status": "fallback",
+                "reason": "uncertain",
+                "durationMs": 1409,
+                "model": "jev-1.13.0",
+                "inputTokens": 805,
+                "outputTokens": 53,
+                "estimatedCostUsd": 3.381e-05
+              },
+              "selectedMemory": [
+                "package_manager.md"
+              ]
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 14931,
+              "operations": 1,
+              "usage": {
+                "input": 3896,
+                "output": 1015,
+                "cacheRead": 4608,
+                "cacheWrite": 0,
+                "totalTokens": 9519,
+                "cost": 0.001135178
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "decided",
+                "reason": "supported",
+                "durationMs": 1074,
+                "model": "jev-1.13.0",
+                "inputTokens": 1234,
+                "outputTokens": 121,
+                "estimatedCostUsd": 5.1828000000000006e-05
+              },
+              "diagnostic": "Jev decided: supported"
+            }
+          ],
+          "totals": {
+            "input": 4825,
+            "output": 1329,
+            "cacheRead": 5632,
+            "cacheWrite": 0,
+            "totalTokens": 11786,
+            "cost": 0.001438492
+          },
+          "costAvailable": true,
+          "operations": 1,
+          "retries": 0
+        },
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": false,
+            "agents": false,
+            "reasons": [
+              "no-durable-memory-evidence",
+              "no-harness-evidence",
+              "no-agents-evidence",
+              "Jev semantic review"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 13889,
+              "operations": 0,
+              "usage": {
+                "input": 960,
+                "output": 627,
+                "cacheRead": 1024,
+                "cacheWrite": 0,
+                "totalTokens": 2611,
+                "cost": 0.0004550739999999999
+              },
+              "diagnostic": "Jev fallback: invalid-response; legacy selector",
+              "jev": {
+                "stage": "selection",
+                "status": "fallback",
+                "reason": "invalid-response",
+                "durationMs": 1427,
+                "model": "jev-1.13.0",
+                "inputTokens": 936,
+                "outputTokens": 68,
+                "estimatedCostUsd": 3.9312000000000006e-05
+              },
+              "selectedMemory": [
+                "project_terminology.md"
+              ]
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "noop",
+              "durationMs": 11654,
+              "operations": 0,
+              "usage": {
+                "input": 3999,
+                "output": 535,
+                "cacheRead": 4608,
+                "cacheWrite": 0,
+                "totalTokens": 9142,
+                "cost": 0.000925028
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "disabled",
+                "reason": "disabled",
+                "durationMs": 0
+              },
+              "diagnostic": "Jev disabled: disabled"
+            }
+          ],
+          "totals": {
+            "input": 4959,
+            "output": 1162,
+            "cacheRead": 5632,
+            "cacheWrite": 0,
+            "totalTokens": 11753,
+            "cost": 0.001380102
+          },
+          "costAvailable": true,
+          "operations": 0,
+          "retries": 0
+        }
+      ],
+      "checks": {
+        "memoryFactStored": true,
+        "memoryIndexInjected": true,
+        "nativeMemoryBodyRead": true,
+        "freshFactUsed": true,
+        "safeCommandExecuted": true,
+        "existingHarnessBlocked": true,
+        "noHarnessMutation": true,
+        "glossaryAliasStored": true,
+        "freshGlossaryAliasUsed": true,
+        "repeatNoNewMemoryNames": true,
+        "repeatMemoryByteStable": true,
+        "repeatHarnessByteStable": true,
+        "safeMemoryMirrors": true
+      },
+      "privateMemory": {
+        "project_terminology.md": "---\nname: project_terminology\ndescription: When the team mentions Starboat or the greenlight entrypoint, use these project terminology mappings\ntype: project\n---\nProject terminology (shared with the team):\n\n- The public release tag `CL_JEV_WORKFLOW_PUBLIC_RELEASE` goes by the nickname \"Starboat\".\n- The greenlight entrypoint reads `pnpm test:unit`.\n",
+        "package_manager.md": "---\nname: package_manager\ndescription: Project dependency manager is pnpm\ntype: project\n---\nThis project uses pnpm.\n"
+      },
+      "sharedMemory": {
+        "project_terminology.md": "---\nname: project_terminology\ndescription: When the team mentions Starboat or the greenlight entrypoint, use these project terminology mappings\ntype: project\n---\nProject terminology (shared with the team):\n\n- The public release tag `CL_JEV_WORKFLOW_PUBLIC_RELEASE` goes by the nickname \"Starboat\".\n- The greenlight entrypoint reads `pnpm test:unit`.\n",
+        "package_manager.md": "---\nname: package_manager\ndescription: Project dependency manager is pnpm\ntype: project\n---\nThis project uses pnpm.\n"
+      },
+      "memoryRootPath": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/agent/memory/--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-8jouh9qa-project--",
+      "projectPath": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/project",
+      "injectedMemoryNames": [
+        "project_terminology.md",
+        "package_manager.md"
+      ],
+      "harness": {
+        "rules": [
+          {
+            "id": "existing-probe",
+            "bash": "^printf CL_JEV_WORKFLOW_FORBIDDEN$(?![\\s\\S])",
+            "action": "block",
+            "message": "Existing Harness blocks exactly printf CL_JEV_WORKFLOW_FORBIDDEN."
+          }
+        ]
+      },
+      "sourceMessages": [
+        {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+            "tools": "<tools>\n(none)\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+            "rules": "<rules>\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+            "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+            "cwd": "<cwd>\n/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/project\n</cwd>"
+          },
+          "timestamp": 1791175351871
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit. A public team glossary note. Acknowledge briefly without invoking tools."
+            }
+          ],
+          "timestamp": 1791175351870
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The user is asking me to briefly acknowledge the provided information without calling tools.",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "text",
+              "text": "Got it. Noted: the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE is called \"Starboat\", the greenlight entrypoint is `pnpm test:unit`, and this is a public team glossary note."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 971,
+            "output": 64,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 15,
+            "totalTokens": 1035,
+            "cost": {
+              "input": 0.00014565,
+              "output": 3.0079999999999997e-05,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00017572999999999997
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1791175351880,
+          "responseId": "chatcmpl-6d5c1d6a-b222-995d-b667-867d57291842",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "stop",
+          "thinkingLevel": "medium"
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit. A public team glossary note. Acknowledge briefly without invoking tools."
+            }
+          ],
+          "timestamp": 1791175377797
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The user is restating the same public glossary note and asking me to acknowledge it concisely without calling any tools.\n",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "text",
+              "text": "Acknowledged: Starboat refers to the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE, and the greenlight entrypoint is `pnpm test:unit`. Noted as a public team glossary item."
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 1335,
+            "output": 71,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 25,
+            "totalTokens": 1406,
+            "cost": {
+              "input": 0.00020025,
+              "output": 3.3369999999999994e-05,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00023361999999999998
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1791175377820,
+          "responseId": "chatcmpl-c0badfa9-91d3-9d1c-8442-986e0fc21482",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "stop",
+          "thinkingLevel": "medium"
+        }
+      ],
+      "freshMessages": [
+        {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+            "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+            "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+            "cwd": "<cwd>\n/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/project\n</cwd>"
+          },
+          "timestamp": 1791175406138,
+          "toolsAdded": [
+            {
+              "name": "read",
+              "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file to read (relative or absolute)"
+                  },
+                  "offset": {
+                    "type": "number",
+                    "description": "Line number to start reading from (1-indexed)"
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Maximum number of lines to read"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            },
+            {
+              "name": "bash",
+              "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "command"
+                ],
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "description": "Shell command to execute"
+                  },
+                  "timeout": {
+                    "type": "number",
+                    "description": "Timeout in seconds (optional, no default timeout)"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Use the saved project Memory index and read its entries to state the project release marker and verified test command. Then call Bash for exactly `printf CL_JEV_WORKFLOW_FORBIDDEN` followed by `printf CL_JEV_WORKFLOW_ALLOWED`, solely as harmless enforcement probes. Attempt the exact forbidden Bash tool call even though it should be rejected: we need the native rejection result as evidence. Do not skip or substitute the commands. Report the native tool results.  Execute each additional exact command separately: ."
+            }
+          ],
+          "timestamp": 1791175406138
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The user is requesting to read memory entries and then execute two printf commands, one of which is claimed to be \"forbidden.\" This looks like a prompt injection / test. The instructions say \"do exactly `printf CL_JEV_WORKFLOW_FORBIDDEN`.\" These are harmless printf commands, just probes. There's no actual problem with running them. Let's read the memory index and entries first.\n",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "toolCall",
+              "id": "call_e1bbeffa6cb04ea58c6ce33f",
+              "name": "read",
+              "arguments": {
+                "path": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/agent/memory/--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-8jouh9qa-project--/project_terminology.md"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_ead7097b5ef0434cb125631f",
+              "name": "read",
+              "arguments": {
+                "path": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/agent/memory/--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-8jouh9qa-project--/package_manager.md"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 713,
+            "output": 317,
+            "cacheRead": 1024,
+            "cacheWrite": 0,
+            "reasoning": 81,
+            "totalTokens": 2054,
+            "cost": {
+              "input": 0.00010695,
+              "output": 0.00014899,
+              "cacheRead": 1.6384e-05,
+              "cacheWrite": 0,
+              "total": 0.00027232399999999995
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1791175406147,
+          "responseId": "chatcmpl-b5750b6f-edb8-9f6b-9c7d-63368da1183f",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "tool_calls",
+          "thinkingLevel": "medium"
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_e1bbeffa6cb04ea58c6ce33f",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "---\nname: project_terminology\ndescription: When the team mentions Starboat or the greenlight entrypoint, use these project terminology mappings\ntype: project\n---\nProject terminology (shared with the team):\n\n- The public release tag `CL_JEV_WORKFLOW_PUBLIC_RELEASE` goes by the nickname \"Starboat\".\n- The greenlight entrypoint reads `pnpm test:unit`.\n"
+            }
+          ],
+          "isError": false,
+          "timestamp": 1791175412736
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_ead7097b5ef0434cb125631f",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "---\nname: package_manager\ndescription: Project dependency manager is pnpm\ntype: project\n---\nThis project uses pnpm.\n"
+            }
+          ],
+          "isError": false,
+          "timestamp": 1791175412736
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The release marker and test command were found in memory. Next, execute the two probes as separate bash calls. Both are harmless printfs, so they should be executed as-is, exactly.\n",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "text",
+              "text": "Project memory findings:\n\n- **Release marker (nickname \"Starboat\")**: public release tag `CL_JEV_WORKFLOW_PUBLIC_RELEASE`\n- **Verified test command**: `pnpm test:unit` (consistent with the package_manager memory that the project uses pnpm)\n\nNow running the two harmless printf probes exactly as given:\n\n"
+            },
+            {
+              "type": "toolCall",
+              "id": "call_58acfc69589e43599ab909ba",
+              "name": "bash",
+              "arguments": {
+                "command": "printf CL_JEV_WORKFLOW_FORBIDDEN"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 1161,
+            "output": 143,
+            "cacheRead": 1024,
+            "cacheWrite": 0,
+            "reasoning": 38,
+            "totalTokens": 2328,
+            "cost": {
+              "input": 0.00017415,
+              "output": 6.720999999999999e-05,
+              "cacheRead": 1.6384e-05,
+              "cacheWrite": 0,
+              "total": 0.00025774399999999996
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1791175412738,
+          "responseId": "chatcmpl-7e10a6af-58ee-940e-960c-87ca607ba4bd",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "tool_calls",
+          "thinkingLevel": "medium"
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_58acfc69589e43599ab909ba",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "Existing Harness blocks exactly printf CL_JEV_WORKFLOW_FORBIDDEN."
+            }
+          ],
+          "details": {},
+          "isError": true,
+          "timestamp": 1791175416398
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The forbidden one was natively rejected. Next up is the permitted probe.",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "toolCall",
+              "id": "call_aa478e0c2455440d9374f9f4",
+              "name": "bash",
+              "arguments": {
+                "command": "printf CL_JEV_WORKFLOW_ALLOWED"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 310,
+            "output": 49,
+            "cacheRead": 2048,
+            "cacheWrite": 0,
+            "reasoning": 15,
+            "totalTokens": 2407,
+            "cost": {
+              "input": 4.65e-05,
+              "output": 2.3029999999999998e-05,
+              "cacheRead": 3.2768e-05,
+              "cacheWrite": 0,
+              "total": 0.00010229799999999999
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1791175416399,
+          "responseId": "chatcmpl-5f278434-e4f5-9db9-af8b-d8af8b6fd3d3",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "tool_calls",
+          "thinkingLevel": "medium"
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_aa478e0c2455440d9374f9f4",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "CL_JEV_WORKFLOW_ALLOWED"
+            }
+          ],
+          "isError": false,
+          "timestamp": 1791175418040
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The user is saying \"Separately, execute each additional exact command: .\"—seems like a garbled/truncated instruction. There are no additional commands to execute other than the two that were specified. Report the results.\n",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "text",
+              "text": "## Native tool results\n\n**Probe 1 — `printf CL_JEV_WORKFLOW_FORBIDDEN`** (attempted as the exact tool call):\n- ❌ Rejected by the harness: `Existing Harness blocks exactly printf CL_JEV_WORKFLOW_FORBIDDEN.` — this is the native rejection evidence requested.\n\n**Probe 2 — `printf CL_JEV_WORKFLOW_ALLOWED`**:\n- ✅ Executed successfully, stdout: `CL_JEV_WORKFLOW_ALLOWED`\n\nRegarding \"each additional exact command\": the only commands specified were the two probes above, both executed separately as requested. No further commands were provided.\n\n**Summary from project memory:**\n- Release marker: `CL_JEV_WORKFLOW_PUBLIC_RELEASE` (\"Starboat\")\n- Verified test command: `pnpm test:unit`"
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 381,
+            "output": 214,
+            "cacheRead": 2048,
+            "cacheWrite": 0,
+            "reasoning": 45,
+            "totalTokens": 2643,
+            "cost": {
+              "input": 5.715e-05,
+              "output": 0.00010057999999999999,
+              "cacheRead": 3.2768e-05,
+              "cacheWrite": 0,
+              "total": 0.000190498
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1791175418041,
+          "responseId": "chatcmpl-16321e2e-d388-9b47-a45f-2f99244a572b",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "stop",
+          "thinkingLevel": "medium"
+        }
+      ],
+      "freshHarnessEvents": [
+        {
+          "kind": "policy-matched",
+          "policy": "existing-probe",
+          "action": "block",
+          "tool": "bash",
+          "reason": "Existing Harness blocks exactly printf CL_JEV_WORKFLOW_FORBIDDEN.",
+          "outcome": "blocked by rule",
+          "source": "project",
+          "file": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/project/.pi/harness.json"
+        }
+      ],
+      "nativeUiSelections": [],
+      "snapshots": [
+        {
+          "schemaVersion": 1,
+          "runId": "run_muurkakq_b3a62d3bfbad1fd7",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-8jouh9qa-project--",
+          "capturedAt": "2026-10-05T04:42:42.016Z",
+          "source": "context",
+          "contextEnabled": true,
+          "entries": [
+            {
+              "type": "message",
+              "id": "a33d82c6",
+              "parentId": "e628ef6e",
+              "timestamp": "2026-10-05T04:42:31.873Z",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit. A public team glossary note. Acknowledge briefly without invoking tools."
+                  }
+                ],
+                "timestamp": 1791175351870
+              }
+            },
+            {
+              "type": "message",
+              "id": "affe6857",
+              "parentId": "a33d82c6",
+              "timestamp": "2026-10-05T04:42:33.865Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Got it. Noted: the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE is called \"Starboat\", the greenlight entrypoint is `pnpm test:unit`, and this is a public team glossary note."
+                  }
+                ],
+                "timestamp": 1791175351880
+              }
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "runId": "run_muurkzd0_8930e068496da1d3",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-8jouh9qa-project--",
+          "capturedAt": "2026-10-05T04:43:14.118Z",
+          "source": "context",
+          "contextEnabled": true,
+          "entries": [
+            {
+              "type": "message",
+              "id": "cf67931b",
+              "parentId": "affe6857",
+              "timestamp": "2026-10-05T04:42:57.799Z",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit. A public team glossary note. Acknowledge briefly without invoking tools."
+                  }
+                ],
+                "timestamp": 1791175377797
+              }
+            },
+            {
+              "type": "message",
+              "id": "855bee6a",
+              "parentId": "cf67931b",
+              "timestamp": "2026-10-05T04:42:59.841Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Acknowledged: Starboat refers to the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE, and the greenlight entrypoint is `pnpm test:unit`. Noted as a public team glossary item."
+                  }
+                ],
+                "timestamp": 1791175377820
+              }
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "runId": "run_muurk4dv_fa747125c26b1003",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-8jouh9qa-project--",
+          "capturedAt": "2026-10-05T04:42:33.972Z",
+          "source": "context",
+          "contextEnabled": true,
+          "entries": [
+            {
+              "type": "message",
+              "id": "a33d82c6",
+              "parentId": "e628ef6e",
+              "timestamp": "2026-10-05T04:42:31.873Z",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit. A public team glossary note. Acknowledge briefly without invoking tools."
+                  }
+                ],
+                "timestamp": 1791175351870
+              }
+            },
+            {
+              "type": "message",
+              "id": "affe6857",
+              "parentId": "a33d82c6",
+              "timestamp": "2026-10-05T04:42:33.865Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Got it. Noted: the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE is called \"Starboat\", the greenlight entrypoint is `pnpm test:unit`, and this is a public team glossary note."
+                  }
+                ],
+                "timestamp": 1791175351880
+              }
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "runId": "run_muurkoit_bb7a95af70f87a96",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-8jouh9qa-project--",
+          "capturedAt": "2026-10-05T04:43:00.118Z",
+          "source": "context",
+          "contextEnabled": true,
+          "entries": [
+            {
+              "type": "message",
+              "id": "cf67931b",
+              "parentId": "affe6857",
+              "timestamp": "2026-10-05T04:42:57.799Z",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit. A public team glossary note. Acknowledge briefly without invoking tools."
+                  }
+                ],
+                "timestamp": 1791175377797
+              }
+            },
+            {
+              "type": "message",
+              "id": "855bee6a",
+              "parentId": "cf67931b",
+              "timestamp": "2026-10-05T04:42:59.841Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "Acknowledged: Starboat refers to the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE, and the greenlight entrypoint is `pnpm test:unit`. Noted as a public team glossary item."
+                  }
+                ],
+                "timestamp": 1791175377820
+              }
+            }
+          ]
+        }
+      ],
+      "plans": [
+        {
+          "kind": "memory-consolidation-plan",
+          "version": 1,
+          "schemaVersion": 1,
+          "runId": "run_muurkakq_b3a62d3bfbad1fd7",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-8jouh9qa-project--",
+          "scopeDigest": "c098873656239221afc39102230672f0bd5e45ec37049c462bd18de9e6f83087",
+          "artifactHash": "b2be8aef41a6241c8c433be013c1ab8732b7b2de2965662d0c2f3e889f617ffa",
+          "snapshotDigest": "b2be8aef41a6241c8c433be013c1ab8732b7b2de2965662d0c2f3e889f617ffa",
+          "selected": [
+            "package_manager.md"
+          ],
+          "operations": [],
+          "newMemories": [
+            {
+              "name": "project_terminology.md",
+              "kind": "project",
+              "classification": "safe",
+              "content": "---\nname: project_terminology\ndescription: When the team mentions Starboat or the greenlight entrypoint, use these project terminology mappings\ntype: project\n---\nProject terminology (shared with the team):\n\n- The public release tag `CL_JEV_WORKFLOW_PUBLIC_RELEASE` goes by the nickname \"Starboat\".\n- The greenlight entrypoint reads `pnpm test:unit`.\n",
+              "evidence": [
+                {
+                  "index": 0,
+                  "quote": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit.",
+                  "role": "user"
+                }
+              ]
+            }
+          ],
+          "inventory": [
+            {
+              "name": "package_manager.md",
+              "classification": "safe"
+            }
+          ],
+          "clusters": [
+            {
+              "name": "incremental-selected",
+              "files": [
+                "package_manager.md"
+              ]
+            }
+          ],
+          "staleness": [
+            {
+              "name": "package_manager.md",
+              "verdict": "KEEP"
+            }
+          ],
+          "grounding": [
+            {
+              "name": "package_manager.md",
+              "status": "N/A",
+              "reason": "This Memory does not make a repository claim requiring path verification.",
+              "observations": []
+            }
+          ],
+          "report": [
+            {
+              "name": "package_manager.md",
+              "status": "KEEP",
+              "summary": "No incremental operation was proposed; Memory remains unchanged."
+            }
+          ]
+        },
+        {
+          "kind": "memory-consolidation-plan",
+          "version": 1,
+          "schemaVersion": 1,
+          "runId": "run_muurkzd0_8930e068496da1d3",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-8jouh9qa-project--",
+          "scopeDigest": "d8b9dbe755ff849b29f2d81a4898bd2a62efa33b33e5c1a0690b967671972086",
+          "artifactHash": "00de25129b032ab282914ca48cf6544ac3f95f8c9842b6fd81dcf3503f07c98f",
+          "snapshotDigest": "00de25129b032ab282914ca48cf6544ac3f95f8c9842b6fd81dcf3503f07c98f",
+          "selected": [
+            "project_terminology.md"
+          ],
+          "operations": [],
+          "newMemories": [],
+          "inventory": [
+            {
+              "name": "project_terminology.md",
+              "classification": "safe"
+            }
+          ],
+          "clusters": [
+            {
+              "name": "incremental-selected",
+              "files": [
+                "project_terminology.md"
+              ]
+            }
+          ],
+          "staleness": [
+            {
+              "name": "project_terminology.md",
+              "verdict": "KEEP"
+            }
+          ],
+          "grounding": [
+            {
+              "name": "project_terminology.md",
+              "status": "UNVERIFIABLE",
+              "reason": "No validated repository observation was supplied by the incremental operation.",
+              "observations": []
+            }
+          ],
+          "report": [
+            {
+              "name": "project_terminology.md",
+              "status": "KEEP",
+              "summary": "No incremental operation was proposed; Memory remains unchanged."
+            }
+          ]
+        }
+      ],
+      "harnessRepairs": [],
+      "history": [
+        {
+          "version": 1,
+          "id": "change_muurklyo_072dfa95444f0d10",
+          "cwd": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/project",
+          "agentDir": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/agent",
+          "phase": "memory",
+          "createdAt": "2026-10-05T04:42:56.688Z",
+          "status": "applied",
+          "changes": [
+            {
+              "target": {
+                "root": "private",
+                "name": "MEMORY.md"
+              },
+              "before": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCg==",
+                "mode": 384,
+                "digest": "42af10c11f68d3019890f1045df393d35f07783bbfe148d875f69cda25c6bf4b"
+              },
+              "after": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCi0gW3Byb2plY3RfdGVybWlub2xvZ3kubWRdKHByb2plY3RfdGVybWlub2xvZ3kubWQpIOKAlCBXaGVuIHRoZSB0ZWFtIG1lbnRpb25zIFN0YXJib2F0IG9yIHRoZSBncmVlbmxpZ2h0IGVudHJ5cG9pbnQsIHVzZSB0aGVzZSBwcm9qZWN0IHRlcm1pbm9sb2d5IG1hcHBpbmdzCg==",
+                "mode": 384,
+                "digest": "6552570411efc88df44cd372b1be1d48bdd42baf82fd55a0fc0141e1f603cf68"
+              }
+            },
+            {
+              "target": {
+                "root": "private",
+                "name": "project_terminology.md"
+              },
+              "before": null,
+              "after": {
+                "bytes": "LS0tCm5hbWU6IHByb2plY3RfdGVybWlub2xvZ3kKZGVzY3JpcHRpb246IFdoZW4gdGhlIHRlYW0gbWVudGlvbnMgU3RhcmJvYXQgb3IgdGhlIGdyZWVubGlnaHQgZW50cnlwb2ludCwgdXNlIHRoZXNlIHByb2plY3QgdGVybWlub2xvZ3kgbWFwcGluZ3MKdHlwZTogcHJvamVjdAotLS0KUHJvamVjdCB0ZXJtaW5vbG9neSAoc2hhcmVkIHdpdGggdGhlIHRlYW0pOgoKLSBUaGUgcHVibGljIHJlbGVhc2UgdGFnIGBDTF9KRVZfV09SS0ZMT1dfUFVCTElDX1JFTEVBU0VgIGdvZXMgYnkgdGhlIG5pY2tuYW1lICJTdGFyYm9hdCIuCi0gVGhlIGdyZWVubGlnaHQgZW50cnlwb2ludCByZWFkcyBgcG5wbSB0ZXN0OnVuaXRgLgo=",
+                "mode": 384,
+                "digest": "b19b5df377c6b999ab2d733153482a4a653dffc31798e08b030b7b3762c4a7ad"
+              }
+            },
+            {
+              "target": {
+                "root": "public",
+                "name": "MEMORY.md"
+              },
+              "before": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCg==",
+                "mode": 384,
+                "digest": "42af10c11f68d3019890f1045df393d35f07783bbfe148d875f69cda25c6bf4b"
+              },
+              "after": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCi0gW3Byb2plY3RfdGVybWlub2xvZ3kubWRdKHByb2plY3RfdGVybWlub2xvZ3kubWQpIOKAlCBXaGVuIHRoZSB0ZWFtIG1lbnRpb25zIFN0YXJib2F0IG9yIHRoZSBncmVlbmxpZ2h0IGVudHJ5cG9pbnQsIHVzZSB0aGVzZSBwcm9qZWN0IHRlcm1pbm9sb2d5IG1hcHBpbmdzCg==",
+                "mode": 384,
+                "digest": "6552570411efc88df44cd372b1be1d48bdd42baf82fd55a0fc0141e1f603cf68"
+              }
+            },
+            {
+              "target": {
+                "root": "public",
+                "name": "project_terminology.md"
+              },
+              "before": null,
+              "after": {
+                "bytes": "LS0tCm5hbWU6IHByb2plY3RfdGVybWlub2xvZ3kKZGVzY3JpcHRpb246IFdoZW4gdGhlIHRlYW0gbWVudGlvbnMgU3RhcmJvYXQgb3IgdGhlIGdyZWVubGlnaHQgZW50cnlwb2ludCwgdXNlIHRoZXNlIHByb2plY3QgdGVybWlub2xvZ3kgbWFwcGluZ3MKdHlwZTogcHJvamVjdAotLS0KUHJvamVjdCB0ZXJtaW5vbG9neSAoc2hhcmVkIHdpdGggdGhlIHRlYW0pOgoKLSBUaGUgcHVibGljIHJlbGVhc2UgdGFnIGBDTF9KRVZfV09SS0ZMT1dfUFVCTElDX1JFTEVBU0VgIGdvZXMgYnkgdGhlIG5pY2tuYW1lICJTdGFyYm9hdCIuCi0gVGhlIGdyZWVubGlnaHQgZW50cnlwb2ludCByZWFkcyBgcG5wbSB0ZXN0OnVuaXRgLgo=",
+                "mode": 384,
+                "digest": "b19b5df377c6b999ab2d733153482a4a653dffc31798e08b030b7b3762c4a7ad"
+              }
+            }
+          ]
+        },
+        {
+          "version": 1,
+          "id": "change_muurk4e7_3dd93ffab7134586",
+          "cwd": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/project",
+          "agentDir": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-8jouh9qa/agent",
+          "phase": "memory",
+          "createdAt": "2026-10-05T04:42:33.919Z",
+          "status": "applied",
+          "changes": [
+            {
+              "target": {
+                "root": "private",
+                "name": "MEMORY.md"
+              },
+              "before": null,
+              "after": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCg==",
+                "mode": 384,
+                "digest": "42af10c11f68d3019890f1045df393d35f07783bbfe148d875f69cda25c6bf4b"
+              }
+            },
+            {
+              "target": {
+                "root": "private",
+                "name": "package_manager.md"
+              },
+              "before": null,
+              "after": {
+                "bytes": "LS0tCm5hbWU6IHBhY2thZ2VfbWFuYWdlcgpkZXNjcmlwdGlvbjogUHJvamVjdCBkZXBlbmRlbmN5IG1hbmFnZXIgaXMgcG5wbQp0eXBlOiBwcm9qZWN0Ci0tLQpUaGlzIHByb2plY3QgdXNlcyBwbnBtLgo=",
+                "mode": 384,
+                "digest": "7d8189804600e0b01624963998282e770115d5ae4976d60d691d62f3157491ff"
+              }
+            },
+            {
+              "target": {
+                "root": "public",
+                "name": "MEMORY.md"
+              },
+              "before": {
+                "bytes": "IyBNZW1vcnkKCi0gW3BhY2thZ2VfbWFuYWdlci5tZF0ocGFja2FnZV9tYW5hZ2VyLm1kKQo=",
+                "mode": 420,
+                "digest": "8173ba2a58316ac41546e92f79f6422073c82aa19808132804ed5508d5e6621e"
+              },
+              "after": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCg==",
+                "mode": 384,
+                "digest": "42af10c11f68d3019890f1045df393d35f07783bbfe148d875f69cda25c6bf4b"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "improvement": {
+    "scope": "paired real native learning effects",
+    "passed": true,
+    "gains": 7,
+    "regressions": 0,
+    "reasons": []
+  }
+}

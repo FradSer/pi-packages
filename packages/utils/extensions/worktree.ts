@@ -2,13 +2,25 @@
  * pi-utils-fradser — git worktree path redirect.
  *
  * Intercepts simple `git worktree add` bash tool calls and rewrites the target
- * path to live inside `.pi/worktrees/<name>`. Commands with shell constructs
- * or options outside Git's documented worktree-add syntax are left unchanged.
+ * path to live inside the repository's `.pi/worktrees/<name>`. The bash tool
+ * runs in the session cwd, so a command issued from a subdirectory is rewritten
+ * to an absolute repository-root path; only a command already running at the
+ * repository root keeps the short relative spelling. Commands with shell
+ * constructs or options outside Git's documented worktree-add syntax are left
+ * unchanged.
  */
 
+import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { notifyPi } from "@fradser/pi-kit";
+import {
+	canonicalize,
+	isManagedWorktreesIgnored,
+	MANAGED_WORKTREES_DIR,
+	MANAGED_WORKTREES_SHELL_PATH,
+	repositoryRootFor,
+} from "./git/worktrees.ts";
 
 interface ShellToken {
 	end: number;
@@ -132,19 +144,18 @@ function tokenizeSimpleShell(command: string): ShellToken[] | null {
 	return tokens;
 }
 
-function isAlreadyRedirected(path: string): boolean {
+function isAlreadyRedirected(candidate: string): boolean {
+	const normalized = candidate.replace(/\\/g, "/").replace(/\/+$/, "");
 	return (
-		path === ".pi/worktrees" ||
-		path.startsWith(".pi/worktrees/") ||
-		path === "./.pi/worktrees" ||
-		path.startsWith("./.pi/worktrees/") ||
-		path.endsWith("/.pi/worktrees") ||
-		path.includes("/.pi/worktrees/")
+		normalized === MANAGED_WORKTREES_SHELL_PATH ||
+		normalized.startsWith(`${MANAGED_WORKTREES_SHELL_PATH}/`) ||
+		normalized.endsWith(`/${MANAGED_WORKTREES_SHELL_PATH}`) ||
+		normalized.includes(`/${MANAGED_WORKTREES_SHELL_PATH}/`)
 	);
 }
 
-function worktreeName(path: string): string | null {
-	const name = path.split("/").filter(Boolean).at(-1);
+function worktreeName(candidate: string): string | null {
+	const name = candidate.split("/").filter(Boolean).at(-1);
 	return name && name !== "." && name !== ".." ? name : null;
 }
 
@@ -154,12 +165,24 @@ function shellQuote(value: string): string {
 		: `'${value.replace(/'/g, `'"'"'`)}'`;
 }
 
+export interface WorktreeRedirectOptions {
+	/**
+	 * Directory the bash tool runs in. When it is not the repository root, the
+	 * rewritten path is anchored to the absolute repository root so the
+	 * worktree still lands in the one managed directory.
+	 */
+	cwd?: string;
+}
+
 /**
  * Rewrites a simple `git worktree add` command. The implementation only
  * understands the options shown by `git worktree add -h`; all other command
  * forms are deliberately returned unchanged.
  */
-export function rewriteWorktreeAddCommand(command: string): string {
+export function rewriteWorktreeAddCommand(
+	command: string,
+	options: WorktreeRedirectOptions = {},
+): string {
 	const tokens = tokenizeSimpleShell(command);
 	if (!tokens || tokens.length < 4) return command;
 	if (
@@ -172,7 +195,7 @@ export function rewriteWorktreeAddCommand(command: string): string {
 
 	if (tokens.some((token) => token.hasUnsafeExpansion)) return command;
 
-	let path: ShellToken | undefined;
+	let pathToken: ShellToken | undefined;
 	let commitIsh: ShellToken | undefined;
 	let optionsEnded = false;
 
@@ -180,7 +203,7 @@ export function rewriteWorktreeAddCommand(command: string): string {
 		const token = tokens[index];
 		if (!token) return command;
 
-		if (!path && !optionsEnded) {
+		if (!pathToken && !optionsEnded) {
 			if (token.value === "--") {
 				optionsEnded = true;
 				continue;
@@ -208,8 +231,8 @@ export function rewriteWorktreeAddCommand(command: string): string {
 			if (token.value.startsWith("-")) return command;
 		}
 
-		if (!path) {
-			path = token;
+		if (!pathToken) {
+			pathToken = token;
 			continue;
 		}
 		if (!commitIsh) {
@@ -219,15 +242,27 @@ export function rewriteWorktreeAddCommand(command: string): string {
 		return command;
 	}
 
-	if (!path || path.hasUnsafeExpansion || path.raw.startsWith("~"))
+	if (!pathToken || pathToken.hasUnsafeExpansion || pathToken.raw.startsWith("~"))
 		return command;
-	if (isAlreadyRedirected(path.value)) return command;
+	if (isAlreadyRedirected(pathToken.value)) return command;
 
-	const name = worktreeName(path.value);
+	const name = worktreeName(pathToken.value);
 	if (!name) return command;
 
-	const targetPath = shellQuote(`.pi/worktrees/${name}`);
-	return `mkdir -p .pi/worktrees && ${command.slice(0, path.start)}${targetPath}${command.slice(path.end)}`;
+	// The managed directory belongs to the repository, not to wherever the
+	// command happened to run. Only a command already at the repository root
+	// can keep the short relative spelling.
+	const root = options.cwd ? repositoryRootFor(options.cwd) : null;
+	const atRepositoryRoot =
+		root !== null && options.cwd !== undefined && canonicalize(options.cwd) === canonicalize(root);
+	const directory = atRepositoryRoot
+		? MANAGED_WORKTREES_SHELL_PATH
+		: root
+			? path.join(root, MANAGED_WORKTREES_DIR)
+			: MANAGED_WORKTREES_SHELL_PATH;
+
+	const targetPath = shellQuote(path.posix.join(directory, name));
+	return `mkdir -p ${shellQuote(directory)} && ${command.slice(0, pathToken.start)}${targetPath}${command.slice(pathToken.end)}`;
 }
 
 export default function (pi: ExtensionAPI) {
@@ -235,14 +270,23 @@ export default function (pi: ExtensionAPI) {
 		if (!isToolCallEventType("bash", event)) return;
 
 		const command = event.input.command || "";
-		const rewritten = rewriteWorktreeAddCommand(command);
+		const rewritten = rewriteWorktreeAddCommand(command, { cwd: ctx.cwd });
 		if (rewritten === command) return;
 
 		event.input.command = rewritten;
 		notifyPi(
 			ctx.ui,
-			"worktree path redirected to .pi/worktrees/ — linked worktrees stay inside the repo",
+			`worktree path redirected to ${MANAGED_WORKTREES_SHELL_PATH}/ — linked worktrees stay inside the repo`,
 			"info",
 		);
+		// Never edit a user's .gitignore without being asked; report the
+		// untracked-directory consequence instead.
+		if (!isManagedWorktreesIgnored(ctx.cwd)) {
+			notifyPi(
+				ctx.ui,
+				`${MANAGED_WORKTREES_SHELL_PATH}/ is not git-ignored here — add it to .gitignore or the linked worktree shows up as untracked in the parent checkout`,
+				"warning",
+			);
+		}
 	});
 }

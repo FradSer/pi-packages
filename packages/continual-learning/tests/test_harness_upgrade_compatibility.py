@@ -5,24 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from harness_legacy_fixture import LEGACY
 from support import isolated_run_bun as run_bun
-
-# Sanitized existing local shape: no real config is read or modified.
-LEGACY = {
-    'policies': [
-        {'name': 'no-project-memory-local-writes', 'tools': ['write', 'edit'],
-         'require': {'path': 'path', 'pattern': r'(^|/)\.memory\.local(?:/|$)'},
-         'paths': ['content', 'newText', 'edits.newText'], 'pattern': r'[\s\S]+',
-         'action': 'block', 'reason': 'Use the canonical private memory root.'},
-        {'name': 'pi-kit-no-markdown-agent-run-helper', 'tools': ['write', 'edit'],
-         'paths': ['content', 'newText'],
-         'require': {'path': 'path', 'pattern': r'^packages/kit/src/.*\.ts$'},
-         'pattern': r'\bcreatePackageAgentRun\b', 'action': 'block',
-         'reason': 'Use the approved structured run API.'},
-    ],
-    'disabled': [], 'skillPrompts': {},
-    'learnedPolicies': {name: {'origin': 'consolidation', 'learnedAt': '2020-01-01T00:00:00Z'} for name in ['no-project-memory-local-writes', 'pi-kit-no-markdown-agent-run-helper']},
-}
 
 
 def gate_script(tmp_path: Path, body: str, config: dict | None = None) -> str:

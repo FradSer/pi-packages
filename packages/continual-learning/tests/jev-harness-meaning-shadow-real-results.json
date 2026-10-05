@@ -1,0 +1,179 @@
+{
+  "evidence": "real-jev-same-input-ascii-tab-proof-comparison",
+  "productionWriteEligible": false,
+  "sourceSha256": "b0506f43c55a47ffb43806ca5f82005cfb8f79f6b49b6317ef4e595588bd769c",
+  "comparison": "Research-only: same current proof, counterevidence replaces regex with exact code-proved matching description",
+  "usageComplete": true,
+  "passed": true,
+  "outboundRequests": {
+    "before": 3,
+    "after": 3
+  },
+  "calls": 6,
+  "judgeAttempts": 6,
+  "knownInputTokens": 35848,
+  "knownEstimatedCostUsd": 0.001505616,
+  "diagnostics": {
+    "before": [
+      {
+        "authority_0": {
+          "choice": "lasting",
+          "confidence": 0.99,
+          "probabilities": {
+            "lasting": 1,
+            "conditional": 0,
+            "temporary": 0,
+            "elsewhere": 0,
+            "absent": 0
+          }
+        },
+        "explanation_0": {
+          "choice": "faithful",
+          "confidence": 0.94,
+          "probabilities": {
+            "faithful": 0.96,
+            "extra": 0.04,
+            "invented": 0,
+            "unclear": 0
+          }
+        },
+        "family_0": {
+          "choice": "authorized",
+          "confidence": 0.98,
+          "probabilities": {
+            "authorized": 0.98,
+            "extra": 0.02,
+            "unclear": 0
+          }
+        }
+      },
+      {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.81,
+          "probabilities": {
+            "compatible": 0.87,
+            "contradicts": 0.07,
+            "unclear": 0.06
+          }
+        }
+      },
+      {
+        "counter_0_1": {
+          "choice": "compatible",
+          "confidence": 0.82,
+          "probabilities": {
+            "compatible": 0.87,
+            "contradicts": 0.08,
+            "unclear": 0.05
+          }
+        }
+      }
+    ],
+    "after": [
+      {
+        "counter_0_1": {
+          "choice": "compatible",
+          "confidence": 0.97,
+          "probabilities": {
+            "compatible": 0.98,
+            "contradicts": 0.01,
+            "unclear": 0.01
+          }
+        }
+      },
+      {
+        "authority_0": {
+          "choice": "lasting",
+          "confidence": 0.99,
+          "probabilities": {
+            "lasting": 0.99,
+            "conditional": 0,
+            "temporary": 0.01,
+            "elsewhere": 0,
+            "absent": 0
+          }
+        },
+        "explanation_0": {
+          "choice": "faithful",
+          "confidence": 0.95,
+          "probabilities": {
+            "faithful": 0.97,
+            "extra": 0.03,
+            "invented": 0,
+            "unclear": 0
+          }
+        },
+        "family_0": {
+          "choice": "authorized",
+          "confidence": 0.97,
+          "probabilities": {
+            "authorized": 0.98,
+            "extra": 0.02,
+            "unclear": 0
+          }
+        }
+      },
+      {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.98,
+          "probabilities": {
+            "compatible": 0.99,
+            "contradicts": 0,
+            "unclear": 0.01
+          }
+        }
+      }
+    ]
+  },
+  "results": [
+    {
+      "snapshotSha256": "489143c7461d7583fa9e9529238956324b4f72aadd0d6f0f91a63ce6ebdfd851",
+      "proposalSha256": "91d3959466be62ba789ea722ba6ba3f79a6aae5e5b1b8dc8e35ed93646526d80",
+      "expectedAllow": true,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2448,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 22,
+          "coveredEntries": 22,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 18106,
+          "outputTokens": 238,
+          "estimatedCostUsd": 0.000760452,
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 1171,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 22,
+          "coveredEntries": 22,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17742,
+          "outputTokens": 238,
+          "estimatedCostUsd": 0.000745164
+        }
+      }
+    }
+  ]
+}

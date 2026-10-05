@@ -1,12 +1,12 @@
-"""Worker extensions and capability tools are contributed by the caller.
+"""Agent extensions and capability tools are contributed by the caller.
 
 Contract: packages/subagents/features/spawn-extension-contribution.feature
 
-The spawner used to hardcode both: a `WORKER_EXTENSION` constant pointing at its
+The spawner used to hardcode both: an extension constant pointing at its
 own package's index.ts, and a capability set naming `agent_event` and `work` —
 tools registered by a different package. That is what would have made the
 subagents / task / agent-teams split impossible: the execution layer would have
-loaded another package's worker extension and granted two tools it does not
+loaded another package's Agent extension and granted two tools it does not
 register.
 
 These tests use deliberately neutral capability names (`alpha_tool`, `beta_tool`)
@@ -27,8 +27,8 @@ from subagents_helpers import PACKAGE, run_node, source
 
 SPAWNER = (PACKAGE / "src" / "spawner.ts").as_uri()
 
-FIRST_EXTENSION = "/tmp/first-worker.ts"
-SECOND_EXTENSION = "/tmp/second-worker.ts"
+FIRST_EXTENSION = "/tmp/first-agent.ts"
+SECOND_EXTENSION = "/tmp/second-agent.ts"
 CAPABILITY_TOOLS = '["alpha_tool", "beta_tool"]'
 
 
@@ -53,7 +53,7 @@ def spawn_with_argv_probe(extra_options: str) -> dict[str, object]:
         const {{ spawnResident }} = await import("{SPAWNER}");
         const outcome = await new Promise((resolve) => {{
           const started = spawnResident({{
-            workerName: "argv-probe",
+            agentName: "argv-probe",
             cwd: root,
             description: "probe",
             {extra_options}
@@ -83,7 +83,7 @@ def flags_of(argv: list[str], flag: str) -> list[str]:
     return [argv[index + 1] for index, item in enumerate(argv) if item == flag and index + 1 < len(argv)]
 
 
-# ── Rule: each contributing package supplies its own worker extension ──
+# ── Rule: each contributing package supplies its own Agent extension ──
 
 
 def test_every_supplied_extension_reaches_the_child_command_line() -> None:
@@ -103,7 +103,7 @@ def test_every_supplied_extension_reaches_the_child_command_line() -> None:
 def test_a_bare_child_carries_no_extension_and_only_the_role_grant() -> None:
     payload = spawn_with_argv_probe('tools: ["read", "bash"],')
     argv = child_argv(payload)
-    assert "--extension" not in argv, "a spawn contributing nothing must load no worker extension"
+    assert "--extension" not in argv, "a spawn contributing nothing must load no Agent extension"
     assert "--no-extensions" in argv
     assert flags_of(argv, "--tools") == ["read,bash"], (
         "with no contributed capability set the allowlist is exactly the role's grant"
@@ -116,7 +116,7 @@ def test_a_bare_child_carries_no_extension_and_only_the_role_grant() -> None:
 def test_capability_tools_without_an_extension_are_refused() -> None:
     payload = spawn_with_argv_probe(f"capabilityTools: {CAPABILITY_TOOLS},")
     error = str(payload.get("spawnError", ""))
-    assert "alpha_tool" in error and "no worker extension" in error, error
+    assert "alpha_tool" in error and "no Agent extension" in error, error
     # A refused spawn must not start a child at all.
     assert "stderr" not in payload, "no child process may be started for a refused spawn"
     assert "exitCode" not in payload
@@ -125,7 +125,7 @@ def test_capability_tools_without_an_extension_are_refused() -> None:
 def test_the_spawner_hardcodes_no_extension_path_or_capability_tool_names() -> None:
     """The coupling that would have blocked the split must not come back."""
     spawner = source("spawner.ts")
-    assert "WORKER_EXTENSION" not in spawner, "the spawner must not resolve its own package's worker entry"
+    assert "AGENT_EXTENSION" not in spawner, "the spawner must not resolve its own package's Agent entry"
     assert "import.meta.url" not in spawner, "the spawner must not derive an extension path from itself"
     assert "agent_event" not in spawner, "the spawner must not name another package's tool"
     assert '"work"' not in spawner, "the spawner must not name another package's tool"
@@ -138,18 +138,18 @@ def test_the_spawner_hardcodes_no_extension_path_or_capability_tool_names() -> N
 def test_a_contributed_capability_set_widens_the_grant_and_the_universe() -> None:
     payload = run_node(
         f'''\
-        import {{ resolveWorkerTools, unknownWorkerTools, workerToolUniverse }} from "{SPAWNER}";
+        import {{ resolveAgentTools, unknownAgentTools, agentToolUniverse }} from "{SPAWNER}";
         const contributed = ["alpha_tool", "beta_tool"];
         console.log(JSON.stringify({{
-          withCapability: resolveWorkerTools(["read", "alpha_tool"], contributed),
-          bare: resolveWorkerTools(["read"], []),
-          emptyRole: resolveWorkerTools([], contributed),
-          undefinedRole: resolveWorkerTools(undefined, contributed),
-          unknownWithCapability: unknownWorkerTools(["read", "mcp__x"], contributed),
-          unknownBare: unknownWorkerTools(["alpha_tool", "read"], []),
-          universeHasCapability: workerToolUniverse(contributed).includes("alpha_tool"),
-          universeBare: workerToolUniverse([]).includes("alpha_tool"),
-          universeHasBuiltins: workerToolUniverse([]).includes("read"),
+          withCapability: resolveAgentTools(["read", "alpha_tool"], contributed),
+          bare: resolveAgentTools(["read"], []),
+          emptyRole: resolveAgentTools([], contributed),
+          undefinedRole: resolveAgentTools(undefined, contributed),
+          unknownWithCapability: unknownAgentTools(["read", "mcp__x"], contributed),
+          unknownBare: unknownAgentTools(["alpha_tool", "read"], []),
+          universeHasCapability: agentToolUniverse(contributed).includes("alpha_tool"),
+          universeBare: agentToolUniverse([]).includes("alpha_tool"),
+          universeHasBuiltins: agentToolUniverse([]).includes("read"),
         }}));
         '''
     )

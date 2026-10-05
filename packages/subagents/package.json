@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-subagents",
   "version": "0.1.0",
-  "description": "Subagent execution layer for Pi packages \u2014 child process spawn and lifecycle, the child roster, session routes, environment policy, workspace isolation, Agent Memory, and the `agent` tool. Registers one tool and no other.",
+  "description": "Subagent execution layer for Pi packages — child process spawn and lifecycle, the child roster, session routes, environment policy, workspace isolation, Agent Memory, and the intent child tools (`agent_start`, `agent_input`, `agent_stop`, `agent_inspect`, `agent_list`). Temporary delegation by default, explicitly persistent roles and private sessions, with provider-compatible lazy activation.",
   "keywords": [
     "pi-subagents",
     "pi-packages",
@@ -23,19 +23,26 @@
   "files": [
     "index.ts",
     "src",
-    "README.md"
+    "references",
+    "README.md",
+    "VISION.md",
+    "AUTHORITY.md",
+    "AGENTS.md"
   ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*"
   },
   "dependencies": {
-    "@fradser/pi-kit": "workspace:*",
-    "@fradser/pi-tasks": "workspace:*"
+    "@fradser/pi-kit": "workspace:*"
   },
   "pi": {
     "extensions": [
       "./index.ts"
     ]
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^1.0.0",
+    "@earendil-works/pi-tui": "^1.0.0"
   }
 }

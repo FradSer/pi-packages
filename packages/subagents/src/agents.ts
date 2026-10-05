@@ -1,69 +1,16 @@
-/**
- * Declarative agent definitions: Markdown files with YAML-style frontmatter.
- *
- * Discovery scopes (later scopes override earlier ones for the same name):
- *   1. user          — ~/.pi/agent/agents/ (respects PI_CODING_AGENT_DIR)
- *   2. project       — <cwd>/.pi/agents/<name>.md
- *   3. project-local — <cwd>/.pi/agents/<name>.local.md (personal override)
- *
- * There are no built-in roles: references/agent-roles.md ships template
- * shapes that the leader consults when generating a new definition on demand.
- *
- * Frontmatter fields:
- *   name        — unique agent id (required)
- *   description — routing contract: when the leader should choose this agent
- *   tools       — comma-separated list or YAML list of Pi tool ids
- *   model       — optional provider/model pin, or "inherit" for the leader's
- *                 current model at spawn time
- *   verify      — optional role-default completion gate: a review prompt a
- *                 fresh one-shot reviewer answers with VERDICT: PASS/FAIL
- *   worktree    — optional Git worktree isolation. Absent means isolated, which
- *                 is the default: a durable per-Agent workspace is what makes
- *                 Pi's own per-working-directory session storage usable as that
- *                 Agent's working memory. `worktree: false` shares the leader's
- *                 working tree and disables session persistence.
- *   memory      — optional `true` giving this persisted Agent its own Agent
- *                 Memory folder at ~/.pi/agent/agents/<name>/. A Temporary Agent
- *                 never gets one.
- * The Markdown body is the worker's role prompt.
+/** Disk agent.md declarations and session-only inline roles.
+ * Precedence: project-local > project > user > session. Discovery never writes
+ * or reads legacy flat roles; migration is an explicit, separate library call.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import type { WorkspaceIsolation } from "./workspace.ts";
+import { assertAgentName, assertAgentStoragePath } from "./workspace.ts";
 
 export type AgentScope = "user" | "project" | "project-local" | "session";
-
-export interface AgentDefinition {
-  name: string;
-  description: string;
-  tools: string[];
-  model?: string;
-  /** Role-default completion gate; task-level verify overrides this. */
-  verify?: string;
-  /** Whether this role always receives a dedicated Git worktree. Derived from
-   *  `isolation`; kept because persisted definitions and guidance still read it. */
-  worktree: boolean;
-  /** Whether the Agent gets its own linked worktree workspace. Isolation is the
-   *  default: a durable per-Agent workspace is what makes Pi's own session
-   *  storage usable as that Agent's working memory, since Pi groups sessions by
-   *  working directory. `worktree: false` opts out explicitly. */
-  isolation: WorkspaceIsolation;
-  /** Whether this Agent has its own Agent Memory folder. Opt-in via `memory:
-   *  true`. A Temporary Agent never has one, whatever its definition says. */
-  memory: boolean;
-  /** The Markdown body, trimmed; used as the teammate's role prompt. */
-  prompt: string;
-  /** Scope that supplied this definition (precedence: project-local > project > user > bundled). */
-  scope: AgentScope;
-  /** True only for the shared project scope that is expected to be git-managed.
-   * user and project-local definitions are machine/personal by definition. */
-  gitManaged: boolean;
-  /** Absolute path of the definition file; absent for session-only roles. */
-  source?: string;
-}
 
 export interface AgentDefinitionInput {
   name: string;
@@ -71,245 +18,224 @@ export interface AgentDefinitionInput {
   tools: string[];
   model?: string;
   verify?: string;
-  worktree?: boolean;
-  memory?: boolean;
   prompt: string;
 }
 
-/** Resolve the isolation a definition asks for. Absent means isolated; only an
- * explicit `worktree: false` shares the leader's working tree. */
-function resolveIsolation(worktree: boolean | undefined): WorkspaceIsolation {
-  return worktree === false ? "shared" : "isolated";
+export interface AgentDefinition extends AgentDefinitionInput {
+  scope: AgentScope;
+  /** Only shared project definitions are git-managed by convention. */
+  gitManaged: boolean;
+  /** Absolute declaration path; absent for session roles. */
+  source?: string;
 }
 
-/** Reserved model value meaning "use the leader session's current model",
- *  resolved at spawn time (Claude-Code-style inherit). */
 export const MODEL_INHERIT_ALIAS = "inherit";
+/** Suffix of the project-local directory, not of a Markdown filename. */
+export const LOCAL_DEFINITION_SUFFIX = ".local";
+export const AGENT_REFERENCE_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)), "..", "references", "agent-roles.md",
+);
 
 const sessionAgents = new Map<string, AgentDefinition>();
-const AGENT_NAME_PATTERN = /^[a-z][a-z0-9._-]{0,63}$/i;
 
 function normalizeAgentInput(input: AgentDefinitionInput): AgentDefinitionInput {
   const name = input.name.trim();
-  if (!AGENT_NAME_PATTERN.test(name)) {
-    throw new Error(`Invalid agent name "${name}". Use letters, digits, dots, dashes, underscores.`);
-  }
-  const prompt = input.prompt.trim();
-  if (!prompt) throw new Error(`Agent "${name}" prompt must not be empty.`);
+  assertAgentName(name);
+  // Select fields explicitly: JavaScript callers cannot smuggle deprecated
+  // settings or a forged source/scope through a spread of the input object.
   return {
-    ...input,
     name,
     description: input.description.trim(),
-    tools: input.tools.map((tool) => tool.trim()).filter(Boolean),
+    tools: input.tools.map(tool => tool.trim()).filter(Boolean),
     model: input.model?.trim() || undefined,
     verify: input.verify?.trim() || undefined,
-    worktree: input.worktree ?? true,
-    memory: input.memory ?? false,
-    prompt,
+    prompt: input.prompt.trim(),
   };
 }
 
-/** Register a generated role for this session without writing a definition file. */
 export function registerSessionAgent(input: AgentDefinitionInput): AgentDefinition {
-  const normalized = normalizeAgentInput(input);
   const definition: AgentDefinition = {
-    ...normalized,
-    worktree: resolveIsolation(normalized.worktree) === "isolated",
-    isolation: resolveIsolation(normalized.worktree),
-    // A Temporary Agent owns no Agent Memory (CONTEXT.md), whatever it asked for.
-    memory: false,
-    scope: "session",
-    gitManaged: false,
-    source: undefined,
+    ...normalizeAgentInput(input),
+    // Session instructions are authored content, not filesystem identifiers.
+    // Persisted definition normalization is a separate, unchanged operation.
+    description: input.description,
+    prompt: input.prompt,
+    scope: "session", gitManaged: false,
   };
   sessionAgents.set(definition.name, definition);
   return definition;
 }
 
-/** Persist a generated role only when the user explicitly requests it. */
+/** Explicit user-authorized library operation; never called by the agent tool. */
 export function persistAgentDefinition(
   input: AgentDefinitionInput,
-  scope: "project" | "project-local",
+  scope: "user" | "project" | "project-local",
   cwd = process.cwd(),
 ): AgentDefinition {
   const normalized = normalizeAgentInput(input);
-  const directory = agentsDir("project", cwd);
-  fs.mkdirSync(directory, { recursive: true });
-  const filename = `${normalized.name}${scope === "project-local" ? LOCAL_DEFINITION_SUFFIX : ".md"}`;
-  const source = path.join(directory, filename);
+  if (!["user", "project", "project-local"].includes(scope)) throw new Error("Invalid definition scope.");
+  if ([normalized.model, ...normalized.tools].some(value => value !== undefined && /[\r\n]/.test(value))) {
+    throw new Error("Persisted model and tool ids must be single-line values.");
+  }
+  const root = path.resolve(scope === "user" ? getAgentDir() : cwd);
+  const directory = path.join(root, ...(scope === "user" ? ["agents"] : [".pi", "agents"]),
+    normalized.name + (scope === "project-local" ? LOCAL_DEFINITION_SUFFIX : ""));
+  const source = path.join(directory, "agent.md");
+  assertAgentStoragePath(root, source);
   const frontmatter = [
     "---",
     `name: ${normalized.name}`,
-    `description: ${normalized.description.replace(/[\\r\\n]+/g, " ")}`,
+    `description: ${normalized.description.replace(/[\r\n]+/g, " ")}`,
     `tools: ${normalized.tools.join(", ")}`,
     ...(normalized.model ? [`model: ${normalized.model}`] : []),
-    ...(normalized.verify ? [`verify: ${normalized.verify.replace(/[\\r\\n]+/g, " ")}`] : []),
-    `worktree: ${resolveIsolation(normalized.worktree) === "isolated" ? "true" : "false"}`,
-    `memory: ${normalized.memory ? "true" : "false"}`,
-    "---",
-    normalized.prompt,
-    "",
+    ...(normalized.verify ? [`verify: ${normalized.verify.replace(/[\r\n]+/g, " ")}`] : []),
+    "---", normalized.prompt, "",
   ].join("\n");
-  fs.writeFileSync(source, frontmatter, { encoding: "utf8", mode: 0o600 });
+  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  assertAgentStoragePath(root, source);
+  writeDefinitionFile(root, source, frontmatter);
   sessionAgents.delete(normalized.name);
-  return {
-    ...normalized,
-    worktree: resolveIsolation(normalized.worktree) === "isolated",
-    isolation: resolveIsolation(normalized.worktree),
-    memory: normalized.memory ?? false,
-    scope,
-    gitManaged: scope === "project",
-    source,
-  };
+  return { ...normalized, scope, gitManaged: scope === "project", source };
 }
 
-/** Drop generated session roles; persistent user/project definitions remain discoverable. */
+function writeDefinitionFile(root: string, source: string, content: string): void {
+  try {
+    const stat = fs.lstatSync(source);
+    if (stat.isSymbolicLink() || !stat.isFile() || stat.nlink !== 1) {
+      throw new Error(`Refusing linked or non-regular Agent definition: ${source}`);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const temporary = `${source}.${process.pid}.${randomUUID()}.tmp`;
+  let descriptor: number | undefined;
+  try {
+    descriptor = fs.openSync(temporary, fs.constants.O_WRONLY | fs.constants.O_CREAT
+      | fs.constants.O_EXCL | (fs.constants.O_NOFOLLOW ?? 0), 0o600);
+    fs.writeFileSync(descriptor, content, { encoding: "utf8" });
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = undefined;
+    assertAgentStoragePath(root, source);
+    try {
+      const stat = fs.lstatSync(source);
+      if (stat.isSymbolicLink() || !stat.isFile() || stat.nlink !== 1) {
+        throw new Error(`Refusing linked or non-regular Agent definition: ${source}`);
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    fs.renameSync(temporary, source);
+  } finally {
+    if (descriptor !== undefined) {
+      try { fs.closeSync(descriptor); } catch { /* preserve the write failure */ }
+    }
+    fs.rmSync(temporary, { force: true });
+  }
+}
+
 export function clearSessionAgents(): void {
   sessionAgents.clear();
 }
 
-/** Shipped role templates: reference material for generating new definitions
- * on demand — never discovered and never spawnable directly. */
-export const AGENT_REFERENCE_PATH = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)), "..", "references", "agent-roles.md",
-);
-
-/** Files named `xxx.local.md` in the project agents directory are personal
- * overrides: same teammate name as `xxx.md`, project-local scope, never git-
- * managed by convention. */
-export const LOCAL_DEFINITION_SUFFIX = ".local.md";
-
-function agentsDir(scope: "user" | "project", cwd?: string): string {
-  if (scope === "user") {
-    return path.join(getAgentDir(), "agents");
-  }
-  return path.join(cwd || process.cwd(), ".pi", "agents");
-}
-
-function parseFrontmatter(raw: string): { fields: Record<string, string | string[]>; body: string } {
-  const fields: Record<string, string | string[]> = {};
+function parseFrontmatter(raw: string): { fields: Record<string, string | string[]>; body: string } | undefined {
   const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(raw);
-  if (!match) return { fields, body: raw.trim() };
+  if (!match) return undefined;
+  const fields: Record<string, string | string[]> = Object.create(null);
   const lines = match[1].split("\n");
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     const separator = line.indexOf(":");
     if (separator <= 0) continue;
     const key = line.slice(0, separator).trim();
-    // Strip inline YAML comments (# ...) and surrounding whitespace/quotes.
-    let value = line.slice(separator + 1).replace(/\s+#.*$/, "").trim();
+    const value = line.slice(separator + 1).replace(/\s+#.*$/, "").trim();
     if (key === "tools") {
       if (value === "") {
-        // YAML block sequence: "- item" lines, flush-left or indented,
-        // possibly interleaved with blank or comment-only lines.
         const items: string[] = [];
         index += 1;
         while (index < lines.length) {
           const trimmed = lines[index].trim();
-          if (trimmed === "" || trimmed.startsWith("#")) {
-            index += 1;
-            continue;
-          }
+          if (trimmed === "" || trimmed.startsWith("#")) { index += 1; continue; }
           if (!/^-.+/.test(trimmed)) break;
           const rawItem = trimmed.replace(/^-\s*/, "");
-          const item = rawItem
-            .replace(/\s+#.*$/, "")
-            .trim()
-            .replace(/^["']|["']$/g, "");
-          // "- # comment" is a comment-only entry, not a tool.
+          const item = rawItem.replace(/\s+#.*$/, "").trim().replace(/^["']|["']$/g, "");
           if (item && !rawItem.trimStart().startsWith("#")) items.push(item);
           index += 1;
         }
-        index -= 1; // The for-loop steps past the last consumed line.
+        index -= 1;
         fields.tools = items;
-        continue;
+      } else {
+        fields.tools = value.replace(/^\[|\]$/g, "").split(",")
+          .map(tool => tool.trim().replace(/^["']|["']$/g, "")).filter(Boolean);
       }
-      const tools = value
-        .replace(/^\[|\]$/g, "")
-        .split(",")
-        .map((tool) => tool.trim().replace(/^["']|["']$/g, ""))
-        .filter(Boolean);
-      fields.tools = tools;
-      continue;
+    } else {
+      fields[key] = value.replace(/^["']|["']$/g, "");
     }
-    fields[key] = value.replace(/^["']|["']$/g, "");
   }
   return { fields, body: match[2].trim() };
 }
 
-function loadDir(baseScope: AgentScope, dir: string, agents: Map<string, AgentDefinition>): void {
+/** The same validity check is used by discovery and explicit legacy migration.
+ * The expected name binds a declaration to its canonical directory.
+ */
+export function parseAgentDefinition(
+  raw: string, name: string, scope: Exclude<AgentScope, "session">, source?: string,
+): AgentDefinition | undefined {
+  try { assertAgentName(name); } catch { return undefined; }
+  const parsed = parseFrontmatter(raw);
+  if (!parsed || parsed.fields.name !== name || typeof parsed.fields.description !== "string"
+    || !Array.isArray(parsed.fields.tools)) return undefined;
+  return {
+    name, description: parsed.fields.description, tools: parsed.fields.tools,
+    model: typeof parsed.fields.model === "string" && parsed.fields.model ? parsed.fields.model : undefined,
+    verify: typeof parsed.fields.verify === "string" && parsed.fields.verify ? parsed.fields.verify : undefined,
+    prompt: parsed.body, scope, gitManaged: scope === "project", ...(source ? { source } : {}),
+  };
+}
+
+function loadDir(scope: "user" | "project", root: string, dir: string, agents: Map<string, AgentDefinition>): void {
   let entries: fs.Dirent[];
   try {
+    assertAgentStoragePath(root, dir);
     entries = fs.readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return; // A missing agents directory is not an error.
-  }
-  // Dedup by name within the directory: plain .md first so a same-name
-  // xxx.local.md (personal override) overwrites it in the map.
-  const ordered = [...entries].sort((left, right) =>
-    Number(left.name.endsWith(LOCAL_DEFINITION_SUFFIX)) - Number(right.name.endsWith(LOCAL_DEFINITION_SUFFIX))
-    || left.name.localeCompare(right.name),
-  );
+  } catch { return; }
+  const ordered = entries.sort((a, b) =>
+    Number(a.name.endsWith(LOCAL_DEFINITION_SUFFIX)) - Number(b.name.endsWith(LOCAL_DEFINITION_SUFFIX))
+    || a.name.localeCompare(b.name));
   for (const entry of ordered) {
-    if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
-    const source = path.join(dir, entry.name);
-    let raw: string;
+    if (!entry.isDirectory()) continue;
+    const isLocal = scope === "project" && entry.name.endsWith(LOCAL_DEFINITION_SUFFIX);
+    const name = isLocal ? entry.name.slice(0, -LOCAL_DEFINITION_SUFFIX.length) : entry.name;
+    const source = path.join(dir, entry.name, "agent.md");
     try {
-      raw = fs.readFileSync(source, "utf8");
-    } catch {
-      continue;
-    }
-    const { fields, body } = parseFrontmatter(raw);
-    const isLocal = baseScope === "project" && entry.name.endsWith(LOCAL_DEFINITION_SUFFIX);
-    const baseName = isLocal
-      ? entry.name.slice(0, -LOCAL_DEFINITION_SUFFIX.length)
-      : entry.name.replace(/\.md$/, "");
-    const name = typeof fields.name === "string" ? fields.name : baseName;
-    if (!name || !body) continue;
-    agents.set(name, {
-      name,
-      description: typeof fields.description === "string" ? fields.description : "",
-      tools: Array.isArray(fields.tools) ? fields.tools : [],
-      model: typeof fields.model === "string" && fields.model ? fields.model : undefined,
-      verify: typeof fields.verify === "string" && fields.verify ? fields.verify : undefined,
-      worktree: fields.worktree !== "false",
-      isolation: resolveIsolation(fields.worktree === undefined ? undefined : fields.worktree === "true"),
-      memory: fields.memory === "true",
-      prompt: body,
-      scope: isLocal ? "project-local" : baseScope,
-      gitManaged: scopeIsGitManaged(isLocal ? "project-local" : baseScope),
-      source,
-    });
+      assertAgentStoragePath(root, source);
+      const stat = fs.lstatSync(source);
+      if (!stat.isFile() || stat.nlink !== 1) continue;
+      const definition = parseAgentDefinition(fs.readFileSync(source, "utf8"), name, isLocal ? "project-local" : scope, source);
+      if (definition) agents.set(name, definition);
+    } catch { /* Invalid/unreadable declarations are not identities. */ }
   }
 }
 
-/** Only the shared project layer is expected to be git-managed. */
-function scopeIsGitManaged(scope: AgentScope): boolean {
-  return scope === "project";
-}
-
-/**
- * Resolve all agent definitions visible from the given cwd, with later scopes
- * overriding earlier ones per name: project-local > project > user.
- */
-export function discoverAgents(cwd?: string): Map<string, AgentDefinition> {
+export function discoverAgents(cwd = process.cwd()): Map<string, AgentDefinition> {
   const agents = new Map<string, AgentDefinition>();
-  loadDir("user", agentsDir("user", cwd), agents);
-  loadDir("project", agentsDir("project", cwd), agents);
-  // Generated roles fill gaps only: filesystem scopes keep precedence over
-  // session memory.
+  const userRoot = path.resolve(getAgentDir());
+  const projectRoot = path.resolve(cwd);
+  loadDir("user", userRoot, path.join(userRoot, "agents"), agents);
+  loadDir("project", projectRoot, path.join(projectRoot, ".pi", "agents"), agents);
   for (const [name, definition] of sessionAgents) if (!agents.has(name)) agents.set(name, definition);
   return agents;
 }
 
-/** Resolve one agent by name, or undefined when no scope defines it. */
 export function resolveAgent(name: string, cwd?: string): AgentDefinition | undefined {
   return discoverAgents(cwd).get(name);
 }
 
-/**
- * Format discovered agents as Markdown for prompt injection in before_agent_start.
- */
+/** Disk declarations always outrank inline input; session residue can be replaced. */
+export function inlineDefinitionApplies(resolved: AgentDefinition | undefined): boolean {
+  return !resolved || resolved.scope === "session";
+}
+
 export function formatAgentGuidance(cwd?: string): string {
   const agents = discoverAgents(cwd);
   if (agents.size === 0) return "(none defined; pass description and role_prompt to define one inline)";
@@ -318,13 +244,12 @@ export function formatAgentGuidance(cwd?: string): string {
     const extras = [
       agent.model ? `Model: ${agent.model}` : "",
       agent.verify ? `Verify: ${agent.verify}` : "",
-      agent.isolation === "shared" ? "Workspace: shared" : "Workspace: isolated",
-      agent.memory ? "Memory: own folder" : "",
-      agent.scope === "session" ? "in-memory" : agent.gitManaged ? "git-managed" : "local",
+      agent.scope === "session" ? "in-memory" : "disk identity; private Memory/history/scratch; project cwd",
+      agent.gitManaged ? "git-managed definition" : "",
     ].filter(Boolean);
     lines.push(`- **${agent.name}** (${agent.scope})`);
     if (agent.description) lines.push(`  ${agent.description}`);
-    lines.push(`  Tools: ${agent.tools.join(", ") || "(role defaults)"}${extras.length > 0 ? ` | ${extras.join(" | ")}` : ""}`);
+    lines.push(`  Tools: ${agent.tools.join(", ") || "(none)"} | ${extras.join(" | ")}`);
   }
   return lines.join("\n");
 }

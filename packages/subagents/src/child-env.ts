@@ -60,8 +60,13 @@ const ALLOWED_EXACT: readonly string[] = [
   "HOMEBREW_PREFIX", "HOMEBREW_CELLAR", "HOMEBREW_REPOSITORY",
   // Pi process markers and configuration. PI_CODING_AGENT_DIR is load-bearing:
   // it is how the child finds the same auth.json and models.json as the leader.
+  // PI_CODING_AGENT_SESSION_DIR is deliberately absent. A session directory is
+  // the leader's own state rather than configuration a child needs, and
+  // inheriting it writes every child turn into the leader's session store — the
+  // one outcome per-workspace session grouping exists to prevent. An operator who
+  // wants a child to share it can still name it in `allow`.
   "AI_AGENT", "PI_CODING_AGENT", "PI_CODING_AGENT_DIR",
-  "PI_CODING_AGENT_SESSION_DIR", "PI_PACKAGE_DIR", "PI_OFFLINE",
+  "PI_PACKAGE_DIR", "PI_OFFLINE",
   "PI_SKIP_VERSION_CHECK", "PI_TELEMETRY", "PI_CACHE_RETENTION",
   "PI_SHARE_VIEWER_URL", "PI_RADIUS_GATEWAY", "PI_HARDWARE_CURSOR",
   "PI_HYPERLINKS", "PI_IMAGE_PROTOCOL", "PI_TRUE_COLOR", "PI_TUI_ESC_TIMEOUT",

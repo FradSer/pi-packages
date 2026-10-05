@@ -1,0 +1,690 @@
+[
+  {
+    "id": "en-authority-valid-0",
+    "language": "en",
+    "evidence": "In future tasks in this project, never execute the exact command `echo ARCHIVE_DENY`. Other commands are allowed.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo ARCHIVE_DENY$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute this command."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo ARCHIVE_DENY",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OTHER_ALLOWED"
+          },
+          {
+            "bash": "echo ARCHIVE_DENY\r"
+          },
+          {
+            "bash": "echo ARCHIVE_DENY "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-authority-valid-1",
+    "language": "en",
+    "evidence": "In future tasks in this project, never execute the exact command `printf AUDIT_DRY_RUN`. Other commands are allowed.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^printf AUDIT_DRY_RUN$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute this command."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "printf AUDIT_DRY_RUN",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OTHER_ALLOWED"
+          },
+          {
+            "bash": "printf AUDIT_DRY_RUN\r"
+          },
+          {
+            "bash": "printf AUDIT_DRY_RUN "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-authority-valid-2",
+    "language": "en",
+    "evidence": "In future tasks in this project, never execute the exact command `echo release.v2`. Other commands are allowed.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo release\\.v2$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute this command."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo release.v2",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OTHER_ALLOWED"
+          },
+          {
+            "bash": "echo release.v2\r"
+          },
+          {
+            "bash": "echo release.v2 "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-authority-valid-3",
+    "language": "en",
+    "evidence": "In future tasks in this project, never execute the exact command `printf \\\"PUBLIC_STOP\\\"`. Other commands are allowed.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^printf \\\\\"PUBLIC_STOP\\\\\"$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute this command."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "printf \\\"PUBLIC_STOP\\\"",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OTHER_ALLOWED"
+          },
+          {
+            "bash": "printf \\\"PUBLIC_STOP\\\"\r"
+          },
+          {
+            "bash": "printf \\\"PUBLIC_STOP\\\" "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-authority-valid-4",
+    "language": "en",
+    "evidence": "In future tasks in this project, never execute the exact command `echo STATIC_BANNER`. Other commands are allowed.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo STATIC_BANNER$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute this command."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo STATIC_BANNER",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OTHER_ALLOWED"
+          },
+          {
+            "bash": "echo STATIC_BANNER\r"
+          },
+          {
+            "bash": "echo STATIC_BANNER "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-authority-valid-0",
+    "language": "zh",
+    "evidence": "以后本项目中禁止执行确切命令 `echo ARCHIVE_DENY`，其他命令允许。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo ARCHIVE_DENY$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute this command."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo ARCHIVE_DENY",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OTHER_ALLOWED"
+          },
+          {
+            "bash": "echo ARCHIVE_DENY\r"
+          },
+          {
+            "bash": "echo ARCHIVE_DENY "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-authority-valid-1",
+    "language": "zh",
+    "evidence": "以后本项目中禁止执行确切命令 `printf AUDIT_DRY_RUN`，其他命令允许。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^printf AUDIT_DRY_RUN$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute this command."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "printf AUDIT_DRY_RUN",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OTHER_ALLOWED"
+          },
+          {
+            "bash": "printf AUDIT_DRY_RUN\r"
+          },
+          {
+            "bash": "printf AUDIT_DRY_RUN "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-authority-valid-2",
+    "language": "zh",
+    "evidence": "以后本项目中禁止执行确切命令 `echo release.v2`，其他命令允许。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo release\\.v2$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute this command."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo release.v2",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OTHER_ALLOWED"
+          },
+          {
+            "bash": "echo release.v2\r"
+          },
+          {
+            "bash": "echo release.v2 "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-authority-valid-3",
+    "language": "zh",
+    "evidence": "以后本项目中禁止执行确切命令 `printf \\\"PUBLIC_STOP\\\"`，其他命令允许。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^printf \\\\\"PUBLIC_STOP\\\\\"$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute this command."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "printf \\\"PUBLIC_STOP\\\"",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OTHER_ALLOWED"
+          },
+          {
+            "bash": "printf \\\"PUBLIC_STOP\\\"\r"
+          },
+          {
+            "bash": "printf \\\"PUBLIC_STOP\\\" "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-authority-valid-4",
+    "language": "zh",
+    "evidence": "以后本项目中禁止执行确切命令 `echo STATIC_BANNER`，其他命令允许。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo STATIC_BANNER$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute this command."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo STATIC_BANNER",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OTHER_ALLOWED"
+          },
+          {
+            "bash": "echo STATIC_BANNER\r"
+          },
+          {
+            "bash": "echo STATIC_BANNER "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-authority-risk-0",
+    "language": "en",
+    "evidence": "In future tasks, never run echo DEPLOY_CHECK without my approval. It is allowed after approval.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo DEPLOY_CHECK$(?![\\s\\S])",
+        "action": "block",
+        "message": "Block the command unconditionally forever in the current project."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo DEPLOY_CHECK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "printf ALLOWED"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "en-authority-risk-1",
+    "language": "en",
+    "evidence": "Only for this task, do not run echo DEPLOY_CHECK.",
+    "memory": false,
+    "harness": false,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo DEPLOY_CHECK$(?![\\s\\S])",
+        "action": "block",
+        "message": "Block the command unconditionally forever in the current project."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo DEPLOY_CHECK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "printf ALLOWED"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "en-authority-risk-2",
+    "language": "en",
+    "evidence": "Never run echo DEPLOY_CHECK in the production project. This current development project allows it.",
+    "memory": true,
+    "harness": false,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo DEPLOY_CHECK$(?![\\s\\S])",
+        "action": "block",
+        "message": "Block the command unconditionally forever in the current project."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo DEPLOY_CHECK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "printf ALLOWED"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "en-authority-risk-3",
+    "language": "en",
+    "evidence": "Never run echo DEPLOY_CHECK in this project. All other echo commands are allowed.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo(?:\\s|$)",
+        "action": "block",
+        "message": "Block the command unconditionally forever in the current project."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo DEPLOY_CHECK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "printf ALLOWED"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "en-authority-risk-4",
+    "language": "en",
+    "evidence": "Maybe we should never run echo DEPLOY_CHECK, but this is an unverified guess, not a restriction.",
+    "memory": false,
+    "harness": false,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo DEPLOY_CHECK$(?![\\s\\S])",
+        "action": "block",
+        "message": "Block the command unconditionally forever in the current project."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo DEPLOY_CHECK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "printf ALLOWED"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-authority-risk-0",
+    "language": "zh",
+    "evidence": "以后未经我批准禁止执行 echo DEPLOY_CHECK，批准后允许。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo DEPLOY_CHECK$(?![\\s\\S])",
+        "action": "block",
+        "message": "Block the command unconditionally forever in the current project."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo DEPLOY_CHECK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "printf ALLOWED"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-authority-risk-1",
+    "language": "zh",
+    "evidence": "仅这一次任务不要运行 echo DEPLOY_CHECK。",
+    "memory": false,
+    "harness": false,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo DEPLOY_CHECK$(?![\\s\\S])",
+        "action": "block",
+        "message": "Block the command unconditionally forever in the current project."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo DEPLOY_CHECK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "printf ALLOWED"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-authority-risk-2",
+    "language": "zh",
+    "evidence": "生产项目禁止 echo DEPLOY_CHECK；当前开发项目允许运行。",
+    "memory": true,
+    "harness": false,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo DEPLOY_CHECK$(?![\\s\\S])",
+        "action": "block",
+        "message": "Block the command unconditionally forever in the current project."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo DEPLOY_CHECK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "printf ALLOWED"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-authority-risk-3",
+    "language": "zh",
+    "evidence": "以后本项目禁止 echo DEPLOY_CHECK，其他 echo 命令允许。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo(?:\\s|$)",
+        "action": "block",
+        "message": "Block the command unconditionally forever in the current project."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo DEPLOY_CHECK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "printf ALLOWED"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-authority-risk-4",
+    "language": "zh",
+    "evidence": "我猜也许不该执行 echo DEPLOY_CHECK，还未验证，这不是行为约束。",
+    "memory": false,
+    "harness": false,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo DEPLOY_CHECK$(?![\\s\\S])",
+        "action": "block",
+        "message": "Block the command unconditionally forever in the current project."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo DEPLOY_CHECK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "printf ALLOWED"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "en-authority-memory-False",
+    "language": "en",
+    "evidence": "The verified build command in this project is uv run build.",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "The project build command is uv run build."
+    },
+    "allow": true
+  },
+  {
+    "id": "en-authority-memory-True",
+    "language": "en",
+    "evidence": "Maybe the build command is uv run build. Nobody has verified this guess.",
+    "memory": false,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "The project build command is uv run build."
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-authority-memory-False",
+    "language": "zh",
+    "evidence": "本项目已验证的构建命令是 uv run build。",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "本项目构建命令是 uv run build。"
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-authority-memory-True",
+    "language": "zh",
+    "evidence": "我猜构建命令可能是 uv run build，没有验证。",
+    "memory": false,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "本项目构建命令是 uv run build。"
+    },
+    "allow": false
+  }
+]

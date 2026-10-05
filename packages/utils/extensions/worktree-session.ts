@@ -5,7 +5,6 @@
  * creates a replacement session with that cwd instead of mutating process.cwd.
  */
 
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import {
@@ -26,6 +25,19 @@ import {
 	setOwnedTools,
 } from "@fradser/pi-kit";
 import { Type } from "typebox";
+import {
+	canonicalize,
+	currentWorktreeRoot,
+	isManagedWorktreesIgnored,
+	listWorktrees,
+	managedWorktreesDir,
+	MANAGED_WORKTREES_SHELL_PATH,
+	repoRoot,
+	runGit,
+	type WorktreeRecord,
+} from "./git/worktrees.ts";
+
+export type { WorktreeRecord };
 
 export const WORKTREE_SESSION_ENTRY = "pi-utils-worktree-session";
 
@@ -55,12 +67,6 @@ function renderWorktreeToolResult(
 		label: action,
 		details: contentDetailLines(result),
 	}))(result, options, theme, context);
-}
-
-export interface WorktreeRecord {
-	bare: boolean;
-	branch?: string;
-	root: string;
 }
 
 export interface WorktreeSessionState {
@@ -96,72 +102,6 @@ export interface ExistingEnterTarget {
 
 export type EnterTarget = CreatedEnterTarget | ExistingEnterTarget;
 
-interface GitResult {
-	status: number | null;
-	stderr: string;
-	stdout: string;
-}
-
-function runGit(cwd: string, args: string[]): GitResult {
-	const result = spawnSync("git", ["-C", cwd, ...args], {
-		encoding: "utf-8",
-		stdio: ["ignore", "pipe", "pipe"],
-	});
-	return {
-		status: result.status,
-		stdout: result.stdout ?? "",
-		stderr: result.stderr ?? "",
-	};
-}
-
-function canonicalize(candidate: string): string {
-	try {
-		return fs.realpathSync(candidate);
-	} catch {
-		return path.resolve(candidate);
-	}
-}
-
-export function parseWorktreeList(output: string): WorktreeRecord[] {
-	const entries: WorktreeRecord[] = [];
-	for (const line of output.split("\n")) {
-		if (line.startsWith("worktree ")) {
-			entries.push({ bare: false, root: canonicalize(line.slice(9)) });
-			continue;
-		}
-		const current = entries[entries.length - 1];
-		if (!current) continue;
-		if (line.trim() === "bare") current.bare = true;
-		if (line.startsWith("branch ")) current.branch = line.slice(7).replace(/^refs\/heads\//, "");
-	}
-	return entries;
-}
-
-export function listWorktrees(cwd: string): WorktreeRecord[] {
-	const result = runGit(cwd, ["worktree", "list", "--porcelain"]);
-	return result.status === 0 ? parseWorktreeList(result.stdout) : [];
-}
-
-function currentWorktreeRoot(cwd: string): string | null {
-	const result = runGit(cwd, ["rev-parse", "--show-toplevel"]);
-	return result.status === 0 && result.stdout.trim()
-		? canonicalize(result.stdout.trim())
-		: null;
-}
-
-function projectRoot(cwd: string, entries: WorktreeRecord[]): string | null {
-	const current = currentWorktreeRoot(cwd);
-	const canonicalCwd = canonicalize(cwd);
-	if (!current && entries.some((entry) => entry.bare && entry.root === canonicalCwd)) return null;
-
-	const commonDir = runGit(cwd, ["rev-parse", "--git-common-dir"]);
-	if (commonDir.status === 0 && commonDir.stdout.trim()) {
-		const gitDir = canonicalize(path.resolve(cwd, commonDir.stdout.trim()));
-		if (path.basename(gitDir) === ".git") return path.dirname(gitDir);
-	}
-	return current ? entries.find((entry) => entry.root === current)?.root ?? current : null;
-}
-
 function safeName(name: string): string | null {
 	const normalized = name
 		.trim()
@@ -191,32 +131,41 @@ export function resolveEnterTarget(
 ): EnterTarget | { error: string } {
 	if (request.name && request.path) return { error: "provide either name or path, not both" };
 	const entries = listWorktrees(cwd);
-	const repoRoot = projectRoot(cwd, entries);
-	if (!repoRoot) return { error: "EnterWorktree requires a non-bare git repository" };
+	// A session sitting on a bare repository has no checkout to branch from.
+	// A linked worktree of a bare store still does, so only the session's own
+	// cwd decides this.
+	const onBareRepository =
+		!currentWorktreeRoot(cwd) &&
+		entries.some((entry) => entry.bare && entry.root === canonicalize(cwd));
+	if (onBareRepository) return { error: "EnterWorktree requires a non-bare git repository" };
+	const root = repoRoot(cwd, entries);
+	if (!root) return { error: "EnterWorktree requires a non-bare git repository" };
 
 	if (request.path) {
 		const record = findRegisteredWorktree(cwd, request.path);
 		if (!record) return { error: `path is not a registered git worktree: ${request.path}` };
 		const baseCommit = currentHead(cwd);
 		if (!baseCommit) return { error: "the current worktree has no commit" };
-		return { created: false, path: record.root, record, repoRoot, baseCommit };
+		return { created: false, path: record.root, record, repoRoot: root, baseCommit };
 	}
 
 	const name = safeName(request.name ?? `pi-${Date.now().toString(36)}`);
 	if (!name) return { error: "worktree name is empty after sanitization" };
-	const target = path.join(repoRoot, ".pi", "worktrees", name);
+	const managedDir = managedWorktreesDir(root);
+	if (!managedDir) return { error: "EnterWorktree requires a non-bare git repository" };
+	const target = path.join(managedDir, name);
 	const targetRoot = canonicalize(target);
 	const existing = entries.find((entry) => entry.root === targetRoot);
 	if (existing) {
 		const baseCommit = currentHead(cwd);
 		if (!baseCommit) return { error: "the current worktree has no commit" };
-		return { created: false, name, path: existing.root, record: existing, repoRoot, baseCommit };
+		return { created: false, name, path: existing.root, record: existing, repoRoot: root, baseCommit };
 	}
 	if (fs.existsSync(target)) return { error: `path exists but is not a registered git worktree: ${target}` };
 
 	const baseCommit = currentHead(cwd);
 	if (!baseCommit) return { error: "EnterWorktree requires at least one commit" };
-	return { created: true, name, path: target, repoRoot, baseCommit };
+	return { created: true, name, path: target, repoRoot: root, baseCommit };
 }
 
 function createWorktree(
@@ -306,6 +255,15 @@ async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWo
 			return;
 		}
 		state = created;
+		// A worktree inside the repository leaves an untracked `.pi/` behind.
+		// Report it; editing a user's .gitignore needs their say-so.
+		if (!isManagedWorktreesIgnored(target.repoRoot)) {
+			notifyPi(
+				ctx.ui,
+				`${MANAGED_WORKTREES_SHELL_PATH}/ is not git-ignored in this repository — add it to .gitignore or the linked worktree shows up as untracked in the parent checkout`,
+				"warning",
+			);
+		}
 	} else {
 		state = {
 			baseCommit: target.baseCommit,
@@ -424,7 +382,14 @@ const enterWorktreeParameters = Type.Object({
 export default function registerWorktreeSession(pi: ExtensionAPI): void {
 	let transitionCallId: string | undefined;
 	let pendingCommand: string | undefined;
+	let pendingLabel: string | undefined;
 	let transitionSignal: AbortSignal | undefined;
+
+	function queueTransition(transition: "enter_worktree" | "exit_worktree", command: string, signal: AbortSignal | undefined): void {
+		transitionSignal = signal;
+		pendingCommand = command;
+		pendingLabel = transition;
+	}
 
 	function setWorktreeToolActive(name: "enter_worktree" | "exit_worktree", active: boolean): void {
 		// Only `name` is managed here: the sibling is left exactly as the snapshot
@@ -448,14 +413,27 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 		});
 		pi.on("tool_call", (event) => {
 			if (pendingCommand || (transitionCallId && event.toolCallId !== transitionCallId)) {
-				return { block: true, terminate: true, reason: "Worktree transition pending. This tool was not executed. Retry it only after the replacement session confirms its active cwd." };
+				// Name the pending transition: an identical transition tool in the
+				// same batch is queued behind the first one, not lost.
+				const reason = pendingCommand && pendingLabel
+					? `${pendingLabel} is already queued for this turn. This tool was not executed. Retry it only after the replacement session confirms its active cwd.`
+					: "Worktree transition pending. This tool was not executed. Retry it only after the replacement session confirms its active cwd.";
+				return { block: true, terminate: true, reason };
 			}
 		});
-		pi.on("agent_settled", () => {
+		pi.on("agent_settled", (_event, ctx) => {
 			const command = transitionSignal?.aborted ? undefined : pendingCommand;
+			const dropped = command === undefined ? pendingLabel : undefined;
 			pendingCommand = undefined;
+			pendingLabel = undefined;
 			transitionSignal = undefined;
 			transitionCallId = undefined;
+			if (dropped) {
+				// The model was told the transition was pending. An abort ends the
+				// run without applying it, so the user is told instead of leaving
+				// the model's expectation standing.
+				notifyPi(ctx.ui, `Queued ${dropped} was dropped: the run ended before the session transition was applied`, "warning");
+			}
 			// Expanded slash commands dispatch immediately, even with followUp.
 			// Wait for settlement so forkFrom includes all tool results and no
 			// source-session tool execution can race session replacement.
@@ -473,6 +451,12 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 	pi.registerCommand("enter-worktree", {
 		description: "Create or enter a git worktree in a replacement Pi session",
 		handler: async (args, ctx) => {
+			// A queued transition has not been applied yet; a second switch here
+			// would race the first one's session replacement.
+			if (pendingCommand) {
+				notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) is queued and has not been applied yet — wait for it before starting another.`, "warning");
+				return;
+			}
 			let request: EnterWorktreeRequest;
 			try {
 				request = args.trim().startsWith("{") ? (JSON.parse(args) as EnterWorktreeRequest) : { name: args.trim() || undefined };
@@ -487,6 +471,10 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 	pi.registerCommand("exit-worktree", {
 		description: "Return to the parent Pi session and optionally clean up its git worktree",
 		handler: async (_args, ctx) => {
+			if (pendingCommand) {
+				notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) is queued and has not been applied yet — wait for it before starting another.`, "warning");
+				return;
+			}
 			await switchOutOfWorktree(ctx);
 		},
 	});
@@ -505,8 +493,7 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 		},
 		parameters: enterWorktreeParameters,
 		async execute(_toolCallId, params: EnterWorktreeToolInput, signal) {
-			transitionSignal = signal;
-			pendingCommand = `/enter-worktree ${JSON.stringify(params)}`;
+			queueTransition("enter_worktree", `/enter-worktree ${JSON.stringify(params)}`, signal);
 			return {
 				terminate: true,
 				content: [{ type: "text", text: "Queued enter_worktree; the session transition is pending. Stop using the old cwd; work resumes after the replacement session confirms its active cwd." }],
@@ -527,8 +514,7 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 		},
 		parameters: Type.Object({}),
 		async execute(_toolCallId, _params, signal) {
-			transitionSignal = signal;
-			pendingCommand = "/exit-worktree";
+			queueTransition("exit_worktree", "/exit-worktree", signal);
 			return {
 				terminate: true,
 				content: [{ type: "text", text: "Queued exit_worktree; the session transition is pending. Do not run other tools until the parent session is active." }],

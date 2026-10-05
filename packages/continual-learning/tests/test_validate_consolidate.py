@@ -266,6 +266,41 @@ class TestValidatorContract:
         assert result.returncode == 1
         assert "containment" in result.stdout
 
+    def test_grounding_rejects_final_file_symlinks(self) -> None:
+        (self.repo / "src" / "alias.ts").symlink_to("example.ts")
+        for status in ("found", "updated"):
+            plan = self.plan(["project_example.md"])
+            plan["grounding"][0]["observations"] = [{"path": "src/alias.ts", "status": status}]
+            result = self.invoke_plan(plan, "--repo-root", str(self.repo))
+            assert result.returncode == 1, result.stdout
+            assert "regular" in result.stdout or "symlink" in result.stdout
+
+    def test_grounding_rejects_dangling_aliases_with_structured_errors(self) -> None:
+        (self.repo / "src" / "dangling.ts").symlink_to("absent.ts")
+        for status in ("found", "missing"):
+            plan = self.plan(["project_example.md"])
+            plan["grounding"][0]["observations"] = [{"path": "src/dangling.ts", "status": status}]
+            result = self.invoke_plan(plan, "--repo-root", str(self.repo))
+            assert result.returncode == 1, result.stdout
+            assert json.loads(result.stdout)["errors"][0]["code"] == "grounding"
+
+    def test_grounding_parent_alias_must_remain_inside_at_each_component(self) -> None:
+        (self.repo / "inside").symlink_to(self.repo / "src", target_is_directory=True)
+        plan = self.plan(["project_example.md"])
+        plan["grounding"][0]["observations"] = [{"path": "inside/example.ts", "status": "found"}]
+        result = self.invoke_plan(plan, "--repo-root", str(self.repo))
+        assert result.returncode == 0, result.stdout
+
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "back").symlink_to(self.repo / "src", target_is_directory=True)
+        (self.repo / "outside-alias").symlink_to(outside, target_is_directory=True)
+        for observed, status in (("outside-alias/back/example.ts", "found"), ("outside-alias/back/absent.ts", "missing")):
+            plan["grounding"][0]["observations"] = [{"path": observed, "status": status}]
+            result = self.invoke_plan(plan, "--repo-root", str(self.repo))
+            assert result.returncode == 1, result.stdout
+            assert "containment" in result.stdout
+
     def test_cli_parse_errors_are_structured_json(self) -> None:
         result = run(["--unknown-option"])
         assert result.returncode == 2
@@ -282,6 +317,32 @@ class TestValidatorContract:
         ])
         assert result.returncode == 0, result.stdout
         assert json.loads(result.stdout)["ok"]
+
+    def test_privacy_index_uses_link_target_independent_of_display_prose(self) -> None:
+        self.memory_layout()
+        for private_row in (
+            "- [Personal preference](feedback_preference.md) (harness only)",
+            "- [Decoy old_notes.md label](feedback_preference.md) (harness only)",
+            "- old_notes.md describes [Preference](feedback_preference.md) (harness only)",
+        ):
+            write(self.harness / "MEMORY.md", private_row + "\n- [Project fact](project_example.md)\n")
+            write(self.public / "MEMORY.md", "- [Project fact](project_example.md)\n")
+            result = run([
+                "--harness", str(self.harness), "--public", str(self.public), "--check=privacy",
+            ])
+            assert result.returncode == 0, result.stdout
+            assert json.loads(result.stdout)["details"]["privateCount"] == 1
+
+    def test_privacy_index_ignores_filenames_in_descriptive_prose(self) -> None:
+        self.memory_layout()
+        for root in (self.harness, self.public):
+            index = root / "MEMORY.md"
+            write(index, index.read_text() + "\nPreviously consulted old_notes.md for background.\n")
+        result = run([
+            "--harness", str(self.harness), "--public", str(self.public), "--check=privacy",
+        ])
+        assert result.returncode == 0, result.stdout
+        assert json.loads(result.stdout)["details"]["privateCount"] == 1
 
     def test_privacy_rejects_same_canonical_roots(self) -> None:
         self.memory_layout()
@@ -441,6 +502,19 @@ class TestValidatorContract:
         result = self.invoke_plan(plan, "--repo-root", str(self.repo))
         assert result.returncode == 1
         assert "does not exist" in result.stdout
+
+    def test_grounding_missing_path_must_actually_be_absent(self) -> None:
+        plan = self.plan(["project_example.md"])
+        plan["grounding"] = [{
+            "name": "project_example.md", "status": "VERIFIED",
+            "observations": [{"path": "src/example.ts", "status": "missing"}],
+        }]
+        result = self.invoke_plan(plan, "--repo-root", str(self.repo))
+        assert result.returncode == 1
+        assert "must be absent" in result.stdout
+        plan["grounding"][0]["observations"][0]["path"] = "src/absent.ts"
+        accepted = self.invoke_plan(plan, "--repo-root", str(self.repo))
+        assert accepted.returncode == 0, accepted.stdout
 
     def test_automatic_plan_accepts_preserved_delete_and_rejects_unpreserved_delete(self) -> None:
         plan = self.plan(["project_example.md"])

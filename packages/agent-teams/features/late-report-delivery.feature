@@ -20,3 +20,9 @@ Feature: Assignment completion and delayed report delivery have explicit meaning
     When Pi delivers the report
     Then no after-stop marker is added
     And stopping the process after delivery starts does not retroactively mark the report as late
+
+  Scenario: An invalid report timestamp does not break formatting
+    Given a report with a finite timestamp outside the JavaScript Date range
+    When Pi formats the report
+    Then the authored report body is preserved
+    And the invalid timestamp attribute is omitted

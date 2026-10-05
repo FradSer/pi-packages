@@ -29,13 +29,23 @@ Feature: Agent Teams tool surface
 
   # ── agent: one spawn verb ───────────────────────────────────────────────
 
-  Scenario: a prompted child works immediately and persists afterwards
+  Scenario: a prompted child works immediately and stays idle afterwards
     Given an Agent "scout" is running
     When the model calls agent start with name "scout" and a prompt
     Then a Work Session runs that prompt to a terminal result
     And the result is reported to the leader automatically
     And the Work Session stays alive and idle afterwards
     And no task is created
+
+  Scenario: disk identity declares storage but does not change result settlement
+    Given no model-facing persistence, Memory or workspace switch exists
+    When start resolves an inline role
+    Then it has session scope and no durable data
+    When start resolves a valid disk agent.md
+    Then it uses that identity's private Memory, ordinary scratch directory and project session
+    And both kinds become idle after results and can receive send
+    And only explicit stop or parent shutdown closes execution
+    And a name cannot request an amnesiac run of a disk identity
 
   Scenario: an unprompted child joins the pool and takes work itself
     Given an Agent "scout" is running
@@ -44,6 +54,26 @@ Feature: Agent Teams tool surface
     And the Agent is woken by board notice
     And the Agent takes a task by updating that task's status itself
     And the leader cannot name the Agent on the task
+
+  Scenario: A start states the same facts to the model and to the reader
+    Given a child started with an explicit model
+    When the start is reported
+    Then the receipt the model reads names that model
+    And the row shows the same model, because both project one receipt
+
+  Scenario: The tool states the whole loop, and states it positively
+    Given the always-in-context description of the agent tool
+    When its guidance to the caller is read
+    Then it names start, the result, and idle in that order
+    And it says stop belongs to the end of a child's life
+    And it explains asynchronous resumption without a caller-side waiting loop
+
+  Scenario: Stopping a child that is working says so at the moment of the stop
+    Given a child with a turn in flight
+    When the Leader stops its exact session
+    Then the receipt says the child was working
+    And it says a turn it already settled still arrives as a late delivery
+    And it says completion lives in its own result or on the task board
 
   Scenario: inspect and stop address one incarnation only
     Given an Agent "scout" was stopped and a replacement "scout" started
@@ -57,6 +87,78 @@ Feature: Agent Teams tool surface
     When the model calls agent start with fork and no prompt
     Then a context-primed idle Work Session is created
     And the call is not refused
+
+  # ── agent: the role a child actually receives ──────────────────────────
+
+  Rule: An inline role is never silently replaced or dropped
+
+    Scenario: A fresh inline role replaces a session role of the same name
+      Given a Temporary Agent "role-shadow" was started with one inline role and then stopped
+      When the Leader starts "role-shadow" again with a different inline role
+      Then the child's standing instructions are the new role's
+      And the receipt reports the role that was applied
+
+    Scenario: A persisted definition wins and the receipt says the inline role was dropped
+      Given a persisted project definition "role-persisted" exists
+      When the Leader starts "role-persisted" with an inline role
+      Then the persisted definition is the child's role
+      And the receipt says the inline role was not applied
+
+    Scenario: A description alone is a role with a purpose and no instructions
+      When the Leader starts a child with a description and no role_prompt
+      Then the call is not refused on either spawn path
+      And the child's standing instructions are empty
+      And the receipt reports the description and says no standing instructions were given
+      When the Leader starts a child with a role_prompt and no description
+      Then the call is not refused
+      And the child's standing instructions are that prompt
+
+    Scenario: A description beside a resolved definition is not a half role
+      Given a persisted project definition "role-beside" exists
+      When the Leader starts "role-beside" with a description and no role_prompt
+      Then the call is not refused, because the definition already supplies a role
+      And the receipt names the definition that won
+
+  # ── agent: the child gets the role the start resolved ──────────────────
+
+  Rule: A start reports the child it actually produced
+
+    Scenario: A role's own grant and model reach the child
+      Given a role "role-grant" declaring read and bash with its own model
+      When the Leader starts "role-grant" with a prompt and no grant of its own
+      Then the child is launched with that role's grant and model
+      And the roster and the receipt both report that grant
+
+    Scenario: A tool id a bare child cannot have is refused
+      When the Leader starts a child granting read and a project-extension tool
+      Then the call is refused naming the id the child cannot be granted
+      And no child process was started
+      And the name is left unclaimed
+
+    Scenario: A refused start leaves the role that name already had alone
+      Given a living child "role-claim" started with one inline role
+      When the Leader starts "role-claim" again with a different inline role
+      Then the call is refused
+      And the role "role-claim" resolves to the first call's instructions
+
+    Scenario: A child the Leader stopped is not recorded as a death
+      Given a child the Leader stopped with the stop action
+      When the child's process closes afterwards
+      Then the roster entry is stopped without an error
+      And the stop receipt stands alone as the record of that shutdown
+
+    Scenario: A name whose process is already gone can be released
+      Given a roster entry whose child process no longer exists
+      When the Leader stops that exact session
+      Then the call is not refused
+      And the receipt says no process was running and the name is released
+      And the name can be started again
+      And a close that did not confirm is still refused
+
+    Scenario: The leader's exit closes the children it started
+      Given a session that started a child process
+      When that session shuts down
+      Then the child is terminated rather than left running unheld
 
   # ── task: no ownership field, derived lease ─────────────────────────────
 

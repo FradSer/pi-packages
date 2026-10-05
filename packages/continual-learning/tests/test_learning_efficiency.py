@@ -28,6 +28,25 @@ def test_automatic_screen_skips_chitchat_and_routes_durable_evidence() -> None:
     assert result["full"] == {"memory": True, "harness": True, "agents": True, "reasons": ["manual-full"]}
 
 
+def test_automatic_screen_keeps_explicit_knowledge_and_validation_opportunities() -> None:
+    result = run_bun("""
+      import { screenLearningEntries } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const screen = text => screenLearningEntries([{ message: { role: 'user', content: text } }], 'automatic');
+      console.log(JSON.stringify({
+        knowledge: screen('Remember for future tasks: this project uses pnpm and Node 22.'),
+        definition: screen('In this repository, the generated client is the source of truth.'),
+        validation: screen('Add a regression test that verifies the lockfile is never rewritten.'),
+        question: screen('Should I run the tests now?'),
+      }));
+    """)
+    assert result["knowledge"]["memory"] is True
+    assert result["definition"]["memory"] is True
+    assert result["validation"]["harness"] is True
+    assert result["validation"]["memory"] is True
+    assert result["question"]["memory"] is False
+    assert result["question"]["harness"] is False
+
+
 def test_equivalent_durable_prohibitions_route_to_memory_and_harness() -> None:
     result = run_bun("""
       import { screenLearningEntries } from './packages/continual-learning/extensions/learning-efficiency.ts';

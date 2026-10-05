@@ -1,6 +1,6 @@
 import type { TSchema, TString, TObject, TUnion } from "typebox";
 import { Type } from "typebox";
-import { WORKER_BUILTIN_TOOLS } from "@fradser/pi-subagents";
+import { AGENT_BUILTIN_TOOLS } from "@fradser/pi-subagents";
 
 // ── Roster ───────────────────────────────────────────────────────
 // A child process on the roster is an execution fact, so the type lives in
@@ -8,19 +8,19 @@ import { WORKER_BUILTIN_TOOLS } from "@fradser/pi-subagents";
 // the coordination vocabulary below (TeamState) references it and callers read
 // this module as the package's type surface.
 
-export type { Teammate, TeammateStatus, WorkerUsage } from "@fradser/pi-subagents";
-import type { Teammate } from "@fradser/pi-subagents";
+export type { Agent, AgentStatus, AgentUsage } from "@fradser/pi-subagents";
+import type { Agent } from "@fradser/pi-subagents";
 
-// ── Task board ────────────────────────────────────────────────────
+// ── Task tasks ────────────────────────────────────────────────────
 // The Work Item data model lives in @fradser/pi-tasks. Re-exported here because the
-// coordination vocabulary below (Teammate, TeamState) references it and callers
+// coordination vocabulary below (Agent, TeamState) references it and callers
 // read this module as the package's type surface.
 
-export type { BoardTask, TaskIntent, TaskStatus } from "@fradser/pi-tasks";
+export type { Task, TaskIntent, TaskStatus } from "@fradser/pi-tasks";
 // The assignment a teammate holds is the task domain's own shape. Re-exported
 // under the historical name so the coordination vocabulary stays readable.
 export type { WorkAssignment as WorkerAssignment } from "@fradser/pi-tasks";
-import type { BoardTask } from "@fradser/pi-tasks";
+import type { Task } from "@fradser/pi-tasks";
 
 /**
  * The result shape every coordination tool returns.
@@ -107,13 +107,10 @@ export interface InboxMessage {
 
 export const InlineAgentDefinitionParams = Type.Object({
   description: Type.String({ minLength: 1, description: "Routing contract for the generated Agent" }),
-  tools: Type.Optional(Type.Array(Type.String(), { description: `Explicit minimal tool grant. Canonical built-ins: ${WORKER_BUILTIN_TOOLS.join(", ")}. Omitted or [] means coordination-only (message and task), with no file or shell access. No aliases or inherited leader extension tools.` })),
+  tools: Type.Optional(Type.Array(Type.String(), { description: `Explicit minimal tool grant. Canonical built-ins: ${AGENT_BUILTIN_TOOLS.join(", ")}. Omitted or [] means coordination-only (message and task), with no file or shell access. No aliases or inherited leader extension tools.` })),
   model: Type.Optional(Type.String({ description: "Provider/model pin or inherit" })),
   verify: Type.Optional(Type.String({ description: "Default Work verification gate" })),
-  worktree: Type.Optional(Type.Boolean({ description: "Dedicated Git worktree" })),
   prompt: Type.String({ minLength: 1, description: "Agent role prompt" }),
-  persist: Type.Optional(Type.Boolean({ description: "Persist only when explicitly requested" })),
-  persistScope: Type.Optional(Type.Union([Type.Literal("project"), Type.Literal("project-local")])),
 }, { additionalProperties: false });
 
 /** Some harnesses deliver object/array parameters as JSON strings and Pi
@@ -209,7 +206,7 @@ export const AgentActionParams = actionUnion([
 ], { description: "Delegate, start, inspect, or stop an Agent session" });
 
 /** Shut down one living teammate. */
-/** Create a board task (leader-only). */
+/** Create a task set task (leader-only). */
 /** First public Work interface slice. Work creation reuses the current
  * single-writer task record until every acquisition path shares one lifecycle. */
 export const WorkToolParams = actionUnion([
@@ -248,7 +245,7 @@ export const WorkToolParams = actionUnion([
   }, { additionalProperties: false }),
 ], { description: "Create, list, assign, release, reopen, or supersede current Work Items" });
 
-/** Shared leader/worker read-only board view. */
+/** Shared leader/worker read-only tasks view. */
 /** The one communication primitive, across Leader, Worker, and Peers.
  *
  * `body` rather than `message`: the field is the text of a message, and a
@@ -268,7 +265,7 @@ export const LEADER_RECIPIENT = "leader";
 
 /** The single messaging primitive: addressed peer mail and leader reports.
  * `status` is honored only for to="leader" terminal reports. */
-/** Self-claim a pending board task. */
+/** Self-claim a pending tasks task. */
 /** Worker-only Work claim operation. It queues an intent; the single-writer
  * harness remains the only authority that can grant ownership. */
 export const WorkerWorkToolParams = actionUnion([
@@ -295,8 +292,8 @@ export const TEAM_RUNTIME_VERSION = 2;
 
 export interface TeamState {
   runtimeVersion: number;
-  teammates: Record<string, Teammate>;
-  tasks: Record<string, BoardTask>;
+  agents: Record<string, Agent>;
+  tasks: Record<string, Task>;
   /** Unified teammate model for this session; spawns without a role pin use it. */
   defaultModel?: string;
   /** Single leader inbox for teammate reports and harness diagnostics. */

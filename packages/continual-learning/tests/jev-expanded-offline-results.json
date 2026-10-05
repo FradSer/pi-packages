@@ -1,0 +1,491 @@
+{
+  "evidence": "offline-baseline-only",
+  "modelRequested": "jev-1.13.0",
+  "complete": true,
+  "baselineScope": "deterministic parent screen and code-validated candidate; not the legacy LLM selector or an end-to-end learning comparison",
+  "calls": 0,
+  "costKnown": true,
+  "usageKnown": true,
+  "inputTokens": 0,
+  "knownInputTokens": 0,
+  "estimatedCostUsd": 0,
+  "knownEstimatedCostUsd": 0,
+  "actualModels": [],
+  "metrics": {
+    "en": {
+      "samples": 12,
+      "baseline": {
+        "directionSamples": 12,
+        "candidateSamples": 12,
+        "missedDirections": 7,
+        "extraDirections": 1,
+        "candidateFalseAccepts": 8,
+        "supportedCandidatesHeld": 0,
+        "memoryFalseAccepts": 6,
+        "harnessFalseHolds": 0,
+        "medianLatencyMs": 0.014770999999996093,
+        "uncertainJudgments": 0
+      },
+      "after": null
+    },
+    "zh": {
+      "samples": 12,
+      "baseline": {
+        "directionSamples": 12,
+        "candidateSamples": 12,
+        "missedDirections": 7,
+        "extraDirections": 1,
+        "candidateFalseAccepts": 8,
+        "supportedCandidatesHeld": 0,
+        "memoryFalseAccepts": 6,
+        "harnessFalseHolds": 0,
+        "medianLatencyMs": 0.004542000000014923,
+        "uncertainJudgments": 0
+      },
+      "after": null
+    }
+  },
+  "rows": [
+    {
+      "id": "en-expanded-memory-0",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 1.1643750000000637,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-memory-1",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.9951250000001437,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-memory-2",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.014124999999921783,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-memory-3",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.011792000000014013,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-memory-4",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.022832999999991443,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-memory-5",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.01424999999994725,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-memory-6",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.012042000000064945,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-memory-7",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.014625000000023647,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-harness-0",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.015458999999964362,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-harness-1",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.03558399999997164,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-harness-2",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.014916999999968539,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-expanded-harness-3",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.008041999999932159,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-memory-0",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 1.075708000000077,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-memory-1",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.014749999999821739,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-memory-2",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.005333000000064203,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-memory-3",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.0038750000001073204,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-memory-4",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.007041999999955806,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-memory-5",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.003833999999869775,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-memory-6",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.004332999999860476,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-memory-7",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.004625000000032742,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-harness-0",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.003917000000001281,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-harness-1",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.005000000000109139,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-harness-2",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.004208000000062384,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-expanded-harness-3",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.004458999999997104,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    }
+  ],
+  "acceptance": {
+    "scope": "code-validated candidate gate only; not end-to-end effects",
+    "passed": false,
+    "missing": 24,
+    "baselineFalseAccepts": 16,
+    "falseAccepts": 0,
+    "baselineHolds": 0,
+    "holds": 0
+  }
+}

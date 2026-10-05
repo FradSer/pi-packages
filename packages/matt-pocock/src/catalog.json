@@ -338,6 +338,27 @@
     ]
   },
   {
+    "id": "pr",
+    "file": "pr.md",
+    "kind": "utility",
+    "invocation": "model",
+    "label": "Pull Request Body",
+    "description": "Write a PR body with summary, evidence, and merge risk.",
+    "standalone": true
+  },
+  {
+    "id": "retro",
+    "file": "retro.md",
+    "kind": "utility",
+    "invocation": "user",
+    "label": "Session Retrospective",
+    "description": "Review a coding session and propose improvements to the agent environment.",
+    "standalone": true,
+    "requires": [
+      "writing-for-agents"
+    ]
+  },
+  {
     "id": "diagnosing-bugs",
     "file": "diagnosing-bugs.md",
     "kind": "workflow",
@@ -593,10 +614,10 @@
     "kind": "utility",
     "invocation": "model",
     "label": "Domain Modeling",
-    "description": "Build or sharpen project terminology, CONTEXT.md, and architectural decisions.",
+    "description": "Build or sharpen project terminology, GLOSSARY.md, and architectural decisions.",
     "standalone": true,
     "discloses": [
-      "CONTEXT-FORMAT",
+      "GLOSSARY-FORMAT",
       "ADR-FORMAT"
     ]
   },
@@ -605,7 +626,7 @@
     "file": "tdd.md",
     "kind": "utility",
     "invocation": "model",
-    "label": "Tdd",
+    "label": "TDD",
     "description": "Run the BDD-driven red-green automation loop through public seams.",
     "standalone": true,
     "requires": [
@@ -623,21 +644,21 @@
     "file": "ADR-FORMAT.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "ADR FORMAT"
+    "label": "ADR Format"
   },
   {
     "id": "AGENT-BRIEF",
     "file": "AGENT-BRIEF.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "AGENT BRIEF"
+    "label": "Agent Brief"
   },
   {
     "id": "bdd-best-practices",
     "file": "bdd-best-practices.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "Bdd Best Practices",
+    "label": "BDD Best Practices",
     "discloses": [
       "gherkin-guide",
       "bdd",
@@ -651,7 +672,7 @@
     "file": "bdd.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "Bdd",
+    "label": "BDD",
     "discloses": [
       "bdd-best-practices",
       "tdd",
@@ -659,18 +680,11 @@
     ]
   },
   {
-    "id": "CONTEXT-FORMAT",
-    "file": "CONTEXT-FORMAT.md",
-    "kind": "reference",
-    "invocation": "internal",
-    "label": "CONTEXT FORMAT"
-  },
-  {
     "id": "DEEPENING",
     "file": "DEEPENING.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "DEEPENING",
+    "label": "Deepening",
     "discloses": [
       "codebase-design"
     ]
@@ -680,7 +694,7 @@
     "file": "DESIGN-IT-TWICE.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "DESIGN IT TWICE",
+    "label": "Design It Twice",
     "discloses": [
       "codebase-design",
       "DEEPENING"
@@ -708,16 +722,19 @@
   {
     "id": "GLOSSARY-FORMAT",
     "file": "GLOSSARY-FORMAT.md",
+    "aliases": [
+      "CONTEXT-FORMAT"
+    ],
     "kind": "reference",
     "invocation": "internal",
-    "label": "GLOSSARY FORMAT"
+    "label": "Glossary Format"
   },
   {
     "id": "GLOSSARY",
     "file": "GLOSSARY.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "GLOSSARY",
+    "label": "Glossary",
     "discloses": [
       "writing-great-skills"
     ]
@@ -727,7 +744,7 @@
     "file": "HTML-REPORT.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "HTML REPORT",
+    "label": "HTML Report",
     "discloses": [
       "codebase-design"
     ]
@@ -737,7 +754,7 @@
     "file": "issue-tracker-github.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "Issue Tracker Github",
+    "label": "Issue Tracker GitHub",
     "discloses": [
       "triage",
       "wayfinder"
@@ -748,7 +765,7 @@
     "file": "issue-tracker-gitlab.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "Issue Tracker Gitlab",
+    "label": "Issue Tracker GitLab",
     "discloses": [
       "triage",
       "wayfinder"
@@ -769,7 +786,7 @@
     "file": "LEARNING-RECORD-FORMAT.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "LEARNING RECORD FORMAT",
+    "label": "Learning Record Format",
     "discloses": [
       "GLOSSARY-FORMAT"
     ]
@@ -779,7 +796,7 @@
     "file": "LOGIC.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "LOGIC",
+    "label": "Logic",
     "discloses": [
       "UI",
       "prototype"
@@ -790,7 +807,7 @@
     "file": "MISSION-FORMAT.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "MISSION FORMAT"
+    "label": "Mission Format"
   },
   {
     "id": "mocking",
@@ -804,7 +821,7 @@
     "file": "OUT-OF-SCOPE.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "OUT OF SCOPE"
+    "label": "Out of Scope"
   },
   {
     "id": "phase-boundaries",
@@ -821,7 +838,7 @@
     "file": "RESOURCES-FORMAT.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "RESOURCES FORMAT",
+    "label": "Resources Format",
     "discloses": [
       "teach"
     ]
@@ -831,7 +848,7 @@
     "file": "SKILL-MECHANICS.md",
     "kind": "reference",
     "invocation": "internal",
-    "label": "SKILL MECHANICS",
+    "label": "Skill Mechanics",
     "discloses": [
       "writing-for-agents"
     ]
@@ -883,7 +900,7 @@
     "file": "hitl-loop.template.sh",
     "kind": "asset",
     "invocation": "internal",
-    "label": "Hitl Loop.Template.Sh"
+    "label": "HITL Loop Template"
   },
   {
     "id": "template",

@@ -1,0 +1,24 @@
+{
+  "scope": "two maintenance passes only; source task and fresh-session worker costs excluded",
+  "evidence": "real-native-receipts-plus-jev-tariff-estimates",
+  "runs": [
+    {
+      "enabled": false,
+      "workflowDurationSeconds": 184.174,
+      "workerReportedTokens": 46622,
+      "workerReportedCostUsd": 0.0051702599999999994,
+      "jevInputTokens": 0,
+      "jevEstimatedCostUsd": 0,
+      "learningPipelineReportedPlusEstimatedCostUsd": 0.0051702599999999994
+    },
+    {
+      "enabled": true,
+      "workflowDurationSeconds": 116.243,
+      "workerReportedTokens": 46372,
+      "workerReportedCostUsd": 0.005023191999999999,
+      "jevInputTokens": 5941,
+      "jevEstimatedCostUsd": 0.000249522,
+      "learningPipelineReportedPlusEstimatedCostUsd": 0.0052727139999999995
+    }
+  ]
+}

@@ -1,82 +1,98 @@
-Feature: Durable per-Agent workspaces
+Feature: Ordinary durable Agent data homes
 
-  Pi stores sessions under the agent directory grouped by working directory, and
-  `--continue` opens the most recent session for the current working directory.
-  The working path is therefore the memory key: a stable workspace per Agent is
-  what makes Pi's own session storage usable as that Agent's working memory, with
-  Pi's compaction, branching, `/resume` picker, and `/export` doing the work a
-  bespoke scheme would have to rebuild.
+  Every disk identity has private Memory, ordinary scratch and project-scoped
+  history under the configured agent directory. The child edits the original
+  project cwd; scratch is neither a checkout nor write confinement.
+  VISION.md replaces all linked-worktree, preserve and release behavior.
 
-  This is why a workspace is durable and per-Agent rather than per-task and
-  disposable. A per-task worktree that is removed on completion orphans its
-  session group every attempt, which is fragmentation that looks like amnesia and
-  also accumulates storage without bound.
+  Rule: Path helpers are read-only and do not imply identity
 
-  Rule: The workspace is durable and stable per Agent and project
+    Scenario: One identity has one home and one scratch directory across projects
+      Given an Agent name and two project directories
+      When its home and workspace paths are calculated
+      Then they are under agents/name in the configured agent directory
+      And both projects use the same scratch directory
+      And nothing is created on disk
 
-    Scenario: The same Agent in the same project always resolves one path
-      Given an Agent name and a project working directory
-      When the workspace path is resolved twice
-      Then both resolutions are identical
-      And the path is under the agent directory, not inside the checkout
+    Scenario: Project histories remain private and distinct
+      Given two Agents and two project directories
+      When their session paths are calculated
+      Then each history uses agents/name/projects/project-slug/session
+      And the existing stable projectSlug algorithm is preserved
+      And none uses the parent Pi session store
 
-    Scenario: Different Agents and different projects get different homes
-      Given one Agent in two projects, and two Agents in one project
-      When the workspace paths are resolved
-      Then all three differ
+  Rule: Parent sessions own separate project histories
 
-    Scenario: The first attempt creates and the second reuses
-      Given a repository with at least one commit
-      When an isolated workspace is ensured twice for the same Agent
-      Then the first creates a linked worktree on a durable per-Agent branch
-      And the second reports reuse and the same working directory
-      And reuse is what preserves the Agent's Pi session group
+    Scenario: Different parent session IDs hash to distinct stable histories
+      Given one Agent, one project directory and two non-empty opaque parent session IDs
+      When their session paths are calculated with each parent ID
+      Then each path uses projects/project-slug/parents/parent-sha256/session
+      And the raw parent IDs never occur in either path
+      And repeating one parent ID returns the same path while the other path differs
 
-  Rule: Falling back to a shared tree is reported, never pretended
+    Scenario: Omitting a parent session ID preserves the legacy history path
+      Given one Agent and one project directory
+      When a session path is calculated without a parent session ID
+      Then it remains projects/project-slug/session
+      And no directory is created
 
-    Scenario: A shared isolation request uses the caller's directory
-      Given isolation is explicitly shared
-      When the workspace is ensured
-      Then the working directory is the caller's
-      And isolation is reported as none
+    Scenario: Blank parent session IDs are refused before provisioning
+      Given one Agent, one project directory and a blank parent session ID
+      When durable data is provisioned with that ID
+      Then it is refused before any Agent directory is created
 
-    Scenario: A working directory that is not a repository cannot be isolated
-      Given a working directory that is not a git repository
-      When an isolated workspace is ensured
-      Then the caller's directory is used
-      And a reason states that it is not a git repository
-      And nothing claims the child was isolated
+    Scenario: Oversized parent session IDs are refused before provisioning
+      Given one Agent, one project directory and a parent session ID over 4 KiB in UTF-8
+      When durable data is provisioned with that ID
+      Then it is refused before any Agent directory is created
 
-  Rule: Completion preserves; only an explicit release removes
+    Scenario: A new parent session does not import legacy project history
+      Given an existing legacy project session directory and history file
+      When durable data is provisioned with a new parent session ID
+      Then the new session directory is distinct
+      And the legacy directory and its bytes remain unchanged
 
-    Scenario: Preserving commits attempt output and keeps the directory
-      Given a workspace holding an uncommitted file
-      When the workspace is preserved
-      Then the file is committed onto the Agent's durable branch
-      And the directory still exists afterwards
-      And an interrupted or crashed attempt therefore still leaves its work retrievable
+  Rule: Provisioning builds ordinary directories, never a Git workspace
 
-    Scenario: Preserving a clean workspace is not an error
-      Given a workspace with no uncommitted changes
-      When the workspace is preserved
-      Then it reports success with nothing committed
+    Scenario: First provision creates durable data and second provision reuses it
+      Given a valid disk identity authorized by its caller
+      When ensureAgentWorkspace is called twice
+      Then the first reports reused false and the second reports reused true
+      And each returns cwd, workspacePath, sessionDir and reused only
+      And cwd is the original project path, not scratch
+      And memory/MEMORY.md, memory/proposals, workspace and project history exist
+      And no Git command, branch, commit or worktree is used
 
-    Scenario: Release removes the directory but keeps the branch
-      Given an existing workspace
-      When it is released explicitly
-      Then the directory is gone
-      And the durable branch survives so preserved work stays retrievable
+    Scenario: An existing memory index and scratch output survive provisioning
+      Given an existing MEMORY.md index and scratch output
+      When durable data is provisioned for another project
+      Then their bytes remain unchanged
+      And state.json preserves createdAt and updates lastProject and memoryEntryCount
+      And state.json is published atomically
+      And every state writer uses the same exclusive update boundary
+      And unrecognized metadata and a pre-existing lock are never overwritten
+      And no user-scope definition is synthesized
 
-    Scenario: A failed spawn never removes a workspace it did not create
-      Given a spawn that fails after reusing an existing workspace
-      When the failure path discards the workspace
-      Then the reused workspace is left untouched
-      And only a workspace this spawn created, in which nothing ran, may be removed
+    Scenario: Invalid names, unsafe destinations and disguised worktrees are refused
+      Given a traversal name, symlinked durable path, malformed state or scratch with .git
+      When durable data is provisioned
+      Then it is refused instead of following or disguising the unsafe path
+      And existing output and metadata remain unchanged
 
-  Rule: Write isolation is a separate layer and is not claimed here
+    Scenario: Unsafe session files cannot escape private history
+      Given the private project session directory contains a jsonl symlink or hard link
+      When an Agent provisions or resumes history
+      Then startup is refused before a child can read or append to that history
+      And the linked outside history remains byte-identical
+      And a directory or non-regular jsonl entry is not treated as saved history
 
-    Scenario: A worktree separates the filesystem without confining writes
-      Given an Agent granted bash inside its workspace
-      When the isolation it receives is described
-      Then it is filesystem separation through a linked worktree
-      And no kernel write confinement is claimed, because none is implemented
+    Scenario: Provisioning does not require a repository
+      Given an ordinary project directory without Git metadata
+      When durable data is provisioned
+      Then it succeeds and the child still uses that original project directory
+
+    Scenario: Parallel provisioners preserve the identity creation timestamp
+      Given multiple isolated processes provisioning one identity
+      When their atomic state writes complete
+      Then state.json remains parseable with the same creation timestamp
+      And no temporary file remains after successful publication

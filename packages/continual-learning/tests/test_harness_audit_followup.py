@@ -91,9 +91,12 @@ def test_harness_orchestration_rejects_before_receipts(tmp_path: Path, base: obj
     run_dir.mkdir()
     result = js(f"""
       import {{applyHarnessConsolidationPlan}} from '{MODULE}';
+      import fs from 'node:fs'; import {{createHash}} from 'node:crypto';
+      const snapshotPath={json.dumps(str(run_dir/'snapshot.json'))}; fs.writeFileSync(snapshotPath,'{{}}');
+      const snapshotDigest=createHash('sha256').update(fs.readFileSync(snapshotPath)).digest('hex');
       const planning={{
         target:{json.dumps(str(target))},
-        run:{{manifest:{{runDir:{json.dumps(str(run_dir))},runId:'test',scopeDigest:'scope',snapshotDigest:'snapshot'}}}},
+        run:{{manifest:{{runDir:{json.dumps(str(run_dir))},runId:'test',scopeDigest:'scope',snapshotPath,snapshotDigest}}}},
         plan:{{kind:'harness-consolidation-plan',operations:[{{op:'addRule',rule:{{id:'known',skill:'known',instructions:'guidance'}}}}]}},
         validationOptions:{{availableSkills:new Set(['known']),requireEvidence:false,requireCases:false}}
       }};
@@ -102,7 +105,7 @@ def test_harness_orchestration_rejects_before_receipts(tmp_path: Path, base: obj
     assert result['outcome'] == 'rejected'
     assert any(word in result['error'] for word in ['object', 'array', 'legacy'])
     assert target.read_text() == before
-    assert list(run_dir.iterdir()) == []
+    assert sorted(p.name for p in run_dir.iterdir()) == ['snapshot.json']
     assert sorted(p.name for p in tmp_path.iterdir()) == ['harness.json', 'run']
 
 

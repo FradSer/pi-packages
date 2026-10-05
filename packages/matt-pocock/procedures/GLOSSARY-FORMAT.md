@@ -33,3 +33,10 @@ _Avoid_: Effort score, intensity rating
 - **Group under subheadings** when natural clusters emerge (e.g. `## Anatomy`, `## Programming`). A flat list is fine when terms cohere.
 - **Flag ambiguities explicitly.** If a term is used loosely in the wider field, note the resolution: "In this workspace, 'set' always means a working set — warm-ups are tracked separately."
 - **Revise as understanding deepens.** A definition the user wrote in week one may be wrong by week six. Update in place; do not leave stale entries.
+
+## Single vs multi-context repositories
+
+Most repositories use one `GLOSSARY.md` at the root. A repository with
+multiple bounded contexts may use a root `GLOSSARY-MAP.md` that points to one
+`GLOSSARY.md` per context and records their relationships. Read the map first
+when it exists; create the glossary lazily when the first term is resolved.

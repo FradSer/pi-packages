@@ -21,7 +21,8 @@ These are Pi chat commands, not terminal subcommands.
 
 Only complete arguments equal to `pause`, `resume`, or `clear` are management
 actions. `/goal clear my schedule` remains objective text. Bare `/goal` never
-starts work. Goal-setting text is refused while Pi is busy or has pending messages; retry when idle.
+starts work. Goal-setting text while Pi is busy is refused only when there is no goal being pursued to revise; a goal
+under way takes the new text as a revision and continues on it.
 Only a matching request accepted by Pi grants revision activation.
 A refused or failed send never grants activation to an unrelated edit.
 Clear requires interactive confirmation; headless calls refuse it.
@@ -160,8 +161,9 @@ research file access. This is not an OS sandbox against concurrent directory rep
 Failed creation can leave prose files without an active record.
 Atomic replacements do not use `fsync`; host crashes can lose the newest write.
 
-The passive widget uses pi-kit and appears below the input editor.
-Elapsed time uses whole minutes, starting at `0m` (for example, `0m`, `1m`, or `62m`).
+The passive widget mounts below the input editor through `ui.setWidget`.
+Elapsed time scales with the run: whole minutes below an hour, then hours and
+minutes, then days and hours (for example `0m`, `1m`, `2h 15m`, `1d 1h`).
 The passive widget uses the current goal state. `/goal` displays a compact summary
 without an overlay or project-wide list. The recorded status `active` means the goal
 is enabled; it does not prove that a child or model request is currently running.

@@ -1,19 +1,19 @@
 import assert from "node:assert/strict";
 import { runAgentAction } from "../src/agent-actions.ts";
 import { registerSessionAgent } from "@fradser/pi-subagents";
-import { registerTeammate, resetState } from "../src/state.ts";
+import { registerAgent, resetState } from "../src/state.ts";
 
 resetState();
 registerSessionAgent({ name: "reviewer", description: "Review", prompt: "Review", tools: [] });
 const spawned: any[] = [];
 const runtime = {
-  spawnTeammate(input: any) {
-    const teammate = { name: input.name, agent: input.agent, spawnId: `s-${spawned.length}`, workId: input.workId, status: "starting", assignment: input.prompt ? { id: `direct-${spawned.length}` } : undefined };
-    spawned.push({ input, teammate });
-    registerTeammate({ ...teammate, pid: 0, isolation: "none", createdAt: 1, updatedAt: 1 });
-    return { ok: true as const, teammate };
+  spawnAgent(input: any) {
+    const agent = { name: input.name, role: input.role, spawnId: `s-${spawned.length}`, workId: input.workId, status: "starting", assignment: input.prompt ? { id: `direct-${spawned.length}` } : undefined };
+    spawned.push({ input, agent });
+    registerAgent({ ...agent, pid: 0, createdAt: 1, updatedAt: 1 });
+    return { ok: true as const, agent };
   },
-  async shutdownTeammateExact(_name: string, spawnId: string) {
+  async shutdownAgentExact(_name: string, spawnId: string) {
     return spawnId === "s-0" ? { ok: true as const, body: "stopped" } : { ok: false as const, error: "wrong session" };
   },
 };

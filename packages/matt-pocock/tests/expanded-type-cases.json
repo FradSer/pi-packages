@@ -1,0 +1,117 @@
+[
+  {
+    "id": "type-frontend",
+    "taskType": "frontend",
+    "fixture": "frontend",
+    "kind": "artifact",
+    "expectSource": "tdd",
+    "artifact": [
+      "notes/RESULT.md",
+      "src/feature.mjs"
+    ],
+    "checkTests": true,
+    "toolBudget": 40,
+    "prompt": "Use matt_pocock_workflow mode capability with capability tdd. I am doing the frontend developer task recorded in SPEC.md. All stated decisions are approved. Inspect the source and immutable acceptance tests, run fixture_checks to observe RED, make the smallest justified fix to src/feature.mjs, then observe GREEN. Preserve all public contracts. Write notes/RESULT.md with observed before/after evidence, the bounded coverage and actual limitations. Use only the isolated local project; no remote work or unrelated edits."
+  },
+  {
+    "id": "type-api",
+    "taskType": "api",
+    "fixture": "api",
+    "kind": "artifact",
+    "expectSource": "tdd",
+    "artifact": [
+      "notes/RESULT.md",
+      "src/feature.mjs"
+    ],
+    "checkTests": true,
+    "toolBudget": 40,
+    "prompt": "Use matt_pocock_workflow mode capability with capability tdd. I am doing the api developer task recorded in SPEC.md. All stated decisions are approved. Inspect the source and immutable acceptance tests, run fixture_checks to observe RED, make the smallest justified fix to src/feature.mjs, then observe GREEN. Preserve all public contracts. Write notes/RESULT.md with observed before/after evidence, the bounded coverage and actual limitations. Use only the isolated local project; no remote work or unrelated edits."
+  },
+  {
+    "id": "type-authorization",
+    "taskType": "authorization",
+    "fixture": "authorization",
+    "kind": "artifact",
+    "expectSource": "diagnosing-bugs",
+    "artifact": [
+      "notes/RESULT.md",
+      "src/feature.mjs"
+    ],
+    "checkTests": true,
+    "toolBudget": 40,
+    "prompt": "Use matt_pocock_workflow mode capability with capability diagnosing-bugs. I am doing the authorization developer task recorded in SPEC.md. All stated decisions are approved. Inspect the source and immutable acceptance tests, run fixture_checks to observe RED, make the smallest justified fix to src/feature.mjs, then observe GREEN. Preserve all public contracts. Write notes/RESULT.md with observed before/after evidence, the bounded coverage and actual limitations. Use only the isolated local project; no remote work or unrelated edits."
+  },
+  {
+    "id": "type-migration",
+    "taskType": "migration",
+    "fixture": "migration",
+    "kind": "artifact",
+    "expectSource": "tdd",
+    "artifact": [
+      "notes/RESULT.md",
+      "src/feature.mjs"
+    ],
+    "checkTests": true,
+    "toolBudget": 40,
+    "prompt": "Use matt_pocock_workflow mode capability with capability tdd. I am doing the migration developer task recorded in SPEC.md. All stated decisions are approved. Inspect the source and immutable acceptance tests, run fixture_checks to observe RED, make the smallest justified fix to src/feature.mjs, then observe GREEN. Preserve all public contracts. Write notes/RESULT.md with observed before/after evidence, the bounded coverage and actual limitations. Use only the isolated local project; no remote work or unrelated edits."
+  },
+  {
+    "id": "type-performance",
+    "taskType": "performance",
+    "fixture": "performance",
+    "kind": "artifact",
+    "expectSource": "tdd",
+    "artifact": [
+      "notes/RESULT.md",
+      "src/feature.mjs"
+    ],
+    "checkTests": true,
+    "toolBudget": 40,
+    "prompt": "Use matt_pocock_workflow mode capability with capability tdd. I am doing the performance developer task recorded in SPEC.md. All stated decisions are approved. Inspect the source and immutable acceptance tests, run fixture_checks to observe RED, make the smallest justified fix to src/feature.mjs, then observe GREEN. Preserve all public contracts. Write notes/RESULT.md with observed before/after evidence, the bounded coverage and actual limitations. Use only the isolated local project; no remote work or unrelated edits.",
+    "replies": [
+      "Review your actual implementation and notes/RESULT.md against the immutable acceptance output and SPEC.md. JavaScript -0 === 0 is true, NaN === NaN is false. Remove unnecessary signed-zero machinery if present, preserving behavior. Correct any report claims inconsistent with executed test-case totals or measured ID reads, rerun fixture_checks after edits, and finish with an accurate report."
+    ]
+  },
+  {
+    "id": "type-localization",
+    "taskType": "localization",
+    "fixture": "localization",
+    "kind": "artifact",
+    "expectSource": "tdd",
+    "artifact": [
+      "notes/RESULT.md",
+      "src/feature.mjs"
+    ],
+    "checkTests": true,
+    "toolBudget": 40,
+    "prompt": "Use matt_pocock_workflow mode capability with capability tdd. I am doing the localization developer task recorded in SPEC.md. All stated decisions are approved. Inspect the source and immutable acceptance tests, run fixture_checks to observe RED, make the smallest justified fix to src/feature.mjs, then observe GREEN. Preserve all public contracts. Write notes/RESULT.md with observed before/after evidence, the bounded coverage and actual limitations. Use only the isolated local project; no remote work or unrelated edits."
+  },
+  {
+    "id": "type-paths",
+    "taskType": "paths",
+    "fixture": "paths",
+    "kind": "artifact",
+    "expectSource": "diagnosing-bugs",
+    "artifact": [
+      "notes/RESULT.md",
+      "src/feature.mjs"
+    ],
+    "checkTests": true,
+    "toolBudget": 40,
+    "prompt": "Use matt_pocock_workflow mode capability with capability diagnosing-bugs. I am doing the paths developer task recorded in SPEC.md. All stated decisions are approved. Inspect the source and immutable acceptance tests, run fixture_checks to observe RED, make the smallest justified fix to src/feature.mjs, then observe GREEN. Preserve all public contracts. Write notes/RESULT.md with observed before/after evidence, the bounded coverage and actual limitations. Use only the isolated local project; no remote work or unrelated edits."
+  },
+  {
+    "id": "type-test-design",
+    "taskType": "test-design",
+    "fixture": "test-design",
+    "kind": "artifact",
+    "expectSource": "tdd",
+    "artifact": [
+      "notes/RESULT.md",
+      "src/feature.mjs"
+    ],
+    "checkTests": true,
+    "toolBudget": 40,
+    "prompt": "Use matt_pocock_workflow mode capability with capability tdd. I am doing the test-design developer task recorded in SPEC.md. All stated decisions are approved. Inspect the source and immutable acceptance tests, run fixture_checks to observe RED, make the smallest justified fix to src/feature.mjs, then observe GREEN. Preserve all public contracts. Write notes/RESULT.md with observed before/after evidence, the bounded coverage and actual limitations. Use only the isolated local project; no remote work or unrelated edits."
+  }
+]

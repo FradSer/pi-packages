@@ -1,5 +1,5 @@
 /** Passive team widget and the /agent-teams management console
- * (session teammates + persistent agent roles + board). */
+ * (session agents + persistent agent roles + tasks). */
 
 import { truncateToWidth, Key, matchesKey, fuzzyFilter } from "@earendil-works/pi-tui";
 import {
@@ -21,20 +21,20 @@ import { type ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import {
   clampConsoleScroll, consoleScrollRange, maxConsoleBody, scrollConsoleDetail, wrapConsoleDetail,
 } from "./console-viewport.ts";
-import { formatTeammateLabel, runningTeammateActivity } from "./activity.ts";
+import { formatAgentLabel, runningTeammateActivity } from "./activity.ts";
 import { MODEL_INHERIT_ALIAS, discoverAgents, resolveAgent, type AgentDefinition } from "@fradser/pi-subagents";
-import { getPeerDeliveryState, getState, getTeammate, getTeamDefaultModel, listTasks, listTeammates, livingTeammates, setTeamDefaultModel } from "./state.ts";
+import { getPeerDeliveryState, getState, getAgent, getTeamDefaultModel, listTasks, listAgents, livingAgents, setTeamDefaultModel } from "./state.ts";
 import {
   currentLeaderModelRef,
   ensureLivePoll,
   formatSilenceDuration,
   resolveSpawnModel,
   runtimeDirPath,
-  shutdownTeammate,
+  shutdownAgent,
   stallSilenceMs,
   stallThresholdMs,
 } from "./team-machine.ts";
-import type { Teammate } from "./types.ts";
+import type { Agent } from "./types.ts";
 import { mapPickerKey } from "./picker-keys.ts";
 import { inboxPath } from "./statefile.ts";
 import * as fs from "node:fs";
@@ -44,14 +44,14 @@ let spinnerTimer: ReturnType<typeof setInterval> | undefined;
 let spinnerFrame = 0;
 
 const teamActivityWidget = createLiveActivityWidget({
-  key: "teammate",
+  key: "agent",
   placement: "aboveEditor",
   fit: truncateToWidth,
   activityFormat: "markdown",
 });
 
 function ensureSpinner(): void {
-  const working = livingTeammates().some(isWorking);
+  const working = livingAgents().some(isWorking);
   if (working && !spinnerTimer) {
     spinnerTimer = setInterval(() => {
       spinnerFrame = (spinnerFrame + 1) % PI_SPINNER_FRAMES.length;
@@ -71,20 +71,20 @@ export function stopUiTimers(): void {
 }
 
 export function ensureTeamWidget(ctx?: { ui?: ExtensionUIContext; mode?: string }): void {
-  const working = livingTeammates().filter(isWorking);
-  teamActivityWidget.update(ctx, working.map((teammate) => ({
-    id: teammate.name,
-    identity: teammate.name,
-    activity: runningTeammateActivity(teammate) + stallSuffix(teammate),
+  const working = livingAgents().filter(agent => !agent.standalone && isWorking(agent));
+  teamActivityWidget.update(ctx, working.map((agent) => ({
+    id: agent.name,
+    identity: agent.name,
+    activity: runningTeammateActivity(agent) + stallSuffix(agent),
   })));
 }
 
-function isWorking(teammate: { status: string }): boolean {
-  return teammate.status === "working" || teammate.status === "starting";
+function isWorking(agent: { status: string }): boolean {
+  return agent.status === "working" || agent.status === "starting";
 }
 
 /** Silence marker appended once a working teammate passes its stall threshold. */
-function stallSuffix(teammate: Teammate): string {
+function stallSuffix(teammate: Agent): string {
   if (!isWorking(teammate)) return "";
   const silence = stallSilenceMs(teammate);
   const threshold = stallThresholdMs(teammate);
@@ -171,7 +171,7 @@ function displaySource(sourcePath: string | undefined): string {
  *  in a leader notification, so a routine spawn never interrupts the leader.
  *  child-env.ts already bounds the name list, so this renders it as given and
  *  the console cannot drift from the diagnostic. */
-function buildEnvPolicyDetail(policy: Teammate["envPolicy"]): string[] {
+function buildEnvPolicyDetail(policy: Agent["envPolicy"]): string[] {
   if (!policy || policy.withheldCount === 0) return [];
   const extra = policy.withheldSecretCount - policy.withheldSecretNames.length;
   const names = policy.withheldSecretNames.length > 0
@@ -190,15 +190,16 @@ function buildEnvPolicyDetail(policy: Teammate["envPolicy"]): string[] {
 }
 
 function buildTeammateDetail(name: string): string[] {
-  const teammate = getTeammate(name);
+  const teammate = getAgent(name);
   if (!teammate) return ["(teammate removed from the roster)"];
   const reports = getState().leaderMailbox.filter((message) => message.from === name);
   const lines: string[] = [
-    `@${teammate.name} (${teammate.agent}) [${teammate.status}]`,
+    `@${teammate.name} (${teammate.role}) [${teammate.status}]`,
     "",
     "== teammate ==",
     `  Status: ${teammate.status}${teammate.currentTaskId ? ` | Task: ${teammate.currentTaskId}` : ""}`,
-    `  Spawn: ${teammate.pid > 0 ? `pid ${teammate.pid}` : "pid unknown"} | Isolation: ${teammate.isolation}`,
+    `  Spawn: ${teammate.pid > 0 ? `pid ${teammate.pid}` : "pid unknown"}`,
+    ...(teammate.cwd ? [`  Launch cwd: ${teammate.cwd}`] : []),
     ...(teammate.model ? [`  Launch model: ${teammate.model}`] : []),
     ...(teammate.tools?.length ? [`  Tools: ${teammate.tools.join(", ")}`] : []),
     ...buildEnvPolicyDetail(teammate.envPolicy),
@@ -237,7 +238,7 @@ function buildTeammateDetail(name: string): string[] {
 function buildTaskDetail(taskId: string): string[] {
   const tasks = listTasks();
   const task = tasks.find((candidate) => candidate.id === taskId);
-  if (!task) return ["(task not on the board)"];
+  if (!task) return ["(task not found)"];
   const byId = new Map(tasks.map((candidate) => [candidate.id, candidate]));
   return [
     `[${task.id}] ${task.subject}`,
@@ -251,7 +252,6 @@ function buildTaskDetail(taskId: string): string[] {
       : []),
     `  Verify: ${task.verify ?? "(none)"}`,
     ...(task.result ? ["  Result:", ...indent(cap(task.result))] : []),
-    ...(task.errorMessage ? ["  Error:", ...indent(cap(task.errorMessage))] : []),
     `  Created: ${new Date(task.createdAt).toLocaleString()}`,
     ...(task.completedAt ? [`  Completed: ${new Date(task.completedAt).toLocaleString()}`] : []),
   ];
@@ -269,8 +269,8 @@ function buildRoleDetail(name: string): string[] {
     `  Tools: ${def.tools.join(", ") || "(role defaults)"}`,
     `  Model: ${describeSpawnModel(def.model)}`,
     `  Verify: ${def.verify ?? "(none)"}`,
-    `  Worktree: ${def.worktree ? "true" : "false"}`,
-    `  Living instances: ${livingTeammates().filter((teammate) => teammate.agent === def.name).length}`,
+    `  Data: ${def.scope === "session" ? "temporary; no-session, no Memory" : "durable; private Memory, scratch workspace and project history"}`,
+    `  Living instances: ${livingAgents().filter((teammate) => teammate.role === def.name).length}`,
     "",
     "== role prompt ==",
     ...indent(cap(def.prompt)),
@@ -290,21 +290,21 @@ function describeSpawnModel(pinned: string | undefined): string {
 
 // ── Full-screen console ───────────────────────────────────────────
 
-type ConsolePage = "roster" | "board";
+type ConsolePage = "roster" | "tasks";
 
 interface RosterRow {
   key: string;
-  kind: "teammate";
+  kind: "agent";
 }
 interface RoleRow {
   key: string;
   kind: "role";
 }
-interface BoardRow {
+interface TaskRow {
   key: string;
   kind: "task";
 }
-type ConsoleRow = RosterRow | RoleRow | BoardRow;
+type ConsoleRow = RosterRow | RoleRow | TaskRow;
 
 /** SGR mouse-wheel events carry a button code; return signed line delta. */
 function wheelDelta(data: string): number | undefined {
@@ -322,7 +322,7 @@ function wheelDelta(data: string): number | undefined {
 const LIST_CHROME_LINES = 5;
 
 /** Full-screen Team Console — owns input via ctx.ui.custom. Pages: roster /
- * board; each row opens a scrolling detail view; m opens the searchable
+ * tasks; each row opens a scrolling detail view; m opens the searchable
  * teammate-model picker. */
 export function openTeamConsole(ctx: {
   ui: ExtensionUIContext;
@@ -332,9 +332,9 @@ export function openTeamConsole(ctx: {
     let page: ConsolePage = "roster";
     let mode: "list" | "detail" | "picker" = "list";
     let selectedRoster = 0;
-    let selectedBoard = 0;
+    let selectedTasks = 0;
     let listOffset = 0;
-    let detailKind: ConsoleRow["kind"] = "teammate";
+    let detailKind: ConsoleRow["kind"] = "agent";
     let detailKey = "";
     let offset = 0;
     let confirmName: string | undefined;
@@ -362,7 +362,7 @@ export function openTeamConsole(ctx: {
       if (renderTimer) return;
       renderTimer = setInterval(() => {
         // Redraw only while something can animate (spinner/activity/stall).
-        if (livingTeammates().some(isWorking)) requestRender();
+        if (livingAgents().some(isWorking)) requestRender();
       }, PI_SPINNER_INTERVAL_MS);
       renderTimer.unref?.();
     };
@@ -375,7 +375,7 @@ export function openTeamConsole(ctx: {
 
     const style = createPiThemeStyle(theme);
 
-    // ── Teammate-model picker (type-to-filter) ──────────────────
+    // ── Agent-model picker (type-to-filter) ──────────────────
     let picker: SearchPicker<{ provider: string; id: string; name?: string }> | undefined;
     let pickerOffset = 0;
 
@@ -467,10 +467,10 @@ export function openTeamConsole(ctx: {
         if (!picked) return;
         if (isClearEntry(picked)) {
           setTeamDefaultModel(undefined);
-          notifyPi(ctx.ui, "Teammate model cleared — Pi picks its default", "info");
+          notifyPi(ctx.ui, "Agent model cleared — Pi picks its default", "info");
         } else {
           setTeamDefaultModel(modelLabel(picked));
-          notifyPi(ctx.ui, `Teammate model set to ${modelLabel(picked)} for this session`, "info");
+          notifyPi(ctx.ui, `Agent model set to ${modelLabel(picked)} for this session`, "info");
         }
         closeModelPicker();
         return;
@@ -487,7 +487,7 @@ export function openTeamConsole(ctx: {
         // The console is the management surface: idle and stopped stay
         // visible, and persistent agent roles are listed after the session.
         ? [
-            ...listTeammates().map((t) => ({ key: t.name, kind: "teammate" as const })),
+            ...listAgents().map((t) => ({ key: t.name, kind: "agent" as const })),
             ...getRoles().map((def) => ({ key: def.name, kind: "role" as const })),
           ]
         : listTasks().map((task) => ({ key: task.id, kind: "task" as const }));
@@ -503,9 +503,9 @@ export function openTeamConsole(ctx: {
     };
 
     const headerLine = (): string => {
-      const alive = livingTeammates();
+      const alive = livingAgents();
       const tasks = listTasks();
-      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · board ${tasks.filter((task) => task.status === "pending").length}p/${tasks.filter((task) => task.status === "in_progress").length}c/${tasks.filter((task) => task.status === "completed").length}d/${tasks.filter((task) => task.status === "superseded").length}s · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
+      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · tasks ${tasks.filter((task) => task.status === "pending").length}p/${tasks.filter((task) => task.status === "in_progress").length}c/${tasks.filter((task) => task.status === "completed").length}d/${tasks.filter((task) => task.status === "superseded").length}s · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
     };
 
     interface ContentLine {
@@ -515,14 +515,14 @@ export function openTeamConsole(ctx: {
     }
 
     const teammateRowText = (key: string, selected: boolean): string => {
-      const teammate = getTeammate(key)!;
+      const teammate = getAgent(key)!;
       const marker = selected ? style.accent("❯ ") : "  ";
       const name = renderLiveActivityIdentity(teammate.name, theme, "@");
       if (isWorking(teammate)) {
         const prefix = `${marker}${name} `;
         const width = tui.terminal.columns;
         const available = Math.max(0, width - prefix.length - PI_SPINNER_FRAMES[spinnerFrame].length - 2);
-        const status = theme.fg("warning", formatTeammateLabel(PI_SPINNER_FRAMES[spinnerFrame], runningTeammateActivity(teammate) + stallSuffix(teammate), available));
+        const status = theme.fg("warning", formatAgentLabel(PI_SPINNER_FRAMES[spinnerFrame], runningTeammateActivity(teammate) + stallSuffix(teammate), available));
         return `${prefix}${status}`;
       }
       if (teammate.status === "idle") {
@@ -535,7 +535,7 @@ export function openTeamConsole(ctx: {
       const def = getRoles().find((candidate) => candidate.name === key)!;
       const marker = selected ? style.accent("❯ ") : "  ";
       const name = renderLiveActivityIdentity(key, theme, "@");
-      const live = livingTeammates().filter((teammate) => teammate.agent === key && teammate.status !== "stopped").length;
+      const live = livingAgents().filter((teammate) => teammate.role === key && teammate.status !== "stopped").length;
       const liveTag = live > 0 ? style.success(`[${live} live]`) : style.dim("[0 live]");
       const provenance = def.scope === "session" ? "in-memory" : displaySource(def.source);
       return `${marker}${name} ${style.dim(def.scope)} ${style.dim(provenance)} ${liveTag}`;
@@ -559,27 +559,27 @@ export function openTeamConsole(ctx: {
     const buildContent = (): ContentLine[] => {
       const rows = currentRows();
       const lines: ContentLine[] = [];
-      if (page === "board") {
+      if (page === "tasks") {
         if (rows.length === 0) {
           lines.push({ text: style.dim("The Work list is empty. Create Work with work action=create."), select: -1 });
         }
         rows.forEach((row, index) => lines.push({ text: taskRowText(row.key, index === currentPageSelection(rows.length)), select: index }));
         return lines;
       }
-      const teammates = rows.filter((row): row is RosterRow => row.kind === "teammate");
+      const agents = rows.filter((row): row is RosterRow => row.kind === "agent");
       const roles = rows.filter((row): row is RoleRow => row.kind === "role");
       const selection = currentPageSelection(rows.length);
-      lines.push({ text: style.dim("== teammates (this session) =="), select: -1 });
-      if (teammates.length === 0) {
-        lines.push({ text: style.dim("No teammates this session. Ask the model to spawn one."), select: -1 });
+      lines.push({ text: style.dim("== agents (this session) =="), select: -1 });
+      if (agents.length === 0) {
+        lines.push({ text: style.dim("No agents this session. Ask the model to spawn one."), select: -1 });
       }
-      teammates.forEach((row, index) => lines.push({ text: teammateRowText(row.key, index === selection), select: index }));
+      agents.forEach((row, index) => lines.push({ text: teammateRowText(row.key, index === selection), select: index }));
       lines.push({ text: "", select: -1 });
       lines.push({ text: style.dim("== agent roles (persistent and session definitions) =="), select: -1 });
       if (roles.length === 0) {
         lines.push({ text: style.dim("No agent definitions discovered."), select: -1 });
       }
-      roles.forEach((row, index) => lines.push({ text: roleRowText(row.key, teammates.length + index === selection), select: teammates.length + index }));
+      roles.forEach((row, index) => lines.push({ text: roleRowText(row.key, agents.length + index === selection), select: agents.length + index }));
       return lines;
     };
 
@@ -596,9 +596,9 @@ export function openTeamConsole(ctx: {
       }
       listOffset = clampConsoleScroll(listOffset, content.length, viewport);
       const footer = confirmName
-        ? theme.fg("warning", `Shut down @${confirmName}? Its claimed task returns to the board · y yes / n no`)
+        ? theme.fg("warning", `Shut down @${confirmName}? Its claimed task returns to the tasks · y yes / n no`)
         : style.dim(page === "roster"
-            ? "↑↓ select · enter open · tab board · x shutdown · m model · esc/q close"
+            ? "↑↓ select · enter open · tab tasks · x shutdown · m model · esc/q close"
             : "↑↓ select · enter open · tab roster · esc/q close");
       return renderPiPanel({
         width,
@@ -611,7 +611,7 @@ export function openTeamConsole(ctx: {
     };
 
     const currentPageSelection = (rowCount: number): number => {
-      const selection = page === "roster" ? selectedRoster : selectedBoard;
+      const selection = page === "roster" ? selectedRoster : selectedTasks;
       return rowCount === 0 ? 0 : Math.min(selection, rowCount - 1);
     };
 
@@ -662,7 +662,7 @@ export function openTeamConsole(ctx: {
         }
         const rows = currentRows();
         if (matchesKey(data, Key.tab)) {
-          page = page === "roster" ? "board" : "roster";
+          page = page === "roster" ? "tasks" : "roster";
           listOffset = 0;
           return;
         }
@@ -682,7 +682,7 @@ export function openTeamConsole(ctx: {
         if (data === "x" || data === "X") {
           const selection = currentPageSelection(rows.length);
           const row = rows[selection];
-          if (page === "roster" && row?.kind === "teammate" && getTeammate(row.key)?.status !== "stopped") {
+          if (page === "roster" && row?.kind === "agent" && getAgent(row.key)?.status !== "stopped") {
             confirmName = row.key;
           }
           return;
@@ -725,7 +725,7 @@ export function openTeamConsole(ctx: {
     function bumpSelection(delta: number, rowCount: number): void {
       if (rowCount === 0) return;
       if (page === "roster") selectedRoster = clampIndex(selectedRoster + delta, rowCount);
-      else selectedBoard = clampIndex(selectedBoard + delta, rowCount);
+      else selectedTasks = clampIndex(selectedTasks + delta, rowCount);
     }
 
     function scrollList(delta: number): void {
@@ -761,7 +761,7 @@ export function openTeamConsole(ctx: {
 }
 
 async function shutdownFromConsole(ctx: { ui: ExtensionUIContext }, name: string): Promise<void> {
-  const result = await shutdownTeammate(name);
+  const result = await shutdownAgent(name);
   if (result.ok) notifyPi(ctx.ui, result.body, "info");
   else notifyPi(ctx.ui, result.error, "error");
 }

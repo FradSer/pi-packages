@@ -115,6 +115,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
   let state: PersistedConsoleState = { lastApplied: 0 };
   let client: DeskConsoleClient | null = null;
   let attachment: ConsoleAttachment | null = null;
+  let generation = 0;
   let tail: PositionedSessionEvent[] = [];
   const surfaceListeners = new Set<(entry: PositionedSessionEvent) => void>();
 
@@ -146,17 +147,26 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     for (const listener of surfaceListeners) listener(entry);
   };
   const attach = async (sessionId: string, position = state.sessionId === sessionId ? state.lastApplied : undefined): Promise<ConsoleAttachment> => {
+    const owner = requireClient();
+    const attachingGeneration = ++generation;
+    injectContext();
     attachment?.close();
-    const next = await requireClient().attach({
+    attachment = null;
+    const next = await owner.attach({
       sessionId,
       ...(position === undefined ? {} : { position }),
-      onEvent: applyEvent,
+      onEvent(entry) { if (attachingGeneration === generation) applyEvent(entry); },
       onPosition(lastApplied) {
+        if (attachingGeneration !== generation) return;
         state = { sessionId, ...(state.attachmentId ? { attachmentId: state.attachmentId } : {}), lastApplied };
         persist();
       },
-      onTerminal(record) { injectContext(record); },
+      onTerminal(record) { if (attachingGeneration === generation) injectContext(record); },
     });
+    if (attachingGeneration !== generation || owner !== client) {
+      next.close();
+      throw new Error("Console session changed during attach");
+    }
     attachment = next;
     state = { sessionId, attachmentId: next.attachmentId, lastApplied: next.lastApplied() };
     persist();
@@ -168,6 +178,9 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
       new Text(`${theme.fg("customMessageLabel", "[open-deskos] ")}${theme.fg("customMessageText", firstLine(typeof message.content === "string" ? message.content : "Hosted Pi update", 160))}`, 0, 0));
 
     pi.on("session_start", (_event, ctx) => {
+    generation += 1;
+    attachment?.close();
+    client?.closeAttachment();
     currentConsoleSessionId = ctx.sessionManager.getSessionId();
     state = restoreState(ctx);
     tail = [];
@@ -178,6 +191,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
   });
   pi.on("agent_settled", () => injectContext());
     pi.on("session_shutdown", () => {
+      generation += 1;
       attachment?.close();
       attachment = null;
       client?.closeAttachment();
@@ -227,8 +241,10 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     parameters: Type.Object({ prompt: Type.String(), mutation_id: Type.Optional(Type.String()) }),
     async execute(_id, params) {
       if (!attachment) throw new Error("attach to a Hosted Pi first");
-      await attachment.prompt(params.prompt, params.mutation_id ? { mutationId: params.mutation_id } : {});
-      return textResult(`Prompt delivered to ${attachment.sessionId}.`, state);
+      const joined = attachment;
+      const requestState = { ...state };
+      await joined.prompt(params.prompt, params.mutation_id ? { mutationId: params.mutation_id } : {});
+      return textResult(`Prompt delivered to ${joined.sessionId}.`, requestState);
     },
   });
   pi.registerTool({
@@ -242,12 +258,14 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     }),
     async execute(_id, params) {
       if (!attachment) throw new Error("attach to a Hosted Pi first");
-      await attachment.cancel({
+      const joined = attachment;
+      const requestState = { ...state };
+      await joined.cancel({
         ...(params.mutation_id ? { mutationId: params.mutation_id } : {}),
         ...(params.turn_id ? { turnId: params.turn_id } : {}),
         ...(params.precondition ? { precondition: params.precondition } : {}),
       });
-      return textResult(`Cancelled the running turn on ${attachment.sessionId}.`, state);
+      return textResult(`Cancelled the running turn on ${joined.sessionId}.`, requestState);
     },
   });
   pi.registerTool({
@@ -257,12 +275,16 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     parameters: Type.Object({ mutation_id: Type.Optional(Type.String()) }),
     async execute(_id, params) {
       if (!attachment) throw new Error("attach to a Hosted Pi first");
-      const ended = attachment.sessionId;
-      await attachment.end(params.mutation_id ? { mutationId: params.mutation_id } : {});
-      injectContext({ type: "ended", sessionId: ended });
-      attachment.close();
-      attachment = null;
-      return textResult(`Ended Hosted Pi ${ended}.`, state);
+      const joined = attachment;
+      const requestGeneration = generation;
+      const requestState = { ...state };
+      await joined.end(params.mutation_id ? { mutationId: params.mutation_id } : {});
+      if (generation === requestGeneration && attachment === joined) {
+        injectContext({ type: "ended", sessionId: joined.sessionId });
+        joined.close();
+        attachment = null;
+      }
+      return textResult(`Ended Hosted Pi ${joined.sessionId}.`, requestState);
     },
   });
     pi.registerTool({
@@ -346,7 +368,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
           truncateToWidth(theme.fg("accent", theme.bold("Open DeskOS Console")), width),
           ...body,
           ...(attachment ? ["", truncateToWidth(theme.fg("success", `attached ${attachment.sessionId} @ ${attachment.lastApplied()}`), width), ...(historyLines.length ? [theme.fg("muted", "History"), ...historyLines] : events), ...promptInput.render(width)] : []),
-          ...(error ? [truncateToWidth(theme.fg("error", error), width)] : []),
+          ...((error || attachment?.error()) ? [truncateToWidth(theme.fg("error", error || attachment?.error() || ""), width)] : []),
           truncateToWidth(theme.fg("dim", attachment ? "enter send · ctrl+h history · ctrl+x cancel · ctrl+e end · esc close" : "up/down select · enter attach · n launch · r refresh · esc close"), width),
         ];
       };
@@ -366,7 +388,16 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
           return;
         }
         if (attachment && matchesKey(data, Key.ctrl("x"))) { void attachment.cancel().catch((cause) => { error = String(cause); tui.requestRender(); }); return; }
-        if (attachment && matchesKey(data, Key.ctrl("e"))) { void attachment.end().then(() => { attachment?.close(); attachment = null; }).catch((cause) => { error = String(cause); }).finally(() => tui.requestRender()); return; }
+        if (attachment && matchesKey(data, Key.ctrl("e"))) {
+          const joined = attachment;
+          const requestGeneration = generation;
+          void joined.end().then(() => {
+            if (generation !== requestGeneration || attachment !== joined) return;
+            joined.close();
+            attachment = null;
+          }).catch((cause) => { error = String(cause); }).finally(() => tui.requestRender());
+          return;
+        }
         if (matchesKey(data, Key.enter)) {
           const value = promptInput.getValue().trim();
           if (attachment && value) {

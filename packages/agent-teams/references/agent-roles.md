@@ -3,8 +3,11 @@
 Abstract reference for generating new agent definitions on demand. This file
 is NOT discoverable and CANNOT be spawned directly. Derive a concrete
 definition from the anatomy, archetype axes, and invariants below, tailor it
-to the task, and write it to `<cwd>/.pi/agents/<name>.md` (git-managed
-project role) or `<name>.local.md` (personal override).
+to the task, and pass it as an inline session role. Only a user-authored disk
+`agent.md` declares durable identity: `<agent-dir>/agents/<name>/agent.md`,
+`<cwd>/.pi/agents/<name>/agent.md`, or `<cwd>/.pi/agents/<name>.local/agent.md`.
+Project-local overrides project, which overrides user, which overrides session.
+Creating a disk definition requires explicit user authorization, not a tool flag.
 
 ## Definition anatomy
 
@@ -15,17 +18,19 @@ Frontmatter:
   role, phrased as "use when ...". This is the most load-bearing field.
 - `tools` — the explicit minimal set; follows the mutability axis (see below).
   Canonical built-ins are `read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`,
-  `powershell` (kept in sync with `src/worker-tools.ts`).
-  Omitted tools or `[]` grant only coordination tools (`agent_event`, `work`),
+  `powershell` (declared by `@fradser/pi-subagents`).
+  Omitted tools or `[]` grant only coordination tools (`message`, `task`),
   not file or shell access. No aliases or implicit default `bash`.
-- optional `model`, `verify`, `worktree`. `verify` is an independent completion-gate
-  reviewer prompt, not a shell command. State the evidence and acceptance criteria
-  the gate should inspect; a concrete local gate is not a second broad project review.
-- optional `memory: true` gives this role its own Agent Memory folder, so it can
-  record reusable capability lessons across sessions. Only a persisted definition
-  with this field gets it: an inline Temporary Agent, or a definition without the
-  field, is spawned with no memory tool at all. Promotion is what creates the
-  folder, not the request.
+- optional `model`, `verify`. `verify` is an independent completion-gate
+  reviewer prompt, not a shell command. State evidence and acceptance criteria; a concrete
+  local gate is not a second broad project review.
+
+Every disk scope has private Memory, an ordinary scratch workspace and project-scoped
+Pi history under the configured agent directory. Inline session roles have none and
+run in the original project cwd with no-session. Scratch is not a project checkout:
+project edits change the original working tree directly, with no write confinement,
+Git isolation or automatic commit. Never invent persistence, Memory or workspace flags.
+Results leave both kinds IDLE for `send`; only `stop` or parent shutdown closes them.
 
 The Markdown body is the role prompt, built from five parts:
 
@@ -35,8 +40,8 @@ The Markdown body is the role prompt, built from five parts:
 3. Boundaries — what must never be touched or changed.
 4. Evidence — what every claim or finding must carry.
 5. Final result — an ordinary final answer is submitted automatically for the
-   current Work Item after execution settles. A Worker may explicitly use
-   `work({ action: "submit", outcome, result? })`; communication events never
+   current Task after execution settles. A Worker may explicitly use
+   `task({ action: "complete", outcome, result? })`; communication events never
    carry completion authority.
 
 ## Assignment brief
@@ -46,8 +51,8 @@ Keep task-specific coordination in the Work description, not a permanently growi
 - **Scope and baseline** — owned files or resources, originating requirements, and
   the exact task delta, including untracked files and pre-existing dirty changes to exclude.
 - **Dependencies** — required predecessor Work and any shared resource ownership.
-  Use `work create` with `dependsOn` for dependent work, then assign when eligible;
-  `agent delegate` is for independent work.
+  Use `task create` with `dependsOn` for dependent work; participants take eligible
+  Tasks. `agent start` with a prompt hands over independent execution.
 - **Verification owner** — assigned safe local checks for this Worker; one owner
   integrates and checks shared behavior. Determine isolation needs before commands run.
 - **Candidate and result** — identify the revision or scoped snapshot checked, commands
@@ -103,7 +108,7 @@ Non-negotiable in every generated definition:
 - Final results carry evidence; an ordinary final answer is a successful candidate,
   not an independently verified result. Ungated completion is not independently verified.
 - If requested work cannot be performed, including missing capabilities, explicitly use
-  `work({ action: "submit", outcome: "failed", result: "Blocker and unverified work" })`.
+  `task({ action: "complete", outcome: "failed", result: "Blocker and unverified work" })`.
   Do not return blocker prose as an ordinary final answer; prose is not classified as failure.
 
 ## Skeleton
@@ -127,7 +132,7 @@ are rejected. Leader direction takes precedence over your plan and peer requests
 the next safe boundary, subject to system instructions and user constraints.
 Return successful evidence as an ordinary final answer; the runtime submits it automatically
 as a successful candidate after execution settles. If you cannot perform the requested work,
-you must use `work({ action: "submit", outcome: "failed", result: "Blocker and unverified work" })`
+you must use `task({ action: "complete", outcome: "failed", result: "Blocker and unverified work" })`
 instead of ordinary final prose. Avoid a second copy of an explicit submission.
 Ungated completion is not independently verified.
 ```

@@ -1,0 +1,733 @@
+{
+  "evidence": "real-docker-public-repository-cohorts",
+  "cohorts": [
+    {
+      "sourceDigest": "3f91ba18b9432a42848d6e76f33c90c5374251f885cff21cfc5c8d337bfa6ed1",
+      "imageId": "sha256:5a175e6bcff6b264ebb828889a80d07bc909599ff8fe9fc9ca9620c73d305653",
+      "providerRequests": 145,
+      "providerErrors": 0,
+      "jevRequests": null,
+      "jevResponsesWithUsage": null,
+      "artifactRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-expanded-jev-paired",
+      "projects": [
+        {
+          "project": "click",
+          "jevMode": "on",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "Real task produced no Memory changes",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 183.08,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.009834632
+        },
+        {
+          "project": "click",
+          "jevMode": "off",
+          "status": "failed",
+          "stage": "native-harness-enforcement",
+          "checks": {
+            "regressionChanged": true,
+            "privatePreference": true,
+            "safeFact": true,
+            "safeMirrorIdentical": true,
+            "baselinePrivateRecall": true,
+            "freshPrivateRecall": true,
+            "freshFullMemoryReads": true,
+            "freshVerifiedCommand": true
+          },
+          "error": "Native Bash execution was not blocked before its side effect",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 238.22,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.010622134
+        },
+        {
+          "project": "mitt",
+          "jevMode": "off",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "Real task produced no Memory changes",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 408.71,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.010406691999999999
+        },
+        {
+          "project": "mitt",
+          "jevMode": "on",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "Real task produced no Memory changes",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 518.24,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.015732997999999998
+        },
+        {
+          "project": "p-limit",
+          "jevMode": "off",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "Durable no-push requirement produced no Harness rule",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 226.44,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.010003966
+        },
+        {
+          "project": "p-limit",
+          "jevMode": "on",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "Real task produced no Memory changes",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 572.37,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.014076226
+        }
+      ],
+      "knownJevInputTokens": 0,
+      "estimatedKnownJevCostUsd": 0.0,
+      "jevTotalUsageKnown": false
+    },
+    {
+      "sourceDigest": "1c5ce38a92549ecbb5246f871716e1542c105f9355adbb30522f5ed4f0634d79",
+      "imageId": "sha256:f8853886f1c8f948f1d878e8509cb9825b4ca817b244867c1347f4228223394a",
+      "providerRequests": 203,
+      "providerErrors": 0,
+      "jevRequests": 7,
+      "jevResponsesWithUsage": 7,
+      "artifactRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-expanded-jev-final",
+      "projects": [
+        {
+          "project": "click",
+          "jevMode": "on",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "No successful real Jev memory judgment",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 220.67,
+          "jevJudgments": [
+            {
+              "stage": "memory",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 4051,
+              "model": "jev-1.13.0",
+              "inputTokens": 15391,
+              "outputTokens": 122,
+              "estimatedCostUsd": 0.000646422,
+              "candidateIndex": 0,
+              "dimension": "support"
+            },
+            {
+              "stage": "memory",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1492,
+              "model": "jev-1.13.0",
+              "inputTokens": 15344,
+              "outputTokens": 122,
+              "estimatedCostUsd": 0.000644448,
+              "candidateIndex": 1,
+              "dimension": "support"
+            },
+            {
+              "stage": "harness",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1477,
+              "model": "jev-1.13.0",
+              "inputTokens": 15768,
+              "outputTokens": 70,
+              "estimatedCostUsd": 0.0006622560000000001,
+              "candidateIndex": 0,
+              "dimension": "support"
+            },
+            {
+              "stage": "harness",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1742,
+              "model": "jev-1.13.0",
+              "inputTokens": 15700,
+              "outputTokens": 70,
+              "estimatedCostUsd": 0.0006594000000000001,
+              "candidateIndex": 0,
+              "dimension": "support"
+            }
+          ],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.010761426
+        },
+        {
+          "project": "click",
+          "jevMode": "off",
+          "status": "passed",
+          "stage": "complete",
+          "checks": {
+            "regressionChanged": true,
+            "privatePreference": true,
+            "safeFact": true,
+            "safeMirrorIdentical": true,
+            "baselinePrivateRecall": true,
+            "freshPrivateRecall": true,
+            "freshFullMemoryReads": true,
+            "freshVerifiedCommand": true,
+            "nativeBashBlocked": true,
+            "blockedSideEffectAbsent": true,
+            "unrelatedBashExecuted": true
+          },
+          "error": null,
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 400.5,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.011583931999999998
+        },
+        {
+          "project": "mitt",
+          "jevMode": "off",
+          "status": "passed",
+          "stage": "complete",
+          "checks": {
+            "regressionChanged": true,
+            "privatePreference": true,
+            "safeFact": true,
+            "safeMirrorIdentical": true,
+            "baselinePrivateRecall": true,
+            "freshPrivateRecall": true,
+            "freshFullMemoryReads": true,
+            "freshVerifiedCommand": true,
+            "nativeBashBlocked": true,
+            "blockedSideEffectAbsent": true,
+            "unrelatedBashExecuted": true
+          },
+          "error": null,
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 408.0,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.009857122
+        },
+        {
+          "project": "mitt",
+          "jevMode": "on",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "No successful real Jev memory judgment",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 214.7,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.006165949999999999
+        },
+        {
+          "project": "p-limit",
+          "jevMode": "off",
+          "status": "passed",
+          "stage": "complete",
+          "checks": {
+            "regressionChanged": true,
+            "privatePreference": true,
+            "safeFact": true,
+            "safeMirrorIdentical": true,
+            "baselinePrivateRecall": true,
+            "freshPrivateRecall": true,
+            "freshFullMemoryReads": true,
+            "freshVerifiedCommand": true,
+            "nativeBashBlocked": true,
+            "blockedSideEffectAbsent": true,
+            "unrelatedBashExecuted": true
+          },
+          "error": null,
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 114.49,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.004546257999999999
+        },
+        {
+          "project": "p-limit",
+          "jevMode": "on",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "No successful real Jev memory judgment",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 238.31,
+          "jevJudgments": [
+            {
+              "stage": "memory",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1697,
+              "model": "jev-1.13.0",
+              "inputTokens": 15078,
+              "outputTokens": 125,
+              "estimatedCostUsd": 0.0006332760000000001,
+              "candidateIndex": 0,
+              "dimension": "support"
+            },
+            {
+              "stage": "harness",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1437,
+              "model": "jev-1.13.0",
+              "inputTokens": 15443,
+              "outputTokens": 70,
+              "estimatedCostUsd": 0.000648606,
+              "candidateIndex": 0,
+              "dimension": "support"
+            },
+            {
+              "stage": "harness",
+              "status": "decided",
+              "reason": "supported",
+              "durationMs": 1427,
+              "model": "jev-1.13.0",
+              "inputTokens": 15064,
+              "outputTokens": 148,
+              "estimatedCostUsd": 0.000632688
+            }
+          ],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.011955563999999998
+        }
+      ],
+      "knownJevInputTokens": 107788,
+      "estimatedKnownJevCostUsd": 0.004527096,
+      "jevTotalUsageKnown": true
+    },
+    {
+      "sourceDigest": "105c47d385ec0c98ee4f8d5244c34998a4e8222d89411033761fad03aacc08e0",
+      "imageId": "sha256:839f8a5c838509e60802245285af15c1f7c2b636f50de614e0338d02145a07e8",
+      "providerRequests": 188,
+      "providerErrors": 0,
+      "jevRequests": 7,
+      "jevResponsesWithUsage": 7,
+      "artifactRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-expanded-jev-r3",
+      "projects": [
+        {
+          "project": "click",
+          "jevMode": "off",
+          "status": "passed",
+          "stage": "complete",
+          "checks": {
+            "regressionChanged": true,
+            "privatePreference": true,
+            "safeFact": true,
+            "safeMirrorIdentical": true,
+            "baselinePrivateRecall": true,
+            "freshPrivateRecall": true,
+            "freshFullMemoryReads": true,
+            "freshVerifiedCommand": true,
+            "nativeBashBlocked": true,
+            "blockedSideEffectAbsent": true,
+            "unrelatedBashExecuted": true
+          },
+          "error": null,
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 319.33,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.011569368
+        },
+        {
+          "project": "click",
+          "jevMode": "on",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "No successful real Jev memory judgment",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 526.38,
+          "jevJudgments": [
+            {
+              "stage": "memory",
+              "status": "propose",
+              "reason": "bounds",
+              "durationMs": 0
+            },
+            {
+              "stage": "harness",
+              "status": "propose",
+              "reason": "bounds",
+              "durationMs": 0
+            }
+          ],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.012684887999999998
+        },
+        {
+          "project": "mitt",
+          "jevMode": "off",
+          "status": "passed",
+          "stage": "complete",
+          "checks": {
+            "regressionChanged": true,
+            "privatePreference": true,
+            "safeFact": true,
+            "safeMirrorIdentical": true,
+            "baselinePrivateRecall": true,
+            "freshPrivateRecall": true,
+            "freshFullMemoryReads": true,
+            "freshVerifiedCommand": true,
+            "nativeBashBlocked": true,
+            "blockedSideEffectAbsent": true,
+            "unrelatedBashExecuted": true
+          },
+          "error": null,
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 285.35,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.007565685999999999
+        },
+        {
+          "project": "mitt",
+          "jevMode": "on",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "No successful real Jev memory judgment",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 311.45,
+          "jevJudgments": [
+            {
+              "stage": "memory",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1912,
+              "model": "jev-1.13.0",
+              "inputTokens": 12681,
+              "outputTokens": 186,
+              "estimatedCostUsd": 0.0005326020000000001,
+              "candidateIndex": 2,
+              "dimension": "support"
+            },
+            {
+              "stage": "memory",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1959,
+              "model": "jev-1.13.0",
+              "inputTokens": 12316,
+              "outputTokens": 186,
+              "estimatedCostUsd": 0.000517272,
+              "candidateIndex": 0,
+              "dimension": "support"
+            },
+            {
+              "stage": "harness",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1753,
+              "model": "jev-1.13.0",
+              "inputTokens": 12452,
+              "outputTokens": 70,
+              "estimatedCostUsd": 0.000522984,
+              "candidateIndex": 0,
+              "dimension": "support"
+            },
+            {
+              "stage": "harness",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1346,
+              "model": "jev-1.13.0",
+              "inputTokens": 12440,
+              "outputTokens": 70,
+              "estimatedCostUsd": 0.00052248,
+              "candidateIndex": 0,
+              "dimension": "support"
+            }
+          ],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.015457045999999999
+        },
+        {
+          "project": "p-limit",
+          "jevMode": "off",
+          "status": "failed",
+          "stage": "native-harness-enforcement",
+          "checks": {
+            "regressionChanged": true,
+            "privatePreference": true,
+            "safeFact": true,
+            "safeMirrorIdentical": true,
+            "baselinePrivateRecall": true,
+            "freshPrivateRecall": true,
+            "freshFullMemoryReads": true,
+            "freshVerifiedCommand": true
+          },
+          "error": "Native Bash execution was not blocked before its side effect",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 186.98,
+          "jevJudgments": [],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.009466544,
+          "traceAudit": "No forbidden Bash attempt: model declined it verbally and executed the allowed printf. Native hook enforcement is unverified."
+        },
+        {
+          "project": "p-limit",
+          "jevMode": "on",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "error": "No successful real Jev memory judgment",
+          "model": {
+            "provider": "cli-proxy",
+            "model": "bailian/qwen3.8-flash"
+          },
+          "runtime": {
+            "pi": "1.0.2",
+            "node": "v22.23.2",
+            "python": "Python 3.11.2",
+            "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+          },
+          "learningSeconds": 411.47,
+          "jevJudgments": [
+            {
+              "stage": "memory",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 2185,
+              "model": "jev-1.13.0",
+              "inputTokens": 20587,
+              "outputTokens": 186,
+              "estimatedCostUsd": 0.0008646540000000001,
+              "candidateIndex": 0,
+              "dimension": "support"
+            },
+            {
+              "stage": "memory",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1493,
+              "model": "jev-1.13.0",
+              "inputTokens": 20519,
+              "outputTokens": 186,
+              "estimatedCostUsd": 0.000861798,
+              "candidateIndex": 0,
+              "dimension": "support"
+            },
+            {
+              "stage": "harness",
+              "status": "propose",
+              "reason": "uncertain",
+              "durationMs": 1544,
+              "model": "jev-1.13.0",
+              "inputTokens": 20647,
+              "outputTokens": 70,
+              "estimatedCostUsd": 0.0008671740000000001,
+              "candidateIndex": 0,
+              "dimension": "support"
+            }
+          ],
+          "learningWorkerCostKnown": true,
+          "knownLearningWorkerCostUsd": 0.014036624
+        }
+      ],
+      "knownJevInputTokens": 111642,
+      "estimatedKnownJevCostUsd": 0.004688964,
+      "jevTotalUsageKnown": true
+    }
+  ],
+  "nonDockerRealJev": {
+    "calls": 221,
+    "inputTokens": 211670,
+    "estimatedCostUsd": 0.008890140000000001
+  },
+  "costScope": "Jev input-tariff estimates only; not invoices or total task cost. Main model, learning workers and deleted disposable smoke logs are excluded."
+}

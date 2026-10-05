@@ -1,5 +1,7 @@
 import json
+import os
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -24,6 +26,36 @@ console.log(JSON.stringify(rewriteWorktreeAddCommand({json.dumps(command)})));
     if result.returncode:
         raise AssertionError(f"TypeScript runner failed:\n{result.stderr}")
     return json.loads(result.stdout)
+
+
+def rewrite_in(command: str, cwd: str) -> str:
+    script = f"""
+import {{ rewriteWorktreeAddCommand }} from {json.dumps(WORKTREE_EXTENSION.as_uri())};
+console.log(JSON.stringify(rewriteWorktreeAddCommand({json.dumps(command)}, {{ cwd: {json.dumps(cwd)} }})));
+"""
+    result = subprocess.run(
+        ["bun", "run", "-"],
+        cwd=REPO,
+        input=script,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode:
+        raise AssertionError(f"TypeScript runner failed:\n{result.stderr}")
+    return json.loads(result.stdout)
+
+
+def make_git_repo(path: Path) -> None:
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=path, capture_output=True, text=True, check=True)
+
+    git("init", "-q")
+    git("config", "user.name", "t")
+    git("config", "user.email", "t@t")
+    (path / "README.md").write_text("main\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "init")
 
 
 class TestWorktreeExtension(unittest.TestCase):
@@ -110,6 +142,41 @@ class TestWorktreeExtension(unittest.TestCase):
 
     def test_non_worktree_commands_are_ignored(self) -> None:
         self.assertEqual(rewrite("git worktree list"), "git worktree list")
+
+    def test_redirect_targets_the_repository_root_not_the_shell_cwd(self) -> None:
+        # The bash tool runs in the session cwd, so a command issued from a
+        # subdirectory must still land in the repository's own managed
+        # directory — the same place /enter-worktree and the isolation filters
+        # look.
+        with tempfile.TemporaryDirectory() as base:
+            root = Path(base) / "repo"
+            nested = root / "packages" / "app"
+            nested.mkdir(parents=True)
+            make_git_repo(root)
+            canonical_root = Path(os.path.realpath(root))
+            managed = canonical_root / ".pi" / "worktrees"
+
+            from_root = rewrite_in("git worktree add ../foo feature/foo", str(root))
+            self.assertEqual(
+                from_root,
+                "mkdir -p .pi/worktrees && git worktree add .pi/worktrees/foo feature/foo",
+            )
+
+            from_subdirectory = rewrite_in("git worktree add ../foo feature/foo", str(nested))
+            self.assertEqual(
+                from_subdirectory,
+                f"mkdir -p {managed} && git worktree add {managed}/foo feature/foo",
+            )
+            # Neither spelling depends on where the shell happens to be.
+            self.assertIn(str(managed), from_subdirectory)
+            self.assertNotIn(str(nested / ".pi"), from_subdirectory)
+
+    def test_outside_a_repository_the_relative_spelling_is_kept(self) -> None:
+        with tempfile.TemporaryDirectory() as outside:
+            self.assertEqual(
+                rewrite_in("git worktree add ../foo feature/foo", outside),
+                "mkdir -p .pi/worktrees && git worktree add .pi/worktrees/foo feature/foo",
+            )
 
 
 if __name__ == "__main__":

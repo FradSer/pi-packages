@@ -12,10 +12,10 @@ import { contentDetailLines, detailField, displayText, fieldBlock, fieldLine, sa
 import { resolveAgent } from "@fradser/pi-subagents";
 import { runningTeammateActivity } from "./activity.ts";
 import { parseExactSessionRoute } from "./recipient.ts";
-import { getTask, getTeammate } from "./state.ts";
-import { resolveWorkerTools } from "@fradser/pi-subagents";
+import { getTask, getAgent } from "./state.ts";
+import { resolveAgentTools } from "@fradser/pi-subagents";
 import { WORKER_CAPABILITY_TOOLS } from "./capability-tools.ts";
-import type { BoardTask, Teammate } from "./types.ts";
+import type { Task, Agent } from "./types.ts";
 
 /** One rendered lifecycle row: the collapsed line plus its expanded body. */
 export interface CoordinationRow {
@@ -112,7 +112,7 @@ function stateWord(value: unknown): string {
   return STATUS_WORDS[key] ?? key.replace(/[_-]+/g, " ");
 }
 
-function workOf(teammate: Teammate | undefined, task?: BoardTask): string | undefined {
+function workOf(teammate: Agent | undefined, task?: Task): string | undefined {
   const source = task ?? (teammate?.workId ? getTask(teammate.workId) : undefined);
   if (!source) return undefined;
   const owner = source.claimedBy ? ` · @${source.claimedBy}` : "";
@@ -135,9 +135,6 @@ export interface AgentRowArgs {
     tools?: string[];
     model?: string;
     verify?: string;
-    worktree?: boolean;
-    persist?: boolean;
-    persistScope?: string;
   };
 }
 
@@ -150,15 +147,13 @@ function agentName(args: AgentRowArgs, details: unknown): string {
 function roleLine(args: AgentRowArgs, name: string): string | undefined {
   const generated = args.definition;
   if (generated?.description) {
-    return generated.persist
-      ? `${oneLine(generated.description)} · saved as ${generated.persistScope ?? "project-local"} role`
-      : `${oneLine(generated.description)} · new role for this session`;
+    return `${oneLine(generated.description)} · new role for this session`;
   }
   const resolved = resolveAgent(name);
   return resolved ? `${oneLine(resolved.description) || "role"} · ${resolved.scope} role` : undefined;
 }
 
-function agentStateWord(args: AgentRowArgs, teammate: Teammate | undefined, details: unknown, flags: { isError?: boolean; isPartial?: boolean }): string {
+function agentStateWord(args: AgentRowArgs, teammate: Agent | undefined, details: unknown, flags: { isError?: boolean; isPartial?: boolean }): string {
   if (flags.isError) return "failed";
   const action = args.action ?? "agent";
   const live = teammate ? stateWord(teammate.status) : undefined;
@@ -185,7 +180,7 @@ export function agentRow(
   flags: { isError?: boolean; isPartial?: boolean } = {},
 ): CoordinationRow {
   const name = agentName(args, details);
-  const teammate = getTeammate(name);
+  const teammate = getAgent(name);
   const action = args.action ?? "agent";
   let task: string | undefined;
   if (action === "delegate") {
@@ -210,7 +205,7 @@ export function agentRow(
 function agentBody(
   args: AgentRowArgs,
   name: string,
-  teammate: Teammate | undefined,
+  teammate: Agent | undefined,
   details: unknown,
   flags: { isError?: boolean },
 ): string[] {
@@ -239,7 +234,7 @@ function agentBody(
   }
   const role = roleLine(args, name);
   const resources = strings(args.resources);
-  const granted = teammate?.tools ?? resolveWorkerTools(strings(args.definition?.tools).length > 0 ? strings(args.definition?.tools) : resolveAgent(name)?.tools, WORKER_CAPABILITY_TOOLS);
+  const granted = teammate?.tools ?? resolveAgentTools(strings(args.definition?.tools).length > 0 ? strings(args.definition?.tools) : resolveAgent(name)?.tools, WORKER_CAPABILITY_TOOLS);
   // The spawn receipt carries the same coordination-only warning as inspection,
   // so delegate and start rows state the narrow grant they actually produced.
   const sessionWarning = detailField<string>(detailField(details, "session"), "warning");
@@ -249,7 +244,6 @@ function agentBody(
     labeled("model", teammate?.model ?? args.model ?? args.definition?.model ?? "team default"),
     labeled("tools", granted.join(", ")),
     ...(sessionWarning ? [labeled("warning", sessionWarning)] : []),
-    ...(teammate?.isolation === "worktree" ? [labeled("isolation", "dedicated git worktree")] : []),
     ...(teammate?.context === "fork" || args.fork ? [labeled("context", "forked from this session")] : []),
     ...(resources.length > 0 ? [labeled("resources", resources.join(", "))] : []),
     ...(() => {

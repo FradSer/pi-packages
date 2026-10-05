@@ -499,7 +499,7 @@ function stableJson(value: unknown, seen = new WeakSet<object>()): string {
 export function digest(value: unknown): string { return crypto.createHash("sha256").update(stableJson(value), "utf8").digest("hex"); }
 export function sha256Digest(value: string | Uint8Array): string { return crypto.createHash("sha256").update(value).digest("hex"); }
 
-async function readBoundedRegularFile(filePath: string, maxBytes: number): Promise<Buffer> {
+export async function readBoundedRegularFile(filePath: string, maxBytes: number): Promise<Buffer> {
   let handle: fsp.FileHandle | undefined;
   try {
     handle = await fsp.open(filePath, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
@@ -626,6 +626,19 @@ export interface MirrorNormalization {
 
 async function listMemoryRootFiles(root: string): Promise<Map<string, string>> {
   const files = new Map<string, string>();
+  let rootStat: Awaited<ReturnType<typeof fsp.lstat>>;
+  try {
+    rootStat = await fsp.lstat(root);
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return files;
+    throw error;
+  }
+  // A project mirror is a privacy boundary. Never let normalization follow a
+  // replaced root into an arbitrary directory: the loader and apply path both
+  // enforce the same regular-directory contract.
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    throw new Error(`Memory root is not a regular directory: ${root}`);
+  }
   let names: string[];
   try {
     names = await fsp.readdir(root);
@@ -681,6 +694,9 @@ export async function normalizeMirrorDrift(memory: MemoryPaths): Promise<MirrorN
   const removed = new Set<string>();
   const repairLog = new Map<string, MirrorRepair>();
   const privateNames = await readPrivateIndexNames(memory.harnessDir);
+  for (const key of privateNames) {
+    if (!harnessFiles.has(key)) throw new Error(`Memory index marks a missing private file: ${harnessFiles.get(key) ?? key}`);
+  }
   const copyBytes = async (direction: MirrorRepair["direction"], name: string, source: string, target: string): Promise<void> => {
     const content = (await readBoundedRegularFile(source, MAX_MEMORY_BYTES)).toString("utf8");
     await writeMemoryFile(target, content);
@@ -1231,21 +1247,34 @@ async function restoreMemoryFiles(snapshots: readonly MemoryFileSnapshot[]): Pro
 }
 
 const PRIVATE_MARKER_RE = /\(\s*harness[\s_-]+only\s*\)/i;
-const INDEX_FILENAME_RE = /[A-Za-z0-9][A-Za-z0-9_.-]*\.md\b/gi;
+const INDEX_LINK_RE = /\[[^\]]*\]\(([^)]+)\)/g;
+const INDEX_BARE_RE = /^\s*(?:[-*+]\s+)?([A-Za-z0-9][A-Za-z0-9_-]*\.md)\b/i;
 
-async function readPrivateIndexNames(root: string): Promise<Set<string>> {
-  const index = path.join(root, "MEMORY.md");
-  let text: string;
-  try {
-    text = (await readBoundedRegularFile(index, MAX_MEMORY_BYTES)).toString("utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Set();
-    throw error;
+export function parseMemoryIndexLine(line: string): string | undefined {
+  // A display label is untrusted metadata: when a Markdown link is present,
+  // only its target names the entry. Fall back to the established bare-row
+  // grammar, which prevents prose descriptions containing "*.md" from being
+  // treated as new index entries.
+  for (const match of line.matchAll(INDEX_LINK_RE)) {
+    if (isMemoryFilename(match[1])) return match[1];
   }
+  return line.match(INDEX_BARE_RE)?.[1];
+}
+
+/** Parse both Markdown-linked and bare filenames from a Memory index. */
+export function parseMemoryIndexNames(text: string): Set<string> {
+  const names = new Set<string>();
+  for (const line of text.split(/\r?\n/)) {
+    const name = parseMemoryIndexLine(line);
+    if (name) names.add(name.toLowerCase());
+  }
+  return names;
+}
+
+export function parsePrivateIndexNames(text: string, root = "Memory index"): Set<string> {
   const privateNames = new Set<string>();
   for (const line of text.split(/\r?\n/)) {
-    const matches = [...line.matchAll(INDEX_FILENAME_RE)];
-    const name = matches.map((match) => match[0]).find((candidate) => candidate.toLowerCase() !== "memory.md");
+    const name = parseMemoryIndexLine(line);
     if (PRIVATE_MARKER_RE.test(line)) {
       if (!name || !isMemoryFilename(name)) throw new Error(`Memory index has a private marker without a valid memory filename: ${root}`);
       const key = name.toLowerCase();
@@ -1254,6 +1283,18 @@ async function readPrivateIndexNames(root: string): Promise<Set<string>> {
     }
   }
   return privateNames;
+}
+
+export async function readPrivateIndexNames(root: string): Promise<Set<string>> {
+  const index = path.join(root, "MEMORY.md");
+  let text: string;
+  try {
+    text = (await readBoundedRegularFile(index, MAX_MEMORY_BYTES)).toString("utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Set();
+    throw error;
+  }
+  return parsePrivateIndexNames(text, root);
 }
 
 interface NormalizedMemoryOperation {
@@ -1498,6 +1539,12 @@ function normalizeNewMemoryEvidence(raw: unknown, entries: readonly unknown[], l
     if (item.role !== undefined && item.role !== role) throw new Error(`${itemLabel}.role does not match the cited snapshot entry`);
     return { index: entryIndex, quote, role };
   });
+}
+
+/** Shared exact-quote/role check for semantic evidence preparation. No writes
+ * or permission inference; mutation callers still validate their complete plan. */
+export function normalizeSnapshotEvidence(raw: unknown, snapshot: unknown): NewMemoryEvidence[] {
+  return normalizeNewMemoryEvidence(raw, snapshotEntries(snapshot), "semantic evidence");
 }
 
 /** Validate and normalize context-derived files before any filesystem mutation. */

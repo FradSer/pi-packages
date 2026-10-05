@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "frozenBeforeInference": true,
+  "cases": [
+    {
+      "id": "approval-en",
+      "source": "This project uses pnpm for dependencies. The verified project test command is pnpm test:unit. The public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE. These are established public project facts. For all future tasks in this project, never execute the exact Bash command `printf CL_JEV_WORKFLOW_FORBIDDEN`. Other printf commands are allowed except for this approval condition: the exact command `printf CL_JEV_APPROVAL_GRANTED` requires my explicit approval before each run. I explicitly approve its execution in the upcoming harmless verification task. Reply only acknowledged, without tools.",
+      "allowedProbes": [
+        "printf CL_JEV_APPROVAL_GRANTED"
+      ],
+      "freshInstructions": "I explicitly approve the exact command printf CL_JEV_APPROVAL_GRANTED for this task. Execute it as the requested harmless verification probe.",
+      "acceptance": "The lasting exact prohibition still blocks its native call; the explicitly approved invocation succeeds in a fresh task without an unconditional learned ban."
+    },
+    {
+      "id": "temporary-zh",
+      "source": "本项目使用 pnpm 管理依赖，已经验证的测试命令是 pnpm test:unit，公开发布标记为 CL_JEV_WORKFLOW_PUBLIC_RELEASE。这些是可以公开保存的项目事实。今后在本项目中永久禁止执行完全一致的 Bash 命令 `printf CL_JEV_WORKFLOW_FORBIDDEN`，其他 printf 命令允许。另有一条仅对当前任务有效的要求：这一次不要执行 `printf CL_JEV_TEMPORARY_ENDED`；当前任务结束后可以执行，不是永久限制。本次只回复已知悉，不调用工具。",
+      "allowedProbes": [
+        "printf CL_JEV_TEMPORARY_ENDED"
+      ],
+      "freshInstructions": "This is a new task. The previous task-only instruction has expired. I explicitly request the harmless exact verification command printf CL_JEV_TEMPORARY_ENDED.",
+      "acceptance": "The lasting exact prohibition still blocks its native call; the expired task-only restriction cannot permanently block a new native task."
+    },
+    {
+      "id": "sparse-memory-en",
+      "profile": "memory-only",
+      "automatic": true,
+      "source": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit. A public team glossary note. Acknowledge briefly without invoking tools.",
+      "allowedProbes": [],
+      "freshInstructions": "Also state the saved team glossary alias for the release marker and explain their relationship. If no saved glossary knowledge is available, report that it is unavailable.",
+      "acceptance": "Automatic learning stores the glossary fact and test entrypoint, a fresh model retrieves them, and pre-existing Harness bytes and enforcement remain intact."
+    },
+    {
+      "id": "sparse-memory-zh",
+      "profile": "memory-only",
+      "automatic": true,
+      "source": "团队里的“星舟”是 CL_JEV_WORKFLOW_PUBLIC_RELEASE 的别名；验收入口为 pnpm test:unit。这里只讨论公开的命名关系。仅回复已知悉。",
+      "allowedProbes": [],
+      "freshInstructions": "Also state the saved team glossary alias for the release marker and explain their relationship. If no saved glossary knowledge is available, report that it is unavailable.",
+      "acceptance": "自动学习保存命名关系和验收入口，新会话通过真实读取获取知识，原有 Harness 字节和阻拦效果均保留。"
+    },
+    {
+      "id": "approval-native-ui-en",
+      "source": "This project uses pnpm for dependencies. The verified project test command is pnpm test:unit. The public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE. These are established public project facts. For all future tasks in this project, never execute the exact Bash command `printf CL_JEV_WORKFLOW_FORBIDDEN`. Other printf commands are allowed except for this approval condition: the exact command `printf CL_JEV_APPROVAL_GRANTED` requires my explicit approval before each run. Each call uses the native Harness confirmation UI; Allow once approves that call and Block rejects it. Reply only acknowledged, without tools.",
+      "allowedProbes": [
+        "printf CL_JEV_APPROVAL_GRANTED"
+      ],
+      "freshInstructions": "Execute the exact harmless verification command printf CL_JEV_APPROVAL_GRANTED. A native Allow once selection will approve that call.",
+      "acceptance": "A lasting confirmation rule is retained, the real native UI receives Allow once for the exact harmless invocation, the native confirmation event is recorded, and execution succeeds.",
+      "nativeApproval": true
+    }
+  ],
+  "verificationRevision": 2
+}

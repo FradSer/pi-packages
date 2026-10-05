@@ -27,7 +27,7 @@ Give each design brief the file paths, coupling details, dependency category fro
 - Design 3: "Optimise for the most common caller — make the default case trivial."
 - Design 4 (if applicable): "Design around ports & adapters for cross-seam dependencies."
 
-Include both [codebase-design.md](codebase-design.md) vocabulary and CONTEXT.md vocabulary in each brief so the designs name things consistently with the architecture language and the project's domain language.
+Include both [codebase-design.md](codebase-design.md) vocabulary and GLOSSARY.md vocabulary in each brief so the designs name things consistently with the architecture language and the project's domain language.
 
 Each design outputs:
 

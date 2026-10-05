@@ -84,9 +84,11 @@ function textFromMessage(message: MessageEndEvent["message"]): string | undefine
 function sourceFile(source: string | undefined, paths: ReturnType<typeof resolveHarnessConfig>["paths"]): string {
   switch (source) {
     case "user": return paths.user;
+    case "user.scoped": return paths.userScoped;
     case "project": return paths.project;
     case "project.local": return paths.projectLocal;
-    default: return "(built-in)";
+    case "built-in defaults": return "(built-in)";
+    default: return "(unknown)";
   }
 }
 

@@ -38,7 +38,7 @@ TRIALS = int(os.environ.get("HARNESS_TRIALS", "4"))
 PROBE = r"""
       import fs from 'node:fs';
       import path from 'node:path';
-      const { planHarnessConsolidationPhase, applyHarnessConsolidationPlan } = await import(
+      const { planHarnessConsolidationPhase, applyHarnessConsolidationPlan, learnedRuleRevisionsFromConfig } = await import(
         PKG + '/extensions/harness-consolidation.ts');
       const { mergeLayers, evaluateBash } = await import(PKG + '/extensions/guardrail-engine.ts');
       const root = ROOT, project = path.join(root, 'project'), agent = path.join(root, 'agent');
@@ -71,16 +71,19 @@ PROBE = r"""
         const file = path.join(project, '.pi', 'harness.json');
         let outcome = { learned: false, stage: 'apply', detail: JSON.stringify(applied).slice(0, 200) };
         if (fs.existsSync(file)) {
-          const config = mergeLayers([{ ...JSON.parse(fs.readFileSync(file, 'utf8')), source: 'project' }], []);
+          const layer = JSON.parse(fs.readFileSync(file, 'utf8'));
+          const config = mergeLayers([{ ...layer, source: 'project' }], []);
           const blocked = evaluateBash(config, PROHIBITED).decision;
           const allowed = evaluateBash(config, ALLOWED).decision;
-          const rules = JSON.parse(fs.readFileSync(file, 'utf8')).rules ?? [];
+          const rules = layer.rules ?? [];
+          const owned = learnedRuleRevisionsFromConfig(layer);
+          const ownershipBound = rules.length > 0 && rules.every(rule => Boolean(owned[rule.id]));
           outcome = {
             learned: true, rules: rules.length, blocked, allowed,
-            ownershipBound: Boolean(JSON.parse(fs.readFileSync(file, 'utf8')).learnedRules),
+            ownershipBound,
             // A rule that blocks the prohibited command but also blocks a safe
             // one has not generalised; it has over-matched.
-            correct: blocked === 'block' && allowed === 'execute',
+            correct: blocked === 'block' && allowed === 'execute' && ownershipBound,
           };
         }
         console.log(JSON.stringify(outcome));
@@ -105,6 +108,21 @@ def trial() -> dict:
         return json.loads(result.stdout.strip().splitlines()[-1])
 
 
+def summarize_outcomes(outcomes: list[dict]) -> dict:
+    learned = [o for o in outcomes if o.get("learned")]
+    correct = [o for o in learned if o.get("correct") is True and o.get("ownershipBound") is True
+               and o.get("blocked") == "block" and o.get("allowed") == "execute"]
+    return {
+        "trials": len(outcomes),
+        "learned": len(learned),
+        "learnedAndCorrect": len(correct),
+        "learnRate": round(len(learned) / len(outcomes), 3) if outcomes else None,
+        "correctRate": round(len(correct) / len(outcomes), 3) if outcomes else None,
+        "failStages": sorted({o.get("stage", "?") for o in outcomes if not o.get("learned")}),
+        "failures": [{"stage": o.get("stage"), "detail": o.get("detail", "")[:200]} for o in outcomes if not o.get("learned")],
+    }
+
+
 if __name__ == "__main__":
     outcomes = []
     for index in range(TRIALS):
@@ -115,16 +133,5 @@ if __name__ == "__main__":
         outcome["trial"] = index
         outcomes.append(outcome)
         print(f"trial {index}: {json.dumps(outcome)}", flush=True)
-
-    learned = [o for o in outcomes if o.get("learned")]
-    correct = [o for o in learned if o.get("correct")]
-    summary = {
-        "trials": TRIALS,
-        "learned": len(learned),
-        "learnedAndCorrect": len(correct),
-        "learnRate": round(len(learned) / TRIALS, 3) if TRIALS else None,
-        "correctRate": round(len(correct) / TRIALS, 3) if TRIALS else None,
-        "failStages": sorted({o.get("stage", "?") for o in outcomes if not o.get("learned")}),
-        "failures": [{"stage": o.get("stage"), "detail": o.get("detail", "")[:200]} for o in outcomes if not o.get("learned")],
-    }
+    summary = summarize_outcomes(outcomes)
     print("summary " + json.dumps(summary, ensure_ascii=False), flush=True)

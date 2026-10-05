@@ -1,27 +1,51 @@
-# Repository Guidelines
+# btw Package Guidelines
 
-## Structure
+## Scope and structure
 
-`index.ts` re-exports the extension in `src/index.ts`. The command registration and wiring are in `src/index.ts`; `context.ts` builds a compact recent-session excerpt, `spawner.ts` launches and parses the read-only child Pi process, and `overlay.ts` owns the interactive multi-turn popup. BDD scenarios are in `features/btw.feature`, with executable Python checks in `tests/`.
+`/btw` answers side questions in a TUI overlay. It does not add messages to the main session.
 
-## Commands
+- `src/index.ts` registers the command and connects the components.
+- `src/context.ts` selects recent conversation text.
+- `src/spawner.ts` runs the read-only Pi child and parses JSONL output.
+- `src/overlay.ts` owns input, conversation turns, scrolling, and cancellation.
+- `features/btw.feature` defines behavior. `tests/` verifies it through Python and TypeScript.
 
-From the repository root:
+Read @README.md for usage. Read @../../AGENTS.md for shared repository rules.
+For UI changes, read the installed Pi `docs/tui.md` and its applicable examples.
+
+## Contracts
+
+- Keep `/btw` TUI-only. Use `ctx.ui.custom` for input ownership.
+- Do not write side questions or answers to the main session.
+- Select four recent user or assistant text messages. Display them in chronological order.
+- Limit context to 4000 characters, including the truncation marker. A zero limit returns an empty excerpt.
+- Run the child with `--print --mode json --no-session --no-extensions`.
+- Allow only `read`, `grep`, `find`, and `ls`. Exclude `bash`, `edit`, and `write`.
+- Keep prompt files private. Remove them after child close or launch failure.
+- Preserve stream limits, timeout diagnostics, and graceful termination before escalation.
+- Keep the overlay bottom margin at zero. Cap the answer at 40% or the space remaining after measured controls.
+- Support 20 columns and 8 rows with a compact layout. Preserve the composer and essential controls.
+- Delegate host focus to the native input. Home and End edit the visible composer.
+- Handle normalized mouse events. Cache invalidation must not stop active work.
+- Include completed answers in follow-up history. Aggregate usage across completed turns.
+- Cancel an initial turn by closing the overlay. Cancel a follow-up by restoring prior turns.
+- Ignore results after cancellation or disposal. Keep the follow-up input active after a completed turn.
+- Preserve the legacy `onSpawn`, `showAnswer`, and `showError` interface.
+
+## Verification
+
+Run these commands from the repository root:
 
 ```bash
 python3 -m pytest packages/btw/tests/ -q
+pnpm typecheck
 pnpm exec tsc --noEmit -p packages/btw/tsconfig.json
 pnpm --dir packages/btw pack --dry-run
 ```
 
-## Style and architecture
+Runtime changes also require installation checks and live `pi --print` verification.
+Test overlay input and geometry interactively. Report any unavailable verification.
 
-Keep command, context, process, and UI responsibilities separated. `/btw` must remain a TUI-only `ctx.ui.custom` overlay that owns its input and never writes to session history. The child runs with `--print --mode json --no-session`, allows only `read`, `grep`, `find`, and `ls`, and explicitly excludes `bash`, `edit`, and `write`. Preserve prompt-file cleanup after close and launch errors, bounded output, abort/termination handling, compact context limits, and follow-up history. The popup covers the editor: preserve `margin: { bottom: 0 }` in
-`src/index.ts`, the 40% answer-body cap, and multi-turn input focus.
-
-## Testing Guidelines
-
-`features/btw.feature` and `tests/` cover bounded context, child JSONL parsing,
-usage aggregation, follow-up history, popup geometry, and cancellation cleanup.
-Verify that no side-thread messages enter the main session. Packed resources
-include `.memory` alongside `index.ts`, `src`, and `README.md`.
+Prefer behavior tests over source-string checks. Reuse test setup and deterministic turn completion.
+Keep lifecycle checks for child arguments, prompt cleanup, cancellation, and stream failures.
+Verify packed resources against `package.json`; do not infer that optional directories exist.

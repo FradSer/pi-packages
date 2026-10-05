@@ -3,7 +3,7 @@ import { createAssistantMessageEventStream, type AssistantMessage, type StopReas
 import type { ExtensionAPI, ExtensionContext, ExtensionEvent, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { readJsonlBatch, writeRoster } from "../src/statefile.ts";
 import type { WorkerAssignment } from "../src/types.ts";
-import { registerWorkerCapabilities, workerBinding } from "../src/worker.ts";
+import { registerChildCapabilities, workerBinding } from "../src/worker.ts";
 
 export function assistant(text: string, stopReason: StopReason = "stop", timestamp = 20, errorMessage?: string): AssistantMessage {
   return {
@@ -14,16 +14,16 @@ export function assistant(text: string, stopReason: StopReason = "stop", timesta
   };
 }
 
-export function createWorkerFixture(root: string, kind: "direct" | "board" | "none" = "direct", workerName = process.env.PI_TEAMMATE_WORKER_NAME || "worker") {
+export function createWorkerFixture(root: string, kind: "direct" | "task" | "none" = "direct", agentName = process.env.PI_TEAMMATE_WORKER_NAME || "worker") {
   Object.assign(process.env, {
-    PI_TEAMMATE_WORKER_NAME: workerName, PI_TEAMMATE_SPAWN_ID: "spawn-1",
-    PI_TEAMMATE_OUTBOX_FILE: `${root}/events.jsonl`, PI_TEAMMATE_INBOX_FILE: `${root}/mail/inbox-${encodeURIComponent(workerName)}.jsonl`,
-    PI_TEAMMATE_ROSTER_FILE: `${root}/roster.json`, PI_TEAMMATE_BOARD_FILE: `${root}/board.json`,
+    PI_TEAMMATE_WORKER_NAME: agentName, PI_TEAMMATE_SPAWN_ID: "spawn-1",
+    PI_TEAMMATE_OUTBOX_FILE: `${root}/events.jsonl`, PI_TEAMMATE_INBOX_FILE: `${root}/mail/inbox-${encodeURIComponent(agentName)}.jsonl`,
+    PI_TEAMMATE_ROSTER_FILE: `${root}/roster.json`, PI_TEAMMATE_TASKS_FILE: `${root}/tasks.json`,
     PI_TEAMMATE_CLAIMS_DIR: `${root}/claims`, PI_TEAMMATE_SUBMISSIONS_DIR: `${root}/submissions`,
   });
   const binding = workerBinding()!;
   const roster = (assignment?: WorkerAssignment, spawnId = binding.spawnId, status = "working", currentTaskId = "work-1") => {
-    writeRoster(binding.rosterFile, [{ name: binding.worker, agent: "reviewer", spawnId, status, assignment, currentTaskId: assignment ? currentTaskId : undefined }]);
+    writeRoster(binding.rosterFile, [{ name: binding.worker, role: "reviewer", spawnId, status, assignment, currentTaskId: assignment ? currentTaskId : undefined }]);
   };
   roster(kind === "none" ? undefined : { id: "attempt-1", kind, resources: [] });
   type Handler = (event: ExtensionEvent, ctx: ExtensionContext) => unknown;
@@ -36,7 +36,7 @@ export function createWorkerFixture(root: string, kind: "direct" | "board" | "no
   };
   let idle = true;
   const ctx = { isIdle: () => idle } as ExtensionContext;
-  const disclosure = registerWorkerCapabilities(pi as ExtensionAPI);
+  const disclosure = registerChildCapabilities(pi as ExtensionAPI);
   const emit = async (event: ExtensionEvent) => {
     for (const handler of hooks.get(event.type) ?? []) await handler(event, ctx);
   };
@@ -56,7 +56,7 @@ export function createWorkerFixture(root: string, kind: "direct" | "board" | "no
 }
 
 export default function (pi: ExtensionAPI): void {
-  registerWorkerCapabilities(pi);
+  registerChildCapabilities(pi);
   let calls = 0;
   let lowLevelEnds = 0;
   let settlements = 0;

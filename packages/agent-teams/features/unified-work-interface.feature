@@ -1,7 +1,7 @@
 @design @unimplemented
 Feature: Advanced Work management behind three coordination tools
   This is the next design contract, not the behavior of the installed extension.
-  Agent delegation and board scheduling use the same Work Item lifecycle.
+  Agent delegation and tasks scheduling use the same Work Item lifecycle.
 
   Rule: Final cutover removes legacy tools only after replacement behavior exists
 

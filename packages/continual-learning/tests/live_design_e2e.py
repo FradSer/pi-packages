@@ -1,18 +1,16 @@
 """End-to-end verification of the whole `pi-continual-learning` design.
 
-`live_smoke.py` proves the write pipeline lands a Memory entry and a Harness
-rule and that jev observes every surface. It does **not** prove the parts that
-protect a user when something is wrong, and those are the parts that matter
-most. This script covers what was missing:
+`live_smoke.py` verifies learning, persistence and a fresh session's native
+tool calls. This script adds failure-boundary probes and direct runtime checks:
 
-1. The Bash execution gate through a real ``tool_call`` event. The existing
-   smoke called ``evaluateBash`` directly from Python, which proves the
-   evaluator and never proved the gate is wired to the event.
-2. The post-generation output check.
+1. The Bash execution gate through a paired native call and refusal result.
+2. The post-generation output check and its corrected final response.
 3. Undo restoring the exact predecessor bytes.
 4. The two Memory roots: safe private content mirrored, private content not.
 5. A Memory deletion without a preservation target being refused.
 6. The AGENTS.md phase actually changing the file, rather than merely running.
+7. Pending mutation refusal, explicit reconciliation and idempotent recovery.
+8. Credential detection and rejection for the intended path/symlink reason.
 
 Every probe is designed to be safe when the protection under test is broken: the
 execution gate probe would create a file if the gate failed to block, and the
@@ -23,22 +21,32 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from live_smoke import PACKAGE, REPO, prepare, run_pi  # noqa: E402
+from live_smoke import PACKAGE, REPO, blocked_tool_call, matched_tool_results, prepare, run_pi  # noqa: E402
 
 
-def bun(source: str, timeout: int = 90) -> dict:
-    result = subprocess.run(
-        ["bun", "-e", source], cwd=REPO, capture_output=True, text=True,
-        check=False, timeout=timeout,
-    )
+def bun(source: str, timeout: int = 90, *, agent: Path | None = None) -> dict:
+    with tempfile.TemporaryDirectory(prefix="cl-design-agent-") as temporary:
+        result = subprocess.run(
+            ["bun", "-e", source], cwd=REPO, capture_output=True, text=True,
+            env={**os.environ, "PI_CODING_AGENT_DIR": str(agent or Path(temporary))},
+            check=False, timeout=timeout,
+        )
     assert result.returncode == 0, f"{result.stderr[-1500:]}"
     return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+def require_observations(outcome: dict, *fields: str) -> dict:
+    for field in fields:
+        assert outcome.get(field) is True, f"Acceptance observation failed: {field}; {outcome}"
+    return outcome
 
 
 def verify_execution_gate() -> dict:
@@ -74,8 +82,8 @@ def verify_execution_gate() -> dict:
             and (entry.get("data") or {}).get("action") == "block"
         ]
         assert blocked_events, f"No block was recorded; records={[e.get('customType') for e in result['records']]}"
-        bash_results = [m for m in result["messages"] if m.get("role") == "toolResult"]
-        assert any(m.get("isError") for m in bash_results), "No tool result reported the refusal"
+        matched = matched_tool_results(result["messages"], "bash", lambda args: isinstance(args.get("command"), str) and "gate-probe-ran" in args["command"])
+        assert any(blocked_tool_call(result["messages"], "bash", args["command"]) for args, _ in matched), "No matching native Bash call/result proved the requested block"
         return {"blocked": True, "blockEventRecorded": True}
 
 
@@ -101,10 +109,10 @@ def verify_output_check() -> dict:
             project, agent, probe,
             "Reply with exactly this and nothing else: OUTPUT_GATE_TOKEN", "read",
         )
-        fired = any(entry.get("customType") == "harness-post-generation-repair"
-                    for entry in result["records"])
-        assert fired, "No bounded repair was requested for prohibited output"
-        return {"repairRequested": True}
+        repairs = [entry for entry in result["records"] if entry.get("customType") == "harness-post-generation-repair"]
+        assert 1 <= len(repairs) <= 2, "No bounded repair was requested for prohibited output"
+        assert result["final"].strip() and "OUTPUT_GATE_TOKEN" not in result["final"], "The final output still violates its policy"
+        return {"repairRequested": True, "finalCorrected": True, "repairCount": len(repairs)}
 
 
 def verify_undo_and_mirroring() -> dict:
@@ -114,10 +122,6 @@ def verify_undo_and_mirroring() -> dict:
     with tempfile.TemporaryDirectory(prefix="cl-undo-") as raw:
         base = Path(raw)
         project, agent, probe = prepare(base, True)
-        memories = agent / "memory" / "scope"
-        memories.mkdir(parents=True, exist_ok=True)
-        (memories / "MEMORY.md").write_text("# Memory\n\n- [project_undo.md](project_undo.md)\n")
-
         outcome = bun(f"""
           const {{ recordLearningMutation, listLearningHistory, previewLearningUndo,
                    undoLearningChange, readLearningFile, normalizeTrackedMemory }} =
@@ -152,7 +156,7 @@ def verify_undo_and_mirroring() -> dict:
             undoneStatuses: (await listLearningHistory(cwd)).filter(r => r.status === 'undone').length,
             stillApplied: (await listLearningHistory(cwd)).filter(r => r.status === 'applied').length,
           }}));
-        """, timeout=120)
+        """, timeout=120, agent=agent)
         assert outcome["content"] == "predecessor bytes", outcome
         assert outcome["privateHas"], outcome
         # The mirror carries only shareable content, and the safe entry the run
@@ -298,26 +302,19 @@ def verify_agents_applied() -> dict:
             "Reply only: acknowledged.", "read",
         )
         after = (project / "AGENTS.md").read_text()
-        return {"changed": before != after, "before": len(before), "after": len(after)}
+        assert before != after, "AGENTS.md was not changed"
+        assert "Report progress as a paragraph" not in after and "one short status line" in after, "AGENTS.md did not retain the requested workflow"
+        return {"changed": True, "before": len(before), "after": len(after)}
 
 
 def verify_recovery_isolation() -> dict:
-    """A recovery pass must not disturb an earlier applied change.
-
-    Named for what it actually proves. It does not force a later phase to fail:
-    an applied Memory change is recorded, a recovery pass runs, and the change,
-    an unrelated file, and the recovery itself are all left correct. Real
-    mid-pipeline phase failure is observed rather than forced here — the live
-    pipeline has failed at the Harness phase three times for three different
-    planner defects, and the Memory assertion passed in every one, which is the
-    stronger evidence because nothing about it was arranged.
-    """
+    """Check real pending mutations before and after manual reconciliation."""
     import tempfile
 
     with tempfile.TemporaryDirectory(prefix="cl-isolation-") as raw:
         base = Path(raw)
         project, agent, probe = prepare(base, True, seed_memory=True)
-        return bun(f"""
+        outcome = bun(f"""
           const fs = await import('node:fs'); const path = await import('node:path');
           const M = await import({json.dumps(str(PACKAGE / "extensions/learning-history.ts"))});
           const R = await import({json.dumps(str(PACKAGE / "extensions/memory-paths.ts"))});
@@ -332,22 +329,43 @@ def verify_recovery_isolation() -> dict:
           await M.recordLearningMutation(cwd, 'memory', [keeper], async () => {{
             fs.writeFileSync(keeper, 'applied bytes');
           }});
+          const interrupted = path.join(paths.harnessDir, 'project_interrupted.md');
+          fs.writeFileSync(interrupted, 'pending predecessor');
+          try {{
+            await M.recordLearningMutation(cwd, 'memory', [interrupted], async () => {{
+              fs.writeFileSync(interrupted, 'unowned interrupted bytes');
+              throw new Error('deliberate interrupted mutation');
+            }});
+          }} catch (error) {{
+            if (error.message !== 'deliberate interrupted mutation') throw error;
+          }}
+          const pending = (await M.listLearningHistory(cwd)).find(record => record.status === 'pending');
+          if (!pending) throw new Error('interrupted mutation did not leave a pending record');
           const beforeUnrelated = fs.readFileSync(sibling, 'utf8');
-          // A recovery pass, run twice, must change nothing either time.
+          let rejection = '';
+          try {{ await M.checkPendingLearningMutations(cwd); }}
+          catch (error) {{ rejection = String(error.message); }}
+          const pendingDetected = rejection.includes('Unfinished learning') && rejection.includes(pending.id)
+            && fs.readFileSync(interrupted, 'utf8') === 'unowned interrupted bytes';
+          // Reconciliation is explicit; recovery must not guess ownership.
+          fs.writeFileSync(interrupted, 'pending predecessor');
           await M.checkPendingLearningMutations(cwd);
+          const pendingAbandoned = (await M.readLearningHistory(cwd, pending.id)).status === 'abandoned';
           const firstPass = fs.readFileSync(keeper, 'utf8');
           await M.checkPendingLearningMutations(cwd);
           console.log(JSON.stringify({{
+            pendingDetected, pendingAbandoned,
             appliedSurvived: firstPass === 'applied bytes' && fs.readFileSync(keeper, 'utf8') === 'applied bytes',
             unrelatedUnchanged: fs.readFileSync(sibling, 'utf8') === beforeUnrelated,
             recoveryIdempotent: firstPass === fs.readFileSync(keeper, 'utf8'),
           }}));
-        """, timeout=120)
+        """, timeout=120, agent=agent)
+        return require_observations(outcome, 'pendingDetected', 'pendingAbandoned', 'appliedSurvived', 'unrelatedUnchanged', 'recoveryIdempotent')
 
 
 def verify_secret_rejection() -> dict:
     """A credential in the transcript must never reach Memory."""
-    return bun(f"""
+    outcome = bun(f"""
       const {{ containsSensitiveMemoryMaterial }} = await import(
         {json.dumps(str(PACKAGE / "extensions/consolidation-run.ts"))});
       const secrets = [
@@ -368,18 +386,25 @@ def verify_secret_rejection() -> dict:
         secretCount: secrets.length,
       }}));
     """, timeout=120)
+    return require_observations(outcome, 'secretsRejected', 'ordinaryAccepted')
 
 
 def verify_path_containment() -> dict:
     """A write outside the learned surfaces must be refused, symlinks included."""
-    return bun(f"""
-      const fs = await import('node:fs'); const os = await import('node:os');
+    with tempfile.TemporaryDirectory(prefix="cl-contain-") as raw:
+        project, agent, _ = prepare(Path(raw), False)
+        outcome = bun(f"""
+      const fs = await import('node:fs');
       const path = await import('node:path');
       const M = await import({json.dumps(str(PACKAGE / "extensions/learning-history.ts"))});
-      const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'cl-contain-')));
+      const R = await import({json.dumps(str(PACKAGE / "extensions/memory-paths.ts"))});
+      const cwd = fs.realpathSync({json.dumps(str(project))});
+      const paths = R.resolveMemoryPaths(cwd);
+      if (!paths.publicDir) throw new Error('probe has no public learned surface');
+      fs.mkdirSync(paths.publicDir, {{ recursive: true }});
       const outside = path.join(cwd, 'elsewhere.md');
       fs.writeFileSync(outside, 'not a learned surface');
-      const link = path.join(cwd, 'linked.md');
+      const link = path.join(paths.publicDir, 'linked.md');
       fs.symlinkSync(outside, link);
       const attempt = async (target) => {{
         try {{ await M.recordLearningMutation(cwd, 'memory', [target], async () => {{}}); return null; }}
@@ -392,7 +417,11 @@ def verify_path_containment() -> dict:
         symlinkRefused: symlinked !== null,
         escapeDetail: escape, symlinkDetail: symlinked,
       }}));
-    """, timeout=120)
+    """, timeout=120, agent=agent)
+        require_observations(outcome, 'escapeRefused', 'symlinkRefused')
+        assert 'outside the learned' in outcome['escapeDetail'], outcome
+        assert 'symlink' in outcome['symlinkDetail'], outcome
+        return outcome
 
 
 if __name__ == "__main__":

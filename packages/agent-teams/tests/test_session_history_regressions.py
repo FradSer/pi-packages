@@ -13,7 +13,7 @@ def test_failed_work_is_not_automatically_claimable_again(tmp_path: Path) -> Non
         attemptSubmission("reviewer", "spawn-1", task.id, "failed", "External parser rejected both authorized attempts");
         processTaskIntents(); settle(); processTaskIntents();
         const available = claimableTasks().map(t => t.id);
-        const reclaimed = applyClaimIntent({ taskId: task.id, worker: "reviewer", spawnId: "spawn-1", timestamp: 40 });
+        const reclaimed = applyClaimIntent({ taskId: task.id, participant: "reviewer", spawnId: "spawn-1", timestamp: 40 });
         console.log(JSON.stringify({ available, reclaimed, reports: reports.filter(r => r.finished).length,
           dependent: getTask(dependent.id).status }));
     ''')
@@ -25,18 +25,18 @@ def test_failed_work_is_not_automatically_claimable_again(tmp_path: Path) -> Non
 
 def test_superseded_holder_keeps_cancellation_tool(tmp_path: Path) -> None:
     payload = run_worker(tmp_path, '''
-        const { registerWorkerCapabilities } = await import("./src/worker.ts");
+        const { registerChildCapabilities } = await import("./src/worker.ts");
         let active = ["read", "agent_event", "work"];
         const registered = new Map();
         const hooks = new Map();
-        const disclosure = registerWorkerCapabilities({
+        const disclosure = registerChildCapabilities({
           registerTool: t => registered.set(t.name, t),
           on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]),
           getActiveTools: () => [...active], setActiveTools: names => { active = [...names]; },
         });
         const roster = JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8"));
-        roster.teammates[0].currentTaskId = "cancelled-work";
-        roster.teammates[0].assignment.closed = true;
+        roster.agents[0].currentTaskId = "cancelled-work";
+        roster.agents[0].assignment.closed = true;
         fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
         disclosure.update("Task superseded. Stop and acknowledge cancellation.");
         console.log(JSON.stringify({ active }));
@@ -47,9 +47,9 @@ def test_superseded_holder_keeps_cancellation_tool(tmp_path: Path) -> None:
 def test_old_turn_cannot_send_as_reassigned_work(tmp_path: Path) -> None:
     payload = run_worker(tmp_path, '''
         await fixture.start("attempt-1");
-        fixture.roster({ id: "attempt-2", kind: "board", resources: [] });
+        fixture.roster({ id: "attempt-2", kind: "task", resources: [] });
         const roster = JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8"));
-        roster.teammates[0].currentTaskId = "work-2";
+        roster.agents[0].currentTaskId = "work-2";
         fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
         let rejection;
         try { await fixture.call("message", { to: "leader", body: "Old cancellation acknowledgement" }); }
@@ -64,9 +64,9 @@ def test_old_turn_cannot_send_as_reassigned_work(tmp_path: Path) -> None:
 def test_old_turn_cannot_submit_new_roster_work(tmp_path: Path) -> None:
     payload = run_worker(tmp_path, '''
         await fixture.start("attempt-1");
-        fixture.roster({ id: "attempt-2", kind: "board", resources: [] });
+        fixture.roster({ id: "attempt-2", kind: "task", resources: [] });
         const roster = JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8"));
-        roster.teammates[0].currentTaskId = "work-2";
+        roster.agents[0].currentTaskId = "work-2";
         fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
         let rejection;
         try { await fixture.call("task", { action: "submit", outcome: "failed", result: "Old task was cancelled" }); }
@@ -80,7 +80,7 @@ def test_old_turn_cannot_submit_new_roster_work(tmp_path: Path) -> None:
 def test_submission_does_not_leave_a_communication_loop(tmp_path: Path) -> None:
     payload = run_worker(tmp_path, '''
         const roster = JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8"));
-        roster.teammates[0].currentTaskId = "work-1";
+        roster.agents[0].currentTaskId = "work-1";
         fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
         await fixture.start();
         const result = await fixture.call("task", { action: "submit", outcome: "failed", result: "Cancelled" });

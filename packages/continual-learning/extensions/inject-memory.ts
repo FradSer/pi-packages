@@ -1,17 +1,9 @@
+import { createJevJudge, type JevJudge, type JevTelemetry } from "./jev-learning";
 /**
  * pi-continual-learning — native Pi /memory command.
  *
- * Replaces the /skill:consolidate skill surface with a pi-native command menu:
- *
- *   /memory
- *     Auto-memory: on
- *     1. Select memory model
- *     2. Enter provider/model manually
- *     3. Consolidate memory now        (package prompt from prompts/memory-consolidator.md)
- *     4. Edit user instructions        (getAgentDir()/AGENTS.md)
- *     5. Edit project instructions     (./AGENTS.md or ./CLAUDE.md — whichever exists)
- *     6. Open memory folder
- *     7. Toggle auto-memory
+ * /memory browses knowledge, learning settings and recent changes.
+ * /memory <request> learns explicit Memory; /consolidate learns the current task.
  *
  * Auto-memory learns from settled user tasks through parent-validated plans.
  * Existing memory indexes are injected independently of the learning toggle.
@@ -26,7 +18,7 @@ import { promisify } from "node:util";
 import * as nodeFs from "node:fs";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
-import { keyHint, ToolExecutionComponent, type ExtensionAPI, type ExtensionCommandContext, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { keyHint, ToolExecutionComponent, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 /** Geometry bound once: every learning row shares hint and wrapping. */
@@ -42,7 +34,6 @@ import {
   classifyToolActivity,
   createLiveActivityWidget,
   eventToolLifecycle,
-  enterModelFromInput,
   inlineToolActivity,
   notifyPi,
   modelRef,
@@ -54,14 +45,14 @@ import {
   sortModels,
   spawnPiChild,
 } from "@fradser/pi-kit";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
   memoryConfigPath,
   readMemoryConfigState,
+  readJevConfigState,
   writeMemoryConfig,
   type MemoryConfig,
 } from "./config";
-import { formatMemoriesBlock, loadAndDeduplicateMemories } from "./memory-files";
+import { formatMemoriesBlock, isMemoryFilename, loadAndDeduplicateMemories } from "./memory-files";
 import { resolveMemoryPaths } from "./memory-paths";
 import {
   buildIncrementalMemoryConsolidatorPrompt,
@@ -69,17 +60,19 @@ import {
   learningPlannerArgs,
 } from "./planner-prompts";
 import { registerAutomaticLearning } from "./automatic-learning";
-import { buildLearningReceipt, formatLearningSummary, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, manualIncrementalScreen, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
-import { currentTaskSlice, selectIncrementalLearning, type TaskSlice } from "./incremental-learning";
+import { buildLearningReceipt, formatLearningSummary, hasLearningInput, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, manualIncrementalScreen, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
+import { currentTaskSlice, requestedMemoryTaskSlice, selectIncrementalLearning, type TaskSlice } from "./incremental-learning";
+import { recentProjectLearningInput } from "./learning-input";
+import type { LearningInputSource } from "./learning-efficiency";
 import { enqueueBacklog, backlogStatus, type BacklogReason } from "./learning-backlog";
 import { expandIncrementalMemoryPlan } from "./incremental-memory-plan";
-import { automaticPhasePolicies, type PhasePolicies } from "./learning-controls";
-import { checkPendingLearningMutations, memoryMutationFiles, normalizeTrackedMemory, recordLearningMutation, recordLearningProposal, recoverLearningUndo } from "./learning-history";
+import { automaticPhasePolicies } from "./learning-controls";
+import { readLearningSettings as readSettings, writeLearningSettings as writeSettings } from "./learning-settings";
+import { checkPendingLearningMutations, listLearningHistory, memoryMutationFiles, normalizeTrackedMemory, recordLearningMutation, recordLearningProposal, recoverLearningUndo } from "./learning-history";
 import { handleLearningManagement } from "./learning-management";
+import { openMemoryMenu } from "./memory-menu";
 import {
   DEFAULT_AGENTS_MD_BUDGET_BYTES,
-  MAX_AGENTS_MD_FILE_BYTES,
-  MIN_BUDGET_BYTES,
   applyAgentsMdConsolidationPlan,
   planAgentsMdConsolidationPhase,
   recoverPendingAgentsMdConsolidations,
@@ -89,6 +82,7 @@ import {
   acquireConsolidationLock,
   applyConsolidationPlan,
   containsSensitiveMemoryMaterial,
+  CONSOLIDATION_SCHEMA_VERSION,
   sha256Digest,
   terminateConsolidationChild,
   createConsolidationReceipt,
@@ -100,6 +94,10 @@ import {
   MAX_PLAN_BYTES,
   MAX_NEW_MEMORY_PROPOSALS,
   MAX_STDOUT_BYTES,
+  MAX_MEMORY_BYTES,
+  readBoundedRegularFile,
+  readPrivateIndexNames,
+  normalizeNewMemoryProposals,
   MAX_STDERR_BYTES,
   releaseConsolidationRun,
   resolveConsolidationRunPaths,
@@ -116,16 +114,6 @@ export { projectScopeKey, resolveMemoryPaths } from "./memory-paths";
 
 // ── auto-memory settings (user-level, persisted) ───────────────────
 
-interface MemorySettings {
-  autoMemory: boolean;
-  automaticPhases?: Partial<PhasePolicies>;
-  /** AGENTS.md consolidation phase controls; absent means defaults (on). */
-  agentsMd?: {
-    disabled?: boolean;
-    budgetBytes?: number;
-  };
-}
-
 function safelyReadMemoryConfigState(): ReturnType<typeof readMemoryConfigState> {
   try {
     return readMemoryConfigState();
@@ -136,39 +124,6 @@ function safelyReadMemoryConfigState(): ReturnType<typeof readMemoryConfigState>
 
 let memoryConfigState = safelyReadMemoryConfigState();
 let memoryConfig: MemoryConfig = memoryConfigState.config;
-
-function settingsFilePath(cwd = process.cwd()): string {
-  return resolveMemoryPaths(cwd).settingsFile;
-}
-
-async function readSettings(cwd = process.cwd()): Promise<MemorySettings> {
-  try {
-    const raw = await fs.readFile(settingsFilePath(cwd), "utf-8");
-    const parsed = JSON.parse(raw) as Partial<MemorySettings>;
-    let agentsMd: MemorySettings["agentsMd"];
-    if (parsed.agentsMd && typeof parsed.agentsMd === "object") {
-      const budget = typeof parsed.agentsMd.budgetBytes === "number" && Number.isFinite(parsed.agentsMd.budgetBytes)
-        ? Math.min(MAX_AGENTS_MD_FILE_BYTES, Math.max(MIN_BUDGET_BYTES, Math.round(parsed.agentsMd.budgetBytes)))
-        : undefined;
-      agentsMd = {
-        ...(parsed.agentsMd.disabled === true ? { disabled: true } : {}),
-        ...(budget !== undefined ? { budgetBytes: budget } : {}),
-      };
-    }
-    return {
-      autoMemory: parsed.autoMemory === false ? false : true,
-      ...(parsed.automaticPhases !== undefined ? { automaticPhases: parsed.automaticPhases } : {}),
-      ...(agentsMd !== undefined ? { agentsMd } : {}),
-    };
-  } catch {
-    return { autoMemory: true };
-  }
-}
-
-async function writeSettings(s: MemorySettings, cwd = process.cwd()): Promise<void> {
-  const file = settingsFilePath(cwd);
-  await writeFileAtomic(file, `${JSON.stringify(s, null, 2)}\n`, 0o600);
-}
 
 // ── auto-memory guidance (injected when enabled) ───────────────────
 
@@ -585,6 +540,28 @@ export function clipRejectionReason(reason: string, budget = 240): string {
   return reason.length <= budget ? reason : `${reason.slice(0, budget)}…`;
 }
 
+const MAX_INCREMENTAL_REPAIR_REASON_CHARS = 800;
+const MAX_INCREMENTAL_REPAIR_DIAGNOSTIC_CHARS = 1_200;
+
+function clipIncrementalRepairText(text: string, budget: number): string {
+  return text.length <= budget ? text : clipRejectionReason(text, budget - 1);
+}
+
+function safeIncrementalRepairReason(reason: string): string {
+  if (containsSensitiveMemoryMaterial(reason)) return "[redacted sensitive repair diagnostic]";
+  return clipIncrementalRepairText(reason, MAX_INCREMENTAL_REPAIR_REASON_CHARS);
+}
+
+/** Keep the first schema rejection visible when a bounded repair fails too. */
+export function formatIncrementalRepairDiagnostic(originalError: string, repairError?: string): string {
+  const original = `original rejection: ${safeIncrementalRepairReason(originalError)}`;
+  if (!repairError) return clipIncrementalRepairText(original, MAX_INCREMENTAL_REPAIR_DIAGNOSTIC_CHARS);
+  return clipIncrementalRepairText(
+    `${original}; repair rejection: ${safeIncrementalRepairReason(repairError)}`,
+    MAX_INCREMENTAL_REPAIR_DIAGNOSTIC_CHARS,
+  );
+}
+
 /** Feedback lines injected into the fresh planner's task header on retry attempts. */
 export function buildTaskFeedbackLines(rejectionFeedback?: string): string[] {
   if (!rejectionFeedback) return [];
@@ -625,6 +602,82 @@ function parseIncrementalPlanText(text: string): unknown | undefined {
   return undefined;
 }
 
+interface IncrementalRepairIntent {
+  operations: Map<string, { name: string; kind?: "rewrite" | "delete" }>;
+  newMemories: Map<string, string>;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+/**
+ * Collect only the bounded identity contract that a repair must preserve.
+ * Content, evidence, and classifications remain validator-owned; silently
+ * dropping a recognizable name or changing rewrite to delete is unsafe.
+ */
+function collectIncrementalRepairIntent(plan: unknown, selectedNames: readonly string[]): IncrementalRepairIntent {
+  const intent: IncrementalRepairIntent = { operations: new Map(), newMemories: new Map() };
+  const record = asRecord(plan);
+  if (!record) return intent;
+  const selectedByKey = new Map(selectedNames.map((name) => [name.toLowerCase(), name]));
+  if (Array.isArray(record.operations)) {
+    for (const value of record.operations) {
+      const operation = asRecord(value);
+      if (!operation) continue;
+      const name = operation?.name;
+      if (typeof name !== "string" || !isMemoryFilename(name)) continue;
+      if (selectedByKey.get(name.toLowerCase()) !== name) continue;
+      const kind = operation.kind === "rewrite" || operation.kind === "delete" ? operation.kind : undefined;
+      intent.operations.set(name.toLowerCase(), { name, kind });
+    }
+  }
+  if (Array.isArray(record.newMemories)) {
+    for (const value of record.newMemories) {
+      const proposal = asRecord(value);
+      const name = proposal?.name;
+      if (typeof name !== "string" || !isMemoryFilename(name)) continue;
+      intent.newMemories.set(name.toLowerCase(), name);
+    }
+  }
+  return intent;
+}
+
+function validateIncrementalRepairRetention(
+  rejectedPlan: unknown,
+  repairedPlan: unknown,
+  selectedNames: readonly string[],
+): string | undefined {
+  const expected = collectIncrementalRepairIntent(rejectedPlan, selectedNames);
+  if (expected.operations.size === 0 && expected.newMemories.size === 0) return undefined;
+  const actual = collectIncrementalRepairIntent(repairedPlan, selectedNames);
+  for (const expectedOperation of expected.operations.values()) {
+    const actualOperation = actual.operations.get(expectedOperation.name.toLowerCase());
+    if (!actualOperation) return `repair dropped recognizable selected operation: ${expectedOperation.name}`;
+    if (expectedOperation.kind && actualOperation.kind !== expectedOperation.kind) {
+      return `repair changed operation kind for ${expectedOperation.name} from ${expectedOperation.kind} to ${actualOperation.kind ?? "invalid"}`;
+    }
+  }
+  for (const actualOperation of actual.operations.values()) {
+    if (!expected.operations.has(actualOperation.name.toLowerCase())) {
+      return `repair introduced an unexpected selected operation: ${actualOperation.name}`;
+    }
+  }
+  for (const expectedName of expected.newMemories.values()) {
+    const actualName = actual.newMemories.get(expectedName.toLowerCase());
+    if (!actualName) {
+      return `repair dropped recognizable new Memory proposal: ${expectedName}`;
+    }
+    if (actualName !== expectedName) return `repair changed new Memory proposal name from ${expectedName} to ${actualName}`;
+  }
+  for (const actualName of actual.newMemories.values()) {
+    if (!expected.newMemories.has(actualName.toLowerCase())) {
+      return `repair introduced an unexpected new Memory proposal: ${actualName}`;
+    }
+  }
+  return undefined;
+}
+
 export interface IncrementalMemoryRepairInput {
   rejectedPlan: unknown;
   errors: readonly string[];
@@ -632,6 +685,7 @@ export interface IncrementalMemoryRepairInput {
   identity: { runId: string; scopeKey: string; scopeDigest: string; artifactHash: string; snapshotDigest: string };
   model?: string;
   signal?: AbortSignal;
+  semanticContext?: { frozenEvidence: unknown; existingMemories: readonly import("./incremental-learning").SelectedMemory[] };
 }
 
 export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepairInput): Promise<{
@@ -642,16 +696,42 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
   error?: string;
 }> {
   const startedAt = Date.now();
+  const repairSchema = JSON.stringify({
+    kind: "incremental-memory-plan",
+    version: CONSOLIDATION_SCHEMA_VERSION,
+    schemaVersion: CONSOLIDATION_SCHEMA_VERSION,
+    runId: input.identity.runId,
+    scopeKey: input.identity.scopeKey,
+    scopeDigest: input.identity.scopeDigest,
+    artifactHash: input.identity.artifactHash,
+    snapshotDigest: input.identity.snapshotDigest,
+    operations: [],
+    newMemories: [{
+      name: "project_fact_example.md",
+      kind: "project",
+      classification: "safe",
+      content: "---\nname: project_fact\ndescription: A project fact grounded in shared evidence\ntype: project\n---\nThe project uses the documented workflow.\n",
+      evidence: [{ index: 0, quote: "verbatim user or tool-result text" }],
+    }],
+  }, null, 2);
   const prompt = [
     "Task: repair one rejected incremental Memory delta plan.",
     "Return exactly one JSON object and no prose. Preserve the supplied identity and selected scope.",
     "Change only fields needed to resolve every bounded validation error.",
     "Use only the supplied JSON; do not request additional context or rerun planning.",
+    "The repaired output MUST follow this exact incremental delta schema:",
+    repairSchema,
+    'newMemories[].kind must be exactly "preference" or "project"; "project-fact" and every other alias are invalid.',
+    "Each newMemories item requires name, kind, content, and non-empty evidence; classification is only safe or private, and evidence items use a snapshot index plus a verbatim user or tool-result quote.",
+    "Operations may only use rewrite or delete for the supplied selected names; never add parent-derived fields such as selected, inventory, clusters, staleness, grounding, or report.",
+    "Retain every recognizable original selected operation and new proposal by its exact name; preserve an original rewrite as rewrite and an original delete as delete. Correct invalid fields in place instead of dropping, renaming, or replacing an intent, and do not introduce new names or unrelated knowledge.",
+    ...(input.semanticContext ? ["This is a semantic correction: use only the supplied frozen evidence and existing Memory. Remove unsupported inferences while retaining the directly stated facts. A note or example does not establish an ongoing process or maintained institution. Preserve privacy classifications. Do not add claims of verification, ownership or scope absent from the evidence."] : []),
     JSON.stringify({
       identity: input.identity,
       selectedNames: [...input.selectedNames],
       errors: input.errors.map((error) => error.slice(0, 800)).slice(0, 16),
       rejectedPlan: input.rejectedPlan,
+      ...(input.semanticContext ? { semanticContext: input.semanticContext } : {}),
     }),
   ].join("\n");
   const result = await runPiWorker({
@@ -667,9 +747,10 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
   if (result.cancelled) return { outcome: "cancelled", durationMs, usage: result.usage, error: result.stderr };
   if (result.exitCode !== 0) return { outcome: "failed", durationMs, usage: result.usage, error: result.stderr };
   const plan = parseIncrementalPlanText(result.text);
-  return plan
-    ? { outcome: "repaired", durationMs, plan, usage: result.usage }
-    : { outcome: "failed", durationMs, usage: result.usage, error: "repair returned no exact incremental-memory-plan object" };
+  if (!plan) return { outcome: "failed", durationMs, usage: result.usage, error: "repair returned no exact incremental-memory-plan object" };
+  const retentionError = validateIncrementalRepairRetention(input.rejectedPlan, plan, input.selectedNames);
+  if (retentionError) return { outcome: "failed", durationMs, usage: result.usage, error: retentionError };
+  return { outcome: "repaired", durationMs, plan, usage: result.usage };
 }
 
 export function missingConsolidationEvidence(evidence: ConsolidationEvidence): string[] {
@@ -746,7 +827,7 @@ function isAllowedMemoryModel(ctx: ExtensionContext, provider: string, model: st
 }
 
 function configuredMemoryModel(): string {
-  return modelRef(memoryConfig) ?? "(not configured)";
+  return memoryConfigState.invalid ? "(configuration invalid)" : modelRef(memoryConfig) ?? "(not configured)";
 }
 
 function saveMemoryConfig(next: MemoryConfig): void {
@@ -763,17 +844,6 @@ async function chooseMemoryModel(ctx: ExtensionContext): Promise<void> {
     { title: "Select a memory model" },
   );
   if (!result) return;
-  saveMemoryConfig(result);
-  notifyPi(ctx.ui, `Memory model set to ${result.provider}/${result.model}`, "info");
-}
-
-async function enterMemoryModel(ctx: ExtensionContext): Promise<void> {
-  const result = await enterModelFromInput(ctx.ui, ctx.modelRegistry, modelRef(memoryConfig), { label: "Memory model" });
-  if (!result) return;
-  if (!isAllowedMemoryModel(ctx, result.provider, result.model)) {
-    notifyPi(ctx.ui, `Model ${result.provider}/${result.model} is not allowed for memory workers`, "error");
-    return;
-  }
   saveMemoryConfig(result);
   notifyPi(ctx.ui, `Memory model set to ${result.provider}/${result.model}`, "info");
 }
@@ -898,17 +968,17 @@ async function spawnAsyncConsolidation(
     dossierDigest?: string;
     selectedSourceDigest?: string;
     applyChanges?: boolean;
+    jevJudge?: JevJudge;
+    /** Frozen once for the pipeline, including repair attempts. */
+    model?: string;
   },
 ): Promise<boolean> {
+  if (state.cancelled || state.controller?.signal.aborted) return false;
   const attempt = opts.attempt ?? 0;
   const incremental = opts.mode !== "full";
   const attemptStartedAt = Date.now();
   if (state.active && attempt === 0) {
     notifyPi(ctx.ui, "Memory consolidation is already running in background.", "info");
-    return false;
-  }
-  if (memoryConfigState.invalid) {
-    notifyPi(ctx.ui, `Memory consolidation is blocked: ${memoryConfigState.invalid}`, "error");
     return false;
   }
   state.active = true;
@@ -1035,8 +1105,8 @@ async function spawnAsyncConsolidation(
   try {
     const taskFile = path.join(run.manifest.runDir, "task.md");
     nodeFs.writeFileSync(taskFile, taskText, { mode: 0o600 });
-    const modelArgs = memoryConfig.provider && memoryConfig.model
-      ? ["--model", `${memoryConfig.provider}/${memoryConfig.model}`]
+    const modelArgs = opts.model
+      ? ["--model", opts.model]
       : [];
     const workerEnv = Object.fromEntries(
       Object.entries({
@@ -1170,8 +1240,12 @@ async function spawnAsyncConsolidation(
   let finished = false;
   let timedOut = false;
   let repairAttempt: LearningAttempt | undefined;
+  let semanticRepair = false;
+  let semanticRepairAccepted = false;
+  let repairDiagnostic: { originalError: string; repairError?: string } | undefined;
   let appliedOperationCount = 0;
   let proposed = false;
+  let jev: JevTelemetry | undefined;
   let mutatedMemory = false;
   /** Full maintenance retains the existing fresh-planner retry. Incremental
    * runs never replay the dossier or selected Memory bodies. */
@@ -1198,6 +1272,18 @@ async function spawnAsyncConsolidation(
       await writeFileAtomic(run.paths.stdoutFile, completeJsonlSuffix(boundedStdout));
       await writeFileAtomic(run.paths.stderrFile, tailBoundedUtf8Text(stderr));
       await writeFileAtomic(run.paths.activitySummaryFile, `${JSON.stringify(activitySummary, null, 1)}\n`);
+      if (repairDiagnostic) {
+        await writeFileAtomic(
+          path.join(run.manifest.runDir, "incremental-repair-diagnostic.json"),
+          `${JSON.stringify({
+            kind: "incremental-memory-repair-diagnostic",
+            version: 1,
+            diagnostic: formatIncrementalRepairDiagnostic(repairDiagnostic.originalError, repairDiagnostic.repairError),
+            originalError: safeIncrementalRepairReason(repairDiagnostic.originalError),
+            ...(repairDiagnostic.repairError ? { repairError: safeIncrementalRepairReason(repairDiagnostic.repairError) } : {}),
+          }, null, 2)}\n`,
+        );
+      }
     } catch {
       // Diagnostics are best-effort; never mask the original failure.
     }
@@ -1259,16 +1345,19 @@ async function spawnAsyncConsolidation(
         let rejectedPlan: unknown = rawPlan;
         let plan: unknown;
         let incrementalError: string | undefined;
+        let originalIncrementalError: string | undefined;
         if (rawPlan && incremental) {
           try {
             plan = await expandIncrementalMemoryPlan(run, selectedScope, rawPlan);
           } catch (error) {
             incrementalError = (error as Error).message;
+            originalIncrementalError = incrementalError;
           }
         } else {
           plan = rawPlan;
         }
         if (incremental && rejectedPlan && !plan && incrementalError) {
+          const originalError = originalIncrementalError ?? incrementalError;
           const repair = await repairIncrementalMemoryPlan({
             rejectedPlan,
             errors: [incrementalError],
@@ -1280,7 +1369,7 @@ async function spawnAsyncConsolidation(
               artifactHash: run.manifest.snapshotDigest,
               snapshotDigest: run.manifest.snapshotDigest,
             },
-            model: memoryConfig.provider && memoryConfig.model ? `${memoryConfig.provider}/${memoryConfig.model}` : undefined,
+            model: opts.model,
             signal: state.controller?.signal,
           });
           repairAttempt = {
@@ -1298,11 +1387,15 @@ async function spawnAsyncConsolidation(
               evidence.finalPlan = repair.plan;
               evidence.planCount = 1;
             } catch (error) {
-              incrementalError = (error as Error).message;
+              const repairError = (error as Error).message;
+              repairDiagnostic = { originalError, repairError };
+              incrementalError = formatIncrementalRepairDiagnostic(originalError, repairError);
               repairAttempt.outcome = "rejected";
             }
           } else {
-            incrementalError = repair.error || incrementalError;
+            const repairError = repair.error || `repair ${repair.outcome}`;
+            repairDiagnostic = { originalError, repairError };
+            incrementalError = formatIncrementalRepairDiagnostic(originalError, repairError);
           }
         }
         if (!plan || (evidence.planCount !== 1 && !incremental)) {
@@ -1326,7 +1419,7 @@ async function spawnAsyncConsolidation(
         } else {
           const planPath = path.join(run.manifest.runDir, "plan.json");
           const planText = `${JSON.stringify(plan, null, 2)}\n`;
-          const planDigest = sha256Digest(planText);
+          let planDigest = sha256Digest(planText);
           const preSelected = normalizeSelectedScope(plan);
           const expectedSelected = parentSelectedScope(run, opts.selectedScope);
           if (JSON.stringify(preSelected) !== JSON.stringify(expectedSelected)) {
@@ -1336,13 +1429,88 @@ async function spawnAsyncConsolidation(
           if (!ownsCurrentRun()) return;
           await runConsolidationValidator(opts.pkgDir, run, planPath, "plan", expectedSelected);
           if (!ownsCurrentRun()) return;
-          // The plan is validated but not yet written. This is the moment to ask
-          // what a decision surface makes of its proposals, because it is the
-          // last point where nothing has been mutated. Nothing here changes what
-          // is applied: the parent still writes every proposal, exactly as it
-          // does today. What it produces is the baseline for the later question
-          // of whether a planner should produce several candidates and pick one.
-          if (opts.applyChanges === false) {
+          let semanticProposal = false;
+          let assertSemanticInputsFrozen: (() => Promise<void>) | undefined;
+          if (opts.jevJudge?.enabled) {
+            const snapshotBytes = await fs.readFile(run.paths.snapshotFile);
+            if (sha256Digest(snapshotBytes) !== run.manifest.snapshotDigest) throw new Error("Jev frozen evidence changed");
+            const frozenEvidence = JSON.parse(snapshotBytes.toString("utf8")) as unknown;
+            // Related Memory bodies come from the already frozen dossier, never
+            // from Jev-selected filesystem paths or unverified model output.
+            let existing: import("./incremental-learning").SelectedMemory[] = [];
+            if (opts.dossierPath && opts.dossierDigest) {
+              const bytes = await fs.readFile(opts.dossierPath);
+              if (sha256Digest(bytes) !== opts.dossierDigest) throw new Error("Jev frozen Memory dossier changed");
+              existing = (JSON.parse(bytes.toString("utf8")) as import("./incremental-learning").LearningDossier).selectedMemories;
+            } else {
+              const privateNames = await readPrivateIndexNames(run.manifest.harnessDir);
+              for (const name of preSelected) {
+                const content = (await readBoundedRegularFile(path.join(run.manifest.harnessDir, name), MAX_MEMORY_BYTES)).toString("utf8");
+                if (sha256Digest(content) !== run.manifest.sourceHashes.harness[name]) throw new Error("Jev selected Memory changed");
+                existing.push({ name, classification: !privateNames.has(name) && run.manifest.sourceHashes.public[name] === run.manifest.sourceHashes.harness[name] ? "safe" : "private", type: "existing", description: "", content });
+              }
+            }
+            const candidate = plan as { operations?: unknown[]; newMemories?: unknown[] };
+            const candidates = [...(candidate.operations ?? []), ...normalizeNewMemoryProposals(plan, frozenEvidence, preSelected)];
+            assertSemanticInputsFrozen = async () => {
+              if (sha256Digest(await fs.readFile(run.paths.snapshotFile)) !== run.manifest.snapshotDigest) throw new Error("Jev frozen evidence changed");
+              if (opts.dossierPath && opts.dossierDigest && sha256Digest(await fs.readFile(opts.dossierPath)) !== opts.dossierDigest) throw new Error("Jev frozen Memory dossier changed");
+            };
+            const verdict = await opts.jevJudge.validate("memory", frozenEvidence,
+              candidates, existing, state.controller?.signal);
+            jev = verdict.telemetry;
+            semanticProposal = verdict.decision === "propose";
+            if (!ownsCurrentRun()) return;
+            await assertSemanticInputsFrozen();
+            if (semanticProposal && incremental && opts.applyChanges !== false && !repairAttempt
+              && ["uncertain", "unsupported"].includes(verdict.telemetry.reason)) {
+              semanticRepair = true;
+              repairAttempt = { phase: "memory", attempt: 1, outcome: "failed", durationMs: 0, operations: 0 };
+              const repairStarted = Date.now();
+              await fs.writeFile(path.join(run.manifest.runDir, "semantic-rejected-plan.json"), JSON.stringify(rawPlan), { encoding: "utf8", mode: 0o600 });
+              try {
+                const repaired = await repairIncrementalMemoryPlan({ rejectedPlan: rawPlan,
+                  errors: [`Semantic verification: ${verdict.telemetry.reason}${verdict.telemetry.candidateIndex !== undefined && verdict.telemetry.dimension ? ` in candidate ${verdict.telemetry.candidateIndex} ${verdict.telemetry.dimension}` : ""}. Keep each body to the smallest durable fact or preference directly stated by the cited evidence. Prefer one plain sentence; retain explicit exceptions and privacy instructions. Remove uncited source-layout, dependency-resolution, execution-result and workflow claims. Do not infer a maintained process from a note or add contextual explanations.`],
+                  selectedNames: preSelected,
+                  identity: { runId: run.manifest.runId, scopeKey: run.manifest.scopeKey, scopeDigest: run.manifest.scopeDigest, artifactHash: run.manifest.snapshotDigest, snapshotDigest: run.manifest.snapshotDigest },
+                  semanticContext: { frozenEvidence, existingMemories: existing }, model: opts.model, signal: state.controller?.signal });
+                repairAttempt.durationMs = repaired.durationMs;
+                repairAttempt.usage = repaired.usage;
+                if (!ownsCurrentRun()) return;
+                await assertSemanticInputsFrozen();
+                if (repaired.outcome === "repaired" && repaired.plan) {
+                  const corrected = await expandIncrementalMemoryPlan(run, selectedScope, repaired.plan);
+                  const correctedCandidates = [...(corrected.operations ?? []), ...normalizeNewMemoryProposals(corrected, frozenEvidence, preSelected)];
+                  const classifications = new Map(candidates.map(item => { const record = asRecord(item)!; return [record.name, record.classification]; }));
+                  if (correctedCandidates.some(item => classifications.get(item.name) !== item.classification)) throw new Error("Semantic Memory repair changed privacy classification");
+                  const correctedText = `${JSON.stringify(corrected, null, 2)}\n`;
+                  const correctedPath = path.join(run.manifest.runDir, "semantic-repair-plan.json");
+                  await fs.writeFile(correctedPath, correctedText, { encoding: "utf8", mode: 0o600 });
+                  await runConsolidationValidator(opts.pkgDir, run, correctedPath, "plan", preSelected);
+                  if (!ownsCurrentRun()) return;
+                  const correctedVerdict = await opts.jevJudge.validate("memory", frozenEvidence, correctedCandidates, existing, state.controller?.signal);
+                  repairAttempt.jev = correctedVerdict.telemetry;
+                  repairAttempt.diagnostic = `Jev ${correctedVerdict.telemetry.status}: ${correctedVerdict.telemetry.reason}`;
+                  if (!ownsCurrentRun()) return;
+                  await assertSemanticInputsFrozen();
+                  if (correctedVerdict.decision === "allow") {
+                    plan = corrected;
+                    planDigest = sha256Digest(correctedText);
+                    await fs.writeFile(planPath, correctedText, { encoding: "utf8", mode: 0o600 });
+                    semanticProposal = false;
+                    semanticRepairAccepted = true;
+                  } else repairAttempt.outcome = "proposed";
+                } else repairAttempt.outcome = repaired.outcome === "cancelled" ? "cancelled" : "failed";
+              } catch {
+                repairAttempt.durationMs = Date.now() - repairStarted;
+                repairAttempt.outcome = "rejected";
+                repairAttempt.diagnostic = "Semantic Memory correction could not be validated; original proposal retained.";
+              }
+              if (!ownsCurrentRun()) return;
+              await assertSemanticInputsFrozen();
+            }
+          }
+          if (opts.applyChanges === false || semanticProposal) {
             const candidate = plan as { operations?: unknown[]; newMemories?: unknown[] };
             proposed = (candidate.operations?.length ?? 0) + (candidate.newMemories?.length ?? 0) > 0;
             if (proposed) await recordLearningProposal(opts.cwd, "memory", plan);
@@ -1363,7 +1531,10 @@ async function spawnAsyncConsolidation(
           const mutationStartedAt = Date.now();
           const memoryPlan = plan as { operations?: Array<{ name: string }>; newMemories?: Array<{ name: string }> };
           const mutationFiles = memoryMutationFiles(opts.cwd, [...(memoryPlan.operations ?? []), ...(memoryPlan.newMemories ?? [])].map(operation => operation.name));
-          const applied = await recordLearningMutation(opts.cwd, "memory", mutationFiles, () => applyConsolidationPlan(run, plan, ownsCurrentRun), plan);
+          const applied = await recordLearningMutation(opts.cwd, "memory", mutationFiles, async () => {
+            await assertSemanticInputsFrozen?.();
+            return applyConsolidationPlan(run, plan, ownsCurrentRun);
+          }, plan);
           mutatedMemory = true;
           const existingOperations = Array.isArray((plan as { operations?: unknown }).operations)
             ? (plan as { operations: unknown[] }).operations.length
@@ -1433,20 +1604,21 @@ async function spawnAsyncConsolidation(
         state.attempts?.push({
           phase: "memory",
           attempt,
-          outcome: repairAttempt
+          outcome: semanticRepair ? state.cancelled ? "cancelled" : state.outcome === "completed" ? "proposed" : "failed" : repairAttempt
             ? state.cancelled ? "cancelled" : "rejected"
             : state.cancelled ? "cancelled" : state.outcome === "completed" ? proposed ? "proposed" : appliedOperationCount > 0 ? "applied" : "noop" : state.outcome === "unverified" ? "rejected" : "failed",
           durationMs: Date.now() - attemptStartedAt,
           operations: repairAttempt ? 0 : appliedOperationCount,
           usage: evidence.attemptUsage,
+          ...(jev ? { jev, diagnostic: `Jev ${jev.status}: ${jev.reason}` } : {}),
         });
         if (repairAttempt) {
-          repairAttempt.outcome = state.cancelled
+          if (state.cancelled || !semanticRepair || semanticRepairAccepted) repairAttempt.outcome = state.cancelled
             ? "cancelled"
             : state.outcome === "completed"
               ? proposed ? "proposed" : appliedOperationCount > 0 ? "applied" : "noop"
               : state.outcome === "unverified" ? "rejected" : "failed";
-          repairAttempt.operations = state.outcome === "completed" ? appliedOperationCount : 0;
+          repairAttempt.operations = (!semanticRepair || semanticRepairAccepted) && state.outcome === "completed" ? appliedOperationCount : 0;
           state.attempts?.push(repairAttempt);
         }
         resolveCompletion();
@@ -1472,63 +1644,130 @@ async function spawnAsyncConsolidation(
 async function startConsolidationPipeline(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; reason: string; availableSkills: readonly string[]; mode: LearningMode; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void },
+  opts: { pkgDir: string; cwd: string; reason: string; availableSkills: readonly string[]; mode: LearningMode; memoryRequest?: string; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void },
 ): Promise<void> {
   if (state.pipeline) return state.pipeline;
+  state.cancelled = false;
+  const pipelineAttempts: LearningAttempt[] = [];
+  const jevJudge = createJevJudge();
+  state.attempts = pipelineAttempts;
+  state.mode = opts.mode;
+  const controller = new AbortController();
+  state.controller = controller;
+  const isCurrent = (): boolean => !state.cancelled && state.controller === controller && !controller.signal.aborted;
   let pipelineScreen: LearningScreen | undefined;
   let selectorRun: ConsolidationRun | undefined;
   // Every generative phase runs on this one model. Resolved once so the Memory,
   // Harness, and AGENTS.md phases cannot drift onto different models.
-  const consolidationModel = memoryConfig.provider && memoryConfig.model
-    ? `${memoryConfig.provider}/${memoryConfig.model}`
-    : undefined;
+  const consolidationModel = modelRef(memoryConfig)
+    ?? (ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined);
+  const modelConfigurationError = memoryConfigState.invalid;
   let acquiredLaterRun: ConsolidationRun | undefined;
+  let learningInput: LearningInputSource | undefined;
   setDreamingWidget(ctx, opts.mode === "full" ? "preparing full maintenance" : "selecting current task");
   state.cleanup = () => clearDreamingWidget(ctx);
   const pipeline = (async () => {
-    const recoveryLock = await acquireConsolidationLock(resolveConsolidationRunPaths(opts.cwd));
-    try { await recoverPendingAgentsMdConsolidations(opts.cwd); }
-    finally { await recoveryLock.release(); }
-    await recoverLearningUndo(opts.cwd);
-    await checkPendingLearningMutations(opts.cwd);
-    const policies = automaticPhasePolicies(await readSettings(opts.cwd), opts.mode);
+    // Freeze the invocation before recovery or settings reads yield to new input.
+    let invocationContext = snapshotSessionContext(ctx);
     const fullMode = opts.mode === "full";
-    const completeEntries = snapshotEntries(ctx);
-    const taskSlice = currentTaskSlice(completeEntries);
-    const taskContext = snapshotSessionContext(ctx, fullMode ? undefined : taskSlice.entries);
-    const frozenContext = taskContext;
-    const screen: LearningScreen = screenLearningEntries(taskSlice.entries, opts.mode);
+    let completeEntries = snapshotEntries(invocationContext);
+    if (fullMode) {
+      learningInput = { source: "current-session", entryCount: completeEntries.length };
+      if (!hasLearningInput(completeEntries)) {
+        const paths = resolveMemoryPaths(opts.cwd);
+        const recent = await recentProjectLearningInput({
+          cwd: opts.cwd, agentDir: paths.agentDir,
+          sessionDir: invocationContext.sessionManager.getSessionDir?.(),
+          currentSessionFile: invocationContext.sessionManager.getSessionFile?.(),
+          signal: controller.signal,
+        });
+        if (!isCurrent()) return;
+        if (recent) {
+          invocationContext = snapshotSessionContext(invocationContext, recent.entries);
+          completeEntries = snapshotEntries(invocationContext);
+          learningInput = { source: "recent-project-session", entryCount: completeEntries.length,
+            sessionId: recent.sessionId, sourceDigest: recent.sourceDigest };
+        }
+      }
+    }
+    const taskSlice = opts.memoryRequest !== undefined
+      ? requestedMemoryTaskSlice(opts.memoryRequest, completeEntries)
+      : currentTaskSlice(completeEntries);
+    const frozenContext = snapshotSessionContext(invocationContext, fullMode ? undefined : taskSlice.entries);
+    const recoveryLock = await acquireConsolidationLock(resolveConsolidationRunPaths(opts.cwd));
+    try {
+      if (!isCurrent()) return;
+      await recoverPendingAgentsMdConsolidations(opts.cwd);
+    }
+    finally { await recoveryLock.release(); }
+    if (!isCurrent()) return;
+    await recoverLearningUndo(opts.cwd);
+    if (!isCurrent()) return;
+    await checkPendingLearningMutations(opts.cwd);
+    if (!isCurrent()) return;
+    const settings = await readSettings(opts.cwd);
+    if (!isCurrent()) return;
+    if (settings.invalid) throw new Error(settings.invalid);
+    const policies = automaticPhasePolicies(settings, opts.mode);
+    if (opts.memoryRequest !== undefined) {
+      policies.harness = "off";
+      policies.agents = "off";
+    }
+    const screen: LearningScreen = opts.memoryRequest !== undefined
+      ? { memory: true, harness: false, agents: false, reasons: ["Explicit memory request"] }
+      : screenLearningEntries(taskSlice.entries, opts.mode);
+    if (fullMode && !hasLearningInput(completeEntries)) {
+      const paths = resolveMemoryPaths(opts.cwd);
+      const roots = await Promise.all([
+        hashMemoryRoot(paths.harnessDir),
+        paths.publicDir ? hashMemoryRoot(paths.publicDir) : Promise.resolve({}),
+      ]);
+      if (!roots.some(root => Object.keys(root).some(isMemoryFilename))) {
+        Object.assign(screen, { memory: false, harness: false, agents: false });
+        screen.reasons.push("no-learning-inputs");
+        learningInput = { source: "none", entryCount: 0 };
+      } else learningInput = { source: "existing-memory", entryCount: completeEntries.length };
+    }
     pipelineScreen = screen;
     for (const phase of ["memory", "harness", "agents"] as const) if (policies[phase] === "off") screen[phase] = false;
-    if (!screen.memory && !screen.harness && !screen.agents) {
-      const receipt = buildLearningReceipt(opts.mode, screen, []);
+    const semanticReview = !fullMode && jevJudge.selectionEnabled && hasLearningInput(taskSlice.entries)
+      && (policies.memory !== "off" || policies.harness !== "off");
+    if (semanticReview) screen.reasons.push("Jev semantic review");
+    if (!screen.memory && !screen.harness && !screen.agents && !semanticReview) {
+      const receipt = buildLearningReceipt(opts.mode, screen, [], learningInput);
       await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt);
+      if (!isCurrent()) return;
       if (opts.reportResult) opts.reportReceipt?.(receipt);
-      // The screen judged this task valueless, and that judgment is a heuristic
-      // making an irreversible discard. Queue a reference instead, so
-      // /consolidate backfill can revisit it on the user's schedule rather than
-      // at a moment they did not choose.
-      queueSettledTask(ctx, taskSlice, "screen-found-nothing", opts.cwd);
+      // Retain a bounded reference for inspection. Historical replay requires
+      // a separate explicit implementation; backfill currently reports status.
+      queueSettledTask(invocationContext, taskSlice, "screen-found-nothing", opts.cwd);
       return;
     }
-    state.attempts = [];
-    state.mode = opts.mode;
-    state.cancelled = false;
-    state.controller = new AbortController();
     const reportReceipt = (receipt: LearningPipelineReceipt): void => {
       if (opts.reportResult) opts.reportReceipt?.(receipt);
     };
     const writeCurrentReceipt = async (directory = resolveMemoryPaths(opts.cwd).runsDir): Promise<void> => {
-      const receipt = buildLearningReceipt(opts.mode, screen, state.attempts ?? []);
+      const receipt = buildLearningReceipt(opts.mode, screen, state.attempts ?? [], learningInput);
       await writeLearningReceipt(directory, receipt);
+      if (!isCurrent()) return;
       reportReceipt(receipt);
     };
+    if (modelConfigurationError) {
+      // A bad explicit model must block selection and every later phase before
+      // normalization or any worker can use the session-model fallback.
+      state.outcome = "failed";
+      pipelineAttempts.push({ phase: fullMode ? "memory" : "selector", attempt: 0, outcome: "failed", durationMs: 0, operations: 0 });
+      notifyPi(ctx.ui, `Learning is blocked: ${modelConfigurationError}`, "error");
+      await writeCurrentReceipt();
+      return;
+    }
     let incrementalSelection: Awaited<ReturnType<typeof selectIncrementalLearning>> | undefined;
     let selectedSourceDigest: string | undefined;
     let appliedMemoryChanges = 0;
     if (!fullMode) {
       setDreamingActivity("selecting related memory");
       selectorRun = await createConsolidationRun(frozenContext, opts.cwd, policies.memory === "apply" ? normalizeTrackedMemory : false);
+      if (!isCurrent()) return;
       selectedSourceDigest = sha256Digest(JSON.stringify(selectorRun.manifest.sourceHashes));
       const selectorReceiptDirectory = resolveMemoryPaths(opts.cwd).runsDir;
       try {
@@ -1537,17 +1776,26 @@ async function startConsolidationPipeline(
           taskSlice,
           contextDigest: selectorRun.manifest.snapshotDigest,
           outputDir: selectorRun.manifest.runDir,
-          model: memoryConfig.provider && memoryConfig.model ? `${memoryConfig.provider}/${memoryConfig.model}` : undefined,
-          signal: state.controller.signal,
+          model: consolidationModel,
+          signal: controller.signal,
           registeredSkills: opts.availableSkills,
+          memoryOnly: opts.memoryRequest !== undefined,
+          jevJudge,
+          allowEmptyIndexRouting: opts.mode === "automatic" || opts.memoryRequest !== undefined,
         });
-        state.attempts.push({
+        pipelineAttempts.push({
           phase: "selector",
           attempt: 0,
           outcome: incrementalSelection.outcome === "selected" ? "applied" : incrementalSelection.outcome,
           durationMs: incrementalSelection.durationMs,
           operations: 0,
           usage: incrementalSelection.usage,
+          ...(incrementalSelection.diagnostic ? { diagnostic: incrementalSelection.diagnostic } : {}),
+          ...(incrementalSelection.jev ? { jev: incrementalSelection.jev } : {}),
+          ...(incrementalSelection.selection ? { selectedMemory: incrementalSelection.selection.selected } : {}),
+          ...(incrementalSelection.diagnostic ? { diagnostic: incrementalSelection.diagnostic } : {}),
+          ...(incrementalSelection.jev ? { jev: incrementalSelection.jev } : {}),
+          ...(incrementalSelection.selection ? { selectedMemory: incrementalSelection.selection.selected } : {}),
         });
         if (incrementalSelection.outcome !== "selected" || !incrementalSelection.selection) {
           if (!state.cancelled) notifyPi(ctx.ui, `Learning selector failed: ${incrementalSelection.error ?? "invalid selection"}`, "warning");
@@ -1572,6 +1820,7 @@ async function startConsolidationPipeline(
           if (policies.memory === "apply") {
             const selected = incrementalSelection.selection.selected;
             await recordLearningMutation(opts.cwd, "memory", memoryMutationFiles(opts.cwd, []), () => ensureEmptyIncrementalIndexes(opts.cwd, selected));
+            if (!isCurrent()) return;
           }
           const memoryPaths = resolveMemoryPaths(opts.cwd);
           const currentSourceHashes = {
@@ -1586,6 +1835,7 @@ async function startConsolidationPipeline(
         throw error;
       }
     }
+    if (!isCurrent()) return;
     if (screen.memory) {
       setDreamingActivity(fullMode ? "full memory" : "memory delta");
       const memoryStartedAt = Date.now();
@@ -1593,21 +1843,25 @@ async function startConsolidationPipeline(
         await releaseConsolidationRun(selectorRun, { keepArtifacts: true });
         selectorRun = undefined;
       }
+      if (!isCurrent()) return;
       const started = await spawnAsyncConsolidation(frozenContext, state, {
         ...opts,
+        model: consolidationModel,
         selectedScope: incrementalSelection?.selection?.selected,
         dossierPath: incrementalSelection?.dossierPath,
         dossierDigest: incrementalSelection?.dossierDigest,
         selectedSourceDigest,
         applyChanges: policies.memory === "apply",
+        jevJudge,
       });
       if (!started) {
         if (!state.cancelled) {
-          state.attempts.push({ phase: "memory", attempt: 0, outcome: "failed", durationMs: Date.now() - memoryStartedAt, operations: 0 });
+          pipelineAttempts.push({ phase: "memory", attempt: 0, outcome: "failed", durationMs: Date.now() - memoryStartedAt, operations: 0 });
           await writeCurrentReceipt();
         }
         return;
       }
+
       // A retry replaces completion; wait for each attempt and its lock release.
       while (state.completion) await state.completion;
       if (state.cancelled) return;
@@ -1637,6 +1891,7 @@ async function startConsolidationPipeline(
     }
     const laterRun = await createConsolidationRun(frozenContext, opts.cwd, policies.memory === "apply" ? normalizeTrackedMemory : false);
     acquiredLaterRun = laterRun;
+    if (!isCurrent()) return;
     if (incrementalSelection?.dossierPath && incrementalSelection.dossierDigest) {
       const dossierBytes = await fs.readFile(incrementalSelection.dossierPath);
       if (sha256Digest(dossierBytes) !== incrementalSelection.dossierDigest) throw new Error("incremental dossier changed before later planning");
@@ -1660,16 +1915,19 @@ async function startConsolidationPipeline(
         ? { explorationPath: incrementalSelection.dossierPath, explorationDigest: incrementalSelection.dossierDigest }
         : {};
       const settings = await readSettings(opts.cwd);
+      if (!isCurrent()) return;
+      if (settings.invalid) throw new Error(settings.invalid);
       if (screen.harness && screen.agents) setDreamingActivity("harness and AGENTS.md");
       else if (screen.harness) setDreamingActivity("harness delta");
       else if (screen.agents) setDreamingActivity("AGENTS.md delta");
       const harnessPromise = screen.harness
         ? planHarnessConsolidationPhase(frozenContext, { pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills, run: laterRun, ...exploration,
+          ...(jevJudge.enabled ? { validateSemantics: (snapshot: unknown, operations: readonly unknown[], citations?: unknown) => jevJudge.validate("harness", snapshot, operations, [], controller.signal, citations), semanticRepair: policies.harness === "apply" } : {}),
           // The Harness phase must run on the same selected model as the Memory
           // phase, or "consolidation uses the configured model" is only half true
           // and the two phases can be different models on the same run.
           ...(consolidationModel ? { model: consolidationModel } : {}), }, {
-            current: () => !state.cancelled && !harnessState.cancelled,
+            current: () => isCurrent() && !harnessState.cancelled,
             onChild: (child) => { harnessState.child = child; },
           })
         : Promise.resolve(undefined);
@@ -1681,18 +1939,18 @@ async function startConsolidationPipeline(
           }, laterRun, laterGeneration)
         : Promise.resolve(undefined);
       const [harnessPlan, agentsPlan] = await Promise.all([harnessPromise, agentsPromise]);
+      if (!isCurrent()) return;
       if (harnessPlan) {
-        attempts.push({ phase: "harness", attempt: 0, outcome: harnessPlan.ok ? "noop" : "failed", durationMs: harnessPlan.ok ? harnessPlan.value.durationMs : harnessPlan.durationMs, operations: harnessPlan.ok && Array.isArray(harnessPlan.value.plan.operations) ? harnessPlan.value.plan.operations.length : 0, usage: harnessPlan.ok ? harnessPlan.value.usage : harnessPlan.usage });
+        const harnessAttempts = harnessPlan.ok ? harnessPlan.value.attempts : harnessPlan.attempts;
+        if (harnessAttempts?.length) attempts.push(...harnessAttempts.map(attempt => ({ ...attempt })));
+        else attempts.push({ phase: "harness", attempt: 0, outcome: harnessPlan.ok ? "noop" : "failed", durationMs: harnessPlan.ok ? harnessPlan.value.durationMs : harnessPlan.durationMs, operations: harnessPlan.ok && Array.isArray(harnessPlan.value.plan.operations) ? harnessPlan.value.plan.operations.length : 0, usage: harnessPlan.ok ? harnessPlan.value.usage : harnessPlan.usage });
         if (!harnessPlan.ok && !state.cancelled) notifyPi(ctx.ui, `Harness learning failed: ${harnessPlan.detail.slice(-300)}`, "warning");
         if (harnessPlan.ok) {
-          // Observe the plan before deciding whether it will be applied or only
-          // proposed. Kept out of the apply branch: under a propose policy the
-          // surface would otherwise stop being judged, silently, exactly when a
-          // plan still exists and is worth reading.
-          if (policies.harness === "propose") {
+          const semanticProposal = harnessPlan.value.semanticDecision === "propose";
+          if (policies.harness === "propose" || semanticProposal) {
             const hasChanges = Array.isArray(harnessPlan.value.plan.operations) && harnessPlan.value.plan.operations.length > 0;
             if (hasChanges) await recordLearningProposal(opts.cwd, "harness", harnessPlan.value.plan);
-            attempts[attempts.length - 1].outcome = hasChanges ? "proposed" : "noop";
+            if (attempts[attempts.length - 1].outcome === "noop") attempts[attempts.length - 1].outcome = hasChanges ? "proposed" : "noop";
             attempts[attempts.length - 1].operations = 0;
           } else {
             const applied = await applyHarnessConsolidationPlan(harnessPlan.value, () => !state.cancelled);
@@ -1706,6 +1964,7 @@ async function startConsolidationPipeline(
           }
         }
       }
+      if (!isCurrent()) return;
       if (agentsPlan) {
         const attempt: LearningAttempt = {
           phase: "agents",
@@ -1757,7 +2016,7 @@ async function startConsolidationPipeline(
   }).catch(async (error: unknown) => {
     state.outcome = "failed";
     if (!state.cancelled && pipelineScreen && (state.attempts?.length ?? 0) > 0) {
-      const receipt = buildLearningReceipt(opts.mode, pipelineScreen, state.attempts ?? []);
+      const receipt = buildLearningReceipt(opts.mode, pipelineScreen, state.attempts ?? [], learningInput);
       await writeLearningReceipt(resolveMemoryPaths(opts.cwd).runsDir, receipt).catch(() => undefined);
     }
     if (!state.cancelled) notifyPi(ctx.ui, `Learning pipeline failed: ${error instanceof Error ? error.message : String(error)}`, "error");
@@ -1769,27 +2028,6 @@ async function startConsolidationPipeline(
   });
   state.pipeline = pipeline;
   return pipeline;
-}
-
-async function editInstructions(ctx: ExtensionCommandContext, filePath: string): Promise<void> {
-  let current = "";
-  try {
-    current = await fs.readFile(filePath, "utf-8");
-  } catch {
-    // new file — start empty
-  }
-
-  if (typeof ctx.ui.editor !== "function") {
-    notifyPi(ctx.ui, `Instructions file: ${filePath}`, "info");
-    return;
-  }
-
-  const edited = await ctx.ui.editor(`Edit ${filePath}:`, current);
-  if (edited === undefined) return; // cancelled
-
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, edited, "utf-8");
-  notifyPi(ctx.ui, `Saved ${filePath}`, "info");
 }
 
 // ── extension ──────────────────────────────────────────────────────
@@ -1813,14 +2051,23 @@ function queueSettledTask(
   const manager = ctx.sessionManager as { getSessionFile?: () => string | undefined } | undefined;
   const sessionFile = manager?.getSessionFile?.();
   if (!sessionFile) return;
-  enqueueBacklog({
+  const branch = snapshotEntries(ctx);
+  let nextPosition = 0;
+  const positions = taskSlice.entries.map(entry => {
+    const position = branch.indexOf(entry, nextPosition);
+    nextPosition = position + 1;
+    return position;
+  });
+  if (!positions.length || positions.some(position => position < 0)) return;
+  const queued = enqueueBacklog({
     cwd,
     sessionFile,
-    from: 0,
-    to: Math.max(0, taskSlice.entries.length - 1),
+    from: Math.min(...positions),
+    to: Math.max(...positions),
     digest: sha256Digest(JSON.stringify(taskSlice)),
     reason,
   });
+  if (!queued) notifyPi(ctx.ui, "Skipped task reference could not be queued safely; backlog may be full or unavailable.", "warning");
 }
 
 export default function (pi: ExtensionAPI) {
@@ -1842,10 +2089,18 @@ export default function (pi: ExtensionAPI) {
     });
   }
   let sessionGeneration = 0;
+  let settingsDiagnostic: string | undefined;
+  const runtimeSettings = async (ctx: ExtensionContext) => {
+    const settings = await readSettings(ctx.cwd || process.cwd());
+    if (settings.invalid && settings.invalid !== settingsDiagnostic) notifyPi(ctx.ui, settings.invalid, "error");
+    settingsDiagnostic = settings.invalid;
+    return settings;
+  };
 
   registerAutomaticLearning(pi, {
-    enabled: async (ctx) => (await readSettings(ctx.cwd)).autoMemory,
+    enabled: async (ctx) => (await runtimeSettings(ctx)).autoMemory,
     snapshot: snapshotSessionContext,
+    onSkipped: (ctx, _revision, reason) => queueSettledTask(ctx, currentTaskSlice(snapshotEntries(ctx)), reason, ctx.cwd),
     run: async (ctx) => {
       const generation = sessionGeneration;
       if (dreamState.pipeline) await dreamState.pipeline;
@@ -1891,6 +2146,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_start", async (_event, ctx) => {
     await stopPipeline();
+    settingsDiagnostic = undefined;
     try {
       const recoveryLock = await acquireConsolidationLock(resolveConsolidationRunPaths(ctx.cwd || process.cwd()));
       try { await recoverPendingAgentsMdConsolidations(ctx.cwd || process.cwd()); }
@@ -1908,7 +2164,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
     const memories = await loadAndDeduplicateMemories(cwd);
-    const settings = await readSettings(cwd);
+    const settings = await runtimeSettings(ctx);
 
     if (memories.totalEntries === 0 && !settings.autoMemory) return;
 
@@ -1926,7 +2182,7 @@ export default function (pi: ExtensionAPI) {
 
   // /memory command with the management menu
   pi.registerCommand("memory", {
-    description: "Manage project memory: model, instructions, memory folder, consolidation",
+    description: "Browse Memory and learning settings, or remember a natural-language request",
     handler: async (args, ctx) => {
       const command = args.trim();
       if (await handleLearningManagement(command, ctx, { readSettings, writeSettings, busy: () => Boolean(dreamState.pipeline || dreamState.active) })) return;
@@ -1939,115 +2195,121 @@ export default function (pi: ExtensionAPI) {
         return;
       }
       if (command === "show" || command === "status") {
-        notifyPi(ctx.ui, `Memory model: ${configuredMemoryModel()}\nConfig file: ${memoryConfigPath()}`, "info");
+        const cwd = ctx.cwd || process.cwd();
+        const settings = await runtimeSettings(ctx);
+        const memories = await loadAndDeduplicateMemories(cwd);
+        const paths = resolveMemoryPaths(cwd);
+        const backlog = backlogStatus(cwd);
+        const policies = settings.invalid ? undefined : automaticPhasePolicies(settings, "automatic");
+        const jevConfig = readJevConfigState();
+        notifyPi(ctx.ui, [
+          `Auto-memory: ${settings.autoMemory ? "on" : "off"}${settings.invalid ? " (settings unavailable)" : ""}`,
+          `Memory model: ${configuredMemoryModel()}`,
+          `Jev: ${jevConfig.invalid ? "disabled (invalid config)" : jevConfig.disabled ? "disabled (explicit config)" : jevConfig.config || process.env.TYPESAFE_API_KEY?.trim() ? `${jevConfig.config?.model ?? "jev-1.13.0"}; scopes=${(jevConfig.config?.scopes ?? ["selection", "memory", "harness"]).join(",")}; private Memory=${jevConfig.config?.allowPrivateMemory ? "allowed" : "denied"}${jevConfig.config?.apiKey || process.env.TYPESAFE_API_KEY?.trim() ? "" : "; unavailable (missing key)"}` : "disabled (no Jev config or environment key)"}`,
+          `Config file: ${memoryConfigPath()}`,
+          `Learning pipeline: ${dreamState.pipeline || dreamState.active ? "running" : "idle"}`,
+          `Knowledge entries: ${memories.totalEntries}`,
+          `Private memory: ${paths.harnessDir}`,
+          `Shared memory: ${paths.publicDir ?? "disabled for this non-project directory"}`,
+          `Automatic phases: ${policies ? Object.entries(policies).map(([phase, policy]) => `${phase}=${policy}`).join(", ") : "unavailable"}`,
+          `Skipped task references: ${backlog.pending}; unavailable sessions: ${backlog.unlearnable}; unscoped legacy: ${backlog.unscoped}`,
+          `Malformed references: ${backlog.malformed}`,
+          ...(backlog.error ? [backlog.error] : []),
+          "/consolidate backfill inspects references; historical replay is unavailable.",
+        ].join("\n"), "info");
         return;
       }
 
-      const cwd = ctx.cwd || process.cwd();
-      const settings = await readSettings(cwd);
-      const status = settings.autoMemory ? "on" : "off";
-      const memoryPaths = resolveMemoryPaths(cwd);
-      const harnessDir = memoryPaths.harnessDir;
-      const home = getAgentDir();
-      const pkgDir = resolvePackageDir();
-      const procedureFile = path.join(pkgDir, "prompts", "incremental-memory-consolidator.md");
-      const projectInstructions = await resolveProjectInstructionsFile(cwd, ctx);
-
-      const options = [
-        `Select memory model (current: ${configuredMemoryModel()})`,
-        "Enter provider/model manually",
-        "Consolidate memory now",
-        "Show automatic phase policies",
-        "Show learning history",
-        `Edit user instructions (${path.join(home, "AGENTS.md")})`,
-        `Edit project instructions (${projectInstructions.display})`,
-        "Open memory folder",
-        `Toggle auto-memory (currently ${status})`,
-      ];
-
-      if (!ctx.hasUI) {
-        notifyPi(ctx.ui,
-          [
-            `Auto-memory: ${status}`,
-            `Memory model: ${configuredMemoryModel()}`,
-            `Harness memory: ${harnessDir}`,
-            `Public memory: ${memoryPaths.publicDir ?? "disabled for this non-project directory"}`,
-            `Consolidate procedure: ${procedureFile}`,
-          ].join("\n"),
-          "info",
-        );
-        return;
-      }
-
-      const choice = await ctx.ui.select(`Auto-memory: ${status}\n\nMemory management:`, options);
-      if (!choice) return; // cancelled
-
-      if (choice.startsWith("Select memory model")) {
-        await chooseMemoryModel(ctx);
-      } else if (choice === "Enter provider/model manually") {
-        await enterMemoryModel(ctx);
-      } else if (choice.startsWith("Consolidate memory now")) {
+      if (command) {
         if (dreamState.pipeline || dreamState.active) {
-          notifyPi(ctx.ui, "Memory consolidation is already running in background.", "info");
+          notifyPi(ctx.ui, "Memory learning is already running. Wait for its result before submitting another request.", "info");
           return;
         }
-        void startConsolidationPipeline(ctx, dreamState, {
-          pkgDir,
-          cwd,
-            availableSkills: pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')),
-          reason: "Consolidate the project memory now (user-invoked via /memory menu).",
+        if (containsSensitiveMemoryMaterial(command)) {
+          notifyPi(ctx.ui, "Memory requests cannot contain secrets or credentials.", "error");
+          return;
+        }
+        const completion = startConsolidationPipeline(ctx, dreamState, {
+          pkgDir: resolvePackageDir(),
+          cwd: ctx.cwd || process.cwd(),
+          reason: "Remember the user's explicit Memory request without changing Harness or AGENTS.md.",
+          availableSkills: [],
           mode: "manual",
+          memoryRequest: command,
           reportResult: true,
           reportReceipt: reportLearningReceipt,
         });
-      } else if (choice === "Show automatic phase policies" || choice === "Show learning history") {
-        await handleLearningManagement(choice === "Show learning history" ? "history" : "policy", ctx, { readSettings, writeSettings, busy: () => Boolean(dreamState.pipeline || dreamState.active) });
-      } else if (choice.startsWith("Edit user instructions")) {
-        await editInstructions(ctx, path.join(home, "AGENTS.md"));
-      } else if (choice.startsWith("Edit project instructions")) {
-        if (!projectInstructions.path) {
-          notifyPi(ctx.ui, "Pi did not expose a project instruction file", "warning");
-        } else {
-          await editInstructions(ctx, projectInstructions.path);
-        }
-      } else if (choice.startsWith("Open memory folder")) {
-        await fs.mkdir(harnessDir, { recursive: true });
-        if (ctx.mode === "tui" && process.platform === "darwin") {
-          await pi.exec("open", [harnessDir]);
-          notifyPi(ctx.ui, `Opened ${harnessDir}`, "info");
-        } else {
-          notifyPi(ctx.ui, `Memory folder: ${harnessDir}`, "info");
-        }
-      } else if (choice.startsWith("Toggle auto-memory")) {
-        const next = { ...settings, autoMemory: !settings.autoMemory };
-        await writeSettings(next, cwd);
-        notifyPi(ctx.ui, `Auto-memory: ${next.autoMemory ? "on" : "off"}`, "info");
+        if (!ctx.hasUI) await completion;
+        return;
       }
+
+      if (!ctx.hasUI) {
+        const cwd = ctx.cwd || process.cwd();
+        const settings = await runtimeSettings(ctx);
+        const paths = resolveMemoryPaths(cwd);
+        notifyPi(ctx.ui, [
+          `Auto-memory: ${settings.autoMemory ? "on" : "off"}`,
+          `Memory model: ${configuredMemoryModel()}`,
+          `Harness memory: ${paths.harnessDir}`,
+          `Public memory: ${paths.publicDir ?? "disabled for this non-project directory"}`,
+          `Consolidate procedure: ${path.join(resolvePackageDir(), "prompts", "incremental-memory-consolidator.md")}`,
+          "Use /memory with a requirement to remember it.",
+        ].join("\n"), "info");
+        return;
+      }
+
+      await openMemoryMenu(ctx, {
+        status: async (cwd) => {
+          const settings = await runtimeSettings(ctx);
+          const memories = await loadAndDeduplicateMemories(cwd);
+          return { autoMemory: settings.autoMemory, model: configuredMemoryModel(), entries: memories.totalEntries, invalid: settings.invalid ?? memoryConfigState.invalid };
+        },
+        loadMemories: loadAndDeduplicateMemories,
+        listHistory: listLearningHistory,
+        manage: (command, context) => handleLearningManagement(command, context, { readSettings, writeSettings, busy: () => Boolean(dreamState.pipeline || dreamState.active) }),
+        selectModel: chooseMemoryModel,
+        toggleAutoMemory: async (context, cwd) => {
+          const settings = await readSettings(cwd);
+          if (settings.invalid) {
+            notifyPi(context.ui, settings.invalid, "error");
+            return;
+          }
+          if (dreamState.pipeline || dreamState.active) {
+            notifyPi(context.ui, "Wait for the current learning pipeline before changing automatic learning.", "warning");
+            return;
+          }
+          const next = { ...settings, autoMemory: !settings.autoMemory };
+          await writeSettings(next, cwd);
+          notifyPi(context.ui, `Auto-memory: ${next.autoMemory ? "on" : "off"}`, "info");
+        },
+        isBusy: () => Boolean(dreamState.pipeline || dreamState.active),
+      });
     },
   });
 
-  // /consolidate — dedicated one-shot consolidation trigger, sibling of
-  // /memory (no menu). Kept separate from /memory so the management menu
-  // stays focused on instructions + settings. Consolidation runs in the
-  // background, so the active session remains responsive.
+  // /consolidate learns the current task; full opts into corpus maintenance.
   pi.registerCommand("consolidate", {
-    description: "Consolidate project memory and harness now",
+    description: "Learn from the current task; full maintains the whole knowledge corpus",
+    getArgumentCompletions: (prefix) => "full".startsWith(prefix) ? [{ value: "full", label: "full", description: "Maintain all Memory, Harness and project instructions" }] : [],
     handler: async (rawArgs, ctx) => {
       const args = rawArgs.trim();
-      // Exactly two learning modes, plus an explicit backlog drain. The drain
-      // never runs automatically: a backlog that spent the user's tokens at a
-      // moment they did not choose is the reason the zero-token screen exists.
+      // Backfill inspects skipped references; it does not replay learning.
       if (args === "backfill") {
         const cwd = ctx.cwd || process.cwd();
         const status = backlogStatus(cwd);
+        if (status.error) {
+          notifyPi(ctx.ui, status.error, "error");
+          return;
+        }
         if (status.pending === 0) {
-          notifyPi(ctx.ui, status.unlearnable > 0
+          notifyPi(ctx.ui, (status.unlearnable > 0
             ? `Backlog has nothing learnable: ${status.unlearnable} reference(s) point at session files that no longer exist.`
-            : "Backlog is empty. Nothing settled has been skipped so far.", "info");
+            : `No pending references for this project. ${status.unscoped} legacy reference(s) could not be bound to a project.`)
+            + ` Malformed references: ${status.malformed}.`, "info");
           return;
         }
         notifyPi(ctx.ui, `Backlog has ${status.pending} settled task(s) pending. `
-          + "Run /consolidate full to learn from the current session, then /memory to review. "
+          + "Backlog replay is unavailable; /consolidate full can use one recent project session when the current session is empty, but cannot drain this backlog. "
           + `Status: ${JSON.stringify(status)}`, "info");
         return;
       }

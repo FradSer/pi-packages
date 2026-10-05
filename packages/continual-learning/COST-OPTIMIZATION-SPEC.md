@@ -4,6 +4,12 @@
 
 The default continual-learning pipeline treats one completed task as a reason to re-audit the complete session and complete Memory corpus. On a large project, one manual consolidation captured 1,368 session entries and a 3.66 MB snapshot; two Memory attempts reported 2,498,575 total tokens, including 137,863 input, 35,208 output, and 2,325,504 cache-read tokens, while applying zero operations. The default behavior therefore spends substantial time and provider capacity rediscovering historical context and restating unchanged Memory.
 
+Cost reduction must preserve the learning contract. Memory stores untrusted
+knowledge, Harness stores parent-evaluated executable validation, and
+`skill`/`text` rules plus AGENTS.md provide scoped guidance. Guidance delivery is
+not validation, and a planner's success prose is not evidence that a rule ran or
+that a result passed. Manual and protected Harness declarations remain intact.
+
 ## Solution
 
 Default automatic learning and `/consolidate` become incremental. They operate on the current completed task slice, use a lightweight model selection pass over the Memory index and descriptions to choose related existing Memory, and send only those selected bodies plus current-task evidence to small delta planners. Harness and AGENTS.md reuse the same authoritative dossier instead of exploring the complete snapshot or repository independently. Planner output contains only proposed changes; the parent derives unchanged inventory, validation state, and receipts mechanically. `/consolidate full` remains the explicit full-corpus maintenance path.
@@ -94,6 +100,13 @@ Feature: Incremental continual-learning consolidation
     Then no selector or delta planner is launched
     And the receipt reports zero calls and zero tokens
 
+  Scenario: A zero-token screen may miss a lesson without claiming absence
+    Given a task contains no deterministically recognized signal
+    When automatic screening skips model planning
+    Then the task may be recorded as a bounded backlog reference
+    And the screen does not authorize deletion or assert that no durable lesson exists
+    And status reporting does not drain or replay the backlog automatically
+
   Scenario: Invalid plans receive one small repair
     Given a delta planner returns one parseable but invalid plan
     When parent validation rejects it before mutation
@@ -148,6 +161,7 @@ Feature: Incremental continual-learning consolidation
 - No parent-enforced token/call hard cap is introduced. Model prompts explicitly require a small task, minimum exploration, and delta-only output.
 - Receipts and summaries display input, output, cache read, cache write, provider total, and cost availability separately. Missing or unreliable price data is represented as unavailable.
 - Existing safety and ownership semantics remain unchanged: children plan read-only; the parent validates, mutates, rolls back, writes receipts, and performs recovery.
+- A skipped task may leave only a private scoped backlog reference. The JSONL file is bounded at 4 MiB with 4 KiB records; a full file rejects new entries instead of deleting old references. Missing settings enable automatic learning, while malformed or unsafe settings disable it with a repair diagnostic. The historical global cursor is used only for legacy records without `scopeKey`; scoped records use their own cursor. Full state checks validate settings, backlog, scope, and cursor integrity before status reporting. Backlog status is inspection-only and never drains model work.
 
 ## Testing Decisions
 

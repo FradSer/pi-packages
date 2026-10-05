@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import subprocess
 import tempfile
 from functools import partial
@@ -25,6 +26,26 @@ ENGINE = f"{EXTENSIONS}/guardrail-engine.ts"
 CONSOLIDATION = f"{EXTENSIONS}/harness-consolidation.ts"
 
 _TIMEOUT_SECONDS = 120
+
+
+def assert_safe_memory_tree(root: Path) -> None:
+    try:
+        root_stat = root.lstat()
+    except OSError as error:
+        raise AssertionError(f"Memory root is not readable: {root}") from error
+    if not stat.S_ISDIR(root_stat.st_mode) or stat.S_ISLNK(root_stat.st_mode):
+        raise AssertionError(f"Memory root must be a real directory: {root}")
+    for file in root.rglob("*"):
+        entry = file.lstat()
+        if stat.S_ISLNK(entry.st_mode):
+            raise AssertionError(f"Memory tree contains a symlink: {file}")
+        if file.suffix == ".md" and not stat.S_ISREG(entry.st_mode):
+            raise AssertionError(f"Memory Markdown entry is not a regular file: {file}")
+
+
+def read_memory_bodies(root: Path) -> dict[str, str]:
+    assert_safe_memory_tree(root)
+    return {file.name: file.read_text(encoding="utf-8") for file in root.glob("*.md") if file.name != "MEMORY.md"}
 
 
 @overload

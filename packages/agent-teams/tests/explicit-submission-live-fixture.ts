@@ -4,10 +4,10 @@ import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { assistant } from "./automatic-results-fixture.ts";
 import { readJsonlBatch } from "../src/statefile.ts";
-import { registerWorkerCapabilities, workerBinding } from "../src/worker.ts";
+import { registerChildCapabilities, workerBinding } from "../src/worker.ts";
 
 export default function (pi: ExtensionAPI): void {
-  registerWorkerCapabilities(pi);
+  registerChildCapabilities(pi);
   const binding = workerBinding()!;
   let calls = 0;
   pi.registerProvider("explicit-submission-fixture", {

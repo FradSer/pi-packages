@@ -1,0 +1,108 @@
+{
+  "evidence": "real-jev-same-candidate-complete-evidence-context-ablation",
+  "productionWriteEligible": false,
+  "baselineScope": "Both use current whole-entry capacity; before removes only supportEvidence from review requests. Not an end-to-end comparison.",
+  "calls": 18,
+  "inputTokens": 86898,
+  "estimatedCostUsd": 0.003649716,
+  "rows": [
+    {
+      "project": "click",
+      "planHash": "68d17cdd41c3422675759bcb960b6d8b5d2f7a451af1435560fc659fe7aeec71",
+      "snapshotHash": "c84a6418c6732862d6df3ec48a2030fb11d943846fab5816cb7e541e365d0407",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 3884,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 13,
+          "coveredEntries": 13,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 25473,
+          "outputTokens": 562,
+          "estimatedCostUsd": 0.001069866,
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2202,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 13,
+          "coveredEntries": 13,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 27613,
+          "outputTokens": 562,
+          "estimatedCostUsd": 0.001159746,
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "project": "mitt",
+      "planHash": "d8c455238ebb8484d548c85953e0551f7d9c7acbfec14bde1eca8026d7806b52",
+      "snapshotHash": "0369b7a916d14bd57ca90dcecbe97bab4da140c8679e77cd5d897ca076a777b0",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 938,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 16,
+          "coveredEntries": 16,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 16482,
+          "outputTokens": 303,
+          "estimatedCostUsd": 0.0006922440000000001,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1291,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 16,
+          "coveredEntries": 16,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17330,
+          "outputTokens": 301,
+          "estimatedCostUsd": 0.0007278600000000001,
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    }
+  ]
+}

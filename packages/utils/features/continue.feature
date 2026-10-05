@@ -136,6 +136,24 @@ Feature: /continue recovery for incomplete and failed turns
     Then the same session file is reloaded before the continuation starts
     And the continuation extends the latest persisted history instead of creating a sibling branch
 
+  Scenario: Direct continuation delivery fails asynchronously
+    Given the latest assistant message is incomplete
+    And the host rejects continuation marker delivery
+    When the user runs /continue
+    Then the command reports the delivery failure
+
+  Scenario: A complete disk entry exceeds the read window
+    Given the last complete entry is larger than 512 KiB
+    And an incomplete line follows it
+    When continuation reads the disk tip
+    Then it returns the last complete entry ID
+
+  Scenario: A continuation keyword arrives during work
+    Given the agent is running
+    When the user types "continue"
+    Then a visible continuation request is queued as followUp
+    And no direct recovery marker is sent
+
   Scenario: The user-selected tree node is the continuation starting point
     Given the user navigated the session tree to an earlier node
     And the session file still contains the abandoned failed branch after that node

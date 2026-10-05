@@ -90,6 +90,22 @@ Feature: Consolidate artifact validator
     When I run the privacy check
     Then that filename must be absent from project .memory
 
+  Scenario: Index identity comes from the linked target or a bare row
+    Given a private index row uses an arbitrary display label or mentions a decoy filename
+    And ordinary descriptive prose mentions another Markdown filename
+    When I run the privacy check
+    Then the linked target remains the private entry identity
+    And filenames in prose do not become extra entries
+    And a bare row without a link retains its established filename identity
+
+  Scenario: Repository observations use contained regular files
+    Given a repository observation follows a directory alias contained in the canonical repository
+    When the final object is a regular file
+    Then found and updated observations can be validated
+    But a final file symlink is rejected
+    And a parent alias that leaves the repository is rejected even if a later alias returns inside
+    And dangling aliases produce a structured rejection
+
   Scenario: Memory roots must be distinct
     Given the private and project-shared roots resolve to one canonical directory
     When I run the privacy check

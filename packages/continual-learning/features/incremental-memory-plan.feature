@@ -28,9 +28,27 @@ Feature: Expand an incremental Memory delta into the full parent-owned plan
     When the delta operation labels it safe or uses an invalid classification
     Then expansion is rejected
 
+  Scenario: Incremental operations cannot create an already selected Memory
+    Given the parent selected an existing Memory file
+    When the delta operation uses the create kind for that file
+    Then expansion is rejected
+    And new knowledge remains expressible only through newMemories
+
   Scenario: Deletes require an allowed explicit verdict and verifiable preservation
     Given a delta operation deletes selected Memory
     When it omits an allowed CONTRADICTED, SUPERSEDED, or SUBSUMED verdict
     Then expansion is rejected
     And KEEP is derived for all operations that do not explicitly authorize deletion
     And preservation targets remain subject to the existing validator
+
+  Scenario: Missing observations are checked against actual repository state
+    Given a delta labels one existing repository path as missing
+    When the TypeScript parent or Python validator validates the observation
+    Then the contradictory observation is rejected
+    And a genuinely absent contained path remains valid missing evidence
+
+  Scenario: Repository aliases preserve canonical containment
+    Given a repository parent directory is a symlink
+    When its resolved target stays inside the repository
+    Then regular-file observations through that alias remain valid
+    But an alias resolving outside the repository is rejected

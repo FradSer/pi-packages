@@ -20,10 +20,20 @@ already-applied Memory are outside your mutation scope.
 ## Evidence and scope
 
 Mine observed Bash blocks, confirmation outcomes, explicit durable user
-constraints, skill corrections and topic-specific project facts. Personal
-preferences belong in Memory. A confirmed one-time exception does not authorize
+constraints, skill corrections and project facts that justify a scoped instruction.
+Standalone knowledge and personal preferences belong in Memory, including response sign-offs, preferred response styles, and project fact labels. They do not justify text rules merely because a regex could match their words. A confirmed one-time exception does not authorize
 weakening a rule. Propose nothing from model speculation or a one-off accident
 without a durable lesson.
+
+Harness is the executable-validation surface. Add a rule only when its selector
+and behavior can be checked by the parent with bounded positive and negative
+cases. `block` and `confirm` are execution conditions; an omitted Bash action,
+or any `skill`/`text` instruction, supplies scoped guidance alongside the real
+context and is not proof of compliance. Memory is for untrusted knowledge and
+AGENTS.md is for concise always-loaded project guidance, so route those outcomes
+to their own planner instead of duplicating them here. Keep manual, built-in,
+personal, disabled, invalid, and legacy declarations protected; automatic
+learning cannot replace, weaken, or re-enable them.
 
 Every operation needs `evidence` entries:
 `{"index":0,"source":"user","quote":"exact content","count":1}`.
@@ -58,6 +68,33 @@ The complete rule carries a stable, non-empty `id` (at most 128 chars), optional
 - `bash`: non-empty JavaScript regex over the raw Bash command; `message`:
   corrective guidance. Optional `action` is `confirm` or `block`; omit it for
   normal execution with guidance attached to the real result. No `observe`.
+  For a user prohibition of one exact command, escape literal regex characters
+  and use `^literal$(?![\s\S])` for an absolute end. Plain `$` may match before
+  a terminal line separator; `\s*` also matches characters that change Bash
+  arguments. Include negative cases with CR and NBSP appended to the command.
+  Do not broaden an exact command into a command prefix or whitespace family.
+  JSON example for the explicit lasting prohibition of exactly `printf EXAMPLE`:
+  ```json
+  {"op":"addRule","rule":{"id":"block-example","bash":"^printf EXAMPLE$(?![\\s\\S])","action":"block","message":"The project prohibits exactly printf EXAMPLE."},"cases":{"positive":[{"bash":"printf EXAMPLE"}],"negative":[{"bash":"printf OTHER"},{"bash":"printf EXAMPLE\r"},{"bash":"printf EXAMPLE\u00a0"}]}}
+  ```
+  Substitute only the authorized command and its escaped literal regex. Keep
+  CR, NBSP and extra-argument cases negative. The message must restate only the quoted restriction:
+  do not add approval requirements, scripts, variations, or exceptions. Prefer copying the
+  complete cited restriction verbatim into `message`; preserve its project scope,
+  duration, approval conditions and argument limits. This proves wording only:
+  parent checks and semantic authorization/scope/counterevidence checks still apply.
+  For an explicit prohibition of a command family, including its arguments,
+  use ASCII horizontal separators rather than `\s`: JavaScript `\s` also
+  matches newlines and NBSP, which change shell command words. For example,
+  `^git[ \t]+push(?:[ \t]|$(?![\s\S]))` matches git-push invocations; `git\npush` and
+  `git\u00a0push` and `git push\r` must be negative cases. Do not use a family matcher for an
+  exact-only prohibition or remove an approval exception.
+  For a new command-family restriction, prefer that anchored matcher. Operator-prefix
+  searches can match inside quoted strings: `printf '%s' 'x;git push --dry-run'`
+  prints text without executing git. Include such quoted operator-and-argument
+  strings as negative cases, rather than treating a semicolon or pipe as proof of
+  an invocation. A broader unproved matcher must not add false restrictions;
+  existing rules must not be weakened to pass these examples.
 - `text`: non-empty JavaScript regex over retained conversation fragments;
   `instructions`: topic-specific guidance. A cited quote must match the actual
   text scope. Match fragments independently; guidance is not semantic enforcement.
@@ -90,6 +127,19 @@ string. A negative case must be an input the rule genuinely must not catch:
 reusing the positive command with a different `expected` is the most common way
 to propose a plan that cannot validate, because the rule matches both. Choose a
 negative that a person would agree is out of scope.
+
+Check every fixture against the literal raw command and the exact JavaScript
+regex before returning it. Quoting, echoing, or commenting on a token does not
+remove it from the raw string: the regex `retired-tool` matches both
+`retired-tool build` and `printf 'retired-tool'`. The latter is not a valid
+negative for that regex. If it must be allowed, narrow the selector to the
+intended authorized command scope. Otherwise choose an unrelated negative such
+as `printf SAFE`. Generated positive cases are not authorization: recheck them
+against the original user restriction during correction. For an exact-only
+restriction, extra arguments must be negative even if the rejected plan called
+them positive. Preserve the rule identity and authorized intent, not a mistaken
+fixture. In a repair, fix the selector and any unsupported fixture together;
+changing only `expected` cannot change what the evaluator matches.
 
 Automatic additions cannot reuse an id from any layer or entrypoint, including
 disabled/invalid declarations and the supplied reservedLegacyNames. Updates require a single project-owned entry
@@ -131,8 +181,31 @@ earlier selector run; its identity never replaces this planner's bound identity.
 }
 ```
 
-The example is structural, not fabricated evidence to reuse. `report` contains
-at most 12 non-empty 1..400 character summaries. Its optional index, like
-evidence, refers to operations. Empty or absent operations are a verified no-op;
-report unsupported candidates without changing files. A plan states intent,
+The example is structural, not fabricated evidence to reuse. `report` is optional.
+If supplied, every entry is an object with the literal `summary` field containing
+a non-empty 1..400 character string. Bare strings and objects using only
+`message`, `description`, or `reason` are invalid. Omit `report` when no summary
+is needed; do not invent a different field shape. There are at most 12 entries.
+Its optional index, like
+evidence, refers to operations. Empty operations are required for a no-op; an
+absent operations field is invalid. When evidence contains only knowledge or
+personal preferences, or no supported rule change, return this complete object
+with the three exact bound identity values and no fabricated rule:
+
+```json
+{
+  "kind": "harness-consolidation-plan",
+  "version": 1,
+  "schemaVersion": 1,
+  "runId": "{{RUN_ID}}",
+  "scopeDigest": "{{SCOPE_DIGEST}}",
+  "artifactHash": "{{ARTIFACT_HASH}}",
+  "operations": [],
+  "evidence": []
+}
+```
+
+For a no-op, omit report entirely: the parent receipt already records that no
+rule changed. For non-empty operations only, an optional report must use the
+object-shaped summary protocol above. A plan states intent,
 never proof that changes were applied, guidance was delivered, or commands ran.

@@ -147,7 +147,7 @@ def test_harness_guidance_is_registered_separately_from_guardrail_enforcement() 
       fs.mkdirSync(path.join(cwd, ".pi"), { recursive: true });
       fs.writeFileSync(path.join(cwd, ".pi", "harness.json"), JSON.stringify({ skillPrompts: { review: { prompt: "use the review checklist", target: "system" } } }));
       const event = { type: "before_agent_start", prompt: '<skill name="review" location="/tmp/review/SKILL.md">\ncheck\n</skill>', systemPrompt: "base", systemPromptOptions: {skills:[{name:"review"}]} };
-      const ctx = { cwd, hasUI: false };
+      const ctx = { cwd, hasUI: false, sessionManager: { buildContextEntries: () => [] } };
       registerGuardrails(pi);
       const guardrailBefore = hooks.before_agent_start?.length ?? 0;
       registerHarnessGuidance(pi);

@@ -24,9 +24,9 @@ PACKAGES = REPO / "packages"
 # from reality by being edited alongside it.
 #
 # Scoped to the *leader* extension bodies, because that is what loads in one
-# process. A child process loads the worker extensions instead, and its board
-# slice is a different transport over the same board rather than a second owner:
-# the board is single-writer, so a child cannot take a task by writing the board.
+# process. A child process loads the worker extensions instead, and its tasks
+# slice is a different transport over the same tasks rather than a second owner:
+# the tasks is single-writer, so a child cannot take a task by writing the tasks.
 LEADER_BODIES = {
     "subagents": "src/extension.ts",
     "tasks": "src/extension.ts",
@@ -75,22 +75,43 @@ def leader_sources(package: str) -> list[Path]:
 # three tools *and* bind the worker role, so a named entry that stopped being a
 # child-side module fails rather than silently excluding a leader module.
 CHILD_REGISTRATION_MODULES = {
-    "subagents/src/worker-extension.ts",
+    "subagents/src/agent-extension.ts",
     "agent-teams/src/worker.ts",
 }
 
-WORKER_ROLE_ENV = "PI_TEAMMATE_WORKER_NAME"
+# The binding a child reads to learn who it is. Named by the tasks and exported
+# from it, so the task store does not couple itself to whichever package happens to
+# spawn the child.
+TASK_HOLDER_BINDING =  "TASK_HOLDER_ENV"
 
 TOOL_OWNER: dict[str, str] = {}
+# pi-subagents registers its five intent tools from one exported list and its
+# loader from one exported constant, so a scan for a `name: "tool"` literal alone
+# would report that package as registering nothing. Both shapes are read here,
+# which is what keeps this test unable to drift by being edited alongside the code.
+SUBAGENTS_FAMILY = re.compile(r"INTENT_TOOL_NAMES\s*=\s*\[([^\]]*)\]")
+SUBAGENTS_LOADER = re.compile(r'const\s+LOADER\s*=\s*"([a-z_]+)"')
 for package in LEADER_BODIES:
     for path in leader_sources(package):
         if str(path.relative_to(PACKAGES)) in CHILD_REGISTRATION_MODULES:
             continue
-        for name in re.findall(r'name:\s*"([a-z_]+)"', path.read_text(encoding="utf-8")):
-            if name in {"agent", "task", "message"}:
-                TOOL_OWNER[name] = package
+        text = path.read_text(encoding="utf-8")
+        declared = set(re.findall(r'name:\s*"([a-z_]+)"', text))
+        # A namespace name is not a registered tool; the intent tools share one.
+        declared -= set(re.findall(r'namespace:\s*\{\s*name:\s*"([a-z_]+)"', text))
+        for listed in SUBAGENTS_FAMILY.findall(text):
+            declared.update(re.findall(r'"([a-z_]+)"', listed))
+        declared.update(SUBAGENTS_LOADER.findall(text))
+        for name in declared:
+            TOOL_OWNER[name] = package
 
-EXPECTED_OWNERS = {"agent": "subagents", "task": "tasks", "message": "agent-teams"}
+TASK_TOOLS = {"create_task", "get_task", "list_tasks", "update_task"}
+EXPECTED_OWNERS = {
+    "agent_start": "subagents", "agent_input": "subagents", "agent_stop": "subagents",
+    "agent_inspect": "subagents", "agent_list": "subagents", "subagents_enable": "subagents",
+    **{tool: "tasks" for tool in TASK_TOOLS},
+    "message": "agent-teams",
+}
 
 # A package's own extension entry, and the siblings it loads with it.
 OWN_EXTENSION: dict[str, set[str]] = {
@@ -100,7 +121,7 @@ OWN_EXTENSION: dict[str, set[str]] = {
     "agent-teams": {"@fradser/pi-subagents", "@fradser/pi-tasks"},
 }
 
-LEADER_ONLY = {"agent"}
+LEADER_ONLY = {"agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list", "subagents_enable"}
 
 
 def local_name(scoped: str) -> str:
@@ -157,7 +178,7 @@ def test_every_child_side_registration_module_is_genuinely_child_side() -> None:
         )
 
 
-def test_the_board_tool_serves_both_processes() -> None:
+def test_the_task_tools_serve_both_processes() -> None:
     """pi-tasks registers one tool that a leader and a child both use, differing
     only in which identity it derives from the environment.
 
@@ -165,10 +186,10 @@ def test_the_board_tool_serves_both_processes() -> None:
     role binding: the same registration is correct in both processes, so counting
     it as a child-side module would be wrong in the other direction.
     """
-    board = (PACKAGES / "tasks" / "src" / "tool.ts").read_text(encoding="utf-8")
-    assert WORKER_ROLE_ENV in board, "the board tool must be able to run in a child"
+    tasks = (PACKAGES / "tasks" / "src" / "tool.ts").read_text(encoding="utf-8")
+    assert TASK_HOLDER_BINDING in tasks, "the tasks tool must be able to run in a child"
     assert "tasks/src/tool.ts" not in CHILD_REGISTRATION_MODULES
-    assert TOOL_OWNER["task"] == "tasks"
+    assert TOOL_OWNER["create_task"] == "tasks"
 
 
 def test_each_tool_has_exactly_one_owning_package() -> None:
@@ -176,10 +197,10 @@ def test_each_tool_has_exactly_one_owning_package() -> None:
 
 
 COMBINATIONS = [
-    ({"subagents"}, {"agent"}),
-    ({"tasks"}, {"task"}),
-    ({"subagents", "tasks"}, {"agent", "task"}),
-    ({"agent-teams"}, {"agent", "task", "message"}),
+    ({"subagents"}, LEADER_ONLY),
+    ({"tasks"}, TASK_TOOLS),
+    ({"subagents", "tasks"}, LEADER_ONLY | TASK_TOOLS),
+    ({"agent-teams"}, LEADER_ONLY | TASK_TOOLS | {"message"}),
 ]
 
 
@@ -214,12 +235,15 @@ def test_no_combination_loads_a_tool_twice() -> None:
                 seen[tool] = package
 
 
-def test_the_leader_agent_tool_is_absent_from_a_child() -> None:
-    """A child loads the worker extensions, not the leader's, so it never gets
-    the `agent` tool. Nesting is bounded by a depth guard rather than by the tool
-    happening to be missing."""
+def test_the_leader_child_tools_are_absent_from_a_child() -> None:
+    """A child loads the worker extensions, not the leader's, so it never gets the
+    subagents leader family. Nesting is bounded by a depth guard rather than by the
+    tools happening to be missing. The check reads a registration, not the bare name,
+    because the worker extension legitimately listens for an `agent_start` event."""
     worker = (PACKAGES / "agent-teams" / "src" / "worker.ts").read_text(encoding="utf-8")
-    assert 'name: "agent"' not in worker
+    for tool in LEADER_ONLY:
+        assert not re.search(rf'name:\s*"{tool}"', worker), f"the worker extension registers {tool}"
+    assert "INTENT_TOOL_NAMES" not in worker, "the worker extension registers the intent family"
 
 
 def test_a_bundled_sibling_is_a_runtime_dependency_not_a_peer() -> None:

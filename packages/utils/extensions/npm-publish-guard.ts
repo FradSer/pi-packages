@@ -9,6 +9,8 @@
  * instead of retrying.
  */
 
+import fs from "node:fs";
+import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 
@@ -49,6 +51,22 @@ export interface BlockedNpmCommand {
 	label: string;
 }
 
+/**
+ * Whether the repository at `cwd` is a pnpm workspace.
+ *
+ * The guard's advice must match the repository it runs in, so its lockfile
+ * decides instead of a hardcoded assumption about the workspace layout.
+ */
+export function isPnpmWorkspace(cwd: string): boolean {
+	let current = path.resolve(cwd);
+	for (;;) {
+		if (fs.existsSync(path.join(current, "pnpm-lock.yaml"))) return true;
+		const parent = path.dirname(current);
+		if (parent === current) return false;
+		current = parent;
+	}
+}
+
 /** True when the first command segment after the verb carries a real `--dry-run` token. */
 function invocationHasDryRunFlag(segment: string): boolean {
 	for (const token of (segment.split(/[;&|\n]/)[0] ?? "").split(/\s+/)) {
@@ -82,39 +100,51 @@ export function matchBlockedNpmCommand(command: string): BlockedNpmCommand | nul
 	return null;
 }
 
+/**
+ * Correct a blocked publish to the package manager that owns the workspace.
+ *
+ * `npm publish` does not rewrite `workspace:*` dependency protocols, so
+ * publishing from npm inside a pnpm workspace ships manifests that fail on
+ * install with EUNSUPPORTEDPROTOCOL. Whether to correct it depends on the
+ * repository, so the caller passes the workspace it detected.
+ */
+export function correctedPublishCommand(command: string, usesPnpm: boolean): string {
+	if (!usesPnpm) return command;
+	return command.replace(/(^|[;&|\s])npm\s+publish\b/g, "$1pnpm publish");
+}
+
 /** Build the block reason handed back to the model as corrective steering. */
-export function buildBlockReason(label: string, command: string): string {
+export function buildBlockReason(label: string, command: string, usesPnpm: boolean = false): string {
 	const isNpmPublish = /(?:^|[;&|\s])npm\s+publish\b/.test(command);
-	const correctedCommand = command.replace(
-		/(^|[;&|\s])npm\s+publish\b/g,
-		"$1pnpm publish",
-	);
-	const npmWarning = isNpmPublish
-		? " In this pnpm workspace, NEVER run `npm publish` — npm does not rewrite `workspace:*` dependency protocols, publishing broken packages that fail with EUNSUPPORTEDPROTOCOL on install. Always use `pnpm publish`."
+	const correctedCommand = correctedPublishCommand(command, usesPnpm);
+	const workspaceWarning = isNpmPublish
+		? usesPnpm
+			? " This repository is a pnpm workspace: `npm publish` does not rewrite `workspace:*` dependency protocols, so it publishes manifests that fail on install with EUNSUPPORTEDPROTOCOL. Use `pnpm publish`."
+			: " If this repository declares `workspace:` dependency protocols, publish with the package manager that owns the workspace: `npm publish` does not rewrite them and ships manifests that fail on install with EUNSUPPORTEDPROTOCOL."
 		: "";
 
 	return [
-		`Blocked: ${label} cannot succeed from a non-interactive shell — 2FA web-auth exits immediately with EOTP, and an invalid token surfaces as a masked 404 PUT on unpublished packages.${npmWarning}`,
+		`Blocked: ${label} cannot succeed from a non-interactive shell — 2FA web-auth exits immediately with EOTP, and an invalid token surfaces as a masked 404 PUT on unpublished packages.${workspaceWarning}`,
 		"",
-		"Correct procedure (skill: npm-package-release):",
+		"Correct procedure:",
 		'1. Verify credentials yourself first: run `npm whoami`. If it fails with E401, ask the user to run `npm login` in their own terminal and wait for their confirmation.',
 		"2. Ask the user to run this exact command in THEIR terminal — the OTP/browser prompt is visible there — and wait for their report:",
 		`    ${correctedCommand}`,
-		"3. After they confirm success, verify registry state yourself (e.g. curl https://registry.npmjs.org/<pkg>), then continue the flow: `npm trust github <pkg> --file <release-workflow>.yml --repo <owner>/<repo> --allow-publish -y`, then merge the release PR so CI OIDC owns future versions.",
+		"3. After they confirm success, verify registry state yourself (e.g. curl https://registry.npmjs.org/<pkg>), then hand the release to CI: `npm trust github <pkg> --file <release-workflow>.yml --repo <owner>/<repo> --allow-publish -y`, then merge the release PR so CI OIDC owns future versions.",
 		"",
 		"Never ask for OTP codes in chat. Never retry this blocked command unmodified.",
 	].join("\n");
 }
 
 export default function registerNpmPublishGuard(pi: ExtensionAPI): void {
-	pi.on("tool_call", async (event, _ctx) => {
+	pi.on("tool_call", async (event, ctx) => {
 		if (!isToolCallEventType("bash", event)) return;
 		const command = event.input.command || "";
 		const blocked = matchBlockedNpmCommand(command);
 		if (!blocked) return;
 		return {
 			block: true,
-			reason: buildBlockReason(blocked.label, command),
+			reason: buildBlockReason(blocked.label, command, isPnpmWorkspace(ctx.cwd)),
 		};
 	});
 }

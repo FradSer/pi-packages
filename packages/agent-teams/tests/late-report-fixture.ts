@@ -2,21 +2,21 @@ import assert from "node:assert/strict";
 import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import agentTeams from "../src/index.ts";
-import { applyProgress, drainTeammateOutboxes, getConfirmedStopTime, shutdownTeammate } from "../src/team-machine.ts";
-import { createTask, getTeammate, registerTeammate, takeTask } from "../src/state.ts";
+import teamRuntime from "../src/index.ts";
+import { applyProgress, drainTeammateOutboxes, getConfirmedStopTime, shutdownAgent } from "../src/team-machine.ts";
+import { createTask, getAgent, registerAgent, takeTask } from "../src/state.ts";
 import { appendWorkerEvent, stateFilePath, workerOutboxPath } from "../src/statefile.ts";
 
 const reportBody = "Completed work before the process was stopped.";
 
 export default function (pi: ExtensionAPI): void {
-  agentTeams(pi);
+  teamRuntime(pi);
   let calls = 0;
   let checked = false;
   const stopDuringDelivery = process.env.PI_REPORT_STOP_BOUNDARY === "during-delivery";
   pi.on("message_start", async (event) => {
     if (stopDuringDelivery && event.message.role === "custom" && event.message.customType === "agent-teams-report") {
-      assert.equal((await shutdownTeammate("fixture-worker")).ok, true);
+      assert.equal((await shutdownAgent("fixture-worker")).ok, true);
     }
   });
   pi.registerProvider("late-report-fixture", {
@@ -48,12 +48,12 @@ export default function (pi: ExtensionAPI): void {
     name: "queue_and_stop", label: "Queue and stop", description: "Queue a report and stop before its delivery.",
     parameters: Type.Object({}),
     async execute(_id, _params, _signal, _update, ctx) {
-      registerTeammate({ name: "fixture-worker", agent: "fixture", spawnId: "fixture-spawn", pid: 0,
-        status: "working", isolation: "none", createdAt: 1, updatedAt: 1 });
+      registerAgent({ name: "fixture-worker", role: "fixture", spawnId: "fixture-spawn", pid: 0,
+        status: "working", createdAt: 1, updatedAt: 1 });
       const created = createTask({ subject: "Fixture work" });
       assert.ok(created.ok);
       assert.ok(takeTask(created.task.id, "fixture-worker").ok);
-      const assignmentId = getTeammate("fixture-worker")!.assignment!.id;
+      const assignmentId = getAgent("fixture-worker")!.assignment!.id;
       applyProgress("fixture-worker", "fixture-spawn", { text: "", turns: 1, finalResponse: false });
       const outbox = workerOutboxPath(stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd), "fixture-worker", "fixture-spawn");
       appendWorkerEvent(outbox, { id: "late-report", type: "message", worker: "fixture-worker", spawnId: "fixture-spawn",
@@ -61,7 +61,7 @@ export default function (pi: ExtensionAPI): void {
       drainTeammateOutboxes();
       applyProgress("fixture-worker", "fixture-spawn", { text: reportBody, turns: 1, finalResponse: true });
       assert.equal(ctx.sessionManager.getEntries().some((entry) => entry.type === "custom_message" && entry.customType === "agent-teams-report"), false);
-      if (!stopDuringDelivery) assert.equal((await shutdownTeammate("fixture-worker")).ok, true);
+      if (!stopDuringDelivery) assert.equal((await shutdownAgent("fixture-worker")).ok, true);
       return { content: [{ type: "text", text: stopDuringDelivery ? "Report queued; shutdown will run when delivery starts." : "Report queued and shutdown confirmed." }], details: {} };
     },
   });
@@ -85,7 +85,7 @@ export default function (pi: ExtensionAPI): void {
         assert.ok(details.deliveredAt >= details.processStoppedAt && details.processStoppedAt >= details.timestamp);
         assert.match(String(report.content), /delivery="after-stop"/);
       }
-      assert.equal(getTeammate("fixture-worker")?.status, "stopped");
+      assert.equal(getAgent("fixture-worker")?.status, "stopped");
       checked = true;
       return { content: [{ type: "text", text: "Late report preserved and classified." }], details: {} };
     },

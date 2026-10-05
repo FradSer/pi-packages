@@ -1,0 +1,11 @@
+{
+  "evidence": "public-synthetic-pinned-p-limit-r3",
+  "cases": [
+    {
+      "snapshot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-cited-verbatim-r3/p-limit-on/memory/runs/--work-p-limit--/run_muvce3ay_75d0d60b4b3d11d8/snapshot.json",
+      "snapshotSha256": "489143c7461d7583fa9e9529238956324b4f72aadd0d6f0f91a63ce6ebdfd851",
+      "proposal": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-cited-verbatim-r3/p-limit-on/memory/history/--work-p-limit--/change_muvcfy8m_7e7d69b400bbcc43.json",
+      "proposalSha256": "91d3959466be62ba789ea722ba6ba3f79a6aae5e5b1b8dc8e35ed93646526d80"
+    }
+  ]
+}

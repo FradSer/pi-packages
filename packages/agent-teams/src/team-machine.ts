@@ -1,7 +1,7 @@
 /**
  * Team machine — resident teammate lifecycle, peer mail routing, task-intent
  * processing, verify gating, and the harness poll loop that wakes idle
- * teammates. The leader model never polls; this loop is the coordination
+ * agents. The leader model never polls; this loop is the coordination
  * engine described by the BDD contract.
  */
 
@@ -15,61 +15,63 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 type LeaderThinkingLevel = NonNullable<ExtensionContext["thinkingLevel"]>;
 const THINKING_LEVELS: readonly LeaderThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 import { modelLabel, runPiWorker, type RunPiWorkerOptions } from "@fradser/pi-kit";
-import { MODEL_INHERIT_ALIAS, discoverAgents, persistAgentDefinition, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "@fradser/pi-subagents";
+import { MODEL_INHERIT_ALIAS, discoverAgents, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentDefinitionInput } from "@fradser/pi-subagents";
 import {
   activeAssignmentConflict,
   acknowledgeSupersession,
   applyClaimIntent,
-  assignTeammate,
+  assignAgent,
+  bindTask,
   completeTaskWithOutcome,
-  boardRevision,
+  createBoundWork,
+  tasksRevision,
   claimableTasks,
   clearWorkerRunEvents,
   createTask,
-  createDirectWork,
-  discardDirectWork,
   deliverToLeader,
+  discardTask,
   getPeerInboxOffset,
   getState,
-  getTeammate,
+  getAgent,
   getTeamDefaultModel,
-  idleTeammates,
+  idleAgents,
   isPeerDelivered,
-  isValidTeammateName,
-  listTeammates,
-  livingTeammates,
-  loadBoard,
-  markBoardChanged,
+  isValidAgentName,
+  listAgents,
+  livingAgents,
+  loadTasks,
+  markTasksChanged,
   markPeerDelivered,
   getTask,
   progressRevision,
-  registerTeammate,
-  releaseTasksOf,
-  revertInFlightAttempt,
-  reclaimDirectWork,
+  registerAgent,
+  failTasksHeldBy,
+  revertUndeliveredTake,
   taskDependenciesMet,
   receiveWorkerMessage,
-  reopenCompletedWork,
+  reopenTask,
   setTaskContext,
   setPeerInboxOffset,
   rosterRevision,
   setPeerDeliveryState,
   stateRevision,
-  updateTeammate,
-  updateTeammateProgress,
+  updateAgent,
+  updateAgentProgress,
 } from "./state.ts";
 import {
-  boardFilePath,
-  buildWorkHandoff,
+  tasksFilePath,
+  buildTaskHandoff,
   claimsDir,
   createTaskIntent,
-  formatWorkHandoff,
+  formatTaskHandoff,
   normalizeResources,
-  readBoardFile,
+  readTasksFile,
   submissionsDir,
   takeTaskIntent,
-  writeBoardFile,
-  type BoardTask,
+  writeTasksFile,
+  TASK_HOLDER_ENV,
+  type Task,
+  type TaskRefusalResult,
 } from "@fradser/pi-tasks";
 import {
   appendInboxMessage,
@@ -87,32 +89,36 @@ import { isWorkerEvent } from "./types.ts";
 import {
   deliverFreshAssignment,
   deliverPrompt,
+  deliverResidentPrompt,
+  deliverResidentSteer,
   isCleanExit,
   isFreshAssignmentPending,
-  resolveWorkerTools,
-  sendWorkerSteer,
-  sendWorkerFollowUp,
+  resolveAgentTools,
+  sendAgentSteer,
+  sendAgentFollowUp,
   spawnResident,
-  terminateAllTeammates,
-  terminateTeammate,
-  unknownWorkerTools,
-  workerToolUniverse,
-  type WorkerProcessResult,
+  terminateAllAgents,
+  terminateAgent,
+  unknownAgentTools,
+  type AgentProcessResult,
   type ResidentSpawnOptions,
 } from "@fradser/pi-subagents";
 import { WORKER_CAPABILITY_TOOLS, WORKER_EXTENSION_PATH } from "./capability-tools.ts";
 import {
+  assertPrivateSessionFiles,
   ensureAgentWorkspace,
-  preserveAgentWorkspace,
-  releaseAgentWorkspace,
-  SUBAGENT_CAPABILITY_TOOLS,
-  SUBAGENT_MEMORY_ENV,
+  inlineDefinitionApplies,
+  AGENT_MEMORY_CAPABILITY_TOOLS,
   SUBAGENT_ROLE_ENV,
   SUBAGENT_TOOLS_ENV,
-  SUBAGENT_WORKER_EXTENSION_PATH,
+  SUBAGENT_DEFINITION_ENV,
+  SUBAGENT_SCOPE_ENV,
+  SUBAGENT_EXTENSION_PATH,
+  STREAM_RECOVERY_EXTENSION_PATH,
+  unknownAgentToolsError,
   type AgentWorkspace,
 } from "@fradser/pi-subagents";
-import { messageTitle, type InboxMessage, type Teammate, type WorkerAssignment, type WorkerUsage } from "./types.ts";
+import { messageTitle, type InboxMessage, type Agent, type WorkerAssignment, type AgentUsage } from "./types.ts";
 import { exactSessionRoute, resolveExactSession } from "./recipient.ts";
 import type { LeaderReport } from "@fradser/pi-subagents";
 
@@ -127,9 +133,9 @@ export const NOTICE_PACE_MS = readDurationEnv("PI_TEAMMATE_NOTICE_PACE_MS", DEFA
 export const VERIFY_FAILURE_ESCALATE_AFTER = 2;
 /** Claimable task ids remembered per teammate. markTasksNoticed prunes stale
  *  ids on every notice, so slots are occupied only by currently-claimable
- *  work; the cap is far above any realistic concurrent board size. */
+ *  work; the cap is far above any realistic concurrent tasks size. */
 const MAX_NOTICED_TASK_IDS = 256;
-/** Claimable tasks listed in one wake-prompt board notice. */
+/** Claimable tasks listed in one wake-prompt tasks notice. */
 const WAKE_NOTICE_TASK_LIMIT = 10;
 /** Console-only silence marker: after this long without output the roster
  * shows "stalled". It never notifies the leader or terminates anything. */
@@ -145,7 +151,7 @@ function readDurationEnv(name: string, fallback: number): number {
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
-export function stallSilenceMs(teammate: Pick<Teammate, "lastOutputAt">, now = Date.now()): number | undefined {
+export function stallSilenceMs(teammate: Pick<Agent, "lastOutputAt">, now = Date.now()): number | undefined {
   if (teammate.lastOutputAt === undefined) return undefined;
   return Math.max(0, now - teammate.lastOutputAt);
 }
@@ -160,14 +166,14 @@ export function formatSilenceDuration(milliseconds: number): string {
 }
 
 /** Console-only silence threshold for the roster "stalled" marker. */
-export function stallThresholdMs(_teammate: Pick<Teammate, "modelOutputSeen" | "activeTool">): number {
+export function stallThresholdMs(_teammate: Pick<Agent, "modelOutputSeen" | "activeTool">): number {
   return STALL_SILENCE_MS;
 }
 
 let livePollTimer: ReturnType<typeof setInterval> | undefined;
 let generation = 0;
 let runtimeStateFile = "";
-let boardFile = "";
+let tasksFile = "";
 let leaderCwd = "";
 /** Live view of the leader session's current model, resolved at spawn time. */
 let leaderModelRef: () => string | undefined = () => undefined;
@@ -240,7 +246,7 @@ function runVerifyGate(
 }
 type PendingSubmission = import("./types").TaskIntent & { assignmentId: string; verify: string | undefined };
 /** Submitted Work waits for its authoring Worker to settle before a gate can
- * inspect its files. This applies to direct automatic and board submissions. */
+ * inspect its files. This applies to direct automatic and tasks submissions. */
 const pendingSubmissions = new Map<string, PendingSubmission>();
 /** Idle nudges already fired per teammate incarnation (one per transition). */
 const idleNudgesSent = new Set<string>();
@@ -251,11 +257,12 @@ const verifyFailures = new Map<string, VerifyFailureRecord>();
 /** Self-finalize requests delivered per teammate incarnation before escalating to the leader. */
 const selfFinalizeAttempts = new Set<string>();
 const pendingDeliveries = new Map<string, InboxMessage[]>();
-/** Durable per-Agent workspaces in use this session. Unlike the disposable
- *  worktree this replaces, completion preserves the directory: it is the Agent's
- *  home and its Pi session group, so deleting it would destroy working memory.
- *  Only an explicit release removes one. */
-const liveWorkspaces = new Map<string, AgentWorkspace>();
+/** Role and first-input delivery are pinned per incarnation, never re-resolved
+ * when a later send or first idle wake begins. */
+const residentSequences = new Map<string, { rolePrompt: string; roleDelivered: boolean }>();
+/** A correlated control receipt may arrive after result callbacks. Keep the
+ * exact incarnation reserved until that receipt resolves. */
+const pendingResidentInputs = new Set<string>();
 
 // ── Lifecycle ─────────────────────────────────────────────────────
 
@@ -274,31 +281,31 @@ export function initTeamMachine(
   leaderThinkingLevelRef = () => ctx.thinkingLevel;
   const sessionFile = ctx.sessionManager?.getSessionFile();
   runtimeStateFile = stateFilePath(sessionFile, leaderCwd);
-  boardFile = boardFilePath(sessionFile, leaderCwd);
+  tasksFile = tasksFilePath(sessionFile, leaderCwd);
   sendUpdate = hooks.sendUpdate;
   notifyChange = hooks.notifyChange;
-  // The board and runtime dir are keyed per session, so two Leader processes
+  // The tasks and runtime dir are keyed per session, so two Leader processes
   // holding the same session would overwrite each other's single-writer state.
   // Detection is a report, not a block: the harness never takes ownership away
   // from a session the user may legitimately be resuming.
   claimLeaderLease();
-  // Resume: reload a persisted board; claims die with their holders. A board
+  // Resume: reload a persisted tasks; claims die with their holders. A task set
   // that cannot be loaded is archived rather than silently discarded or allowed
   // to prevent extension reload.
   try {
-    const persisted = readBoardFile(boardFile);
-    if (persisted) loadBoard(persisted.tasks);
+    const persisted = readTasksFile(tasksFile);
+    if (persisted) loadTasks(persisted.tasks);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     let preservation: string;
     try {
-      const archived = `${boardFile}.incompatible-${Date.now()}`;
-      fs.renameSync(boardFile, archived);
+      const archived = `${tasksFile}.incompatible-${Date.now()}`;
+      fs.renameSync(tasksFile, archived);
       preservation = `Archived preserved snapshot: ${archived}`;
     } catch {
       // An unusable agents directory must still not turn preservation into a
       // fatal startup error: report where the snapshot stayed instead.
-      preservation = `The preserved snapshot could not be archived and stays in place: ${boardFile}`;
+      preservation = `The preserved snapshot could not be archived and stays in place: ${tasksFile}`;
     }
     deliverToLeader({ from: "harness", subject: "Incompatible Work snapshot", body: `${detail}\n${preservation}` });
   }
@@ -319,7 +326,7 @@ export function shutdownTeamMachine(): void {
   if (livePollTimer) clearInterval(livePollTimer);
   livePollTimer = undefined;
   runtimeStateFile = "";
-  boardFile = "";
+  tasksFile = "";
   leaderCwd = "";
   leaderModelRef = () => undefined;
   leaderThinkingLevelRef = () => undefined;
@@ -336,6 +343,8 @@ export function shutdownTeamMachine(): void {
   idleNudgesSent.clear();
   selfFinalizeAttempts.clear();
   pendingDeliveries.clear();
+  residentSequences.clear();
+  pendingResidentInputs.clear();
   verifyFailures.clear();
   inconclusiveParks.clear();
   verifyFailureParks.clear();
@@ -344,7 +353,7 @@ export function shutdownTeamMachine(): void {
   snapshotFailure = undefined;
   writtenStateRevision = -1;
   writtenRosterRevision = -1;
-  writtenBoardRevision = -1;
+  writtenTasksRevision = -1;
   writtenProgressRevision = -1;
   lastStateWriteAt = 0;
 }
@@ -399,21 +408,21 @@ export function currentLeaderThinkingLevel(): LeaderThinkingLevel | undefined {
 }
 
 /** Terminate every resident teammate; returns unconfirmed-close diagnostics. */
-export async function teardownTeammates(): Promise<string[]> {
+export async function teardownAgents(): Promise<string[]> {
   // Session shutdown is an intentional lifecycle transition. Mark every
   // resident before signalling so close callbacks do not misclassify normal
   // session teardown as an unexpected crash and enqueue a follow-up turn.
-  for (const teammate of livingTeammates()) pendingShutdowns.add(teammate.name);
-  const results = await terminateAllTeammates();
+  for (const teammate of livingAgents()) pendingShutdowns.add(teammate.name);
+  const results = await terminateAllAgents();
   const diagnostics: string[] = [];
   for (const result of results) {
     if (!result.confirmedClosed) diagnostics.push(`Agent ${result.name} could not be confirmed closed.`);
-    updateTeammate(result.name, { status: "stopped" });
+    updateAgent(result.name, { status: "stopped" });
   }
   return diagnostics;
 }
 
-/** Remove the current session's runtime dir; the task board persists. */
+/** Remove the current session's runtime dir; the task set persists. */
 export function removeRuntimeDir(ctx: Pick<ExtensionContext, "sessionManager" | "cwd">): void {
   removeSessionStateDir(ctx.sessionManager?.getSessionFile(), ctx.cwd || process.cwd());
 }
@@ -439,7 +448,7 @@ let snapshotFailure: { count: number; reported: boolean; detail: string } | unde
  *  every artifact. */
 let writtenStateRevision = -1;
 let writtenRosterRevision = -1;
-let writtenBoardRevision = -1;
+let writtenTasksRevision = -1;
 let writtenProgressRevision = -1;
 let lastStateWriteAt = 0;
 /** Roughly 2 poll ticks: the debug snapshot follows progress, but not per token. */
@@ -488,23 +497,23 @@ function claimLeaderLease(): void {
 function flushSnapshots(): void {
   const stateFile = requireStateFile();
   const rosterRev = rosterRevision();
-  const boardRev = boardRevision();
+  const tasksRev = tasksRevision();
   const stateRev = stateRevision();
   const progressRev = progressRevision();
   const needsRoster = rosterRev !== writtenRosterRevision;
-  const needsBoard = boardRev !== writtenBoardRevision;
+  const needsTasks = tasksRev !== writtenTasksRevision;
   // The whole-state file exists for forensics; nothing in the runtime reads it
   // back. It still tracks streamed progress, but at a bounded rate instead of
   // rewriting the state on every token.
   const needsState = stateRev !== writtenStateRevision
     || (progressRev !== writtenProgressRevision && Date.now() - lastStateWriteAt >= STATE_SNAPSHOT_MIN_INTERVAL_MS);
-  if (!needsRoster && !needsBoard && !needsState) return;
+  if (!needsRoster && !needsTasks && !needsState) return;
   try {
     if (needsState) writeStateFile(stateFile, getState());
     if (needsRoster) {
-      writeRoster(rosterPath(stateFile), livingTeammates().map((t) => ({
+      writeRoster(rosterPath(stateFile), livingAgents().map((t) => ({
         name: t.name,
-        agent: t.agent,
+        role: t.role,
         spawnId: t.spawnId,
         status: t.status,
         tools: t.tools,
@@ -512,7 +521,7 @@ function flushSnapshots(): void {
         assignment: t.assignment,
       })));
     }
-    if (needsBoard && boardFile) writeBoardFile(boardFile, getState().tasks);
+    if (needsTasks && tasksFile) writeTasksFile(tasksFile, getState().tasks);
     // Only a fully successful flush advances the revisions, so a failed write
     // stays dirty and the next poll retries it.
     if (needsState) {
@@ -521,7 +530,7 @@ function flushSnapshots(): void {
       lastStateWriteAt = Date.now();
     }
     if (needsRoster) writtenRosterRevision = rosterRev;
-    if (needsBoard) writtenBoardRevision = boardRev;
+    if (needsTasks) writtenTasksRevision = tasksRev;
     snapshotFailure = undefined;
   } catch (error) {
     // The next poll retries. A transient failure stays quiet, but a persistent
@@ -548,7 +557,7 @@ export function publishStateSnapshot(): void {
 }
 
 export function ensureLivePoll(): void {
-  const busy = livingTeammates().length > 0 || verifyingTasks.size > 0 || pendingDeliveries.size > 0;
+  const busy = livingAgents().length > 0 || verifyingTasks.size > 0 || pendingDeliveries.size > 0;
   if (busy && !livePollTimer && runtimeStateFile) {
     livePollTimer = setInterval(() => {
       try {
@@ -575,9 +584,9 @@ function tick(): void {
 
 // ── Spawning ──────────────────────────────────────────────────────
 
-export function spawnTeammate(input: {
+export function spawnAgent(input: {
   name: string;
-  agent: string;
+  role: string;
   workId?: string;
   /** Internal binding of an existing Work Item, never exposed as a public field. */
   existingWorkId?: string;
@@ -587,17 +596,17 @@ export function spawnTeammate(input: {
   resources?: string[];
   verify?: string;
   handoffFrom?: string;
+  /** Explicit invocation tools may narrow an existing role, never widen it. */
+  tools?: string[];
   definition?: Omit<AgentDefinitionInput, "name" | "tools"> & {
     tools?: string[];
-    persist?: boolean;
-    persistScope?: "project" | "project-local";
   };
-}): { ok: true; teammate: Teammate; readiness?: Promise<string | undefined> } | { ok: false; error: string } {
+}): { ok: true; agent: Agent; readiness?: Promise<string | undefined> } | { ok: false; error: string } {
   const stateFile = requireStateFile();
   const invalid = validateSpawnInput(input);
   if (invalid) return { ok: false, error: invalid };
   if (input.handoffFrom) {
-    const predecessor = getTeammate(input.handoffFrom);
+    const predecessor = getAgent(input.handoffFrom);
     if (!predecessor) return { ok: false, error: `Cannot hand off from @${input.handoffFrom}: teammate not found.` };
     if (predecessor.status !== "stopped") {
       return { ok: false, error: `Cannot hand off from living @${input.handoffFrom}. Shut it down or wait for it to stop before spawning a successor.` };
@@ -607,44 +616,43 @@ export function spawnTeammate(input: {
   if (input.existingWorkId && (!existingWork || existingWork.status !== "pending" || !taskDependenciesMet(existingWork))) {
     return { ok: false, error: `Work Item "${input.existingWorkId}" is not pending and claimable.` };
   }
-  const resolved = resolveAgent(input.agent, leaderCwd);
+  const resolved = resolveAgent(input.role, leaderCwd);
   // Reject tool ids the bare child could never grant before any side effect:
   // a silent --tools drop here is how reviewers end up blind mid-audit.
-  const requestedTools = input.definition && inlineDefinitionApplies(resolved) ? input.definition.tools : resolved?.tools;
-  const unknownTools = unknownWorkerTools(requestedTools, [
-    ...SUBAGENT_CAPABILITY_TOOLS,
+  const requestedTools = input.tools ?? (input.definition && inlineDefinitionApplies(resolved) ? input.definition.tools : resolved?.tools);
+  if (resolved && input.tools !== undefined && !(input.definition && inlineDefinitionApplies(resolved))) {
+    const widened = input.tools.filter(tool => !resolved.tools.includes(tool));
+    if (widened.length > 0) return { ok: false, error: `Invocation cannot widen @${resolved.name}'s tool grant: ${widened.join(", ")}.` };
+  }
+  const unknownTools = unknownAgentTools(requestedTools, [
+    ...AGENT_MEMORY_CAPABILITY_TOOLS,
     ...WORKER_CAPABILITY_TOOLS,
   ]);
-  if (unknownTools.length > 0) return { ok: false, error: unknownWorkerToolsError(unknownTools) };
+  if (unknownTools.length > 0) return { ok: false, error: unknownAgentToolsError(unknownTools, WORKER_CAPABILITY_TOOLS) };
   let agent: AgentDefinition | undefined = resolved;
   if (input.definition && inlineDefinitionApplies(resolved)) {
     try {
       const generated = input.definition;
       const roleInput: AgentDefinitionInput = {
-        name: input.agent,
+        name: input.role,
         description: generated.description,
-        tools: generated.tools ?? [],
+        tools: requestedTools ?? [],
         model: generated.model,
         verify: generated.verify,
-        worktree: generated.worktree,
         prompt: generated.prompt,
       };
-      agent = generated.persist
-        ? persistAgentDefinition(roleInput, generated.persistScope ?? "project-local", leaderCwd)
-        : registerSessionAgent(roleInput);
+      agent = registerSessionAgent(roleInput);
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
-  if (!agent) return { ok: false, error: unknownAgentError(input.agent, leaderCwd) };
+  if (!agent) return { ok: false, error: unknownAgentError(input.role, leaderCwd) };
 
-  // Agent Memory belongs to a persisted Agent that opted in, so it is the only
-  // spawn that carries the memory capability. A role naming the tool without
-  // that opt-in is refused here rather than handed an id the child's --tools
-  // allowlist would drop, because "a child may record its own lessons" is
-  // exactly the promise the grant line would otherwise print and break.
-  if (agent.tools.some((tool) => SUBAGENT_CAPABILITY_TOOLS.includes(tool)) && !agent.memory) {
-    return { ok: false, error: agentMemoryUnavailableError(agent.name, input.definition?.persist) };
+  // Disk scope is the only durable identity declaration. Every disk role has
+  // Memory; a session role cannot acquire it through an invocation flag.
+  const durable = agent.scope !== "session";
+  if (requestedTools?.some((tool) => AGENT_MEMORY_CAPABILITY_TOOLS.includes(tool)) && !durable) {
+    return { ok: false, error: agentMemoryUnavailableError(agent.name) };
   }
 
   // Both packages contribute a worker extension to one child. `--extension` is
@@ -653,29 +661,28 @@ export function spawnTeammate(input: {
   // The subagents contribution is conditional: loading its extension into a
   // child that has no memory folder would register nothing and advertise a tool
   // the child cannot use.
-  const memoryEnabled = agent.memory;
+  const memoryEnabled = durable;
   const capabilityTools = [
-    ...(memoryEnabled ? SUBAGENT_CAPABILITY_TOOLS : []),
+    ...(memoryEnabled ? AGENT_MEMORY_CAPABILITY_TOOLS : []),
     ...WORKER_CAPABILITY_TOOLS,
   ];
   const workerExtensions = [
-    ...(memoryEnabled ? [SUBAGENT_WORKER_EXTENSION_PATH] : []),
+    STREAM_RECOVERY_EXTENSION_PATH,
+    ...(memoryEnabled ? [SUBAGENT_EXTENSION_PATH] : []),
     WORKER_EXTENSION_PATH,
   ];
-  const effectiveTools = resolveWorkerTools(agent.tools, capabilityTools);
-
-  // Isolation is the default rather than an opt-in: a durable per-Agent workspace
-  // is what makes Pi's own per-working-directory session storage usable as that
-  // Agent's working memory. Falls back to the leader's tree with a recorded
-  // reason when isolation is impossible, rather than pretending it happened.
-  const workspace = ensureAgentWorkspace({
-    agentName: input.name,
-    cwd: leaderCwd,
-    isolation: agent.isolation,
-  });
-  const isolation: Teammate["isolation"] = workspace.isolation === "worktree" ? "worktree" : "none";
-  const workerCwd = workspace.cwd;
-  if (workspace.isolation === "worktree") liveWorkspaces.set(input.name, workspace);
+  const executionTools = requestedTools ?? agent.tools;
+  const effectiveTools = resolveAgentTools(executionTools, capabilityTools);
+  let workspace: AgentWorkspace | undefined;
+  try {
+    // Provision only data for an existing disk identity, never an agent.md.
+    if (durable) workspace = ensureAgentWorkspace({ agentName: agent.name, cwd: leaderCwd });
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+  const workerCwd = workspace?.cwd ?? leaderCwd;
+  const sessionDir = workspace?.sessionDir;
+  const hasSavedSession = sessionDir && assertPrivateSessionFiles(sessionDir);
 
   const spawnId = randomUUID();
   const effectiveKickoff = buildSuccessorHandoff(input.prompt, input.handoffFrom);
@@ -686,14 +693,10 @@ export function spawnTeammate(input: {
       : [];
   const conflict = activeAssignmentConflict(directResources);
   if (conflict) {
-    discardWorkspaceQuietly(input.name, workspace);
     return { ok: false, error: `Direct assignment resources conflict with @${conflict.name}'s ${conflict.assignment?.kind} assignment "${conflict.assignment?.id}".` };
   }
-  const registered = registerTeammate(newTeammate(input, spawnId, isolation, workerCwd));
-  if (!registered.ok) {
-    discardWorkspaceQuietly(input.name, workspace);
-    return { ok: false, error: registered.error };
-  }
+  const registered = registerAgent(newTeammate(input, spawnId, workerCwd));
+  if (!registered.ok) return { ok: false, error: registered.error };
 
   const spawnModel = resolveSpawnModel(input.model ?? agent.model, getTeamDefaultModel(), currentLeaderModelRef());
   // Record the grant before the first wake: a role derived without tools shows
@@ -701,23 +704,27 @@ export function spawnTeammate(input: {
   const assignment = directAssignment(effectiveKickoff, directResources, spawnId);
   if (assignment) {
     const directWork = input.existingWorkId
-      ? reclaimDirectWork(input.existingWorkId, input.name, assignment, "pending")
-      : createDirectWork({
-        id: getTeammate(input.name)?.workId ?? `work:${spawnId}`,
+      ? bindTask(input.existingWorkId, input.name, assignment, { from: ["pending"] })
+      : createBoundWork({
+        id: getAgent(input.name)?.workId ?? `work:${spawnId}`,
         subject: effectiveKickoff ? messageTitle(effectiveKickoff) : "Direct work",
         description: effectiveKickoff,
         resources: directResources,
         verify: input.verify,
-        workerName: input.name,
+        holder: input.name,
         assignment,
       });
     if (!directWork.ok) {
-      updateTeammate(input.name, { status: "stopped" });
-      discardWorkspaceQuietly(input.name, workspace);
-      return { ok: false, error: directWork.error };
+      updateAgent(input.name, { status: "stopped" });
+      return { ok: false, error: directWork.reason };
     }
   }
-  updateTeammate(input.name, {
+  residentSequences.set(spawnId, { rolePrompt: agent.prompt, roleDelivered: false });
+  updateAgent(input.name, {
+    scope: agent.scope,
+    source: agent.source,
+    projectCwd: leaderCwd,
+    ...(workspace ? { workspacePath: workspace.workspacePath, sessionDir } : {}),
     model: spawnModel.model,
     context: input.context === undefined ? "fresh" : "fork",
     tools: effectiveTools,
@@ -732,40 +739,39 @@ export function spawnTeammate(input: {
   // produce an unhandled rejection when they do not await startup.
   let settleReadiness!: (error: string | undefined) => void;
   const readiness = new Promise<string | undefined>((resolve) => { settleReadiness = resolve; });
+  pendingResidentInputs.add(spawnId);
+  void readiness.then(() => { pendingResidentInputs.delete(spawnId); });
   const started = spawnResident({
-    workerName: input.name,
+    agentName: input.name,
     description: assignment ? `[agent-teams-assignment:${assignment.id}]\n` + buildKickoffPrompt(
       input.name,
-      input.agent,
+      input.role,
       agent.prompt,
       effectiveKickoff,
-      isolation,
     ) : undefined,
     model: spawnModel.model,
     thinking: currentLeaderThinkingLevel(),
     context: input.context,
-    tools: agent.tools,
+    tools: executionTools,
     extensions: workerExtensions,
     capabilityTools,
     cwd: workerCwd,
-    // Session persistence is only safe when the child has its own working path.
-    // Sharing the leader's tree would put the child's turns into the user's own
-    // session group, so a shared workspace passes --no-session.
-    session: isolation === "worktree" ? (workspace.reused ? "resume" : "persist") : "none",
-    // A workspace this harness created is an untrusted directory to Pi, whose
-    // defaultProjectTrust is "ask"; without this the child blocks forever on a
-    // trust prompt RPC mode cannot answer.
-    approveProjectTrust: isolation === "worktree",
-    env: teammateEnv(stateFile, input, spawnId, agent.verify, effectiveTools, memoryEnabled),
+    session: durable ? (hasSavedSession ? "resume" : "persist") : "none",
+    ...(sessionDir ? { sessionDir } : {}),
+    // Both kinds launch in the original project. Scratch is data, not a new
+    // trusted checkout; do not force project approval merely for durability.
+    env: teammateEnv(stateFile, input, spawnId, agent, effectiveTools),
     onUpdate: (progress) => {
       applyProgress(input.name, spawnId, progress);
-      if (progress.controlError) settleReadiness(progress.controlError);
-      else if (progress.ready) settleReadiness(undefined);
+      if (!assignment) {
+        if (progress.controlError) settleReadiness(progress.controlError);
+        else if (progress.ready) settleReadiness(undefined);
+      }
     },
     onError: (error) => {
       settleReadiness(`Resident startup readiness failed: ${error.message}`);
-      if (getTeammate(input.name)?.spawnId !== spawnId) return;
-      if (input.existingWorkId) revertInFlightAttempt(input.existingWorkId, `Agent failed to start: ${error.message}`);
+      if (getAgent(input.name)?.spawnId !== spawnId) return;
+      if (input.existingWorkId) revertUndeliveredTake(input.existingWorkId, input.name, `Agent failed to start: ${error.message}`);
       failSpawn(input.name, error.message, input.existingWorkId);
     },
     onExit: (result) => {
@@ -774,56 +780,65 @@ export function spawnTeammate(input: {
     },
   });
   if ("error" in started) {
-    if (input.existingWorkId) revertInFlightAttempt(input.existingWorkId, `Agent failed to start: ${started.error}`);
-    else if (assignment) discardDirectWork(getTeammate(input.name)?.workId ?? `work:${spawnId}`, input.name);
+    settleReadiness(started.error);
+    if (input.existingWorkId) revertUndeliveredTake(input.existingWorkId, input.name, `Agent failed to start: ${started.error}`);
+    else if (assignment) discardTask(getAgent(input.name)?.workId ?? `work:${spawnId}`, input.name);
     failSpawn(input.name, started.error, input.existingWorkId);
     return { ok: false, error: started.error };
   }
-  updateTeammate(input.name, { pid: started.pid, envPolicy: started.envPolicy });
-  // The Work Item records where it ran. Pi resolves sessions from that path, so
-  // this is what lets a later attempt resume the working memory of this one;
-  // @fradser/pi-tasks deliberately stores no session identifier.
-  const contextWorkId = getTeammate(input.name)?.workId;
-  if (contextWorkId && isolation === "worktree") {
-    setTaskContext(contextWorkId, { workspacePath: workerCwd });
+  updateAgent(input.name, { pid: started.pid, envPolicy: started.envPolicy });
+  if (assignment) {
+    // Attach both outcomes immediately, even for synchronous internal callers.
+    // A writable pipe proves neither accepted input nor completed execution.
+    const rejectInput = (error: string) => {
+      if (getAgent(input.name)?.spawnId === spawnId) updateAgent(input.name, { error });
+      settleReadiness(error);
+    };
+    if (!started.accepted) rejectInput("Resident kickoff input acknowledgement is unavailable.");
+    else void started.accepted.then((accepted) => {
+      const current = getAgent(input.name);
+      if (!accepted) rejectInput("Resident kickoff input was not accepted. Inspect or stop before retrying.");
+      else if (!current || current.spawnId !== spawnId || current.status === "stopped") {
+        rejectInput("Resident exited or was replaced before kickoff input was acknowledged.");
+      } else {
+        // A fast result may settle before the RPC response. Do not revive it.
+        if (current.status === "starting") updateAgent(input.name, { status: "working" });
+        const sequence = residentSequences.get(spawnId);
+        if (sequence) sequence.roleDelivered = true;
+        settleReadiness(undefined);
+      }
+    }).catch((error) => rejectInput(error instanceof Error ? error.message : String(error)));
   }
-  // Keep starting until model activity or the unassigned child's native
-  // readiness acknowledgement arrives; spawning alone does not prove idle.
+  const contextWorkId = getAgent(input.name)?.workId;
+  if (contextWorkId && workspace) setTaskContext(contextWorkId, { workspacePath: workspace.workspacePath });
+  // Keep starting until native readiness or accepted kickoff input; settlement
+  // leaves both temporary and durable incarnations idle, never closed.
   publishStateSnapshot();
   ensureLivePoll();
   notifyChange();
-  return { ok: true, teammate: getTeammate(input.name)!, ...(assignment ? {} : { readiness }) };
+  return { ok: true, agent: getAgent(input.name)!, readiness };
 }
 
 /** True when a spawn's inline definition should create or replace the role:
  *  nothing resolved, or only a session-scoped generated role did. Filesystem
- *  scopes are user-owned and always win over inline input. */
-export function inlineDefinitionApplies(resolved: AgentDefinition | undefined): boolean {
-  return !resolved || resolved.scope === "session";
+ *  scopes are user-owned and always win over inline input.
+ *
+ *  Owned by `@fradser/pi-subagents` and re-exported here, because the standalone
+ *  spawner has to answer the same question. Two copies of this rule is how the
+ *  two spawn paths came to disagree about which role a child received. */
+export { inlineDefinitionApplies };
+
+/** A session role has no durable Memory capability to contribute. */
+export function agentMemoryUnavailableError(name: string): string {
+  return `Temporary Agent "${name}" has no Agent Memory. Remove ${AGENT_MEMORY_CAPABILITY_TOOLS.join(" and ")} from its tools; durable Memory belongs only to a user-authored disk agent.md.`;
 }
 
-/** Spawn failure for an Agent Memory tool request with no memory folder. A
- *  different refusal from an unknown id on purpose: the id is real, and the
- *  only thing missing is the opt-in, so the copy names the field that grants
- *  it rather than listing a universe the caller could never satisfy. */
-export function agentMemoryUnavailableError(name: string, persisted: boolean | undefined): string {
-  return [
-    `Agent "${name}" requests ${SUBAGENT_CAPABILITY_TOOLS.join(", ")}, which needs an Agent Memory folder the Agent does not have.`,
-    persisted
-      ? `Add memory: true to the persisted definition for ${name} in .pi/agents/, or drop ${SUBAGENT_CAPABILITY_TOOLS.join(" and ")} from its tools.`
-      : `A Temporary Agent never has Agent Memory. Persist the role and opt in with memory: true, or drop ${SUBAGENT_CAPABILITY_TOOLS.join(" and ")} from its tools.`,
-  ].join(" ");
-}
-
-/** Spawn failure for execution-tool ids outside the teammate universe. */
-export function unknownWorkerToolsError(unknown: readonly string[]): string {
-  return [
-    `Unknown tool id${unknown.length === 1 ? "" : "s"} for a teammate: ${unknown.join(", ")}.`,
-    "A teammate child runs a bare pi process (--no-extensions), so only pi built-in tools plus the teammate capability set can be granted.",
-    `Valid ids: ${workerToolUniverse(WORKER_CAPABILITY_TOOLS).join(", ")}.`,
-    "MCP or project-extension tools cannot reach a teammate; perform that work in the leader session instead.",
-  ].join(" ");
-}
+/** Spawn failure for execution-tool ids outside the teammate universe.
+ *
+ *  Re-exported from `@fradser/pi-subagents`, which owns the universe and the
+ *  message beside it: the standalone spawner refuses the same ids for the same
+ *  reason, and a second copy of this text is a second copy to drift. */
+export { unknownAgentToolsError };
 
 /** Spawn failure for an unresolvable agent name. Definitions resolve live at
  *  spawn time, so the available-agents list in the cached session guidance can
@@ -833,39 +848,37 @@ export function unknownAgentError(name: string, cwd: string): string {
   const available = [...discoverAgents(cwd).keys()];
   return [
     `Agent "${name}" not found in any scope.`,
-    `Checked: ${cwd}/.pi/agents/<name>.local.md, ${cwd}/.pi/agents/<name>.md, ${path.join(getAgentDir(), "agents")}, and in-memory session roles.`,
+    `Checked: ${cwd}/.pi/agents/<name>.local/agent.md, ${cwd}/.pi/agents/<name>/agent.md, ${path.join(getAgentDir(), "agents", "<name>", "agent.md")}, and in-memory session roles.`,
     'The available-agents list in your guidance may be stale: definition files can change mid-session (for example removed by a parallel session).',
-    'Recover by retrying agent action=delegate or start with name and an existing agent role id, or with name, a new agent role id, and an inline definition derived from references/agent-roles.md that includes description and prompt.',
+    'Recover with agent action=start using an existing name, or supply description and role_prompt derived from references/agent-roles.md for a temporary role.',
     `Available now: ${available.length > 0 ? available.join(", ") : "(none)"}.`,
   ].join(' ');
 }
 
 function validateSpawnInput(input: { name: string }): string | undefined {
-  if (!isValidTeammateName(input.name)) {
+  if (!isValidAgentName(input.name)) {
     return `Invalid teammate name "${input.name}". Use letters, digits, dots, dashes, underscores.`;
   }
-  if (livingTeammates().some((t) => t.name === input.name)) {
+  if (livingAgents().some((t) => t.name === input.name)) {
     return `A living teammate named "${input.name}" already exists.`;
   }
   return undefined;
 }
 
 function newTeammate(
-  input: { name: string; agent: string; workId?: string },
+  input: { name: string; role: string; workId?: string },
 
   spawnId: string,
-  isolation: Teammate["isolation"],
   workerCwd: string,
-): Teammate {
+): Agent {
   return {
     name: input.name,
-    agent: input.agent,
+    role: input.role,
     spawnId,
     workId: input.workId,
     pid: 0,
     status: "starting",
     cwd: workerCwd,
-    isolation,
     turns: 0,
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -889,13 +902,13 @@ export function directAssignment(
 export function resolveDirectResources(resources: string[] | undefined, handoffFrom: string | undefined): string[] {
   const explicit = normalizeResources(resources);
   if (explicit.length > 0) return explicit;
-  const prior = handoffFrom ? getTeammate(handoffFrom) : undefined;
+  const prior = handoffFrom ? getAgent(handoffFrom) : undefined;
   return normalizeResources(prior?.assignment?.resources ?? prior?.lastAssignment?.resources);
 }
 
 export function buildSuccessorHandoff(kickoff: string | undefined, handoffFrom: string | undefined): string | undefined {
   if (!handoffFrom?.trim()) return kickoff;
-  const prior = getTeammate(handoffFrom);
+  const prior = getAgent(handoffFrom);
   const reports = getState().leaderMailbox
     .filter((message) => message.from === handoffFrom)
     .slice(-3)
@@ -903,33 +916,32 @@ export function buildSuccessorHandoff(kickoff: string | undefined, handoffFrom: 
   const assignment = prior?.assignment ?? prior?.lastAssignment;
   const taskId = prior?.currentTaskId ?? prior?.lastTaskId;
   // A structured brief rather than concatenated prose. @fradser/pi-tasks owns the shape, so
-  // a successor handoff, a recheck, and a standalone board all produce the same
+  // a successor handoff, a recheck, and a standalone tasks all produce the same
   // sections, and an oversized brief is clipped and marked instead of silently
   // truncated. Prior reports go in `priorFindings` deliberately: that is the field
   // a recheck must not lose when a reopen clears the result.
-  const { handoff } = buildWorkHandoff({
+  const { handoff } = buildTaskHandoff({
     candidate: prior?.cwd ? `workspace ${prior.cwd}` : undefined,
     delta: assignment ? `${assignment.kind} ${assignment.id}` : "assignment unavailable",
-    verification: taskId ? `prior board claim ${taskId}` : "no prior board claim",
+    verification: taskId ? `prior tasks claim ${taskId}` : "no prior tasks claim",
     priorFindings: reports.length > 0 ? reports : undefined,
     outstanding: [
-      "Verify current files yourself; do not claim the predecessor's board Work unless the leader explicitly assigns it.",
+      "Verify current files yourself; do not claim the predecessor's tasks Work unless the leader explicitly assigns it.",
     ],
   });
   const brief = [
     `=== SUCCESSOR HANDOFF FROM @${handoffFrom} ===`,
-    formatWorkHandoff(handoff),
+    formatTaskHandoff(handoff),
   ].filter(Boolean).join("\n");
   return [kickoff?.trim(), brief].filter(Boolean).join("\n\n");
 }
 
 function teammateEnv(
   stateFile: string,
-  input: { name: string; agent: string },
+  input: { name: string; role: string },
   spawnId: string,
-  verify: string | undefined,
+  definition: AgentDefinition,
   tools: readonly string[],
-  memoryEnabled: boolean,
 ): Record<string, string | undefined> {
   return {
     PI_TEAMMATE_WORKER_NAME: input.name,
@@ -937,17 +949,25 @@ function teammateEnv(
     PI_TEAMMATE_OUTBOX_FILE: workerOutboxPath(stateFile, input.name, spawnId),
     PI_TEAMMATE_INBOX_FILE: inboxPath(stateFile, input.name),
     PI_TEAMMATE_ROSTER_FILE: rosterPath(stateFile),
-    PI_TEAMMATE_BOARD_FILE: boardFile,
-    PI_TEAMMATE_CLAIMS_DIR: claimsDir(boardDirectory()),
-    PI_TEAMMATE_SUBMISSIONS_DIR: submissionsDir(boardDirectory()),
-    PI_TEAMMATE_ROLE_AGENT: input.agent,
-    PI_TEAMMATE_VERIFY_DEFAULT: verify ?? "",
+    PI_TEAMMATE_TASKS_FILE: tasksFile,
+    PI_TEAMMATE_CLAIMS_DIR: claimsDir(taskDirectory()),
+    PI_TEAMMATE_SUBMISSIONS_DIR: submissionsDir(taskDirectory()),
+    PI_TEAMMATE_ROLE_AGENT: input.role,
+    // The tasks's own binding, named by the tasks. `PI_TEAMMATE_WORKER_NAME` is
+    // this package's private vocabulary; a child that read it to decide who it is
+    // on the tasks would couple the tasks to this package's naming.
+    [TASK_HOLDER_ENV]: input.name,
+    PI_TEAMMATE_VERIFY_DEFAULT: definition.verify ?? "",
     // The subagent worker extension reads these. Named for that package rather
     // than reusing PI_TEAMMATE_*, so the execution layer never has to learn this
     // package's vocabulary.
-    [SUBAGENT_ROLE_ENV]: input.agent,
-    [SUBAGENT_TOOLS_ENV]: tools.join(","),
-    [SUBAGENT_MEMORY_ENV]: memoryEnabled ? "enabled" : "none",
+    ...(definition.scope !== "session" ? {
+      [SUBAGENT_ROLE_ENV]: definition.name,
+      [SUBAGENT_TOOLS_ENV]: tools.join(","),
+      [SUBAGENT_DEFINITION_ENV]: definition.source,
+      [SUBAGENT_SCOPE_ENV]: definition.scope,
+    } : {}),
+    PI_SUBAGENT_PROJECT_CWD: leaderCwd,
   };
 }
 
@@ -956,43 +976,36 @@ export function buildKickoffPrompt(
   agentName: string,
   rolePrompt: string,
   kickoff: string | undefined,
-  isolation: Teammate["isolation"],
 ): string {
   const header = [
-    `You are a FULLY AUTONOMOUS resident teammate named "${name}" (agent: ${agentName}) in a pi multi-agent team.`,
+    `You are a FULLY AUTONOMOUS resident agent named "${name}" (role: ${agentName}) in a pi multi-agent team.`,
     "You stay alive between tasks. The harness wakes you with new prompts when",
-    "messages arrive for you or when the task board has unclaimed work.",
-    isolation === "worktree" ? "You are working inside your own dedicated git worktree." : "",
+    "messages arrive for you or when the task set has unclaimed work.",
+    `Original project: ${leaderCwd}. A private scratch cwd is not a checkout; project edits change the original working tree directly.`,
   ].filter(Boolean).join(" ");
-  const roleSection = `=== ROLE PROMPT (${agentName}) ===\n${rolePrompt}`;
+  // A role may state a purpose without instructions, so an empty body is said
+  // rather than printed as a heading with nothing under it — a child told "ROLE
+  // PROMPT (x) ===" and nothing else cannot tell whether it was given a role.
+  const roleSection = rolePrompt.trim()
+    ? `=== ROLE PROMPT (${agentName}) ===\n${rolePrompt.trim()}`
+    : `=== ROLE (${agentName}) ===\nThis role states what you are for and carries no standing instructions. Take the task below as it comes.`;
   const taskSection = kickoff?.trim()
-    ? `=== KICKOFF TASK ===\n${kickoff.trim()}\n\nExecute this assigned task directly. Do not call work action=list or check the task board unless this task explicitly instructs you to do so.`
-    : "=== KICKOFF TASK ===\n(none yet — list the board with task action=list and take one with task update status=in_progress)";
+    ? `=== KICKOFF TASK ===\n${kickoff.trim()}\n\nExecute this assigned task directly; this task text is the whole assignment, so use task tools only when the assignment requires them.`
+    : "=== KICKOFF TASK ===\n(none yet — list the tasks with task action=list and take one with task update status=in_progress)";
   return `${header}\n\n${roleSection}\n\n${taskSection}`;
 }
 
-function buildFreshAssignmentPrompt(teammate: Teammate, assignmentId: string, task: string): string {
+function buildFreshAssignmentPrompt(teammate: Agent, assignmentId: string, task: string): string {
   return `[agent-teams-assignment:${assignmentId}]\n${buildKickoffPrompt(
     teammate.name,
-    teammate.agent,
-    resolveAgent(teammate.agent, leaderCwd)?.prompt ?? "",
+    teammate.role,
+    residentSequences.get(teammate.spawnId)?.rolePrompt ?? resolveAgent(teammate.role, leaderCwd)?.prompt ?? "",
     task,
-    teammate.isolation,
   )}`;
 }
 
-/** Undo a workspace only when this spawn created it and nothing ran in it. A
- *  reused workspace is the Agent's home: it holds earlier attempts' committed work
- *  and the Pi session group that is its working memory, so a failed spawn must
- *  never remove it. */
-function discardWorkspaceQuietly(name: string, workspace: AgentWorkspace | undefined): void {
-  if (!workspace || workspace.isolation !== "worktree" || workspace.reused) return;
-  liveWorkspaces.delete(name);
-  releaseAgentWorkspace({ agentName: name, cwd: workspace.cwd });
-}
-
-function boardDirectory(): string {
-  return path.dirname(boardFile);
+function taskDirectory(): string {
+  return path.dirname(tasksFile);
 }
 
 export function applyProgress(name: string, spawnId: string, progress: {
@@ -1003,18 +1016,18 @@ export function applyProgress(name: string, spawnId: string, progress: {
   finalResponse?: boolean;
   modelOutputSeen?: boolean;
   ready?: boolean;
-  usage?: WorkerUsage;
+  usage?: AgentUsage;
   controlError?: string;
 }): void {
-  const teammate = getTeammate(name);
+  const teammate = getAgent(name);
   // A stale callback from an older incarnation must not touch the current one.
   if (!teammate || teammate.spawnId !== spawnId || teammate.status === "stopped") return;
   if (progress.controlError) {
-    updateTeammate(name, { error: progress.controlError });
+    updateAgent(name, { error: progress.controlError });
     deliverDiagnostic(name, progress.controlError);
-    sendUpdate({ teammate: name, spawnId, body: progress.controlError, origin: "harness", harnessEvent: { type: "control-rejected", subject: `@${name} control rejected` }, finished: false });
+    sendUpdate({ agent: name, spawnId, body: progress.controlError, origin: "harness", harnessEvent: { type: "control-rejected", subject: `@${name} control rejected` }, finished: false });
   }
-  updateTeammateProgress(name, teammate.spawnId, {
+  updateAgentProgress(name, teammate.spawnId, {
     liveText: progress.text,
     activeTool: progress.activeTool,
     liveThinking: progress.liveThinking,
@@ -1023,13 +1036,13 @@ export function applyProgress(name: string, spawnId: string, progress: {
     modelOutputSeen: progress.modelOutputSeen,
     usage: progress.usage,
   });
-  updateTeammate(name, { lastOutputAt: Date.now(), ...(progress.finalResponse === false ? { status: "working" } : {}) });
+  updateAgent(name, { lastOutputAt: Date.now(), ...(progress.finalResponse === false ? { status: "working" } : {}) });
   if (progress.finalResponse === false && teammate.currentTaskId && verifyingTasks.has(teammate.currentTaskId)) {
     const holding = `${teammate.currentTaskId}:${spawnId}`;
     invalidateVerifyGate(teammate.currentTaskId);
     unexpectedExecutionParks.add(holding);
     sendUpdate({
-      teammate: name,
+      agent: name,
       spawnId,
       origin: "harness",
       harnessEvent: { type: "review-invalidated", subject: `Verification invalidated · ${getTask(teammate.currentTaskId)?.subject ?? "Work"}` },
@@ -1038,13 +1051,13 @@ export function applyProgress(name: string, spawnId: string, progress: {
     });
   }
   if (progress.finalResponse && teammate.status !== "idle") {
-    updateTeammate(name, { status: "idle", activeTool: undefined });
+    updateAgent(name, { status: "idle", activeTool: undefined });
     drainTeammateOutboxes(name);
     processTaskIntents();
     const pending = pendingSubmissions.get(name);
-    if (pending?.spawnId === spawnId && getTeammate(name)?.assignment?.id === pending.assignmentId) {
+    if (pending?.spawnId === spawnId && getAgent(name)?.assignment?.id === pending.assignmentId) {
       pendingSubmissions.delete(name);
-      archiveDeferredDeliveries(getTeammate(name)!);
+      archiveDeferredDeliveries(getAgent(name)!);
       beginVerifyOrComplete(pending, pending.verify);
     }
     nudgeIfUnfinalized(name, spawnId);
@@ -1070,10 +1083,10 @@ const verifyFailureParks = new Map<string, { worker: string; spawnId: string }>(
 /** Owner execution observed during review; explicit Leader recovery is required. */
 const unexpectedExecutionParks = new Set<string>();
 
-type FinishIdentity = Pick<LeaderReport, "teammate" | "agent" | "spawnId" | "assignmentId" | "finished">;
+type FinishIdentity = Pick<LeaderReport, "agent" | "spawnId" | "assignmentId" | "finished">;
 
 function finishKey(report: FinishIdentity): string {
-  return `${report.teammate ?? report.agent ?? "teammate"}:${report.spawnId ?? "session"}:${report.assignmentId ?? "unassigned"}`;
+  return `${report.agent ?? "agent"}:${report.spawnId ?? "session"}:${report.assignmentId ?? "unassigned"}`;
 }
 
 /** Announce each assignment attempt once, including later work in the same process. */
@@ -1087,7 +1100,7 @@ export function markTeammateFinished(report: FinishIdentity): boolean {
 
 /** Only an open current assignment can owe a final result. */
 export function hasUnfinalizedReport(name: string): boolean {
-  const teammate = getTeammate(name);
+  const teammate = getAgent(name);
   return Boolean(teammate?.assignment && !teammate.assignment.closed
     && !teammate.reportSequenceEnded && !verificationFrozen(teammate));
 }
@@ -1095,7 +1108,7 @@ export function hasUnfinalizedReport(name: string): boolean {
 /** One light reminder per idle transition when work looks unfinished. */
 function nudgeIfUnfinalized(name: string, spawnId: string): void {
   if (!hasUnfinalizedReport(name)) return;
-  const key = `${name}:${spawnId}:${getTeammate(name)?.assignment?.id}`;
+  const key = `${name}:${spawnId}:${getAgent(name)?.assignment?.id}`;
   if (!selfFinalizeAttempts.has(key)) {
     // First miss: give the worker one chance to fix its own bookkeeping
     // before bothering the leader. The inbox message wakes it on the next tick.
@@ -1103,16 +1116,16 @@ function nudgeIfUnfinalized(name: string, spawnId: string): void {
     deliverFeedback(
       name,
       "Assignment not finalized",
-      `Current assignment "${getTeammate(name)?.assignment?.id ?? "unassigned"}" has no automatic final result yet. Return a final answer or submit the current Work outcome.`,
+      `Current assignment "${getAgent(name)?.assignment?.id ?? "unassigned"}" has no automatic final result yet. Return a final answer or submit the current Work outcome.`,
     );
     return;
   }
   if (idleNudgesSent.has(key)) return;
   idleNudgesSent.add(key);
-  const reminder = `@${name} is idle but current assignment "${getTeammate(name)?.assignment?.id ?? "unassigned"}" has no terminal report after one finalization request. Decide whether to resume or release the assignment.`;
+  const reminder = `@${name} is idle but current assignment "${getAgent(name)?.assignment?.id ?? "unassigned"}" has no terminal report after one finalization request. Decide whether to resume or release the assignment.`;
   deliverToLeader({ from: "harness", subject: `Idle without terminal report: @${name}`, body: reminder });
   sendUpdate({
-    teammate: name,
+    agent: name,
     body: reminder,
     origin: "harness",
     harnessEvent: { type: "unfinalized-report", subject: `@${name} idle without terminal report` },
@@ -1121,15 +1134,15 @@ function nudgeIfUnfinalized(name: string, spawnId: string): void {
 }
 
 function failSpawn(name: string, error: string, existingWorkId?: string): void {
-  const teammate = getTeammate(name);
+  const teammate = getAgent(name);
   if (!existingWorkId && teammate?.assignment?.kind === "direct" && teammate.currentTaskId) {
-    discardDirectWork(teammate.currentTaskId, name);
+    discardTask(teammate.currentTaskId, name);
   } else {
-    releaseTasksOf(name, `Agent failed to start: ${error}`);
+    failTasksHeldBy(name, `Agent failed to start: ${error}`);
   }
-  discardWorkspaceQuietly(name, liveWorkspaces.get(name));
-  updateTeammate(name, { status: "stopped", error });
+  updateAgent(name, { status: "stopped", error });
   if (teammate) {
+    residentSequences.delete(teammate.spawnId);
     clearWorkerRunEvents(name, teammate.spawnId);
     removeWorkerOutbox(requireStateFile(), name, teammate.spawnId);
   }
@@ -1144,19 +1157,19 @@ function failSpawn(name: string, error: string, existingWorkId?: string): void {
 
 // ── Shutdown and close ────────────────────────────────────────────
 
-export async function shutdownTeammateExact(name: string, spawnId: string): Promise<{ ok: true; body: string } | { ok: false; error: string }> {
-  const existing = getTeammate(name);
+export async function shutdownAgentExact(name: string, spawnId: string): Promise<{ ok: true; body: string } | { ok: false; error: string }> {
+  const existing = getAgent(name);
   if (!existing || existing.spawnId !== spawnId || existing.status === "stopped") {
     return { ok: false, error: `No living session named "${exactSessionRoute(name, spawnId)}".` };
   }
-  return shutdownTeammate(name);
+  return shutdownAgent(name);
 }
 
-export async function shutdownTeammate(name: string): Promise<{ ok: true; body: string } | { ok: false; error: string }> {
-  const teammate = getTeammate(name);
+export async function shutdownAgent(name: string): Promise<{ ok: true; body: string } | { ok: false; error: string }> {
+  const teammate = getAgent(name);
   if (!teammate || teammate.status === "stopped") return { ok: false, error: `No living teammate named "${name}".` };
   pendingShutdowns.add(name);
-  const terminated = await terminateTeammate(name);
+  const terminated = await terminateAgent(name);
   if (terminated.outcome === "unconfirmed") {
     return { ok: false, error: `Agent @${name} could not be confirmed closed; shutdown remains pending.` };
   }
@@ -1164,14 +1177,15 @@ export async function shutdownTeammate(name: string): Promise<{ ok: true; body: 
     rememberBounded(confirmedStopTimes, teammate.spawnId, Date.now());
     // The child was already gone; synthesize the close bookkeeping.
     pendingShutdowns.delete(name);
-    const released = releaseTasksOf(name, "Agent was stopped.");
+    const released = failTasksHeldBy(name, "Agent was stopped.");
     for (const task of released) {
       clearInconclusiveForHolding(task.id, teammate.spawnId);
       invalidateVerifyGate(task.id);
       rearmTaskNotice(task.id);
     }
-    updateTeammate(name, { status: "stopped", activeTool: undefined });
+    updateAgent(name, { status: "stopped", activeTool: undefined });
     pendingDeliveries.delete(name);
+    residentSequences.delete(teammate.spawnId);
     idleNudgesSent.delete(`${name}:${teammate.spawnId}`);
     selfFinalizeAttempts.delete(`${name}:${teammate.spawnId}`);
     // No close event will fire for an already-gone child, so this branch is
@@ -1186,21 +1200,25 @@ export async function shutdownTeammate(name: string): Promise<{ ok: true; body: 
   return { ok: true, body: `Agent @${name} stopped.` };
 }
 
-async function handleTeammateClose(name: string, spawnId: string, result: WorkerProcessResult): Promise<void> {
+async function handleTeammateClose(name: string, spawnId: string, result: AgentProcessResult): Promise<void> {
   if (!runtimeStateFile) return;
-  const teammate = getTeammate(name);
+  const teammate = getAgent(name);
   if (!teammate || teammate.spawnId !== spawnId || teammate.status === "stopped") return;
   rememberBounded(confirmedStopTimes, spawnId, Date.now());
   const requested = pendingShutdowns.has(name);
   const crashed = !requested && !isCleanExit(result);
 
-  await finalizeWorktree(name);
-
   // Drain final reports before tearing down replay metadata so nothing
   // written before close is lost.
   drainTeammateOutboxes();
 
-  const released = releaseTasksOf(name, requested ? "Agent was stopped." : "Agent stopped unexpectedly.");
+  // A clean idle close with no outstanding result is a lifecycle fact, not a
+  // failed assignment. Keep it visible without starting another leader turn.
+  const cleanIdleClose = !crashed && teammate.status === "idle"
+    && !hasUnfinalizedReport(name) && !verificationFrozen(teammate)
+    && !pendingSubmissions.has(name) && !pendingResidentInputs.has(spawnId)
+    && !pendingDeliveries.has(name) && !hasUnreadPeerMail(teammate);
+  const released = failTasksHeldBy(name, requested ? "Agent was stopped." : "Agent stopped unexpectedly.");
   for (const task of released) {
     clearInconclusiveForHolding(task.id, teammate.spawnId);
     invalidateVerifyGate(task.id);
@@ -1210,9 +1228,10 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   // A stopped teammate must not keep the poll loop or its queue alive.
   pendingSubmissions.delete(name);
   pendingDeliveries.delete(name);
+  residentSequences.delete(spawnId);
   idleNudgesSent.delete(`${name}:${teammate.spawnId}`);
   selfFinalizeAttempts.delete(`${name}:${teammate.spawnId}`);
-  updateTeammate(name, {
+  updateAgent(name, {
     status: "stopped",
     activeTool: undefined,
     error: requested ? undefined : closeErrorText(result, crashed),
@@ -1220,17 +1239,16 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   clearWorkerRunEvents(name, teammate.spawnId);
   removeWorkerOutbox(requireStateFile(), name, teammate.spawnId);
 
-  if (requested) {
+  if (requested || (cleanIdleClose && released.length === 0)) {
     const summary = summarizeShutdown(name, released.length, result.exitCode, result.usage);
     deliverToLeader({ from: name, subject: "Agent stopped", body: summary });
-    // A requested shutdown is already represented by the tool lifecycle row;
-    // keep its summary in the console mailbox without starting a leader turn.
+    // Requested stops and clean idle closure need no additional leader turn.
   } else {
     deliverToLeader({ from: name, subject: "Agent stopped unexpectedly", body: crashDiagnostic(name, result, released) });
     const closeReport = {
-      teammate: name,
+      agent: name,
       spawnId: teammate.spawnId,
-      body: `@${name} stopped unexpectedly${released.length > 0 ? `; claimed task(s) ${released.map((t) => t.id).join(", ")} returned to the board` : ""}.`,
+      body: `@${name} stopped unexpectedly${released.length > 0 ? `; claimed task(s) ${released.map((t) => t.id).join(", ")} returned to the tasks` : ""}.`,
       origin: "harness" as const,
       harnessEvent: { type: "unexpected-stop", subject: `@${name} stopped unexpectedly` },
       finished: false,
@@ -1242,12 +1260,12 @@ async function handleTeammateClose(name: string, spawnId: string, result: Worker
   notifyChange();
 }
 
-function closeErrorText(result: WorkerProcessResult, crashed: boolean): string | undefined {
+function closeErrorText(result: AgentProcessResult, crashed: boolean): string | undefined {
   if (!crashed) return undefined;
   return `Closed unexpectedly (code ${result.exitCode ?? "unknown"}${result.signal ? `, signal ${result.signal}` : ""}).`;
 }
 
-function crashDiagnostic(name: string, result: WorkerProcessResult, released: Array<{ id: string }>): string {
+function crashDiagnostic(name: string, result: AgentProcessResult, released: Array<{ id: string }>): string {
   return [
     `Agent @${name} closed without a shutdown request.`,
     result.stderr?.trim() ? `stderr: ${result.stderr.trim()}` : undefined,
@@ -1260,7 +1278,7 @@ function summarizeShutdown(
   name: string,
   releasedCount: number,
   exitCode: number | null | undefined,
-  usage?: import("./types").WorkerUsage,
+  usage?: import("./types").AgentUsage,
 ): string {
   const lines = [`Agent @${name} stopped (exit code ${exitCode ?? "unknown"}).`];
   if (releasedCount > 0) lines.push(`Released claimed task(s): ${releasedCount}.`);
@@ -1268,57 +1286,12 @@ function summarizeShutdown(
   return lines.join("\n");
 }
 
-async function finalizeWorktree(name: string): Promise<void> {
-  const workspace = liveWorkspaces.get(name);
-  if (!workspace || workspace.isolation !== "worktree") {
-    liveWorkspaces.delete(name);
-    return;
-  }
-  // Durable: commit this attempt's output onto the Agent's branch and keep the
-  // directory, so its Pi session group survives as working memory for the next
-  // attempt. Completion never removes a workspace.
-  const preserved = preserveAgentWorkspace({ agentName: name, cwd: workspace.cwd });
-  const branch = workspace.branch ?? `agent/${name}`;
-  if (!preserved.ok) {
-    // Nothing was removed, so the work is still on disk. The leader has to decide:
-    // an uncommitted durable workspace can be disturbed by a later attempt.
-    const body = `Preserving @${name}'s workspace failed (${preserved.error}). The directory was left in place at ${workspace.cwd}; inspect and commit it manually.`;
-    deliverToLeader({ from: name, subject: "Workspace preservation failed", body });
-    sendUpdate({
-      teammate: name,
-      origin: "harness",
-      harnessEvent: { type: "workspace-preserve-failed", subject: `@${name} workspace preservation failed` },
-      body,
-      finished: false,
-    });
-    return;
-  }
-  // A durable workspace is not torn down, so there is no per-attempt diff to
-  // capture against a base commit: the branch accumulates across attempts and the
-  // directory stays as this Agent's home and Pi session group.
-  const summary = [
-    `Agent @${name}'s workspace was preserved${preserved.committed ? " and this attempt's output committed" : " (no uncommitted changes)"}.`,
-    `Workspace: ${workspace.cwd}`,
-    `Branch: ${branch}`,
-    "The directory is durable and is not removed on completion: it is this Agent's home, and Pi groups its sessions by working directory, so it is also the Agent's working memory.",
-  ].join("\n");
-  deliverToLeader({ from: name, subject: "Workspace preserved", body: summary });
-  sendUpdate({
-    teammate: name,
-    spawnId: getTeammate(name)?.spawnId,
-    origin: "harness",
-    harnessEvent: { type: "workspace-preserved", subject: `@${name} workspace preserved` },
-    body: `Workspace preserved for @${name} on ${branch}.`,
-    finished: false,
-  });
-}
-
 // ── Report outbox draining ────────────────────────────────────────
 
 /** Poll one batch per worker; explicit control drains its recipient's existing snapshot. */
 export function drainTeammateOutboxes(recipient?: string): void {
   const stateFile = requireStateFile();
-  for (const teammate of livingTeammates()) {
+  for (const teammate of livingAgents()) {
     const key = `${teammate.name}:${teammate.spawnId}`;
     const file = workerOutboxPath(stateFile, teammate.name, teammate.spawnId);
     const endOffset = teammate.name === recipient ? fs.statSync(file, { throwIfNoEntry: false })?.size ?? 0 : undefined;
@@ -1342,7 +1315,7 @@ function deliverDiagnostic(from: string, detail: string): void {
   deliverToLeader({ from, subject: "Agent channel diagnostic", body: detail });
 }
 
-function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
+function applyOutboxRecord(teammate: Agent, record: unknown): boolean {
   if (!isWorkerEvent(record)) return false;
   if (record.worker !== teammate.name || record.spawnId !== teammate.spawnId) return false;
   const ids = getState().workerEventIds;
@@ -1360,7 +1333,7 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
     if (teammate.assignment && taskId && task?.claimedBy === teammate.name
       && (task.status === "in_progress" || task.status === "superseded")) {
       applySubmissionMarker({
-        taskId, worker: teammate.name, spawnId: teammate.spawnId, assignmentId: teammate.assignment.id,
+        taskId, participant: teammate.name, spawnId: teammate.spawnId, assignmentId: teammate.assignment.id,
         status, result: record.body, timestamp: record.timestamp ?? Date.now(),
       });
     } else {
@@ -1380,13 +1353,14 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
   }, { archived });
   // Informational events carry no Work acceptance authority.
   const report = {
-    teammate: teammate.name,
-    agent: teammate.agent,
+    agent: teammate.name,
+    role: teammate.role,
     spawnId: teammate.spawnId,
     body: record.body,
-    origin: "teammate" as const,
+    origin: "agent" as const,
     eventId: record.id,
     assignmentId: record.assignmentId,
+    ...(teammate.inputId ? { inputId: teammate.inputId } : {}),
     workId: teammate.workId,
     status: record.status,
     timestamp: record.timestamp ?? Date.now(),
@@ -1400,13 +1374,13 @@ function applyOutboxRecord(teammate: Teammate, record: unknown): boolean {
 // ── Peer inbox routing ────────────────────────────────────────────
 
 /**
- * Route new inbox messages. Idle teammates get the content queued for their
- * next wake-up; working teammates receive it immediately through their
+ * Route new inbox messages. Idle agents get the content queued for their
+ * next wake-up; working agents receive it immediately through their
  * control stream (falling back to queueing when the stream is unavailable).
  */
 export function routePeerInboxes(): void {
   const stateFile = requireStateFile();
-  for (const teammate of livingTeammates()) {
+  for (const teammate of livingAgents()) {
     if (pendingShutdowns.has(teammate.name)) continue;
     const inboxName = teammate.name;
     const inbox = inboxPath(stateFile, inboxName);
@@ -1438,6 +1412,32 @@ export function routePeerInboxes(): void {
   }
 }
 
+/** Inspect unread mail without routing it or changing delivery evidence. */
+function hasUnreadPeerMail(teammate: Agent): boolean {
+  const inbox = inboxPath(requireStateFile(), teammate.name);
+  let endOffset: number;
+  try {
+    endOffset = fs.statSync(inbox, { throwIfNoEntry: false })?.size ?? 0;
+  } catch {
+    // An unreadable inbox cannot establish that this child owes no input.
+    return true;
+  }
+  let offset = getPeerInboxOffset(teammate.name);
+  if (offset > endOffset) offset = 0;
+  while (offset < endOffset) {
+    const batch = readJsonlBatch(inbox, offset, endOffset);
+    if (batch.diagnostics.length || batch.nextOffset <= offset) return true;
+    for (const record of batch.records) {
+      const message = parseInboxMessage(record);
+      if (!message) return true;
+      if (!isPeerDelivered(teammate.name, message.id)
+        && (!message.toSpawnId || message.toSpawnId === teammate.spawnId)) return true;
+    }
+    offset = batch.nextOffset;
+  }
+  return false;
+}
+
 function parseInboxMessage(record: unknown): InboxMessage | undefined {
   if (!record || typeof record !== "object") return undefined;
   const candidate = record as Partial<InboxMessage>;
@@ -1447,7 +1447,7 @@ function parseInboxMessage(record: unknown): InboxMessage | undefined {
   return { ...candidate, timestamp: candidate.timestamp ?? Date.now() } as InboxMessage;
 }
 
-function submissionPending(teammate: Teammate): boolean {
+function submissionPending(teammate: Agent): boolean {
   const pending = pendingSubmissions.get(teammate.name);
   if (pending?.spawnId === teammate.spawnId && pending.assignmentId === teammate.assignment?.id) return true;
   const task = teammate.currentTaskId ? getState().tasks[teammate.currentTaskId] : undefined;
@@ -1455,34 +1455,39 @@ function submissionPending(teammate: Teammate): boolean {
     && task?.status === "in_progress" && task.claimedBy === teammate.name;
 }
 
-function gateInFlight(teammate: Teammate): boolean {
+function gateInFlight(teammate: Agent): boolean {
   return teammate.currentTaskId !== undefined && verifyingTasks.has(teammate.currentTaskId);
 }
 
-function verificationFrozen(teammate: Teammate): boolean {
+function verificationFrozen(teammate: Agent): boolean {
   const taskId = teammate.currentTaskId;
   if (!taskId) return false;
   const holding = `${taskId}:${teammate.spawnId}`;
   return submissionPending(teammate) || gateInFlight(teammate) || verifyFailureParks.has(holding) || unexpectedExecutionParks.has(holding) || inconclusiveParks.has(holding);
 }
 
-function archiveDeferredDeliveries(teammate: Teammate): void {
+/** Deferred deliveries archived when an accepted result closed the Task they
+ *  were waiting behind. Leader-side, not on the task: a peer message is a
+ *  coordination record, and the task store states what must be done rather than what
+ *  was said about it. Bounded per Task because nothing ever reads the whole
+ *  archive. */
+const archivedDeliveries = new Map<string, Array<{ from: string; subject: string; body: string; timestamp: number }>>();
+
+function archiveDeferredDeliveries(teammate: Agent): void {
   const deliveries = pendingDeliveries.get(teammate.name) ?? [];
   if (deliveries.length === 0) return;
   pendingDeliveries.delete(teammate.name);
-  const task = teammate.currentTaskId ? getState().tasks[teammate.currentTaskId] : undefined;
-  if (task) {
-    task.deferredMessages = [
-      ...(task.deferredMessages ?? []),
-      ...deliveries.map(({ from, subject, body, timestamp }) => ({ from, subject, body, timestamp })),
-    ].slice(-20);
-    task.updatedAt = Date.now();
+  const taskId = teammate.currentTaskId;
+  if (taskId) {
+    const archived = archivedDeliveries.get(taskId) ?? [];
+    archived.push(...deliveries.map(({ from, subject, body, timestamp }) => ({ from, subject, body, timestamp })));
+    archivedDeliveries.set(taskId, archived.slice(-20));
+    markTasksChanged();
   }
   for (const delivery of deliveries) setPeerDeliveryState(delivery.id, "routed");
-  markBoardChanged();
 }
 
-function dispatchInboxMessage(teammate: Teammate, message: InboxMessage): void {
+function dispatchInboxMessage(teammate: Agent, message: InboxMessage): void {
   if (verificationFrozen(teammate)) {
     setPeerDeliveryState(message.id, "queued");
     const queued = pendingDeliveries.get(teammate.name) ?? [];
@@ -1497,7 +1502,7 @@ function dispatchInboxMessage(teammate: Teammate, message: InboxMessage): void {
     || teammate.status === "starting"
     || isFreshAssignmentPending(teammate.name)
   )
-    ? sendWorkerFollowUp(teammate.name, `${marker}${formatDelivery([message])}`)
+    ? sendAgentFollowUp(teammate.name, `${marker}${formatDelivery([message])}`)
     : false;
   if (routed) {
     setPeerDeliveryState(message.id, "routed");
@@ -1508,6 +1513,115 @@ function dispatchInboxMessage(teammate: Teammate, message: InboxMessage): void {
   queued.push(message);
   pendingDeliveries.set(teammate.name, queued);
   ensureLivePoll();
+}
+
+export type ResidentControlResult = { ok: true } | { ok: false; error: string };
+
+/** Policy check for a bounded input reservation. No task or sequence is created. */
+export function authorizeResidentInput(name: string, spawnId: string): ResidentControlResult {
+  let agent = currentHostedResident(name, spawnId);
+  if (!agent) return { ok: false, error: "The exact hosted child is unavailable." };
+  if (pendingShutdowns.has(name) || agent.leaderRequestedEnd) return { ok: false, error: "The hosted child is stopping." };
+  // Consume the predecessor while its settlement flag and input ID still belong
+  // to that sequence. The queue changes them only after this policy succeeds.
+  drainTeammateOutboxes(name);
+  agent = currentHostedResident(name, spawnId);
+  if (!agent) return { ok: false, error: "The exact hosted child changed during report delivery." };
+  if (pendingShutdowns.has(name) || agent.leaderRequestedEnd) return { ok: false, error: "The hosted child is stopping." };
+  if (isFreshAssignmentPending(name) || verificationFrozen(agent)) return { ok: false, error: "Task verification or assignment reset prevents input reservation." };
+  return { ok: true };
+}
+
+function currentHostedResident(name: string, spawnId: string): Agent | undefined {
+  const agent = getAgent(name);
+  return agent && agent.spawnId === spawnId && agent.status !== "stopped" && !agent.standalone ? agent : undefined;
+}
+
+/** Continue one idle incarnation without resetting its Pi session or spawning.
+ * A later independent input gets attempt-bound result authority before delivery;
+ * an unfinished current holding continues under its existing authority. */
+export async function sendResidentSequence(name: string, spawnId: string, input: string): Promise<ResidentControlResult> {
+  const agent = currentHostedResident(name, spawnId);
+  if (!agent) return { ok: false, error: `No living hosted session "${exactSessionRoute(name, spawnId)}".` };
+  if (!input.trim()) return { ok: false, error: "Send requires non-empty input." };
+  if (pendingShutdowns.has(name) || agent.leaderRequestedEnd) return { ok: false, error: `@${name} is stopping.` };
+  if (agent.status !== "idle" || pendingResidentInputs.has(spawnId) || isFreshAssignmentPending(name)) {
+    return { ok: false, error: `@${name} is not idle for new input; inspect or interrupt its active sequence.` };
+  }
+  drainTeammateOutboxes(name);
+  // Draining may synchronously start the final report's verification gate.
+  if (verificationFrozen(agent)) return { ok: false, error: `@${name}'s Task is awaiting verification or explicit recovery; input cannot bypass that authority.` };
+  const currentTask = agent.currentTaskId ? getTask(agent.currentTaskId) : undefined;
+  const continuing = agent.assignment && !agent.assignment.closed && currentTask?.status === "in_progress" && currentTask.claimedBy === name;
+  if (!continuing && currentTask && ["in_progress", "superseded"].includes(currentTask.status)) {
+    return { ok: false, error: `@${name} still retains Task authority; settle or recover it before independent input.` };
+  }
+  const previousReportEnded = agent.reportSequenceEnded;
+  const previousWorkId = agent.workId;
+  let newTaskId: string | undefined;
+  if (!continuing) {
+    const assignment: WorkerAssignment = { id: `direct:${randomUUID()}`, kind: "direct", resources: [] };
+    newTaskId = `work:${randomUUID()}`;
+    const bound = createBoundWork({ id: newTaskId, subject: messageTitle(input), description: input, holder: name, assignment });
+    if (!bound.ok) return { ok: false, error: bound.reason };
+    updateAgent(name, { workId: newTaskId });
+  }
+  const assignmentId = agent.assignment!.id;
+  const sequence = residentSequences.get(spawnId);
+  const deliverRole = sequence !== undefined && !sequence.roleDelivered;
+  const payload = `[agent-teams-assignment:${assignmentId}]\n` + (deliverRole
+    ? buildKickoffPrompt(name, agent.role, sequence.rolePrompt, input)
+    : input);
+  pendingResidentInputs.add(spawnId);
+  // Reserve synchronously so sibling sends cannot race the acknowledgement.
+  updateAgent(name, { status: "working", sequenceEnded: false, reportSequenceEnded: false, error: undefined, lastOutputAt: Date.now() });
+  publishStateSnapshot();
+  try {
+    const accepted = await deliverResidentPrompt(name, payload);
+    const current = currentHostedResident(name, spawnId);
+    if (!current) return { ok: false, error: "Resident exited or was replaced before input acknowledgement." };
+    if (!accepted) {
+      // A confirmed negative ack did not authorize a new turn. Do not undo
+      // evidence if this attempt already settled before the response arrived.
+      if (current.sequenceEnded !== true && current.assignment?.id === assignmentId) {
+        if (newTaskId && getTask(newTaskId)?.status === "in_progress") {
+          discardTask(newTaskId, name);
+          updateAgent(name, { workId: previousWorkId });
+        }
+        updateAgent(name, { status: "idle", sequenceEnded: true, reportSequenceEnded: previousReportEnded });
+      }
+      return { ok: false, error: `@${name} did not accept input; no new turn was confirmed.` };
+    }
+    if (sequence) sequence.roleDelivered = true;
+    return { ok: true };
+  } catch (error) {
+    // RPC timeout is uncertain: input may have begun. Retain the attempt and
+    // working reservation; retrying must not create a competing input turn.
+    const detail = error instanceof Error ? error.message : String(error);
+    if (currentHostedResident(name, spawnId)) updateAgent(name, { error: detail });
+    return { ok: false, error: detail };
+  } finally {
+    pendingResidentInputs.delete(spawnId);
+    if (runtimeStateFile) publishStateSnapshot();
+    notifyChange();
+  }
+}
+
+/** Native acknowledged steering stays in the current sequence and attempt. */
+export async function interruptResidentSequence(name: string, spawnId: string, input: string): Promise<ResidentControlResult> {
+  const agent = currentHostedResident(name, spawnId);
+  if (!agent) return { ok: false, error: `No living hosted session "${exactSessionRoute(name, spawnId)}".` };
+  if (!input.trim()) return { ok: false, error: "Interrupt requires non-empty input." };
+  if (agent.status === "idle") return { ok: false, error: `@${name} is idle; use send.` };
+  if (pendingShutdowns.has(name) || agent.leaderRequestedEnd) return { ok: false, error: `@${name} is stopping.` };
+  if (isFreshAssignmentPending(name) || verificationFrozen(agent)) return { ok: false, error: `@${name}'s attempt is resetting or awaiting verification; steering cannot bypass it.` };
+  try {
+    const accepted = await deliverResidentSteer(name, input);
+    if (!currentHostedResident(name, spawnId)) return { ok: false, error: "Resident exited or was replaced before steer acknowledgement." };
+    return accepted ? { ok: true } : { ok: false, error: `@${name} did not accept the steer; its sequence is unchanged.` };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 /** Route the leader's addressed agent_event through the same delivery path. */
@@ -1522,7 +1636,7 @@ export type SendLeaderMessageResult =
  * mailbox entry carries terminal status. Lets the leader read the report
  * directly instead of steering the teammate into a duplicate resend. */
 function recordedTerminalReportBody(name: string): string | undefined {
-  const teammate = getTeammate(name);
+  const teammate = getAgent(name);
   const assignmentId = teammate?.assignment?.id ?? teammate?.lastAssignment?.id;
   const mailbox = getState().leaderMailbox;
   for (let i = mailbox.length - 1; i >= 0; i--) {
@@ -1542,7 +1656,7 @@ export type AssignExistingWorkResult =
 /** Assign one pending Work Item to an exact idle resident through a fresh Pi
  * session. The record is claimed before reset; reset failure releases it. */
 export function assignExistingWork(workId: string, session: string): AssignExistingWorkResult {
-  const teammate = resolveExactSession(session, listTeammates());
+  const teammate = resolveExactSession(session, listAgents());
   if (!teammate) return { ok: false, error: "Work assignment requires a current exact session route." };
   const owner = teammate.name;
   const task = getState().tasks[workId];
@@ -1558,9 +1672,9 @@ export function assignExistingWork(workId: string, session: string): AssignExist
   if (!taskDependenciesMet(task)) return { ok: false, error: `Work Item "${workId}" has unmet dependencies.` };
   if (activeAssignmentConflict(task.resources, owner)) return { ok: false, error: `Work Item "${workId}" conflicts with active Work resources.` };
   const assignment = { id: `direct:${randomUUID()}`, kind: "direct" as const, resources: task.resources };
-  const claimed = reclaimDirectWork(workId, owner, assignment, "pending");
-  if (!claimed.ok) return claimed;
-  updateTeammate(owner, { reportSequenceEnded: false });
+  const claimed = bindTask(workId, owner, assignment, { from: ["pending"] });
+  if (!claimed.ok) return { ok: false, error: claimed.reason };
+  updateAgent(owner, { reportSequenceEnded: false });
   flushSnapshots();
   const prompt = buildFreshAssignmentPrompt(teammate, assignment.id, [
     `Work Item ${task.id}: ${task.subject}`,
@@ -1569,11 +1683,11 @@ export function assignExistingWork(workId: string, session: string): AssignExist
   ].filter(Boolean).join("\n\n"));
   void deliverFreshAssignment(owner, prompt).then((sent) => {
     if (sent) {
-      updateTeammate(owner, { status: "working", sequenceEnded: false, lastOutputAt: Date.now() });
+      updateAgent(owner, { status: "working", sequenceEnded: false, lastOutputAt: Date.now() });
       return;
     }
-    if (getTeammate(owner)?.assignment?.id === assignment.id) {
-      revertInFlightAttempt(workId, "Pi session reset failed before the assigned Work started.");
+    if (getAgent(owner)?.assignment?.id === assignment.id) {
+      revertUndeliveredTake(workId, owner, "Pi session reset failed before the assigned Work started.");
     }
     deliverDiagnostic(owner, "Pi session reset failed; the assigned Work was not delivered.");
   });
@@ -1587,8 +1701,8 @@ export type ReopenExistingWorkResult =
 /** Reopen only a completed Work Item. Active, parked, superseded, and released
  * states remain governed by their explicit lifecycle transitions. */
 export function reopenExistingWork(workId: string): ReopenExistingWorkResult {
-  const reopened = reopenCompletedWork(workId);
-  if (!reopened.ok) return reopened;
+  const reopened = reopenTask(workId);
+  if (!reopened.ok) return { ok: false, error: reopened.reason };
   publishStateSnapshot();
   ensureLivePoll();
   notifyChange();
@@ -1602,7 +1716,7 @@ export function sendLeaderMessage(
   options?: { reopen?: boolean | "if-closed"; resources?: string[]; workId?: string },
 ): SendLeaderMessageResult {
   drainTeammateOutboxes(to);
-  const teammate = getTeammate(to);
+  const teammate = getAgent(to);
   if (!teammate || teammate.status === "stopped") return { ok: false, error: `No living teammate named "${to}".` };
   if (pendingShutdowns.has(to)) return { ok: false, error: `Agent @${to} is stopping; new work is not accepted.` };
   // Explicit work control chooses after draining, not from a stale caller snapshot.
@@ -1635,22 +1749,22 @@ export function sendLeaderMessage(
     if (prior) return { ok: true, outcome: "not-sent", terminalReport: prior };
     return { ok: false, error: `@${to} has a closed direct assignment. Use reopen=true for an explicit next assignment.` };
   }
-  // A board holder keeps its task after a terminal report. The leader must be
+  // A task set holder keeps its task after a terminal report. The leader must be
   // able to steer it for verify feedback or an inconclusive decision without
   // replacing its assignment.
-  const activeBoardHolder = teammate.assignment?.kind === "board" && !teammate.assignment.closed;
-  if (teammate.reportSequenceEnded && !reopen && !retryReleasedWork && !activeBoardHolder) {
+  const activeTaskHolder = teammate.assignment?.kind === "task" && !teammate.assignment.closed;
+  if (teammate.reportSequenceEnded && !reopen && !retryReleasedWork && !activeTaskHolder) {
     const prior = recordedTerminalReportBody(to);
     if (prior) return { ok: true, outcome: "not-sent", terminalReport: prior };
     return { ok: false, error: `@${to} already sent a terminal report. Move the task back with task update status=pending before another attempt.` };
   }
   const priorTerminalReport = teammate.reportSequenceEnded ? recordedTerminalReportBody(to) : undefined;
-  const boardParkKey = teammate.currentTaskId ? `${teammate.currentTaskId}:${teammate.spawnId}` : undefined;
+  const taskParkKey = teammate.currentTaskId ? `${teammate.currentTaskId}:${teammate.spawnId}` : undefined;
   if ((reopen || retryReleasedWork) && selectedWorkId && verifyingTasks.has(selectedWorkId)) {
     return { ok: false, error: `Work Item "${selectedWorkId}" is awaiting verification; wait for the gate outcome before reopening.` };
   }
   if (reopen && teammate.assignment && !teammate.assignment.closed && !recoveringUnexpectedExecution) {
-    const action = teammate.assignment.kind === "board"
+    const action = teammate.assignment.kind === "task"
       ? `task complete, or be superseded`
       : "send a terminal report or be explicitly released";
     return { ok: false, error: `@${to} still owns active ${teammate.assignment.kind} assignment "${teammate.assignment.id}". It must ${action} before a direct assignment can open.` };
@@ -1668,49 +1782,54 @@ export function sendLeaderMessage(
       resources,
     };
     if (reclaimingExistingWork) {
-      const reclaimed = reclaimDirectWork(
+      const reclaimed = bindTask(
         selectedWorkId ?? "",
         to,
         assignment,
-        retryReleasedWork ? "pending" : recoveringUnexpectedExecution ? "in_progress" : "completed",
-        recoveringUnexpectedExecution,
+        {
+          from: [retryReleasedWork ? "pending" : recoveringUnexpectedExecution ? "in_progress" : "completed"],
+          // An unexpected execution left the previous holder's lease unreturned.
+          // Binding anyway is the point: the holder is gone, so waiting for a
+          // lease nobody will give back would strand the task.
+          allowHeldLease: recoveringUnexpectedExecution,
+        },
       );
-      if (!reclaimed.ok) return reclaimed;
+      if (!reclaimed.ok) return { ok: false, error: reclaimed.reason };
     } else {
       const conflict = activeAssignmentConflict(resources, to);
       if (conflict) {
         return { ok: false, error: `Direct assignment resources conflict with @${conflict.name}'s ${conflict.assignment?.kind} assignment "${conflict.assignment?.id}".` };
       }
       if (selectedWorkId) {
-        const created = createDirectWork({
+        const bound = createBoundWork({
           id: selectedWorkId,
           subject: messageTitle(message),
           description: message,
           resources,
-          workerName: to,
+          holder: to,
           assignment,
         });
-        if (!created.ok) return created;
-        updateTeammate(to, { workId: selectedWorkId });
+        if (!bound.ok) return { ok: false, error: bound.reason };
+        updateAgent(to, { workId: selectedWorkId });
       } else {
-        assignTeammate(to, assignment, undefined);
+        assignAgent(to, assignment, undefined);
       }
     }
-    updateTeammate(to, { reportSequenceEnded: false });
+    updateAgent(to, { reportSequenceEnded: false });
   }
   // A successfully accepted leader message is the explicit direction that
-  // unblocks a twice-inconclusive board holding; rejected reopen does nothing.
-  if (boardParkKey) {
-    inconclusiveParks.delete(boardParkKey);
-    verifyFailureParks.delete(boardParkKey);
-    unexpectedExecutionParks.delete(boardParkKey);
+  // unblocks a twice-inconclusive tasks holding; rejected reopen does nothing.
+  if (taskParkKey) {
+    inconclusiveParks.delete(taskParkKey);
+    verifyFailureParks.delete(taskParkKey);
+    unexpectedExecutionParks.delete(taskParkKey);
   }
-  if (activeBoardHolder) updateTeammate(to, { reportSequenceEnded: false });
+  if (activeTaskHolder) updateAgent(to, { reportSequenceEnded: false });
   const envelope: InboxMessage = {
     id: randomUUID(),
     from: "leader",
     subject: messageTitle(message),
-    body: `${opensDirectAssignment || (activeBoardHolder && priorTerminalReport !== undefined) ? `[agent-teams-assignment:${teammate.assignment?.id ?? "none"}]\n` : ""}${message}`,
+    body: `${opensDirectAssignment || (activeTaskHolder && priorTerminalReport !== undefined) ? `[agent-teams-assignment:${teammate.assignment?.id ?? "none"}]\n` : ""}${message}`,
     timestamp: Date.now(),
     toSpawnId: teammate.spawnId,
   };
@@ -1718,22 +1837,22 @@ export function sendLeaderMessage(
   if (opensDirectAssignment) {
     void deliverFreshAssignment(teammate.name, formatDelivery([envelope])).then((sent) => {
       if (sent) {
-        updateTeammate(to, { status: "working", sequenceEnded: false, lastOutputAt: Date.now() });
+        updateAgent(to, { status: "working", sequenceEnded: false, lastOutputAt: Date.now() });
         return;
       }
-      const current = getTeammate(to);
+      const current = getAgent(to);
       const currentTaskId = current?.currentTaskId;
       if (current?.assignment?.id === teammate.assignment?.id && currentTaskId) {
-        revertInFlightAttempt(currentTaskId, "Pi session reset failed before the new Assignment Attempt started.");
+        revertUndeliveredTake(currentTaskId, to, "Pi session reset failed before the new Assignment Attempt started.");
       } else if (current?.assignment?.id === teammate.assignment?.id) {
-        assignTeammate(to, undefined, undefined);
+        assignAgent(to, undefined, undefined);
       }
       deliverDiagnostic(to, "Pi session reset failed; the new Assignment Attempt was not delivered.");
     });
     return { ok: true, outcome: "queued", ...(priorTerminalReport ? { priorTerminalReport } : {}) };
   }
-  const steered = sendWorkerSteer(teammate.name, formatDelivery([envelope]));
-  if (steered) updateTeammate(to, { status: "working", sequenceEnded: false, lastOutputAt: Date.now() });
+  const steered = sendAgentSteer(teammate.name, formatDelivery([envelope]));
+  if (steered) updateAgent(to, { status: "working", sequenceEnded: false, lastOutputAt: Date.now() });
   if (steered) return { ok: true, outcome: "steered", ...(priorTerminalReport ? { priorTerminalReport } : {}) };
   const queued = pendingDeliveries.get(teammate.name) ?? [];
   queued.unshift(envelope);
@@ -1774,13 +1893,13 @@ export function deliverFeedback(to: string, subject: string, body: string): void
 
 /** Apply claim markers, then submission markers (with verify gating). */
 export function processTaskIntents(): void {
-  const claims = claimsDir(boardDirectory());
-  const submissions = submissionsDir(boardDirectory());
+  const claims = claimsDir(taskDirectory());
+  const submissions = submissionsDir(taskDirectory());
   let guard = 0;
   while (guard++ < 64) {
     const { intent, diagnostic } = takeTaskIntent(claims);
     if (diagnostic) {
-      deliverToLeader({ from: "task-board", subject: "Task intent diagnostic", body: diagnostic });
+      deliverToLeader({ from: "tasks", subject: "Task intent diagnostic", body: diagnostic });
       continue;
     }
     if (!intent) break;
@@ -1790,7 +1909,7 @@ export function processTaskIntents(): void {
   while (guard++ < 64) {
     const { intent, diagnostic } = takeTaskIntent(submissions);
     if (diagnostic) {
-      deliverToLeader({ from: "task-board", subject: "Task intent diagnostic", body: diagnostic });
+      deliverToLeader({ from: "tasks", subject: "Task intent diagnostic", body: diagnostic });
       continue;
     }
     if (!intent) break;
@@ -1806,8 +1925,8 @@ function applyClaimMarker(intent: import("./types").TaskIntent): void {
     clearInconclusiveForHolding(intent.taskId, intent.spawnId);
     // A new holding must not inherit an in-flight gate from a previous one.
     invalidateVerifyGate(intent.taskId);
-    updateTeammate(intent.worker, { currentTaskId: intent.taskId });
-    const teammate = getTeammate(intent.worker);
+    updateAgent(intent.participant, { currentTaskId: intent.taskId });
+    const teammate = getAgent(intent.participant);
     const task = getState().tasks[intent.taskId];
     if (!teammate?.assignment || !task) return;
     const kickoff = [
@@ -1819,37 +1938,37 @@ function applyClaimMarker(intent: import("./types").TaskIntent): void {
     flushSnapshots();
     void deliverFreshAssignment(teammate.name, buildFreshAssignmentPrompt(teammate, assignmentId, kickoff)).then((sent) => {
       if (sent) return;
-      if (getTeammate(teammate.name)?.assignment?.id === assignmentId) {
-        revertInFlightAttempt(task.id, "Pi session reset failed before the claimed Assignment Attempt started.");
+      if (getAgent(teammate.name)?.assignment?.id === assignmentId) {
+        revertUndeliveredTake(task.id, teammate.name, "Pi session reset failed before the claimed Assignment Attempt started.");
       }
       deliverDiagnostic(teammate.name, "Pi session reset failed; the claimed Assignment Attempt was not delivered.");
     });
     return;
   }
-  deliverFeedback(intent.worker, "Claim rejected", outcome.reason ?? "The task is no longer available.");
+  deliverFeedback(intent.participant, "Claim rejected", outcome.reason ?? "The task is no longer available.");
 }
 
 function applySubmissionMarker(intent: import("./types").TaskIntent): void {
   if (intent.status !== "completed" && intent.status !== "failed") {
-    deliverFeedback(intent.worker, "Submission rejected", `Task "${intent.taskId}" has an invalid submission status.`);
+    deliverFeedback(intent.participant, "Submission rejected", `Task "${intent.taskId}" has an invalid submission status.`);
     return;
   }
   const sender = findLivingTeammate(intent);
   if (!sender || !sender.assignment || intent.assignmentId !== sender.assignment.id) return;
   const task = getState().tasks[intent.taskId];
-  const pending = pendingSubmissions.get(intent.worker);
+  const pending = pendingSubmissions.get(intent.participant);
   if (pending?.spawnId === intent.spawnId && pending.assignmentId === intent.assignmentId) return;
-  if (!task || (task.status !== "in_progress" && task.status !== "superseded") || task.claimedBy !== intent.worker) {
-    deliverFeedback(intent.worker, "Submission rejected", `Task "${intent.taskId}" is not currently yours.`);
+  if (!task || (task.status !== "in_progress" && task.status !== "superseded") || task.claimedBy !== intent.participant) {
+    deliverFeedback(intent.participant, "Submission rejected", `Task "${intent.taskId}" is not currently yours.`);
     return;
   }
   if (task.status === "superseded") {
     if (intent.status !== "failed") {
-      deliverFeedback(intent.worker, "Submission rejected", `Task "${intent.taskId}" was superseded by "${task.supersededBy ?? "a replacement"}". Stop work and submit failed to acknowledge cancellation.`);
+      deliverFeedback(intent.participant, "Submission rejected", `Task "${intent.taskId}" was superseded by "${task.supersededBy ?? "a replacement"}". Stop work and submit failed to acknowledge cancellation.`);
       return;
     }
     if (sender.sequenceEnded === false) {
-      pendingSubmissions.set(intent.worker, { ...intent, assignmentId: sender.assignment.id, verify: undefined });
+      pendingSubmissions.set(intent.participant, { ...intent, assignmentId: sender.assignment.id, verify: undefined });
     } else {
       releaseSupersededHolding(intent);
     }
@@ -1861,7 +1980,7 @@ function applySubmissionMarker(intent: import("./types").TaskIntent): void {
       ? "unexpected execution during verification"
       : "two explicit verification failures";
     deliverFeedback(
-      intent.worker,
+      intent.participant,
       "Submission rejected while verification is parked",
       `Task "${intent.taskId}" has ${reason}. Wait for explicit Work release and reassignment before submitting another completed outcome.`,
     );
@@ -1869,16 +1988,16 @@ function applySubmissionMarker(intent: import("./types").TaskIntent): void {
   }
   if (intent.status === "completed" && verifyingTasks.has(intent.taskId)) {
     deliverFeedback(
-      intent.worker,
+      intent.participant,
       "Submission rejected while verification is running",
       `Task "${intent.taskId}" already has a completion review or verdict clarification in flight. Wait for it to pass, fail, or become inconclusive before submitting another completed outcome.`,
     );
     return;
   }
-  const verify = intent.status === "completed" ? task.verify ?? resolveAgent(sender.agent, leaderCwd)?.verify : undefined;
+  const verify = intent.status === "completed" ? task.verify ?? resolveAgent(sender.role, leaderCwd)?.verify : undefined;
   const assignmentId = sender.assignment?.id;
   if (!assignmentId) return;
-  if (sender.sequenceEnded === false) pendingSubmissions.set(intent.worker, { ...intent, assignmentId, verify });
+  if (sender.sequenceEnded === false) pendingSubmissions.set(intent.participant, { ...intent, assignmentId, verify });
   else beginVerifyOrComplete(intent, verify);
 }
 
@@ -1894,7 +2013,7 @@ export function reactToVerifyFailure(
 }
 
 function authorizeDirectRevision(intent: import("./types").TaskIntent, detail: string): boolean {
-  const teammate = getTeammate(intent.worker);
+  const teammate = getAgent(intent.participant);
   const task = getState().tasks[intent.taskId];
   if (!teammate || teammate.spawnId !== intent.spawnId || teammate.assignment?.kind !== "direct" || !task) return false;
   const assignment = {
@@ -1902,8 +2021,8 @@ function authorizeDirectRevision(intent: import("./types").TaskIntent, detail: s
     kind: "direct" as const,
     resources: task.resources,
   };
-  assignTeammate(intent.worker, assignment, intent.taskId);
-  updateTeammate(intent.worker, { reportSequenceEnded: false });
+  assignAgent(intent.participant, assignment, intent.taskId);
+  updateAgent(intent.participant, { reportSequenceEnded: false });
   flushSnapshots();
   const revisionBrief = [
     `The completion gate failed for Work Item ${intent.taskId}: ${task.subject}. Revise the result and return a new final answer.`,
@@ -1918,8 +2037,8 @@ function authorizeDirectRevision(intent: import("./types").TaskIntent, detail: s
   );
   void deliverFreshAssignment(teammate.name, prompt).then((sent) => {
     if (sent) return;
-    if (getTeammate(teammate.name)?.assignment?.id === assignment.id) {
-      revertInFlightAttempt(intent.taskId, "Pi session reset failed before the verification revision started.");
+    if (getAgent(teammate.name)?.assignment?.id === assignment.id) {
+      revertUndeliveredTake(intent.taskId, teammate.name, "Pi session reset failed before the verification revision started.");
     }
     deliverDiagnostic(teammate.name, "Pi session reset failed; the verification revision was not delivered.");
   });
@@ -1946,14 +2065,14 @@ function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: str
   // must not let the stale result complete the new holding.
   const submissionId = `${intent.taskId}:${intent.spawnId}:${randomUUID()}`;
   const token = randomUUID();
-  const assignmentId = getTeammate(intent.worker)?.assignment?.id;
+  const assignmentId = getAgent(intent.participant)?.assignment?.id;
   if (!assignmentId) return;
-  verifyingTasks.set(intent.taskId, { worker: intent.worker, spawnId: intent.spawnId, assignmentId, submissionId, token });
+  verifyingTasks.set(intent.taskId, { worker: intent.participant, spawnId: intent.spawnId, assignmentId, submissionId, token });
   const input: VerifyReviewInput = {
     verify,
     taskSubject: task.subject,
     workerResult: intent.result ?? "",
-    cwd: getTeammate(intent.worker)?.cwd || leaderCwd,
+    cwd: leaderCwd,
   };
   runVerifyGate(intent, task.subject, submissionId, token, input);
 }
@@ -1972,12 +2091,12 @@ function resolveGateOutcome(
   const registered = verifyAborts.get(intent.taskId);
   if (registered?.submissionId === submissionId) verifyAborts.delete(intent.taskId);
   const current = getState().tasks[intent.taskId];
-  const holder = getTeammate(intent.worker);
+  const holder = getAgent(intent.participant);
   const stillHolds = current?.status === "in_progress"
-    && current.claimedBy === intent.worker
+    && current.claimedBy === intent.participant
     && holder?.spawnId === intent.spawnId
     && holder.assignment?.id === active.assignmentId
-    && !pendingShutdowns.has(intent.worker);
+    && !pendingShutdowns.has(intent.participant);
   if (!stillHolds) return;
   if (outcome.kind === "pass") {
     inconclusiveVerifications.delete(submissionId);
@@ -2003,14 +2122,14 @@ function resolveGateOutcome(
       // could possibly make a third attempt worth running.
       const parked = completeTaskWithOutcome(
         intent.taskId,
-        intent.worker,
+        intent.participant,
         "failed",
         `The completion gate failed ${reaction.count} consecutive times: ${detail}`,
       );
       if (parked.ok) {
         verifyFailureParks.delete(`${intent.taskId}:${intent.spawnId}`);
         clearInconclusiveForHolding(intent.taskId, intent.spawnId);
-        freeTeammateFromTask(intent.worker, intent.taskId);
+        freeAgentFromTask(intent.participant, intent.taskId);
         rearmTaskNotice(intent.taskId);
         publishStateSnapshot();
       }
@@ -2019,7 +2138,7 @@ function resolveGateOutcome(
         // The holder is out of the task, so the leader is the only route left; the
         // task itself is now pending and will not be retried unattended.
         sendUpdate({
-          teammate: "task-board",
+          agent: "tasks",
           origin: "harness",
           harnessEvent: { type: "verify-escalation", subject: `Verify gate failed · ${subject}` },
           body: `Verify gate for "${subject}" (${intent.taskId}) failed ${reaction.count} consecutive times.\n\n${detail}\n\nThe attempt is recorded as not delivered and the task is pending under a recovery hold. It will not be retried until somebody takes it with a stated reason.`,
@@ -2027,7 +2146,7 @@ function resolveGateOutcome(
         });
       }
       deliverFeedback(
-        intent.worker,
+        intent.participant,
         `Verify still failing for ${intent.taskId}`,
         [`The completion gate for "${subject}" failed again (${reaction.count} consecutive failures).`, detail, "This attempt is recorded as not delivered, so the task is pending under a recovery hold. Retrying requires a stated reason describing what changed; ordinary messages do not authorize another submission."].join("\n"),
       );
@@ -2035,7 +2154,7 @@ function resolveGateOutcome(
       const directRevision = authorizeDirectRevision(intent, detail);
       if (!directRevision) {
         deliverFeedback(
-          intent.worker,
+          intent.participant,
           `Verify failed for ${intent.taskId}`,
           [
             `The completion gate for "${subject}" failed.`,
@@ -2063,14 +2182,14 @@ function requestVerifyVerdict(
     const task = getState().tasks[intent.taskId];
     if (!task) return;
     const token = randomUUID();
-    const assignmentId = getTeammate(intent.worker)?.assignment?.id;
+    const assignmentId = getAgent(intent.participant)?.assignment?.id;
     if (!assignmentId) return;
-    verifyingTasks.set(intent.taskId, { worker: intent.worker, spawnId: intent.spawnId, assignmentId, submissionId, token });
+    verifyingTasks.set(intent.taskId, { worker: intent.participant, spawnId: intent.spawnId, assignmentId, submissionId, token });
     const input: VerifyReviewInput = {
-      verify: `${task.verify ?? resolveAgent(getTeammate(intent.worker)?.agent ?? "", leaderCwd)?.verify ?? ""}\n\nThe previous review was inconclusive:\n${detail}\n\nReply with exactly one line: ${VERIFY_VERDICT_PASS} or ${VERIFY_VERDICT_FAIL} - <reasons>.`,
+      verify: `${task.verify ?? resolveAgent(getAgent(intent.participant)?.role ?? "", leaderCwd)?.verify ?? ""}\n\nThe previous review was inconclusive:\n${detail}\n\nReply with exactly one line: ${VERIFY_VERDICT_PASS} or ${VERIFY_VERDICT_FAIL} - <reasons>.`,
       taskSubject: task.subject,
       workerResult: intent.result ?? "",
-      cwd: getTeammate(intent.worker)?.cwd || leaderCwd,
+      cwd: leaderCwd,
     };
     runVerifyGate(intent, subject, submissionId, token, input);
     return;
@@ -2088,24 +2207,24 @@ function requestVerifyVerdict(
   inconclusiveParks.delete(`${intent.taskId}:${intent.spawnId}`);
   const parked = completeTaskWithOutcome(
     intent.taskId,
-    intent.worker,
+    intent.participant,
     "failed",
     `Verification was inconclusive twice for ${intent.taskId}: ${detail}`,
   );
   if (!parked.ok) return;
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   invalidateVerifyGate(intent.taskId);
-  freeTeammateFromTask(intent.worker, intent.taskId);
+  freeAgentFromTask(intent.participant, intent.taskId);
   rearmTaskNotice(intent.taskId);
   publishStateSnapshot();
   notifyTaskOutcome(subject, `verify inconclusive for ${intent.taskId}: a stated reason is needed to retry`, detail);
   deliverFeedback(
-    intent.worker,
+    intent.participant,
     `Verification inconclusive for ${intent.taskId}`,
     `The reviewer twice omitted a machine-readable verdict, so this attempt did not deliver an accepted result. The task is pending under a recovery hold. Take it again with a stated reason, or change the task's verification.\n\n${detail}`,
   );
   sendUpdate({
-    teammate: "task-board",
+    agent: "tasks",
     origin: "harness",
     harnessEvent: { type: "verify-inconclusive", subject: `Verify verdict missing · ${subject}` },
     body: `Verification for "${subject}" (${intent.taskId}) was inconclusive twice, so the attempt is recorded as not delivered and the task is pending under a recovery hold.\n\n${detail}`,
@@ -2131,37 +2250,37 @@ function clearInconclusiveForHolding(taskId: string, spawnId: string): void {
 function finishCompletion(intent: import("./types").TaskIntent): void {
   const task = getState().tasks[intent.taskId];
   if (!task) return;
-  const teammate = getTeammate(intent.worker);
+  const teammate = getAgent(intent.participant);
   const assignmentId = teammate?.assignment?.id;
   if (!teammate || !assignmentId) return;
   retirePendingSubmission(intent);
-  const completed = completeTaskWithOutcome(intent.taskId, intent.worker, "success", intent.result);
+  const completed = completeTaskWithOutcome(intent.taskId, intent.participant, "success", intent.result);
   if (!completed) return;
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
-  freeTeammateFromTask(intent.worker, intent.taskId);
+  freeAgentFromTask(intent.participant, intent.taskId);
   announceWorkOutcome(intent, teammate, assignmentId);
 }
 
 function retirePendingSubmission(intent: import("./types").TaskIntent): void {
-  const pending = pendingSubmissions.get(intent.worker);
+  const pending = pendingSubmissions.get(intent.participant);
   if (pending?.spawnId === intent.spawnId && pending.assignmentId === intent.assignmentId) {
-    pendingSubmissions.delete(intent.worker);
+    pendingSubmissions.delete(intent.participant);
   }
 }
 
 function releaseSupersededHolding(intent: import("./types").TaskIntent): void {
   retirePendingSubmission(intent);
-  acknowledgeSupersession(intent.taskId, intent.worker, intent.result?.trim() || "Superseded task cancellation acknowledged.");
+  acknowledgeSupersession(intent.taskId, intent.participant, intent.result?.trim() || "Superseded task cancellation acknowledged.");
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   invalidateVerifyGate(intent.taskId);
 }
 
 function finishFailure(intent: import("./types").TaskIntent): void {
-  const teammate = getTeammate(intent.worker);
+  const teammate = getAgent(intent.participant);
   const assignmentId = teammate?.assignment?.id;
   if (!teammate || !assignmentId) return;
   retirePendingSubmission(intent);
-  const released = completeTaskWithOutcome(intent.taskId, intent.worker, "failed", intent.result?.trim() || "Agent reported failure.");
+  const released = completeTaskWithOutcome(intent.taskId, intent.participant, "failed", intent.result?.trim() || "Agent reported failure.");
   if (!released) return;
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   invalidateVerifyGate(intent.taskId);
@@ -2170,18 +2289,19 @@ function finishFailure(intent: import("./types").TaskIntent): void {
   announceWorkOutcome(intent, teammate, assignmentId);
 }
 
-function announceWorkOutcome(intent: import("./types").TaskIntent, teammate: Teammate, assignmentId: string): void {
-  updateTeammate(intent.worker, { reportSequenceEnded: true });
+function announceWorkOutcome(intent: import("./types").TaskIntent, agent: Agent, assignmentId: string): void {
+  updateAgent(intent.participant, { reportSequenceEnded: true });
   const eventId = randomUUID();
   const status = intent.status === "failed" ? "failed" : "completed";
   const report: LeaderReport = {
-    teammate: intent.worker, agent: teammate.agent, spawnId: intent.spawnId,
+    agent: intent.participant, role: agent.role, spawnId: intent.spawnId,
     workId: intent.taskId, assignmentId, status, finished: true,
-    origin: "teammate", eventId, timestamp: intent.timestamp,
+    ...(agent.inputId ? { inputId: agent.inputId } : {}),
+    origin: "agent", eventId, timestamp: intent.timestamp,
     body: intent.result || "(no result summary submitted)",
   };
   receiveWorkerMessage({
-    id: eventId, type: "message", worker: intent.worker, spawnId: intent.spawnId,
+    id: eventId, type: "message", worker: intent.participant, spawnId: intent.spawnId,
     assignmentId, status, body: report.body, timestamp: report.timestamp,
   });
   sendUpdate(report);
@@ -2196,12 +2316,11 @@ export const VERIFY_VERDICT_FAIL = "VERDICT: FAIL";
 export interface VerifyReviewInput {
   /** The acceptance-gate prompt (task-level or agent-role default). */
   verify: string;
-  /** Board subject of the gated task. */
+  /** Tasks subject of the gated task. */
   taskSubject: string;
   /** The claimer's own result summary; evidence, never trusted alone. */
   workerResult: string;
-  /** Working directory to review: the holder's worktree root when isolated,
-   *  else the leader cwd — the reviewer must inspect the claimed work's tree. */
+  /** Original project working tree to review, never the private scratch cwd. */
   cwd: string;
   /** Aborted when the holding's authority is invalidated (release, stop, new
    *  claim, supersession, or resumed owner execution), so an orphaned reviewer
@@ -2218,7 +2337,7 @@ export type VerifyReviewOutcome =
 export function buildVerifyReviewPrompt(input: VerifyReviewInput): string {
   const result = input.workerResult.trim().slice(0, 4000);
   return [
-    "You are a fresh completion-gate reviewer for one teammate task on a shared board.",
+    "You are a fresh completion-gate reviewer for one participant task in the shared task set.",
     `Task subject: ${input.taskSubject}`,
     result ? `The claimer's result summary:\n${result}` : "The claimer provided no result summary.",
     "Independently verify the work against the acceptance gate below using your tools; do not trust the summary alone. Do not modify any files.",
@@ -2297,21 +2416,21 @@ export function setVerifyGateRunner(runner: ((input: VerifyReviewInput) => Promi
   verifyGateRunner = runner ?? runVerifyReview;
 }
 
-function freeTeammateFromTask(workerName: string, taskId: string): void {
-  const teammate = getTeammate(workerName);
-  if (teammate?.currentTaskId === taskId) updateTeammate(workerName, { currentTaskId: undefined });
+function freeAgentFromTask(agentName: string, taskId: string): void {
+  const entry = getAgent(agentName);
+  if (entry?.currentTaskId === taskId) updateAgent(agentName, { currentTaskId: undefined });
 }
 
 function notifyTaskOutcome(subject: string, headline: string, body: string): void {
   deliverToLeader({
-    from: "task-board",
+    from: "tasks",
     subject: `Task ${headline}: ${subject}`,
     body: body || "(no result summary submitted)",
   });
 }
 
-function findLivingTeammate(intent: import("./types").TaskIntent): Teammate | undefined {
-  const teammate = getTeammate(intent.worker);
+function findLivingTeammate(intent: import("./types").TaskIntent): Agent | undefined {
+  const teammate = getAgent(intent.participant);
   return teammate && teammate.status !== "stopped" && teammate.spawnId === intent.spawnId ? teammate : undefined;
 }
 
@@ -2326,7 +2445,7 @@ export function freshClaimableTasks<T extends { id: string }>(
   return tasks.filter((task) => !noticed.has(task.id));
 }
 
-/** Retain only noticed ids that are still claimable, so a long board's history
+/** Retain only noticed ids that are still claimable, so a long tasks's history
  *  can never evict a live one and resurrect an old wake-up. */
 export function retainLiveNoticedIds(noticedIds: readonly string[], claimableIds: ReadonlySet<string>): string[] {
   return noticedIds.filter((id) => claimableIds.has(id));
@@ -2334,37 +2453,37 @@ export function retainLiveNoticedIds(noticedIds: readonly string[], claimableIds
 
 function markTasksNoticed(name: string, taskIds: string[]): void {
   if (taskIds.length === 0) return;
-  const teammate = getTeammate(name);
+  const teammate = getAgent(name);
   if (!teammate) return;
   const live = retainLiveNoticedIds(teammate.noticedTaskIds ?? [], new Set(claimableTasks().map((task) => task.id)));
   const merged = [...live, ...taskIds];
   while (merged.length > MAX_NOTICED_TASK_IDS) merged.shift();
-  updateTeammate(name, { noticedTaskIds: merged });
+  updateAgent(name, { noticedTaskIds: merged });
 }
 
 /** A released task becomes noticeable again for every living teammate. */
 function rearmTaskNotice(taskId: string): void {
-  for (const teammate of livingTeammates()) {
+  for (const teammate of livingAgents()) {
     if (teammate.noticedTaskIds?.includes(taskId)) {
-      updateTeammate(teammate.name, { noticedTaskIds: teammate.noticedTaskIds.filter((id) => id !== taskId) });
+      updateAgent(teammate.name, { noticedTaskIds: teammate.noticedTaskIds.filter((id) => id !== taskId) });
     }
   }
 }
 
 /**
  * Compose one wake-up prompt per idle teammate from queued inbox deliveries
- * plus a board notice covering only claimable work that teammate has never
+ * plus a task set notice covering only claimable work that teammate has never
  * been shown. Teammates with nothing new are never woken.
  */
 export function wakeIdleTeammates(immediateTaskId?: string): string[] {
   const notified: string[] = [];
-  for (const teammate of idleTeammates()) {
-    if (pendingShutdowns.has(teammate.name) || verificationFrozen(teammate)) continue;
+  for (const teammate of idleAgents()) {
+    if (pendingShutdowns.has(teammate.name) || pendingResidentInputs.has(teammate.spawnId) || verificationFrozen(teammate)) continue;
     const deliveries = pendingDeliveries.get(teammate.name) ?? [];
-    // A terminal direct assignment stays closed until explicit reopen; a board
-    // holder must submit rather than drifting into more board work.
-    const boardEligible = teammate.assignment === undefined;
-    const fresh = boardEligible
+    // A terminal direct assignment stays closed until explicit reopen; a task set
+    // holder must submit rather than drifting into more task work.
+    const taskEligible = teammate.assignment === undefined;
+    const fresh = taskEligible
       ? freshClaimableTasks(teammate.noticedTaskIds, claimableTasks().filter((task) => !activeAssignmentConflict(task.resources, teammate.name)))
       : [];
     const immediateNotice = immediateTaskId !== undefined && fresh.some((task) => task.id === immediateTaskId);
@@ -2377,21 +2496,23 @@ export function wakeIdleTeammates(immediateTaskId?: string): string[] {
           ...fresh.filter((task) => task.id !== immediateTaskId),
         ];
     const noticed = prioritized.slice(0, WAKE_NOTICE_TASK_LIMIT);
-    const role = !teammate.assignment && teammate.turns === 0
-      ? `=== ROLE PROMPT (${teammate.agent}) ===\n${resolveAgent(teammate.agent, leaderCwd)?.prompt ?? ""}\n\n`
+    const sequence = residentSequences.get(teammate.spawnId);
+    const role = !teammate.assignment && (sequence ? !sequence.roleDelivered : teammate.turns === 0)
+      ? `=== ROLE PROMPT (${teammate.role}) ===\n${sequence?.rolePrompt ?? resolveAgent(teammate.role, leaderCwd)?.prompt ?? ""}\n\n`
       : "";
     const prompt = `${teammate.assignment ? `[agent-teams-assignment:${teammate.assignment.id}]\n` : ""}${role}${buildWakePrompt(deliveries, noticed, dueNotice)}`;
     if (!deliverPrompt(teammate.name, prompt)) continue;
+    if (sequence) sequence.roleDelivered = true;
     for (const delivery of deliveries) setPeerDeliveryState(delivery.id, "routed");
     notified.push(teammate.name);
     pendingDeliveries.delete(teammate.name);
     if (dueNotice) markTasksNoticed(teammate.name, noticed.map((task) => task.id));
     // A delivered prompt is fresh activity: restart the silence clock so a
     // long-idle teammate is never insta-flagged as stalled on wake.
-    updateTeammate(teammate.name, {
+    updateAgent(teammate.name, {
       status: "working",
       sequenceEnded: false,
-      // A generic peer/harness/board wake-up never opens a terminal direct
+      // A generic peer/harness/tasks wake-up never opens a terminal direct
       // assignment. Only an explicit Work assignment owns that transition.
       ...(teammate.assignment?.kind === "direct" && teammate.assignment.closed
         ? {}
@@ -2403,7 +2524,7 @@ export function wakeIdleTeammates(immediateTaskId?: string): string[] {
   return notified;
 }
 
-function noticeDue(teammate: Teammate): boolean {
+function noticeDue(teammate: Agent): boolean {
   return teammate.lastNoticeAt === undefined || Date.now() - teammate.lastNoticeAt >= NOTICE_PACE_MS;
 }
 
@@ -2418,7 +2539,7 @@ export function buildWakePrompt(
   }
   if (includeNotice && claimable.length > 0) {
     const listed = claimable.slice(0, 10).map((task) => `${task.id} (${task.subject})`).join(", ");
-    sections.push(`=== BOARD NOTICE ===\nUnclaimed tasks: ${listed}\nUse task action=list for details and task update status=in_progress to take one if it suits your role.`);
+    sections.push(`=== TASK NOTICE ===\nUnclaimed tasks: ${listed}\nUse task action=list for details and task update status=in_progress to take one if it suits your role.`);
   }
   if (sections.length === 0) return "";
   const leader = deliveries.find((message) => message.from === "leader" && message.body.startsWith("[agent-teams-assignment:"));
@@ -2432,13 +2553,19 @@ function formatDelivery(messages: InboxMessage[]): string {
   return `${marker ? `${marker}\n` : ""}${messages.map((message) => `From ${message.from} · ${message.subject}\n${message.body}`).join("\n\n---\n\n")}`;
 }
 
-// ── Board helpers shared with tools.ts ────────────────────────────
+// ── Tasks helpers shared with tools.ts ────────────────────────────
 
-export interface BoardTaskCreationResult {
+/** A refusal that reached the coordinator's own task surface keeps the store's
+ *  shape — code, detail, reason — rather than being flattened to a sentence, so
+ *  a coordinator can still branch on why a creation was refused. It is re-exported
+ *  because `createCoordinatedTask` is the coordinator's task entry point. */
+export type { TaskRefusalResult };
+
+export interface TaskCreationResult {
   ok: true;
   id: string;
   notifiedTeammates: string[];
-  livingTeammates: number;
+  livingAgents: number;
   claimable: boolean;
   resourceBlocked: boolean;
   supersededTaskIds: string[];
@@ -2446,7 +2573,7 @@ export interface BoardTaskCreationResult {
 
 /** Run the coordination side effects of superseding work.
  *
- * Split out because the board transition itself belongs to @fradser/pi-tasks
+ * Split out because the tasks transition itself belongs to @fradser/pi-tasks
  * now, and this package hears about it on `pi-tasks:task-created` rather than
  * performing it. A superseded holder keeps its assignment and resource lease
  * until it acknowledges cancellation, so its feedback has to be routable before
@@ -2454,9 +2581,9 @@ export interface BoardTaskCreationResult {
  *
  * @returns the ids that were superseded, for the caller's report.
  */
-export function settleSupersededWork(replaced: readonly BoardTask[], replacementId: string): string[] {
+export function settleSupersededWork(replaced: readonly Task[], replacementId: string): string[] {
   for (const task of replaced) {
-    const holder = task.claimedBy ? getTeammate(task.claimedBy) : undefined;
+    const holder = task.claimedBy ? getAgent(task.claimedBy) : undefined;
     invalidateVerifyGate(task.id);
     if (holder) unexpectedExecutionParks.delete(`${task.id}:${holder.spawnId}`);
     for (const [name, pending] of pendingSubmissions) {
@@ -2486,14 +2613,14 @@ export function settleSupersededWork(replaced: readonly BoardTask[], replacement
 
 /** A task was created by @fradser/pi-tasks' own `task` tool.
  *
- * This is the whole of the leader's response to a board transition: settle what
+ * This is the whole of the leader's response to a task set transition: settle what
  * the supersession displaced, offer the new task to idle residents, and refresh
  * what the console shows. It arrives as an event rather than a call so
  * `@fradser/pi-tasks` never has to know a resident exists, and so a standalone
- * board with nobody listening still works.
+ * tasks with nobody listening still works.
  */
-export function onBoardTaskCreated(input: { id: string; replaced?: string[] }): void {
-  const replaced = (input.replaced ?? []).map((id) => getState().tasks[id]).filter(Boolean) as BoardTask[];
+export function onTaskCreated(input: { id: string; replaced?: string[] }): void {
+  const replaced = (input.replaced ?? []).map((id) => getState().tasks[id]).filter(Boolean) as Task[];
   if (replaced.length > 0) settleSupersededWork(replaced, input.id);
   publishStateSnapshot();
   // Creation is a user-visible boundary: an idle resident should not have to
@@ -2512,33 +2639,33 @@ export function onBoardTaskCreated(input: { id: string; replaced?: string[] }): 
  * exited. Whichever route brought it back, a reviewer still judging the old
  * candidate must not be able to accept the new one.
  */
-export function onBoardTaskTaken(input: { id: string }): void {
+export function onTaskTaken(input: { id: string }): void {
   invalidateVerifyGate(input.id);
   rearmTaskNotice(input.id);
-  onBoardTaskChanged();
+  onTaskChanged();
 }
 
-/** Any other board transition: no resident needs waking, but the snapshot and the
- *  console both show the board, so both are refreshed. */
-export function onBoardTaskChanged(): void {
+/** Any other tasks transition: no resident needs waking, but the snapshot and the
+ *  console both show the tasks, so both are refreshed. */
+export function onTaskChanged(): void {
   publishStateSnapshot();
   notifyChange();
 }
 
-/** Create a task and synchronously offer it to currently-idle teammates.
+/** Create a task and synchronously offer it to currently-idle agents.
  *
  * The normal poll loop still handles later dependency unlocks and queued mail,
  * but task creation is a user-visible boundary: an idle teammate should not
  * have to wait for a future timer tick before it can see newly-created work.
  */
-export function createBoardTask(input: {
+export function createCoordinatedTask(input: {
   subject: string;
   description?: string;
   dependsOn?: string[];
   verify?: string;
   resources?: string[];
   supersedes?: string[];
-}): BoardTaskCreationResult | { ok: false; error: string } {
+}): TaskCreationResult | TaskRefusalResult {
   const created = createTask(input);
   if (!created.ok) return created;
   const supersededTaskIds = settleSupersededWork(created.superseded, created.task.id);
@@ -2551,7 +2678,7 @@ export function createBoardTask(input: {
     ok: true,
     id: created.task.id,
     notifiedTeammates,
-    livingTeammates: livingTeammates().length,
+    livingAgents: livingAgents().length,
     claimable: claimableTasks().some((task) => task.id === created.task.id) && !resourceBlocked,
     resourceBlocked,
     supersededTaskIds,
@@ -2560,17 +2687,17 @@ export function createBoardTask(input: {
 
 /** Worker-side submission through an exclusive-create marker file. */
 export function attemptSubmission(
-  workerName: string,
+  agentName: string,
   spawnId: string,
   taskId: string,
   status: "completed" | "failed",
   result?: string,
 ): boolean {
-  return createTaskIntent(submissionsDir(boardDirectory()), taskId, {
+  return createTaskIntent(submissionsDir(taskDirectory()), taskId, {
     taskId,
-    worker: workerName,
+    participant: agentName,
     spawnId,
-    assignmentId: getTeammate(workerName)?.assignment?.id,
+    assignmentId: getAgent(agentName)?.assignment?.id,
     status,
     result,
     timestamp: Date.now(),

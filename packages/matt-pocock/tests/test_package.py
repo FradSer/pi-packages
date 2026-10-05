@@ -2,27 +2,10 @@ from __future__ import annotations
 
 import json
 import re
-import shutil
-import subprocess
-import tempfile
-import textwrap
+import tarfile
 from pathlib import Path
 
-PACKAGE = Path(__file__).resolve().parents[1]
-REPO = PACKAGE.parents[1]
-PROCEDURES = PACKAGE / "procedures"
-
-
-def run_typescript(script: str) -> dict[str, object]:
-    result = subprocess.run(
-        ["node", "--import", "tsx/esm", "--input-type=module"],
-        cwd=REPO,
-        input=textwrap.dedent(script),
-        text=True,
-        capture_output=True,
-    )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+from matt_pocock_helpers import PACKAGE, PROCEDURES, REPO, RUNTIME_HARNESS, run_typescript
 
 
 def test_capability_mode_targets_are_model_standalone() -> None:
@@ -56,71 +39,20 @@ def test_manifest_declares_one_package_root_extension() -> None:
     assert (PACKAGE / "index.ts").is_file()
 
 
-def test_packed_package_resolves_workspace_dependency() -> None:
-    temp_dir = tempfile.mkdtemp(prefix="pack-test-")
-    try:
-        output = subprocess.check_output(
-            ["pnpm", "--dir", str(PACKAGE), "pack", "--pack-destination", temp_dir],
-            text=True,
-        )
-        tarball_match = re.search(r"([^\s]+\.tgz)", output)
-        assert tarball_match, f"Could not find tarball in output: {output}"
-        pkg_json = subprocess.check_output(
-            ["tar", "-xOf", tarball_match.group(1), "package/package.json"],
-            text=True,
-        )
-        dep = json.loads(pkg_json)["dependencies"]["@fradser/pi-kit"]
-        assert not dep.startswith("workspace:")
-        assert re.match(r"^\d+\.\d+\.\d+", dep)
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-def test_catalog_classifies_every_resource_and_resolves_all_edges() -> None:
-    result = run_typescript("""
-        import { readdirSync } from "node:fs";
-        import {
-          catalogFiles, findProcedure, procedureCatalog, validateProcedureCatalog,
-        } from "./packages/matt-pocock/src/catalog.ts";
-        const disk = readdirSync("./packages/matt-pocock/procedures").sort();
-        const catalog = catalogFiles().sort();
-        console.log(JSON.stringify({
-          errors: validateProcedureCatalog(), disk, catalog,
-          uniqueIds: new Set(procedureCatalog.map((item) => item.id)).size,
-          count: procedureCatalog.length,
-          aliases: [findProcedure("tight-red-loop")?.id, findProcedure("clarify-goal")?.id],
-        }));
-    """)
-    assert result["errors"] == []
-    assert result["disk"] == result["catalog"]
-    assert result["uniqueIds"] == result["count"]
-    assert result["aliases"] == ["diagnosing-bugs", "wayfinder"]
-
-
-def test_resolver_loads_dependency_bundle_with_stable_sources_and_size_limit() -> None:
-    result = run_typescript("""
-        import { MAX_PROCEDURE_BUNDLE_BYTES, resolveProcedureBundle } from "./packages/matt-pocock/src/resolver.ts";
-        const bundle = resolveProcedureBundle("improve-codebase-architecture");
-        console.log(JSON.stringify({ bundle, maximum: MAX_PROCEDURE_BUNDLE_BYTES }));
-    """)
-    bundle = result["bundle"]
-    assert bundle["root"] == "improve-codebase-architecture"
-    assert bundle["loaded"] == ["improve-codebase-architecture", "codebase-design"]
-    assert 'source="procedure/improve-codebase-architecture"' in bundle["content"]
-    assert 'source="procedure/codebase-design"' in bundle["content"]
-    assert "HTML-REPORT" in bundle["availableReferences"]
-    assert bundle["byteLength"] <= result["maximum"]
+def test_packed_package_resolves_workspace_dependency(packed_package: Path) -> None:
+    with tarfile.open(packed_package) as archive:
+        manifest = archive.extractfile("package/package.json")
+        assert manifest is not None
+        dep = json.load(manifest)["dependencies"]["@fradser/pi-kit"]
+    assert not dep.startswith("workspace:")
+    assert re.fullmatch(r"\d+\.\d+\.\d+", dep)
 
 
 def test_gateway_schema_is_compact_and_catalog_backed() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+    result = run_typescript(RUNTIME_HARNESS + """
         import { modelStandaloneCapabilities } from "./packages/matt-pocock/src/catalog.ts";
         import { workflowRoutes } from "./packages/matt-pocock/src/workflow.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const tools = new Map();
-        mattPocock({ on() {}, registerCommand() {}, registerTool(tool) { tools.set(tool.name, tool); }, appendEntry() {}, sendUserMessage() {} });
-        const variants = tools.get("matt_pocock_workflow").parameters.anyOf;
+        const variants = runtime().tools.get("matt_pocock_workflow").parameters.anyOf;
         console.log(JSON.stringify({
           modes: variants.map((item) => item.properties.mode.const),
           routes: variants[0].properties.route.enum,
@@ -137,28 +69,16 @@ def test_gateway_schema_is_compact_and_catalog_backed() -> None:
 
 
 def test_gateway_starts_workflow_with_versioned_work_item_state() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const events = new Map(), tools = new Map(), entries = [];
-        let activeTools = ["bash", "matt_pocock_workflow"];
-        const pi = {
-          on(name, handler) { events.set(name, handler); }, registerCommand() {},
-          registerTool(tool) { tools.set(tool.name, tool); },
-          appendEntry(customType, data) { entries.push({ customType, data }); }, sendUserMessage() {},
-          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
-        };
-        mattPocock(pi);
-        const execution = await tools.get("matt_pocock_workflow").execute(
-          "call-1", { mode: "workflow", route: "architecture" }, undefined, undefined, { ui: { setStatus() {} } },
-        );
-        const prompt = await events.get("before_agent_start")({ systemPrompt: "base" }, {});
-        console.log(JSON.stringify({ entries, execution, activeTools, prompt }));
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime();
+        const execution = await r.call("matt_pocock_workflow", { mode: "workflow", route: "architecture" });
+        const prompt = await r.events.get("before_agent_start")({ systemPrompt: "base" }, r.ctx);
+        console.log(JSON.stringify({ entries: r.entries, execution, activeTools: r.active(), prompt }));
     """)
     state = result["entries"][0]["data"]
     assert state["version"] == 1
     assert re.fullmatch(r"[0-9a-f-]{36}", state["workItemId"])
-    assert state | {"workItemId": state["workItemId"]} == {
+    assert state == {
         "version": 1, "workItemId": state["workItemId"], "route": "architecture",
         "procedure": "improve-codebase-architecture", "phase": "survey",
         "status": "active", "loadedReferences": [],
@@ -176,19 +96,10 @@ def test_gateway_starts_workflow_with_versioned_work_item_state() -> None:
 
 
 def test_model_standalone_writing_for_agents_has_no_persistent_state() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const tools = new Map(), entries = [];
-        mattPocock({
-          on() {}, registerCommand() {}, registerTool(tool) { tools.set(tool.name, tool); },
-          appendEntry(customType, data) { entries.push({ customType, data }); }, sendUserMessage() {},
-          getActiveTools() { return ["bash", "matt_pocock_workflow"]; }, setActiveTools() {},
-        });
-        const execution = await tools.get("matt_pocock_workflow").execute(
-          "call-1", { mode: "capability", capability: "writing-for-agents" }, undefined, undefined, { ui: { setStatus() {} } },
-        );
-        console.log(JSON.stringify({ entries, execution }));
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime();
+        const execution = await r.call("matt_pocock_workflow", { mode: "capability", capability: "writing-for-agents" });
+        console.log(JSON.stringify({ entries: r.entries, execution }));
     """)
     assert result["entries"] == []
     assert result["execution"]["details"] == {"mode": "capability", "capability": "writing-for-agents"}
@@ -200,19 +111,12 @@ def test_model_standalone_writing_for_agents_has_no_persistent_state() -> None:
 
 
 def test_user_invoked_standalone_capability_can_load_its_disclosed_reference() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const tools = new Map();
-        mattPocock({
-          on() {}, registerCommand() {}, registerTool(tool) { tools.set(tool.name, tool); },
-          appendEntry() {}, sendUserMessage() {},
-        });
-        const execution = await tools.get("matt_pocock_workflow").execute(
-          "call-1", { mode: "reference", capability: "setup-matt-pocock-skills", reference: "domain" },
-          undefined, undefined, { ui: { setStatus() {} } },
-        );
-        console.log(JSON.stringify(execution));
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime();
+        await r.commands.get("matt-pocock").handler("setup-matt-pocock-skills", r.ctx);
+        console.log(JSON.stringify(await r.call("matt_pocock_workflow", {
+          mode: "reference", capability: "setup-matt-pocock-skills", reference: "domain",
+        })));
     """)
     assert result["details"] == {
         "mode": "reference", "capability": "setup-matt-pocock-skills", "reference": "domain",
@@ -221,25 +125,14 @@ def test_user_invoked_standalone_capability_can_load_its_disclosed_reference() -
 
 
 def test_active_gateway_allows_catalog_transition_and_rejects_illegal_transition() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const tools = new Map(), entries = [];
-        let activeTools = ["matt_pocock_workflow"];
-        const pi = {
-          on() {}, registerCommand() {}, registerTool(tool) { tools.set(tool.name, tool); },
-          appendEntry(customType, data) { entries.push({ customType, data }); }, sendUserMessage() {},
-          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
-        };
-        mattPocock(pi);
-        const ctx = { ui: { setStatus() {} } };
-        await tools.get("matt_pocock_workflow").execute("start", { mode: "workflow", route: "architecture" }, undefined, undefined, ctx);
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime();
+        await r.call("matt_pocock_workflow", { mode: "workflow", route: "architecture" });
         let illegal;
-        try {
-          await tools.get("matt_pocock_active").execute("bad", { action: "transition", target: "research" }, undefined, undefined, ctx);
-        } catch (error) { illegal = String(error); }
-        const legal = await tools.get("matt_pocock_active").execute("good", { action: "transition", target: "implement" }, undefined, undefined, ctx);
-        console.log(JSON.stringify({ illegal, legal, entries }));
+        try { await r.call("matt_pocock_active", { action: "transition", target: "research" }); }
+        catch (error) { illegal = String(error); }
+        const legal = await r.call("matt_pocock_active", { action: "transition", target: "implement" });
+        console.log(JSON.stringify({ illegal, legal, entries: r.entries }));
     """)
     assert "Allowed next procedures: codebase-design, implement, code-review" in result["illegal"]
     assert len(result["entries"]) == 2
@@ -250,24 +143,14 @@ def test_active_gateway_allows_catalog_transition_and_rejects_illegal_transition
 
 
 def test_active_gateway_loads_only_disclosed_references() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const tools = new Map(), entries = [];
-        const pi = {
-          on() {}, registerCommand() {}, registerTool(tool) { tools.set(tool.name, tool); },
-          appendEntry(customType, data) { entries.push({ customType, data }); }, sendUserMessage() {},
-          getActiveTools() { return ["matt_pocock_workflow"]; }, setActiveTools() {},
-        };
-        mattPocock(pi);
-        const ctx = { ui: { setStatus() {} } };
-        await tools.get("matt_pocock_workflow").execute("start", { mode: "workflow", route: "architecture" }, undefined, undefined, ctx);
-        const loaded = await tools.get("matt_pocock_active").execute("load", { action: "load", reference: "HTML-REPORT" }, undefined, undefined, ctx);
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime();
+        await r.call("matt_pocock_workflow", { mode: "workflow", route: "architecture" });
+        const loaded = await r.call("matt_pocock_active", { action: "load", reference: "HTML-REPORT" });
         let rejected;
-        try {
-          await tools.get("matt_pocock_active").execute("bad", { action: "load", reference: "ADR-FORMAT" }, undefined, undefined, ctx);
-        } catch (error) { rejected = String(error); }
-        console.log(JSON.stringify({ loaded, rejected, entries }));
+        try { await r.call("matt_pocock_active", { action: "load", reference: "ADR-FORMAT" }); }
+        catch (error) { rejected = String(error); }
+        console.log(JSON.stringify({ loaded, rejected, entries: r.entries }));
     """)
     assert 'source="procedure/HTML-REPORT"' in result["loaded"]["content"][0]["text"]
     assert result["entries"][-1]["data"]["loadedReferences"] == ["HTML-REPORT"]
@@ -275,24 +158,13 @@ def test_active_gateway_loads_only_disclosed_references() -> None:
 
 
 def test_complete_and_cancel_persist_explicit_terminal_records_and_disable_active_tools() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const tools = new Map(), entries = [];
-        let activeTools = ["bash", "matt_pocock_workflow"];
-        const pi = {
-          on() {}, registerCommand() {}, registerTool(tool) { tools.set(tool.name, tool); },
-          appendEntry(customType, data) { entries.push({ customType, data }); }, sendUserMessage() {},
-          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
-        };
-        mattPocock(pi);
-        const ctx = { ui: { setStatus() {} } };
-        await tools.get("matt_pocock_workflow").execute("s1", { mode: "workflow", route: "hard-bug" }, undefined, undefined, ctx);
-        const completed = await tools.get("matt_pocock_active").execute("c1", { action: "complete" }, undefined, undefined, ctx);
-        const afterComplete = [...activeTools];
-        await tools.get("matt_pocock_workflow").execute("s2", { mode: "workflow", route: "wayfinding" }, undefined, undefined, ctx);
-        const cancelled = await tools.get("matt_pocock_active").execute("c2", { action: "cancel", reason: "blocked externally" }, undefined, undefined, ctx);
-        console.log(JSON.stringify({ entries, completed, cancelled, afterComplete, afterCancel: activeTools }));
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(); await r.start();
+        const completed = await r.call("matt_pocock_active", { action: "complete" });
+        const afterComplete = [...r.active()];
+        await r.call("matt_pocock_workflow", { mode: "workflow", route: "wayfinding" });
+        const cancelled = await r.call("matt_pocock_active", { action: "cancel", reason: "blocked externally" });
+        console.log(JSON.stringify({ entries: r.entries, completed, cancelled, afterComplete, afterCancel: r.active() }));
     """)
     complete_state = result["completed"]["details"]["state"]
     cancel_state = result["cancelled"]["details"]["state"]
@@ -329,29 +201,19 @@ def test_latest_record_restores_active_and_respects_terminal_state() -> None:
 
 
 def test_session_start_restores_active_record_but_not_terminal_record() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const events = new Map(), restored = [];
-        let activeTools = ["bash", "matt_pocock_workflow"];
-        const pi = {
-          on(name, handler) { events.set(name, handler); }, registerCommand() {}, registerTool() {}, appendEntry() {},
-          sendMessage(message, options) { restored.push({ message, options }); }, sendUserMessage() {},
-          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
-        };
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime();
         const active = { version: 1, workItemId: "work-1", route: "hard-bug", procedure: "diagnosing-bugs", phase: "feedback-loop", status: "active", loadedReferences: [] };
         const terminal = { ...active, status: "completed" }; delete terminal.loadedReferences;
         const entry = (data) => ({ type: "custom", customType: "matt-pocock-workflow", data });
-        mattPocock(pi);
-        const ctx = (records) => ({ sessionManager: { getBranch: () => records }, ui: { setStatus() {}, notify() {} } });
-        await events.get("session_start")({}, ctx([entry(active)]));
-        const afterActive = [...activeTools];
-        await events.get("session_start")({}, ctx([entry(active), entry(terminal)]));
-        console.log(JSON.stringify({ restored, afterActive, afterTerminal: activeTools }));
+        r.setBranch([entry(active)]); await r.events.get("session_start")({}, r.ctx);
+        const afterActive = [...r.active()];
+        r.setBranch([entry(active), entry(terminal)]); await r.events.get("session_start")({}, r.ctx);
+        console.log(JSON.stringify({ restored: r.deliveries(), afterActive, afterTerminal: r.active() }));
     """)
     assert len(result["restored"]) == 1
     assert result["restored"][0]["message"]["display"] is False
-    assert result["restored"][0]["options"] == {"deliverAs": "nextTurn"}
+    assert result["restored"][0]["options"] == {"triggerTurn": False}
     assert 'source="procedure/diagnosing-bugs"' in result["restored"][0]["message"]["content"]
     assert "matt_pocock_active" in result["afterActive"]
     assert "matt_pocock_ask" in result["afterActive"]
@@ -360,23 +222,12 @@ def test_session_start_restores_active_record_but_not_terminal_record() -> None:
 
 
 def test_invalid_restored_active_record_is_explicitly_cancelled() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const events = new Map(), entries = [], notices = [];
-        let activeTools = ["matt_pocock_workflow", "matt_pocock_active", "matt_pocock_ask"];
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(["matt_pocock_workflow", "matt_pocock_active", "matt_pocock_ask"]);
         const stale = { version: 1, workItemId: "stale-1", route: "wayfinding", procedure: "missing-procedure", phase: "mapping", status: "active", loadedReferences: [] };
-        const pi = {
-          on(name, handler) { events.set(name, handler); }, registerCommand() {}, registerTool() {},
-          appendEntry(customType, data) { entries.push({ customType, data }); }, sendMessage() {}, sendUserMessage() {},
-          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
-        };
-        mattPocock(pi);
-        await events.get("session_start")({}, {
-          sessionManager: { getBranch: () => [{ type: "custom", customType: "matt-pocock-workflow", data: stale }] },
-          ui: { setStatus() {}, notify(message, level) { notices.push({ message, level }); } },
-        });
-        console.log(JSON.stringify({ entries, notices, activeTools }));
+        r.setBranch([{ type: "custom", customType: "matt-pocock-workflow", data: stale }]);
+        await r.events.get("session_start")({}, r.ctx);
+        console.log(JSON.stringify({ entries: r.entries, notices: r.notices, activeTools: r.active() }));
     """)
     terminal = result["entries"][0]["data"]
     assert terminal["version"] == 1
@@ -394,19 +245,11 @@ def test_invalid_restored_active_record_is_explicitly_cancelled() -> None:
 
 
 def test_menu_includes_standalone_capabilities() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const commands = new Map(), menus = [];
-        mattPocock({
-          on() {}, registerCommand(name, command) { commands.set(name, command); }, registerTool() {},
-          appendEntry() {}, sendUserMessage() {},
-        });
-        await commands.get("matt-pocock").handler("", {
-          hasUI: true,
-          ui: { setStatus() {}, notify() {}, select: async (title, choices) => { menus.push({ title, choices }); } },
-        });
-        console.log(JSON.stringify({ commands: [...commands.keys()], menus }));
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(), menus = [];
+        r.ctx.ui.select = async (title, choices) => { menus.push({ title, choices }); };
+        await r.commands.get("matt-pocock").handler("", r.ctx);
+        console.log(JSON.stringify({ commands: [...r.commands.keys()], menus }));
     """)
     assert result["commands"] == ["matt-pocock"]
     assert result["menus"] == [{
@@ -416,23 +259,14 @@ def test_menu_includes_standalone_capabilities() -> None:
 
 
 def test_menu_context_auto_start_forwards_conversation_context() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const commands = new Map(), entries = [], sent = [];
-        mattPocock({
-          on() {}, registerCommand(name, command) { commands.set(name, command); }, registerTool() {},
-          appendEntry(customType, data) { entries.push({ customType, data }); },
-          sendUserMessage(message, options) { sent.push({ message, options }); },
-          sendMessage(message, options) { sent.push({ message, options }); },
-        });
-        await commands.get("matt-pocock").handler("", {
-          hasUI: true,
-          ui: { setStatus() {}, notify() {}, select: async () => "Start a task" },
-        });
-        console.log(JSON.stringify({ entries, sent }));
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime();
+        r.ctx.ui.select = async () => "Start a task";
+        await r.commands.get("matt-pocock").handler("", r.ctx);
+        console.log(JSON.stringify({ entries: r.entries, sent: r.deliveries(), userMessages: r.userMessages }));
     """)
     assert result["entries"] == []
+    assert result["userMessages"] == []
     assert len(result["sent"]) == 1
     delivery = result["sent"][0]
     assert "recent conversation context" in delivery["message"]["content"]
@@ -444,27 +278,11 @@ def test_menu_context_auto_start_forwards_conversation_context() -> None:
 
 
 def test_menu_context_auto_start_supersedes_active_workflow() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const commands = new Map(), tools = new Map(), entries = [], sent = [];
-        let activeTools = ["bash", "matt_pocock_workflow"];
-        const pi = {
-          on() {}, registerCommand(name, command) { commands.set(name, command); },
-          registerTool(tool) { tools.set(tool.name, tool); },
-          appendEntry(customType, data) { entries.push({ customType, data }); },
-          sendUserMessage(message, options) { sent.push({ message, options }); },
-          sendMessage(message, options) { sent.push({ message, options }); },
-          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
-        };
-        mattPocock(pi);
-        const ctx = { hasUI: true, ui: { setStatus() {}, notify() {}, input: async () => "" } };
-        await tools.get("matt_pocock_workflow").execute("start", { mode: "workflow", route: "hard-bug" }, undefined, undefined, ctx);
-        await commands.get("matt-pocock").handler("", {
-          hasUI: true,
-          ui: { setStatus() {}, notify() {}, select: async () => "Start a task" },
-        });
-        console.log(JSON.stringify({ entries, sent }));
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(); await r.start();
+        r.ctx.ui.select = async () => "Start a task";
+        await r.commands.get("matt-pocock").handler("", r.ctx);
+        console.log(JSON.stringify({ entries: r.entries, sent: r.deliveries(), userMessages: r.userMessages }));
     """)
     assert len(result["entries"]) == 2
     assert result["entries"][0]["data"]["status"] == "active"
@@ -472,6 +290,7 @@ def test_menu_context_auto_start_supersedes_active_workflow() -> None:
     assert terminal["status"] == "cancelled"
     assert terminal["workItemId"] == result["entries"][0]["data"]["workItemId"]
     assert "Superseded" in terminal["reason"]
+    assert result["userMessages"] == []
     assert len(result["sent"]) == 1
     content = result["sent"][0]["message"]["content"]
     assert "previous active workflow has been cancelled" in content
@@ -494,41 +313,26 @@ def test_inactive_guidance_advertises_workflows_and_model_capabilities() -> None
 
 
 def test_matt_pocock_ask_selection_custom_input_pending_cases() -> None:
-    result = run_typescript("""
-        process.env.PI_NO_NATIVE_DIALOG = "1";
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const tools = new Map();
-        let activeTools = ["matt_pocock_workflow"];
-        const pi = {
-          on() {}, registerCommand() {}, registerTool(tool) { tools.set(tool.name, tool); }, appendEntry() {}, sendUserMessage() {},
-          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
-        };
-        let selectChoice = "Option A", inputChoice = "", lastTimeout = null;
-        const ctx = { hasUI: true, ui: {
-          setStatus() {}, notify() {},
-          select: async (_title, _choices, options) => { lastTimeout = options?.timeout ?? null; return selectChoice; },
-          input: async () => inputChoice,
-        }};
-        mattPocock(pi);
-        await tools.get("matt_pocock_workflow").execute("start", { mode: "workflow", route: "hard-bug" }, undefined, undefined, ctx);
-        const ask = tools.get("matt_pocock_ask");
-        // Case 1: with recommendation and selection
-        const selected = await ask.execute("a", { question: "Which scope?", options: ["Option A", "Option B"], recommended: "Option A", timeout_seconds: 30 }, undefined, undefined, ctx);
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(); await r.start();
+        let selectChoice = "Option A", inputChoice = "", lastTimeout;
+        const select = async (_title, _choices, options) => { lastTimeout = options?.timeout ?? null; return selectChoice; };
+        r.ctx.ui.select = select; r.ctx.ui.input = async () => inputChoice;
+        const question = { question: "Which scope?", options: ["Option A", "Option B"] };
+        const selected = await r.call("matt_pocock_ask", { ...question, recommended: "Option A", timeout_seconds: 30 });
         const timeoutWithSec = lastTimeout;
-        // Case 2: with recommendation and timeout -> automatically adopts recommended
         selectChoice = undefined;
-        const timeoutRecommended = await ask.execute("b", { question: "Which scope?", options: ["Option A", "Option B"], recommended: "Option A" }, undefined, undefined, ctx);
+        await r.call("matt_pocock_ask", { ...question, recommended: "Option A" });
         const timeoutDefaultSec = lastTimeout;
-        // Case 3: without recommendation -> NO timeout (timeout is null/undefined) and cancel remains pending
-        lastTimeout = "not-cleared";
-        const noRecommendedCancel = await ask.execute("c", { question: "Which scope?", options: ["Option A", "Option B"] }, undefined, undefined, ctx);
+        r.ctx.ui.select = (_title, _choices, { signal }) => new Promise(resolve => signal.addEventListener("abort", () => resolve(undefined), { once: true }));
+        const timeoutRecommended = await r.call("matt_pocock_ask", { ...question, recommended: "Option A", timeout_seconds: 0.01 });
+        r.ctx.ui.select = select;
+        const noRecommendedCancel = await r.call("matt_pocock_ask", question);
         const noRecommendedTimeout = lastTimeout;
-        // Case 4: custom answer
         selectChoice = "Type custom answer..."; inputChoice = "Custom";
-        const custom = await ask.execute("d", { question: "Which scope?", options: ["Option A", "Option B"] }, undefined, undefined, ctx);
-        // Case 5: no UI
-        const noUi = await ask.execute("e", { question: "Which scope?", options: ["Option A", "Option B"] }, undefined, undefined, { hasUI: false, ui: { setStatus() {} } });
+        const custom = await r.call("matt_pocock_ask", question);
+        r.ctx.hasUI = false;
+        const noUi = await r.call("matt_pocock_ask", question);
         console.log(JSON.stringify({ selected, timeoutRecommended, noRecommendedCancel, custom, noUi, timeoutWithSec, timeoutDefaultSec, noRecommendedTimeout }));
     """)
     assert result["selected"]["details"]["answer"] == "Option A"
@@ -547,14 +351,8 @@ def test_matt_pocock_ask_selection_custom_input_pending_cases() -> None:
 
 
 def test_tool_and_message_rendering_preserves_compact_lifecycle_rows() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const tools = new Map(), renderers = new Map();
-        mattPocock({
-          on() {}, registerCommand() {}, registerTool(tool) { tools.set(tool.name, tool); },
-          registerMessageRenderer(name, renderer) { renderers.set(name, renderer); }, appendEntry() {}, sendUserMessage() {},
-        });
+    result = run_typescript(RUNTIME_HARNESS + """
+        const { tools, renderers } = runtime();
         const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text };
         const askRows = tools.get("matt_pocock_ask").renderResult(
           { content: [{ type: "text", text: "User selected: A\\nB" }], details: { answer: "A\\nB", source: "choice_selected" } },
@@ -584,13 +382,8 @@ def test_tool_and_message_rendering_preserves_compact_lifecycle_rows() -> None:
 
 
 def test_ask_expands_only_genuine_decision_metadata() -> None:
-    result = run_typescript("""
-        import mattPocock from "./packages/matt-pocock/src/index.ts";
-        const tools = new Map();
-        mattPocock({
-          on() {}, registerCommand() {}, registerTool(tool) { tools.set(tool.name, tool); },
-          appendEntry() {}, sendUserMessage() {},
-        });
+    result = run_typescript(RUNTIME_HARNESS + """
+        const { tools, renderers } = runtime();
         const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text };
         const cases = {
           selected: { answer: "Option A", source: "choice_selected" },
@@ -687,47 +480,57 @@ def test_native_dialog_config_and_ask_integration(tmp_path: Path) -> None:
     cfg_false.write_text('{"useNativeDialog": false}\n')
     cfg_invalid = tmp_path / "cfg-invalid.json"
     cfg_invalid.write_text('{not valid json}\n')
+    agent_dir = tmp_path / "agent-dir"
+    agent_dir.mkdir()
 
-    result = run_typescript(f"""
+    result = run_typescript(RUNTIME_HARNESS + f"""
         import {{ loadConfig, defaultConfigFile }} from "./packages/matt-pocock/src/native-dialog.ts";
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
 
         const c1 = loadConfig("{cfg_true}");
         const c2 = loadConfig("{cfg_false}");
         const c3 = loadConfig("{cfg_invalid}");
         const c4 = loadConfig("/nonexistent/file.json");
-        const defFile = defaultConfigFile();
 
-        // Test ask with config disabled -> uses ctx.ui.select
-        const tools = new Map();
-        let activeTools = ["matt_pocock_workflow"];
-        const pi = {{
-          on() {{}}, registerCommand() {{}}, registerTool(tool) {{ tools.set(tool.name, tool); }}, appendEntry() {{}}, sendUserMessage() {{}},
-          getActiveTools() {{ return activeTools; }}, setActiveTools(names) {{ activeTools = names; }},
-        }};
-        let selectCalled = false;
-        const ctx = {{ hasUI: true, ui: {{
-          setStatus() {{}}, notify() {{}},
-          select: async () => {{ selectCalled = true; return "Option A"; }},
-          input: async () => "",
-        }}}};
-        mattPocock(pi);
-        await tools.get("matt_pocock_workflow").execute("start", {{ mode: "workflow", route: "hard-bug" }}, undefined, undefined, ctx);
-        const ask = tools.get("matt_pocock_ask");
+        // The package config lives in Pi's agent directory, not a hardcoded home path.
+        process.env.PI_CODING_AGENT_DIR = "{agent_dir}";
+        const overriddenFile = defaultConfigFile();
+        const c5 = loadConfig();
+        const homeFile = (() => {{
+          delete process.env.PI_CODING_AGENT_DIR;
+          return defaultConfigFile();
+        }})();
 
+        const r = runtime(); await r.start(); let selectCalled = false;
+        r.ctx.ui.select = async () => {{ selectCalled = true; return "Option A"; }};
         process.env.PI_MATT_POCOCK_CONFIG_FILE = "{cfg_false}";
-        const resTui = await ask.execute("call-tui", {{ title: "Testing Title", question: "Which scope?", options: ["Option A", "Option B"] }}, undefined, undefined, ctx);
+        const resTui = await r.call("matt_pocock_ask", {{ title: "Testing Title", question: "Which scope?", options: ["Option A", "Option B"] }});
 
-        console.log(JSON.stringify({{ c1, c2, c3, c4, defFile, selectCalled, resTui }}));
+        console.log(JSON.stringify({{ c1, c2, c3, c4, overriddenFile, c5, homeFile, selectCalled, resTui }}));
     """)
     assert result["c1"]["useNativeDialog"] is True
     assert result["c2"]["useNativeDialog"] is False
     assert result["c3"]["useNativeDialog"] is False
     assert result["c4"]["useNativeDialog"] is False
-    assert result["defFile"].endswith(".pi/agent/pi-matt-pocock.json")
+    assert result["overriddenFile"] == str(agent_dir / "matt-pocock.json")
+    # An absent file in the configured agent directory keeps native dialogs off.
+    assert result["c5"]["useNativeDialog"] is False
+    assert result["homeFile"].endswith(".pi/agent/matt-pocock.json")
     assert result["selectCalled"] is True
     assert result["resTui"]["details"]["answer"] == "Option A"
+
+
+def test_agent_dir_config_file_is_read_without_an_explicit_path(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "agent-dir"
+    agent_dir.mkdir()
+    (agent_dir / "matt-pocock.json").write_text('{"useNativeDialog": true}\n')
+
+    result = run_typescript(f"""
+        import {{ loadConfig }} from "./packages/matt-pocock/src/native-dialog.ts";
+
+        process.env.PI_CODING_AGENT_DIR = "{agent_dir}";
+        console.log(JSON.stringify({{ optIn: loadConfig() }}));
+    """)
+    assert result["optIn"]["useNativeDialog"] is True
 
 
 def test_deslop_capability_and_ai_slop_baseline_are_bundled() -> None:
@@ -767,13 +570,10 @@ def test_package_documents_installation_and_deferred_automation() -> None:
 
 
 def test_tool_descriptions_stay_under_char_budget() -> None:
-    import re
-    src = (PACKAGE / "src" / "index.ts").read_text(encoding="utf-8")
-    match = re.search(r'name: "matt_pocock_workflow",\n\s*label: "[^"]*",\n\s*description: "([^"]*)"', src)
-    assert match is not None
-    # Budget pins the compressed workflow gateway description; the
-    # pre-optimization version was ~353 chars.
-    assert len(match.group(1)) <= 345
+    result = run_typescript(RUNTIME_HARNESS + """
+        console.log(JSON.stringify({ description: runtime().tools.get("matt_pocock_workflow").description }));
+    """)
+    assert len(result["description"]) <= 345
 
 
 def test_session_start_never_deactivates_the_gateway_tool() -> None:
@@ -784,31 +584,13 @@ def test_session_start_never_deactivates_the_gateway_tool() -> None:
     delivering routing prompts that name it. The seed below omits the gateway
     deliberately: no other fixture can represent the real harness at that point.
     """
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const tools = new Map(), events = new Map(), entries = [];
-        // The harness has published bash but not yet this extension's gateway.
-        let activeTools = ["bash", "read"];
-        const pi = {
-          on(name, handler) { events.set(name, handler); }, registerCommand() {},
-          registerTool(tool) { tools.set(tool.name, tool); },
-          appendEntry(customType, data) { entries.push({ customType, data }); },
-          sendMessage() {}, sendUserMessage() {},
-          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
-        };
-        mattPocock(pi);
-        const sessionCtx = {
-          sessionManager: { getBranch: () => [] },
-          ui: { setStatus() {}, notify() {} },
-        };
-        await events.get("session_start")({}, sessionCtx);
-        const afterIdleStart = activeTools.slice();
-        await tools.get("matt_pocock_workflow").execute("start", { mode: "workflow", route: "architecture" }, undefined, undefined, sessionCtx);
-        const afterStart = activeTools.slice();
-        await tools.get("matt_pocock_active").execute("end", { action: "complete" }, undefined, undefined, sessionCtx);
-        const afterComplete = activeTools.slice();
-        console.log(JSON.stringify({ afterIdleStart, afterStart, afterComplete }));
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(["bash", "read"]);
+        await r.events.get("session_start")({}, r.ctx);
+        const afterIdleStart = [...r.active()]; await r.start();
+        const afterStart = [...r.active()];
+        await r.call("matt_pocock_active", { action: "complete" });
+        console.log(JSON.stringify({ afterIdleStart, afterStart, afterComplete: r.active() }));
     """)
     # Idle session: the gateway is the entry point every routing prompt names, so
     # it must be present even when the snapshot never reported it. The two

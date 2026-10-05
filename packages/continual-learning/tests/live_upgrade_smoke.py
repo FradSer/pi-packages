@@ -13,9 +13,17 @@ import shutil
 import subprocess
 import tempfile
 
-from test_harness_upgrade_compatibility import LEGACY
+from harness_legacy_fixture import LEGACY
 
 PACKAGE = Path(__file__).resolve().parents[1]
+EXPECTED_TOOL_SEQUENCE = ("bash", "write", "edit", "write")
+
+
+def assert_expected_tool_results(results: list[dict[str, object]]) -> None:
+    actual_tools = tuple(message.get("toolName") for message in results)
+    assert actual_tools == EXPECTED_TOOL_SEQUENCE, (
+        f"expected exactly {EXPECTED_TOOL_SEQUENCE}, got {actual_tools}"
+    )
 
 
 def verify_upgrade() -> dict[str, object]:
@@ -67,6 +75,7 @@ def verify_upgrade() -> dict[str, object]:
         errors = [message.get("errorMessage") for message in messages if message.get("stopReason") == "error"]
         assert not errors, errors
         results = [message for message in messages if message.get("role") == "toolResult"]
+        assert_expected_tool_results(results)
         def contains(tool: str, token: str, is_error: bool) -> bool:
             return any(message.get("toolName") == tool and message.get("isError") is is_error and token in json.dumps(message.get("content")) for message in results)
         assert contains("bash", "HARNESS_UPGRADE_BASH_OK", False), results

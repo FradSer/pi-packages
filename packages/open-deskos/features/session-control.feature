@@ -29,7 +29,7 @@ Feature: Let a desk's voice agent drive the session this process is
 
   Scenario: A project scope is a scope
     Given a bound session working in one project
-    When the desk names that project or a directory inside it
+    When the desk names that project or its parent development root
     Then the session is listed
     And any other project is refused with the protocol's own reason
 
@@ -38,6 +38,7 @@ Feature: Let a desk's voice agent drive the session this process is
     When the desk sends an instruction
     Then it is delivered as a real user message that triggers a turn
     And a streaming behavior of steer or followUp is delivered as that behavior
+    And an omitted behavior uses steer as native Enter does
     And the answer states the state right after delivery
     And an empty, malformed, or foreign-task prompt is refused before anything is delivered
 
@@ -101,3 +102,90 @@ Feature: Let a desk's voice agent drive the session this process is
     When a desk runs the launcher from a non-interactive SSH session
     Then the launcher finds a node runtime itself and relays the one frame
     And an operator can name the runtime outright
+
+  Scenario: Failed or replaced console connections release their resources
+    Given a console connection whose attach fails or whose request cannot be written
+    When the request fails or a newer attach replaces it
+    Then the connection closes and its pending requests settle exactly once
+    And stale records cannot update the current session
+
+  Scenario: Discovery addresses the requested session identity
+    Given two local sessions in the same project
+    When session-control finds an endpoint for a request with a task ID
+    Then it addresses that task's descriptor rather than the first session in the directory
+
+  Scenario: Windows refuses a local endpoint without a verified private IPC gate
+    Given a Windows Pi process
+    When local session hosting starts
+    Then it reports that Windows session hosting is unsupported
+    And it publishes no endpoint with weaker access control
+
+  Scenario: A fragmented one-shot request runs once
+    Given one connection has submitted a prompt
+    When the same connection supplies another fragment
+    Then the original prompt is dispatched only once
+
+  Scenario: A development root lists all native sessions below it
+    Given two live native sessions in different projects below a development root
+    And an obsolete descriptor exists beside their descriptors
+    When the relay lists that development root
+    Then both live sessions are returned with their exact projects and identities
+    And the obsolete descriptor does not hide a live session
+
+  Scenario: Native mutations require the selected session identity
+    Given two native sessions in the same project
+    When an identity request omits its task ID or names another project
+    Then it is refused before any prompt or abort is sent
+
+  Scenario: Native mutation receipts prevent repeat delivery
+    Given a native prompt has a mutation ID
+    When the same mutation is requested again through another connection
+    Then the original receipt is returned without another delivery
+    And a changed payload with that mutation ID is refused
+
+  Scenario: Native submission has no identity-aware admission acknowledgment
+    Given a native session already has a pending message
+    When another instruction is offered
+    Then the receipt reports delivery as unknown and forbids an automatic retry
+    And status records the instruction as submitted with unknown admission
+    When its matching user message is observed
+    Then admission remains unknown because manual input can have identical text
+    And session prompt and response remain separate execution evidence
+    And every submitted mutation ID remains available without replay
+
+  Scenario: Identical queued instructions do not certify each other
+    Given a follow-up and a steering instruction contain identical text
+    When Pi consumes the steering instruction first
+    Then neither mutation is certified from the observed text
+
+  Scenario: A dropped inventory reply cannot prove an empty machine
+    Given a native endpoint answers status but closes its list connection without a reply
+    When the relay lists the configured development root
+    Then the inventory reports incomplete coverage and one unavailable endpoint
+    And it does not claim a complete empty inventory
+
+  Scenario: Inventory metadata and newline fit the response bound
+    Given a session summary fills the aggregate response budget
+    When the relay adds complete inventory metadata and a newline
+    Then the entire response remains within the byte limit
+    And an oversized summary is omitted with truncated and incomplete set
+
+  Scenario: An operator restricts relay requests to approved project roots
+    Given the relay has fixed allow-root arguments
+    When a valid request selects a project inside an approved root
+    Then it reaches the selected endpoint with its original project string
+    When a request selects an outside project, a broad ancestor, or a symlink escape
+    Then a fixed correlated refusal is returned before any socket contact
+    And malformed or unsupported requests never reach an endpoint
+    And the relay ignores SSH_ORIGINAL_COMMAND
+
+  Scenario: The filesystem root admits its descendants
+    Given the operator explicitly configures allow-root as the filesystem root
+    When a request selects a controlled project directory below that root
+    Then the root check admits the project without adding a second separator
+
+  Scenario: Completed console mutations retain their original session ownership
+    Given a console mutation for one Hosted Pi awaits its acknowledged completion
+    When the console reloads and attaches to another Hosted Pi before the continuation runs
+    Then the mutation result names the original Hosted Pi
+    And the old continuation neither closes the new attachment nor injects its terminal context

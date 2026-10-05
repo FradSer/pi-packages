@@ -1,0 +1,1806 @@
+{
+  "report": {
+    "evidence": "real-jev-inference",
+    "modelRequested": "jev-1.13.0",
+    "complete": true,
+    "baselineScope": "deterministic parent screen and code-validated candidate; not the legacy LLM selector or an end-to-end learning comparison",
+    "calls": 36,
+    "costKnown": true,
+    "usageKnown": true,
+    "inputTokens": 20293,
+    "knownInputTokens": 20293,
+    "estimatedCostUsd": 0.0008523060000000004,
+    "knownEstimatedCostUsd": 0.0008523060000000004,
+    "actualModels": [
+      "jev-1.13.0"
+    ],
+    "metrics": {
+      "en": {
+        "samples": 9,
+        "baseline": {
+          "directionSamples": 9,
+          "candidateSamples": 9,
+          "missedDirections": 0,
+          "extraDirections": 4,
+          "candidateFalseAccepts": 6,
+          "supportedCandidatesHeld": 0,
+          "memoryFalseAccepts": 5,
+          "harnessFalseHolds": 0,
+          "medianLatencyMs": 0.050208000000566244,
+          "uncertainJudgments": 0
+        },
+        "after": {
+          "directionSamples": 3,
+          "candidateSamples": 9,
+          "missedDirections": 0,
+          "extraDirections": 1,
+          "candidateFalseAccepts": 0,
+          "supportedCandidatesHeld": 1,
+          "memoryFalseAccepts": 0,
+          "harnessFalseHolds": 1,
+          "medianLatencyMs": 530.5,
+          "uncertainJudgments": 6
+        }
+      },
+      "zh": {
+        "samples": 9,
+        "baseline": {
+          "directionSamples": 9,
+          "candidateSamples": 9,
+          "missedDirections": 0,
+          "extraDirections": 2,
+          "candidateFalseAccepts": 6,
+          "supportedCandidatesHeld": 0,
+          "memoryFalseAccepts": 5,
+          "harnessFalseHolds": 0,
+          "medianLatencyMs": 0.03449999999975262,
+          "uncertainJudgments": 0
+        },
+        "after": {
+          "directionSamples": 2,
+          "candidateSamples": 9,
+          "missedDirections": 0,
+          "extraDirections": 2,
+          "candidateFalseAccepts": 0,
+          "supportedCandidatesHeld": 1,
+          "memoryFalseAccepts": 0,
+          "harnessFalseHolds": 1,
+          "medianLatencyMs": 394,
+          "uncertainJudgments": 6
+        }
+      }
+    },
+    "rows": [
+      {
+        "id": "en-both",
+        "language": "en",
+        "stage": "memory",
+        "expected": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 2.1805830000000697,
+        "baseline": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": true,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "invalid-response",
+            "durationMs": 1196,
+            "model": "jev-1.13.0",
+            "inputTokens": 551,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023142000000000003
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 861,
+            "model": "jev-1.13.0",
+            "inputTokens": 466,
+            "outputTokens": 22,
+            "estimatedCostUsd": 0.000019572
+          }
+        }
+      },
+      {
+        "id": "zh-both",
+        "language": "zh",
+        "stage": "memory",
+        "expected": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.09345800000028248,
+        "baseline": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": true,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "uncertain",
+            "durationMs": 351,
+            "model": "jev-1.13.0",
+            "inputTokens": 562,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023604000000000003
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 983,
+            "model": "jev-1.13.0",
+            "inputTokens": 483,
+            "outputTokens": 22,
+            "estimatedCostUsd": 0.000020286000000000002
+          }
+        }
+      },
+      {
+        "id": "en-speculation",
+        "language": "en",
+        "stage": "memory",
+        "expected": {
+          "memory": false,
+          "harness": false,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.4105829999998605,
+        "baseline": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": {
+            "memory": false,
+            "harness": false,
+            "selected": []
+          },
+          "combinedMemory": true,
+          "combinedHarness": false,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 416,
+            "model": "jev-1.13.0",
+            "inputTokens": 552,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023184
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 380,
+            "model": "jev-1.13.0",
+            "inputTokens": 463,
+            "outputTokens": 22,
+            "estimatedCostUsd": 0.000019446
+          }
+        }
+      },
+      {
+        "id": "zh-speculation",
+        "language": "zh",
+        "stage": "memory",
+        "expected": {
+          "memory": false,
+          "harness": false,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.03404199999931734,
+        "baseline": {
+          "memory": false,
+          "harness": false,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "invalid-response",
+            "durationMs": 671,
+            "model": "jev-1.13.0",
+            "inputTokens": 557,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023394000000000003
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 349,
+            "model": "jev-1.13.0",
+            "inputTokens": 471,
+            "outputTokens": 22,
+            "estimatedCostUsd": 0.000019782
+          }
+        }
+      },
+      {
+        "id": "en-transient",
+        "language": "en",
+        "stage": "memory",
+        "expected": {
+          "memory": false,
+          "harness": false,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.050208000000566244,
+        "baseline": {
+          "memory": false,
+          "harness": false,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": {
+            "memory": false,
+            "harness": false,
+            "selected": []
+          },
+          "combinedMemory": false,
+          "combinedHarness": false,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 795,
+            "model": "jev-1.13.0",
+            "inputTokens": 558,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023436
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 656,
+            "model": "jev-1.13.0",
+            "inputTokens": 474,
+            "outputTokens": 22,
+            "estimatedCostUsd": 0.000019908
+          }
+        }
+      },
+      {
+        "id": "zh-transient",
+        "language": "zh",
+        "stage": "memory",
+        "expected": {
+          "memory": false,
+          "harness": false,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.16095799999948213,
+        "baseline": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": {
+            "memory": false,
+            "harness": false,
+            "selected": []
+          },
+          "combinedMemory": true,
+          "combinedHarness": true,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 380,
+            "model": "jev-1.13.0",
+            "inputTokens": 566,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023772000000000002
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 631,
+            "model": "jev-1.13.0",
+            "inputTokens": 490,
+            "outputTokens": 22,
+            "estimatedCostUsd": 0.000020580000000000003
+          }
+        }
+      },
+      {
+        "id": "en-duplicate",
+        "language": "en",
+        "stage": "memory",
+        "expected": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.4812920000003942,
+        "baseline": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "uncertain",
+            "durationMs": 659,
+            "model": "jev-1.13.0",
+            "inputTokens": 551,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023142000000000003
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "duplicate",
+            "durationMs": 371,
+            "model": "jev-1.13.0",
+            "inputTokens": 650,
+            "outputTokens": 77,
+            "estimatedCostUsd": 0.0000273
+          }
+        }
+      },
+      {
+        "id": "zh-duplicate",
+        "language": "zh",
+        "stage": "memory",
+        "expected": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.03620800000135205,
+        "baseline": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "uncertain",
+            "durationMs": 361,
+            "model": "jev-1.13.0",
+            "inputTokens": 558,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023436
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "duplicate",
+            "durationMs": 382,
+            "model": "jev-1.13.0",
+            "inputTokens": 678,
+            "outputTokens": 77,
+            "estimatedCostUsd": 0.000028476000000000003
+          }
+        }
+      },
+      {
+        "id": "en-supplement",
+        "language": "en",
+        "stage": "memory",
+        "expected": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": true
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.03516700000000128,
+        "baseline": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": true,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "uncertain",
+            "durationMs": 548,
+            "model": "jev-1.13.0",
+            "inputTokens": 555,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023310000000000002
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 370,
+            "model": "jev-1.13.0",
+            "inputTokens": 665,
+            "outputTokens": 78,
+            "estimatedCostUsd": 0.000027930000000000002
+          }
+        }
+      },
+      {
+        "id": "zh-supplement",
+        "language": "zh",
+        "stage": "memory",
+        "expected": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": true
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.02654199999960838,
+        "baseline": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": true,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "uncertain",
+            "durationMs": 376,
+            "model": "jev-1.13.0",
+            "inputTokens": 565,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.00002373
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 418,
+            "model": "jev-1.13.0",
+            "inputTokens": 684,
+            "outputTokens": 78,
+            "estimatedCostUsd": 0.000028728
+          }
+        }
+      },
+      {
+        "id": "en-conflict",
+        "language": "en",
+        "stage": "memory",
+        "expected": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.04608400000142865,
+        "baseline": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "uncertain",
+            "durationMs": 513,
+            "model": "jev-1.13.0",
+            "inputTokens": 563,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023646
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 335,
+            "model": "jev-1.13.0",
+            "inputTokens": 678,
+            "outputTokens": 78,
+            "estimatedCostUsd": 0.000028476000000000003
+          }
+        }
+      },
+      {
+        "id": "zh-conflict",
+        "language": "zh",
+        "stage": "memory",
+        "expected": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.03449999999975262,
+        "baseline": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "invalid-response",
+            "durationMs": 406,
+            "model": "jev-1.13.0",
+            "inputTokens": 569,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023898000000000004
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 361,
+            "model": "jev-1.13.0",
+            "inputTokens": 696,
+            "outputTokens": 78,
+            "estimatedCostUsd": 0.000029232000000000004
+          }
+        }
+      },
+      {
+        "id": "en-harness-narrow",
+        "language": "en",
+        "stage": "harness",
+        "expected": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.022708000000420725,
+        "baseline": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "uncertain",
+            "durationMs": 341,
+            "model": "jev-1.13.0",
+            "inputTokens": 542,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000022764000000000004
+          },
+          "validationTelemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 377,
+            "model": "jev-1.13.0",
+            "inputTokens": 607,
+            "outputTokens": 41,
+            "estimatedCostUsd": 0.000025494000000000004
+          }
+        }
+      },
+      {
+        "id": "zh-harness-narrow",
+        "language": "zh",
+        "stage": "harness",
+        "expected": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.022458000001279288,
+        "baseline": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "uncertain",
+            "durationMs": 443,
+            "model": "jev-1.13.0",
+            "inputTokens": 547,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000022974
+          },
+          "validationTelemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 673,
+            "model": "jev-1.13.0",
+            "inputTokens": 616,
+            "outputTokens": 41,
+            "estimatedCostUsd": 0.000025872
+          }
+        }
+      },
+      {
+        "id": "en-harness-broad",
+        "language": "en",
+        "stage": "harness",
+        "expected": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.027040999999371707,
+        "baseline": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "uncertain",
+            "durationMs": 378,
+            "model": "jev-1.13.0",
+            "inputTokens": 546,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000022932000000000003
+          },
+          "validationTelemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 930,
+            "model": "jev-1.13.0",
+            "inputTokens": 607,
+            "outputTokens": 41,
+            "estimatedCostUsd": 0.000025494000000000004
+          }
+        }
+      },
+      {
+        "id": "zh-harness-broad",
+        "language": "zh",
+        "stage": "harness",
+        "expected": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.024375000000873115,
+        "baseline": {
+          "memory": true,
+          "harness": true,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": null,
+          "combinedMemory": null,
+          "combinedHarness": null,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "fallback",
+            "reason": "uncertain",
+            "durationMs": 442,
+            "model": "jev-1.13.0",
+            "inputTokens": 551,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023142000000000003
+          },
+          "validationTelemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 369,
+            "model": "jev-1.13.0",
+            "inputTokens": 620,
+            "outputTokens": 41,
+            "estimatedCostUsd": 0.00002604
+          }
+        }
+      },
+      {
+        "id": "en-explicit-unclear",
+        "language": "en",
+        "stage": "memory",
+        "expected": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.24720799999704468,
+        "baseline": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": {
+            "memory": true,
+            "harness": false,
+            "selected": []
+          },
+          "combinedMemory": true,
+          "combinedHarness": false,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 721,
+            "model": "jev-1.13.0",
+            "inputTokens": 552,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023184
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 649,
+            "model": "jev-1.13.0",
+            "inputTokens": 466,
+            "outputTokens": 22,
+            "estimatedCostUsd": 0.000019572
+          }
+        }
+      },
+      {
+        "id": "zh-explicit-unclear",
+        "language": "zh",
+        "stage": "memory",
+        "expected": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": false
+        },
+        "codeValidation": "passed",
+        "baselineDurationMs": 0.040333999997528736,
+        "baseline": {
+          "memory": true,
+          "harness": false,
+          "candidateAllowed": true
+        },
+        "after": {
+          "selection": {
+            "memory": true,
+            "harness": false,
+            "selected": []
+          },
+          "combinedMemory": true,
+          "combinedHarness": false,
+          "candidateAllowed": false,
+          "selectionTelemetry": {
+            "stage": "selection",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 407,
+            "model": "jev-1.13.0",
+            "inputTokens": 558,
+            "outputTokens": 53,
+            "estimatedCostUsd": 0.000023436
+          },
+          "validationTelemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 336,
+            "model": "jev-1.13.0",
+            "inputTokens": 476,
+            "outputTokens": 22,
+            "estimatedCostUsd": 0.000019992
+          }
+        }
+      }
+    ]
+  },
+  "responses": [
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.84
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.94
+        },
+        "related_0": {
+          "type": "score",
+          "score": 2.41,
+          "confidence": 0.41,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.01,
+            "1": 0.09,
+            "2": 0.36,
+            "3": 0.54
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 551,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.98
+        }
+      },
+      "usage": {
+        "input_tokens": 466,
+        "output_tokens": 22
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "related_0": {
+          "type": "score",
+          "score": 2.63,
+          "confidence": 0.63,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.01,
+            "1": 0.05,
+            "2": 0.24,
+            "3": 0.7
+          }
+        },
+        "memory": {
+          "type": "noul",
+          "noul": 0.83
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.93
+        }
+      },
+      "usage": {
+        "input_tokens": 562,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.99
+        }
+      },
+      "usage": {
+        "input_tokens": 483,
+        "output_tokens": 22
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.02
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.04
+        },
+        "related_0": {
+          "type": "score",
+          "score": 0.67,
+          "confidence": 0.58,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.37,
+            "1": 0.6,
+            "2": 0.03,
+            "3": 0
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 552,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.02
+        }
+      },
+      "usage": {
+        "input_tokens": 463,
+        "output_tokens": 22
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.03
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.04
+        },
+        "related_0": {
+          "type": "score",
+          "score": 0.72,
+          "confidence": 0.59,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.35,
+            "1": 0.6,
+            "2": 0.05,
+            "3": 0
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 557,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.02
+        }
+      },
+      "usage": {
+        "input_tokens": 471,
+        "output_tokens": 22
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.04
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.04
+        },
+        "related_0": {
+          "type": "score",
+          "score": 0.19,
+          "confidence": 0.81,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.82,
+            "1": 0.17,
+            "2": 0.01,
+            "3": 0
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 558,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.02
+        }
+      },
+      "usage": {
+        "input_tokens": 474,
+        "output_tokens": 22
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.04
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.08
+        },
+        "related_0": {
+          "type": "score",
+          "score": 0.2,
+          "confidence": 0.8,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.81,
+            "1": 0.18,
+            "2": 0.01,
+            "3": 0
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 566,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.01
+        }
+      },
+      "usage": {
+        "input_tokens": 490,
+        "output_tokens": 22
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.85
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.86
+        },
+        "related_0": {
+          "type": "score",
+          "score": 2.99,
+          "confidence": 0.99,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0,
+            "1": 0,
+            "2": 0,
+            "3": 1
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 551,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.97
+        },
+        "relation_0": {
+          "type": "choice",
+          "choice": "duplicate",
+          "confidence": 1,
+          "probabilities": {
+            "supplement": 0,
+            "duplicate": 1,
+            "unrelated": 0,
+            "conflict": 0,
+            "unclear": 0
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 650,
+        "output_tokens": 77
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.79
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.88
+        },
+        "related_0": {
+          "type": "score",
+          "score": 2.99,
+          "confidence": 0.99,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0,
+            "1": 0,
+            "2": 0,
+            "3": 1
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 558,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.97
+        },
+        "relation_0": {
+          "type": "choice",
+          "choice": "duplicate",
+          "confidence": 1,
+          "probabilities": {
+            "duplicate": 1,
+            "unrelated": 0,
+            "unclear": 0,
+            "conflict": 0,
+            "supplement": 0
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 678,
+        "output_tokens": 77
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.86
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.92
+        },
+        "related_0": {
+          "type": "score",
+          "score": 2.67,
+          "confidence": 0.67,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0,
+            "1": 0.02,
+            "2": 0.29,
+            "3": 0.69
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 555,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.97
+        },
+        "relation_0": {
+          "type": "choice",
+          "choice": "supplement",
+          "confidence": 0.92,
+          "probabilities": {
+            "unrelated": 0.06,
+            "duplicate": 0.01,
+            "supplement": 0.93,
+            "conflict": 0,
+            "unclear": 0
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 665,
+        "output_tokens": 78
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.86
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.77
+        },
+        "related_0": {
+          "type": "score",
+          "score": 2.62,
+          "confidence": 0.62,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0,
+            "1": 0.02,
+            "2": 0.35,
+            "3": 0.63
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 565,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.95
+        },
+        "relation_0": {
+          "type": "choice",
+          "choice": "supplement",
+          "confidence": 0.94,
+          "probabilities": {
+            "supplement": 0.95,
+            "unclear": 0,
+            "conflict": 0,
+            "duplicate": 0.02,
+            "unrelated": 0.03
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 684,
+        "output_tokens": 78
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.71
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.92
+        },
+        "related_0": {
+          "type": "score",
+          "score": 2.98,
+          "confidence": 0.98,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0,
+            "1": 0,
+            "2": 0.01,
+            "3": 0.99
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 563,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.94
+        },
+        "relation_0": {
+          "type": "choice",
+          "choice": "conflict",
+          "confidence": 0.99,
+          "probabilities": {
+            "unrelated": 0,
+            "supplement": 0,
+            "conflict": 0.99,
+            "duplicate": 0.01,
+            "unclear": 0
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 678,
+        "output_tokens": 78
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.71
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.93
+        },
+        "related_0": {
+          "type": "score",
+          "score": 2.96,
+          "confidence": 0.96,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0,
+            "1": 0,
+            "2": 0.01,
+            "3": 0.99
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 569,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.91
+        },
+        "relation_0": {
+          "type": "choice",
+          "choice": "conflict",
+          "confidence": 0.98,
+          "probabilities": {
+            "conflict": 0.99,
+            "unclear": 0,
+            "unrelated": 0,
+            "duplicate": 0.01,
+            "supplement": 0
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 696,
+        "output_tokens": 78
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.65
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.89
+        },
+        "related_0": {
+          "type": "score",
+          "score": 0.48,
+          "confidence": 0.52,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.6,
+            "1": 0.34,
+            "2": 0.04,
+            "3": 0.02
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 542,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.95
+        },
+        "expands_0": {
+          "type": "noul",
+          "noul": 0.18
+        }
+      },
+      "usage": {
+        "input_tokens": 607,
+        "output_tokens": 41
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.65
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.92
+        },
+        "related_0": {
+          "type": "score",
+          "score": 0.46,
+          "confidence": 0.54,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.57,
+            "1": 0.4,
+            "2": 0.02,
+            "3": 0.01
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 547,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.92
+        },
+        "expands_0": {
+          "type": "noul",
+          "noul": 0.19
+        }
+      },
+      "usage": {
+        "input_tokens": 616,
+        "output_tokens": 41
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.81
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.95
+        },
+        "related_0": {
+          "type": "score",
+          "score": 0.58,
+          "confidence": 0.42,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.51,
+            "1": 0.42,
+            "2": 0.05,
+            "3": 0.02
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 546,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.02
+        },
+        "expands_0": {
+          "type": "noul",
+          "noul": 0.92
+        }
+      },
+      "usage": {
+        "input_tokens": 607,
+        "output_tokens": 41
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.45
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.89
+        },
+        "related_0": {
+          "type": "score",
+          "score": 0.5,
+          "confidence": 0.5,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.58,
+            "1": 0.36,
+            "2": 0.04,
+            "3": 0.02
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 551,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.03
+        },
+        "expands_0": {
+          "type": "noul",
+          "noul": 0.92
+        }
+      },
+      "usage": {
+        "input_tokens": 620,
+        "output_tokens": 41
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.05
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.2
+        },
+        "related_0": {
+          "type": "score",
+          "score": 0.53,
+          "confidence": 0.47,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.51,
+            "1": 0.46,
+            "2": 0.03,
+            "3": 0
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 552,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.04
+        }
+      },
+      "usage": {
+        "input_tokens": 466,
+        "output_tokens": 22
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "memory": {
+          "type": "noul",
+          "noul": 0.06
+        },
+        "harness": {
+          "type": "noul",
+          "noul": 0.13
+        },
+        "related_0": {
+          "type": "score",
+          "score": 0.56,
+          "confidence": 0.44,
+          "legend": {
+            "0": "Unrelated",
+            "1": "Only generic topic overlap",
+            "2": "Useful related context",
+            "3": "Directly governs the same fact or preference"
+          },
+          "probabilities": {
+            "0": 0.5,
+            "1": 0.44,
+            "2": 0.05,
+            "3": 0.01
+          }
+        }
+      },
+      "usage": {
+        "input_tokens": 558,
+        "output_tokens": 53
+      }
+    },
+    {
+      "model": "jev-1.13.0",
+      "answers": {
+        "supported_0": {
+          "type": "noul",
+          "noul": 0.04
+        }
+      },
+      "usage": {
+        "input_tokens": 476,
+        "output_tokens": 22
+      }
+    }
+  ]
+}

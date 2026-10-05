@@ -1,0 +1,227 @@
+{
+  "evidence": "real-jev-inference-public-diagnostic",
+  "rows": [
+    {
+      "id": "en-harness-narrow",
+      "result": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1224,
+          "model": "jev-1.13.0",
+          "inputTokens": 858,
+          "outputTokens": 70,
+          "estimatedCostUsd": 0.000036036
+        }
+      }
+    },
+    {
+      "id": "zh-harness-narrow",
+      "result": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 497,
+          "model": "jev-1.13.0",
+          "inputTokens": 867,
+          "outputTokens": 70,
+          "estimatedCostUsd": 0.000036414
+        }
+      }
+    }
+  ],
+  "transport": [
+    {
+      "request": {
+        "state": "{\"frozenEvidence\":{\"entries\":[{\"message\":{\"role\":\"user\",\"content\":\"Never run git push in this repository.\"}}]},\"existingMemories\":[],\"executionScope\":\"The current project shared Harness layer; the parent validates this target before semantic judgment.\"}",
+        "questions": {
+          "supported_0": {
+            "type": "noul",
+            "instructions": {
+              "question": "Are this candidate's factual claims or behavioral constraints directly supported by frozenEvidence? Judge the content, not administrative labels. Equivalent wording is allowed. A project fact or lasting preference stated by the user counts as established evidence; guesses and temporary failures do not establish lasting facts.",
+              "candidate": {
+                "action": "addRule",
+                "rule": {
+                  "bash": "^git\\s+push(?:\\s|$)",
+                  "action": "block",
+                  "message": "Do not push from this repository."
+                },
+                "behaviorExamples": {
+                  "blocked": [
+                    {
+                      "bash": "git push origin main"
+                    }
+                  ],
+                  "allowed": [
+                    {
+                      "bash": "git status"
+                    }
+                  ]
+                }
+              }
+            },
+            "criteria": {
+              "true": "The evidence directly states or verifies the proposed knowledge or restriction, within the same scope.",
+              "false": "The proposed knowledge or restriction relies on speculation, generalizes a temporary fault, or adds an unsupported claim or obligation."
+            }
+          },
+          "expands_0": {
+            "type": "choice",
+            "instructions": {
+              "question": "How does the set of actions restricted by this rule compare with the user's original restriction in frozenEvidence? Compare action, target, context, duration and permission exceptions. behaviorExamples describe matching behavior only; they do not authorize restrictions.",
+              "candidate": {
+                "action": "addRule",
+                "rule": {
+                  "bash": "^git\\s+push(?:\\s|$)",
+                  "action": "block",
+                  "message": "Do not push from this repository."
+                },
+                "behaviorExamples": {
+                  "blocked": [
+                    {
+                      "bash": "git push origin main"
+                    }
+                  ],
+                  "allowed": [
+                    {
+                      "bash": "git status"
+                    }
+                  ]
+                }
+              }
+            },
+            "criteria": {
+              "same": "It restricts the same actions within the same user-stated scope and preserves every permission exception.",
+              "narrower": "It restricts only a subset of the originally forbidden actions, without adding another obligation or removing an exception.",
+              "broader": "It adds forbidden actions, targets, contexts or duration, removes a permission exception, or introduces another obligation.",
+              "unclear": "The matching behavior or user-authorized boundary cannot be established."
+            }
+          }
+        },
+        "model": "jev-1.13.0"
+      },
+      "result": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "supported_0": {
+            "type": "noul",
+            "noul": 0.94
+          },
+          "expands_0": {
+            "type": "choice",
+            "choice": "same",
+            "confidence": 0.55,
+            "probabilities": {
+              "broader": 0.19,
+              "same": 0.66,
+              "narrower": 0.14,
+              "unclear": 0.01
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 858,
+          "output_tokens": 70
+        }
+      }
+    },
+    {
+      "request": {
+        "state": "{\"frozenEvidence\":{\"entries\":[{\"message\":{\"role\":\"user\",\"content\":\"以后在本仓库禁止运行 git push。\"}}]},\"existingMemories\":[],\"executionScope\":\"The current project shared Harness layer; the parent validates this target before semantic judgment.\"}",
+        "questions": {
+          "supported_0": {
+            "type": "noul",
+            "instructions": {
+              "question": "Are this candidate's factual claims or behavioral constraints directly supported by frozenEvidence? Judge the content, not administrative labels. Equivalent wording is allowed. A project fact or lasting preference stated by the user counts as established evidence; guesses and temporary failures do not establish lasting facts.",
+              "candidate": {
+                "action": "addRule",
+                "rule": {
+                  "bash": "^git\\s+push(?:\\s|$)",
+                  "action": "block",
+                  "message": "禁止在本仓库推送。"
+                },
+                "behaviorExamples": {
+                  "blocked": [
+                    {
+                      "bash": "git push origin main"
+                    }
+                  ],
+                  "allowed": [
+                    {
+                      "bash": "git status"
+                    }
+                  ]
+                }
+              }
+            },
+            "criteria": {
+              "true": "The evidence directly states or verifies the proposed knowledge or restriction, within the same scope.",
+              "false": "The proposed knowledge or restriction relies on speculation, generalizes a temporary fault, or adds an unsupported claim or obligation."
+            }
+          },
+          "expands_0": {
+            "type": "choice",
+            "instructions": {
+              "question": "How does the set of actions restricted by this rule compare with the user's original restriction in frozenEvidence? Compare action, target, context, duration and permission exceptions. behaviorExamples describe matching behavior only; they do not authorize restrictions.",
+              "candidate": {
+                "action": "addRule",
+                "rule": {
+                  "bash": "^git\\s+push(?:\\s|$)",
+                  "action": "block",
+                  "message": "禁止在本仓库推送。"
+                },
+                "behaviorExamples": {
+                  "blocked": [
+                    {
+                      "bash": "git push origin main"
+                    }
+                  ],
+                  "allowed": [
+                    {
+                      "bash": "git status"
+                    }
+                  ]
+                }
+              }
+            },
+            "criteria": {
+              "same": "It restricts the same actions within the same user-stated scope and preserves every permission exception.",
+              "narrower": "It restricts only a subset of the originally forbidden actions, without adding another obligation or removing an exception.",
+              "broader": "It adds forbidden actions, targets, contexts or duration, removes a permission exception, or introduces another obligation.",
+              "unclear": "The matching behavior or user-authorized boundary cannot be established."
+            }
+          }
+        },
+        "model": "jev-1.13.0"
+      },
+      "result": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "supported_0": {
+            "type": "noul",
+            "noul": 0.93
+          },
+          "expands_0": {
+            "type": "choice",
+            "choice": "same",
+            "confidence": 0.66,
+            "probabilities": {
+              "broader": 0.15,
+              "unclear": 0.01,
+              "same": 0.75,
+              "narrower": 0.09
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 867,
+          "output_tokens": 70
+        }
+      }
+    }
+  ]
+}

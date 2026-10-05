@@ -259,3 +259,68 @@ test("real loopback transport reads fragmented NDJSON and discards an oversized 
   const client = new DeskConsoleClient({ config: { ...config, port }, consoleSessionId: "console-loopback", createTransport: createControlTcpTransport });
   assert.equal((await client.list()).sessions[0].sessionId, "界-session");
 });
+
+test("failed attach releases the held transport", async () => {
+  const desk = authenticatedDesk((record, peer) => {
+    if (record.type === "attach") peer.deliver({ v: 2, type: "error", requestId: record.requestId, reason: "attach refused" });
+  });
+  const client = new DeskConsoleClient({ config, consoleSessionId: "console-a", createTransport: desk.createTransport });
+  await assert.rejects(client.attach({ sessionId: "missing" }), /attach refused/);
+  assert.equal(desk.transports[0].closed, true);
+});
+
+test("closed attachment ignores records still queued by the old socket", async () => {
+  let peer;
+  const applied = [];
+  const desk = authenticatedDesk((record, nextPeer) => {
+    if (record.type === "attach") {
+      peer = nextPeer;
+      peer.deliver({ v: 2, type: "ack", requestId: record.requestId, result: { caughtUp: true } });
+    }
+  });
+  const client = new DeskConsoleClient({ config, consoleSessionId: "console-a", createTransport: desk.createTransport });
+  const attachment = await client.attach({ sessionId: "hosted", onEvent: entry => applied.push(entry) });
+  attachment.close();
+  peer.deliver({ v: 2, type: "event", sessionId: "hosted", attachmentId: attachment.attachmentId, position: 9, events: [{ kind: "assistant", text: "stale" }] });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.deepEqual(applied, []);
+});
+
+test("superseding an in-flight attach closes it before the next attach", async () => {
+  let firstPeer;
+  const desk = authenticatedDesk((record, peer) => {
+    if (record.type === "attach" && record.sessionId === "first") firstPeer = peer;
+    else if (record.type === "attach") peer.deliver({ v: 2, type: "ack", requestId: record.requestId, result: { caughtUp: true } });
+  });
+  const client = new DeskConsoleClient({ config, consoleSessionId: "console-a", createTransport: desk.createTransport });
+  const first = client.attach({ sessionId: "first" });
+  const rejected = assert.rejects(first, /closed/);
+  while (!firstPeer) await new Promise(resolve => setTimeout(resolve, 0));
+  const next = await client.attach({ sessionId: "second" });
+  await rejected;
+  assert.equal(desk.transports[0].closed, true);
+  next.close();
+});
+
+test("a failed write rejects once with reconciliation IDs and leaves no delayed rejection", async () => {
+  const desk = authenticatedDesk((record) => {
+    if (record.type === "launch") throw new Error("write refused");
+  });
+  const client = new DeskConsoleClient({ config, consoleSessionId: "console-a", createTransport: desk.createTransport, timeoutMs: 20 });
+  await assert.rejects(client.launch({ project: "/workspace", prompt: "hello", mutationId: "write-mutation" }), error => error.mutationId === "write-mutation" && /write refused/.test(error.message));
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.equal(desk.transports[0].closed, true);
+});
+
+test("attachment exposes a lost control connection for explicit resume", async () => {
+  let peer;
+  const desk = authenticatedDesk((record, nextPeer) => {
+    if (record.type === "attach") { peer = nextPeer; peer.deliver({ v: 2, type: "ack", requestId: record.requestId, result: { caughtUp: true } }); }
+  });
+  const client = new DeskConsoleClient({ config, consoleSessionId: "console-a", createTransport: desk.createTransport });
+  const attachment = await client.attach({ sessionId: "hosted" });
+  peer.close("desk restarted");
+  await new Promise(resolve => setTimeout(resolve, 0));
+  assert.match(attachment.error() ?? "", /desk restarted/);
+  attachment.close();
+});

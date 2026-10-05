@@ -1,4 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import registerAutoname from "./extensions/autoname.ts";
 import registerContinue from "./extensions/continue.ts";
 import registerEffort from "./extensions/effort.ts";
 import registerInit from "./extensions/init.ts";
@@ -10,6 +11,7 @@ import registerWorktreeCompletion from "./extensions/worktree-completion.ts";
 import registerWorktreeSession from "./extensions/worktree-session.ts";
 
 export default function utilsExtension(pi: ExtensionAPI): void {
+	registerAutoname(pi);
 	registerContinue(pi);
 	registerEffort(pi);
 	registerInit(pi);

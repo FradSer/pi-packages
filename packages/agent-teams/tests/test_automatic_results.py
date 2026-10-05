@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from test_teammate_package import PACKAGE, run_node
+from test_agent_package import PACKAGE, run_node
 
 FIXTURE = (PACKAGE / "tests" / "automatic-results-fixture.ts").as_uri()
 
@@ -41,7 +41,7 @@ def test_final_answer_is_reported_once_only_after_settlement(tmp_path: Path) -> 
         "id": "ignored", "timestamp": 0, "type": "message", "worker": "worker", "spawnId": "spawn-1",
         "assignmentId": "attempt-1", "status": "completed", "body": "Final answer with evidence",
     }
-    assert "closed" not in payload["roster"]["teammates"][0]["assignment"]
+    assert "closed" not in payload["roster"]["agents"][0]["assignment"]
 
 
 @pytest.mark.parametrize(("stop_reason", "error", "reason"), [
@@ -143,27 +143,27 @@ def test_unassigned_workers_do_not_autocomplete(tmp_path: Path) -> None:
     assert payload == {"records": [], "submitted": False}
 
 
-def test_board_final_answer_is_submitted_once_after_settlement(tmp_path: Path) -> None:
+def test_tasks_final_answer_is_submitted_once_after_settlement(tmp_path: Path) -> None:
     payload = run_worker(tmp_path, '''
         await fixture.start();
-        await fixture.answer(assistant("Board result evidence"));
+        await fixture.answer(assistant("Tasks result evidence"));
         await fixture.emit({ type: "agent_end", messages: [] });
         assert.deepEqual(fixture.records(), []);
         await fixture.emit({ type: "agent_settled" });
         await fixture.emit({ type: "agent_settled" });
         console.log(JSON.stringify({ records: fixture.records() }));
-    ''', "board")
+    ''', "task")
     assert len(payload["records"]) == 1
     assert payload["records"][0]["assignmentId"] == "attempt-1"
-    assert payload["records"][0]["body"] == "Board result evidence"
+    assert payload["records"][0]["body"] == "Tasks result evidence"
 
 
-@pytest.mark.parametrize("kind", ["direct", "board"])
+@pytest.mark.parametrize("kind", ["direct", "task"])
 @pytest.mark.parametrize("outcome", ["success", "failed"])
 def test_explicit_submission_suppresses_automatic_duplicate(tmp_path: Path, kind: str, outcome: str) -> None:
     payload = run_worker(tmp_path, f'''
         const roster = JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8"));
-        roster.teammates[0].currentTaskId = "work-1";
+        roster.agents[0].currentTaskId = "work-1";
         fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify(roster));
         await fixture.start();
         const submitted = await fixture.call("task", {{ action: "submit", outcome: {json.dumps(outcome)}, result: "Explicit evidence" }});
@@ -312,11 +312,11 @@ def test_agent_event_requires_precise_route_for_concurrent_peer_sessions(tmp_pat
     tool = "message"
     payload = run_worker(tmp_path, f'const messageTool = {json.dumps(tool)};' + '''
         const peers = [
-          { name: "reviewer-one", agent: "peer-reviewer", status: "working" },
-          { name: "reviewer-two", agent: "peer-reviewer", status: "idle" },
+          { name: "reviewer-one", role: "peer-reviewer", status: "working" },
+          { name: "reviewer-two", role: "peer-reviewer", status: "idle" },
         ];
-        const self = JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8")).teammates[0];
-        const write = (teammates) => fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify({ teammates: [self, ...teammates] }));
+        const self = JSON.parse(fs.readFileSync(fixture.binding.rosterFile, "utf8")).agents[0];
+        const write = (agents) => fs.writeFileSync(fixture.binding.rosterFile, JSON.stringify({ agents: [self, ...agents] }));
         write(peers);
         await assert.rejects(fixture.call(messageTool, { to: "peer-reviewer", body: "Ambiguous" }),
           /Ambiguous Agent.*reviewer-one.*reviewer-two/);
@@ -324,7 +324,7 @@ def test_agent_event_requires_precise_route_for_concurrent_peer_sessions(tmp_pat
         const exact = await fixture.call(messageTool, { to: "session:reviewer-two", body: "Exact route" });
         write([peers[0], { ...peers[1], status: "stopped" }]);
         const unique = await fixture.call(messageTool, { to: "peer-reviewer", body: "Only living route" });
-        self.agent = "self-role";
+        self.role = "self-role";
         write([]);
         await assert.rejects(fixture.call(messageTool, { to: "self-role", body: "Self alias" }), /yourself/);
         const first = JSON.parse(fs.readFileSync(fixture.binding.inbox.replace("inbox-worker", "inbox-reviewer-one"), "utf8"));
@@ -344,7 +344,7 @@ def test_native_pi_reports_only_after_settlement(tmp_path: Path, outcome: str | 
     agent_dir.mkdir()
     (agent_dir / "settings.json").write_text(json.dumps({"retry": {"enabled": True, "maxRetries": 1, "baseDelayMs": 1}}))
     roster = tmp_path / "roster.json"
-    roster.write_text(json.dumps({"teammates": [{"name": "worker", "agent": "reviewer", "spawnId": "spawn-1", "status": "working",
+    roster.write_text(json.dumps({"agents": [{"name": "worker", "agent": "reviewer", "spawnId": "spawn-1", "status": "working",
         "currentTaskId": "work-1", "assignment": {"id": "attempt-1", "kind": "direct", "resources": []}}]}))
     outbox = tmp_path / "events.jsonl"
     env = {key: value for key, value in os.environ.items() if not key.startswith("PI_")}
@@ -352,7 +352,7 @@ def test_native_pi_reports_only_after_settlement(tmp_path: Path, outcome: str | 
         "PI_CODING_AGENT_DIR": str(agent_dir), "PI_OFFLINE": "1", "PI_AUTOMATIC_RESULTS_AUTH": secrets.token_hex(16),
         "PI_TEAMMATE_WORKER_NAME": "worker", "PI_TEAMMATE_SPAWN_ID": "spawn-1", "PI_TEAMMATE_OUTBOX_FILE": str(outbox),
         "PI_TEAMMATE_ROSTER_FILE": str(roster), "PI_TEAMMATE_INBOX_FILE": str(tmp_path / "inbox.jsonl"),
-        "PI_TEAMMATE_BOARD_FILE": str(tmp_path / "board.json"), "PI_TEAMMATE_CLAIMS_DIR": str(tmp_path / "claims"),
+        "PI_TEAMMATE_TASKS_FILE": str(tmp_path / "tasks.json"), "PI_TEAMMATE_CLAIMS_DIR": str(tmp_path / "claims"),
         "PI_TEAMMATE_SUBMISSIONS_DIR": str(tmp_path / "submissions"),
     })
     env["PI_SUBMISSION_AUTH"] = secrets.token_hex(16)

@@ -5,7 +5,7 @@ import { automaticPhasePolicies, type PhasePolicies } from "./learning-controls"
 import { listLearningHistory, previewLearningUndo, readLearningFile, readLearningHistory, undoLearningChange, type LearningHistory } from "./learning-history";
 import { evaluateLearningRules } from "./learning-evaluation";
 
-interface ManagedSettings { autoMemory: boolean; automaticPhases?: Partial<PhasePolicies>; agentsMd?: { disabled?: boolean } }
+interface ManagedSettings { autoMemory: boolean; automaticPhases?: Partial<PhasePolicies>; agentsMd?: { disabled?: boolean }; invalid?: string }
 interface ManagementDependencies<T extends ManagedSettings> {
   readSettings: (cwd: string) => Promise<T>;
   writeSettings: (settings: T, cwd: string) => Promise<void>;
@@ -33,6 +33,7 @@ export async function handleLearningManagement<T extends ManagedSettings>(comman
   try {
     if (verb === "policy") {
       const settings = await dependencies.readSettings(cwd);
+      if (settings.invalid) throw new Error(settings.invalid);
       if (args.length === 0) {
         const policies = automaticPhasePolicies(settings, "automatic");
         notifyPi(ctx.ui, Object.entries(policies).map(([phase, policy]) => `${phase}: ${policy}`).join("\n") + "\nSet with /memory policy <memory|harness|agents> <apply|propose|off>. Explicit /consolidate applies current validated plans; agentsMd.disabled still takes precedence.", "info");

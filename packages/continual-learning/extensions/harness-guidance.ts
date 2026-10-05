@@ -59,12 +59,16 @@ function sourceFile(source: string | undefined, paths: ReturnType<typeof resolve
   switch (source) {
     case "user":
       return paths.user;
+    case "user.scoped":
+      return paths.userScoped;
     case "project":
       return paths.project;
     case "project.local":
       return paths.projectLocal;
-    default:
+    case "built-in defaults":
       return "(built-in)";
+    default:
+      return "(unknown)";
   }
 }
 
@@ -115,6 +119,7 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
 
     const skillRules = skill ? evaluateSkill(resolved.config, skill.name) : [];
     let retained: unknown[] = [];
+    let contextReadIncomplete = false;
     try {
       // The retained conversation is only needed to scan for text rules. With no
       // enabled text rule nothing can match from it, so only the delivered
@@ -127,16 +132,19 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
           .filter((entry) => entry.type === "custom_message" && entry.customType === HARNESS_GUIDANCE_CUSTOM_TYPE)
           .flatMap((entry) => sessionEntryToContextMessages(entry)) as unknown[];
     } catch {
+      contextReadIncomplete = true;
       retained = [];
     }
-    const textPlan = planTextGuidance(retained, event.prompt, resolved.config);
+    const textPlan = contextReadIncomplete
+      ? { entries: [] as TextGuidanceEntry[], incomplete: true }
+      : planTextGuidance(retained, event.prompt, resolved.config);
 
     if (textPlan.incomplete) {
       pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
         kind: "text-incomplete",
         prompt: "Text-rule matching did not complete this turn; prior guidance state is preserved.",
-        source: "project",
-        file: resolved.paths.project,
+        source: "unknown",
+        file: "(unknown)",
       } satisfies HarnessGuidanceEvent);
     }
 
@@ -163,8 +171,8 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
         kind: "text-rule",
         ruleId: e.id,
         prompt: e.text,
-        source: "project",
-        file: resolved.paths.project,
+        source: e.source ?? "unknown",
+        file: sourceFile(e.source, resolved.paths),
       } satisfies HarnessGuidanceEvent);
     }
 

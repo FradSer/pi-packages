@@ -14,8 +14,8 @@
  *      anything.
  *
  * Interaction: escape closes (or cancels while loading); ↑/↓ scroll,
- * pgup/pgdn page, home/end jump. Mouse-wheel scrolling is not available —
- * in pi's fullscreen TUI the wheel belongs to the chat viewport.
+ * pgup/pgdn page. Home/end edit the composer when it is visible.
+ * Fullscreen mouse-wheel events scroll the answer viewport.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -50,12 +50,13 @@ export default function (pi: ExtensionAPI) {
       const context = buildConversationContext(ctx.sessionManager);
 
       await ctx.ui.custom<undefined>(
-        (tui, theme, _kb, done) => {
+        (tui, theme, kb, done) => {
           const style = createPiThemeStyle(theme);
 
           const overlay = createBtwOverlay(tui, style, {
             question,
             modelLabel: model,
+            keybindings: kb,
             onCancel: () => done(undefined),
             onAsk: (q, history, signal) => {
               return runBtw({

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from test_package import run_typescript
+from matt_pocock_helpers import RUNTIME_HARNESS, run_typescript
 
 
 def test_a_workflow_step_does_not_re_deliver_what_is_already_in_context() -> None:
@@ -16,18 +16,18 @@ def test_a_workflow_step_does_not_re_deliver_what_is_already_in_context() -> Non
         const transition = resolveProcedureDelta("code-review", [], first.delivered);
         console.log(JSON.stringify({
           firstIds: first.delivered,
-          firstBytes: first.content.length,
+          firstSources: [...first.content.matchAll(/<procedure-source id="([^"]+)"/g)].map((match) => match[1]),
           repeatContent: repeat.content,
           repeatIds: repeat.delivered,
           transitionIds: transition.delivered,
-          transitionBytes: transition.content.length,
+          transitionSources: [...transition.content.matchAll(/<procedure-source id="([^"]+)"/g)].map((match) => match[1]),
         }));
     ''')
 
     # The first delivery carries the whole closure: the procedure and its dependencies.
     assert "implement" in result["firstIds"]
     assert "bdd" in result["firstIds"]
-    assert result["firstBytes"] > 0
+    assert result["firstSources"] == result["firstIds"]
 
     # Nothing new is nothing re-sent, and the delivery set does not shrink.
     assert result["repeatContent"] == ""
@@ -35,38 +35,30 @@ def test_a_workflow_step_does_not_re_deliver_what_is_already_in_context() -> Non
 
     # A transition delivers only what that procedure adds, not the shared dependencies again.
     assert "code-review" in result["transitionIds"]
-    assert result["transitionBytes"] > 0
-    assert result["transitionBytes"] < result["firstBytes"]
+    assert "code-review" in result["transitionSources"]
+    assert set(result["transitionSources"]).isdisjoint(result["firstSources"])
+    assert set(result["transitionSources"]) == set(result["transitionIds"]) - set(result["firstIds"])
 
-HARNESS = """
-        import mattPocock from "./packages/matt-pocock/src/index.ts";
+HARNESS = RUNTIME_HARNESS + """
         const LF = String.fromCharCode(10);
-        const commands = new Map(), renderers = new Map(), entries = [], messages = [], userMessages = [];
-        let activeTools = ["bash", "matt_pocock_workflow"];
-        mattPocock({
-          on() {}, registerCommand(name, command) { commands.set(name, command); }, registerTool() {},
-          registerMessageRenderer(name, renderer) { renderers.set(name, renderer); },
-          appendEntry(customType, data) { entries.push({ customType, data }); },
-          sendMessage(message, options) { messages.push({ message, options }); },
-          sendUserMessage(message, options) { userMessages.push({ message, options }); },
-          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
-        });
+        const r = runtime(["bash", "matt_pocock_workflow"]);
+        const { commands, renderers, entries, userMessages } = r;
         const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text };
-        const ctx = (choices = []) => ({ hasUI: true, ui: {
-          setStatus() {}, notify() {}, select: async () => choices.shift(), input: async () => "",
+        const ctx = (choices = []) => ({ ...r.ctx, ui: {
+          ...r.ctx.ui, select: async () => choices.shift(), input: async () => "",
         }});
         const command = commands.get("matt-pocock");
-        const start = () => ({ messageCount: messages.length, userCount: userMessages.length, entryCount: entries.length });
+        const start = () => ({ messageCount: r.messages.length, userCount: userMessages.length, entryCount: entries.length });
         const snapshot = (before) => {
-          const message = messages.at(-1).message;
+          const message = r.deliveries().at(-1).message;
           const rendered = renderers.get("matt-pocock-procedure")(message, { expanded: false }, theme).render(80);
           return {
-            messages: messages.length - before.messageCount,
+            messages: r.messages.length - before.messageCount,
             userMessages: userMessages.slice(before.userCount),
             entries: entries.slice(before.entryCount),
             customType: message.customType, display: message.display, details: message.details,
-            options: messages.at(-1).options, content: message.content,
-            activeTools: [...activeTools],
+            options: r.deliveries().at(-1).options, content: message.content,
+            activeTools: [...r.active()],
             rows: rendered.slice(1, -1).map((row) => row.trim()),
             band: rendered,
           };
@@ -103,13 +95,13 @@ SCRIPT = """
 
         await command.handler("hard-bug", ctx());
         before = start();
-        await command.handler("transition", ctx(["code-review"]));
+        await command.handler("transition", ctx(["Code Review"]));
         const transition = snapshot(before);
 
         before = start();
         await command.handler("cancel shifting scope from the user", ctx());
         const cancelled = {
-          messages: messages.length - before.messageCount,
+          messages: r.messages.length - before.messageCount,
           userMessages: userMessages.slice(before.userCount),
           entries: entries.slice(before.entryCount),
         };
@@ -123,11 +115,8 @@ SCRIPT = """
         const freeform = snapshot(before);
 
         console.log(JSON.stringify({ routeTask, routeOnly, capabilityTask, capabilityOnly, menuRoute,
-          menuCapability, transition, cancelled, menuRouting, freeform, activeTools }));
+          menuCapability, transition, cancelled, menuRouting, freeform, activeTools: r.active() }));
 """
-
-DELIVERIES = ("routeTask", "routeOnly", "capabilityTask", "capabilityOnly", "menuRoute",
-              "menuCapability", "transition", "menuRouting", "freeform")
 
 STATE_KEYS = ("version", "workItemId", "route", "procedure", "phase", "status", "loadedReferences", "deliveredProcedures")
 
@@ -143,29 +132,24 @@ def delivery() -> dict[str, object]:
     return run_typescript(HARNESS + SCRIPT)
 
 
-@pytest.mark.parametrize("name", DELIVERIES)
-def test_procedure_starts_deliver_one_displayed_message_not_a_user_message(delivery: dict[str, object], name: str) -> None:
+@pytest.mark.parametrize("name,body", [
+    ("routeTask", ["fix the login redirect"]),
+    ("routeOnly", ["Reproducing & Diagnostics"]),
+    ("capabilityTask", ["tighten the spacing"]),
+    ("capabilityOnly", ["Research"]),
+    ("menuRoute", ["Shaping & Requirements"]),
+    ("menuCapability", ["Research"]),
+    ("transition", ["Code Review"]),
+    ("menuRouting", []),
+    ("freeform", ["aaaa", "zzzz"]),
+])
+def test_starts_deliver_one_displayed_block(delivery: dict[str, object], name: str, body: list[str]) -> None:
     item = delivery[name]
     assert item["userMessages"] == []
     assert item["messages"] == 1
     assert item["customType"] == "matt-pocock-procedure"
     assert item["display"] is True
     assert item["options"] == {"deliverAs": "followUp", "triggerTurn": True}
-
-
-@pytest.mark.parametrize("name,body", [
-    ("routeTask", ["fix the login redirect"]),
-    ("routeOnly", ["Reproducing & Diagnostics"]),
-    ("capabilityTask", ["tighten the spacing"]),
-    ("capabilityOnly", ["research"]),
-    ("menuRoute", ["Shaping & Requirements"]),
-    ("menuCapability", ["research"]),
-    ("transition", ["Code Review"]),
-    ("menuRouting", []),
-    ("freeform", ["aaaa", "zzzz"]),
-])
-def test_blocks_keep_the_head_apart_from_the_body(delivery: dict[str, object], name: str, body: list[str]) -> None:
-    item = delivery[name]
     assert item["rows"] == ["[matt pocock] started"] + (["", *body] if body else [])
     assert "to expand" not in "\n".join(item["band"])
     assert all(len(row) <= 80 for row in item["band"])

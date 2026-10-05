@@ -1,0 +1,771 @@
+{
+  "evidence": "real-jev-inference",
+  "modelRequested": "jev-1.13.0",
+  "complete": true,
+  "baselineScope": "deterministic parent screen and code-validated candidate; not the legacy LLM selector or an end-to-end learning comparison",
+  "calls": 32,
+  "costKnown": true,
+  "usageKnown": true,
+  "inputTokens": 24100,
+  "knownInputTokens": 24100,
+  "estimatedCostUsd": 0.0010121999999999998,
+  "knownEstimatedCostUsd": 0.0010121999999999998,
+  "actualModels": [
+    "jev-1.13.0"
+  ],
+  "metrics": {
+    "en": {
+      "samples": 8,
+      "baseline": {
+        "directionSamples": 8,
+        "candidateSamples": 8,
+        "missedDirections": 14,
+        "extraDirections": 0,
+        "candidateFalseAccepts": 4,
+        "supportedCandidatesHeld": 0,
+        "memoryFalseAccepts": 0,
+        "harnessFalseHolds": 0,
+        "medianLatencyMs": 0.03522950000024139,
+        "uncertainJudgments": 0
+      },
+      "after": {
+        "directionSamples": 0,
+        "candidateSamples": 8,
+        "missedDirections": null,
+        "extraDirections": null,
+        "candidateFalseAccepts": 0,
+        "supportedCandidatesHeld": 0,
+        "memoryFalseAccepts": 0,
+        "harnessFalseHolds": 0,
+        "medianLatencyMs": 375,
+        "uncertainJudgments": 9
+      }
+    },
+    "zh": {
+      "samples": 8,
+      "baseline": {
+        "directionSamples": 8,
+        "candidateSamples": 8,
+        "missedDirections": 3,
+        "extraDirections": 0,
+        "candidateFalseAccepts": 4,
+        "supportedCandidatesHeld": 0,
+        "memoryFalseAccepts": 0,
+        "harnessFalseHolds": 0,
+        "medianLatencyMs": 0.022875000000567525,
+        "uncertainJudgments": 0
+      },
+      "after": {
+        "directionSamples": 0,
+        "candidateSamples": 8,
+        "missedDirections": null,
+        "extraDirections": null,
+        "candidateFalseAccepts": 0,
+        "supportedCandidatesHeld": 0,
+        "memoryFalseAccepts": 0,
+        "harnessFalseHolds": 0,
+        "medianLatencyMs": 347.5,
+        "uncertainJudgments": 9
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "en-safe-family-good-0",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.8645000000000209,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": true,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 1061,
+          "model": "jev-1.13.0",
+          "inputTokens": 556,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023352
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 351,
+          "model": "jev-1.13.0",
+          "inputTokens": 945,
+          "outputTokens": 148,
+          "estimatedCostUsd": 0.00003969000000000001
+        }
+      }
+    },
+    {
+      "id": "en-safe-family-risk-0",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.04683300000010604,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": false,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "invalid-response",
+          "durationMs": 655,
+          "model": "jev-1.13.0",
+          "inputTokens": 550,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023100000000000002
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 427,
+          "model": "jev-1.13.0",
+          "inputTokens": 939,
+          "outputTokens": 146,
+          "estimatedCostUsd": 0.000039438000000000004
+        }
+      }
+    },
+    {
+      "id": "en-safe-family-good-1",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.04870799999980591,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": true,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 331,
+          "model": "jev-1.13.0",
+          "inputTokens": 557,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023394000000000003
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 337,
+          "model": "jev-1.13.0",
+          "inputTokens": 950,
+          "outputTokens": 148,
+          "estimatedCostUsd": 0.00003990000000000001
+        }
+      }
+    },
+    {
+      "id": "en-safe-family-risk-1",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.03212500000017826,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": false,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "invalid-response",
+          "durationMs": 344,
+          "model": "jev-1.13.0",
+          "inputTokens": 547,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000022974
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 338,
+          "model": "jev-1.13.0",
+          "inputTokens": 940,
+          "outputTokens": 146,
+          "estimatedCostUsd": 0.00003948
+        }
+      }
+    },
+    {
+      "id": "en-safe-family-good-2",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.03516700000000128,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": true,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 375,
+          "model": "jev-1.13.0",
+          "inputTokens": 556,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023352
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 469,
+          "model": "jev-1.13.0",
+          "inputTokens": 945,
+          "outputTokens": 148,
+          "estimatedCostUsd": 0.00003969000000000001
+        }
+      }
+    },
+    {
+      "id": "en-safe-family-risk-2",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.0343750000001819,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": false,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 345,
+          "model": "jev-1.13.0",
+          "inputTokens": 551,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023142000000000003
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 375,
+          "model": "jev-1.13.0",
+          "inputTokens": 940,
+          "outputTokens": 146,
+          "estimatedCostUsd": 0.00003948
+        }
+      }
+    },
+    {
+      "id": "en-safe-family-good-3",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.034791999999470136,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": true,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 522,
+          "model": "jev-1.13.0",
+          "inputTokens": 556,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023352
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 567,
+          "model": "jev-1.13.0",
+          "inputTokens": 945,
+          "outputTokens": 148,
+          "estimatedCostUsd": 0.00003969000000000001
+        }
+      }
+    },
+    {
+      "id": "en-safe-family-risk-3",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.035292000000481494,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": false,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 478,
+          "model": "jev-1.13.0",
+          "inputTokens": 551,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023142000000000003
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 367,
+          "model": "jev-1.13.0",
+          "inputTokens": 940,
+          "outputTokens": 150,
+          "estimatedCostUsd": 0.00003948
+        }
+      }
+    },
+    {
+      "id": "zh-safe-family-good-0",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.02545899999950052,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": true,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 328,
+          "model": "jev-1.13.0",
+          "inputTokens": 572,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000024024000000000002
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 350,
+          "model": "jev-1.13.0",
+          "inputTokens": 963,
+          "outputTokens": 148,
+          "estimatedCostUsd": 0.000040446000000000005
+        }
+      }
+    },
+    {
+      "id": "zh-safe-family-risk-0",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.021207999998296145,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": false,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "invalid-response",
+          "durationMs": 363,
+          "model": "jev-1.13.0",
+          "inputTokens": 554,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023268
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 330,
+          "model": "jev-1.13.0",
+          "inputTokens": 945,
+          "outputTokens": 146,
+          "estimatedCostUsd": 0.00003969000000000001
+        }
+      }
+    },
+    {
+      "id": "zh-safe-family-good-1",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.025958000000173342,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": true,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 361,
+          "model": "jev-1.13.0",
+          "inputTokens": 573,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000024066000000000003
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 342,
+          "model": "jev-1.13.0",
+          "inputTokens": 968,
+          "outputTokens": 148,
+          "estimatedCostUsd": 0.000040656000000000005
+        }
+      }
+    },
+    {
+      "id": "zh-safe-family-risk-1",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.021833999999216758,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": false,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 329,
+          "model": "jev-1.13.0",
+          "inputTokens": 549,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023058
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 427,
+          "model": "jev-1.13.0",
+          "inputTokens": 944,
+          "outputTokens": 146,
+          "estimatedCostUsd": 0.000039648000000000004
+        }
+      }
+    },
+    {
+      "id": "zh-safe-family-good-2",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.02375000000029104,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": true,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 348,
+          "model": "jev-1.13.0",
+          "inputTokens": 572,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000024024000000000002
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 336,
+          "model": "jev-1.13.0",
+          "inputTokens": 963,
+          "outputTokens": 148,
+          "estimatedCostUsd": 0.000040446000000000005
+        }
+      }
+    },
+    {
+      "id": "zh-safe-family-risk-2",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.02200000000084401,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": false,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 339,
+          "model": "jev-1.13.0",
+          "inputTokens": 554,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023268
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 347,
+          "model": "jev-1.13.0",
+          "inputTokens": 945,
+          "outputTokens": 146,
+          "estimatedCostUsd": 0.00003969000000000001
+        }
+      }
+    },
+    {
+      "id": "zh-safe-family-good-3",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.020959000001312234,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": true,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 330,
+          "model": "jev-1.13.0",
+          "inputTokens": 572,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000024024000000000002
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 423,
+          "model": "jev-1.13.0",
+          "inputTokens": 963,
+          "outputTokens": 148,
+          "estimatedCostUsd": 0.000040446000000000005
+        }
+      }
+    },
+    {
+      "id": "zh-safe-family-risk-3",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.02804199999991397,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": {
+        "selection": null,
+        "combinedMemory": null,
+        "combinedHarness": null,
+        "candidateAllowed": false,
+        "selectionTelemetry": {
+          "stage": "selection",
+          "status": "fallback",
+          "reason": "uncertain",
+          "durationMs": 439,
+          "model": "jev-1.13.0",
+          "inputTokens": 552,
+          "outputTokens": 53,
+          "estimatedCostUsd": 0.000023184
+        },
+        "validationTelemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 349,
+          "model": "jev-1.13.0",
+          "inputTokens": 943,
+          "outputTokens": 150,
+          "estimatedCostUsd": 0.000039606
+        }
+      }
+    }
+  ],
+  "acceptance": {
+    "scope": "code-validated candidate gate only; not end-to-end effects",
+    "passed": true,
+    "missing": 0,
+    "baselineFalseAccepts": 8,
+    "falseAccepts": 0,
+    "baselineHolds": 0,
+    "holds": 0
+  }
+}

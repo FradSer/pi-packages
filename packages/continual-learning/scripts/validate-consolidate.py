@@ -51,8 +51,8 @@ MEMORY_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.md$")
 INDEX_NAME = "memory.md"
 HASH_RE = re.compile(r"^(?:sha256:)?[0-9a-fA-F]{64}$")
 PRIVATE_MARKER_RE = re.compile(r"\(\s*harness[\s_-]+only\s*\)", re.IGNORECASE)
-LINK_RE = re.compile(r"\[[^\]]*\.md\]\(([^)]+)\)", re.IGNORECASE)
-TOKEN_RE = re.compile(r"(?<![A-Za-z0-9_./-])([A-Za-z0-9][A-Za-z0-9_.-]*\.md)", re.IGNORECASE)
+LINK_RE = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+TOKEN_RE = re.compile(r"^\s*(?:[-*+]\s+)?([A-Za-z0-9][A-Za-z0-9_-]*\.md)\b", re.IGNORECASE)
 
 # Keep validator limits aligned with the runtime loader and transaction writer
 # (consolidation-run.ts MAX_MEMORY_FILES / MAX_MEMORY_BYTES).
@@ -540,11 +540,27 @@ def validate_repo_path(repo_root: Path, value: Any, label: str) -> str:
     if candidate.is_absolute() or ".." in candidate.parts:
         raise ValidationError("containment", f"grounding: {value!r} escapes repository root")
     root = repo_root.resolve()
-    resolved = (root / candidate).resolve(strict=False)
-    try:
-        resolved.relative_to(root)
-    except ValueError as exc:
-        raise ValidationError("containment", f"grounding: {value!r} escapes repository root") from exc
+    current = root
+    canonical = root
+    for index, part in enumerate(candidate.parts):
+        current = current / part
+        try:
+            metadata = current.lstat()
+        except FileNotFoundError:
+            resolved = canonical.joinpath(*candidate.parts[index:])
+            resolved.relative_to(root)
+            break
+        try:
+            resolved = current.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ValidationError("grounding", f"grounding: {value!r} cannot resolve an observed path") from exc
+        try:
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise ValidationError("containment", f"grounding: {value!r} escapes repository root") from exc
+        canonical = resolved
+        if index < len(candidate.parts) - 1 and (metadata.st_mode & 0o170000) not in {0o040000, 0o120000}:
+            raise ValidationError("grounding", f"grounding: {value!r} contains a non-directory parent")
     return value
 
 
@@ -580,9 +596,21 @@ def validate_grounding(value: Any, inventory: list[str], repo_root: Path | None)
             if not isinstance(path_status, str) or path_status.strip().lower() not in {"found", "missing", "updated"}:
                 raise ValidationError("grounding", f"grounding: {name} observation status must be found, missing, or updated")
             if repo_root is not None and path_status.strip().lower() in {"found", "updated"}:
-                candidate = (repo_root.resolve() / Path(path)).resolve(strict=False)
-                if not candidate.is_file():
-                    raise ValidationError("grounding", f"grounding: {name} observation path {path!r} does not exist as a file")
+                candidate = repo_root.resolve() / Path(path)
+                try:
+                    metadata = candidate.lstat()
+                except FileNotFoundError:
+                    raise ValidationError("grounding", f"grounding: {name} observation path {path!r} does not exist as a file") from None
+                if (metadata.st_mode & 0o170000) != 0o100000:
+                    raise ValidationError("grounding", f"grounding: {name} observation path {path!r} must be a regular non-symlink file")
+            elif repo_root is not None and path_status.strip().lower() == "missing":
+                candidate = repo_root.resolve() / Path(path)
+                try:
+                    candidate.lstat()
+                except FileNotFoundError:
+                    pass
+                else:
+                    raise ValidationError("grounding", f"grounding: {name} observation path {path!r} must be absent for missing")
     return records
 
 
@@ -908,7 +936,12 @@ def index_entries(index: Path, label: str, root_fd: int | None = None) -> tuple[
     entries: set[str] = set()
     private: set[str] = set()
     for line in text.splitlines():
-        match = LINK_RE.search(line) or TOKEN_RE.search(line)
+        # Keep the runtime's shared per-line parser contract: link targets name
+        # entries, labels and descriptive prose do not. Bare rows are a fallback.
+        match = next((
+            item for item in LINK_RE.finditer(line)
+            if MEMORY_NAME_RE.fullmatch(item.group(1)) and item.group(1).lower() != INDEX_NAME
+        ), None) or TOKEN_RE.search(line)
         if match is None:
             if PRIVATE_MARKER_RE.search(line):
                 raise ValidationError("privacy", f"{label}: harness-only marker has no memory filename")

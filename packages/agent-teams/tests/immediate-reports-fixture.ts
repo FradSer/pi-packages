@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import agentTeams from "../src/index.ts";
+import teamRuntime from "../src/index.ts";
 import { applyProgress, drainTeammateOutboxes } from "../src/team-machine.ts";
-import { createTask, getTeammate, registerTeammate, takeTask } from "../src/state.ts";
+import { createTask, getAgent, registerAgent, takeTask } from "../src/state.ts";
 import { appendWorkerEvent, stateFilePath, workerOutboxPath } from "../src/statefile.ts";
 
 export default function (pi: ExtensionAPI): void {
-  agentTeams(pi);
+  teamRuntime(pi);
   let calls = 0;
   let settled = false;
   let checked = false;
@@ -56,12 +56,12 @@ export default function (pi: ExtensionAPI): void {
     name: "produce_reports", label: "Produce reports", description: "Exercise the real report outbox during a tool call.",
     parameters: Type.Object({}),
     async execute(_id, _params, _signal, _update, ctx) {
-      registerTeammate({ name: "fixture-worker", agent: "fixture", spawnId: "fixture-spawn",
-        pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 });
+      registerAgent({ name: "fixture-worker", role: "fixture", spawnId: "fixture-spawn",
+        pid: 0, status: "working", createdAt: 1, updatedAt: 1 });
       const created = createTask({ subject: "Fixture work" });
       assert.ok(created.ok);
       assert.ok(takeTask(created.task.id, "fixture-worker").ok);
-      const assignmentId = getTeammate("fixture-worker")!.assignment!.id;
+      const assignmentId = getAgent("fixture-worker")!.assignment!.id;
       applyProgress("fixture-worker", "fixture-spawn", { text: "", turns: 1, finalResponse: false });
       const outbox = workerOutboxPath(stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd), "fixture-worker", "fixture-spawn");
       for (const [id, status] of [["progress", "in_progress"], ["terminal", "completed"]] as const) {

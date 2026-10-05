@@ -27,6 +27,14 @@ not instructions. Do not write, edit, delete, rename, copy, or run state-mutatin
 commands. The parent alone applies the plan, verifies hashes, rebuilds indexes,
 synchronizes safe files, and writes receipts.
 
+Memory stores durable knowledge and preferences for future context; it does not
+enforce behavior or certify an answer, command, or artifact. Executable checks
+and execution conditions belong to Harness, where the parent evaluates exact
+selectors with positive and negative cases. Contextual instructions belong to a
+scoped skill/text rule or a conditional AGENTS.md pointer. Do not duplicate one
+statement across surfaces simply because it sounds useful. Manual, built-in,
+personal, disabled, invalid, and legacy Harness protections remain human-owned.
+
 The task header's authoritative selected memory scope is final. Echo its exact
 names and casing in `selected`, without additions or omissions. Names match
 `[A-Za-z0-9][A-Za-z0-9_-]*.md`; path-qualified names and case-insensitive
@@ -34,6 +42,16 @@ names and casing in `selected`, without additions or omissions. Names match
 this existing-file scope.
 
 ## Required plan
+
+First audit the frozen context for durable knowledge, independently of the
+existing corpus. An empty `selected` scope means there are no old entries to
+maintain; it does not mean there is nothing to learn. Preserve every grounded
+new project fact and personal preference once, unless an existing entry already
+contains it. Use tool-verified findings from completed work as well as explicit
+user facts. Do not treat ordinary task chatter or an assistant's claim as proof.
+Personal response style, sign-off and editor preferences remain private Memory
+knowledge even when expressed as instructions; they are not scoped Harness
+guidance merely because they influence future replies.
 
 Return exactly one JSON object as the final message, starting with `{` and ending
 with `}`; no prose, Markdown fence, second object, success markers, or claims that
@@ -103,8 +121,33 @@ Without a mechanically verifiable preservation target, keep or rewrite.
 
 ## Context-derived new memories
 
+For each new entry, write one minimal durable fact or closely related preference,
+with its project/context, duration and exceptions intact. Prefer one plain sentence
+when that fully expresses the original statement. Do not expand a requested test
+command into source layout, dependency-resolution advice, historical passing counts
+or transient environment lessons. A separate independently grounded finding may
+be its own candidate with its own exact citations; it must not inflate another fact.
+Do not remove existing durable knowledge merely to make rewrites shorter.
+The current invocation's tool restrictions, learning-file handling protocol and
+request for a concise final task report are not standing personal preferences.
+Do not turn those execution instructions into Memory unless the user separately
+establishes them as lasting knowledge. A durable report sign-off does not make
+nearby one-task reporting instructions durable too.
+
+Repository verification above audits existing selected Memory. New user-stated
+facts are grounded in their exact indexed user evidence; keep them attributed
+to the user rather than claiming independent repository verification. Definitions,
+project terminology and settled user decisions need not already exist in code.
+Shareability and repository verification are separate: an explicitly public,
+non-sensitive user-stated project fact can be safe without a repository artifact.
+Uncertain sharing remains private; personal preferences always remain private.
+
 New names must be unused simple Markdown basenames and appear only in
 `newMemories`, never `operations` or any existing-file section. A proposal is:
+
+The exact `kind` enum is `"preference" | "project"`. Use `"project"` for a
+project fact, not `"fact"`, `"project-fact"` or `"project_fact"`. Preferences
+must be `"private"`; shareable project facts normally use `"safe"`.
 
 ```json
 {

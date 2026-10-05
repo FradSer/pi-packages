@@ -98,7 +98,7 @@ def test_dual_legacy_layers_repair_sequentially_only_after_confirmation_and_nati
         }}
         const {{config}}=resolveHarnessConfig(cwd);
         const statusStart=notices.length;
-        await commands.harness.handler('',context);
+        await commands.harness.handler('',{{...context,hasUI:false}});
         steps.push({{scope,before,gate:gate??null,afterGate,afterWrite:bytes(),output,config,
           bash:(await bash())??null,status:notices.slice(statusStart)}});
       }}

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { appendFileSync } from "node:fs";
 import { stripVTControlCharacters } from "node:util";
 import { createAssistantMessageEventStream, type AssistantMessage, type ToolCall } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, MessageRenderer } from "@earendil-works/pi-coding-agent";
 import mattPocock from "../src/index.ts";
 
 export default function (pi: ExtensionAPI): void {
@@ -32,8 +32,8 @@ export default function (pi: ExtensionAPI): void {
         },
       });
     },
-    registerMessageRenderer(customType, renderer) {
-      pi.registerMessageRenderer(customType, (message, options, theme) => {
+    registerMessageRenderer<T>(customType: string, renderer: MessageRenderer<T>) {
+      pi.registerMessageRenderer<T>(customType, (message, options, theme) => {
         const component = renderer(message, options, theme);
         if (!component) return component;
         return {
@@ -43,6 +43,7 @@ export default function (pi: ExtensionAPI): void {
             appendFileSync(snapshots, JSON.stringify({
               kind: "message", customType, details: message.details,
               expanded: options.expanded, width, lines: lines.map(stripVTControlCharacters), raw: lines,
+              userMessageBg: theme.getBgAnsi("userMessageBg"),
             }) + "\n");
             return lines;
           },
@@ -60,6 +61,12 @@ export default function (pi: ExtensionAPI): void {
     { name: "matt_pocock_workflow", arguments: { mode: "workflow", route: "architecture" } },
     { name: "matt_pocock_active", arguments: { action: "transition", target: "implement" } },
     { name: "matt_pocock_active", arguments: { action: "cancel", reason: "Offline fixture finished" } },
+    { name: "matt_pocock_workflow", arguments: { mode: "workflow", route: "hard-bug" } },
+    { name: "matt_pocock_ask", arguments: { question: "Fixture timeout decision", options: ["A", "B"], recommended: "A", timeout_seconds: 0.05 } },
+    { name: "matt_pocock_ask", arguments: { question: "Fixture cancel decision", options: ["A", "B"], recommended: "A", timeout_seconds: 30 } },
+    { name: "matt_pocock_active", arguments: { action: "complete" } },
+    { name: "matt_pocock_workflow", arguments: { mode: "capability", capability: "diagnosing-bugs" } },
+    { name: "matt_pocock_workflow", arguments: { mode: "reference", capability: "writing-for-agents", reference: "SKILL-MECHANICS" } },
   ];
   let index = 0;
   pi.registerProvider("phase-lifecycle-fixture", {

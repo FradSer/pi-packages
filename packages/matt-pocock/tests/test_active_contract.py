@@ -2,7 +2,33 @@
 
 from __future__ import annotations
 
-from test_package import run_typescript  # noqa: F401  (shared helper)
+from matt_pocock_helpers import RUNTIME_HARNESS, run_typescript
+
+
+def test_gateway_and_decision_guidance_disambiguate_real_model_arguments() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        const r = runtime(); await r.start();
+        const gateway = r.tools.get("matt_pocock_workflow");
+        const ask = r.tools.get("matt_pocock_ask");
+        let rejected = "";
+        try {
+          await r.call("matt_pocock_ask", {
+            question: "Scope?", options: ["Whole receipt (Recommended)", "Per line"],
+            recommended: "Whole receipt",
+          });
+        } catch (error) { rejected = String(error); }
+        console.log(JSON.stringify({
+          gateway: gateway.promptGuidelines.join("\\n"),
+          recommendation: ask.parameters.properties.recommended.description,
+          rejected,
+        }));
+    ''')
+    gateway = str(result["gateway"])
+    for shape in ('{"mode": "workflow", "route"', '{"mode": "capability", "capability"', '{"mode": "reference", "capability"'):
+        assert shape in gateway
+    assert "exact copy" in result["recommendation"]
+    assert "including annotations" in result["recommendation"]
+    assert "must match an offered option" in result["rejected"]
 
 
 def test_active_guidance_states_exact_tool_contract() -> None:
@@ -19,19 +45,9 @@ def test_active_guidance_states_exact_tool_contract() -> None:
 
 
 def test_active_gateway_schemas_reject_undeclared_fields() -> None:
-    result = run_typescript("""
-        import importedMattPocock from "./packages/matt-pocock/src/index.ts";
+    result = run_typescript(RUNTIME_HARNESS + """
         import { Value } from "typebox/value";
-        const mattPocock = importedMattPocock.default ?? importedMattPocock;
-        const tools = new Map();
-        const pi = {
-          on() {}, registerCommand() {}, registerMessageRenderer() {},
-          registerTool(tool) { tools.set(tool.name, tool); },
-          appendEntry() {}, sendUserMessage() {}, sendMessage() {},
-          getActiveTools() { return []; }, setActiveTools() {},
-        };
-        mattPocock(pi);
-        const active = tools.get("matt_pocock_active");
+        const active = runtime().tools.get("matt_pocock_active");
         const branches = active.parameters.anyOf ?? [];
         const strict = branches.map((branch) => branch.additionalProperties === false);
         const guidelines = (active.promptGuidelines ?? []).join("\\n");
@@ -59,3 +75,45 @@ def test_active_gateway_schemas_reject_undeclared_fields() -> None:
         '"action": "cancel"',
     ):
         assert shape in guidelines
+
+
+def test_delivered_state_contract_includes_terminal_calls() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        const r = runtime();
+        const value = await r.start();
+        console.log(JSON.stringify(value));
+    ''')
+    text = '\n'.join(part.get('text','') for part in result['content'])
+    assert '{"action":"complete"}' in text
+    assert '{"action":"cancel","reason":"<why>"}' in text
+
+
+def test_catalog_guidance_supplies_exact_calls_for_every_model_entry() -> None:
+    result = run_typescript('''
+        import {availableWorkflowsGuidance} from "./packages/matt-pocock/src/workflow.ts";
+        import {modelStandaloneCapabilities,workflowRoutes} from "./packages/matt-pocock/src/catalog.ts";
+        const guidance = availableWorkflowsGuidance();
+        console.log(JSON.stringify({
+          capabilities:modelStandaloneCapabilities().map(c=>guidance.includes(JSON.stringify({mode:"capability",capability:c.id}))),
+          routes:workflowRoutes().map(r=>guidance.includes(JSON.stringify({mode:"workflow",route:r.route}))),
+        }));
+    ''')
+    assert all(result['capabilities'])
+    assert all(result['routes'])
+
+
+def test_operation_schemas_expose_all_choices_at_the_object_root() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        const r = runtime();
+        console.log(JSON.stringify(Object.fromEntries(
+          ['matt_pocock_workflow','matt_pocock_active'].map(name=>[name,r.tools.get(name).parameters])
+        )));
+    ''')
+    for name,field,values in [
+        ('matt_pocock_workflow','mode',['workflow','capability','reference']),
+        ('matt_pocock_active','action',['transition','load','complete','cancel']),
+    ]:
+        schema=result[name]
+        assert schema.get('type') == 'object'
+        assert schema['properties'][field]['enum'] == values
+        assert schema['additionalProperties'] is False

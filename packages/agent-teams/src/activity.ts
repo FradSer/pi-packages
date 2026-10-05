@@ -1,6 +1,6 @@
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { renderLiveActivityMarkdown, type PiMarkdownThemeSource } from "@fradser/pi-kit";
-import type { Teammate } from "./types.ts";
+import type { Agent } from "./types.ts";
 
 /** Console rows paint a whole status line in their own color, so the shared
  * markdown renderer runs with a passthrough theme: literal markup is still
@@ -25,7 +25,7 @@ function extractLatestLine(text: string | undefined): string | undefined {
 }
 
 /** Extract the current teammate activity without imposing a display width. */
-export function runningTeammateActivity(teammate: Teammate): string {
+export function runningTeammateActivity(teammate: Agent): string {
   const tool = teammate.activeTool?.replace(/\s+/g, " ").trim();
   if (tool) return tool;
 
@@ -54,7 +54,7 @@ export function teammateRowWidths(spinner: string, agent: string, width: number)
 }
 
 /** Fit a console status label to the requested activity width. */
-export function formatTeammateLabel(
+export function formatAgentLabel(
   spinner: string,
   activity: string,
   maxActivityWidth?: number,

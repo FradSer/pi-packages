@@ -1,0 +1,17 @@
+{
+  "command": "pnpm typecheck",
+  "exitCode": 1,
+  "errors": 107,
+  "byPackage": {
+    "agent-teams": 3,
+    "subagents": 104
+  },
+  "firstErrors": [
+    "packages/agent-teams/tests/tool-param-schema-fixture.ts(4,10): error TS2614: Module '\"@fradser/pi-subagents\"' has no exported member 'AGENT_TOOL_PARAMS'. Did you mean to use 'import AGENT_TOOL_PARAMS from \"@fradser/pi-subagents\"' instead?",
+    "packages/agent-teams/tests/tool-param-schema-fixture.ts(4,29): error TS2614: Module '\"@fradser/pi-subagents\"' has no exported member 'executeAgentAction'. Did you mean to use 'import executeAgentAction from \"@fradser/pi-subagents\"' instead?",
+    "packages/agent-teams/tests/tool-param-schema-fixture.ts(4,49): error TS2724: '\"@fradser/pi-subagents\"' has no exported member named 'registerAgentTool'. Did you mean 'registerAgent'?",
+    "packages/subagents/src/child-execution.ts(230,15): error TS2305: Module '\"./agent-output.ts\"' has no exported member 'AgentAction'.",
+    "packages/subagents/src/child-execution.ts(240,63): error TS2339: Property 'action' does not exist on type '(Omit<AgentInspectedData, \"nextActor\" | \"ok\" | \"state\"> & Partial<Pick<AgentInspectedData, \"nextActor\" | \"state\">>) | ... 4 more ... | (Omit<...> & Partial<...>)'.",
+    "packages/subagents/src/child-execution.ts(242,17): error TS2339: Property 'action' does not exist on type '(Omit<AgentInspectedData, \"nextActor\" | \"ok\" | \"state\"> & Partial<Pick<AgentInspectedData, \"nextActor\" | \"state\">>) | ... 4 more ... | (Omit<...> & Partial<...>)'."
+  ]
+}

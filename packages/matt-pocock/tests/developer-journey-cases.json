@@ -1,0 +1,84 @@
+[
+  {
+    "id": "developer-discount",
+    "fixture": "discount",
+    "kind": "artifact",
+    "route": "idea-to-ship",
+    "expectSource": "grill-with-docs",
+    "artifact": [
+      "notes/FEATURE.md",
+      "notes/REVIEW.md",
+      ".tmp/HANDOFF.md"
+    ],
+    "checkTests": true,
+    "terminal": "completed",
+    "prompt": "/matt-pocock idea-to-ship I am implementing the agreed whole-receipt discount in SPEC.md. All product decisions are already recorded and approved there. Inspect existing code, follow the applicable legal workflow stages, observe RED before implementation, make the minimal fix, then GREEN. Do not invent policies or stop for already answered questions. Keep remote work out of scope. Write notes/FEATURE.md with decisions and evidence, and notes/REVIEW.md with an honest spec/standards verdict. Finish with a local handoff in .tmp/HANDOFF.md and complete the workflow. The agreed task needs no research or prototype: proceed to to-spec, implement, code-review and handoff using the exact allowed calls. Keep one work item throughout.",
+    "replies": [
+      "Continue the authorized local task if anything remains. Review the actual candidate against SPEC.md, run fixture_checks, write the requested review and handoff, and complete the workflow after the local deliverables pass. No external PR."
+    ],
+    "requiredStages": [
+      "to-spec",
+      "implement",
+      "code-review",
+      "handoff"
+    ],
+    "singleWorkItem": true,
+    "toolBudget": 80
+  },
+  {
+    "id": "developer-cache",
+    "fixture": "cache",
+    "kind": "artifact",
+    "route": "hard-bug",
+    "expectSource": "diagnosing-bugs",
+    "artifact": [
+      "notes/INCIDENT.md",
+      "notes/REVIEW.md"
+    ],
+    "checkTests": true,
+    "terminal": "completed",
+    "prompt": "/matt-pocock hard-bug I am on call: a temporary loader failure makes our async cache fail forever. Use SPEC.md as the agreed incident contract. Reproduce with fixture_checks, diagnose causally, fix src/cache.mjs minimally and verify rejection retry, shared in-flight requests, independent keys and synchronous throws. Follow the legal implementation/review transitions. Write notes/INCIDENT.md with observed RED/GREEN and notes/REVIEW.md with spec and standards verdicts, then complete. No external work. Move to implement after reproducing and diagnosing, then code-review. Keep one work item throughout.",
+    "replies": [
+      "Inspect the fixed source for concurrency and public API preservation, record any remaining risks accurately in notes/REVIEW.md, and finish the local workflow only after fixture_checks is green."
+    ],
+    "requiredStages": [
+      "implement",
+      "code-review"
+    ],
+    "singleWorkItem": true,
+    "toolBudget": 80
+  },
+  {
+    "id": "developer-config",
+    "fixture": "config",
+    "kind": "artifact",
+    "expectSource": [
+      "codebase-design",
+      "deslop",
+      "code-review",
+      "handoff"
+    ],
+    "artifact": [
+      "notes/DESIGN.md",
+      "notes/CLEANUP.md",
+      "notes/REVIEW.md",
+      ".tmp/HANDOFF.md",
+      "src/config.mjs"
+    ],
+    "checkTests": true,
+    "requiresRed": false,
+    "prompt": "Use matt_pocock_workflow mode capability with capability codebase-design. I am simplifying a local configuration parser while preserving all public behavior in SPEC.md. Inspect src/config.mjs, compare a focused inline cleanup versus extracting a public abstraction, and record the smaller justified design in notes/DESIGN.md. Run fixture_checks to establish the existing GREEN baseline; do not edit source yet.",
+    "replies": [
+      "Use matt_pocock_workflow mode capability with capability deslop. Apply the smallest cleanup of src/config.mjs from the design, preserving the strict boolean/port grammar and exact errors in SPEC.md. Run fixture_checks before and after. Record what changed in notes/CLEANUP.md.",
+      "Use matt_pocock_workflow mode capability with capability code-review. Review the actual simplified src/config.mjs against SPEC.md; try to refute compatibility, cite actual source, record separate Spec and Standards verdicts in notes/REVIEW.md, and rerun fixture_checks. Fix any verified defect before declaring PASS.",
+      "Developer review feedback: resolve the remaining inert port-guard finding as implementation owner. Use deslop for this correction and code-review for its recheck. Trace the exact predicate: digit-only values converted by Number are integers or Infinity; Infinity is already rejected by the upper bound. Number.isInteger(port) therefore contributes no different outcome. Remove this proven inert predicate while preserving all other behavior. Re-run fixture_checks, reconcile notes/CLEANUP.md and notes/REVIEW.md against the corrected candidate, and distinguish current verdicts from superseded findings. No spec change or new product decision is needed.",
+      "/matt-pocock handoff Prepare .tmp/HANDOFF.md for the next developer from actual work in this session. Include the preserved API, exact test evidence, pending work if any, and notes/DESIGN.md and notes/REVIEW.md paths. Do not invent RED evidence or remote actions. Run fixture_checks."
+    ],
+    "toolBudget": 80,
+    "forbiddenPatterns": {
+      "src/config.mjs": [
+        "Number\\.isInteger\\(port\\)"
+      ]
+    }
+  }
+]

@@ -9,7 +9,6 @@
  */
 
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type {
@@ -27,6 +26,7 @@ import {
   buildMarkdownThemeCallbacks,
   createLiveActivityWidget,
   createPiThemeStyle,
+  directorySessionsDir,
   enterModelFromInput,
   getDirectorySessionKey,
   isSameDirectory,
@@ -45,9 +45,12 @@ import {
   writeRecapConfig,
 } from "./config";
 import {
+  type AutoRecapDecision,
   extractLatestSavedRecap,
   generateRecap,
   getLastExchange,
+  recapRequestKey,
+  resolveAutoRecap,
   type RecapSessionEntry,
 } from "./recap";
 
@@ -79,36 +82,76 @@ function resolveRecapModel(ctx: ExtensionContext): Model<Api> | undefined {
   return ctx.model;
 }
 
+/**
+ * Whether a settled turn may recap itself under the cost policy.
+ *
+ * Automatic recapping spends the session's own model once per turn, so it is
+ * withheld from a reasoning model the user never chose for recaps until they opt
+ * in. Manual generation, the restored recap line, and the display all stay
+ * available either way.
+ */
+function autoRecapDecision(ctx: ExtensionContext): AutoRecapDecision {
+  return resolveAutoRecap(
+    config.autoRecap,
+    resolveRecapModel(ctx),
+    Boolean(config.provider && config.model),
+  );
+}
+
+/** One record of the shared directory-sessions registry. */
+interface DirectorySessionRecord {
+  cwd?: unknown;
+  recap?: unknown;
+  [key: string]: unknown;
+}
+
+/**
+ * Read, and optionally rewrite, the one registry record this session owns.
+ *
+ * Both halves used to spell the path themselves: a hardcoded home directory
+ * writes to the real registry while the rest of the session runs against a
+ * sandboxed agent directory, and a record stored for a different directory must
+ * never be read or rewritten. Returns undefined when this session may not touch
+ * the record. Best-effort throughout: a registry failure never blocks a recap.
+ */
+function withDirectorySessionRecord(
+  cwd: string,
+  sessionFile: string | undefined,
+  update?: (record: DirectorySessionRecord) => void,
+): DirectorySessionRecord | undefined {
+  try {
+    if (!cwd || !sessionFile) return undefined;
+    const sessionId = path.basename(sessionFile, ".jsonl");
+    const filePath = path.join(
+      directorySessionsDir(),
+      getDirectorySessionKey(cwd),
+      `${sessionId}.json`,
+    );
+    if (!fs.existsSync(filePath)) return undefined;
+    const record = JSON.parse(
+      fs.readFileSync(filePath, "utf-8"),
+    ) as DirectorySessionRecord;
+    if (typeof record.cwd !== "string" || !isSameDirectory(record.cwd, cwd)) {
+      return undefined;
+    }
+    if (!update) return record;
+    update(record);
+    const tmpPath = `${filePath}.tmp.${Date.now()}`;
+    fs.writeFileSync(tmpPath, JSON.stringify(record, null, 2), "utf-8");
+    fs.renameSync(tmpPath, filePath);
+    return record;
+  } catch {
+    // Best-effort directory session access
+    return undefined;
+  }
+}
+
 function readDirectorySessionRecap(
   cwd: string,
   sessionFile: string | undefined,
 ): string | undefined {
-  try {
-    if (!cwd || !sessionFile) return undefined;
-    const sessionId = path.basename(sessionFile, ".jsonl");
-    const dirKey = getDirectorySessionKey(cwd);
-    const regDir = path.join(
-      os.homedir(),
-      ".pi",
-      "agent",
-      "directory-sessions",
-      dirKey,
-    );
-    const filePath = path.join(regDir, `${sessionId}.json`);
-    if (fs.existsSync(filePath)) {
-      const raw = fs.readFileSync(filePath, "utf-8");
-      const data = JSON.parse(raw);
-      if (typeof data.cwd !== "string" || !isSameDirectory(data.cwd, cwd)) {
-        return undefined;
-      }
-      if (typeof data.recap === "string" && data.recap.trim()) {
-        return data.recap.trim();
-      }
-    }
-  } catch {
-    // Best-effort directory session read
-  }
-  return undefined;
+  const recap = withDirectorySessionRecord(cwd, sessionFile)?.recap;
+  return typeof recap === "string" && recap.trim() ? recap.trim() : undefined;
 }
 
 function syncDirectorySessionRecap(
@@ -116,33 +159,12 @@ function syncDirectorySessionRecap(
   sessionFile: string | undefined,
   recapText: string,
 ): void {
-  try {
-    if (!cwd || !sessionFile) return;
-    const sessionId = path.basename(sessionFile, ".jsonl");
-    const dirKey = getDirectorySessionKey(cwd);
-    const regDir = path.join(
-      os.homedir(),
-      ".pi",
-      "agent",
-      "directory-sessions",
-      dirKey,
-    );
-    const filePath = path.join(regDir, `${sessionId}.json`);
-    if (fs.existsSync(filePath)) {
-      const raw = fs.readFileSync(filePath, "utf-8");
-      const data = JSON.parse(raw);
-      if (typeof data.cwd !== "string" || !isSameDirectory(data.cwd, cwd)) {
-        return;
-      }
-      data.recap = recapText;
-      data.updatedAt = Date.now();
-      const tmpPath = `${filePath}.tmp.${Date.now()}`;
-      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
-      fs.renameSync(tmpPath, filePath);
-    }
-  } catch {
-    // Best-effort directory session sync
-  }
+  // `updatedAt` belongs to the session-activity writers (pi-utils, keyboard).
+  // Bumping it for a summary change would reorder their recency and liveness
+  // views for a turn that changed nothing else.
+  withDirectorySessionRecord(cwd, sessionFile, (record) => {
+    record.recap = recapText;
+  });
 }
 
 export default function (pi: ExtensionAPI) {
@@ -167,11 +189,48 @@ export default function (pi: ExtensionAPI) {
       }
     | undefined;
   let completedRequestKey: string | undefined;
+  // The recap text the completed request produced. Reuse additionally requires
+  // that the displayed recap still is that text: a restored or replaced recap
+  // answers a different prompt, so its result must not be served for it. Keying
+  // on the previous recap instead would defeat deduplication, because every
+  // generation changes the previous recap of the next request.
+  let completedRequestRecap: string | undefined;
 
   function saveConfig(next: RecapConfig, ctx: ExtensionContext): void {
     config = next;
     writeRecapConfig(config);
     updateRecapWidget(ctx);
+  }
+
+  // The recap widget re-renders on every terminal frame while the agent streams,
+  // so the Markdown instance and its theme are cached and only the text is
+  // swapped when the recap changes (packages/btw/src/overlay.ts does the same).
+  let recapMarkdown: Markdown | undefined;
+  let recapMarkdownText: string | undefined;
+  let recapMarkdownOwner: unknown;
+  let recapStyle: ReturnType<typeof createPiThemeStyle> | undefined;
+
+  function renderRecapMarkdown(
+    theme: Parameters<typeof createPiThemeStyle>[0],
+    contentWidth: number,
+  ): { mdLines: string[]; style: ReturnType<typeof createPiThemeStyle> } {
+    if (!recapMarkdown || !recapStyle || recapMarkdownOwner !== theme) {
+      recapStyle = createPiThemeStyle(theme);
+      recapMarkdown = new Markdown(
+        "",
+        0,
+        0,
+        buildMarkdownThemeCallbacks(recapStyle) as MarkdownTheme,
+      );
+      recapMarkdownText = undefined;
+      recapMarkdownOwner = theme;
+    }
+    if (recapMarkdownText !== currentRecap) {
+      recapMarkdown.setText(currentRecap);
+      recapMarkdown.invalidate();
+      recapMarkdownText = currentRecap;
+    }
+    return { mdLines: recapMarkdown.render(contentWidth), style: recapStyle };
   }
 
   function updateRecapWidget(ctx: ExtensionContext): void {
@@ -208,10 +267,7 @@ export default function (pi: ExtensionAPI) {
               const lines: string[] = [];
 
               if (currentRecap) {
-                const style = createPiThemeStyle(theme);
-                const mdTheme = buildMarkdownThemeCallbacks(style) as MarkdownTheme;
-                const markdown = new Markdown(currentRecap, 0, 0, mdTheme);
-                const mdLines = markdown.render(contentWidth);
+                const { mdLines, style } = renderRecapMarkdown(theme, contentWidth);
                 for (let i = 0; i < mdLines.length; i++) {
                   const raw = mdLines[i];
                   const content = raw === "__OVERLAY_SEPARATOR__"
@@ -235,8 +291,15 @@ export default function (pi: ExtensionAPI) {
         { placement: "aboveEditor" },
       );
     } catch (error) {
-      if (error instanceof Error && !error.message.includes("stale")) {
-        throw error;
+      // A refresh failure must never turn a settled recap into a rejected
+      // request or abort session start: `performRecap` refreshes from a finally
+      // block, so rethrowing here reported generation failure for a recap that
+      // was already generated and persisted.
+      if (!(error instanceof Error) || error.message.includes("stale")) return;
+      try {
+        notifyPi(ctx.ui, `Recap widget refresh failed: ${error.message}`, "warning");
+      } catch {
+        // A stale context cannot notify either; the recap text stays authoritative.
       }
     }
   }
@@ -255,15 +318,14 @@ export default function (pi: ExtensionAPI) {
       exchangeOverride ?? getLastExchange(ctx.sessionManager.getBranch());
     if (!exchange) return undefined;
 
-    const key = [
-      exchange.user,
-      exchange.assistant,
-      model.provider,
-      model.id,
-      config.language,
-    ].join("\u0000");
+    const key = recapRequestKey(exchange, model, config.language);
     if (activeRequest?.key === key) return activeRequest.promise;
-    if (!force && completedRequestKey === key && currentRecap) return currentRecap;
+    if (
+      !force && completedRequestKey === key && currentRecap &&
+      completedRequestRecap === currentRecap
+    ) {
+      return currentRecap;
+    }
     activeRequest?.controller.abort();
 
     const controller = new AbortController();
@@ -291,6 +353,7 @@ export default function (pi: ExtensionAPI) {
         if (controller.signal.aborted || activeRequest !== request || !text)
           return undefined;
         completedRequestKey = key;
+        completedRequestRecap = text;
         if (text === currentRecap) return text;
 
         currentRecap = text;
@@ -404,10 +467,11 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
-  function configSummary(): string {
+  function configSummary(ctx: ExtensionContext): string {
+    const decision = autoRecapDecision(ctx);
     return [
       `Recap: ${config.enabled ? "on" : "off"}`,
-      `Auto-recap: ${config.autoRecap ? "on" : "off"}`,
+      `Auto-recap: ${decision.enabled ? "on" : "off"}${decision.reason ? ` (${decision.reason})` : ""}`,
       `Language: ${languageLabel(config.language)}`,
       `Model: ${configuredModelLabel()}`,
       `Config file: ${recapConfigPath()}`,
@@ -416,18 +480,20 @@ export default function (pi: ExtensionAPI) {
 
   async function openRecapMenu(ctx: ExtensionCommandContext): Promise<void> {
     if (!ctx.hasUI) {
-      notifyPi(ctx.ui, configSummary(), "info");
+      notifyPi(ctx.ui, configSummary(ctx), "info");
       return;
     }
 
     const modelDesc = `Model: ${configuredModelLabel()}`;
     const langDesc = `Language: ${languageLabel(config.language)}`;
-    const title = `Recap: ${config.enabled ? "on" : "off"} · Auto: ${config.autoRecap ? "on" : "off"} · ${langDesc} · ${modelDesc}\n\nRecap management:`;
+    const decision = autoRecapDecision(ctx);
+    const autoDesc = decision.enabled ? "on" : `off (${decision.reason ?? "disabled"})`;
+    const title = `Recap: ${config.enabled ? "on" : "off"} · Auto: ${autoDesc} · ${langDesc} · ${modelDesc}\n\nRecap management:`;
 
     const toggleDisplay = config.enabled
       ? "Disable recap display"
       : "Enable recap display";
-    const toggleAuto = config.autoRecap
+    const toggleAuto = decision.enabled
       ? "Disable auto-recap"
       : "Enable auto-recap";
 
@@ -480,6 +546,7 @@ export default function (pi: ExtensionAPI) {
     generatingRecap = false;
     currentRecap = "";
     completedRequestKey = undefined;
+    completedRequestRecap = undefined;
     config = readRecapConfig();
     shouldRecap = false;
     initialPromptRecapStarted = false;
@@ -496,13 +563,8 @@ export default function (pi: ExtensionAPI) {
       const exchange = getLastExchange(branch);
       const model = resolveRecapModel(ctx);
       if (exchange && model) {
-        completedRequestKey = [
-          exchange.user,
-          exchange.assistant,
-          model.provider,
-          model.id,
-          config.language,
-        ].join("\u0000");
+        completedRequestKey = recapRequestKey(exchange, model, config.language);
+        completedRequestRecap = savedRecap;
       }
     }
     initialPromptRecapStarted = Boolean(
@@ -529,7 +591,10 @@ export default function (pi: ExtensionAPI) {
     const prompt = event.text?.trim();
     if (!initialPromptRecapStarted && prompt) {
       initialPromptRecapStarted = true;
-      if (ctx && ctx.mode === "tui" && config.enabled && config.autoRecap) {
+      if (
+        ctx && ctx.mode === "tui" && config.enabled &&
+        autoRecapDecision(ctx).enabled
+      ) {
         firstPromptRecap = performRecap(ctx, false, {
           user: prompt,
           assistant: "",
@@ -545,7 +610,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("agent_settled", async (_event, ctx) => {
     if (!shouldRecap) return;
     shouldRecap = false;
-    if (ctx.mode !== "tui" || !config.enabled || !config.autoRecap) return;
+    if (ctx.mode !== "tui" || !config.enabled || !autoRecapDecision(ctx).enabled) return;
     if (firstPromptRecap) {
       const initialRecap = firstPromptRecap;
       const generation = sessionGeneration;
@@ -591,8 +656,11 @@ export default function (pi: ExtensionAPI) {
       }
 
       if (lower === "auto") {
-        saveConfig({ ...config, autoRecap: !config.autoRecap }, ctx);
-        notifyPi(ctx.ui, `Auto-recap: ${config.autoRecap ? "on" : "off"}`, "info");
+        // Toggle away from the effective value, not from `undefined`, so a
+        // policy-suppressed auto-recap can still be switched on explicitly.
+        const next = !autoRecapDecision(ctx).enabled;
+        saveConfig({ ...config, autoRecap: next }, ctx);
+        notifyPi(ctx.ui, `Auto-recap: ${next ? "on" : "off"}`, "info");
         return;
       }
 

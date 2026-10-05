@@ -2,7 +2,7 @@
 
 BDD is not just about tools; it's a methodology for shared understanding and high-quality implementation. This procedure governs the **Discovery → Formulation → Automation** lifecycle: Gherkin scenarios define the behavior, and the Automation phase (red-green loop) is delegated to [tdd](tdd.md) (BDD-driven).
 
-When exploring the codebase, read `CONTEXT.md` (if it exists) so test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
+When exploring the codebase, read `GLOSSARY.md` (if it exists) so test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
 
 ## How to Use This Procedure
 

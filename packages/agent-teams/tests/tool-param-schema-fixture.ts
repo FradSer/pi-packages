@@ -1,11 +1,19 @@
 import assert from "node:assert/strict";
 import { Value } from "typebox/value";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { AGENT_TOOL_PARAMS, executeAgentAction, registerAgentTool } from "@fradser/pi-subagents";
-import { TASK_TOOL_PARAMS, executeTaskTool, registerTaskTool } from "@fradser/pi-tasks";
+import { INTENT_TOOL_NAMES, INTENT_TOOL_SCHEMAS, CHILD_OPERATIONS, executeChildIntent, registerIntentTools } from "@fradser/pi-subagents";
+import {
+  TASK_CREATE_PARAMS,
+  TASK_GET_PARAMS,
+  TASK_LIST_PARAMS,
+  TASK_UPDATE_PARAMS,
+  TASK_CAPABILITY_TOOLS,
+  executeTaskUpdate,
+  registerTaskTools,
+} from "@fradser/pi-tasks";
 import { registerLeaderTools } from "../src/tools.ts";
 import { WorkerWorkToolParams, normalizeCoordinationParams } from "../src/types.ts";
-import { registerWorkerCapabilities } from "../src/worker.ts";
+import { registerChildCapabilities } from "../src/worker.ts";
 
 type SchemaLike = Record<string, unknown> & { properties?: Record<string, any> };
 
@@ -15,7 +23,7 @@ type SchemaLike = Record<string, unknown> & { properties?: Record<string, any> }
 //
 // It used to cover `agent.definition` and `task.target.session`. Both are gone
 // because both tools are now flat — `agent` has no nested parameter at all, and
-// the board has no target because it names no participant. The one nesting that
+// the task store has no target because it names no participant. The one nesting that
 // survives is `task.context`, and it is object-only: `stringTolerant` existed for
 // two parameters, both of which are gone, so keeping a union branch for a
 // parameter no harness has ever stringified would be machinery for a case that
@@ -28,102 +36,148 @@ function acceptsJsonType(prop: any, type: string): boolean {
   return Array.isArray(prop.anyOf) && prop.anyOf.some((entry: any) => entry.type === type);
 }
 
-const agentProps = (AGENT_TOOL_PARAMS as SchemaLike).properties!;
-const taskProps = (TASK_TOOL_PARAMS as SchemaLike).properties!;
+const teammateProps = (INTENT_TOOL_SCHEMAS.agent_start as SchemaLike).properties!;
+// The four task tools, each with its own flat parameter object. `context` is the
+// only nested parameter across all of them, and it lives on update_task.
+const createProps = (TASK_CREATE_PARAMS as SchemaLike).properties!;
+const listProps = (TASK_LIST_PARAMS as SchemaLike).properties!;
+const updateProps = (TASK_UPDATE_PARAMS as SchemaLike).properties!;
+const taskProps = updateProps;
 
 // Flat by construction: the agent tool has no object-valued parameter, which is
 // what removed the tolerance layer from every consumer.
-const nestedAgentParams = Object.entries(agentProps).filter(([, prop]) => acceptsJsonType(prop, "object"));
+const nestedAgentParams = Object.entries(teammateProps).filter(([, prop]) => acceptsJsonType(prop, "object"));
 assert.deepEqual(nestedAgentParams.map(([name]) => name), [],
-  `agent must stay flat; these parameters nest: ${nestedAgentParams.map(([n]) => n).join(", ")}`);
+  `agent_start must stay flat; these parameters nest: ${nestedAgentParams.map(([n]) => n).join(", ")}`);
 
-// The board's only nested parameter is `context`, and it takes an object.
+// The tasks's only nested parameter is `context`, and it takes an object.
 assert.ok(acceptsJsonType(taskProps.context, "object"), "task context must accept an object");
 assert.equal(acceptsJsonType(taskProps.context, "string"), false,
   "task context is object-only; a string branch needs a parse in the handler to match");
-for (const arrayParam of ["dependsOn", "supersedes", "resources", "status_filter"]) {
-  assert.ok(acceptsJsonType(taskProps[arrayParam], "array"), `task ${arrayParam} must accept an array`);
+for (const arrayParam of ["dependsOn", "supersedes"]) {
+  assert.ok(acceptsJsonType(createProps[arrayParam], "array"), `create_task ${arrayParam} must accept an array`);
 }
+// Resources stay on the record and in the library for existing data and known
+// consumers, but the retirement took them off the model-facing surface. The
+// schema must stay silent about them, so neither tool declares the parameter.
+assert.equal(createProps.resources, undefined, "create_task must not accept resources");
+assert.equal(updateProps.resources, undefined, "update_task must not accept resources");
+assert.ok(acceptsJsonType(listProps.statusFilter, "array"), "list_tasks statusFilter must accept an array");
+// The four names are the contract a spawner grants against, so they are pinned
+// here rather than left to a caller's assumption.
+assert.deepEqual([...TASK_CAPABILITY_TOOLS], ["create_task", "get_task", "list_tasks", "update_task"]);
 
 const started = {
-  action: "start",
-  name: "reviewer",
   prompt: "Review the diff",
-  description: "Read-only reviewer",
-  role_prompt: "Read evidence and report",
+  label: "reviewer",
   tools: ["read"],
 };
-if (!Value.Check(AGENT_TOOL_PARAMS, started)) {
-  throw new Error(`start payload rejected: ${JSON.stringify([...Value.Errors(AGENT_TOOL_PARAMS, started)])}`);
+if (!Value.Check(INTENT_TOOL_SCHEMAS.agent_start, started)) {
+  throw new Error(`start payload rejected: ${JSON.stringify([...Value.Errors(INTENT_TOOL_SCHEMAS.agent_start, started)])}`);
 }
 // Unknown properties are refused rather than dropped: a silently dropped field
 // teaches the model that the parameter exists.
-if (Value.Check(AGENT_TOOL_PARAMS, { ...started, bogus: 1 })) {
-  throw new Error("agent payload with unknown extra property accepted");
+if (Value.Check(INTENT_TOOL_SCHEMAS.agent_start, { ...started, bogus: 1 })) {
+  throw new Error("agent_start payload with unknown extra property accepted");
 }
 // The flat spelling is what a model must produce; the old nested one is not a
 // second accepted form.
-if (Value.Check(AGENT_TOOL_PARAMS, { action: "start", name: "r", definition: { description: "d" } })) {
-  throw new Error("agent payload with a nested definition accepted");
+if (Value.Check(INTENT_TOOL_SCHEMAS.agent_start, { prompt: "Run", definition: { description: "d" } })) {
+  throw new Error("agent_start payload with a nested definition accepted");
 }
-// Inspect and stop address one incarnation, so a session handle is required —
-// but the schema is a single flat object with one shared `required`, so it
-// cannot express per-action requirements. The handler carries them instead, and
-// the guarantee is asserted there. This is the price of flattening: a union
-// schema could encode it, at the cost of a tolerance layer in every consumer.
-if (!Value.Check(AGENT_TOOL_PARAMS, { action: "inspect", name: "reviewer" })) {
-  throw new Error("the flat schema accepts an inspect payload; per-action requirements are the handler's job");
+// Inspect and stop address one incarnation, so the schema itself requires the
+// copied handle; the handler refuses the same call when the handle is absent or
+// malformed.
+assert.deepEqual([...((INTENT_TOOL_SCHEMAS.agent_inspect as SchemaLike).required as string[])], ["session"]);
+if (Value.Check(INTENT_TOOL_SCHEMAS.agent_inspect, { name: "reviewer" })) {
+  throw new Error("agent_inspect accepts a name-only payload; the exact handle is required");
 }
-const missingSession = await executeAgentAction({ action: "inspect", name: "reviewer" });
+const missingSession = await executeChildIntent({ operation: "inspect", name: "reviewer" });
 if (missingSession.details.ok !== false) {
   throw new Error("inspect without a session handle must be refused by the handler");
 }
-if (!/exact session handle/.test(missingSession.content[0].text)) {
+// Strict action-field validation may refuse name before checking a missing
+// session, but must still explain the exact copied-handle shape.
+if (!/session:<name>:<incarnation>/.test(missingSession.content[0].text)) {
   throw new Error(`inspect refusal must name what is missing: ${missingSession.content[0].text}`);
 }
-const unknownAction = await executeAgentAction({ action: "teleport", name: "reviewer" });
-if (unknownAction.details.ok !== false || !/start, inspect, list, or stop/.test(unknownAction.content[0].text)) {
-  throw new Error("an unknown action must be refused with the valid set");
+const unknownAction = await executeChildIntent({ operation: "teleport", name: "reviewer" });
+// Read the valid set from the package rather than repeating it here: a hardcoded
+// list went stale the moment the resident operations were named apart, and the
+// assertion below is about the refusal naming them, not about their order.
+const unnamedVerbs = CHILD_OPERATIONS.filter((verb: string) => !unknownAction.content[0].text.includes(verb));
+if (unknownAction.details.ok !== false || unnamedVerbs.length > 0) {
+  throw new Error(`an unknown operation must be refused with the valid set; unnamed: ${unnamedVerbs.join(", ")}`);
 }
 
-if (!Value.Check(TASK_TOOL_PARAMS, { action: "create", subject: "Ship", dependsOn: ["w0"], context: { handoff: "prior brief" } })) {
+if (!Value.Check(TASK_CREATE_PARAMS, { subject: "Ship", dependsOn: ["w0"] })) {
   throw new Error("task create payload rejected");
 }
-if (!Value.Check(TASK_TOOL_PARAMS, { action: "update", id: "w1", status: "in_progress" })) {
+if (!Value.Check(TASK_CREATE_PARAMS, { subject: "Ship", supersedes: ["w0"] })) {
+  throw new Error("task supersede payload rejected");
+}
+if (!Value.Check(TASK_GET_PARAMS, { id: "w0" })) {
+  throw new Error("task get payload rejected");
+}
+// get_task takes an id and nothing else: a read that accepted anything else
+// would be a write wearing a read's name.
+assert.deepEqual(Object.keys((TASK_GET_PARAMS as SchemaLike).properties!), ["id"]);
+if (!Value.Check(TASK_LIST_PARAMS, { statusFilter: ["pending"], claimable: true, limit: 5 })) {
+  throw new Error("task list payload rejected");
+}
+// `context` is a declared object, so the shapes inside it are declared too. A
+// handoff spelled as a string used to validate against a bare `object` and was
+// then stored verbatim: a brief no reader could read and no budget accounted for.
+if (Value.Check(TASK_UPDATE_PARAMS, { id: "w1", context: { handoff: "prior brief" } })) {
+  throw new Error("task payload with a string handoff accepted");
+}
+if (Value.Check(TASK_UPDATE_PARAMS, { id: "w1", context: { handOff: { delta: "x" } } })) {
+  throw new Error("task payload with a misspelled handoff accepted");
+}
+if (!Value.Check(TASK_UPDATE_PARAMS, { id: "w1", status: "in_progress" })) {
   throw new Error("task take payload rejected");
 }
-if (!Value.Check(TASK_TOOL_PARAMS, { action: "complete", id: "w1", outcome: "failed", result: "blocked" })) {
+if (!Value.Check(TASK_UPDATE_PARAMS, { id: "w1", status: "completed", outcome: "failed", result: "blocked" })) {
   throw new Error("task complete payload rejected");
+}
+// `status: "pending"` is how a completed task is reopened. There is no separate
+// verb for it, so the position is reachable exactly one way.
+if (!Value.Check(TASK_UPDATE_PARAMS, { id: "w1", status: "pending" })) {
+  throw new Error("task reopen payload rejected");
 }
 // Completion is terminal, so an outcome is not optional — enforced by the
 // handler, like every other per-action requirement of a flat schema.
-if (!Value.Check(TASK_TOOL_PARAMS, { action: "complete", id: "w1" })) {
+if (!Value.Check(TASK_UPDATE_PARAMS, { id: "w1", status: "completed" })) {
   throw new Error("the flat schema accepts a completion payload; the handler requires the outcome");
 }
-const noOutcome = await executeTaskTool({ action: "complete", id: "w1" });
+const noOutcome = await executeTaskUpdate({ id: "w1", status: "completed" });
 if (noOutcome.details.ok !== false) throw new Error("complete without an outcome must be refused");
 if (!/outcome is required/.test(noOutcome.content[0].text)) {
   throw new Error(`the refusal must name what is missing: ${noOutcome.content[0].text}`);
 }
 // `supersede` and `reopen` are gone as verbs; a payload naming one must not
 // validate against a schema that has no such action.
-if (Value.Check(TASK_TOOL_PARAMS, { action: "supersede", subject: "s", supersedes: ["w1"] })) {
-  throw new Error("removed supersede verb accepted");
-}
-if (Value.Check(TASK_TOOL_PARAMS, { action: "assign", id: "w1", target: { session: "s1" } })) {
-  throw new Error("removed assign verb accepted");
+// A dispatch verb is not a thing any of the four take: supersession is a
+// parameter of create_task, and naming a participant is not expressible anywhere.
+for (const params of [TASK_CREATE_PARAMS, TASK_GET_PARAMS, TASK_LIST_PARAMS, TASK_UPDATE_PARAMS]) {
+  if (Value.Check(params, { assign: "someone" } as never)) {
+    throw new Error("a removed assign field accepted");
+  }
+  if (Value.Check(params, { participant: "someone" } as never)) {
+    throw new Error("a participant field accepted");
+  }
 }
 
-if (Value.Check(TASK_TOOL_PARAMS, { action: "update", id: "w1", context: "not an object" })) {
+if (Value.Check(TASK_UPDATE_PARAMS, { id: "w1", context: "not an object" })) {
   throw new Error("task payload with a non-object context accepted");
 }
 
 const normalized = normalizeCoordinationParams(
-  { action: "update", id: "w1", context: JSON.stringify({ handoff: "prior brief" }), dependsOn: JSON.stringify(["w0"]) } as Record<string, unknown>,
+  { context: JSON.stringify({ handoff: { delta: "prior brief" } }), dependsOn: JSON.stringify(["w0"]) } as Record<string, unknown>,
   ["context", "dependsOn"],
 );
-// The normalizer still exists for the worker's intent path, where a harness
-// stringifies arrays. It is not wired to the leader-side board tool, so a
+// The normalizer still exists for the agent's intent path, where a harness
+// stringifies arrays. It is not wired to the leader-side tasks tool, so a
 // stringified context stays a string here and is refused by the schema — which
 // is the honest outcome, not a silent half-parse.
 if (!Array.isArray(normalized.dependsOn)) throw new Error("stringified dependsOn not parsed");
@@ -132,7 +186,7 @@ if (typeof normalized.context !== "object" || normalized.context === null) {
 }
 
 // Two layers, asserted separately above and here: the normalizer can parse a
-// stringified structure, but the leader-side board schema does not *accept* one,
+// stringified structure, but the leader-side tasks schema does not *accept* one,
 // so such a call never reaches the handler. Keeping both true is what stops a
 // half-tolerated parameter from appearing later.
 const plain = normalizeCoordinationParams({ verify: "run tests", prompt: "not json" } as Record<string, unknown>, ["verify", "prompt", "context"]);
@@ -157,21 +211,41 @@ const pi = {
 } as unknown as ExtensionAPI; // stub of the harness interface: the registration functions touch only these members
 
 registerLeaderTools(pi);
-registerAgentTool(pi);
-registerTaskTool(pi);
+registerIntentTools(pi);
+registerTaskTools(pi);
 const leaderTools = registered.splice(0);
-registerWorkerCapabilities(pi);
-const workerTools = registered.splice(0);
+registerChildCapabilities(pi);
+const teammateTools = registered.splice(0);
 
 // Each tool has exactly one registrant per process. Two is a collision or a
 // silent drop depending on load order, and neither failure names the cause.
-for (const [tools, role] of [[leaderTools, "leader"], [workerTools, "worker"]] as const) {
-  for (const name of ["agent", "task", "message"]) {
-    const matches = tools.filter((tool) => tool.name === name);
-    const expected = role === "worker" && name === "agent" ? 0 : 1;
-    assert.equal(matches.length, expected,
-      `${role} must register exactly ${expected} ${name} tool(s), found ${matches.length}`);
-  }
+const TASK_TOOL_NAMES = [...TASK_CAPABILITY_TOOLS];
+const count = (tools: Array<{ name: string }>, name: string) => tools.filter((tool) => tool.name === name).length;
+
+// The leader gets the four task tools and exactly one registrant each. Two is a
+// collision; zero is a silent drop, and neither failure names its own cause.
+for (const name of TASK_TOOL_NAMES) {
+  assert.equal(count(leaderTools, name), 1, `leader must register exactly one ${name}, found ${count(leaderTools, name)}`);
+}
+for (const name of INTENT_TOOL_NAMES) {
+  assert.equal(count(leaderTools, name), 1, `the leader must register exactly one ${name}`);
+}
+assert.equal(count(leaderTools, "agent"), 0, "the leader must not still register the retired `agent` tool");
+assert.equal(count(leaderTools, "message"), 1, "the leader registers the message capability");
+// The removed single `task` name must not keep working: a spawner granting a
+// capability would otherwise believe it granted something that no longer exists.
+assert.equal(count(leaderTools, "task"), 0, "leader must not still register the removed single \"task\" tool");
+
+// The child's `task` is a different tool in this package — its own Work-Item
+// slice — so it is asserted as what it is rather than folded into the four. The
+// child gets no `agent` capability and none of the four: it is handed one slice
+// of work, not the whole surface.
+assert.equal(count(teammateTools, "message"), 1, "the child registers the message capability");
+assert.equal(count(teammateTools, "agent"), 0, "the child is not granted a child tool");
+assert.equal(count(teammateTools, "task"), 1, "the child keeps its own Work-Item slice");
+for (const name of TASK_TOOL_NAMES) {
+  assert.equal(count(teammateTools, name), 0,
+    `the child must not also register ${name}; it has its own slice, and two of one operation is a collision`);
 }
 for (const tool of registered) {
   const schema = tool.parameters;
@@ -179,8 +253,11 @@ for (const tool of registered) {
   assert.ok(schema && !Array.isArray(schema) && typeof (schema as Record<string, unknown>).type === "string",
     `${tool.name} parameter root is not a typed object`);
 }
-assert.ok(workerTools.some((tool) => tool.name === "task"), "the child keeps its board slice");
-assert.equal(workerTools.find((tool) => tool.name === "task")?.parameters, WorkerWorkToolParams as unknown,
-  "the child's board slice is the worker schema, not the leader's");
+assert.equal(teammateTools.find((tool) => tool.name === "task")?.parameters, WorkerWorkToolParams as unknown,
+  "the child's work slice is the agent schema, not one of the four task schemas");
+// A spawner grants capabilities by name, so the four names and the removed one
+// are the whole grantable surface on the leader side. Read from the exported
+// list rather than restated, so it cannot go stale here.
+assert.ok(TASK_CAPABILITY_TOOLS.every((name) => !name.includes(" ")), "capability names carry no arguments");
 
 console.log("TOOL_PARAM_SCHEMA_OK");

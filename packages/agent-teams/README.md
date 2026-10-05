@@ -1,76 +1,100 @@
 # @fradser/pi-agent-teams
 
-Agent Teams provides one final coordination surface for Pi:
-
-```text
-agent
-work
-agent_event
-/agent-teams
-```
-
-`agent` manages Agent sessions through strict actions:
+Agent Teams combines subagent execution, the task set, and point-to-point messages.
+The five intent tools are the only child tool surface:
 
 ```ts
-agent({ action: "delegate", name: "reviewer", prompt: "Audit authentication" })
-agent({ action: "start", name: "reviewer" })
-agent({ action: "inspect", name: "reviewer", session: "session:reviewer-...:spawn-..." })
-agent({ action: "stop", session: "session:reviewer-...:spawn-..." })
+agent_start({ identity: "reviewer", prompt: "Audit authentication" });
+agent_input({ session: "session:reviewer:<incarnation>", prompt: "Review the correction", delivery: "next" });
+agent_input({ session: "session:reviewer:<incarnation>", prompt: "Keep this read-only", delivery: "steer" });
+agent_inspect({ session: "session:reviewer:<incarnation>" });
+agent_list({});
+agent_stop({ session: "session:reviewer:<incarnation>" });
 ```
 
-A delegate action can include an inline definition. It is session-local unless
-`persist: true` is explicitly supplied in that definition. Choose explicit minimal
+Next input has a bounded FIFO queue and rechecks the original host's task policy.
+A label changes display only; an identity selects saved instructions and private data.
+Read [the intent contract](../subagents/README.md#intent-tools) for results, cancellation, and compatibility.
+The `/agent-teams` console remains available.
+
+## The retired `agent` tool
+
+The `agent` tool and its six actions are gone, and no compatibility adapter
+remains. A recorded branch that named `agent` receives the intent family on its
+next session start. No user data moves. Read
+[ADR-0008](../../docs/adr/0008-retire-the-legacy-agent-tool.md) for the decision.
+
+An unknown role takes a compact inline definition:
+
+```ts
+agent_start({ label: "reader", prompt: "Read README.md and cite its install command",
+  description: "Read evidence", role_prompt: "Read the assigned file and cite evidence", tools: ["read"] })
+```
+
+Only a user-authored disk `agent.md` declares durable identity. Disk definitions
+always outrank inline input; invocation tools may narrow their grant, never widen it.
+There are no persistence, Memory opt-in, worktree or promotion parameters. Choose minimal
 canonical tool IDs (`read`, `bash`, `edit`, `write`, `grep`, `find`, `ls`,
 `powershell`); extension aliases such as `ffgrep` are not inherited. Omitted
-`tools` or `tools: []` grants only `agent_event` and `work`, never default shell
-or file access. Delegate/start results and inspection expose the recorded
-`session.tools` grant, with a coordination-only warning when applicable.
+`tools` or `tools: []` grants only `message` and `task` for temporary team children,
+never default shell or file access. Disk identities also receive `agent_memory`.
+Start receipts and inspection expose the recorded effective grant, with a
+coordination-only warning when applicable.
 Inspection uses the session's recorded grant, not a changed role definition;
-legacy records without a grant leave it unknown rather than claiming no tools.
+a record without a grant leaves it unknown rather than claiming no tools.
 
-For an unknown role, provide a compact inline definition:
+`agent_start` always takes a prompt and awaits the correlated
+native input acknowledgement, not merely a writable pipe. It never creates an idle
+child. Rejected, handled, timed-out or closed input never reports acceptance.
+A receipt is not a result.
 
-```ts
-agent({ action: "delegate", name: "reader", prompt: "Read README.md and cite its install command",
-  definition: { description: "Read evidence", prompt: "Read the assigned file and cite evidence", tools: ["read"] } })
-```
+Every temporary or durable child remains **IDLE after a settled result** and accepts
+next input in that exact incarnation. Steer guides active work; `agent_stop` and
+parent shutdown close it. Later tasks notices can wake an idle team participant.
+No child survives the parent Pi process. Hosted next input awaits native input acceptance
+in the same process and history, publishing a new attempt before a later independent
+input. Hosted steer awaits native steering acceptance without changing the
+current sequence or attempt. An uncertain acknowledgement retains authority: inspect
+or stop before retrying, rather than submitting competing input.
 
-`agent start` creates an unassigned resident without a synthetic Work ID or an
-initial model turn. Presence stays `starting` until a one-shot native readiness
-acknowledgement, then becomes `idle` and eligible for exact-session assignment.
-The public start call awaits that bounded acknowledgement before returning, so
-its exact returned session accepts an immediate assignment without a caller wait.
-Rejected readiness, timeout, or early exit fails the start call; a process ID is
-not readiness. Reassigning the same still-claimed Work to its exact current owner
-returns the existing Assignment Attempt without a second delivery. Later claimable-board notices can still wake
-the resident and activate deliberate autonomous claims. Start is not a permanent
-assignment-only scheduling mode.
+Canonical definitions are `<agent-dir>/agents/<name>/agent.md`,
+`<project>/.pi/agents/<name>/agent.md`, and
+`<project>/.pi/agents/<name>.local/agent.md`; precedence is project-local > project >
+user > session. Every disk scope receives private Memory, an ordinary scratch directory
+and project history at `<agent-dir>/agents/<name>/projects/<slug>/session/`.
+Project overrides do not create a user-scope definition. Temporary roles use the
+original project cwd with no-session and no private data. Durable children also launch
+in the original project; scratch is data, not a checkout:
+project edits change the original working tree directly. There is no Git isolation,
+branch, automatic commit, merge or write confinement.
 
-`work` is activated only in valid assignment/board contexts.
+Identity, data provisioning and offline list entries belong to
+[@fradser/pi-subagents](../subagents/VISION.md); team coordination does not create,
+promote or clear that package's role registry.
 
-`work` owns Work lifecycle. Leaders create/list/assign/release/reopen completed
-Work/supersede; Workers list/claim/submit/release their current Work.
+`task` is activated only in valid assignment/tasks contexts and owns create/list/
+update/complete/reopen. A Task describes what must be done, not who must do it;
+participants take available Tasks with `update status=in_progress`.
 
-Failed, interrupted, or crash-released Work returns to the board as
+Failed, interrupted, or crash-released Work returns to the tasks as
 `pending/recovery-required`: the evidence stays available for inspection, and the
-harness deliberately excludes it from autonomous claim notices. Only an explicit
-leader `work assign` opens the next attempt, so a transient failure is never
-silently retried by whichever resident happens to be idle. A retained superseded
-holder keeps `work` disclosed for exactly one failed cancellation acknowledgement.
+harness deliberately excludes it from autonomous notices. A participant must
+proceed with a stated recovery reason, so a transient failure is never silently
+retried. A retained superseded holder keeps `task` disclosed for exactly one failed
+cancellation acknowledgement.
 
 ```ts
-work({ action: "create", subject: "Fix storage", resources: ["firmware/storage"] })
-work({ action: "assign", id: "fix-storage", target: { session: "session:worker-...:spawn-..." } })
-work({ action: "claim" })
-work({ action: "submit", outcome: "success", result: "Verification evidence" })
+task({ action: "create", subject: "Fix storage", resources: ["firmware/storage"] })
+task({ action: "update", id: "fix-storage", status: "in_progress" })
+task({ action: "complete", id: "fix-storage", outcome: "success", result: "Verification evidence" })
 ```
 
-`agent_event` is communication-only. It accepts a message, a recipient or bound
-reply route, and optional `inform`/`request` intent. Work lifecycle authority is
+`message` is communication-only. It accepts a body, a recipient or bound
+reply route, and optional `inform`/`request` kind. Work lifecycle authority is
 never inferred from message text.
 
 ```ts
-agent_event({ to: "session:reviewer-...:spawn-...", message: "The policy changed", intent: "inform" })
+message({ to: "session:reviewer:spawn-...", body: "The policy changed", kind: "inform" })
 ```
 
 Automatic final answers (including autonomously claimed Work) and explicit Work
@@ -78,12 +102,12 @@ submission use the same attempt-bound acceptance pipeline. Explicit submission
 ends the worker turn without a second automatic submission. Successful results
 reach the Leader once, after execution settles and any verification gate passes.
 Execution failures are reported after settlement without claiming acceptance.
-`work list` includes bounded result evidence for deliberate recovery.
+`task list` includes bounded result evidence for deliberate recovery.
 Verification freezes execution and retains deferred mail as Work history.
 An ordinary final answer is a successful candidate, not independent verification;
 ungated acceptance does not independently verify its claims. If requested work
 cannot be performed, including missing tools, workers must explicitly submit
-`work({ action: "submit", outcome: "failed", result: "Blocker and unverified work" })`.
+`task({ action: "complete", outcome: "failed", result: "Blocker and unverified work" })`.
 Blocker prose is not classified as failure. Failed submission produces one failed
 report, not completion or dependent unlock; a rejecting verification gate also
 prevents acceptance. Leaders should delegate concrete acceptance criteria and an
@@ -92,21 +116,27 @@ acknowledgment unless a decision or action changes.
 Do not narrate repeated reports. This guidance does not suppress event transport
 or infer lifecycle changes from communication.
 
+A clean process exit while the resident is idle and owes no result stays in the console mailbox.
+It records the stopped state and confirmed stop time without an unexpected-stop notification or another leader turn.
+Unread mail addressed to the current incarnation prevents passive closure, even before inbox routing.
+Malformed or incomplete unread records also prevent passive closure. Valid JSON alone does not prove that a message is valid.
+The close check changes no inbox bytes, offsets, or delivery records. Stale or already-delivered messages do not create a new alarm.
+Process failures, interrupted assignments, and unresolved results still reach the leader. Accepted results remain available after closure.
+
 After delegation, continue independent work or end the turn: results resume the
-session automatically. Use `agent inspect` for deliberate diagnosis, not repeated
-polling or sleep loops. `agent_event` never creates or retries Work; messaging a
+session automatically. Use `agent_inspect` for deliberate diagnosis, not repeated
+polling or sleep loops. `message` never creates or retries Work; messaging a
 completed assignment returns its recorded result without waking the worker.
 Worker communication and submissions are bound to the Assignment Attempt that
 started the turn, so an old turn cannot report or submit as replacement Work, and
 nonterminal coordination from a retired attempt stays in session history as
 evidence without acting as a current instruction.
-Recovery reuses the existing Work ID. Request explicit `work release` and await
-authoritative release before `work assign` to the chosen exact session; a queued
-release is not yet released authority. Do not create competing recovery Work via
-`agent delegate`. Read-only/no-write messages are steering, not cancellation or
+Recovery reuses the existing Task ID. A message does not release authority: wait
+for the attempt to end or stop its stale exact session before taking the Task with
+a stated recovery reason. Do not create competing recovery work through another startup. Read-only/no-write messages are steering, not cancellation or
 proof that the current tool batch stopped. Native steering takes effect at safe
 tool boundaries, before peer follow-up; it cannot undo already executed writes.
-Parked verification requires explicit Work release and reassignment; ordinary
+Parked verification requires explicit Task recovery; ordinary
 messages remain deferred. Exact session handles are incarnation-bound, so a stale
 handle cannot stop or inspect a replacement resident. Work persists for later inspection,
 but a different session file does not import another session's tasks automatically.
@@ -115,7 +145,7 @@ but a different session file does not import another session's tasks automatical
 
 Leader guidance uses the same delivery contract before and after a team starts:
 
-- Delegate separable work with a task-scoped baseline, acceptance criteria and safe local checks. Use `work create` with `dependsOn` for prerequisites and shared `resources` tags for conflicting writes; then assign eligible Work. Independent delegation is not a substitute for dependencies.
+- Delegate separable work with a task-scoped baseline, acceptance criteria and safe local checks. Use `task create` with `dependsOn` for prerequisites and shared `resources` tags for conflicting writes; participants take eligible Tasks. Independent delegation is not a substitute for dependencies.
 - Implementers own assigned local checks. One integration owner checks shared behavior against the integrated candidate. Determine isolation needs before verification; commands running locally may still access user data or production credentials.
 - Record a revision or scoped snapshot for the candidate and exclude unrelated dirty changes. Review and integration checks judge that same candidate; later edits invalidate affected evidence rather than automatically requiring every Agent to rerun every suite.
 - A completed review Work Item can report REWORK. It is not a PASS on the implementation. Review-only work ends with that report, without editing the implementation or waiting for repairs; the implementation owner owns remediation. Implementation delivery stays pending until required Work and blocking reviews have returned, findings are resolved, and applicable evidence matches the final candidate. If only results remain outstanding, yield without announcing completion.

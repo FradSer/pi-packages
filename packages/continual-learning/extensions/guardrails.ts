@@ -32,10 +32,11 @@ import {
   mergeLayers,
   DEFAULT_RULES,
 } from "./guardrail-engine.ts";
-import { configPaths, loadLayers, resolveHarnessConfig } from "./guardrail-config.ts";
+import { compareHarnessLayers, configPaths, loadLayers, resolveHarnessConfig } from "./guardrail-config.ts";
 import { HARNESS_BASH_NOTE_PREFIX, HARNESS_CONFIG_NOTE_PREFIX } from "./harness-guidance-planner.ts";
 import { evaluateLegacyTools, LEGACY_FIELDS } from "./legacy-harness.ts";
 import type { RuleLayer } from "./guardrail-types.ts";
+import { runHarnessMenu, type HarnessMenuScope } from "./harness-menu.ts";
 
 interface HarnessPolicyEvent {
   kind: "policy-matched";
@@ -50,7 +51,7 @@ interface HarnessPolicyEvent {
 
 type HarnessEventData = HarnessPolicyEvent;
 
-// Pi 0.84 exposes no native path resolver; keep this gate-local normalization
+// Pi exposes no native path resolver; keep this gate-local normalization
 // covered against createWriteTool rather than loading private runtime modules.
 function harnessTargetPath(input: string, cwd: string): string {
   let target = input.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ").replace(/^@/, "");
@@ -68,12 +69,16 @@ function harnessSourcePath(source: string | undefined, paths: ReturnType<typeof 
   switch (source) {
     case "user":
       return paths.user;
+    case "user.scoped":
+      return paths.userScoped;
     case "project":
       return paths.project;
     case "project.local":
       return paths.projectLocal;
-    default:
+    case "built-in defaults":
       return "(built-in)";
+    default:
+      return "(unknown)";
   }
 }
 
@@ -367,8 +372,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         }
         const otherLayers = loadLayers(cwd).filter(layer => layer.source !== targetSource);
         const layers = [...otherLayers, { ...candidate, source: targetSource } as RuleLayer];
-        const order = ["user", "project", "project.local"];
-        layers.sort((a, b) => order.indexOf(a.source) - order.indexOf(b.source));
+        layers.sort(compareHarnessLayers);
         const effective = mergeLayers([{ source: "built-in defaults", rules: DEFAULT_RULES as unknown as Array<Record<string, unknown>> }, ...layers], availableSkills);
         // Compare independently resolved diagnostics, not source-like text in an
         // error or rule id. Only an invalid target's authorized repair may leave
@@ -568,7 +572,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
   });
 
   pi.registerCommand("harness", {
-    description: "Show active guardrails or create a rule from a prompt (default: project .pi/harness.json, --local for personal, --global for user)",
+    description: "Manage Harness rules or describe a rule request (default: project shared; --local/--global supported)",
     handler: async (rawArgs, ctx) => {
       const cwd = ctx.cwd || process.cwd();
       const { request, targetFile, scope, scopeLabel } = resolveHarnessTarget(rawArgs, cwd);
@@ -588,6 +592,24 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       }
       const availableSkills = new Set(pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')));
       const { config, paths } = resolveHarnessConfig(cwd, undefined, availableSkills);
+      if (ctx.hasUI) {
+        await runHarnessMenu(ctx.ui, config, paths, async ({ request: menuRequest, scope: menuScope }: { request: string; scope: HarnessMenuScope }) => {
+          const scopeArg = menuScope === "user" ? "--global" : menuScope === "project.local" ? "--local" : "";
+          const target = resolveHarnessTarget(scopeArg, cwd);
+          try {
+            await assertHarnessTargetContained(target.targetFile, target.scope === "user" ? undefined : cwd);
+            await readHarnessTarget(target.targetFile);
+          } catch (error) {
+            notifyPi(ctx.ui, `Cannot prepare harness target: ${(error as Error).message}`, "error");
+            return;
+          }
+          const skills = pi.getCommands()
+            .filter((command) => command.source === "skill")
+            .map((command) => command.name.replace(/^skill:/, ""));
+          pi.sendUserMessage(buildHarnessRulePrompt(menuRequest, target.targetFile, target.scopeLabel, skills), { deliverAs: "followUp" });
+        });
+        return;
+      }
       const describe = (r: (typeof config.rules)[number]): string => {
         const selector = "skill" in r ? `skill:${r.skill}` : "bash" in r ? "bash" : "text" in r ? "text" : "(disabled)";
         const action = "bash" in r ? ` action:${r.action ?? "pass+message"}` : "";
@@ -618,6 +640,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         "built-in defaults are active unless overridden by id",
         "config paths:",
         `  ${paths.user}`,
+        `  ${paths.userScoped} (project-scoped personal)`,
         `  ${paths.project}`,
         `  ${paths.projectLocal} (optional)`,
       );

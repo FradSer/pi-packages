@@ -105,8 +105,10 @@ export default function (pi: ExtensionAPI): void {
   const sessionHost = new SessionHost({ pi });
   const sessionHostEnabled = (process.env.ODK_SESSION_HOST_SOCKET ?? "").length > 0;
   let currentSessionId = "";
+  let sessionGeneration = 0;
+  let hostRefusal = "";
 
-  if (reporters.length > 0 && discovery) {
+  if (reporters.length > 0 || sessionHostEnabled) {
     function beginSession(ctx: Parameters<Parameters<ExtensionAPI["on"]>[1]>[1]): string {
       if (currentSessionId.length > 0 && currentSessionId !== ctx.sessionManager.getSessionId()) {
         each((reporter) => reporter.markStatus(currentSessionId, "exited"));
@@ -127,9 +129,10 @@ export default function (pi: ExtensionAPI): void {
     }
 
     pi.on("session_start", async (event, ctx) => {
+      const generation = ++sessionGeneration;
       const sessionId = beginSession(ctx);
       each((reporter) => reporter.start());
-      discovery.start();
+      discovery?.start();
       // A resumed/reloaded Pi can have a durable JSONL history that is longer
       // than its in-memory branch. Start the gate for every session; only the
       // resumed/reloaded/forked cases provide a durable tail. New sessions still
@@ -140,7 +143,15 @@ export default function (pi: ExtensionAPI): void {
       await replay?.start(sessionId, replayFile, (id, events) => each((reporter) => reporter.recordEvents(id, events)));
       // A reload replaces the previous endpoint cleanly, so a desk never finds a
       // half-replaced one, and a machine that cannot spare an endpoint still reports.
-      if (sessionHostEnabled) await sessionHost.start(ctx);
+      if (generation !== sessionGeneration) return;
+      if (sessionHostEnabled) {
+        const started = await sessionHost.start(ctx);
+        if (generation !== sessionGeneration) return;
+        const previous = refusals.indexOf(hostRefusal);
+        if (previous >= 0) refusals.splice(previous, 1);
+        hostRefusal = started.reason ? `current-session endpoint: ${started.reason}` : "";
+        if (hostRefusal) refusals.push(hostRefusal);
+      }
     });
     pi.on("session_info_changed", (event) => {
       if (currentSessionId.length > 0) each((reporter) => reporter.renameSession(currentSessionId, event.name));
@@ -171,12 +182,14 @@ export default function (pi: ExtensionAPI): void {
       const events = eventsFromMessage(event.message);
       replay?.append(currentSessionId, events, (id, fresh) => each((reporter) => reporter.recordEvents(id, fresh)));
     });
-    pi.on("session_shutdown", () => {
-      void sessionHost.close();
+    pi.on("session_shutdown", async () => {
+      sessionGeneration += 1;
       replay?.invalidate();
-      discovery.stop();
+      discovery?.stop();
       each((reporter) => reporter.markStatus(currentSessionId, "exited"));
+      currentSessionId = "";
       each((reporter) => reporter.disconnect());
+      await sessionHost.close();
     });
   }
 

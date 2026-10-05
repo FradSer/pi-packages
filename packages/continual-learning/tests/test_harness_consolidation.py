@@ -17,7 +17,7 @@ def test_harness_result_example_copies_the_current_parent_identity() -> None:
       import {buildHarnessConsolidatorPrompt} from './packages/continual-learning/extensions/planner-prompts.ts';
       const bindings={runId:'run_current',scopeDigest:'a'.repeat(64),artifactHash:'b'.repeat(64),snapshotPath:'/fixture/snapshot.json',dossierPath:'/fixture/older-selector/dossier.json',repoRoot:'/fixture'};
       const prompt=buildHarnessConsolidatorPrompt(bindings);
-      const example=JSON.parse(/```json\n([\s\S]*?)\n```/.exec(prompt)[1]);
+      const example=[...prompt.matchAll(/```json\n([\s\S]*?)\n[ \t]*```/g)].map(m=>JSON.parse(m[1])).find(p=>p.kind==='harness-consolidation-plan');
       console.log(JSON.stringify({runId:example.runId,scopeDigest:example.scopeDigest,artifactHash:example.artifactHash}));
     """)
     assert result == {"runId": "run_current", "scopeDigest": "a" * 64, "artifactHash": "b" * 64}
@@ -466,10 +466,14 @@ def test_planner_timeout_output_limit_and_post_spawn_cancel_await_child_close() 
             onChild: () => { if (name === 'cancel') current = false; },
           },
         );
+        let watchdog;
         const raced = await Promise.race([
           planning.then(value => ({ value })),
-          new Promise(resolve => setTimeout(() => resolve({ watchdog: true }), 150)),
+          // This detects a cleanup deadlock, not filesystem scheduling latency.
+          // The closedWhenResolved assertion below proves the ordering directly.
+          new Promise(resolve => { watchdog = setTimeout(() => resolve({ watchdog: true }), 2000); }),
         ]);
+        clearTimeout(watchdog);
         const child = lastChild;
         const closedWhenResolved = child.closed;
         const elapsed = Date.now() - started;

@@ -50,7 +50,7 @@ function parentSession(): SessionManager {
   parent.appendMessage(user("active request"));
   parent.appendMessage(assistant("completed exchange", ["completed"]));
   parent.appendMessage(result("completed"));
-  parent.appendCustomEntry("agent-teams-runtime", { worker: "leader", tools: ["teammate_spawn"] });
+  parent.appendCustomEntry("agent-teams-runtime", { agent: "leader", tools: ["agent_spawn"] });
   parent.appendCustomMessageEntry("review-evidence", "Existing extension conversation", true, { runtimeIdentity: "parent-custom" });
   parent.appendCompaction("Existing compaction summary", kept, 5000, { runtimeIdentity: "parent-compaction" });
   parent.appendMessage(assistant("active answer"));
@@ -119,7 +119,7 @@ async function snapshotScenario(): Promise<void> {
   parent.appendMessage(partial);
   const completed = result("done");
   completed.details = { runtimeIdentity: "parent-tool-state" };
-  completed.addedToolNames = ["teammate_spawn"];
+  completed.addedToolNames = ["agent_spawn"];
   parent.appendMessage(completed);
   parent.appendMessage(user("new request"));
   parent.appendMessage(result("orphan"));
@@ -170,7 +170,7 @@ syncBuiltinESMExports();
 type SpawnFixture = Awaited<ReturnType<typeof spawnFixture>>;
 
 async function spawnFixture() {
-  const { spawnResident, isWorkerCloseObserved } = await import("@fradser/pi-subagents");
+  const { spawnResident, isProcessCloseObserved } = await import("@fradser/pi-subagents");
   const parent = parentSession();
   const before = parentState(parent);
   const context = mode === "spawn-empty" ? [] : mode === "spawn-user-only" ? [user("only user")] : expectedContext(parent);
@@ -178,12 +178,12 @@ async function spawnFixture() {
   let exits = 0;
   if (mode === "spawn-seed-failure") mock.method(SessionManager, "create", () => { throw new Error("fixture context setup failure"); });
   const spawned = spawnResident({
-    workerName: captures.length ? "sibling" : "child", cwd: root, description: "Only child assignment", tools: ["read"],
+    agentName: captures.length ? "sibling" : "child", cwd: root, description: "Only child assignment", tools: ["read"],
     model: "child-provider/child-model", thinking: "low", context: mode === "spawn-fresh" ? undefined : context,
     env: { PI_TEAMMATE_WORKER_NAME: "child", PI_TEAMMATE_SPAWN_ID: "child-spawn" },
     onError: (error) => errors.push(error.message), onExit: () => { exits++; },
   });
-  return { parent, before, context, spawned, errors, get exits() { return exits; }, isWorkerCloseObserved };
+  return { parent, before, context, spawned, errors, get exits() { return exits; }, isProcessCloseObserved };
 }
 
 function assertSpawnSelection(capture: CapturedSpawn, fixture: SpawnFixture): void {
@@ -226,7 +226,7 @@ function assertIndependentSession(capture: CapturedSpawn, fixture: SpawnFixture)
 
 async function spawnScenario(): Promise<void> {
   const fixture = await spawnFixture();
-  const { spawned, errors, parent, before, isWorkerCloseObserved } = fixture;
+  const { spawned, errors, parent, before, isProcessCloseObserved } = fixture;
   if (mode === "spawn-seed-failure") {
     assert.deepEqual(spawned, { error: "fixture context setup failure" });
     assert.equal(captures.length, 0);
@@ -263,12 +263,12 @@ async function spawnScenario(): Promise<void> {
     capture.child.emit("error", new Error("fixture asynchronous error"));
     assert.deepEqual(errors, ["fixture asynchronous error"]);
     assert.equal(fs.existsSync(capture.file!), mode === "spawn-runtime-error");
-    assert.equal(isWorkerCloseObserved("child"), false);
+    assert.equal(isProcessCloseObserved("child"), false);
   } else if (capture.file) {
     assertIndependentSession(capture, fixture);
   }
   capture.child.emit("close", 0, null);
-  assert.equal(isWorkerCloseObserved("child"), true);
+  assert.equal(isProcessCloseObserved("child"), true);
   assert.equal(fixture.exits, errors.length ? 0 : 1);
   assert.deepEqual(fs.readdirSync(temporary), []);
   assert.equal(fs.existsSync(parent.getSessionFile()!), true);

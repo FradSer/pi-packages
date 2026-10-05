@@ -7,7 +7,13 @@ PACKAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 
 def test_leader_work_create_and_list_share_the_pending_work_projection(tmp_path):
-    environment = os.environ.copy()
+    # A spawned teammate runs the suite with its own holder bound. Copying the
+    # whole environment inherits that binding, and the fixture then takes work
+    # as the teammate instead of as the caller it is written for.
+    environment = {
+        key: value for key, value in os.environ.items()
+        if not key.startswith("PI_TEAMMATE_") and key not in {"PI_TASK_HOLDER", "PI_TEAM_STATE_DIR"}
+    }
     environment["PI_TEST_DIR"] = str(tmp_path)
     result = subprocess.run(
         ["node", "tests/unified-work-interface-fixture.ts"],

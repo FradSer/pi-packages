@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from test_package import PACKAGE, run_typescript
+from matt_pocock_helpers import PACKAGE, RUNTIME_HARNESS, run_typescript
 
 PHASE_TITLES = {
     "shaping": "Shaping & Requirements",
@@ -26,22 +26,12 @@ ROUTES = ("idea-to-ship", "wayfinding", "triage", "hard-bug", "architecture")
 
 @pytest.fixture(scope="module")
 def lifecycle_results() -> dict[str, object]:
-    return run_typescript("""
-        import mattPocock from "./packages/matt-pocock/src/index.ts";
+    return run_typescript(RUNTIME_HARNESS + """
         import { workflowRoutes, workflowDefinitions, workflowPlacement } from "./packages/matt-pocock/src/catalog.ts";
         import { visibleWidth } from "@earendil-works/pi-tui";
-        const tools = new Map(), events = new Map(), renderers = new Map(), entries = [], messages = [];
-        let activeTools = ["bash", "matt_pocock_workflow"];
-        mattPocock({
-          on(name, handler) { events.set(name, handler); }, registerCommand() {},
-          registerTool(tool) { tools.set(tool.name, tool); },
-          registerMessageRenderer(name, renderer) { renderers.set(name, renderer); },
-          appendEntry(customType, data) { entries.push({ customType, data }); },
-          sendUserMessage() {}, sendMessage(message, options) { messages.push({ message, options }); },
-          getActiveTools() { return activeTools; }, setActiveTools(names) { activeTools = names; },
-        });
+        const r = runtime(["bash", "matt_pocock_workflow"]);
+        const { tools, events, renderers, entries, ctx } = r;
         const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text };
-        const ctx = { ui: { setStatus() {}, notify() {} } };
         const gateway = tools.get("matt_pocock_workflow"), active = tools.get("matt_pocock_active");
         const execute = (tool, args) => tool.execute("test", args, undefined, undefined, ctx);
         const render = (tool, result, expanded = false, width = 160) => tool.renderResult(
@@ -62,7 +52,7 @@ def lifecycle_results() -> dict[str, object]:
               procedure: definition.id, phase: placement.phase, status: "active", loadedReferences: [],
             };
             await restore(state);
-            const restored = messages.at(-1);
+            const restored = r.deliveries().at(-1);
             phases.push({
               route, routeTitle, state, restored,
               rows: renderers.get("matt-pocock-procedure")(restored.message, { expanded: false }, theme).render(160),
@@ -82,7 +72,7 @@ def lifecycle_results() -> dict[str, object]:
               const narrow = render(active, result, false, 48);
               terminals.push({
                 route, routeTitle, action, before: state, details: result.details,
-                record: entries.at(-1).data, content: result.content, activeTools: [...activeTools],
+                record: entries.at(-1).data, content: result.content, activeTools: [...r.active()],
                 rows: render(active, result), expanded: render(active, result, true), historicalRows: render(active, historical),
                 narrowBounded: narrow.every((line) => !line.includes("\\n") && visibleWidth(line) <= 48),
                 result, historical,
@@ -165,7 +155,7 @@ def test_restored_procedure_rows_use_recorded_phase(lifecycle_results: dict[str,
         assert {key: value for key, value in details.items() if key != "deliveredProcedures"} == item["state"]
         assert item["state"]["procedure"] in details["deliveredProcedures"]
         assert item["restored"]["message"]["display"] is False
-        assert item["restored"]["options"] == {"deliverAs": "nextTurn"}
+        assert item["restored"]["options"] == {"triggerTurn": False}
         assert "to expand" not in "\n".join(item["rows"])
         assert item["expanded"] == item["rows"]
 
@@ -239,9 +229,9 @@ def test_cancellation_without_nonblank_reason_does_not_expand(lifecycle_results:
 
 def test_non_workflow_rows_keep_their_subjects(lifecycle_results: dict[str, object]) -> None:
     expected = {
-        "loaded": "event · loaded HTML-REPORT",
-        "standalone": "started · research",
-        "reference": "started · writing-for-agents · SKILL-MECHANICS",
+        "loaded": "event · loaded HTML Report",
+        "standalone": "started · Research",
+        "reference": "started · Writing For Agents · Skill Mechanics",
         "fallback": "event · workflow updated",
     }
     for key, subject in expected.items():
@@ -257,3 +247,117 @@ def test_non_workflow_rows_keep_their_subjects(lifecycle_results: dict[str, obje
     assert lifecycle_results["nonWorkflow"]["reference"]["details"] == {
         "mode": "reference", "capability": "writing-for-agents", "reference": "SKILL-MECHANICS",
     }
+
+
+def test_all_standalone_tool_and_message_names_use_catalog_labels() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        import {standaloneCapabilities} from "./packages/matt-pocock/src/catalog.ts";
+        const r=runtime();
+        const theme={fg:(_c,t)=>t,bg:(_c,t)=>t,bold:t=>t};
+        const tool=r.tools.get('matt_pocock_workflow');
+        console.log(JSON.stringify(standaloneCapabilities().map(c=>{
+          const details={mode:'capability',capability:c.id};
+          const rows=tool.renderResult({content:[],details},{expanded:false,isPartial:false},theme,{isError:false,args:{}}).render(160);
+          const message=r.renderers.get('matt-pocock-procedure')({content:'model only',details},{expanded:false},theme).render(160);
+          const task=r.renderers.get('matt-pocock-procedure')({content:'model only',details:{...details,request:'Keep my exact_task-name'}},{expanded:false},theme).render(160);
+          return {id:c.id,label:c.label,rows,message,task};
+        })));
+    ''')
+    assert len(result) == 21
+    for entry in result:
+        assert f"started · {entry['label']}" in '\n'.join(entry['rows'])
+        assert entry['label'] in '\n'.join(entry['message'])
+        assert 'Keep my exact_task-name' in '\n'.join(entry['task'])
+
+
+def test_transition_menu_uses_labels_and_keeps_internal_targets() -> None:
+    result=run_typescript(RUNTIME_HARNESS + '''
+        const r=runtime(); await r.start(); let menu;
+        r.ctx.ui.select=async(title,choices)=>{menu={title,choices};return choices[0];};
+        await r.commands.get('matt-pocock').handler('transition',r.ctx);
+        console.log(JSON.stringify({menu,state:r.entries.at(-1).data}));
+    ''')
+    assert 'Hard Bug Diagnosis' in result['menu']['title']
+    assert 'Reproducing & Diagnostics' in result['menu']['title']
+    assert result['menu']['choices'] == ['Implementation', 'Code Review']
+    assert result['state']['procedure'] == 'implement'
+
+
+def test_all_transition_menu_choices_match_destination_lifecycle_titles() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        import { workflowRoutes, workflowDefinitions, workflowPlacement } from "./packages/matt-pocock/src/catalog.ts";
+        import { readablePhaseTitle } from "./packages/matt-pocock/src/workflow.ts";
+        const menus = [];
+        for (const { route } of workflowRoutes()) {
+          for (const { id } of workflowDefinitions(route)) {
+            const placement = workflowPlacement(route, id);
+            if (!placement.allowedNext.length) continue;
+            const r = runtime();
+            r.setBranch([{type: "custom", customType: "matt-pocock-workflow", data: {
+              version: 1, workItemId: "menu-test", route, procedure: id,
+              phase: placement.phase, status: "active", loadedReferences: [],
+            }}]);
+            await r.events.get("session_start")({}, r.ctx);
+            let choices;
+            r.ctx.ui.select = async (_title, offered) => { choices = offered; return undefined; };
+            await r.commands.get("matt-pocock").handler("transition", r.ctx);
+            menus.push({choices, expected: placement.allowedNext.map(target => readablePhaseTitle(workflowPlacement(route, target).phase))});
+          }
+        }
+        console.log(JSON.stringify(menus));
+    ''')
+    assert result
+    for menu in result:
+        assert menu['choices'] == menu['expected']
+
+
+def test_all_reference_rows_preserve_names_and_width_including_saved_results() -> None:
+    result = run_typescript(RUNTIME_HARNESS + '''
+        import { procedureCatalog } from "./packages/matt-pocock/src/catalog.ts";
+        import { visibleWidth } from "@earendil-works/pi-tui";
+        const r = runtime();
+        const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text };
+        const references = procedureCatalog.filter(item => item.kind === "reference" || item.kind === "asset");
+        const cases = references.flatMap(item => [
+          ["matt_pocock_active", {action: "load", reference: item.id}],
+          ["matt_pocock_active", {action: "load", subject: `loaded ${item.id}`}],
+          ["matt_pocock_workflow", {mode: "reference", capability: "writing-for-agents", reference: item.id}],
+        ].map(([name, details]) => {
+          const render = (width, expanded) => r.tools.get(name).renderResult(
+            {content: [{type: "text", text: "Model-only resource body"}], details},
+            {expanded, isPartial: false}, theme, {isError: false, args: {}},
+          ).render(width);
+          return {label: item.label, rows: render(160, false), expanded: render(160, true),
+            bounded: [24, 48, 80].every(width => [false, true].every(expanded => render(width, expanded).every(line => !line.includes("\\n") && visibleWidth(line) <= width)))};
+        }));
+        console.log(JSON.stringify(cases));
+    ''')
+    assert result
+    for case in result:
+        assert case['label'] in '\n'.join(case['rows'])
+        assert case['bounded']
+        assert 'Model-only resource body' not in '\n'.join(case['expanded'])
+
+
+def test_all_tool_errors_use_shared_failure_style_and_pending_background() -> None:
+    result = run_typescript(RUNTIME_HARNESS + r'''
+        import { visibleWidth } from "@earendil-works/pi-tui";
+        const r = runtime();
+        const cases = [...r.tools.values()].map(tool => {
+          const backgrounds = [];
+          const theme = {fg: (_color, text) => text, bg: (color, text) => {backgrounds.push(color); return text;}, bold: text => text};
+          const render = (width, expanded, isError, isPartial) => tool.renderResult(
+            {content: [{type: "text", text: "Error: invalid target\nTry an allowed target."}], details: {}},
+            {expanded, isPartial}, theme, {isError, args: {}},
+          ).render(width);
+          const failure = render(160, false, true, false);
+          render(80, false, false, true);
+          return {name: tool.name, failure, errorBackground: backgrounds.includes("toolErrorBg"), pendingBackground: backgrounds.includes("toolPendingBg"),
+            bounded: [24, 48, 80].every(width => [false, true].every(expanded => render(width, expanded, true, false).every(line => !line.includes("\n") && visibleWidth(line) <= width)))};
+        });
+        console.log(JSON.stringify(cases));
+    ''')
+    assert len(result) == 3
+    for case in result:
+        assert '[matt pocock] failed ·' in '\n'.join(case['failure'])
+        assert case['errorBackground'] and case['pendingBackground'] and case['bounded']

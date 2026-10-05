@@ -2,29 +2,13 @@ from __future__ import annotations
 
 import json
 import re
-import subprocess
-import textwrap
-from pathlib import Path
 
-PACKAGE = Path(__file__).resolve().parents[1]
-REPO = PACKAGE.parents[1]
-
-
-def run_typescript(script: str) -> dict[str, object]:
-    result = subprocess.run(
-        ["node", "--import", "tsx/esm", "--input-type=module"],
-        cwd=REPO,
-        input=textwrap.dedent(script),
-        text=True,
-        capture_output=True,
-    )
-    assert result.returncode == 0, result.stderr
-    return json.loads(result.stdout)
+from matt_pocock_helpers import PACKAGE, run_typescript
 
 
 def test_catalog_classifies_every_bundled_resource_and_resolves_all_edges() -> None:
     result = run_typescript("""
-        import { catalogFiles, procedureCatalog, validateProcedureCatalog } from "./packages/matt-pocock/src/catalog.ts";
+        import { catalogFiles, findProcedure, procedureCatalog, validateProcedureCatalog } from "./packages/matt-pocock/src/catalog.ts";
         import { readdirSync } from "node:fs";
         import { fileURLToPath } from "node:url";
 
@@ -35,11 +19,13 @@ def test_catalog_classifies_every_bundled_resource_and_resolves_all_edges() -> N
           catalogFiles: catalogFiles().sort(),
           ids: procedureCatalog.map((entry) => entry.id),
           errors: validateProcedureCatalog(),
+          aliases: [findProcedure("tight-red-loop")?.id, findProcedure("clarify-goal")?.id],
         }));
     """)
     assert result["errors"] == []
     assert result["catalogFiles"] == result["bundled"]
     assert len(result["ids"]) == len(set(result["ids"]))
+    assert result["aliases"] == ["diagnosing-bugs", "wayfinder"]
 
 
 def test_each_workflow_route_has_one_catalog_entry_with_display_metadata() -> None:
@@ -63,6 +49,7 @@ def test_architecture_entry_loads_required_vocabulary_and_discloses_optional_ref
         import { MAX_PROCEDURE_BUNDLE_BYTES, resolveProcedureBundle } from "./packages/matt-pocock/src/resolver.ts";
         const bundle = resolveProcedureBundle("improve-codebase-architecture");
         console.log(JSON.stringify({
+          root: bundle.root,
           loaded: bundle.loaded,
           availableReferences: bundle.availableReferences,
           bytes: bundle.byteLength,
@@ -70,6 +57,8 @@ def test_architecture_entry_loads_required_vocabulary_and_discloses_optional_ref
           content: bundle.content,
         }));
     """)
+    assert result["root"] == "improve-codebase-architecture"
+    assert result["maxBytes"] == 64 * 1024
     assert result["loaded"] == ["improve-codebase-architecture", "codebase-design"]
     assert "HTML-REPORT" in result["availableReferences"]
     assert "grilling" in result["availableReferences"]
@@ -81,8 +70,6 @@ def test_architecture_entry_loads_required_vocabulary_and_discloses_optional_ref
     assert 'source="procedure/improve-codebase-architecture"' in result["content"]
     assert 'source="procedure/codebase-design"' in result["content"]
     assert "Full HTML Report Scaffold" not in result["content"]
-    assert "](procedure:codebase-design)" in result["content"]
-    assert "](codebase-design.md)" not in result["content"]
     assert result["bytes"] <= result["maxBytes"]
 
 

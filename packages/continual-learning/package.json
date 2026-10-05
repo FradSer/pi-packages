@@ -38,6 +38,7 @@
     "@earendil-works/pi-tui": "*"
   },
   "dependencies": {
-    "@fradser/pi-kit": "workspace:*"
+    "@fradser/pi-kit": "workspace:*",
+    "@typesafe-ai/sdk": "0.6.0"
   }
 }

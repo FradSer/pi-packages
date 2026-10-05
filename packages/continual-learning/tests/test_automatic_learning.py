@@ -5,6 +5,8 @@ import tempfile
 from functools import partial
 from pathlib import Path
 
+import pytest
+
 from support import REPO, run_bun as _run_bun
 
 run_bun = partial(_run_bun, timeout=30, temp_dirs=("TMPDIR",))
@@ -34,6 +36,31 @@ def test_memory_management_reports_shipped_incremental_planner() -> None:
     assert result['file'].endswith('/prompts/incremental-memory-consolidator.md')
 
 
+def test_incremental_planner_prompt_declares_the_exact_new_memory_kind_enum() -> None:
+    prompt = (REPO / "packages/continual-learning/prompts/incremental-memory-consolidator.md").read_text(encoding="utf-8")
+    assert '"preference" | "project"' in prompt
+    assert '"project-fact"' in prompt and "invalid plan kinds" in prompt
+    assert '"kind":"project"' in prompt
+    assert "type: project" in prompt
+
+
+@pytest.mark.parametrize("has_ui", [False, True])
+def test_memory_open_reports_invalid_model_configuration(tmp_path: Path, has_ui: bool) -> None:
+    agent = tmp_path / "agent"
+    agent.mkdir()
+    (agent / "memory.json").write_text("{", encoding="utf-8")
+    result = run_bun(r'''
+      const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const commands = new Map(), labels = [];
+      register({ on() {}, registerCommand: (name, command) => commands.set(name, command), getCommands: () => [], registerEntryRenderer: () => {}, appendEntry: () => {} });
+      await commands.get('memory').handler('', { cwd: process.env.TEST_CWD, hasUI: process.env.TEST_HAS_UI === 'true', ui: {
+        notify: text => labels.push(text), select: async title => { labels.push(title); return undefined; },
+      } });
+      console.log(JSON.stringify({labels}));
+    ''', {"PI_CODING_AGENT_DIR": str(agent), "TEST_CWD": str(tmp_path), "TEST_HAS_UI": str(has_ui).lower()})
+    assert any("configuration invalid" in label for label in result["labels"]), result
+
+
 def test_learning_deduplicates_and_ignores_extension_inputs() -> None:
     result = run_bun("""
       import { createAutomaticLearning } from './packages/continual-learning/extensions/automatic-learning.ts';
@@ -49,6 +76,42 @@ def test_learning_deduplicates_and_ignores_extension_inputs() -> None:
       console.log(JSON.stringify({ runs }));
     """)
     assert result == {"runs": ["user", "rpc"]}
+
+
+def test_disabled_settle_reports_the_frozen_snapshot_and_real_user_revision_once() -> None:
+    result = run_bun("""
+      import { createAutomaticLearning } from './packages/continual-learning/extensions/automatic-learning.ts';
+      const skipped = [], runs = [];
+      const learning = createAutomaticLearning(
+        async value => { runs.push(value); },
+        error => { throw error; },
+        { onSkipped: (context, revision, reason) => skipped.push({ context, revision, reason }) },
+      );
+      learning.input('interactive');
+      await learning.settle({ task: 'frozen' }, false);
+      await learning.settle({ task: 'duplicate' }, false);
+      learning.input('extension');
+      await learning.settle({ task: 'extension-only' }, false);
+      console.log(JSON.stringify({ skipped, runs }));
+    """)
+    assert result == {
+        "skipped": [{"context": {"task": "frozen"}, "revision": 1, "reason": "auto-memory-off"}],
+        "runs": [],
+    }
+
+
+def test_disabled_settle_does_not_report_after_shutdown() -> None:
+    result = run_bun("""
+      import { createAutomaticLearning } from './packages/continual-learning/extensions/automatic-learning.ts';
+      const skipped = [];
+      const learning = createAutomaticLearning(async () => {}, error => { throw error; }, {
+        onSkipped: (context, revision, reason) => skipped.push({ context, revision, reason }),
+      });
+      learning.stop();
+      await learning.settle({ task: 'shutdown' }, false);
+      console.log(JSON.stringify(skipped));
+    """)
+    assert result == []
 
 
 def test_learning_coalesces_settled_contexts_without_overlap() -> None:
@@ -256,7 +319,9 @@ def test_headless_pipeline_freezes_context_and_finishes_all_phases() -> None:
     assert "memory-worker-exited" in result["exitMarkers"]
     assert result["receiptOperations"] == 1
     assert [(attempt["phase"], attempt["outcome"], attempt["operations"]) for attempt in result["receiptAttempts"]] == [("selector", "applied", 0), ("memory", "applied", 1)]
-    assert result["selectorPrompts"][0]["tools"] == []
+    assert result["selectorPrompts"] == []
+    assert result["receiptAttempts"][0]["diagnostic"] == "empty Memory index; parent-routed explicit evidence"
+    assert result["receiptAttempts"][0].get("usage") is None
     assert result["incrementalAgent"] and result["dossierOnly"]
     assert result["created"] and not result["leaked"]
 
@@ -433,7 +498,7 @@ def test_failed_memory_gate_persists_receipt_and_skips_later_phases() -> None:
       console.log(JSON.stringify({ workerKinds, selectorCalls, receipt, notices }));
     ''')
     assert result["workerKinds"] == ["memory"]
-    assert result["selectorCalls"] == ["selector"]
+    assert result["selectorCalls"] == []
     assert result["receipt"]["screen"]["harness"] is True
     assert [(attempt["phase"], attempt["outcome"], attempt["operations"]) for attempt in result["receipt"]["attempts"]] == [("selector", "applied", 0), ("memory", "failed", 0)]
     assert any("planner provider unavailable" in notice for notice in result["notices"])
@@ -519,11 +584,81 @@ def test_incremental_memory_repair_prompt_contains_only_rejected_delta_errors_sc
     assert result["tools"] == []
     assert "operations must be an array" in result["prompt"]
     assert "chosen.md" in result["prompt"] and "run_repair" in result["prompt"]
+    assert "incremental-memory-plan" in result["prompt"]
+    assert 'newMemories[].kind must be exactly "preference" or "project"' in result["prompt"]
+    assert "project-fact" in result["prompt"]
+    assert '"evidence"' in result["prompt"]
+    assert "Retain every recognizable original selected operation and new proposal by its exact name" in result["prompt"]
+    assert "preserve an original rewrite as rewrite and an original delete as delete" in result["prompt"]
     for forbidden in ("snapshotPath", "dossierPath", "harnessDir", "publicDir", "repoRoot"):
         assert forbidden not in result["prompt"]
 
 
-def test_invalid_memory_config_persists_failed_start_receipt() -> None:
+def test_incremental_memory_repair_retains_recognizable_intents() -> None:
+    result = run_bun(r'''
+      import { mock } from 'bun:test';
+      let candidate;
+      const kit = await import('./packages/kit/src/index.ts');
+      mock.module('./packages/kit/src/index.ts', () => ({
+        ...kit,
+        runPiWorker: async () => ({
+          text: JSON.stringify(candidate), exitCode: 0, stderr: '',
+          usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: 0 },
+        }),
+      }));
+      const { repairIncrementalMemoryPlan } = await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const identity = { runId: 'run_retention', scopeKey: 'scope-key', scopeDigest: 'scope-digest', artifactHash: 'snapshot-digest', snapshotDigest: 'snapshot-digest' };
+      const base = { kind: 'incremental-memory-plan', version: 1, schemaVersion: 1, ...identity, operations: [], newMemories: [] };
+      const proposalIntent = {
+        ...base,
+        newMemories: [
+          { name: 'private.md', kind: 'preference', content: 'private', evidence: [{ index: 0, quote: 'private' }] },
+          { name: 'project_fact.md', kind: 'project-fact', content: 'project', evidence: [{ index: 0, quote: 'project' }] },
+        ],
+      };
+      const proposalFixed = {
+        ...base,
+        newMemories: [
+          { name: 'private.md', kind: 'preference', content: 'private fixed', evidence: [{ index: 0, quote: 'private' }] },
+          { name: 'project_fact.md', kind: 'project', content: 'project fixed', evidence: [{ index: 0, quote: 'project' }] },
+        ],
+      };
+      const proposalRenamed = {
+        ...base,
+        newMemories: [
+          { name: 'private.md', kind: 'preference', content: 'private fixed', evidence: [{ index: 0, quote: 'private' }] },
+          { name: 'project-Fact.md', kind: 'project', content: 'project fixed', evidence: [{ index: 0, quote: 'project' }] },
+        ],
+      };
+      const proposalEmpty = { ...base };
+      const rewrite = { ...base, operations: [{ name: 'existing.md', kind: 'rewrite', classification: 'safe', content: 'old' }] };
+      const deleteReplacement = { ...base, operations: [{ name: 'existing.md', kind: 'delete', classification: 'safe', verdict: 'SUPERSEDED', preservedIn: ['kept.md'] }] };
+      const invalidOperations = { ...base, operations: 'not-an-array' };
+      const run = async (rejectedPlan, repairedPlan) => {
+        candidate = repairedPlan;
+        const value = await repairIncrementalMemoryPlan({ rejectedPlan, errors: ['bounded validator error'], selectedNames: ['existing.md'], identity });
+        return value.outcome;
+      };
+      console.log(JSON.stringify({
+        retained: await run(proposalIntent, proposalFixed),
+        emptyRejected: await run(proposalIntent, proposalEmpty),
+        renamedRejected: await run(proposalIntent, proposalRenamed),
+        rewriteDeleteRejected: await run(rewrite, deleteReplacement),
+        invalidOriginalMayBeEmpty: await run(invalidOperations, proposalEmpty),
+      }));
+    ''')
+    assert result == {
+        "retained": "repaired",
+        "emptyRejected": "failed",
+        "renamedRejected": "failed",
+        "rewriteDeleteRejected": "failed",
+        "invalidOriginalMayBeEmpty": "repaired",
+    }
+
+
+@pytest.mark.parametrize("memory_policy", ["apply", "off"])
+@pytest.mark.parametrize("trigger", ["automatic", "manual", "full", "request"])
+def test_invalid_memory_config_blocks_every_worker_before_normalization(memory_policy: str, trigger: str) -> None:
     with tempfile.TemporaryDirectory(prefix="learning-invalid-config-") as temporary:
         result = run_bun(r'''
           import { mock } from 'bun:test';
@@ -533,33 +668,49 @@ def test_invalid_memory_config_persists_failed_start_receipt() -> None:
           const cwd = path.join(base, 'project'); fs.mkdirSync(cwd); fs.mkdirSync(agent);
           fs.mkdirSync(path.join(agent, 'memory'), { recursive: true });
           fs.writeFileSync(path.join(agent, 'memory.json'), JSON.stringify({ provider: 'only-provider' }));
-          fs.writeFileSync(path.join(agent, 'memory', 'settings.json'), JSON.stringify({ autoMemory: true }));
+          fs.writeFileSync(path.join(agent, 'memory', 'settings.json'), JSON.stringify({ autoMemory: true, automaticPhases: {memory: process.env.TEST_MEMORY_POLICY} }));
+          const { resolveMemoryPaths } = await import('./packages/continual-learning/extensions/memory-paths.ts');
+          const paths = resolveMemoryPaths(cwd);
+          fs.mkdirSync(paths.harnessDir, { recursive: true });
+          const body = path.join(paths.harnessDir, 'fact.md');
+          const index = path.join(paths.harnessDir, 'MEMORY.md');
+          fs.writeFileSync(body, '---\nname: Fact\ndescription: Verified project fact\ntype: project\n---\nverified fact\n');
+          fs.writeFileSync(index, '- [fact.md](fact.md) stale annotation\n');
+          const before = {body: fs.readFileSync(body, 'utf8'), index: fs.readFileSync(index, 'utf8')};
+          let modelCalls = 0;
           const kit = await import('./packages/kit/src/index.ts');
           mock.module('./packages/kit/src/index.ts', () => ({
             ...kit,
-            runPiWorker: async ({ prompt }) => ({
-              text: JSON.stringify({ kind: 'incremental-memory-selection', version: 1, contextDigest: /Context digest: ([a-f0-9]+)/.exec(prompt)[1], selected: [], memory: true, harness: false, agents: false, reason: 'durable rule' }),
+            spawnPiChild: () => { modelCalls += 1; throw new Error('Fixture forbids actual child process'); },
+            runPiWorker: async ({ prompt }) => { modelCalls += 1; return ({
+              text: JSON.stringify({ kind: 'incremental-memory-selection', version: 1, contextDigest: /Context digest: ([a-f0-9]+)/.exec(prompt)[1], selected: [], memory: true, harness: true, agents: false, reason: 'durable rule' }),
               exitCode: 0, stderr: '',
-            }),
+            }); },
           }));
           const { default: register } = await import('./packages/continual-learning/extensions/inject-memory.ts');
-          const { resolveMemoryPaths } = await import('./packages/continual-learning/extensions/memory-paths.ts');
-          const hooks = new Map(), notices = [];
-          register({ on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: () => {}, getCommands: () => [], registerEntryRenderer: () => {}, appendEntry: () => {} });
-          const entries = [{ message: { role: 'user', content: [{ type: 'text', text: 'Always preserve this durable rule.' }] } }];
+          const hooks = new Map(), commands = new Map(), notices = [];
+          register({ on: (name, handler) => hooks.set(name, [...(hooks.get(name) ?? []), handler]), registerCommand: (name, command) => commands.set(name, command), getCommands: () => [], registerEntryRenderer: () => {}, appendEntry: () => {} });
+          const entries = [{ message: { role: 'user', content: [{ type: 'text', text: 'Never publish without approval. Always preserve this durable rule.' }] } }];
           const ctx = { cwd, mode: 'json', hasUI: false, ui: { notify: text => notices.push(text), setWidget: () => {} }, sessionManager: { getBranch: () => entries, buildContextEntries: () => entries } };
-          for (const [name, event] of [['session_start', {}], ['input', { source: 'interactive' }], ['agent_settled', {}]]) for (const handler of hooks.get(name) ?? []) await handler(event, ctx);
-          const paths = resolveMemoryPaths(cwd);
+          for (const [name, event] of [['session_start', {}], ['input', { source: 'interactive' }]]) for (const handler of hooks.get(name) ?? []) await handler(event, ctx);
+          const trigger = process.env.TEST_TRIGGER;
+          if (trigger === 'automatic') for (const handler of hooks.get('agent_settled') ?? []) await handler({}, ctx);
+          else if (trigger === 'request') await commands.get('memory').handler('Remember the verified fixture fact.', ctx);
+          else await commands.get('consolidate').handler(trigger === 'full' ? 'full' : '', ctx);
           const receiptPath = path.join(paths.runsDir, 'learning-pipeline-receipt.json');
-          const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
-          console.log(JSON.stringify({ attempts: receipt.attempts, notices }));
+          const receipt = fs.existsSync(receiptPath) ? JSON.parse(fs.readFileSync(receiptPath, 'utf8')) : {attempts: []};
+          console.log(JSON.stringify({ attempts: receipt.attempts, notices, modelCalls, preserved: before.body === fs.readFileSync(body, 'utf8') && before.index === fs.readFileSync(index, 'utf8') }));
         ''', {
             "INVALID_CONFIG_TEST_DIR": temporary,
+            "TEST_MEMORY_POLICY": memory_policy,
+            "TEST_TRIGGER": trigger,
             "PI_CODING_AGENT_DIR": str(Path(temporary) / "agent"),
         })
     phases = [(attempt["phase"], attempt["outcome"], attempt["operations"]) for attempt in result["attempts"]]
-    assert phases == [("selector", "applied", 0), ("memory", "failed", 0)]
-    assert any("Memory consolidation is blocked" in notice for notice in result["notices"])
+    assert result["modelCalls"] == 0
+    assert result["preserved"] is True
+    assert phases == [("memory" if trigger == "full" else "selector", "failed", 0)]
+    assert any("Learning is blocked" in notice for notice in result["notices"])
 
 
 def test_node_parent_waits_for_worker_exit_after_output_pipes_close() -> None:
@@ -620,3 +771,19 @@ console.log(JSON.stringify({workerExited,notices}));
         )
         assert outcome["workerExited"], outcome
         assert outcome["notices"] == []
+
+
+def test_incremental_prompt_covers_affirmed_terminology_without_invented_process() -> None:
+    # The real sparse EN trial routed Memory but emitted an empty first delta.
+    # Keep the durable-fact contract visible to the read-only generation stage.
+    prompt = (REPO / 'packages/continual-learning/prompts/incremental-memory-consolidator.md').read_text()
+    assert 'Project terminology' in prompt and 'alias' in prompt
+    assert 'does not require' in prompt and 'remember' in prompt
+    assert 'maintains a glossary' in prompt and 'verified' in prompt
+
+
+def test_harness_repair_does_not_preserve_unauthorized_generated_positive_cases() -> None:
+    prompt = (REPO / 'packages/continual-learning/prompts/harness-consolidator.md').read_text()
+    assert 'Generated positive cases are not authorization' in prompt
+    assert 'extra arguments must be negative' in prompt
+    assert 'while retaining\nthe required positives' not in prompt

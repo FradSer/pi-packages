@@ -53,3 +53,13 @@ Feature: Preserve enforced Harness configuration across a flat-rule upgrade
     When its content or path changes while confirmation is pending
     Then approval is invalid even for an equivalent path alias
     And the call stays unexecuted with the original configuration untouched
+
+  Scenario: Real upgrade smoke imports without the pytest test runner
+    Given the live upgrade smoke is loaded in a Python process where pytest is unavailable
+    When the smoke module is imported without executing the live model call
+    Then its dependency-free fixture import succeeds
+
+  Scenario: Real upgrade smoke rejects unexpected native tool calls
+    Given a real upgrade session returns the four authorized native tool results
+    When an additional native tool result is present
+    Then the smoke fails instead of accepting a partial or expanded sequence

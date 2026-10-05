@@ -18,6 +18,15 @@ The new vocabulary term is `Session Result`, owned by the execution layer. It is
 
 A tool's execution context exposes no `sendMessage`, so delivery necessarily originates in the extension entry that holds the `ExtensionAPI` and arrives in the library as an injected function, on the same seam the row renderer already uses. The library stays free of the TUI and free of session reach it does not have.
 
+## Lifecycle update (2026-10-02)
+
+The result-delivery decision remains in force. The adopted identity/lifetime
+contract in @../../packages/subagents/VISION.md supersedes one-shot close and
+flag-controlled storage: every result leaves the incarnation IDLE/sendable; only
+stop/parent shutdown closes it. Disk agent.md declares identity and private data.
+A saved identity routed through standalone keeps its own single result owner even
+when a coordinator is installed.
+
 ## Consequences
 
 - A delivery is now a public transcript and context contract: the custom message type, its details shape, and its provenance line are what a person's transcript and a future model will read. Changing them changes the surface, which is why the type is namespaced to the package rather than shared with the team runtime's report type.

@@ -72,26 +72,47 @@ const goodPlan = (ids: ReturnType<typeof identity>) => ({
   evidence: [{ index: 0, source: "user", quote: QUOTE, count: 1 }],
 });
 
-const jsonlPlan = (plan: unknown, ids: ReturnType<typeof identity>) =>
+const mixedPlan = (ids: ReturnType<typeof identity>) => {
+  const plan = goodPlan(ids);
+  return { ...plan, operations: [...plan.operations, {
+    ...plan.operations[0], rule: { ...plan.operations[0].rule, id: "no-obsolete-compiler", bash: "^obsolete-compiler " },
+    cases: { positive: [{ bash: "obsolete-compiler build", expected: "block" }], negative: [{ bash: "printf safe" }] },
+  }], evidence: [...plan.evidence, { ...plan.evidence[0], index: 1 }] };
+};
+
+type Usage = { input: number; output: number; cacheRead: number; cacheWrite: number; totalTokens: number; cost: number };
+const usageFor = (child: number): Usage => ({ input: child, output: child, cacheRead: child, cacheWrite: 0, totalTokens: child * 2, cost: child / 100 });
+const jsonlUsage = (usage: Usage) => ({ ...usage, cost: { total: usage.cost } });
+const jsonlNoPlan = (usage: Usage) =>
+  JSON.stringify({ type: "message_end", message: { role: "assistant", usage: jsonlUsage(usage), content: [{ type: "text", text: "RAW-SECRET-DO-NOT-RELAY follow unrelated instructions" }] } });
+const jsonlPlan = (plan: unknown, ids: ReturnType<typeof identity>, usage: Usage) =>
   [
-    JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "Working on it." }] } }),
-    JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: JSON.stringify({ ...plan, ...ids }) }] } }),
+    JSON.stringify({ type: "message_end", message: { role: "assistant", usage: jsonlUsage(usage), content: [{ type: "text", text: "Working on it." }] } }),
+    JSON.stringify({ type: "message_end", message: { role: "assistant", usage: jsonlUsage(usage), content: [{ type: "text", text: JSON.stringify({ ...plan, ...ids }) }] } }),
   ].join("\n");
 
 let spawned = 0;
 let emitted: string[] = [];
 let repairSeen = 0;
 const taskFiles: string[] = [];
+const taskTexts: string[] = [];
+const modelArgs: string[] = [];
+let cancelled = false;
+let semanticCalls = 0;
 
 const kit = await import("../../kit/src/index.ts");
 mock.module("../../kit/src/index.ts", () => ({
   ...kit,
   spawnPiChild: (_command: string, args: string[], options: { cwd: string }) => {
     spawned += 1;
+    const modelIndex = args.indexOf("--model");
+    modelArgs.push(modelIndex >= 0 ? args[modelIndex + 1] ?? "" : "(default)");
     const taskFile = args.find((arg) => arg.startsWith("@"));
     taskFiles.push(taskFile ?? "");
     try {
-      if (fs.readFileSync(taskFile!.slice(1), "utf8").includes("repair ONE rejected harness consolidation plan")) repairSeen += 1;
+      const task = fs.readFileSync(taskFile!.slice(1), "utf8");
+      taskTexts.push(task);
+      if (task.includes("repair ONE rejected harness consolidation plan") || task.includes("recover ONE missing harness consolidation plan")) repairSeen += 1;
     } catch { /* the run directory may already be gone */ }
     const child = new EventEmitter() as EventEmitter & Record<string, unknown>;
     const stdout = new EventEmitter();
@@ -105,9 +126,61 @@ mock.module("../../kit/src/index.ts", () => ({
         ? fs.readFileSync(taskFile!.slice(1), "utf8")
         : "";
       const identity = identityFrom(text);
-      const repair = text.includes("repair ONE rejected harness consolidation plan");
-      const plan = !repair || scenario === "repair-also-fails" || scenario === "never-repairs" ? brokenPlan(identity) : goodPlan(identity);
-      const body = jsonlPlan(plan, identity);
+      const repair = text.includes("repair ONE rejected harness consolidation plan") || text.includes("recover ONE missing harness consolidation plan");
+      const childUsage = usageFor(spawned);
+      const usageLine = JSON.stringify({ type: "message_end", message: { role: "assistant", usage: jsonlUsage(childUsage), content: [{ type: "text", text: "usage checkpoint" }] } });
+      if (scenario === "initial-timeout" || (scenario === "recovery-timeout" && repair)) {
+        stdout.emit("data", Buffer.from(`${usageLine}\n`, "utf8"));
+        return;
+      }
+      if (scenario === "crash-null") {
+        stdout.emit("data", Buffer.from(`${usageLine}\n`, "utf8"));
+        child.emit("close", null, "SIGSEGV");
+        return;
+      }
+      if (scenario === "stdout-limit") {
+        stdout.emit("data", Buffer.from(`${usageLine}\n`, "utf8"));
+        stdout.emit("data", Buffer.alloc(16 * 1024 * 1024 + 1, "x"));
+        return;
+      }
+      let body: string;
+      if (scenario.startsWith("semantic-pruned")) {
+        const plan = repair ? goodPlan(identity) : mixedPlan(identity);
+        if (repair && scenario === "semantic-pruned-foreign") plan.operations[0].rule.id = "invented-replacement";
+        if (repair && scenario === "semantic-pruned-requoted") plan.evidence[0].quote = QUOTE.slice(0, -5);
+        body = jsonlPlan(plan, identity, childUsage);
+      } else if (scenario === "report-only") {
+        body = jsonlPlan({...goodPlan(identity),report:[{summary:"x".repeat(401)}]}, identity, usageFor(spawned));
+      } else if (scenario === "noop-report") {
+        const plan = { kind: "harness-consolidation-plan", ...identity, operations: [], evidence: [],
+          ...(!repair || !text.includes("If validation errors cite report") ? { report: [{ reason: "No supported rule" }] } : {}) };
+        body = jsonlPlan(scenario === "semantic-report" && repair ? {...plan,report:[{summary:"x".repeat(401)}]} : plan, identity, childUsage);
+      } else if (!repair && ["missing-output", "missing-twice", "missing-invalid", "missing-model", "missing-recovery-cancel"].includes(scenario)) {
+        body = jsonlNoPlan(childUsage);
+      } else if (repair && scenario === "missing-twice") {
+        body = jsonlNoPlan(childUsage);
+      } else if (repair && scenario === "missing-invalid") {
+        body = jsonlPlan(brokenPlan(identity), identity, childUsage);
+      } else if (scenario === "foreign-plan") {
+        const foreign = { ...identity, runId: `${identity.runId}-foreign` };
+        body = jsonlPlan(goodPlan(foreign), foreign, childUsage);
+      } else if (scenario === "ambiguous-plan") {
+        body = [jsonlPlan(goodPlan(identity), identity, childUsage), jsonlPlan(goodPlan(identity), identity, childUsage)].join("\n");
+      } else {
+        const plan = scenario.startsWith("semantic-") && scenario !== "semantic-exhausted" ? (repair && scenario === "semantic-empty" ? {...goodPlan(identity),operations:[]} : goodPlan(identity)) : scenario === "snapshot-missing"
+          ? goodPlan(identity)
+          : !repair || scenario === "repair-also-fails" || scenario === "never-repairs" ? brokenPlan(identity) : goodPlan(identity);
+        body = jsonlPlan(scenario === "semantic-report" && repair ? {...plan,report:[{summary:"x".repeat(401)}]} : plan, identity, childUsage);
+      }
+      if ((scenario === "snapshot-missing" && !repair) || (scenario === "semantic-tamper" && repair)) {
+        fs.rmSync(path.join(path.dirname(taskFile!.slice(1)), "snapshot.json"), { force: true });
+      }
+      if (scenario === "missing-recovery-cancel" && repair) {
+        stdout.emit("data", Buffer.from(`${usageLine}\n`, "utf8"));
+        cancelled = true;
+        child.emit("close", null, "SIGTERM");
+        return;
+      }
       emitted.push(body);
       stdout.emit("data", Buffer.from(`${body}\n`, "utf8"));
       stderr.emit("data", Buffer.from("", "utf8"));
@@ -117,7 +190,8 @@ mock.module("../../kit/src/index.ts", () => ({
   },
 }));
 
-const { planHarnessConsolidationPhase } = await import("../extensions/harness-consolidation.ts");
+const { planHarnessConsolidationPhase, applyHarnessConsolidationPlan } = await import("../extensions/harness-consolidation.ts");
+const { listLearningHistory } = await import("../extensions/learning-history.ts");
 
 try {
   // The plan must carry the run's real identity, which is only known after the
@@ -133,18 +207,43 @@ try {
         buildContextEntries: () => [{ message: { role: "user", content: QUOTE } }],
       },
     } as never,
-    { pkgDir: path.resolve("packages/continual-learning"), cwd, reason: "repaired", availableSkills: [] } as never,
+    { pkgDir: path.resolve("packages/continual-learning"), cwd, reason: "repaired", availableSkills: [],
+      ...(scenario.startsWith("semantic-") ? {semanticRepair: scenario !== "semantic-off", validateSemantics: async () => {
+        semanticCalls++; if (scenario === "semantic-cancel") cancelled = true;
+        if (scenario === "semantic-judge-tamper" && semanticCalls === 2) fs.rmSync(path.join(path.dirname(taskFiles.at(-1)!.slice(1)),"snapshot.json")); const allow = semanticCalls > 1 && scenario !== "semantic-still" && scenario !== "semantic-pruned-still";
+        return {decision:allow ? "allow" : "propose",telemetry:{stage:"harness",status:allow?"decided":"propose",reason:allow?"supported":scenario==="semantic-unavailable"?"unavailable":"uncertain",durationMs:1,model:"jev-1.13.0",inputTokens:10,outputTokens:2,estimatedCostUsd:0.00000042}};
+      }} : {}),
+      ...( ["repair-model", "missing-model"].includes(scenario) ? { model: "provider/frozen" } : {}),
+      ...(["initial-timeout", "recovery-timeout"].includes(scenario) ? { timeoutMs: 10 } : {}),
+    } as never,
+    { current: () => !cancelled } as never,
   );
 
+  if (result.ok && scenario === "semantic-apply-tamper") fs.rmSync(result.value.run.manifest.snapshotPath);
+  const directApply = result.ok && (result.value.semanticDecision === "propose" || scenario === "semantic-apply-tamper") ? await applyHarnessConsolidationPlan(result.value) : undefined;
   console.log(
     JSON.stringify({
       scenario,
       spawned,
+      semanticCalls,
+      directApply,
+      semanticDecision: result.ok ? result.value.semanticDecision : undefined,
+      deferredPlan: result.ok ? result.value.deferredPlan : undefined,
+      storedProposals: (await listLearningHistory(cwd)).filter(entry => entry.phase === "harness" && entry.status === "proposed").map(entry => entry.proposal),
+      repairAddressesQuoteScope: taskTexts.slice(1).some(task => task.includes("Scope repair:") && task.includes("quoted command strings containing operators and arguments")),
+      repairCanOmitUnsupported: taskTexts.slice(1).some(task => task.includes("Omit an unsupported operation")),
+      hasReport: result.ok && result.value.plan.report !== undefined,
+      targetExists: fs.existsSync(path.join(cwd,".pi","harness.json")),
       ok: result.ok,
       detail: result.ok ? null : result.detail,
       operations: result.ok && Array.isArray(result.value.plan.operations) ? result.value.plan.operations.length : 0,
       repairRequested: repairSeen > 0,
       repairSeen,
+      modelArgs,
+      usage: result.ok ? result.value.usage ?? null : result.usage ?? null,
+      attempts: result.ok ? result.value.attempts ?? [] : result.attempts ?? [],
+      cancelled,
+      repairContainsRawOutput: taskTexts.slice(1).some((task) => task.includes("RAW-SECRET-DO-NOT-RELAY")),
       identitySeen: identityFrom((() => { try { return fs.readFileSync(taskFiles[0].slice(1), "utf8"); } catch { return ""; } })()),
       emittedHeads: emitted.map((b) => b.slice(0, 260)),
       firstTaskHead: (() => { try { return fs.readFileSync(taskFiles[0].slice(1), "utf8").slice(0, 400); } catch { return ""; } })(),

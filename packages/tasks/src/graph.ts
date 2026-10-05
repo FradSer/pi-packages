@@ -1,17 +1,17 @@
 /**
- * Pure Work Item graph and resource rules.
+ * Pure Task graph and resource rules.
  *
  * Every function here is total over its arguments and touches no state, so the
  * dependency graph and resource-conflict semantics have exactly one
- * implementation across the leader, the worker, and any consumer that only wants
- * the rules. `resourcesConflict` is the primitive; deciding *which* held
- * assignments to compare against it is a roster question and stays with the
- * package that owns the roster.
+ * implementation across every consumer that only wants the rules.
+ * `resourcesConflict` is the primitive; deciding *which* held assignments to
+ * compare against it is a participant question and stays with whoever owns the
+ * participant registry.
  */
 
-import type { BoardTask } from "./types.ts";
+import type { Task } from "./types.ts";
 
-/** Longest derived Work id. Long enough to stay readable in a board row, short
+/** Longest derived Task id. Long enough to stay readable in a task set row, short
  * enough to stay a safe filename segment. */
 export const MAX_TASK_ID_LENGTH = 48;
 
@@ -42,8 +42,8 @@ export function normalizeResources(resources: readonly string[] | undefined): st
 }
 
 /** Follow an obsolete dependency to its latest replacement. An invalid persisted
- * chain is rejected rather than silently making a future Work Item unclaimable. */
-export function canonicalDependency(taskId: string, tasks: Record<string, BoardTask>): string | undefined {
+ * chain is rejected rather than silently making a future Task untakeable. */
+export function canonicalDependency(taskId: string, tasks: Record<string, Task>): string | undefined {
   const seen = new Set<string>();
   let current = taskId;
   while (true) {
@@ -61,7 +61,7 @@ export function canonicalDependency(taskId: string, tasks: Record<string, BoardT
  * in any chain is broken or cyclic. */
 export function canonicalDependencies(
   dependencies: readonly string[],
-  tasks: Record<string, BoardTask>,
+  tasks: Record<string, Task>,
 ): string[] | undefined {
   const canonical: string[] = [];
   for (const dependency of dependencies) {
@@ -73,7 +73,7 @@ export function canonicalDependencies(
 }
 
 /** Depth-first cycle detection over a dependency graph. A cycle would make every
- * Work Item in it permanently unclaimable, so it is refused at creation. */
+ * Task in it permanently untakeable, so it is refused at creation. */
 export function hasDependencyCycle(graph: Map<string, readonly string[]>): boolean {
   const visiting = new Set<string>();
   const visited = new Set<string>();

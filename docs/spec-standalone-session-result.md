@@ -1,5 +1,10 @@
 # Specification: Standalone Session Result delivery
 
+This document records the original result-delivery implementation. Lifecycle and
+storage statements are superseded by @../packages/subagents/VISION.md: all children
+now settle to IDLE and accept exact-session send; disk agent.md alone declares
+durable identity, and no persistence/Memory/worktree flag exists.
+
 ## Problem Statement
 
 `@fradser/pi-subagents` is installable and usable on its own: it registers the

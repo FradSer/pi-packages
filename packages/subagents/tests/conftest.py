@@ -13,3 +13,6 @@ from pathlib import Path
 TESTS = Path(__file__).resolve().parent
 if str(TESTS) not in sys.path:
     sys.path.insert(0, str(TESTS))
+
+# The native fixture is shared by usage and cancellation scenarios.
+from native_support import native_command  # noqa: E402, F401

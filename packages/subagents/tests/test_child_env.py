@@ -73,84 +73,77 @@ def secret_leader_env() -> dict[str, str]:
 # ── Rule: the child receives what it needs to run and authenticate ──
 
 
-def test_runtime_essentials_pass_through() -> None:
+def test_runtime_configuration_proxy_and_ssh_pass_through() -> None:
     env = resolve(secret_leader_env())["env"]
     assert isinstance(env, dict)
-    assert env["PATH"] == "/usr/bin:/bin"
-    assert env["HOME"] == "/home/dev"
-    assert env["LANG"] == "en_US.UTF-8"
+    assert {key: env[key] for key in ("PATH", "HOME", "LANG", "PI_CODING_AGENT_DIR", "HTTPS_PROXY", "NO_PROXY", "SSH_AUTH_SOCK")} == {
+        "PATH": "/usr/bin:/bin", "HOME": "/home/dev", "LANG": "en_US.UTF-8",
+        "PI_CODING_AGENT_DIR": "/home/dev/.pi/agent", "HTTPS_PROXY": "http://127.0.0.1:7890",
+        "NO_PROXY": "localhost", "SSH_AUTH_SOCK": "/tmp/ssh-XYZ/agent.1",
+    }
 
 
-def test_pi_configuration_reaches_the_child() -> None:
-    env = resolve(secret_leader_env())["env"]
-    assert isinstance(env, dict)
-    # Without this the child resolves a different config directory and cannot
-    # read the auth.json / models.json that hold its provider credentials.
-    assert env["PI_CODING_AGENT_DIR"] == "/home/dev/.pi/agent"
 
 
-def test_proxy_and_ssh_agent_pass_through() -> None:
-    env = resolve(secret_leader_env())["env"]
-    assert isinstance(env, dict)
-    assert env["HTTPS_PROXY"] == "http://127.0.0.1:7890"
-    assert env["NO_PROXY"] == "localhost"
-    assert env["SSH_AUTH_SOCK"] == "/tmp/ssh-XYZ/agent.1"
+
+
 
 
 # ── Rule: secrets are withheld by default ──
 
 
-def test_unrelated_credentials_are_withheld() -> None:
+def test_the_leaders_session_directory_does_not_reach_the_child() -> None:
+    """A session directory is the leader's own state, not configuration a child
+    needs. Inheriting it writes every child turn into the leader's session store,
+    which is the one outcome per-workspace session grouping exists to prevent —
+    and the spawner passes no `--session-dir` to put it right. An operator who
+    wants a child to share it can still name it, so nothing is taken away."""
+    parent = {"PATH": "/usr/bin", "PI_CODING_AGENT_SESSION_DIR": "/leader/sessions"}
+    withheld = resolve(parent)
+    assert withheld["env"].get("PI_CODING_AGENT_SESSION_DIR") is None
+    # Exactly one leader variable went missing, and PATH is allowlisted, so the
+    # withheld one is the session directory rather than something incidental.
+    assert withheld["withheldCount"] == 1
+    opted_in = resolve(parent, allow="PI_CODING_AGENT_SESSION_DIR")
+    assert opted_in["env"].get("PI_CODING_AGENT_SESSION_DIR") == "/leader/sessions"
+
+
+def test_credential_filtering_and_value_free_diagnostics() -> None:
     result = resolve(secret_leader_env())
     env = result["env"]
     assert isinstance(env, dict)
-    for name in ("FIGMA_TOKEN", "CF_S3_KEY", "NOTE_ENCRYPTION_KEY"):
+    for name in ("FIGMA_TOKEN", "CF_S3_KEY", "NOTE_ENCRYPTION_KEY", "npm_config_//registry.corp.example.com/:_authToken"):
         assert name not in env, name
     values = [str(value) for value in env.values() if value is not None]
-    for secret in (FIGMA_TOKEN, CF_S3_KEY, NOTE_KEY):
+    for secret in (FIGMA_TOKEN, CF_S3_KEY, NOTE_KEY, NPM_AUTH):
         assert secret not in values, "a withheld value reached the child"
-
-
-def test_credential_name_embedding_a_private_url_is_withheld_and_not_echoed() -> None:
-    result = resolve(secret_leader_env())
-    env = result["env"]
-    assert isinstance(env, dict)
-    assert "npm_config_//registry.corp.example.com/:_authToken" not in env
-    assert NPM_AUTH not in [str(v) for v in env.values() if v is not None]
-    # The name itself embeds a private registry host; the diagnostic must not
-    # reproduce it.
     names = result["withheldSecretNames"]
-    assert isinstance(names, list)
+    assert set(names) >= {"FIGMA_TOKEN", "CF_S3_KEY", "NOTE_ENCRYPTION_KEY"}
+    assert result["withheldCount"] >= 4
     diagnostic = str(result["diagnostic"])
-    for text in (*names, diagnostic):
-        assert "registry.corp.example.com" not in str(text)
+    assert ALLOW_VAR in diagnostic
+    for secret in (FIGMA_TOKEN, CF_S3_KEY, NOTE_KEY, NPM_AUTH, ORDINARY):
+        assert secret not in diagnostic
+    assert all("registry.corp.example.com" not in text for text in [*names, diagnostic])
+
+
+
 
 
 # ── Rule: withholding is observable and reversible, never silent ──
 
 
-def test_resolution_reports_withheld_names_without_revealing_values() -> None:
-    result = resolve(secret_leader_env())
-    names = result["withheldSecretNames"]
-    assert isinstance(names, list)
-    assert set(names) >= {"FIGMA_TOKEN", "CF_S3_KEY", "NOTE_ENCRYPTION_KEY"}
-    count = result["withheldCount"]
-    assert isinstance(count, int)
-    # Everything outside the allowlist counts as withheld, secrets or not.
-    assert count >= 4
-    diagnostic = str(result["diagnostic"])
-    assert ALLOW_VAR in diagnostic, "the diagnostic must name the recovery path"
-    for secret in (FIGMA_TOKEN, CF_S3_KEY, NOTE_KEY, NPM_AUTH, ORDINARY):
-        assert secret not in diagnostic
 
 
-def test_operator_opts_one_variable_back_in_by_exact_name() -> None:
+
+def test_exact_opt_in_is_flagged_without_widening_other_names() -> None:
     result = resolve(secret_leader_env(), allow="FIGMA_TOKEN")
     env = result["env"]
     assert isinstance(env, dict)
     assert env["FIGMA_TOKEN"] == FIGMA_TOKEN
     # Opting one name in does not widen the rest.
     assert "CF_S3_KEY" not in env
+    assert result["flaggedAllowOverrides"] == ["FIGMA_TOKEN"]
 
 
 def test_a_requested_name_the_leader_lacks_is_reported_not_invented() -> None:
@@ -163,14 +156,7 @@ def test_a_requested_name_the_leader_lacks_is_reported_not_invented() -> None:
     assert missing == ["ABSENT_PROVIDER_KEY"]
 
 
-def test_opting_in_a_secret_bearing_name_is_allowed_but_flagged() -> None:
-    result = resolve(secret_leader_env(), allow="CF_S3_KEY")
-    env = result["env"]
-    assert isinstance(env, dict)
-    assert env["CF_S3_KEY"] == CF_S3_KEY
-    flagged = result["flaggedAllowOverrides"]
-    assert isinstance(flagged, list)
-    assert flagged == ["CF_S3_KEY"]
+
 
 
 # ── Rule: spawner overrides are authoritative ──
@@ -182,18 +168,14 @@ def test_spawner_overrides_always_win() -> None:
         "PI_TEAMMATE_SPAWN_ID": "spawn-1",
         "PI_TEAMMATE_OUTBOX_FILE": "/tmp/outbox.jsonl",
     }
-    env = resolve(secret_leader_env(), overrides=overrides)["env"]
+    leader = {**secret_leader_env(), "PI_TEAMMATE_SPAWN_ID": "stale-from-leader"}
+    env = resolve(leader, overrides=overrides)["env"]
     assert isinstance(env, dict)
     for name, value in overrides.items():
         assert env[name] == value, name
 
 
-def test_an_override_replaces_the_leader_value() -> None:
-    leader = dict(secret_leader_env())
-    leader["PI_TEAMMATE_SPAWN_ID"] = "stale-from-leader"
-    env = resolve(leader, overrides={"PI_TEAMMATE_SPAWN_ID": "spawn-2"})["env"]
-    assert isinstance(env, dict)
-    assert env["PI_TEAMMATE_SPAWN_ID"] == "spawn-2"
+
 
 
 # ── Regression guard on the spawn site itself ──
@@ -309,10 +291,10 @@ def test_spawned_child_environment_is_the_policy_output() -> None:
         let envPolicy;
         const outcome = await new Promise((resolve) => {{
           const started = spawnResident({{
-            workerName: "env-probe",
+            agentName: "env-probe",
             cwd: root,
             description: "probe",
-            // The fake CLI ignores its arguments, so no worker extension is
+            // The fake CLI ignores its arguments, so no Agent extension is
             // loaded; the policy is what this test exercises.
             extensions: [],
             env: overrides,

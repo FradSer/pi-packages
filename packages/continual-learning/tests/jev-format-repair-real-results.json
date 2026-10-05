@@ -1,0 +1,19 @@
+{
+  "evidence": "real-jev-inference-over-archived-native-candidate",
+  "sourceArtifact": "jev-strict-current-native.json",
+  "originalOutcome": "propose",
+  "originalReason": "duplicate",
+  "result": {
+    "decision": "allow",
+    "telemetry": {
+      "stage": "memory",
+      "status": "decided",
+      "reason": "supported",
+      "durationMs": 1243,
+      "model": "jev-1.13.0",
+      "inputTokens": 905,
+      "outputTokens": 64,
+      "estimatedCostUsd": 3.8010000000000004e-05
+    }
+  }
+}

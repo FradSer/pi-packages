@@ -18,7 +18,7 @@ import type { HostedPiTurnOutcome } from "./types.ts";
  * process, no second credential, and nothing reachable over the network. The desk reaches it
  * over the user's own SSH session, and ownership of the file is the only gate.
  *
- * The wire contract is `integrations/voice-agent/src/task-protocol.mjs` in the Open DeskOS
+ * The wire contract is `integrations/personal-bot/src/task-protocol.mjs` in the Open DeskOS
  * repository: version 1, one bounded JSON line in, one correlated frame out, one frame per
  * connection, and a connection that sends no line closed without a frame. It is spoken here
  * rather than forked, and the Hosted Pi descriptor (`hosted-pi/endpoint.json`) is deliberately
@@ -39,12 +39,10 @@ const PROJECT_NOT_ADMITTED = "项目不在允许的开发目录内";
 const UNKNOWN_COMMAND = "未知任务命令";
 const TASK_NOT_FOUND = "未找到任务";
 const PROMPT_INVALID = "任务 ID 或提示无效";
-// Pi drops a user message that arrives while the agent is streaming unless the
-// delivery says how to queue it, and an extension that re-sends a keyword can
-// drop it even when the desk asked for a queue. Reporting that as accepted would
-// tell a desk its instruction arrived when nothing did, so the delivery is
-// verified here and an instruction that did not land is refused with this reason.
-const DELIVERY_NOT_ACCEPTED = "指令未送达：该会话正在运行，且这条消息没有被排队";
+// Native submission has no identity-aware acknowledgment in the public Pi API.
+const MUTATION_CONFLICT = "任务 ID 已用于不同请求";
+const MUTATION_LIMIT = 256;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** One fixed reason for the four verbs a session host cannot serve at all. */
 export const NOT_A_SESSION_HOST = "此端点是当前 Pi 会话，不是 Hosted Pi 任务服务";
 
@@ -91,6 +89,8 @@ export interface SessionHostTask {
   latestActivity?: string;
   /** This host runs no verification step of its own. */
   verification: "not_run";
+  lastDelivery?: { mutationId?: string; state: "unknown"; submitted: true; prompt: string };
+  deliveries?: Array<{ mutationId: string; state: "unknown"; submitted: true }>;
 }
 
 export interface SessionHostOptions {
@@ -233,6 +233,9 @@ export class SessionHost {
   #goal = "";
   #response = "";
   #latestActivity: string | undefined = undefined;
+  readonly #mutations = new Map<string, { payload: string; result: Promise<Record<string, unknown>> }>();
+  readonly #offered: Array<{ mutationId?: string; state: "unknown"; submitted: true; prompt: string }> = [];
+  #lastDelivery: { mutationId?: string; state: "unknown"; submitted: true; prompt: string } | undefined;
 
   constructor(options: SessionHostOptions) {
     this.#pi = options.pi;
@@ -307,6 +310,10 @@ export class SessionHost {
 
   async #bind(ctx: ExtensionContext): Promise<SessionHostStart> {
     await this.#unbind();
+    if (this.#platform === "win32") {
+      const paths = resolveSessionEndpoint(this.#env, this.#platform, ctx.sessionManager.getSessionId());
+      return { bound: false, ...paths, published: false, reason: "Windows 当前 Pi 会话控制尚未支持私有 IPC；Desk Link 报告与 Hosted Pi 控制仍可使用" };
+    }
     const previousSessionId = this.#sessionId;
     this.#interrupted = this.#state === "running";
     if (previousSessionId !== ctx.sessionManager.getSessionId()) {
@@ -315,6 +322,9 @@ export class SessionHost {
       this.#goal = "";
       this.#response = "";
       this.#latestActivity = undefined;
+      this.#mutations.clear();
+      this.#offered.length = 0;
+      this.#lastDelivery = undefined;
     }
     this.#ctx = ctx;
     this.#sessionId = ctx.sessionManager.getSessionId();
@@ -409,7 +419,7 @@ export class SessionHost {
   static listEndpoints(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string[] {
     const flavour = platform === "win32" ? win32 : posix;
     const override = env.ODK_SESSION_HOST_SOCKET ?? "";
-    const directory = flavour.isAbsolute(override) && !override.endsWith(".sock") ? override : flavour.join(sessionRuntimeDir(env, platform), "open-deskos", "sessions");
+    const directory = flavour.isAbsolute(override) ? override : flavour.join(sessionRuntimeDir(env, platform), "open-deskos", "sessions");
     try {
       return readdirSync(directory).filter((name) => name.endsWith(".json")).map((name) => flavour.join(directory, name));
     } catch {
@@ -422,17 +432,6 @@ export class SessionHost {
    *
    * @param ctx The session context the message was sent through.
    */
-  async #queued(ctx: ExtensionContext): Promise<boolean> {
-    // Bounded by this host's own request timeout, so judging a delivery can never be
-    // what makes a caller's own request time out.
-    const attempts = Math.min(8, Math.max(1, Math.floor(this.#timeoutMs / 1000)));
-    for (let attempt = 0; attempt < attempts; attempt += 1) {
-      if (ctx.hasPendingMessages()) return true;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    return ctx.hasPendingMessages();
-  }
-
   async #resolve(path: string): Promise<string> {
     try {
       return await realpath(path);
@@ -468,6 +467,7 @@ export class SessionHost {
     const decoder = new StringDecoder("utf8");
     let pending = "";
     let answered = false;
+    let processing = false;
     const close = (frame?: string): void => {
       if (answered) return;
       answered = true;
@@ -475,7 +475,7 @@ export class SessionHost {
       else socket.end(frame);
     };
     socket.on("data", (chunk) => {
-      if (answered) return;
+      if (answered || processing) return;
       pending += decoder.write(chunk);
       if (Buffer.byteLength(pending) > SESSION_REQUEST_LIMIT) return close();
       const newline = pending.indexOf("\n");
@@ -488,6 +488,7 @@ export class SessionHost {
       } catch {
         return close();
       }
+      processing = true;
       this.#respond(request).then((response) => {
         const frame = `${JSON.stringify(response)}\n`;
         close(Buffer.byteLength(frame) > SESSION_RESPONSE_LIMIT ? undefined : frame);
@@ -518,30 +519,48 @@ export class SessionHost {
       return { tasks: [{ ...entry, goal: prompt }], truncated: false };
     }
     if (request.command === "status") {
-      this.#ownTask(request.taskId);
+      this.#ownTask(request.taskId, request.project);
       return { task: this.#task() };
     }
     if (request.command === "prompt") {
-      this.#ownTask(request.taskId);
-      // What happened to the instruction is part of the answer, because a caller
-      // reporting on a session has to say whether it ran or is waiting its turn.
-      const delivery = this.#ctx && !this.#ctx.isIdle() ? "queued" : "ran";
-      await this.#deliver(request.prompt, request.streamingBehavior);
-      return { task: this.#task(), accepted: true, delivery };
+      this.#ownTask(request.taskId, request.project);
+      return this.#mutation(request, async () => {
+        await this.#deliver(request.prompt, request.streamingBehavior, request.mutationId);
+        return { task: this.#task(), submitted: true, accepted: false, delivery: "unknown", retry: "never", reconciliation: "session_execution_only" };
+      });
     }
     if (request.command === "cancel") {
-      this.#ownTask(request.taskId);
-      this.#cancelRequested = true;
-      ctx.abort();
-      return { task: this.#task(), accepted: true };
+      this.#ownTask(request.taskId, request.project);
+      return this.#mutation(request, async () => {
+        this.#cancelRequested = true;
+        ctx.abort();
+        return { task: this.#task(), accepted: true };
+      });
     }
     if (["start", "launch", "end", "history"].includes(request.command as string)) throw new Error(NOT_A_SESSION_HOST);
     throw new Error(UNKNOWN_COMMAND);
   }
 
   /** This process is one session, so any other task identity is a task this host does not have. */
-  #ownTask(taskId: unknown): void {
-    if (taskId !== undefined && taskId !== this.#sessionId) throw new Error(TASK_NOT_FOUND);
+  #ownTask(taskId: unknown, project: unknown): void {
+    if (taskId !== this.#sessionId || project !== this.#ctx?.cwd) throw new Error(TASK_NOT_FOUND);
+  }
+
+  async #mutation(request: Record<string, unknown>, run: () => Promise<Record<string, unknown>>): Promise<Record<string, unknown>> {
+    const id = request.mutationId;
+    if (id === undefined) return run();
+    if (typeof id !== "string" || !UUID.test(id)) throw new Error(PROTOCOL_INVALID);
+    const payload = JSON.stringify([request.command, request.taskId, request.project, request.prompt, request.streamingBehavior]);
+    const previous = this.#mutations.get(id);
+    if (previous) {
+      if (previous.payload !== payload) throw new Error(MUTATION_CONFLICT);
+      return previous.result;
+    }
+    // Never evict a receipt: an evicted mutation could silently run twice.
+    if (this.#mutations.size >= MUTATION_LIMIT) throw new Error("项目或主机任务已满");
+    const result = Promise.resolve().then(run).then(result => ({ ...result, mutationId: id }));
+    this.#mutations.set(id, { payload, result });
+    return result;
   }
 
   /**
@@ -558,31 +577,27 @@ export class SessionHost {
     } catch {
       throw new Error(PROJECT_NOT_ADMITTED);
     }
-    if (!within(this.#realProject, resolved)) throw new Error(PROJECT_NOT_ADMITTED);
+    if (!within(resolved, this.#realProject)) throw new Error(PROJECT_NOT_ADMITTED);
   }
 
   /** Refuse an unusable instruction before anything is delivered into the session. */
-  async #deliver(prompt: unknown, streamingBehavior: unknown): Promise<void> {
+  async #deliver(prompt: unknown, streamingBehavior: unknown, mutationId: unknown): Promise<void> {
     if (!validText(prompt, SESSION_REQUEST_LIMIT) || prompt.trim().length === 0) throw new Error(PROMPT_INVALID);
     const ctx = this.#ctx;
     if (!ctx) throw new Error(TASK_NOT_FOUND);
-    // Only the two behaviors the protocol names are delivered as a behavior; anything else is
-    // delivered as an ordinary message rather than guessed into a delivery mode.
-    const behavior: "steer" | "followUp" | undefined =
-      streamingBehavior === "steer" || streamingBehavior === "followUp" ? streamingBehavior : undefined;
-    const wasIdle = ctx.isIdle();
-    this.#pi.sendUserMessage(prompt, behavior === undefined ? undefined : { deliverAs: behavior });
-    // An idle session runs the message at once; a running one takes it as the next
-    // turn. Whether the queue is observable depends on who re-sends: a local
-    // extension intercepting the message does so asynchronously, so the queue is
-    // polled briefly before this desk concludes that nothing arrived. Judging it on
-    // the first look turned a queued instruction into a false refusal.
-    if (!wasIdle && !(await this.#queued(ctx))) throw new Error(DELIVERY_NOT_ACCEPTED);
-    this.#outcome = undefined;
-    this.#observed = false;
-    this.#cancelRequested = false;
-    this.#interrupted = false;
-    this.#response = "";
+    if (streamingBehavior !== undefined && streamingBehavior !== "steer" && streamingBehavior !== "followUp") throw new Error(PROTOCOL_INVALID);
+    // Pi 1.0 normal Enter uses steer; its follow-up shortcut uses followUp.
+    const behavior: "steer" | "followUp" = streamingBehavior === "followUp" ? "followUp" : "steer";
+    if (this.#offered.length >= MUTATION_LIMIT) throw new Error("项目或主机任务已满");
+    const offered: { mutationId?: string; state: "unknown"; submitted: true; prompt: string } = { ...(typeof mutationId === "string" ? { mutationId } : {}), state: "unknown", submitted: true, prompt };
+    const options = { expandPromptTemplates: true, deliverAs: behavior };
+    this.#pi.sendUserMessage(prompt, options);
+    this.#offered.push(offered);
+    this.#lastDelivery = offered;
+    // The public API returns void, with no identity-aware acknowledgment.
+    // Matching user text can come from manual input or another queued mutation.
+    // Session execution evidence therefore never certifies a mutation's admission.
+    if (this.#ctx !== ctx) throw new Error(TASK_NOT_FOUND);
   }
 
   #stateOutcome(outcome: HostedPiTurnOutcome): void {
@@ -606,6 +621,8 @@ export class SessionHost {
       response: this.#response,
       ...(this.#latestActivity === undefined ? {} : { latestActivity: this.#latestActivity }),
       verification: "not_run",
+      ...(this.#lastDelivery === undefined ? {} : { lastDelivery: { ...this.#lastDelivery, prompt: boundEventText(this.#lastDelivery.prompt) } }),
+      ...(this.#offered.length === 0 ? {} : { deliveries: this.#offered.flatMap(delivery => delivery.mutationId === undefined ? [] : [{ mutationId: delivery.mutationId, state: delivery.state, submitted: delivery.submitted }]) }),
     };
   }
 }

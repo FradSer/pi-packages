@@ -1,0 +1,347 @@
+{
+  "evidence": "offline-baseline-only",
+  "modelRequested": "jev-1.13.0",
+  "complete": true,
+  "baselineScope": "deterministic parent screen and code-validated candidate; not the legacy LLM selector or an end-to-end learning comparison",
+  "calls": 0,
+  "costKnown": true,
+  "usageKnown": true,
+  "inputTokens": 0,
+  "knownInputTokens": 0,
+  "estimatedCostUsd": 0,
+  "knownEstimatedCostUsd": 0,
+  "actualModels": [],
+  "metrics": {
+    "en": {
+      "samples": 8,
+      "baseline": {
+        "directionSamples": 8,
+        "candidateSamples": 8,
+        "missedDirections": 4,
+        "extraDirections": 2,
+        "candidateFalseAccepts": 4,
+        "supportedCandidatesHeld": 0,
+        "memoryFalseAccepts": 2,
+        "harnessFalseHolds": 0,
+        "medianLatencyMs": 0.026332999999965523,
+        "uncertainJudgments": 0
+      },
+      "after": null
+    },
+    "zh": {
+      "samples": 8,
+      "baseline": {
+        "directionSamples": 8,
+        "candidateSamples": 8,
+        "missedDirections": 3,
+        "extraDirections": 4,
+        "candidateFalseAccepts": 4,
+        "supportedCandidatesHeld": 0,
+        "memoryFalseAccepts": 2,
+        "harnessFalseHolds": 0,
+        "medianLatencyMs": 0.006353999999987536,
+        "uncertainJudgments": 0
+      },
+      "after": null
+    }
+  },
+  "rows": [
+    {
+      "id": "en-fresh-valid-rule-0",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.6794590000000085,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-fresh-valid-rule-1",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.03608299999996234,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-fresh-risk-rule-0",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.016582999999968706,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-fresh-risk-rule-1",
+      "language": "en",
+      "stage": "harness",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.008082999999999174,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-fresh-valid-memory-0",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.24420899999995527,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-fresh-valid-memory-1",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.08049999999997226,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-fresh-risk-memory-0",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.009875000000022283,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "en-fresh-risk-memory-1",
+      "language": "en",
+      "stage": "memory",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.011916999999982636,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-fresh-valid-rule-0",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.005790999999987889,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-fresh-valid-rule-1",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.006500000000016826,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-fresh-risk-rule-0",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.006207999999958247,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-fresh-risk-rule-1",
+      "language": "zh",
+      "stage": "harness",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.004833999999959815,
+      "baseline": {
+        "memory": true,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-fresh-valid-memory-0",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.005290999999999713,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-fresh-valid-memory-1",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.006708000000003267,
+      "baseline": {
+        "memory": false,
+        "harness": true,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-fresh-risk-memory-0",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.06370800000001964,
+      "baseline": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    },
+    {
+      "id": "zh-fresh-risk-memory-1",
+      "language": "zh",
+      "stage": "memory",
+      "expected": {
+        "memory": false,
+        "harness": false,
+        "candidateAllowed": false
+      },
+      "codeValidation": "passed",
+      "baselineDurationMs": 0.012333999999952994,
+      "baseline": {
+        "memory": true,
+        "harness": false,
+        "candidateAllowed": true
+      },
+      "after": null
+    }
+  ],
+  "acceptance": {
+    "scope": "code-validated candidate gate only; not end-to-end effects",
+    "passed": false,
+    "missing": 16,
+    "baselineFalseAccepts": 8,
+    "falseAccepts": 0,
+    "baselineHolds": 0,
+    "holds": 0
+  }
+}

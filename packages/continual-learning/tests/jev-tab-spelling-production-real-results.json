@@ -1,0 +1,159 @@
+{
+  "evidence": "real-jev-same-input-ascii-tab-proof-comparison",
+  "productionWriteEligible": false,
+  "sourceSha256": "1355010e1ecfd5cf5e4acba780224e45aa85d6319592f5ac123c434b914a9c78",
+  "comparison": "Only exact ASCII class spelling proof changes; frozen full input, prompts, thresholds and parent validation stay identical",
+  "usageComplete": true,
+  "passed": true,
+  "outboundRequests": {
+    "before": 3,
+    "after": 3
+  },
+  "calls": 6,
+  "judgeAttempts": 6,
+  "knownInputTokens": 36055,
+  "knownEstimatedCostUsd": 0.00151431,
+  "diagnostics": {
+    "before": [
+      {
+        "expands_0": {
+          "choice": "same",
+          "confidence": 0.26,
+          "probabilities": {
+            "same": 0.44,
+            "narrower": 0.36,
+            "broader": 0.18,
+            "unclear": 0.02
+          }
+        }
+      },
+      {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.82,
+          "probabilities": {
+            "compatible": 0.88,
+            "contradicts": 0.07,
+            "unclear": 0.05
+          }
+        }
+      },
+      {
+        "counter_0_1": {
+          "choice": "compatible",
+          "confidence": 0.77,
+          "probabilities": {
+            "compatible": 0.84,
+            "contradicts": 0.09,
+            "unclear": 0.07
+          }
+        }
+      }
+    ],
+    "after": [
+      {
+        "authority_0": {
+          "choice": "lasting",
+          "confidence": 0.99,
+          "probabilities": {
+            "lasting": 0.99,
+            "conditional": 0,
+            "temporary": 0.01,
+            "elsewhere": 0,
+            "absent": 0
+          }
+        },
+        "explanation_0": {
+          "choice": "faithful",
+          "confidence": 0.95,
+          "probabilities": {
+            "faithful": 0.96,
+            "extra": 0.04,
+            "invented": 0,
+            "unclear": 0
+          }
+        },
+        "family_0": {
+          "choice": "authorized",
+          "confidence": 0.99,
+          "probabilities": {
+            "authorized": 0.99,
+            "extra": 0.01,
+            "unclear": 0
+          }
+        }
+      },
+      {
+        "counter_0_1": {
+          "choice": "compatible",
+          "confidence": 0.98,
+          "probabilities": {
+            "compatible": 0.98,
+            "contradicts": 0.01,
+            "unclear": 0.01
+          }
+        }
+      },
+      {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.99,
+          "probabilities": {
+            "compatible": 0.99,
+            "contradicts": 0,
+            "unclear": 0.01
+          }
+        }
+      }
+    ]
+  },
+  "results": [
+    {
+      "snapshotSha256": "489143c7461d7583fa9e9529238956324b4f72aadd0d6f0f91a63ce6ebdfd851",
+      "proposalSha256": "91d3959466be62ba789ea722ba6ba3f79a6aae5e5b1b8dc8e35ed93646526d80",
+      "expectedAllow": true,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2131,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 22,
+          "coveredEntries": 22,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 18313,
+          "outputTokens": 160,
+          "estimatedCostUsd": 0.0007691460000000001,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 515,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 22,
+          "coveredEntries": 22,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17742,
+          "outputTokens": 238,
+          "estimatedCostUsd": 0.000745164
+        }
+      }
+    }
+  ]
+}

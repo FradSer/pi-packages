@@ -26,8 +26,8 @@ import {
   initTeamMachine,
   removeRuntimeDir,
   shutdownTeamMachine,
-  spawnTeammate,
-  teardownTeammates,
+  spawnAgent,
+  teardownAgents,
 } from "../src/team-machine.ts";
 import type { LeaderReport } from "@fradser/pi-subagents";
 
@@ -60,14 +60,14 @@ try {
     prompt: "Return exactly LIVE_CHILD_OK as one ordinary final answer. Use no tools.",
   });
 
-  const spawned = spawnTeammate({
+  const spawned = spawnAgent({
     name: "env-probe",
-    agent: "env-probe",
+    role: "env-probe",
     prompt: "Return exactly LIVE_CHILD_OK as your ordinary final answer. Use no tools.",
     model,
   });
   assert.equal(spawned.ok, true, spawned.ok ? "" : spawned.error);
-  const policy = spawned.ok ? spawned.teammate.envPolicy : undefined;
+  const policy = spawned.ok ? spawned.agent.envPolicy : undefined;
   assert.ok(policy, "the spawn must record its environment policy");
   assert.ok(policy!.withheldCount > 0, "a real shell exports more than the allowlist admits");
   assert.ok(policy!.withheldSecretCount > 0, "a real shell exports credential-shaped variables");
@@ -86,7 +86,7 @@ try {
     "the diagnostic must name the recovery path",
   );
   assert.ok(!policy!.diagnostic.includes(SENTINEL_VALUE), "a withheld value must never be rendered");
-  assert.equal(getState().teammates["env-probe"]?.envPolicy?.withheldCount, policy!.withheldCount);
+  assert.equal(getState().agents["env-probe"]?.envPolicy?.withheldCount, policy!.withheldCount);
 
   const report = await Promise.race([
     new Promise<LeaderReport>((resolve) => { settled = resolve; }),
@@ -111,7 +111,7 @@ try {
   }));
 } finally {
   delete process.env[SENTINEL_NAME];
-  await teardownTeammates();
+  await teardownAgents();
   shutdownTeamMachine();
   removeRuntimeDir(ctx);
   clearSessionAgents();

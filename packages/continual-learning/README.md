@@ -3,7 +3,7 @@
 Learns durable Memory and scoped Harness rules from completed user tasks.
 Model weights are out of scope.
 
-- **Memory** supplies a bounded relevance index before generation. Full entries
+- **Memory** supplies a bounded metadata index before generation. Full entries
   are read only when needed; omitted entries remain discoverable.
 - **Harness** uses one flat `rules` list for new declarations: `skill` and `text`
   deliver scoped guidance, while `bash` supplies messages and optionally confirms
@@ -12,6 +12,16 @@ Model weights are out of scope.
 - **AGENTS.md consolidation** keeps common project instructions small and moves
   detailed knowledge into Memory or skill rules, retaining conditional pointers
   when needed.
+
+These surfaces have different authority. Memory is durable, untrusted reference
+knowledge injected into later context; it cannot enforce behavior. Harness is the
+executable-validation surface: a rule can guide, confirm, or block only through
+the parent-owned evaluator and its evidence-backed positive/negative cases.
+`skill`/`text` rules and AGENTS.md are guidance for a bounded context, not proof
+that the model complied. Manual, built-in, personal, disabled, invalid, and
+legacy protections remain human-owned. A task may produce proposals for more
+than one surface, but the same statement is not copied merely to increase
+coverage.
 
 ## Install and commands
 
@@ -23,17 +33,58 @@ pi install npm:pi-continual-learning
 
 | Command | Purpose |
 | --- | --- |
-| `/memory` | Manage model, instructions, memory folder, auto-memory, phase policies and history |
-| `/memory policy [memory\|harness\|agents] [apply\|propose\|off]` | Inspect or set automatic learning policy for one phase |
-| `/memory history [change-id]` | Inspect private project change history or a recorded proposal |
+| `/memory` | Open the Memory management panel |
+| `/memory <request>` | Record an explicit natural-language Memory request; the parent validates a Memory-only change |
+| `/consolidate` | Learn from the current task |
+| `/consolidate full` | Perform full Memory, Harness and AGENTS.md maintenance |
+| `/harness` | Open the Harness rules panel and choose its write scope |
+| `/harness <request>` | Create or update a rule in project shared configuration by default |
+
+The `/memory` panel has three top-level entries: **Browse memories**, **Learning
+settings**, and **Recent learning**. Phase policies are under **Advanced** in
+Learning settings. A history item opens its preview and its **Undo** action;
+headless undo still requires the exact id and `--yes`.
+
+An explicit `/memory <request>` asks the parent to retain the user's request as
+Memory. It can be used while automatic learning is off, and it changes only the
+Memory surface. The request is evidence for a bounded proposal; validation,
+privacy checks, mutation and the receipt remain parent-owned. A request can
+correctly produce no write when it is not durable, safe, or sufficiently
+grounded.
+
+Learning uses the current session model unless a separate provider/model pair
+is configured. An explicit invalid or empty pair in `memory.json` is diagnosed
+and prevents a worker from silently using a different model; `{}` retains the
+session-model default. The metadata index is deterministic and bounded; it does
+not rank entries against each new request. The complete indexes remain available
+for discovery when the injected list omits entries.
+
+The Harness panel lets the user choose the target layer before submitting a
+rule request. Project shared configuration remains the default authoring target
+for `/harness <request>`; personal and user-shared scopes require an explicit
+choice in the panel.
+
+### Advanced and compatibility commands
+
+The compact panel and six primary command forms are the supported everyday
+surface. Older forms remain available for scripts and recovery:
+
+| Compatible command | Purpose |
+| --- | --- |
+| `/memory model [provider/model]` | Select a configured Memory worker model or set one directly |
+| `/memory show` or `/memory status` | Inspect effective controls, storage, pipeline and backlog diagnostics |
+| `/memory policy [memory\|harness\|agents] [apply\|propose\|off]` | Inspect or set one automatic phase policy |
+| `/memory history [change-id]` | List private learning history or inspect one record |
 | `/memory undo <change-id> [--yes]` | Restore one applied change after preview and conflict checks; headless use requires `--yes` |
-| `/memory evaluate <suite.json>` | Compare supplied baseline/candidate rules against independent cases, without model calls |
-| `/consolidate` | Learn from the current context only |
-| `/consolidate full` | Learn across the whole codebase |
-| `/harness` | Show rules and configuration diagnostics |
-| `/harness <request>` | Create or update a project-shared rule |
-| `/harness --local <request>` | Explicit personal project configuration |
-| `/harness --global <request>` | User-shared configuration |
+| `/memory evaluate <suite.json>` | Compare supplied baseline and candidate rules without model calls |
+| `/consolidate backfill` | Report skipped-task references and unavailable evidence; it does not replay history or call a model |
+
+`/harness` compatibility flags remain accepted: `--local`/`-l` and
+`--project-local` select project personal configuration; `--shared`,
+`--project`, `--repo` and `-p` select project shared configuration; and
+`--global`, `--user`, `--global-shared`, `--user-shared` and `-g` select user
+shared configuration. The panel is preferred when a user needs to choose the
+scope interactively.
 
 ## Harness layers
 
@@ -98,8 +149,9 @@ cases. Tests that might cause side effects use evaluator fixtures, not live comm
 User-owned layers, nearest last:
 
 1. `<agent-dir>/harness.json` — user shared.
-2. `<project>/.pi/harness.json` — project shared and default authoring target.
-3. `<project>/.pi/harness.local.json` — explicit personal choice.
+2. `<agent-dir>/harness/<scopeKey>.json` — user instructions scoped to the canonical project.
+3. `<project>/.pi/harness.json` — project shared and default authoring target.
+4. `<project>/.pi/harness.local.json` — explicit personal choice.
 
 `<agent-dir>` defaults to `~/.pi/agent` and honors `PI_CODING_AGENT_DIR`.
 There is no global `harness.local.json` or project `.pi/agent/harness*.json` layer.
@@ -212,6 +264,21 @@ Routine tasks launch no learning model. A metadata-only selector chooses the
 minimum sufficient existing Memory and relevant phases for the current Task
 Slice. Selected bodies and task evidence form one authoritative Learning Dossier.
 Only explicit full maintenance explores the whole corpus.
+An empty Memory index plus explicit human facts or preferences lets automatic
+learning route its already evidenced phases locally, without a selector model
+call. An initial `/memory <request>` likewise goes straight to Memory planning.
+The receipt marks this parent routing; planners and all validation still run.
+Nonempty indexes and ambiguous inputs retain the metadata selector, and ordinary
+manual `/consolidate` retains its reviewed routing.
+Full maintenance also extracts grounded new knowledge when the Memory corpus is
+empty. If the current session has no user or tool evidence, the parent may freeze one recent session
+for the same canonical project (within seven days, at most 12 candidates and
+8 MiB per source). Pi's active context projection excludes removed evidence;
+older SDKs decline sources containing context edits. The receipt identifies the
+source session and SHA-256 digest. This does not replay the backlog or change
+automatic/incremental learning's current-task scope. With no usable evidence or
+existing Memory, full maintenance makes zero model calls and reports
+`no learning input`; use `/memory <request>` to supply knowledge directly.
 
 Package-owned `prompts/*.md` protocols are bound through typed builders. Planners
 are read-only, have resource discovery disabled, and return bounded deltas or a
@@ -225,17 +292,27 @@ train themselves. Print/JSON sessions await completion and receipts. Turning
 auto-memory off stops learning without disabling Memory retrieval. Receipts count
 every selector/planner attempt, applied operations, duration, input/output tokens,
 cache reads/writes, and provider cost availability.
+Selector failures also retain a parent-generated diagnostic in the attempt;
+raw model output and worker stderr are not copied into that diagnostic.
 
 An explicit `/consolidate` always reaches selection, including tasks without
 automatic-screen keywords. Explicit continuation prompts retain the original
-request and its evidence. Task slices preserve complete entries within their byte
-budget, report omitted entries, and reject an oversized original request rather
-than clipping evidence. A failed tool invocation followed by a successful check
+request and its evidence. Task slices preserve complete human and tool entries
+within their byte budget, report omitted entries, and reject an oversized original request rather
+than clipping evidence. Assistant context retains visible text and tool calls,
+while excluding reasoning, signatures, and provider transport metadata.
+A failed tool invocation followed by a successful check
 is eligible for Memory review; the planner still must justify a durable lesson,
-and a reviewed selector verdict is not overridden by that recovery alone.Harness evidence means Harness-owned transcript evidence: guardrail event
+and a reviewed selector verdict is not overridden by that recovery alone. Harness evidence means Harness-owned transcript evidence: guardrail event
 entries, Harness guidance delivery, and the notes Harness attaches to tool
 results. Repository text that merely mentions policies or harness files is not
 evidence, so it starts no planner.
+
+The zero-token screen is an opportunity filter, not a completeness claim. It
+can miss a lesson; when it starts no pipeline, the parent may store a bounded
+backlog reference to the settled session slice. `/consolidate backfill` currently
+reports pointer status only. It does not drain or replay those tasks
+automatically, and a missing session file is reported as unlearnable.
 
 ### Phase policies and history
 
@@ -249,12 +326,43 @@ validated current plans; the existing `agentsMd.disabled` setting remains
 authoritative. AGENTS extraction is saved as a proposal if it would write to
 a Memory or Harness phase configured to propose or off.
 
+Incremental Memory planning and repair use the same exact proposal schema.
+A bounded repair must preserve recognizable proposal names and selected
+operations, including existing rewrite/delete intent; an empty replacement
+cannot silently discard them. Failed repairs retain both rejection reasons in
+bounded, sanitized private diagnostics.
+
+Harness also permits one read-only repair when structured output is missing or
+a parsed plan fails validation. It uses the original frozen evidence and model;
+both worker attempts contribute to receipt usage, cost, and retry counts.
+Identity mismatches, ambiguous plans, output bounds, and cancellation remain
+terminal rejections.
+
+Settings are strictly schema- and path-validated. A missing settings file keeps
+automatic learning enabled; malformed, unknown, unsafe, or unreadable settings
+disable learning and show a repair diagnostic instead of silently using defaults.
+The learning backlog is a private, scoped reference index: its JSONL file is
+capped at 4 MiB, each record at 4 KiB, and a full file rejects new entries
+without silently deleting older ones. New records carry the project scope key
+and use a scope-specific cursor. Legacy records require a bounded session-header
+scope check; the historical global cursor is consulted only for those legacy
+records and never consumes a scoped record. Unscoped or malformed records are
+reported. Appends and cursor updates share a private process lock; contention
+refuses the write without delaying the user task, and cursors cannot decrease.
+Backfill is status-only and does not replay model work. Full state
+checks validate settings, backlog limits, scope binding, malformed references,
+and cursor updates before status is shown.
+
 Applied mutations and proposals are recorded privately under
 `<agent-dir>/memory/history/<escaped-canonical-cwd>/`. History includes exact
 before/after bytes, including indexes and mirror repairs. `/memory history`
 lists the latest 50 records; passing an id shows a bounded preview. Proposal
 records are inspection artifacts; running `/consolidate` creates a fresh plan
 against current evidence instead of replaying a stale proposal.
+
+`/memory evaluate` reads the suite path explicitly supplied by the user, relative
+to the project or absolute, using a bounded regular-file read. It performs no
+model calls and does not change learned files.
 
 Undo requires all affected files to match the recorded successor, validates
 project scope and Memory privacy, and runs under the consolidation lock. It
@@ -292,14 +400,16 @@ uv run --no-project scripts/evaluate-learning.py examples/learning-task-evaluati
 ```
 
 Each task runs once per arm in a fresh disposable Git project with supplied Memory
-snapshots, automatic learning disabled, and only the read tool. Authentication is
-copied privately from the configured agent directory; the source is unchanged.
+snapshots, automatic learning disabled, and only the read tool. Authentication
+and model configuration are frozen in one private snapshot for the whole suite;
+each task receives a separate copy so runtime refreshes stay isolated.
 The report includes literal-answer success, regressions, latency and observed
 token usage/cost; missing prices remain unavailable. Output files are private and
 never overwritten. Without `--model`, the configured `memory.json` model is used.
-The included synthetic example verifies retrieval plumbing; use representative
-held-out tasks for your project. One paired sample per task does not establish
-statistical improvement, and this experiment does not test Bash enforcement.
+The included synthetic example verifies exact answer scoring and native Memory
+body-read evidence; use representative held-out tasks for your project. One
+paired sample per task does not establish statistical or causal improvement,
+learning-pipeline persistence, or Bash enforcement.
 
 ## Verifying it is actually effective
 
@@ -310,11 +420,11 @@ because it is not a plumbing question:
 python3 packages/continual-learning/tests/live_effectiveness.py
 ```
 
-- **Does learning change behaviour?** Held-out tasks whose answers live only in
-  Memory, run once with no Memory and once with it. Memory is the only
-  difference between the arms, so a baseline that cannot answer them and a
-  candidate that can is a causal result. The suite is
-  `examples/learning-effectiveness.json`.
+- **Does persisted Memory change behaviour?** Held-out tasks run once with no
+  Memory and once with it. Candidate cases require a successful native `read`
+  result containing a marker from the Memory body. This is bounded paired
+  evidence, not a statistical or causal claim about learning generally. The
+  suite is `examples/learning-effectiveness.json`.
 
 
 The suite is committed rather than generated so the tasks are held out of the
@@ -372,6 +482,10 @@ reuse.
 
 Only strict `[A-Za-z0-9][A-Za-z0-9_-]*.md` basenames are entries; `MEMORY.md` is
 metadata. Symlinks, non-regular files, escapes, and root replacement are rejected.
+Index rows use the Markdown link target as their identity, regardless of display
+label; a row without a valid link can start with a bare filename. Filenames in
+ordinary descriptive prose do not introduce entries. Privacy, planning, menus,
+undo, and final validation use this same grammar.
 New Memory cites exact indexed user/tool-result evidence and cannot overwrite
 existing names. Deletes require a contradicted, superseded, or subsumed verdict
 plus a mechanically verifiable `preservedIn` target.
@@ -412,19 +526,71 @@ pnpm typecheck
 pnpm --dir packages/continual-learning pack --dry-run
 pnpm check:install
 uv run --no-project packages/continual-learning/tests/live_meaningful_details.py
+uv run --no-project packages/continual-learning/tests/live_learning_loop.py
 python3 packages/continual-learning/tests/live_smoke.py
+python3 packages/continual-learning/tests/live_manual_memory.py
+python3 packages/continual-learning/tests/live_manual_harness.py
 python3 packages/continual-learning/tests/live_upgrade_smoke.py
+python3 packages/continual-learning/tests/live_design_e2e.py
+python3 packages/continual-learning/tests/live_harness_learning.py
+python3 packages/continual-learning/tests/live_effectiveness.py
+python3 packages/continual-learning/tests/live_private_preference.py
+python3 packages/continual-learning/tests/live_full_consolidate.py
 ```
+
+The explicit [Docker project experiment](tests/docker/README.md) runs real Pi
+against pinned Click, p-limit, and mitt checkouts with fresh learning storage,
+independent project tests, and new-session Memory/Harness verification.
 
 The display smoke runs real Pi print and interactive sessions with an offline
 scripted provider and disposable roots, without user credentials or network
 requests. It verifies Ctrl+O, narrow-terminal wrapping and complete guidance
 readback. The live scripts are not collected by pytest.
 
+The offline learning-loop smoke runs real Pi child processes against a loopback
+scripted provider. It checks persisted Memory and learned project Harness rules,
+parent receipts, future-session index injection and bounded body reads, and actual Bash block/allow behavior
+with automatic learning disabled in that future session. Every storage root is
+disposable and no provider credentials are copied. This verifies the mechanism;
+it does not measure a real model's learning quality.
+
 The learning smoke reuses configured model/auth in disposable project and agent
-roots, requires actual learned project rules and receipts, and separately verifies
-scoped guidance with a harmless Bash command.
+roots. It checks a new private preference, a shared project fact, an existing
+Memory rewrite, a learned project rule, an AGENTS.md correction, and parent
+receipts. It rejects private-marker leakage into shared indexes, Memory bodies,
+Harness, or AGENTS.md. A fresh session must read the exact persisted entries,
+use their knowledge, block the prohibited Bash call, and execute the allowed
+call. A separate check verifies scoped guidance with a harmless Bash command.
 It never replaces failed learning with fixtures or edits real user configuration.
+The manual-memory smoke drives the native TUI `/memory <request>` path with the
+configured real model, waits for the parent receipt, verifies safe and
+private Memory separation plus unchanged AGENTS.md and Harness bytes, and then
+uses a fresh print session to read the saved project fact. It copies
+authentication into disposable private roots and is optional because it may
+consume provider quota.
+The manual-Harness smoke checks the native `/harness <request>` path: a successful
+read of the complete original configuration precedes exactly one complete JSON
+write, existing rules and other layers remain intact, and a fresh session verifies
+real blocked and allowed Bash
+calls. The design probes require successful observations, corrected final output,
+and genuine pending-mutation handling. Direct Bun probes also override the agent
+directory, so history and recovery checks cannot write to ambient user Memory.
+
+The repeated Harness measurement requires both executable cases and valid
+parent-owned rule revisions. The three-task paired Memory evaluation checks
+retrieval with native body reads; its fixture results do not establish general
+learning gains. The private-preference regression runs automatic Memory in two
+fresh roots, requiring the private preference alongside new shared knowledge and
+an existing-entry correction. The exact private preference proposal, frozen
+snapshot and post receipt must bind to the same applied plan; the automatic
+receipt permits only selector and Memory attempts. Other phases are disabled for
+that focused check.
+These checks spend configured-provider tokens. The native full-command
+smoke uses a deterministic loopback provider to check `/consolidate full`, a bound
+current-session snapshot, the entire two-entry corpus and selector bypass;
+Memory and Harness must finish with verified no-ops in that focused command
+check; the AGENTS phase is disabled.
+
 The separate upgrade smoke starts a real Pi process with a disposable old-format
 configuration, confirms harmless Bash and unrelated writes execute, and confirms
 protected write/batched-edit calls remain blocked while configuration bytes stay
@@ -434,3 +600,50 @@ private temporary roots rather than link to writable user files.
 ## License
 
 MIT
+
+Real-provider cold-start and repeat verification: `python3 packages/continual-learning/tests/live_full_learning.py` (disposable project and agent directories).
+
+### Optional Jev judgments
+
+Jev is optional. It is enabled by a `jev` section in `~/.pi/agent/continual-learning.json` (or your configured agent directory), **or** by `TYPESAFE_API_KEY` in the parent Pi environment. A key alone uses pinned `jev-1.13.0` and all three semantic stages. No separate `jev.json` is required. Example unified configuration:
+
+```json
+{"jev":{"model":"jev-1.13.0","scopes":["selection","memory","harness"],"allowPrivateMemory":false}}
+```
+
+The model and scopes are optional overrides; `"jev": true` or `"jev": {}` opts in with defaults. Authentication uses `TYPESAFE_API_KEY` or the section's optional `apiKey`; prefer the environment so credentials stay out of configuration files. `"jev": false` or `"jev":{"enabled":false}` explicitly disables Jev even when the environment key is present. Other unified configuration sections are ignored by this reader and never modified. Invalid, oversized or symlinked configuration disables the feature with a diagnosis.
+
+Scopes grant participation in semantic stages, never file-write permission. Omit a stage from `scopes` to retain its legacy behavior. Pin a version for reproducibility; `jev-latest` and `jev-preview` are accepted, with the actual returned version recorded. `/memory status` reports effective model, scopes and credential availability without revealing the key. There is no `/jev` command, and command syntax and phase permissions are unchanged.
+
+Enabling a scope sends bounded frozen task evidence and permitted Memory content to TypeSafe. Private Memory metadata, bodies and candidates require the separate `allowPrivateMemory` permission; absent permission falls back in selection and preserves candidates as proposals. This never changes storage classification. Recognized credentials prevent a request. Existing privacy checks still govern every write.
+
+The integration uses `@typesafe-ai/sdk` 0.6.0. Independent Noul questions detect durable knowledge and lasting behavioral constraints; both can apply. Score questions rank metadata in the same request; selection uses the probability mass across both relevant levels, so ambiguity between two acceptable levels does not itself force fallback. Memory bodies are read only after selection. Empty-index explicit evidence keeps its local route with no semantic selector request. Disabled, missing-key, uncertain or failed selection uses the existing selector; explicit `/memory <request>` always retains Memory processing and excludes Harness and AGENTS.md.
+
+After parent structure, identity and frozen-quote validation, another batch checks candidate support using the knowledge body or rule rather than administrative frontmatter/evidence bookkeeping (while scanning the full original candidate for credentials). For fully cited new Memory, the support question includes only the complete knowledge body; filenames and write/storage metadata cannot become claims requiring user evidence. Rewrite/delete/mixed batches retain the complete preservation context. This batch also checks Memory grounding and relationships against already-read bodies (Choice), and general Harness scope (Choice). For an absolute-end anchored literal block or confirmation rule, parent code proves the exact command matcher and Jev separately checks lasting user authorization and message fidelity. A confirmation rule requires the real native Allow once or Block decision for each invocation; a one-time grant cannot revoke future confirmation, and confirmation cannot weaken an unconditional ban. Plain `$`, whitespace classes and operators never qualify for that proof. Duplicates, conflicts, unsupported or uncertain candidates become proposals; an unavailable candidate judge also produces proposals. For a proved literal/family rule whose message is byte-identical to its validated original user quote, code proves wording equality and omits only the paraphrase judgment. Authorization, matcher scope, complete counterevidence and parent write checks remain mandatory; changed messages still require semantic verification. In the proved ASCII command-family grammar, literal TAB and its regex escape have identical meaning. Counterevidence review receives the exact code-proved command range, block action and original explanation; unproved regexes retain full matching review. Generated fixtures and rule identifiers do not establish user permission. No Jev answer permits a write by itself or disables existing Harness rules. Legal requests have at most 32 questions and 64,000 wire bytes, with at most four requests running concurrently. For quoted new Memory candidates and parent-validated Harness citations, support uses the complete cited entries and existing bodies; a separate counterevidence review covers **every** indexed original entry in windows targeting 24,000 bytes; a larger complete entry occupies its own window and must still fit the unchanged complete-request wire limit. Entries are never truncated or summarized. Every review also receives the original cited support to interpret meaning and scope; later corrections still override that support. There are at most eight windows and twelve requests, including split support requests. All original evidence and all planned requests are checked for sensitive material and bounds and copied before the first transport. Only fully successful windows count toward coverage, and any failed, uncertain or conflicting judgment holds the entire plan. Rewrite/delete/mixed Memory plans and uncited legacy inputs retain full-evidence transport with at most four batches. This is a wire-byte cap, not a token count; API context failures remain proposals rather than discarding possible later contradictions. A batch is atomic for this policy: one questionable candidate holds the whole plan for review. Supported supplements can be applied only under the existing apply policy. Full maintenance also checks its validated candidates; too much evidence falls back to proposals.
+
+Requests are limited to 64,000 serialized UTF-8 wire bytes and 32 questions; cited evidence windows prefer 24,000 bytes. Oversized evidence is not silently truncated: selection falls back, candidates become proposals. Requests have a 5-second timeout, zero SDK retries, cancellation propagation and disabled SDK body logging. Starting thresholds are Noul ≤0.1 / ≥0.9. Memory relation acceptance uses P(unrelated or supplement) ≥0.9; general Harness scope uses P(same or narrower) ≥0.9. Ambiguity between these compatible classes is acceptable; this does not require high confidence in one class. Memory grounding, literal-command authorization and message fidelity require confidence ≥0.8 and winning probability ≥0.9. Harness review includes parent-validated blocked/allowed examples, with frozen evidence remaining the sole source of authorization. Metadata uses P(level 2 or 3) ≥0.9 to select and ≤0.1 to omit on a 0–3 rubric; intermediate probability falls back. These are conservative policy parameters, **not calibrated accuracy claims**. Validate them on your workload before relying on the integration, especially for Chinese.
+
+For an apply-policy Harness plan or incremental Memory plan, an unsupported or uncertain semantic hold may use the existing single read-only repair slot, shared with structural repair. Memory correction uses frozen evidence and already-read bodies, preserves names, intents and privacy classifications, and retains the original proposal if correction remains held. Duplicate, conflict and service failure do not trigger another correction. A semantic Harness repair may omit unsupported operations, but their exact original evidence is reindexed and saved as private pending proposals. Retained rule identities and citations must stay unchanged apart from operation indexes; an empty or replacement repair retains the original proposal. Repaired candidates repeat parent validation and Jev judgment; service failures do not cause retries, and unresolved candidates remain proposals. Frozen evidence is checked after each judgment and again in the mutation queue before writing. A direct apply cannot bypass a semantic proposal.
+
+Receipts show directions, selected filenames, phase outcomes, controlled fallback/proposal reasons, Jev latency, actual model version and returned tokens. Cited judgments also report complete reviewed entries and windows; coverage does not itself establish semantic accuracy. `estimatedCostUsd` uses the published `jev-1.13.0` input-token tariff; it is separate from worker totals and is not an invoice. Failed requests without usage have unknown cost. Multi-request failures retain known input/cost lower bounds and completed request counts without claiming a complete total. A held judgment may identify a controlled candidate index and judgment dimension to explain correction; it does not include candidate text. Sensitive evidence, SDK errors and raw responses are not added to the receipt.
+
+Official references: [JavaScript SDK](https://docs.typesafe.ai/sdk/javascript), [primitives](https://docs.typesafe.ai/primitives), [models and limits](https://docs.typesafe.ai/models), [confidence](https://docs.typesafe.ai/confidence), [known model limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13).
+
+`bun packages/continual-learning/tests/evaluate_jev.ts` evaluates the fixed bilingual corpus's deterministic baseline offline. `--live` makes paid Jev requests and requires prior authorization of credentials, model and cost limits. It compares the parent screen and code-valid candidates against semantic judgments, **not** the legacy LLM selector or a complete learning workflow. Mock regression results prove boundaries, not model accuracy. See @tests/jev-evaluation.md and @tests/jev-cited-evidence-evaluation.md and @tests/jev-cited-followup-evaluation.md for measured evidence and limitations.
+
+Real native Pi workflow evidence (generation, parent application, fresh Memory reads, exact blocked/allowed tool probes and repeat stability) is recorded separately in @tests/jev-workflow-evaluation.md. Its runner reports individual effects; use `--require-effects` to fail the run unless every recorded effect succeeds. `evaluate_jev.ts --live --fresh-acceptance --require-improvement` requires complete real inference, fewer unsafe candidate accepts and no additional supported-candidate holds on that fixed corpus. This candidate gate alone does not establish end-to-end improvement.
+
+The subsequent bounded improvement acceptance, including real bilingual judgments and native effects with failures retained, is documented in @tests/jev-improvement-evaluation.md.
+
+Full-workflow improvement uses the stricter `live_jev_workflow.py --require-improvement` paired-effects gate. Equal capability does not pass. The overall status and current remaining work are in @tests/jev-workflow-strict-evaluation.md.
+
+
+The latest fixed four-case native workflow cohort improved 36/50 effects to
+50/50, with fourteen gains and zero regressions. This is an iterated public
+synthetic benchmark; costs increased and earlier failed trials remain visible.
+It does not establish superiority on every project or model call. See
+@tests/jev-workflow-strict-evaluation.md for exact native, offline and real
+inference evidence, fees, rejected trials and reproduction.
+
+Expanded real bilingual and isolated Docker verification is documented in @tests/jev-expanded-evaluation.md.
+Read-only frozen-input design comparisons and the remaining evidence-coverage requirements are documented in @tests/jev-learning-design-reflection.md.

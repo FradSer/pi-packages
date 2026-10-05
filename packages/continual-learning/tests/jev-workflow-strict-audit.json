@@ -1,0 +1,13 @@
+{
+  "evidence": "audit-of-existing-real-native-artifact",
+  "sourceArtifact": "jev-improvement-manual-workflow.json",
+  "improvement": {
+    "scope": "paired real native learning effects",
+    "passed": false,
+    "gains": 0,
+    "regressions": 0,
+    "reasons": [
+      "no-observed-effect-improvement"
+    ]
+  }
+}

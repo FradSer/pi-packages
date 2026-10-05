@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 from functools import partial
+from pathlib import Path
 
 from support import run_bun as _run_bun
 
@@ -213,6 +214,104 @@ def test_rejects_foreign_out_of_scope_duplicate_and_invalid_classification() -> 
     assert "classification" in errors["invalid"]
 
 
+def test_incremental_plan_prioritizes_link_target_and_ignores_prose_filename() -> None:
+    result = run_bun(r"""
+      import { mkdir, writeFile } from 'node:fs/promises';
+      import { join } from 'node:path';
+      import { expandIncrementalMemoryPlan } from './packages/continual-learning/extensions/incremental-memory-plan.ts';
+      const root = await Bun.$`mktemp -d`.text().then(value => value.trim());
+      const harness = join(root, 'harness'); await mkdir(harness, { recursive: true });
+      await writeFile(join(harness, 'decoy.md'), 'decoy\n'); await writeFile(join(harness, 'private.md'), 'private\n');
+      await writeFile(join(harness, 'prose.md'), 'prose\n');
+      await writeFile(join(harness, 'MEMORY.md'), '- decoy.md [Arbitrary display](private.md) (harness only)\n- prose description mentions prose.md\n');
+      const manifest = {
+        runId: 'run_index_grammar', scopeKey: 'c'.repeat(64), scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
+        harnessDir: harness, cwd: root, sourceHashes: { harness: {}, public: {} },
+      };
+      const run = { manifest };
+      const base = {
+        kind: 'incremental-memory-plan', version: 1, schemaVersion: 1,
+        runId: manifest.runId, scopeKey: manifest.scopeKey, scopeDigest: manifest.scopeDigest,
+        artifactHash: manifest.snapshotDigest, snapshotDigest: manifest.snapshotDigest, newMemories: [],
+      };
+      let valid; let proseError = '';
+      try { valid = await expandIncrementalMemoryPlan(run, ['private.md'], { ...base, operations: [{
+        name: 'private.md', kind: 'rewrite', classification: 'private', content: 'updated\n',
+      }] }); } catch (error) { proseError = String(error); }
+      try { await expandIncrementalMemoryPlan(run, ['prose.md'], { ...base, operations: [] }); }
+      catch (error) { proseError = error instanceof Error ? error.message : String(error); }
+      console.log(JSON.stringify({ classification: valid?.inventory[0]?.classification, proseError }));
+    """)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload == {"classification": "private", "proseError": "Selected Memory is absent from private MEMORY.md with exact casing: prose.md"}
+
+
+def test_incremental_create_cannot_overwrite_an_existing_selected_memory() -> None:
+    result = run_bun(r"""
+      import { mkdir, writeFile } from 'node:fs/promises';
+      import { join } from 'node:path';
+      import { expandIncrementalMemoryPlan } from './packages/continual-learning/extensions/incremental-memory-plan.ts';
+      const root = await Bun.$`mktemp -d`.text().then(value => value.trim());
+      const harness = join(root, 'harness');
+      await mkdir(harness, { recursive: true });
+      await writeFile(join(harness, 'existing.md'), 'old\n');
+      await writeFile(join(harness, 'MEMORY.md'), '- [existing.md](existing.md)\n');
+      const manifest = {
+        runId: 'run_create', scopeKey: 'c'.repeat(64), scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
+        harnessDir: harness, cwd: root, sourceHashes: { harness: {}, public: {} },
+      };
+      const run = { manifest };
+      const delta = {
+        kind: 'incremental-memory-plan', version: 1, schemaVersion: 1,
+        runId: manifest.runId, scopeKey: manifest.scopeKey, scopeDigest: manifest.scopeDigest,
+        artifactHash: manifest.snapshotDigest, snapshotDigest: manifest.snapshotDigest,
+        operations: [{ name: 'existing.md', kind: 'create', classification: 'safe', content: 'new\n' }],
+        newMemories: [],
+      };
+      let error = '';
+      try { await expandIncrementalMemoryPlan(run, ['existing.md'], delta); }
+      catch (cause) { error = String(cause); }
+      console.log(JSON.stringify({ error }));
+    """)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert "create" in payload["error"]
+
+
+def test_incremental_expansion_rejects_a_symlinked_private_memory_root() -> None:
+    result = run_bun(r"""
+      import { mkdir, symlink, writeFile } from 'node:fs/promises';
+      import { join } from 'node:path';
+      import { expandIncrementalMemoryPlan } from './packages/continual-learning/extensions/incremental-memory-plan.ts';
+      const root = await Bun.$`mktemp -d`.text().then(value => value.trim());
+      const outside = join(root, 'outside');
+      const harness = join(root, 'harness');
+      await mkdir(outside, { recursive: true });
+      await writeFile(join(outside, 'MEMORY.md'), '- [secret.md](secret.md) (harness only)\n');
+      await writeFile(join(outside, 'secret.md'), 'outside secret\n');
+      await symlink(outside, harness, 'dir');
+      const manifest = {
+        runId: 'run_symlink', scopeKey: 'c'.repeat(64), scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
+        harnessDir: harness, cwd: root, sourceHashes: { harness: {}, public: {} },
+      };
+      const run = { manifest };
+      const delta = {
+        kind: 'incremental-memory-plan', version: 1, schemaVersion: 1,
+        runId: manifest.runId, scopeKey: manifest.scopeKey, scopeDigest: manifest.scopeDigest,
+        artifactHash: manifest.snapshotDigest, snapshotDigest: manifest.snapshotDigest,
+        operations: [], newMemories: [],
+      };
+      let error = '';
+      try { await expandIncrementalMemoryPlan(run, ['secret.md'], delta); }
+      catch (cause) { error = String(cause); }
+      console.log(JSON.stringify({ error }));
+    """)
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert "regular directory" in payload["error"]
+
+
 def test_delete_requires_allowed_verdict_and_preservation_still_uses_validator() -> None:
     with tempfile.TemporaryDirectory(prefix="incremental-memory-delete-") as temporary:
         result = run_bun(
@@ -310,6 +409,8 @@ def test_rejects_unvalidated_repository_observations() -> None:
                 valid: await capture([{ path: 'src/real.ts', status: 'found' }]),
                 escaping: await capture([{ path: '../outside.ts', status: 'found' }]),
                 missing: await capture([{ path: 'src/missing.ts', status: 'found' }]),
+                absent: await capture([{ path: 'src/missing.ts', status: 'missing' }]),
+                falseMissing: await capture([{ path: 'src/real.ts', status: 'missing' }]),
                 badStatus: await capture([{ path: 'src/real.ts', status: 'maybe' }]),
               }));
             """,
@@ -320,4 +421,43 @@ def test_rejects_unvalidated_repository_observations() -> None:
         assert payload["valid"]["grounding"][0]["status"] == "VERIFIED"
         assert "repository-relative" in payload["escaping"]["error"]
         assert "existing regular file" in payload["missing"]["error"]
+        assert payload["absent"]["grounding"][0]["status"] == "VERIFIED"
+        assert "absent" in payload["falseMissing"]["error"]
         assert "found, missing, or updated" in payload["badStatus"]["error"]
+
+
+def test_rejects_repository_observation_through_parent_symlink(tmp_path: Path) -> None:
+    result = run_bun(r"""
+      import { mkdir, symlink, writeFile } from 'node:fs/promises';
+      import { join } from 'node:path';
+      import { expandIncrementalMemoryPlan } from './packages/continual-learning/extensions/incremental-memory-plan.ts';
+      const root = process.env.TEST_ROOT;
+      const repo = join(root, 'repo');
+      const outside = join(root, 'outside');
+      const harness = join(root, 'harness');
+      await mkdir(join(repo, 'src'), { recursive: true }); await mkdir(outside, { recursive: true }); await mkdir(harness, { recursive: true });
+      await writeFile(join(repo, 'src', 'inside.ts'), 'inside\n'); await symlink(join(repo, 'src'), join(repo, 'inside-link'));
+      await writeFile(join(outside, 'secret.ts'), 'outside\n'); await symlink(outside, join(repo, 'link'));
+      await writeFile(join(harness, 'project_fact.md'), 'fact\n'); await writeFile(join(harness, 'MEMORY.md'), '- [project_fact.md](project_fact.md)\n');
+      const manifest = {
+        runId: 'run_parent_symlink', scopeKey: 'c'.repeat(64), scopeDigest: 'b'.repeat(64), snapshotDigest: 'a'.repeat(64),
+        harnessDir: harness, cwd: repo, sourceHashes: { harness: {}, public: {} },
+      };
+      const base = {
+        kind: 'incremental-memory-plan', version: 1, schemaVersion: 1,
+        runId: manifest.runId, scopeKey: manifest.scopeKey, scopeDigest: manifest.scopeDigest,
+        artifactHash: manifest.snapshotDigest, snapshotDigest: manifest.snapshotDigest, newMemories: [],
+      };
+      const capture = async (path) => {
+        try { const plan = await expandIncrementalMemoryPlan({ manifest }, ['project_fact.md'], { ...base, operations: [{
+        name: 'project_fact.md', kind: 'rewrite', classification: 'safe', content: 'updated\n',
+        observations: [{ path, status: 'found' }],
+        }] }); return { status: plan.grounding[0].status };
+        } catch (caught) { return { error: caught instanceof Error ? caught.message : String(caught) }; }
+      };
+      console.log(JSON.stringify({inside: await capture('inside-link/inside.ts'), outside: await capture('link/secret.ts')}));
+    """, {"TEST_ROOT": str(tmp_path)})
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip().splitlines()[-1])
+    assert payload["inside"] == {"status": "VERIFIED"}
+    assert "canonical root" in payload["outside"]["error"]

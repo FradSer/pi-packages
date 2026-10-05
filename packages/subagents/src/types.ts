@@ -9,7 +9,7 @@
 
 /** Token and cost usage reported by a spawned child, accumulated across the
  * wake-up sequences of one incarnation. */
-export interface WorkerUsage {
+export interface AgentUsage {
   input: number;
   output: number;
   cacheRead: number;

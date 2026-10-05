@@ -28,14 +28,14 @@ def run_node(script: str) -> dict[str, object]:
 def test_handoff_requires_stopped_predecessor(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ initTeamMachine, shutdownTeamMachine, spawnTeammate }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, updateTeammate, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ initTeamMachine, shutdownTeamMachine, spawnAgent }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerAgent, updateAgent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "old", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
-        const live = spawnTeammate({{ name: "new", agent: "missing", handoffFrom: "old" }});
-        updateTeammate("old", {{ status: "stopped" }});
-        const stopped = spawnTeammate({{ name: "new", agent: "missing", handoffFrom: "old" }});
+        registerAgent({{ name: "old", role: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const live = spawnAgent({{ name: "new", role: "missing", handoffFrom: "old" }});
+        updateAgent("old", {{ status: "stopped" }});
+        const stopped = spawnAgent({{ name: "new", role: "missing", handoffFrom: "old" }});
         console.log(JSON.stringify({{ live, stopped }}));
         shutdownTeamMachine();
         '''
@@ -47,60 +47,60 @@ def test_handoff_requires_stopped_predecessor(tmp_path: Path) -> None:
     assert "Agent \"missing\"" in payload["stopped"]["error"]
 
 
-def test_direct_assignment_blocks_board_claim_after_terminal_close() -> None:
+def test_direct_assignment_blocks_tasks_claim_after_terminal_close() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, updateTeammate, assignTeammate, createTask, applyClaimIntent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, updateAgent, assignAgent, createTask, applyClaimIntent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
-        registerTeammate({{ name: "writer", agent: "executor", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
-        assignTeammate("writer", {{ id: "direct:s1", kind: "direct", resources: ["firmware/sub-node"], closed: true }});
-        const task = createTask({{ subject: "old board work", resources: ["firmware/sub-node"] }}).task;
-        const result = applyClaimIntent({{ taskId: task.id, worker: "writer", spawnId: "s1", timestamp: 1 }});
+        registerAgent({{ name: "writer", role: "executor", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        assignAgent("writer", {{ id: "direct:s1", kind: "direct", resources: ["firmware/sub-node"], closed: true }});
+        const task = createTask({{ subject: "old task work", resources: ["firmware/sub-node"] }}).task;
+        const result = applyClaimIntent({{ taskId: task.id, participant: "writer", spawnId: "s1", timestamp: 1 }});
         console.log(JSON.stringify({{ applied: result.applied, reason: result.reason ?? "" }}));
         '''
     )
     assert payload["applied"] is False
-    assert "closed pending leader reopen" in payload["reason"]
+    assert "closed, pending a reopen" in payload["reason"]
 
 
 def test_resource_overlap_rejects_and_unrelated_resource_claims() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, assignTeammate, createTask, applyClaimIntent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, assignAgent, createTask, applyClaimIntent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
-        registerTeammate({{ name: "main", agent: "executor", spawnId: "m1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
-        registerTeammate({{ name: "sub", agent: "executor", spawnId: "s1", pid: 2, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
-        assignTeammate("main", {{ id: "direct:m1", kind: "direct", resources: ["firmware/sub-node"] }});
+        registerAgent({{ name: "main", role: "executor", spawnId: "m1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "sub", role: "executor", spawnId: "s1", pid: 2, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        assignAgent("main", {{ id: "direct:m1", kind: "direct", resources: ["firmware/sub-node"] }});
         const nested = createTask({{ subject: "nested", resources: ["firmware/sub-node/app"] }}).task;
         const app = createTask({{ subject: "ios", resources: ["app/Hydra"] }}).task;
-        const blocked = applyClaimIntent({{ taskId: nested.id, worker: "sub", spawnId: "s1", timestamp: 1 }});
-        const free = applyClaimIntent({{ taskId: app.id, worker: "sub", spawnId: "s1", timestamp: 2 }});
+        const blocked = applyClaimIntent({{ taskId: nested.id, participant: "sub", spawnId: "s1", timestamp: 1 }});
+        const free = applyClaimIntent({{ taskId: app.id, participant: "sub", spawnId: "s1", timestamp: 2 }});
         console.log(JSON.stringify({{ blocked, free }}));
         '''
     )
     assert payload["blocked"]["applied"] is False
-    assert "resource conflict" in payload["blocked"]["reason"]
+    assert "conflicts with active work" in payload["blocked"]["reason"]
     assert payload["free"]["applied"] is True
 
 
 def test_superseding_claimed_work_keeps_holder_locked_until_cancellation_acknowledgment() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, applySubmissionIntent, getTask, getTeammate, completeTaskWithOutcome, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, createTask, applyClaimIntent, applySubmissionIntent, getTask, getAgent, completeTaskWithOutcome, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
-        registerTeammate({{ name: "worker", agent: "executor", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "worker", role: "executor", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const old = createTask({{ subject: "obsolete" }}).task;
-        applyClaimIntent({{ taskId: old.id, worker: "worker", spawnId: "s1", timestamp: 1 }});
-        const holdingId = getTeammate("worker").assignment.id;
+        applyClaimIntent({{ taskId: old.id, participant: "worker", spawnId: "s1", timestamp: 1 }});
+        const holdingId = getAgent("worker").assignment.id;
         const replacement = createTask({{ subject: "replacement", supersedes: [old.id] }});
-        const cancellation = applySubmissionIntent({{ taskId: old.id, worker: "worker", spawnId: "s1", status: "failed", result: "stopped", timestamp: 2 }});
+        const cancellation = applySubmissionIntent({{ taskId: old.id, participant: "worker", spawnId: "s1", status: "failed", result: "stopped", timestamp: 2 }});
         console.log(JSON.stringify({{
           oldStatus: getTask(old.id)?.status,
           supersededBy: getTask(old.id)?.supersededBy,
-          holderAssignment: getTeammate("worker")?.lastAssignment ?? null,
+          holderAssignment: getAgent("worker")?.lastAssignment ?? null,
           holdingId,
-          lastTaskId: getTeammate("worker")?.lastTaskId,
-          assignmentAfterAck: getTeammate("worker")?.assignment ?? null,
+          lastTaskId: getAgent("worker")?.lastTaskId,
+          assignmentAfterAck: getAgent("worker")?.assignment ?? null,
           completeObsolete: completeTaskWithOutcome(old.id, "w", "success", "late").task ?? null,
           cancellation,
           replacementId: replacement.task.id,
@@ -109,8 +109,8 @@ def test_superseding_claimed_work_keeps_holder_locked_until_cancellation_acknowl
     )
     assert payload["oldStatus"] == "superseded"
     assert payload["supersededBy"] == payload["replacementId"]
-    assert payload["holdingId"].startswith("board:")
-    assert payload["holderAssignment"] == {"id": payload["holdingId"], "kind": "board", "resources": []}
+    assert payload["holdingId"].startswith("task:")
+    assert payload["holderAssignment"] == {"id": payload["holdingId"], "kind": "task", "resources": []}
     assert payload["lastTaskId"] == "obsolete"
     assert payload["assignmentAfterAck"] is None
     assert payload["completeObsolete"] is None
@@ -145,89 +145,97 @@ def test_supersede_migrates_pending_downstream_dependencies() -> None:
           dependencies: after?.dependsOn,
           postSupersedeDependencies: getTask(postSupersede.id)?.dependsOn,
           invalidOk: invalid.ok,
-          invalidError: invalid.ok ? "" : invalid.error,
+          invalidReason: invalid.ok ? "" : invalid.refusal + "|" + invalid.reason,
           completedSupersedeOk: completedSupersede.ok,
-          completedSupersedeError: completedSupersede.ok ? "" : completedSupersede.error,
+          completedSupersedeReason: completedSupersede.ok ? "" : completedSupersede.refusal + "|" + completedSupersede.reason,
           completedDependentDependencies: getTask(completeDependent.id)?.dependsOn,
           cycleOk: cycle.ok,
-          cycleError: cycle.ok ? "" : cycle.error,
+          cycleReason: cycle.ok ? "" : cycle.refusal + "|" + cycle.reason,
           chainR1: getTask(chainR1.id)?.status,
           chainDDependencies: getTask(chainD.id)?.dependsOn,
           chainR2Ok: chainR2.ok,
-          chainR2Error: chainR2.ok ? "" : chainR2.error,
+          chainR2Reason: chainR2.ok ? "" : chainR2.refusal + "|" + chainR2.reason,
           chainR3Ok: chainR3.ok,
-          chainR3Error: chainR3.ok ? "" : chainR3.error,
+          chainR3Reason: chainR3.ok ? "" : chainR3.refusal + "|" + chainR3.reason,
         }}));
         '''
     )
     assert payload["dependencies"] == ["replacement"]
     assert payload["postSupersedeDependencies"] == ["replacement"]
     assert payload["invalidOk"] is False
-    assert "both depend on and supersede" in payload["invalidError"]
+    # Each refusal now names its code before its sentence, so a consumer can
+    # branch without reading the prose.
+    assert payload["invalidReason"].startswith("invalid-supersession|")
+    assert "both depend on and supersede" in payload["invalidReason"]
     assert payload["completedSupersedeOk"] is False
-    assert "cannot supersede completed" in payload["completedSupersedeError"]
+    assert payload["completedSupersedeReason"].startswith("invalid-supersession|")
+    assert "cannot supersede completed" in payload["completedSupersedeReason"]
     assert payload["completedDependentDependencies"] == ["complete-old"]
     assert payload["cycleOk"] is False
-    assert "dependency cycle" in payload["cycleError"]
+    assert payload["cycleReason"].startswith("invalid-dependency|")
+    assert "dependency cycle" in payload["cycleReason"]
     assert payload["chainR1"] == "completed"
     assert payload["chainDDependencies"] == ["chain-r1"]
     assert payload["chainR2Ok"] is False
-    assert "dependency cycle" in payload["chainR2Error"]
+    assert "dependency cycle" in payload["chainR2Reason"]
     assert payload["chainR3Ok"] is False
-    assert "cannot supersede completed" in payload["chainR3Error"]
+    assert payload["chainR3Reason"].startswith("invalid-supersession|")
+    assert "cannot supersede completed" in payload["chainR3Reason"]
 
 
 def test_exported_submission_reducer_rejects_invalid_status() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, applySubmissionIntent, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, createTask, applyClaimIntent, applySubmissionIntent, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
-        registerTeammate({{ name: "w", agent: "executor", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "executor", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "task" }}).task;
-        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 1 }});
-        const result = applySubmissionIntent({{ taskId: task.id, worker: "w", spawnId: "s1", status: "bogus", timestamp: 2 }});
+        applyClaimIntent({{ taskId: task.id, participant: "w", spawnId: "s1", timestamp: 1 }});
+        const result = applySubmissionIntent({{ taskId: task.id, participant: "w", spawnId: "s1", status: "bogus", timestamp: 2 }});
         console.log(JSON.stringify({{ result, status: getTask(task.id)?.status }}));
         '''
     )
     assert payload["result"]["ok"] is False
-    assert "invalid submission status" in payload["result"]["error"]
+    assert payload["result"]["refusal"] == "invalid-outcome"
+    assert "invalid submission status" in payload["result"]["reason"]
     assert payload["status"] == "in_progress"
 
 
 def test_invalid_persisted_supersession_chain_rejects_new_dependency() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, loadBoard, createTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, loadTasks, createTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
-        loadBoard({{ bad: {{ id: "bad", subject: "bad", dependsOn: [], resources: [], status: "superseded", createdAt: 1, updatedAt: 1 }} }});
+        loadTasks({{ bad: {{ id: "bad", subject: "bad", dependsOn: [], resources: [], status: "superseded", createdAt: 1, updatedAt: 1 }} }});
         const created = createTask({{ subject: "dependent", dependsOn: ["bad"] }});
-        console.log(JSON.stringify({{ ok: created.ok, error: created.ok ? "" : created.error }}));
+        console.log(JSON.stringify({{ ok: created.ok, reason: created.ok ? "" : created.reason }}));
         '''
     )
     assert payload["ok"] is False
-    assert "invalid or cyclic" in payload["error"]
+    assert "invalid or cyclic" in payload["reason"]
 
 
 def test_submission_reducer_rejects_stale_same_name_spawn() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, updateTeammate, createTask, applyClaimIntent, applySubmissionIntent, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, updateAgent, createTask, applyClaimIntent, applySubmissionIntent, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
-        registerTeammate({{ name: "w", agent: "executor", spawnId: "old", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "executor", spawnId: "old", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "task" }}).task;
-        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "old", timestamp: 1 }});
-        updateTeammate("w", {{ status: "stopped" }});
+        applyClaimIntent({{ taskId: task.id, participant: "w", spawnId: "old", timestamp: 1 }});
+        updateAgent("w", {{ status: "stopped" }});
         // Release is simulated by a fresh task state after the old session dies.
         getTask(task.id).status = "pending";
         getTask(task.id).claimedBy = undefined;
-        registerTeammate({{ name: "w", agent: "executor", spawnId: "new", pid: 2, status: "working", isolation: "none", createdAt: 2, updatedAt: 2 }});
-        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "new", timestamp: 2 }});
-        const stale = applySubmissionIntent({{ taskId: task.id, worker: "w", spawnId: "old", status: "completed", timestamp: 3 }});
+        registerAgent({{ name: "w", role: "executor", spawnId: "new", pid: 2, status: "working", isolation: "none", createdAt: 2, updatedAt: 2 }});
+        applyClaimIntent({{ taskId: task.id, participant: "w", spawnId: "new", timestamp: 2 }});
+        const stale = applySubmissionIntent({{ taskId: task.id, participant: "w", spawnId: "old", status: "completed", timestamp: 3 }});
         console.log(JSON.stringify({{ stale, status: getTask(task.id)?.status, holder: getTask(task.id)?.claimedBy }}));
         '''
     )
     assert payload["stale"]["ok"] is False
-    assert "not a living current incarnation" in payload["stale"]["error"]
+    assert payload["stale"]["refusal"] == "participant-unavailable"
+    assert "not a living current participant" in payload["stale"]["reason"]
     assert payload["status"] == "in_progress"
     assert payload["holder"] == "w"
 
@@ -235,15 +243,15 @@ def test_submission_reducer_rejects_stale_same_name_spawn() -> None:
 def test_resume_clears_dead_holder_from_superseded_task() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, loadBoard, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, createTask, applyClaimIntent, getTask, loadTasks, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         resetState();
-        registerTeammate({{ name: "w", agent: "executor", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "executor", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const old = createTask({{ subject: "old", resources: ["firmware/sub-node"] }}).task;
-        applyClaimIntent({{ taskId: old.id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        applyClaimIntent({{ taskId: old.id, participant: "w", spawnId: "s1", timestamp: 1 }});
         createTask({{ subject: "new", supersedes: [old.id] }});
         const persisted = {{ [old.id]: getTask(old.id) }};
         resetState();
-        loadBoard(persisted);
+        loadTasks(persisted);
         const restored = getTask(old.id);
         console.log(JSON.stringify({{ status: restored?.status, claimedBy: restored?.claimedBy ?? null, resources: restored?.resources ?? [] }}));
         '''
@@ -255,12 +263,12 @@ def test_active_verify_rejects_replacement_submission(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "gated", verify: "verify it" }}).task;
-        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        applyClaimIntent({{ taskId: task.id, participant: "w", spawnId: "s1", timestamp: 1 }});
         let release;
         let calls = 0;
         setVerifyGateRunner(() => new Promise((resolve) => {{ calls++; release = () => resolve({{ kind: "pass" }}); }}));
@@ -285,13 +293,13 @@ def test_reopen_cannot_replace_active_direct_assignment(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, sendLeaderMessage }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, assignTeammate, getTeammate, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, assignAgent, getAgent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "w", agent: "executor", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
-        assignTeammate("w", {{ id: "direct:s1", kind: "direct", resources: ["firmware/sub-node"] }});
+        registerAgent({{ name: "w", role: "executor", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        assignAgent("w", {{ id: "direct:s1", kind: "direct", resources: ["firmware/sub-node"] }});
         const result = sendLeaderMessage("w", "switch work", {{ reopen: true, resources: ["app/Hydra"] }});
-        console.log(JSON.stringify({{ result, assignment: getTeammate("w")?.assignment }}));
+        console.log(JSON.stringify({{ result, assignment: getAgent("w")?.assignment }}));
         shutdownTeamMachine();
         '''
     )
@@ -308,12 +316,12 @@ def test_inconclusive_verify_retries_once_for_each_submission(tmp_path: Path) ->
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "gated", verify: "verify it" }}).task;
-        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        applyClaimIntent({{ taskId: task.id, participant: "w", spawnId: "s1", timestamp: 1 }});
         const outcomes = [
           {{ kind: "inconclusive", detail: "missing one" }},
           {{ kind: "fail", detail: "real finding" }},
@@ -352,11 +360,11 @@ def test_task_intent_requires_nonempty_identity_and_finite_timestamp() -> None:
         import path from "node:path";
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-teams-invalid-identity-"));
         const records = [
-          {{ taskId: "", worker: "w", spawnId: "s", timestamp: 1 }},
-          {{ taskId: "t", worker: "", spawnId: "s", timestamp: 1 }},
-          {{ taskId: "t", worker: "w", spawnId: "", timestamp: 1 }},
-          {{ taskId: "t", worker: "w", spawnId: "s", timestamp: "bad" }},
-          {{ taskId: "t", worker: "w", spawnId: "s", timestamp: 1, result: 42 }},
+          {{ taskId: "", participant: "w", spawnId: "s", timestamp: 1 }},
+          {{ taskId: "t", participant: "", spawnId: "s", timestamp: 1 }},
+          {{ taskId: "t", participant: "w", spawnId: "", timestamp: 1 }},
+          {{ taskId: "t", participant: "w", spawnId: "s", timestamp: "bad" }},
+          {{ taskId: "t", participant: "w", spawnId: "s", timestamp: 1, result: 42 }},
         ];
         records.forEach((record, index) => fs.writeFileSync(path.join(dir, `${{index}}.json`), JSON.stringify(record)));
         const diagnostics = records.map(() => takeTaskIntent(dir).diagnostic ?? "");
@@ -374,7 +382,7 @@ def test_invalid_submission_status_is_consumed_before_state_machine() -> None:
         import os from "node:os";
         import path from "node:path";
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agent-teams-invalid-submit-"));
-        fs.writeFileSync(path.join(dir, "bad.json"), JSON.stringify({{ taskId: "t", worker: "w", spawnId: "s", status: "bogus", timestamp: 1 }}));
+        fs.writeFileSync(path.join(dir, "bad.json"), JSON.stringify({{ taskId: "t", participant: "w", spawnId: "s", status: "bogus", timestamp: 1 }}));
         const result = takeTaskIntent(dir);
         console.log(JSON.stringify({{ intent: result.intent ?? null, diagnostic: result.diagnostic ?? "" }}));
         '''
@@ -387,12 +395,12 @@ def test_two_explicit_verify_failures_require_release_and_reassignment(tmp_path:
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner, sendLeaderMessage }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "gated", verify: "verify it" }}).task;
-        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        applyClaimIntent({{ taskId: task.id, participant: "w", spawnId: "s1", timestamp: 1 }});
         const outcomes = [{{ kind: "fail", detail: "one" }}, {{ kind: "fail", detail: "two" }}, {{ kind: "pass" }}];
         let calls = 0;
         setVerifyGateRunner(async () => outcomes[calls++]);
@@ -430,12 +438,12 @@ def test_twice_inconclusive_park_requires_release_and_reassignment(tmp_path: Pat
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner, sendLeaderMessage }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, updateTeammate, createTask, applyClaimIntent, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, updateAgent, createTask, applyClaimIntent, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "gated", verify: "verify it" }}).task;
-        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        applyClaimIntent({{ taskId: task.id, participant: "w", spawnId: "s1", timestamp: 1 }});
         const outcomes = [{{ kind: "inconclusive", detail: "one" }}, {{ kind: "inconclusive", detail: "two" }}, {{ kind: "pass" }}];
         let calls = 0;
         setVerifyGateRunner(async () => outcomes[calls++]);
@@ -455,7 +463,7 @@ def test_twice_inconclusive_park_requires_release_and_reassignment(tmp_path: Pat
         processTaskIntents();
         await pause();
         const callsAfterRejectedTake = calls;
-        updateTeammate("w", {{ reportSequenceEnded: true }});
+        updateAgent("w", {{ reportSequenceEnded: true }});
         // A message is now refused too, which is a stronger version of the old
         // property. It used to be delivered and merely not authorize anything;
         // with no assignment to write about, there is nothing it could do.
@@ -512,12 +520,12 @@ def test_missing_verdict_is_inconclusive() -> None:
 def test_successor_handoff_uses_archived_assignment_and_reports() -> None:
     payload = run_node(
         f'''\
-        import {{ resetState, registerTeammate, assignTeammate, receiveWorkerMessage, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, assignAgent, receiveWorkerMessage, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         import {{ buildSuccessorHandoff, directAssignment, resolveDirectResources }} from "{(SRC / "team-machine.ts").as_uri()}";
         resetState();
-        registerTeammate({{ name: "stalled", agent: "executor", spawnId: "s1", pid: 1, status: "stopped", isolation: "none", createdAt: 1, updatedAt: 1 }});
-        assignTeammate("stalled", {{ id: "direct:s1", kind: "direct", resources: ["firmware/sub-node"] }}, "old-task");
-        assignTeammate("stalled", undefined, undefined);
+        registerAgent({{ name: "stalled", role: "executor", spawnId: "s1", pid: 1, status: "stopped", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        assignAgent("stalled", {{ id: "direct:s1", kind: "direct", resources: ["firmware/sub-node"] }}, "old-task");
+        assignAgent("stalled", undefined, undefined);
         receiveWorkerMessage({{ id: "r1", type: "message", worker: "stalled", spawnId: "s1", body: "Found the radio recovery defect", status: "in_progress" }});
         const handoff = buildSuccessorHandoff(undefined, "stalled") ?? "";
         const successor = directAssignment(handoff, resolveDirectResources(undefined, "stalled"), "s2");
@@ -559,8 +567,8 @@ def test_fresh_reset_requires_the_emitting_child_and_is_single_flight() -> None:
         }});
         syncBuiltinESMExports();
         const {{ deliverFreshAssignment, spawnResident }} = await import("@fradser/pi-subagents");
-        spawnResident({{ workerName: "pending", onUpdate: () => {{}}, onExit: () => {{}} }});
-        spawnResident({{ workerName: "other", onUpdate: () => {{}}, onExit: () => {{}} }});
+        spawnResident({{ agentName: "pending", onUpdate: () => {{}}, onExit: () => {{}} }});
+        spawnResident({{ agentName: "other", onUpdate: () => {{}}, onExit: () => {{}} }});
         const promise = deliverFreshAssignment("pending", "new assignment");
         children[0].stdout.write(`${{JSON.stringify({{ type: "agent_settled" }})}}\\n${{JSON.stringify({{ type: "agent_settled" }})}}\\n`);
         const reset = commands.get(children[0]).find((command) => command.type === "new_session");
@@ -610,15 +618,15 @@ def test_rejected_cancelled_timed_out_and_closed_fresh_resets_never_prompt_old_s
           return child;
         }});
         syncBuiltinESMExports();
-        const {{ deliverFreshAssignment, sendWorkerSteer, spawnResident }} = await import("@fradser/pi-subagents");
+        const {{ deliverFreshAssignment, sendAgentSteer, spawnResident }} = await import("@fradser/pi-subagents");
         const outcomes = [];
         for (const mode of ["rejected", "cancelled", "timed-out", "closed"]) {{
-          spawnResident({{ workerName: mode, onUpdate: () => {{}}, onExit: () => {{}} }});
+          spawnResident({{ agentName: mode, onUpdate: () => {{}}, onExit: () => {{}} }});
           const child = children.at(-1);
           const promise = deliverFreshAssignment(mode, `${{mode}} assignment`);
           child.stdout.write(JSON.stringify({{ type: "agent_settled" }}) + "\\n");
           const reset = child.commands.find((command) => command.type === "new_session");
-          const guidanceAccepted = sendWorkerSteer(mode, `${{mode}} guidance`);
+          const guidanceAccepted = sendAgentSteer(mode, `${{mode}} guidance`);
           if (mode === "closed") child.emit("close", 1, null);
           else if (mode === "timed-out") mock.timers.tick(5_000);
           else child.stdout.write(JSON.stringify({{
@@ -674,7 +682,7 @@ def test_fresh_reset_failure_releases_work_without_delivering_queued_guidance(tm
         syncBuiltinESMExports();
         const {{ spawnResident }} = await import("@fradser/pi-subagents");
         const {{ initTeamMachine, assignExistingWork, sendLeaderMessage, shutdownTeamMachine }} = await import("{(SRC / "team-machine.ts").as_uri()}");
-        const {{ createTask, getTask, getTeammate, registerTeammate, resetState }} = await import("{(SRC / "state.ts").as_uri()}");
+        const {{ createTask, getTask, getAgent, registerAgent, resetState }} = await import("{(SRC / "state.ts").as_uri()}");
         const cwd = {str(tmp_path)!r};
         initTeamMachine({{ sessionManager: undefined, cwd }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
@@ -682,9 +690,9 @@ def test_fresh_reset_failure_releases_work_without_delivering_queued_guidance(tm
         for (const mode of ["rejected", "cancelled", "timed-out", "closed"]) {{
           const name = `worker-${{mode}}`;
           const workId = `work-${{mode}}`;
-          spawnResident({{ workerName: name, onUpdate: () => {{}}, onExit: () => {{}} }});
+          spawnResident({{ agentName: name, onUpdate: () => {{}}, onExit: () => {{}} }});
           const child = children.at(-1);
-          registerTeammate({{ name, agent: "reviewer", spawnId: `spawn-${{mode}}`, workId, pid: child.pid, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+          registerAgent({{ name, role: "reviewer", spawnId: `spawn-${{mode}}`, workId, pid: child.pid, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
           createTask({{ id: workId, subject: `${{mode}} assignment` }});
           const opened = assignExistingWork(workId, `session:${{name}}:spawn-${{mode}}`);
           child.stdout.write(JSON.stringify({{ type: "agent_settled" }}) + "\\n");
@@ -707,7 +715,7 @@ def test_fresh_reset_failure_releases_work_without_delivering_queued_guidance(tm
             guidance: guidance.ok ? guidance.outcome : "rejected",
             taskStatus: getTask(workId)?.status,
             taskReason: getTask(workId)?.result,
-            assignmentReleased: getTeammate(name)?.assignment === undefined,
+            assignmentReleased: getAgent(name)?.assignment === undefined,
             promptCount: child.commands.filter((command) => command.type === "prompt").length,
           }});
         }}
@@ -749,22 +757,22 @@ def test_unexpected_owner_execution_requires_a_fresh_session_before_recovery(tmp
         syncBuiltinESMExports();
         const {{ spawnResident }} = await import("@fradser/pi-subagents");
         const {{ applyProgress, initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, sendLeaderMessage, setVerifyGateRunner }} = await import("{(SRC / "team-machine.ts").as_uri()}");
-        const {{ resetState, registerTeammate, createDirectWork, getTask, getTeammate }} = await import("{(SRC / "state.ts").as_uri()}");
-        spawnResident({{ workerName: "w", onUpdate: () => {{}}, onExit: () => {{}} }});
+        const {{ resetState, registerAgent, createBoundWork, getTask, getAgent }} = await import("{(SRC / "state.ts").as_uri()}");
+        spawnResident({{ agentName: "w", onUpdate: () => {{}}, onExit: () => {{}} }});
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const taskId = "direct-work";
-        createDirectWork({{ id: taskId, subject: "gated", resources: ["firmware/direct"], verify: "verify", workerName: "w", assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/direct"] }} }});
+        createBoundWork({{ id: taskId, subject: "gated", resources: ["firmware/direct"], verify: "verify", holder: "w", assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/direct"] }} }});
         let release;
         setVerifyGateRunner(() => new Promise((resolve) => {{ release = () => resolve({{ kind: "pass" }}); }}));
         attemptSubmission("w", "s1", taskId, "completed", "result");
         processTaskIntents();
         await new Promise((resolve) => setImmediate(resolve));
         applyProgress("w", "s1", {{ text: "new execution", turns: 2, finalResponse: false }});
-        const firstAttempt = getTeammate("w")?.assignment?.id;
+        const firstAttempt = getAgent("w")?.assignment?.id;
         const recovery = sendLeaderMessage("w", "Recover invalidated review", {{ reopen: true, workId: taskId }});
-        const nextAttempt = getTeammate("w")?.assignment?.id;
+        const nextAttempt = getAgent("w")?.assignment?.id;
         child.stdout.write(JSON.stringify({{ type: "agent_settled" }}) + "\\n");
         await new Promise((resolve) => setImmediate(resolve));
         const reset = commands.find((command) => command.type === "new_session");
@@ -773,7 +781,7 @@ def test_unexpected_owner_execution_requires_a_fresh_session_before_recovery(tmp
         release();
         await new Promise((resolve) => setImmediate(resolve));
         setVerifyGateRunner(undefined);
-        const payload = {{ status: getTask(taskId)?.status, recovery: recovery.ok, resources: getTeammate("w")?.assignment?.resources, freshAttempt: nextAttempt !== firstAttempt, reset: Boolean(reset) }};
+        const payload = {{ status: getTask(taskId)?.status, recovery: recovery.ok, resources: getAgent("w")?.assignment?.resources, freshAttempt: nextAttempt !== firstAttempt, reset: Boolean(reset) }};
         shutdownTeamMachine();
         child.emit("close", 0, null);
         mock.restoreAll();
@@ -786,14 +794,14 @@ def test_unexpected_owner_execution_requires_a_fresh_session_before_recovery(tmp
 def test_superseded_direct_holder_retains_resources_until_cancellation_acknowledgement(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ initTeamMachine, shutdownTeamMachine, createBoardTask }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createDirectWork, activeAssignmentConflict, updateTeammate, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ initTeamMachine, shutdownTeamMachine, createCoordinatedTask }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerAgent, createBoundWork, activeAssignmentConflict, updateAgent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "direct", agent: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
-        const bound = createDirectWork({{ id: "direct-work", subject: "direct", resources: ["firmware/gated"], workerName: "direct", assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/gated"] }} }});
-        updateTeammate("direct", {{ assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/gated"], closed: true }} }});
-        const replacement = createBoardTask({{ subject: "replacement", resources: ["firmware/gated"], supersedes: ["direct-work"] }});
+        registerAgent({{ name: "direct", role: "reviewer", spawnId: "s1", pid: 1, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        const bound = createBoundWork({{ id: "direct-work", subject: "direct", resources: ["firmware/gated"], holder: "direct", assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/gated"] }} }});
+        updateAgent("direct", {{ assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/gated"], closed: true }} }});
+        const replacement = createCoordinatedTask({{ subject: "replacement", resources: ["firmware/gated"], supersedes: ["direct-work"] }});
         const conflict = activeAssignmentConflict(["firmware/gated/subdir"]);
         shutdownTeamMachine();
         console.log(JSON.stringify({{ bound: bound.ok, replacement: replacement.ok, conflict: conflict?.name ?? null }}));
@@ -805,21 +813,21 @@ def test_superseded_direct_holder_retains_resources_until_cancellation_acknowled
 def test_superseding_a_verifying_holder_routes_cancellation_without_waiting_for_gate(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ initTeamMachine, shutdownTeamMachine, createBoardTask, attemptSubmission, processTaskIntents, routePeerInboxes, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ initTeamMachine, shutdownTeamMachine, createCoordinatedTask, attemptSubmission, processTaskIntents, routePeerInboxes, setVerifyGateRunner }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerAgent, createTask, applyClaimIntent, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         import {{ inboxPath, stateFilePath, readJsonlBatch }} from "{(SRC / "statefile.ts").as_uri()}";
         const root = {str(tmp_path)!r};
         initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const old = createTask({{ subject: "old", verify: "verify" }}).task;
-        applyClaimIntent({{ taskId: old.id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        applyClaimIntent({{ taskId: old.id, participant: "w", spawnId: "s1", timestamp: 1 }});
         let release;
         setVerifyGateRunner(() => new Promise((resolve) => {{ release = () => resolve({{ kind: "pass" }}); }}));
         attemptSubmission("w", "s1", old.id, "completed", "result");
         processTaskIntents();
         await new Promise((resolve) => setImmediate(resolve));
-        const replacement = createBoardTask({{ subject: "replacement", supersedes: [old.id] }});
+        const replacement = createCoordinatedTask({{ subject: "replacement", supersedes: [old.id] }});
         routePeerInboxes();
         const messages = readJsonlBatch(inboxPath(stateFilePath(undefined, root), "w"), 0).records;
         release();
@@ -836,14 +844,14 @@ def test_unexpected_execution_park_rejects_further_completed_submissions(tmp_pat
     payload = run_node(
         f'''\
         import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, routePeerInboxes, setVerifyGateRunner, applyProgress }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createDirectWork, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ resetState, registerAgent, createBoundWork, getTask, takeTask }} from "{(SRC / "state.ts").as_uri()}";
         import {{ inboxPath, stateFilePath, readJsonlBatch }} from "{(SRC / "statefile.ts").as_uri()}";
         const root = {str(tmp_path)!r};
         initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const taskId = "parked-work";
-        createDirectWork({{ id: taskId, subject: "parked work", resources: ["firmware/direct"], verify: "verify", workerName: "w", assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/direct"] }} }});
+        createBoundWork({{ id: taskId, subject: "parked work", resources: ["firmware/direct"], verify: "verify", holder: "w", assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/direct"] }} }});
         let releaseGate;
         setVerifyGateRunner(() => new Promise((resolve) => {{ releaseGate = () => resolve({{ kind: "pass" }}); }}));
         attemptSubmission("w", "s1", taskId, "completed", "first");
@@ -888,18 +896,18 @@ def test_direct_revision_includes_task_details_and_verify_criteria(tmp_path: Pat
         syncBuiltinESMExports();
         const {{ spawnResident }} = await import("@fradser/pi-subagents");
         const {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner }} = await import("{(SRC / "team-machine.ts").as_uri()}");
-        const {{ resetState, registerTeammate, createDirectWork, createTask, getTask }} = await import("{(SRC / "state.ts").as_uri()}");
-        spawnResident({{ workerName: "w", onUpdate: () => {{}}, onExit: () => {{}} }});
+        const {{ resetState, registerAgent, createBoundWork, createTask, getTask }} = await import("{(SRC / "state.ts").as_uri()}");
+        spawnResident({{ agentName: "w", onUpdate: () => {{}}, onExit: () => {{}} }});
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const taskId = "revised-work";
-        createDirectWork({{
+        createBoundWork({{
           id: taskId,
           subject: "build new parser",
           resources: ["firmware/parser"],
           verify: "Every token must parse cleanly",
-          workerName: "w",
+          holder: "w",
           assignment: {{ id: "direct:s1", kind: "direct", resources: ["firmware/parser"] }},
         }});
         getTask(taskId).description = "Detailed parser requirements from spec.";
@@ -958,20 +966,20 @@ def test_pending_shutdown_rejects_late_passing_gate_completion(tmp_path: Path) -
             terminateChildProcess: async () => false,
           }},
         }});
-        const {{ initTeamMachine, shutdownTeamMachine, shutdownTeammate, spawnTeammate, attemptSubmission, processTaskIntents, setVerifyGateRunner }} = await import("{(SRC / "team-machine.ts").as_uri()}");
+        const {{ initTeamMachine, shutdownTeamMachine, shutdownAgent, spawnAgent, attemptSubmission, processTaskIntents, setVerifyGateRunner }} = await import("{(SRC / "team-machine.ts").as_uri()}");
         const {{ resetState, getTask, createTask, takeTask }} = await import("{(SRC / "state.ts").as_uri()}");
         const root = {str(tmp_path)!r};
         resetState();
         initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
-        const spawned = spawnTeammate({{ name: "w", agent: "test-agent", definition: {{ description: "test", prompt: "prompt", tools: [] }} }});
+        const spawned = spawnAgent({{ name: "w", role: "test-agent", definition: {{ description: "test", prompt: "prompt", tools: [] }} }});
         const task = createTask({{ subject: "shutdown work", resources: ["src/work"], verify: "must pass" }}).task;
         takeTask(task.id, "w");
         let gateResolve;
         setVerifyGateRunner(() => new Promise((resolve) => {{ gateResolve = resolve; }}));
-        attemptSubmission("w", spawned.teammate.spawnId, task.id, "completed", "result");
+        attemptSubmission("w", spawned.agent.spawnId, task.id, "completed", "result");
         processTaskIntents();
         await new Promise((resolve) => setImmediate(resolve));
-        const shutdownResult = await shutdownTeammate("w");
+        const shutdownResult = await shutdownAgent("w");
         gateResolve({{ kind: "pass" }});
         await new Promise((resolve) => setImmediate(resolve));
         const taskState = getTask(task.id);
@@ -992,13 +1000,13 @@ def test_pending_shutdown_rejects_late_passing_gate_completion(tmp_path: Path) -
 def test_invalidated_holding_aborts_its_in_flight_reviewer(tmp_path: Path) -> None:
     payload = run_node(
         f'''\
-        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner, onBoardTaskTaken }} from "{(SRC / "team-machine.ts").as_uri()}";
-        import {{ resetState, registerTeammate, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
+        import {{ initTeamMachine, shutdownTeamMachine, attemptSubmission, processTaskIntents, setVerifyGateRunner, onTaskTaken }} from "{(SRC / "team-machine.ts").as_uri()}";
+        import {{ resetState, registerAgent, createTask, applyClaimIntent, getTask, takeTask, completeTaskWithOutcome }} from "{(SRC / "state.ts").as_uri()}";
         initTeamMachine({{ sessionManager: undefined, cwd: {str(tmp_path)!r} }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
         resetState();
-        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "reviewer", spawnId: "s1", pid: 1, status: "idle", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "gated", verify: "verify" }}).task;
-        applyClaimIntent({{ taskId: task.id, worker: "w", spawnId: "s1", timestamp: 1 }});
+        applyClaimIntent({{ taskId: task.id, participant: "w", spawnId: "s1", timestamp: 1 }});
         let signal;
         let settle;
         setVerifyGateRunner((input) => {{ signal = input.signal; return new Promise((resolve) => {{ settle = resolve; }}); }});
@@ -1015,12 +1023,12 @@ def test_invalidated_holding_aborts_its_in_flight_reviewer(tmp_path: Path) -> No
         processTaskIntents();
         await new Promise((resolve) => setImmediate(resolve));
         const afterRelease = signal ? signal.aborted : null;
-        const failed = {{ ok: getTask(task.id)?.status === "pending" }};
+        const failed = {{ ok: getTask(task.id)?.status === "recovery_hold" }};
         // Retrying needs a stated reason, and the re-take is what the coordinator
         // reacts to on `pi-tasks:task-taken`.
         const silent = takeTask(task.id, "w");
         const released = takeTask(task.id, "w", {{ reason: "scope changed" }});
-        onBoardTaskTaken({{ id: task.id }});
+        onTaskTaken({{ id: task.id }});
         // A late verdict from the aborted reviewer must not complete the task.
         settle({{ kind: "pass" }});
         await new Promise((resolve) => setImmediate(resolve));

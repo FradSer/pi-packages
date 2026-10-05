@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from test_teammate_package import SRC, run_node
+from test_agent_package import SRC, run_node
 
 
 def machine_case(tmp_path: Path, script: str, owned: bool = True) -> dict[str, object]:
@@ -15,8 +15,8 @@ def machine_case(tmp_path: Path, script: str, owned: bool = True) -> dict[str, o
         import {{ initTeamMachine, shutdownTeamMachine, applyProgress,
           attemptSubmission, processTaskIntents, drainTeammateOutboxes,
           hasUnfinalizedReport, setVerifyGateRunner }} from "{(SRC / 'team-machine.ts').as_uri()}";
-        import {{ resetState, registerTeammate, createTask, takeTask,
-          getTeammate, getTask, getState, revertInFlightAttempt, reclaimDirectWork }} from "{(SRC / 'state.ts').as_uri()}";
+        import {{ resetState, registerAgent, createTask, takeTask,
+          getAgent, getTask, getState, revertUndeliveredTake, bindTask }} from "{(SRC / 'state.ts').as_uri()}";
         import {{ stateFilePath, inboxPath, workerOutboxPath, appendWorkerEvent,
           readJsonlBatch }} from "{(SRC / 'statefile.ts').as_uri()}";
         import {{ publishTeamHost, registerComposedTools }} from "./tests/composed-tools.ts";
@@ -25,7 +25,7 @@ def machine_case(tmp_path: Path, script: str, owned: bool = True) -> dict[str, o
         resetState();
         initTeamMachine({{ cwd: root }}, {{ sendUpdate: r => reports.push(r), notifyChange() {{}} }});
         try {{
-          registerTeammate({{ name: "reviewer", agent: "reviewer", workId: "work:review",
+          registerAgent({{ name: "reviewer", role: "reviewer", workId: "work:review",
             spawnId: "spawn-1", pid: 0, status: "working", isolation: "none",
             sequenceEnded: false, createdAt: 1, updatedAt: 1 }});
           let task, attempt;
@@ -34,7 +34,7 @@ def machine_case(tmp_path: Path, script: str, owned: bool = True) -> dict[str, o
             assert.equal(created.ok, true);
             task = created.task;
             takeTask(task.id, "reviewer");
-            attempt = getTeammate("reviewer").assignment.id;
+            attempt = getAgent("reviewer").assignment.id;
           }}
           const stateFile = stateFilePath(undefined, root);
           appendWorkerEvent(workerOutboxPath(stateFile, "reviewer", "spawn-1"), {{
@@ -94,7 +94,7 @@ def test_post_completion_event_does_not_create_work(tmp_path: Path) -> None:
         const receipt = await call("message", { to: "session:reviewer:spawn-1", body: "Acceptance recorded", kind: "inform" });
         assert.equal(JSON.stringify(getState().tasks), before);
         console.log(JSON.stringify({ receipt: receipt.content[0].text, outcome: receipt.details.outcome,
-          assignment: getTeammate("reviewer").assignment ?? null }));
+          assignment: getAgent("reviewer").assignment ?? null }));
     ''')
     assert payload["assignment"] is None
     assert payload["outcome"] == "not-sent"
@@ -118,7 +118,7 @@ def test_communication_cannot_assign_or_retry_work(tmp_path: Path, owned: bool) 
           unchanged: JSON.stringify(getState().tasks) === before,
           // The mail is still delivered; refusing to act on it is not refusing it.
           delivered: message.details.outcome !== "not-sent",
-          assignment: getTeammate("reviewer").assignment ?? null,
+          assignment: getAgent("reviewer").assignment ?? null,
         }));
     ''', owned=owned)
     assert payload["unchanged"] is True
@@ -145,12 +145,12 @@ def test_failure_settles_before_release_and_reports_once(tmp_path: Path, channel
         const before = getTask(task.id).status;
         settle(); processTaskIntents(); settle();
         console.log(JSON.stringify({{ before, after: getTask(task.id).status, evidence: getTask(task.id).result,
-          held: getTask(task.id).recoveryRequired === true,
+          held: getTask(task.id).status === "recovery_hold",
           reports: reports.filter(r => r.finished), reminders: reminders(), attempt }}));
     ''')
     assert payload["before"] == "in_progress"
-    assert payload["after"] == "pending"
-    # The failure is retained as evidence in `result`, the field the board reads and
+    assert payload["after"] == "recovery_hold"
+    # The failure is retained as evidence in `result`, the field the task store reads and
     # shows. It used to be written to `errorMessage`, which nothing ever read.
     assert payload["evidence"] == "Provider unavailable"
     assert payload["held"] is True
@@ -160,11 +160,11 @@ def test_failure_settles_before_release_and_reports_once(tmp_path: Path, channel
     assert payload["reports"][0]["assignmentId"] == payload["attempt"]
 
 
-@pytest.mark.parametrize("kind", ["direct", "board"])
+@pytest.mark.parametrize("kind", ["direct", "task"])
 @pytest.mark.parametrize("channel", ["automatic", "explicit"])
 def test_superseded_results_use_one_submission_path(tmp_path: Path, kind: str, channel: str) -> None:
     payload = machine_case(tmp_path, f'''
-        getTeammate("reviewer").assignment.kind = {json.dumps(kind)};
+        getAgent("reviewer").assignment.kind = {json.dumps(kind)};
         const replacement = createTask({{ subject: "Replacement review", supersedes: [task.id] }}).task;
         const submit = (status) => {{
           if ({json.dumps(channel)} === "explicit") {{
@@ -186,7 +186,7 @@ def test_superseded_results_use_one_submission_path(tmp_path: Path, kind: str, c
         settle(); processTaskIntents();
         console.log(JSON.stringify({{ rejected, beforeSettlement, owner: getTask(task.id).claimedBy ?? null,
           state: getTask(task.id).status, replacement: getTask(replacement.id).status,
-          assignment: getTeammate("reviewer").assignment ?? null }}));
+          assignment: getAgent("reviewer").assignment ?? null }}));
     ''')
     assert payload["rejected"]["owner"] == "reviewer"
     assert payload["rejected"]["reports"] == []
@@ -207,7 +207,7 @@ def test_historical_terminal_record_does_not_announce_acceptance(tmp_path: Path)
         drainTeammateOutboxes();
         console.log(JSON.stringify({ reports: reports.filter(r => r.finished),
           historical: getState().leaderMailbox.find(r => r.id === "historical")?.archived,
-          assignment: getTeammate("reviewer").assignment ?? null }));
+          assignment: getAgent("reviewer").assignment ?? null }));
     ''', owned=False)
     assert payload == {"reports": [], "historical": True, "assignment": None}
 
@@ -215,11 +215,11 @@ def test_historical_terminal_record_does_not_announce_acceptance(tmp_path: Path)
 def test_stale_submission_cannot_finish_reassigned_work(tmp_path: Path) -> None:
     payload = machine_case(tmp_path, '''
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Old attempt evidence");
-        revertInFlightAttempt(task.id, "New attempt requested");
+        revertUndeliveredTake(task.id, "reviewer", "New attempt requested");
         takeTask(task.id, "reviewer");
-        const newAttempt = getTeammate("reviewer").assignment.id;
+        const newAttempt = getAgent("reviewer").assignment.id;
         processTaskIntents(); settle();
-        console.log(JSON.stringify({ state: getTask(task.id).status, attempt: getTeammate("reviewer").assignment?.id,
+        console.log(JSON.stringify({ state: getTask(task.id).status, attempt: getAgent("reviewer").assignment?.id,
           newAttempt, reports: reports.filter(r => r.finished) }));
     ''')
     assert payload["state"] == "in_progress"
@@ -233,7 +233,7 @@ def test_duplicate_failure_does_not_block_later_attempt(tmp_path: Path) -> None:
         processTaskIntents();
         attemptSubmission("reviewer", "spawn-1", task.id, "failed", "Duplicate failure");
         settle();
-        reclaimDirectWork(task.id, "reviewer", { id: "attempt-2", kind: "direct", resources: [] }, "pending");
+        bindTask(task.id, "reviewer", { id: "attempt-2", kind: "direct", resources: [] }, { from: ["recovery_hold"] });
         applyProgress("reviewer", "spawn-1", { text: "", turns: 2, finalResponse: false });
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Recovered result");
         processTaskIntents(); settle();
@@ -271,7 +271,7 @@ def test_ordinary_mail_does_not_unpark_verification(tmp_path: Path, verdict: str
           steerRefused: steer.details.ok === false,
           state: getTask(task.id).status,
           owner: getTask(task.id).claimedBy ?? null,
-          held: getTask(task.id).recoveryRequired === true,
+          held: getTask(task.id).status === "recovery_hold",
           feedback: reminders().map(r => r.body),
         }}));
     ''')
@@ -279,7 +279,7 @@ def test_ordinary_mail_does_not_unpark_verification(tmp_path: Path, verdict: str
     assert payload == {
         "reviews": 2,
         "steerRefused": True,
-        "state": "pending",
+        "state": "recovery_hold",
         "owner": None,
         "held": True,
     }
@@ -291,7 +291,7 @@ def test_ordinary_mail_does_not_unpark_verification(tmp_path: Path, verdict: str
 
 def test_archived_result_is_not_returned_as_accepted_evidence(tmp_path: Path) -> None:
     payload = machine_case(tmp_path, '''
-        revertInFlightAttempt(task.id, "Released before completion");
+        revertUndeliveredTake(task.id, "reviewer", "Released before completion");
         appendWorkerEvent(workerOutboxPath(stateFile, "reviewer", "spawn-1"), {
           id: "late", type: "message", worker: "reviewer", spawnId: "spawn-1",
           assignmentId: attempt, status: "completed", body: "Unaccepted evidence", timestamp: 3,
@@ -310,7 +310,7 @@ def test_archived_result_is_not_returned_as_accepted_evidence(tmp_path: Path) ->
 
 def test_gate_delays_automatic_completion_report(tmp_path: Path) -> None:
     payload = machine_case(tmp_path, '''
-        getTeammate("reviewer").assignment.kind = "direct";
+        getAgent("reviewer").assignment.kind = "direct";
         getTask(task.id).verify = "Review result";
         let pass;
         setVerifyGateRunner(() => new Promise(resolve => { pass = () => resolve({ kind: "pass" }); }));
@@ -333,44 +333,51 @@ def test_gate_delays_automatic_completion_report(tmp_path: Path) -> None:
 def test_agent_tool_guidance_explains_push_delivery(tmp_path: Path) -> None:
     """The waiting discipline belongs to the tool that starts a child.
 
-    A delegation's result arrives without being asked for, so a model that polls
-    or sleeps spends a turn to learn what was already delivered. The `agent` tool
-    is now @fradser/pi-subagents', so this asserts on the tool that owns the rule
-    rather than on the package that used to.
+    A delegation's result arrives without being asked for. The arithmetic
+    transcript showed that automatic-delivery wording alone did not prevent
+    caller-side polling, sleeps and duplicate starts. The updated requirement
+    in subagents/features/agent-usage.feature makes the dependent-turn action
+    and excluded waiting shortcuts explicit.
     """
     payload = machine_case(tmp_path, '''
-        const tool = tools.get("agent");
+        // The push-delivery contract now lives where the family is described: the
+        // intent namespace instructions plus every intent tool description.
+        const family = [...tools.values()].filter((tool) => tool.name.startsWith("agent_"));
         console.log(JSON.stringify({
-          guidelines: tool.promptGuidelines ?? [],
-          description: tool.description,
+          guidelines: family.flatMap((tool) => tool.promptGuidelines ?? []),
+          description: [...family.map((tool) => tool.description ?? ""), ...family.map((tool) => tool.namespace?.instructions ?? "")].join(" "),
         }));
     ''', owned=False)
     guidance = " ".join(payload["guidelines"]) + " " + payload["description"]
     guidance = " ".join(guidance.split()).lower()
     assert "automatically" in guidance
     assert "end the turn" in guidance or "ending the turn" in guidance
-    # Polling and sleeping are the two failure modes worth naming explicitly.
-    assert "poll" in guidance
     assert "inspect" in guidance
+    assert "asynchronously" in guidance
+    assert "without polling" in guidance
+    assert "sleep" in guidance
+    assert "duplicate starts" in guidance
+    assert "explicit user request" in guidance
 
 
 def test_work_list_exposes_accepted_evidence_in_model_content(tmp_path: Path) -> None:
-    """The list text is one line per task; the evidence lives in `details`.
+    """The list text is one line per task, and a list carries no evidence.
 
-    That is the new contract: a bounded line keeps the transcript readable, and
-    the complete result stays available to a caller that asks for it. Truncating
-    evidence out of the *details* would be a real loss, so that is asserted
-    directly rather than through a rendered row.
+    A list is bounded, so the body and the evidence stay behind `get_task`.
+    Dropping evidence out of `get_task` would be a real loss, so that is
+    asserted directly rather than through a rendered row.
     """
     payload = machine_case(tmp_path, '''
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Audit evidence");
         processTaskIntents(); settle();
-        const listed = await call("task", { action: "list" });
-        console.log(JSON.stringify({ content: listed.content[0].text, tasks: listed.details.tasks }));
+        const listed = await call("list_tasks", {});
+        const read = await call("get_task", { id: task.id });
+        console.log(JSON.stringify({ content: listed.content[0].text, tasks: listed.details.tasks, result: read.details.task.result }));
     ''')
     assert "work:review" in payload["content"]
     assert "Audit evidence" not in payload["content"], "the row is one line, not an evidence dump"
-    assert payload["tasks"][0]["result"] == "Audit evidence"
+    assert "result" not in payload["tasks"][0], "a bounded list omits the evidence"
+    assert payload["result"] == "Audit evidence"
 
 
 def test_work_list_bounds_long_evidence_without_losing_details(tmp_path: Path) -> None:
@@ -378,10 +385,11 @@ def test_work_list_bounds_long_evidence_without_losing_details(tmp_path: Path) -
         const evidence = "Result evidence\\n".repeat(600);
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", evidence);
         processTaskIntents(); settle();
-        const listed = await call("task", { action: "list" });
-        // The details carry the whole result whatever its length, which is what
-        // makes the one-line row safe.
-        assert.equal(listed.details.tasks[0].result, evidence);
+        const listed = await call("list_tasks", {});
+        const read = await call("get_task", { id: task.id });
+        // Reading one task is what pays for its evidence, and it pays in full
+        // whatever its length, which is what makes the bounded list safe.
+        assert.equal(read.details.task.result, evidence);
         console.log(JSON.stringify({ content: listed.content[0].text, count: listed.details.count }));
     ''')
     assert payload["content"].count("\\n") == payload["count"] - 1

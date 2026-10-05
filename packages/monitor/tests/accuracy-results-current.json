@@ -1,0 +1,663 @@
+{
+  "suite": "real-process accuracy matrix",
+  "cases": 107,
+  "singleMonitorCases": 83,
+  "sharedManagerCases": 24,
+  "seededRepeatCases": 16,
+  "uniqueMonitorIds": 107,
+  "observed": [
+    {
+      "name": "stdout-success-\"\\n\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "stdout-failure-\"\\n\"",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "stdout-failure-\"\\r\\n\"",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "stdout-success-\"\\r\\n\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "stderr-success-\"\\n\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "stdout-failure-\"\"",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "stdout-success-\"\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "stderr-failure-\"\\n\"",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "stderr-failure-\"\"",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "stderr-failure-\"\\r\\n\"",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "stderr-success-\"\\r\\n\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "stderr-success-\"\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "near-\"NOT_DONE\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"DONEISH\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"almost DONE\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"DONE 10%\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"DONE_\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"DONE failed\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"undone\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\" DONE\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"DONE \"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"done\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"progress: success\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"Done\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"100%\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"0 errors\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "near-\"\\u001b[32mDONE\\u001b[0m\"",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "empty-zero-exit",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "nonzero-no-result",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "failure-precedes-zero",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "success-precedes-nonzero",
+      "passed": true,
+      "expected": "success",
+      "actual": "success",
+      "limit": "A matched terminal contract takes precedence over the shell exit code; a sentinel must represent the intended outcome."
+    },
+    {
+      "name": "same-line-failure-wins",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "first-failure-line-wins",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "unicode-capture",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "first-success-line-wins",
+      "passed": true,
+      "expected": "success",
+      "actual": "success",
+      "limit": "The first matching physical line wins; later failure lines do not revoke an earlier success."
+    },
+    {
+      "name": "ansi-explicit-contract",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "split-sentinel-1",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "split-sentinel-10",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "split-sentinel-45",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "split-sentinel-90",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "split-invalidating-suffix-1",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "split-invalidating-suffix-10",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "split-invalidating-suffix-45",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "split-invalidating-suffix-90",
+      "passed": true,
+      "expected": "result_missing",
+      "actual": "result_missing"
+    },
+    {
+      "name": "json-{\"ok\":true,\"count\":3}",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "json-[1,\"界\"]",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "json-\"hello\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "idle-prefix-design-limit",
+      "passed": true,
+      "expected": "success",
+      "actual": "success",
+      "limit": "An unterminated prefix idle for more than 150 ms may match before its suffix arrives."
+    },
+    {
+      "name": "json-false",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "json-0",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "json-null",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "invalid-json-\"\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "invalid-json-\"{\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "invalid-json-\"{bad:true}\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "invalid-json-\"undefined\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "invalid-json-\"[1,]\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "invalid-json-\"NaN\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "capture-aggregate",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "physical-line-over-budget",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "json-value-clipping",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "physical-line-over-budget-unicode",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "burst-\"\\n\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "burst-\"\"",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "timeout-diagnostic-tail",
+      "passed": true,
+      "expected": "timeout",
+      "actual": "timeout"
+    },
+    {
+      "name": "seeded-first-match-0",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "redos-timeout",
+      "passed": true,
+      "expected": "timeout",
+      "actual": "timeout"
+    },
+    {
+      "name": "stop-diagnostic-tail",
+      "passed": true,
+      "expected": "stopped",
+      "actual": "stopped"
+    },
+    {
+      "name": "shutdown-diagnostic-tail",
+      "passed": true,
+      "expected": "stopped",
+      "actual": "stopped"
+    },
+    {
+      "name": "seeded-first-match-4",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "seeded-first-match-3",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "seeded-first-match-2",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "seeded-first-match-1",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "seeded-first-match-6",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "seeded-first-match-8",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "seeded-first-match-5",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "seeded-first-match-7",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "seeded-first-match-11",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "seeded-first-match-9",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "seeded-first-match-10",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "seeded-first-match-12",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "seeded-first-match-15",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "seeded-first-match-14",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "seeded-first-match-13",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "shared-manager-0-0:0",
+      "passed": true,
+      "expected": "stopped",
+      "actual": "stopped"
+    },
+    {
+      "name": "shared-manager-0-0:1",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-0-0:2",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "shared-manager-0-0:3",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-0-0:4",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "shared-manager-0-0:5",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-0-0:6",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "shared-manager-0-0:7",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-1-1:0",
+      "passed": true,
+      "expected": "stopped",
+      "actual": "stopped"
+    },
+    {
+      "name": "shared-manager-1-1:1",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-1-1:2",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "shared-manager-1-1:3",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-1-1:4",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "shared-manager-1-1:5",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-1-1:6",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "shared-manager-1-1:7",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-2-2:0",
+      "passed": true,
+      "expected": "stopped",
+      "actual": "stopped"
+    },
+    {
+      "name": "shared-manager-2-2:1",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-2-2:2",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "shared-manager-2-2:3",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-2-2:4",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "shared-manager-2-2:5",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    },
+    {
+      "name": "shared-manager-2-2:6",
+      "passed": true,
+      "expected": "failure",
+      "actual": "failure"
+    },
+    {
+      "name": "shared-manager-2-2:7",
+      "passed": true,
+      "expected": "success",
+      "actual": "success"
+    }
+  ],
+  "executionHistory": {
+    "initialSingleMonitorPassingExecutions": 83,
+    "previous107CasePassingRounds": 3,
+    "previous107CaseFailingRounds": 1,
+    "previousFailureDetails": "Original verbose pytest output was truncated. At least one case failed; case identity and failed-case count are unknown. Subsequent three rounds passed.",
+    "currentPassingExecutions": 107,
+    "totalExecutionsIncludingFailingRound": 618
+  }
+}

@@ -1,17 +1,17 @@
 /**
  * Shared session files for the leader-owned snapshot, teammate outboxes and
- * inboxes. The persistent task board lives in @fradser/pi-tasks; `sessionKey` comes from
+ * inboxes. The persistent task storage lives in @fradser/pi-tasks; `sessionKey` comes from
  * pi-kit so both packages agree on which session a directory belongs to.
  *
  * Runtime layout (removed at session shutdown):
  *   ~/.pi/agent/teammate/<sessionKey>/state.json      leader-owned snapshot
  *   ~/.pi/agent/teammate/<sessionKey>/events/*.jsonl  per-spawn report outboxes
  *   ~/.pi/agent/teammate/<sessionKey>/mail/*.jsonl    peer inbox files
- *   ~/.pi/agent/teammate/<sessionKey>/roster.json     living teammates, worker-readable
+ *   ~/.pi/agent/teammate/<sessionKey>/roster.json     living agents, worker-readable
  *
- * Concurrency: the parent is the sole writer of state.json and board.json
+ * Concurrency: the parent is the sole writer of state.json and tasks.json
  * (atomic tmp+rename). Teammates append only to their own outbox, append to
- * recipient inboxes, and express board intent through exclusive-create files.
+ * recipient inboxes, and express tasks intent through exclusive-create files.
  */
 
 import * as fs from "node:fs";
@@ -62,17 +62,17 @@ export function appendInboxMessage(file: string, message: { id: string; from: st
   appendJsonlLine(file, message, { label: "Message" });
 }
 
-/** Publish the worker-readable roster of living teammates. */
-export function writeRoster(file: string, teammates: Array<{ name: string; agent: string; spawnId?: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }>): void {
+/** Publish the worker-readable roster of living agents. */
+export function writeRoster(file: string, agents: Array<{ name: string; role: string; spawnId?: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }>): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  writeJsonAtomic(file, { teammates });
+  writeJsonAtomic(file, { agents });
 }
 
 /** Read the roster from inside a teammate process; unknown roster = empty. */
-export function readRoster(file: string): Array<{ name: string; agent: string; spawnId?: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }> {
+export function readRoster(file: string): Array<{ name: string; role: string; spawnId?: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }> {
   try {
-    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as { teammates?: Array<{ name: string; agent: string; spawnId?: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }> };
-    return Array.isArray(parsed.teammates) ? parsed.teammates : [];
+    const parsed = JSON.parse(fs.readFileSync(file, "utf-8")) as { agents?: Array<{ name: string; role: string; spawnId?: string; status: string; tools?: string[]; currentTaskId?: string; assignment?: import("./types.ts").WorkerAssignment }> };
+    return Array.isArray(parsed.agents) ? parsed.agents : [];
   } catch {
     return [];
   }
@@ -108,7 +108,7 @@ export function removeSessionStateDir(sessionFile: string | undefined, cwd: stri
 }
 
 /**
- * Sweep runtime dirs whose last write is older than maxAgeMs. Board dirs are
+ * Sweep runtime dirs whose last write is older than maxAgeMs. Tasks dirs are
  * never swept. Called on session_start so abandoned sessions never pile up.
  */
 export function cleanupExpiredStateDirs(maxAgeMs: number): number {

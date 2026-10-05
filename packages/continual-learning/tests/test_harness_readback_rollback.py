@@ -19,7 +19,7 @@ def test_readback_failure_restores_only_identifiable_parent_write(tmp_path: Path
     external=' {"rules":[{"id":"external","text":"topic","instructions":"External edit"}]}\n'
     result=run_bun(f'''
       process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path/'agent'))};
-      import {{mock}} from 'bun:test';import fs from 'node:fs';import fsp from 'node:fs/promises';
+      import {{mock}} from 'bun:test';import fs from 'node:fs';import fsp from 'node:fs/promises';import {{createHash}} from 'node:crypto';
       const target={json.dumps(str(target))};let written=false,failed=false;
       const realRename=fsp.rename.bind(fsp),realReadFile=fsp.readFile.bind(fsp);
       const patched={{...fsp,
@@ -37,8 +37,10 @@ def test_readback_failure_restores_only_identifiable_parent_write(tmp_path: Path
       const {{applyHarnessOps,applyHarnessConsolidationPlan}}=await import('{CONSOLIDATION}');
       const operations=[{{op:'addRule',rule:{json.dumps(rule())},cases:{json.dumps(cases())}}}];
       const validationOptions={{automatic:true,snapshot:{json.dumps(snapshot())},evidence:{json.dumps(evidence())}}};
+      const snapshotPath={json.dumps(str(run/'snapshot.json'))};fs.writeFileSync(snapshotPath,JSON.stringify(validationOptions.snapshot));
+      const snapshotDigest=createHash('sha256').update(fs.readFileSync(snapshotPath)).digest('hex');
       const result={json.dumps(pipeline)}?await applyHarnessConsolidationPlan({{
-        target,run:{{manifest:{{cwd:{json.dumps(str(project))},runDir:{json.dumps(str(run))},runId:'r',scopeDigest:'s',snapshotDigest:'d'}}}},
+        target,run:{{manifest:{{cwd:{json.dumps(str(project))},runDir:{json.dumps(str(run))},runId:'r',scopeDigest:'s',snapshotPath,snapshotDigest}}}},
         plan:{{kind:'harness-consolidation-plan',operations,evidence:validationOptions.evidence}},validationOptions
       }}):await applyHarnessOps(target,operations,validationOptions);
       console.log(JSON.stringify({{result,failed,bytes:fs.existsSync(target)?fs.readFileSync(target,'utf8'):null,postReceipt:fs.existsSync({json.dumps(str(run/'harness-post-receipt.json'))})}}));

@@ -1,0 +1,744 @@
+{
+  "method": "Native offline Pi provider contexts. Local tokenizer estimates, not billing or real-model evaluations. Same explicit deadlines and required complete JSON. Native-envelope removes eligible success metadata only. Batch runs eight jobs in one codemode call, validates terminal integrity and returns all required payloads; no lossy summary.",
+  "experiment": "batch-full-payload",
+  "cases": [
+    {
+      "name": "quick-small",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 8,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 713,
+        "o200k_base": 721
+      },
+      "final_request": {
+        "utf8_bytes": 4770,
+        "cl100k_base": 1249,
+        "o200k_base": 1249
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 34686,
+        "cl100k_base": 8829,
+        "o200k_base": 8865
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1119,
+        "cl100k_base": 367,
+        "o200k_base": 367
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 35805,
+        "cl100k_base": 9196,
+        "o200k_base": 9232
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 273,
+        "cl100k_base": 89,
+        "o200k_base": 89
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1065,
+        "cl100k_base": 353,
+        "o200k_base": 353
+      },
+      "route": "bash",
+      "executed_commands": 8,
+      "provider_requests": 9,
+      "terminal_content_sha256": [
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e"
+      ]
+    },
+    {
+      "name": "quick-small",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 8,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 992,
+        "o200k_base": 1006
+      },
+      "final_request": {
+        "utf8_bytes": 7155,
+        "cl100k_base": 1760,
+        "o200k_base": 1766
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 51147,
+        "cl100k_base": 12384,
+        "o200k_base": 12474
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1951,
+        "cl100k_base": 551,
+        "o200k_base": 551
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 53098,
+        "cl100k_base": 12935,
+        "o200k_base": 13025
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 441,
+        "cl100k_base": 137,
+        "o200k_base": 137
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1897,
+        "cl100k_base": 537,
+        "o200k_base": 537
+      },
+      "route": "monitor",
+      "executed_commands": 8,
+      "provider_requests": 9,
+      "terminal_content_sha256": [
+        "ede7b8b923eaefd0f9d68c6070049fb5344d017e0bbb3898e1342c9c055eb1bc",
+        "ede7b8b923eaefd0f9d68c6070049fb5344d017e0bbb3898e1342c9c055eb1bc",
+        "ede7b8b923eaefd0f9d68c6070049fb5344d017e0bbb3898e1342c9c055eb1bc",
+        "ede7b8b923eaefd0f9d68c6070049fb5344d017e0bbb3898e1342c9c055eb1bc",
+        "ede7b8b923eaefd0f9d68c6070049fb5344d017e0bbb3898e1342c9c055eb1bc",
+        "ede7b8b923eaefd0f9d68c6070049fb5344d017e0bbb3898e1342c9c055eb1bc",
+        "ede7b8b923eaefd0f9d68c6070049fb5344d017e0bbb3898e1342c9c055eb1bc",
+        "ede7b8b923eaefd0f9d68c6070049fb5344d017e0bbb3898e1342c9c055eb1bc"
+      ]
+    },
+    {
+      "name": "quick-small",
+      "tool": "codemode",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 1,
+      "initial_request": {
+        "utf8_bytes": 6456,
+        "cl100k_base": 1557,
+        "o200k_base": 1580
+      },
+      "final_request": {
+        "utf8_bytes": 7594,
+        "cl100k_base": 1868,
+        "o200k_base": 1891
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 14050,
+        "cl100k_base": 3425,
+        "o200k_base": 3471
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 793,
+        "cl100k_base": 205,
+        "o200k_base": 204
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 14843,
+        "cl100k_base": 3630,
+        "o200k_base": 3675
+      },
+      "tool_schemas": {
+        "utf8_bytes": 3455,
+        "cl100k_base": 832,
+        "o200k_base": 849
+      },
+      "tool_results": {
+        "utf8_bytes": 306,
+        "cl100k_base": 80,
+        "o200k_base": 80
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 739,
+        "cl100k_base": 191,
+        "o200k_base": 190
+      },
+      "route": "batch-full",
+      "executed_commands": 8,
+      "provider_requests": 2,
+      "terminal_content_sha256": [
+        "cf75ba3740cca1107702d5a8dc797dfa549873da87b6f7fdfc96530f923c4c4b"
+      ]
+    },
+    {
+      "name": "quick-small",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 1,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 714,
+        "o200k_base": 722
+      },
+      "final_request": {
+        "utf8_bytes": 3660,
+        "cl100k_base": 975,
+        "o200k_base": 982
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 6598,
+        "cl100k_base": 1689,
+        "o200k_base": 1704
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 563,
+        "cl100k_base": 204,
+        "o200k_base": 206
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 7161,
+        "cl100k_base": 1893,
+        "o200k_base": 1910
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 77,
+        "cl100k_base": 26,
+        "o200k_base": 26
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 509,
+        "cl100k_base": 190,
+        "o200k_base": 192
+      },
+      "route": "batch-bash",
+      "executed_commands": 8,
+      "provider_requests": 2,
+      "terminal_content_sha256": [
+        "8be2e12bed5bd04d7eb8f1eb8b6c29d36ae4746f6cfaffb65a6eb5e1f90ba4a2"
+      ]
+    },
+    {
+      "name": "json-repeat-512",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 8,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 712,
+        "o200k_base": 720
+      },
+      "final_request": {
+        "utf8_bytes": 9490,
+        "cl100k_base": 1992,
+        "o200k_base": 1992
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 55926,
+        "cl100k_base": 12168,
+        "o200k_base": 12204
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1543,
+        "cl100k_base": 519,
+        "o200k_base": 527
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 57469,
+        "cl100k_base": 12687,
+        "o200k_base": 12731
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 4505,
+        "cl100k_base": 649,
+        "o200k_base": 649
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1489,
+        "cl100k_base": 505,
+        "o200k_base": 513
+      },
+      "route": "bash",
+      "executed_commands": 8,
+      "provider_requests": 9,
+      "terminal_content_sha256": [
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e",
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e",
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e",
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e",
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e",
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e",
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e",
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e"
+      ]
+    },
+    {
+      "name": "json-repeat-512",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 8,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 992,
+        "o200k_base": 1007
+      },
+      "final_request": {
+        "utf8_bytes": 12067,
+        "cl100k_base": 2576,
+        "o200k_base": 2583
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 73251,
+        "cl100k_base": 16056,
+        "o200k_base": 16155
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 2503,
+        "cl100k_base": 759,
+        "o200k_base": 767
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 75754,
+        "cl100k_base": 16815,
+        "o200k_base": 16922
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 4737,
+        "cl100k_base": 713,
+        "o200k_base": 713
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 2449,
+        "cl100k_base": 745,
+        "o200k_base": 753
+      },
+      "route": "monitor",
+      "executed_commands": 8,
+      "provider_requests": 9,
+      "terminal_content_sha256": [
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c",
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c",
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c",
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c",
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c",
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c",
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c",
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c"
+      ]
+    },
+    {
+      "name": "json-repeat-512",
+      "tool": "codemode",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 1,
+      "initial_request": {
+        "utf8_bytes": 6456,
+        "cl100k_base": 1557,
+        "o200k_base": 1580
+      },
+      "final_request": {
+        "utf8_bytes": 12007,
+        "cl100k_base": 2462,
+        "o200k_base": 2485
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 18463,
+        "cl100k_base": 4019,
+        "o200k_base": 4065
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 870,
+        "cl100k_base": 235,
+        "o200k_base": 234
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 19333,
+        "cl100k_base": 4254,
+        "o200k_base": 4299
+      },
+      "tool_schemas": {
+        "utf8_bytes": 3455,
+        "cl100k_base": 832,
+        "o200k_base": 849
+      },
+      "tool_results": {
+        "utf8_bytes": 4626,
+        "cl100k_base": 640,
+        "o200k_base": 640
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 816,
+        "cl100k_base": 221,
+        "o200k_base": 220
+      },
+      "route": "batch-full",
+      "executed_commands": 8,
+      "provider_requests": 2,
+      "terminal_content_sha256": [
+        "a393b0ee53a494bdb10ec24c0e76dfce45d602413eaece2be18129a02492e071"
+      ]
+    },
+    {
+      "name": "json-repeat-512",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 1,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 712,
+        "o200k_base": 720
+      },
+      "final_request": {
+        "utf8_bytes": 8029,
+        "cl100k_base": 1596,
+        "o200k_base": 1603
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 10967,
+        "cl100k_base": 2308,
+        "o200k_base": 2323
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 660,
+        "cl100k_base": 251,
+        "o200k_base": 254
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 11627,
+        "cl100k_base": 2559,
+        "o200k_base": 2577
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 4309,
+        "cl100k_base": 586,
+        "o200k_base": 586
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 606,
+        "cl100k_base": 237,
+        "o200k_base": 240
+      },
+      "route": "batch-bash",
+      "executed_commands": 8,
+      "provider_requests": 2,
+      "terminal_content_sha256": [
+        "edd5afd22890d589fb51e965037ce2589a15ba2e1fbc2d1dc994d6084f8175da"
+      ]
+    },
+    {
+      "name": "json-nonperiodic-2048",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 8,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 713,
+        "o200k_base": 721
+      },
+      "final_request": {
+        "utf8_bytes": 23282,
+        "cl100k_base": 11393,
+        "o200k_base": 11425
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 117990,
+        "cl100k_base": 54477,
+        "o200k_base": 54657
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 2855,
+        "cl100k_base": 1047,
+        "o200k_base": 1055
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 120845,
+        "cl100k_base": 55524,
+        "o200k_base": 55712
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 16793,
+        "cl100k_base": 9449,
+        "o200k_base": 9481
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 2801,
+        "cl100k_base": 1033,
+        "o200k_base": 1041
+      },
+      "route": "bash",
+      "executed_commands": 8,
+      "provider_requests": 9,
+      "terminal_content_sha256": [
+        "06cc659ec243af9289084803823c6188614c20edfda1cf234b29cc2c4f822f12",
+        "06cc659ec243af9289084803823c6188614c20edfda1cf234b29cc2c4f822f12",
+        "06cc659ec243af9289084803823c6188614c20edfda1cf234b29cc2c4f822f12",
+        "06cc659ec243af9289084803823c6188614c20edfda1cf234b29cc2c4f822f12",
+        "06cc659ec243af9289084803823c6188614c20edfda1cf234b29cc2c4f822f12",
+        "06cc659ec243af9289084803823c6188614c20edfda1cf234b29cc2c4f822f12",
+        "06cc659ec243af9289084803823c6188614c20edfda1cf234b29cc2c4f822f12",
+        "06cc659ec243af9289084803823c6188614c20edfda1cf234b29cc2c4f822f12"
+      ]
+    },
+    {
+      "name": "json-nonperiodic-2048",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 8,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 992,
+        "o200k_base": 1007
+      },
+      "final_request": {
+        "utf8_bytes": 25907,
+        "cl100k_base": 12000,
+        "o200k_base": 12047
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 135531,
+        "cl100k_base": 58464,
+        "o200k_base": 58743
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 3863,
+        "cl100k_base": 1311,
+        "o200k_base": 1327
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 139394,
+        "cl100k_base": 59775,
+        "o200k_base": 60070
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 17025,
+        "cl100k_base": 9513,
+        "o200k_base": 9545
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 3809,
+        "cl100k_base": 1297,
+        "o200k_base": 1313
+      },
+      "route": "monitor",
+      "executed_commands": 8,
+      "provider_requests": 9,
+      "terminal_content_sha256": [
+        "18cb942dc9d933d8ff3b8ac3a59eda080d4abaf02faf6dc342bdfe53953db109",
+        "18cb942dc9d933d8ff3b8ac3a59eda080d4abaf02faf6dc342bdfe53953db109",
+        "18cb942dc9d933d8ff3b8ac3a59eda080d4abaf02faf6dc342bdfe53953db109",
+        "18cb942dc9d933d8ff3b8ac3a59eda080d4abaf02faf6dc342bdfe53953db109",
+        "18cb942dc9d933d8ff3b8ac3a59eda080d4abaf02faf6dc342bdfe53953db109",
+        "18cb942dc9d933d8ff3b8ac3a59eda080d4abaf02faf6dc342bdfe53953db109",
+        "18cb942dc9d933d8ff3b8ac3a59eda080d4abaf02faf6dc342bdfe53953db109",
+        "18cb942dc9d933d8ff3b8ac3a59eda080d4abaf02faf6dc342bdfe53953db109"
+      ]
+    },
+    {
+      "name": "json-nonperiodic-2048",
+      "tool": "codemode",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 1,
+      "initial_request": {
+        "utf8_bytes": 6456,
+        "cl100k_base": 1557,
+        "o200k_base": 1580
+      },
+      "final_request": {
+        "utf8_bytes": 24537,
+        "cl100k_base": 11355,
+        "o200k_base": 11411
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 30993,
+        "cl100k_base": 12912,
+        "o200k_base": 12991
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1064,
+        "cl100k_base": 313,
+        "o200k_base": 313
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 32057,
+        "cl100k_base": 13225,
+        "o200k_base": 13304
+      },
+      "tool_schemas": {
+        "utf8_bytes": 3455,
+        "cl100k_base": 832,
+        "o200k_base": 849
+      },
+      "tool_results": {
+        "utf8_bytes": 16914,
+        "cl100k_base": 9440,
+        "o200k_base": 9472
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1010,
+        "cl100k_base": 299,
+        "o200k_base": 299
+      },
+      "route": "batch-full",
+      "executed_commands": 8,
+      "provider_requests": 2,
+      "terminal_content_sha256": [
+        "953a7f3282d670ca4e7a321914f01e1ebc486bdf6e32119ceb7fbed5f5082387"
+      ]
+    },
+    {
+      "name": "json-nonperiodic-2048",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 1,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 712,
+        "o200k_base": 720
+      },
+      "final_request": {
+        "utf8_bytes": 20733,
+        "cl100k_base": 10591,
+        "o200k_base": 10630
+      },
+      "equivalence": "Eight real commands, complete required JSON equality. Direct routes: 8 calls/9 requests; codemode: Promise.all, 1 call/2 requests; grouped bash: sequential spawnSync, 1 call/2 requests, per-child 5s deadlines and outer 40s timer. Scheduling/outer timer semantics differ; no lossy payload summary.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 23671,
+        "cl100k_base": 11303,
+        "o200k_base": 11350
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 956,
+        "cl100k_base": 401,
+        "o200k_base": 404
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 24627,
+        "cl100k_base": 11704,
+        "o200k_base": 11754
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 16597,
+        "cl100k_base": 9386,
+        "o200k_base": 9418
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 902,
+        "cl100k_base": 387,
+        "o200k_base": 390
+      },
+      "route": "batch-bash",
+      "executed_commands": 8,
+      "provider_requests": 2,
+      "terminal_content_sha256": [
+        "6185f72a168bfdfaeeba38c832d4f3ffca84a53bef703d13eefe9018a5a136f6"
+      ]
+    }
+  ],
+  "native_sessions": 12,
+  "executed_commands": 96,
+  "provider_requests": 66,
+  "status": "complete",
+  "snapshot": {
+    "date": "2026-10-04",
+    "Pi_CLI": "1.0.2",
+    "Node": "24.16.0",
+    "raw_report_sha256": "9690d32b8edc14de967f41dcc4c275c1cc3f752a662f26e3989868196cbd1030",
+    "raw_report_local_path": "/tmp/monitor-design-batch-complete-20261004.json",
+    "notes": "Per-row equivalence corrected from the shared runner wording; numeric measurements and content hashes unchanged."
+  }
+}

@@ -1,16 +1,14 @@
-"""Does learning actually change behaviour?
+"""Does persisted Memory change held-out task behaviour?
 
 Every other check in this package's verification asks whether a guard fires or a
 hook is wired. Those are plumbing questions, and a package can pass all of them
-while learning nothing. This asks the one that matters: do held-out tasks whose
-answers live only in Memory get answered because of it?
+while learning nothing. This checks whether held-out tasks whose answers are
+stored in Memory are answered when that Memory is available.
 
 The paired evaluation runs each task twice, once with no Memory and once with
-Memory injected, and Memory is the only difference between the arms. So a
-baseline that cannot answer and a candidate that can is a causal result rather
-than a correlation. The check requires the baseline to score exactly zero: a
-baseline that could already answer would mean the tasks are not testing Memory
-at all, and the comparison would prove nothing.
+Memory injected. Candidate cases also require evidence that Pi's native read
+tool returned a marker from the Memory body. This is a bounded paired sample;
+it is not a statistical or causal claim about learning generally.
 
 Not collected by pytest; it spends real provider tokens. Run it explicitly.
 """
@@ -28,6 +26,18 @@ REPO = PACKAGE.parents[1]
 EFFECTIVENESS_SUITE = PACKAGE / "examples" / "learning-effectiveness.json"
 
 
+def assert_effectiveness_report(report: dict) -> None:
+    execution_failures = [
+        f"{arm}:{row.get('id')}:{row.get('error')}"
+        for arm in ("baseline", "candidate")
+        for row in report[arm]["results"]
+        if row.get("error") is not None
+    ]
+    assert not execution_failures, f"Both evaluation arms must execute successfully; failures={execution_failures}"
+    assert report["baseline"].get("executionFailures", 0) == 0
+    assert report["candidate"].get("executionFailures", 0) == 0
+
+
 def verify_learning_is_effective() -> dict:
     with tempfile.TemporaryDirectory(prefix="cl-effectiveness-") as raw:
         report_path = Path(raw) / "report.json"
@@ -43,10 +53,10 @@ def verify_learning_is_effective() -> dict:
     candidate = report["candidate"]
     candidate_failures = [row["id"] for row in candidate["results"] if not row["passed"]]
 
+    assert_effectiveness_report(report)
     assert baseline["successRate"] == 0.0, (
-        f"Baseline scored {baseline['successRate']}. The tasks are not unanswerable "
-        f"without Memory, so this comparison cannot demonstrate that learning did "
-        f"anything. answers={[row['answer'] for row in baseline['results']]}"
+        f"Baseline scored {baseline['successRate']}; the no-Memory precondition failed. "
+        f"answers={[row['answer'] for row in baseline['results']]}"
     )
     assert candidate["successRate"] == 1.0, (
         f"Memory did not make every held-out task answerable; failures={candidate_failures}. "
@@ -59,6 +69,10 @@ def verify_learning_is_effective() -> dict:
         "baselineSuccessRate": baseline["successRate"],
         "candidateSuccessRate": candidate["successRate"],
         "regressions": report["regressions"],
+        "baselineAnswers": [row["answer"] for row in baseline["results"]],
+        "candidateAnswers": [row["answer"] for row in candidate["results"]],
+        "usage": {"baseline": baseline["usage"], "candidate": candidate["usage"]},
+        "cost": {"baseline": baseline["cost"], "candidate": candidate["cost"]},
     }
 
 

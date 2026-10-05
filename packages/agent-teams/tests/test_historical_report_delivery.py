@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from test_teammate_package import PACKAGE
+from test_agent_package import PACKAGE
 
 
 @pytest.mark.parametrize("transition", ["stopped", "released", "superseded", "completed", "replacement", "active"])

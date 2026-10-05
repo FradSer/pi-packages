@@ -98,7 +98,8 @@ def test_successful_parent_apply_receipts_bind_exact_before_and_after(tmp_path: 
       const {{applyHarnessConsolidationPlan}}=await import('{CONSOLIDATION}');
       const target={json.dumps(str(target))},runDir={json.dumps(str(run))};
       const hash=file=>createHash('sha256').update(fs.readFileSync(file)).digest('hex');const before=hash(target);
-      const result=await applyHarnessConsolidationPlan({{target,run:{{manifest:{{cwd:{json.dumps(str(project))},runDir,runId:'r',scopeDigest:'s',snapshotDigest:'d'}}}},plan:{{kind:'harness-consolidation-plan',operations:[{{op:'addRule',rule:{json.dumps(rule())},cases:{json.dumps(cases())}}}],evidence:{json.dumps(evidence())}}},validationOptions:{{automatic:true,snapshot:{json.dumps(snapshot())}}}}});
+      const snapshotPath=path.join(runDir,'snapshot.json');fs.writeFileSync(snapshotPath,JSON.stringify({json.dumps(snapshot())}));
+      const result=await applyHarnessConsolidationPlan({{target,run:{{manifest:{{cwd:{json.dumps(str(project))},runDir,runId:'r',scopeDigest:'s',snapshotPath,snapshotDigest:hash(snapshotPath)}}}},plan:{{kind:'harness-consolidation-plan',operations:[{{op:'addRule',rule:{json.dumps(rule())},cases:{json.dumps(cases())}}}],evidence:{json.dumps(evidence())}}},validationOptions:{{automatic:true,snapshot:{json.dumps(snapshot())}}}}});
       console.log(JSON.stringify({{result,before,after:hash(target),pre:JSON.parse(fs.readFileSync(path.join(runDir,'harness-pre-receipt.json'),'utf8')),post:JSON.parse(fs.readFileSync(path.join(runDir,'harness-post-receipt.json'),'utf8'))}}));
     ''')
     assert result['result']['outcome'] == 'applied'

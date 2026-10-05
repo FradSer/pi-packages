@@ -1,5 +1,5 @@
 /**
- * Teammate capabilities. A single addressed agent_event primitive covers
+ * Agent capabilities. A single addressed agent_event primitive covers
  * leader reports and peer mail. Task-list registration is shared by leader
  * and worker processes; claiming and submitting remain worker-only.
  */
@@ -14,20 +14,20 @@ import { messageRow, workerWorkRow } from "./tool-copy.ts";
 import { emptyToolCall, renderCoordinationRow, textOf } from "./tool-render.ts";
 import { resolveRecipient } from "./recipient.ts";
 import { appendInboxMessage, appendWorkerEvent, readRoster } from "./statefile.ts";
-import { createTaskIntent, readBoardFile } from "@fradser/pi-tasks";
+import { createTaskIntent, readTasksFile } from "@fradser/pi-tasks";
 import {
   AgentEventParams,
   LEADER_RECIPIENT,
   messageTitle,
   WorkerWorkToolParams,
-  type BoardTask,
+  type Task,
 } from "./types.ts";
 
-const BOARD_DISCLOSURE_TOOLS = ["task"] as const;
-/** Why the board tool is shown to this worker. `held` means it already
+const TASK_DISCLOSURE_TOOLS = ["task"] as const;
+/** Why the tasks tool is shown to this worker. `held` means it already
  *  owns an assignment, which is a fact about this worker rather than a task
  *  status — the two were never the same state and must not share a word. */
-type BoardDisclosure = "none" | "notice" | "held";
+type TaskDisclosure = "none" | "notice" | "held";
 
 export interface WorkerToolDisclosure {
   update(prompt: string): void;
@@ -35,14 +35,14 @@ export interface WorkerToolDisclosure {
 }
 
 function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
-  let state: BoardDisclosure = "none";
+  let state: TaskDisclosure = "none";
   const apply = () => {
     if (typeof pi.getActiveTools !== "function" || typeof pi.setActiveTools !== "function") return;
     const revealed = state === "notice" || state === "held" ? ["task"] : [];
     // `work` is re-asserted from the owned set rather than the snapshot, so this
     // disclosure write cannot deactivate a tool the harness has not published
     // yet. See setOwnedTools.
-    setOwnedTools(pi, { owned: BOARD_DISCLOSURE_TOOLS, toggled: revealed, enabled: revealed.length > 0 });
+    setOwnedTools(pi, { owned: TASK_DISCLOSURE_TOOLS, toggled: revealed, enabled: revealed.length > 0 });
   };
   return {
     update(prompt) {
@@ -56,7 +56,7 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
       if (binding && rosterEntry && rosterEntry.spawnId === binding.spawnId
         && rosterEntry.status !== "stopped" && assignment) {
         state = "held";
-      } else if (!assignment && prompt.includes("=== BOARD NOTICE ===")) state = "notice";
+      } else if (!assignment && prompt.includes("=== TASK NOTICE ===")) state = "notice";
       else state = "none";
       apply();
     },
@@ -73,7 +73,7 @@ export interface WorkerBinding {
   outbox: string;
   inbox: string;
   rosterFile: string;
-  boardFile: string;
+  tasksFile: string;
   claimsDir: string;
   submissionsDir: string;
 }
@@ -84,7 +84,7 @@ const REQUIRED_ENV = [
   "PI_TEAMMATE_OUTBOX_FILE",
   "PI_TEAMMATE_INBOX_FILE",
   "PI_TEAMMATE_ROSTER_FILE",
-  "PI_TEAMMATE_BOARD_FILE",
+  "PI_TEAMMATE_TASKS_FILE",
   "PI_TEAMMATE_CLAIMS_DIR",
   "PI_TEAMMATE_SUBMISSIONS_DIR",
 ] as const;
@@ -92,31 +92,31 @@ const REQUIRED_ENV = [
 export function workerBinding(): WorkerBinding | undefined {
   const values = REQUIRED_ENV.map((name) => process.env[name]);
   if (values.some((value) => !value)) return undefined;
-  const [worker, spawnId, outbox, inbox, rosterFile, boardFile, claimsDir, submissionsDir] = values as string[];
-  return { worker, spawnId, outbox, inbox, rosterFile, boardFile, claimsDir, submissionsDir };
+  const [worker, spawnId, outbox, inbox, rosterFile, tasksFile, claimsDir, submissionsDir] = values as string[];
+  return { worker, spawnId, outbox, inbox, rosterFile, tasksFile, claimsDir, submissionsDir };
 }
 
-function loadBoardTasks(binding: WorkerBinding): BoardTask[] {
-  const board = readBoardFile(binding.boardFile);
-  return Object.values(board?.tasks ?? {}).sort((a, b) => a.id.localeCompare(b.id));
+function loadWorkerTasks(binding: WorkerBinding): Task[] {
+  const tasks = readTasksFile(binding.tasksFile);
+  return Object.values(tasks?.tasks ?? {}).sort((a, b) => a.id.localeCompare(b.id));
 }
 
-function dependenciesMet(task: BoardTask, tasks: Map<string, BoardTask>): boolean {
+function dependenciesMet(task: Task, tasks: Map<string, Task>): boolean {
   return task.dependsOn.every((dep) => tasks.get(dep)?.status === "completed");
 }
 
-function taskCounts(tasks: BoardTask[], byId: Map<string, BoardTask>): string {
-  const counts: Record<TaskStatus, number> = { pending: 0, in_progress: 0, completed: 0, superseded: 0 };
+function taskCounts(tasks: Task[], byId: Map<string, Task>): string {
+  const counts: Record<TaskStatus, number> = { pending: 0, in_progress: 0, recovery_hold: 0, completed: 0, superseded: 0 };
   for (const task of tasks) counts[task.status] += 1;
-  const claimable = tasks.filter((task) => task.status === "pending" && !task.recoveryRequired && dependenciesMet(task, byId)).length;
-  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · in_progress=${counts.in_progress} · completed=${counts.completed} · superseded=${counts.superseded}`;
+  const claimable = tasks.filter((task) => task.status === "pending" && dependenciesMet(task, byId)).length;
+  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · in_progress=${counts.in_progress} · recovery_hold=${counts.recovery_hold} · completed=${counts.completed} · superseded=${counts.superseded}`;
 }
 
-function claimRejection(binding: WorkerBinding, task: BoardTask): string | undefined {
+function claimRejection(binding: WorkerBinding, task: Task): string | undefined {
   const self = readRoster(binding.rosterFile).find((entry) => entry.name === binding.worker);
   if (self?.assignment) {
     const state = self.assignment.closed ? "closed pending leader reopen" : "active";
-    return `You already own ${state} ${self.assignment.kind} assignment "${self.assignment.id}". Finish it through its matching protocol before claiming board work.`;
+    return `You already own ${state} ${self.assignment.kind} assignment "${self.assignment.id}". Finish it through its matching protocol before claiming task work.`;
   }
   const conflict = readRoster(binding.rosterFile).find((entry) => entry.name !== binding.worker
     && entry.assignment && !entry.assignment.closed
@@ -127,14 +127,18 @@ function claimRejection(binding: WorkerBinding, task: BoardTask): string | undef
   return undefined;
 }
 
-function taskStatusLabel(task: BoardTask, tasks: Map<string, BoardTask>): string {
-  if (task.status === "pending") return task.recoveryRequired ? "pending/recovery-required" : dependenciesMet(task, tasks) ? "pending/claimable" : "pending/blocked";
+function taskStatusLabel(task: Task, tasks: Map<string, Task>): string {
+  // `recovery_hold` is a state of its own, so it is named as one. A task in it
+  // was attempted and the attempt did not stand: it is not claimable work, and
+  // calling it "pending" hid that from the participant reading this list.
+  if (task.status === "recovery_hold") return "recovery-hold";
+  if (task.status === "pending") return dependenciesMet(task, tasks) ? "pending/claimable" : "pending/blocked";
   return task.status;
 }
 
-export function renderTaskBoard(tasks: BoardTask[]): string {
+export function renderTaskList(tasks: Task[]): string {
   const byId = new Map(tasks.map((task) => [task.id, task]));
-  const lines = [`BOARD · current session`, `SUMMARY · ${taskCounts(tasks, byId)}`];
+  const lines = [`TASKS · current session`, `SUMMARY · ${taskCounts(tasks, byId)}`];
   if (tasks.length === 0) return `${lines.join("\n")}\nTASKS\n(no tasks)`;
   lines.push("TASKS");
   for (const task of tasks) {
@@ -215,7 +219,7 @@ function createWorkerReports(pi: ExtensionAPI) {
       throw new Error("Work authority rejected: this turn belongs to a different assignment. Wait for its fresh assignment marker.");
     }
     const cancelled = cancellation && assignmentId && self.currentTaskId
-      && (self.assignment?.closed || loadBoardTasks(binding).some((task) => task.id === self.currentTaskId && task.status === "superseded"));
+      && (self.assignment?.closed || loadWorkerTasks(binding).some((task) => task.id === self.currentTaskId && task.status === "superseded"));
     if ((reportClosed || self.assignment?.closed) && !(cancelled && terminalOutcome !== "failed")) {
       throw new Error("Leader report rejected: this assignment already has a terminal report or is closed. Stop; no repeated acknowledgment is required.");
     }
@@ -243,7 +247,7 @@ function createWorkerReports(pi: ExtensionAPI) {
         pending = undefined;
       } else if (!current) {
         // The harness retired this attempt without a replacement marker: this is a
-        // fresh unassigned turn (peer mail, board notice, ordinary discussion).
+        // fresh unassigned turn (peer mail, tasks notice, ordinary discussion).
         // Holding the previous terminal state here would dead-end the worker.
         assignmentId = undefined;
         taskId = undefined;
@@ -303,7 +307,7 @@ function createWorkerReports(pi: ExtensionAPI) {
   };
 }
 
-export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosure {
+export function registerChildCapabilities(pi: ExtensionAPI): WorkerToolDisclosure {
   const disclosure = createWorkerToolDisclosure(pi);
   const reports = createWorkerReports(pi);
   pi.registerTool({
@@ -353,31 +357,31 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     },
   });
 
-  async function queueWorkClaim(id: string | undefined, presentation: "board" | "work") {
+  async function queueWorkClaim(id: string | undefined, presentation: "task" | "work") {
     const binding = workerBinding();
     if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
     // Claims pass the same attempt authority as sends and submissions: a closed or
-    // terminal attempt must not queue new board work even when work is re-disclosed.
+    // terminal attempt must not queue new task work even when work is re-disclosed.
     reports.authorize(binding);
     const label = presentation === "work" ? "Work Item" : "Task";
     const empty = presentation === "work" ? "No claimable Work Item right now." : "No claimable task right now.";
-    const race = presentation === "work" ? "All candidate Work Items were claimed in the race. Check Work again." : "All candidate tasks were claimed in the race. Check the board again.";
-    const tasks = loadBoardTasks(binding);
+    const race = presentation === "work" ? "All candidate Work Items were claimed in the race. Check Work again." : "All candidate tasks were claimed in the race. Check the tasks again.";
+    const tasks = loadWorkerTasks(binding);
     const byId = new Map(tasks.map((task) => [task.id, task]));
     const candidates = id
       ? tasks.filter((task) => task.id === id)
-      : tasks.filter((task) => task.status === "pending" && !task.recoveryRequired && dependenciesMet(task, byId));
+      : tasks.filter((task) => task.status === "pending" && dependenciesMet(task, byId));
     if (candidates.length === 0) {
-      // Say why nothing is claimable: a board whose only pending Work is held for
-      // Leader recovery must not read as an ordinary empty board.
-      const held = loadBoardTasks(binding).filter((task) => task.status === "pending" && task.recoveryRequired);
+      // Say why nothing is claimable: a task set whose only pending Work is held for
+      // Leader recovery must not read as an ordinary empty tasks.
+      const held = loadWorkerTasks(binding).filter((task) => task.status === "recovery_hold");
       if (!id && held.length > 0) {
         throw new Error(`No claimable ${label.toLowerCase()} right now. Held for explicit leader recovery: ${held.map((task) => task.id).join(", ")}.`);
       }
-      throw new Error(id ? `${label} "${id}" was not found${presentation === "board" ? " on the board" : ""}.` : empty);
+      throw new Error(id ? `${label} "${id}" was not found${presentation === "task" ? " in the task list" : ""}.` : empty);
     }
     for (const task of candidates) {
-      if (task.recoveryRequired) {
+      if (task.status === "recovery_hold") {
         if (id) throw new Error(`Work Item "${task.id}" requires explicit leader Work assignment after failure.`);
         continue;
       }
@@ -388,12 +392,12 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
         continue;
       }
       const won = createTaskIntent(binding.claimsDir, task.id, {
-        taskId: task.id, worker: binding.worker, spawnId: binding.spawnId, timestamp: Date.now(),
+        taskId: task.id, participant: binding.worker, spawnId: binding.spawnId, timestamp: Date.now(),
       });
       if (won) {
         const content = presentation === "work"
           ? `WORK · current session\nCLAIM INTENT QUEUED · ${task.id} · ${task.subject}\nREQUESTER · @${binding.worker}\nNEXT · wait for harness claim acceptance before starting Work`
-          : `BOARD · current session\nCLAIM INTENT QUEUED · ${task.id} · ${task.subject}\nREQUESTER · @${binding.worker}\nNEXT · wait for harness Claim accepted feedback; do not start work until it arrives`;
+          : `TASKS · current session\nCLAIM INTENT QUEUED · ${task.id} · ${task.subject}\nREQUESTER · @${binding.worker}\nNEXT · wait for harness Claim accepted feedback; do not start work until it arrives`;
         const details = presentation === "work"
           ? { action: "claim", outcome: "queued", id: task.id, subject: task.subject, worker: binding.worker }
           : { taskId: task.id, subject: task.subject, worker: binding.worker };
@@ -424,7 +428,7 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
       const binding = workerBinding();
       if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
       if (params.action === "list") {
-        const tasks = loadBoardTasks(binding);
+        const tasks = loadWorkerTasks(binding);
         const byId = new Map(tasks.map((task) => [task.id, task]));
         const lines = tasks.map((task) => `- ${task.id} · ${taskStatusLabel(task, byId)} · ${task.subject}`);
         return Promise.resolve({ content: [{ type: "text", text: `WORK · current session\nWORK ITEMS\n${lines.join("\n") || "(none)"}` }], details: { action: "list", outcome: "listed", count: tasks.length } });
@@ -439,20 +443,20 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     },
   });
 
-  async function queueWorkSubmission(input: { taskId: string; status: "completed" | "failed"; result?: string; presentation: "board" | "work" }) {
+  async function queueWorkSubmission(input: { taskId: string; status: "completed" | "failed"; result?: string; presentation: "task" | "work" }) {
     const binding = workerBinding();
     if (!binding) throw new Error("This capability is available only inside a spawned teammate.");
     const authority = reports.authorize(binding, input.status === "failed");
     if (!authority.assignmentId || authority.taskId !== input.taskId) throw new Error("This turn does not own the submitted Work Item.");
     const assignmentId = authority.assignmentId;
     const won = createTaskIntent(binding.submissionsDir, input.taskId, {
-      taskId: input.taskId, worker: binding.worker, spawnId: binding.spawnId, assignmentId,
+      taskId: input.taskId, participant: binding.worker, spawnId: binding.spawnId, assignmentId,
       status: input.status, result: input.result, timestamp: Date.now(),
     });
     if (!won) throw new Error(`A submission for "${input.taskId}" is already pending.`);
     reports.close(input.status);
     disclosure.reset();
-    const task = loadBoardTasks(binding).find((candidate) => candidate.id === input.taskId);
+    const task = loadWorkerTasks(binding).find((candidate) => candidate.id === input.taskId);
     const roleVerify = process.env.PI_TEAMMATE_VERIFY_DEFAULT?.trim();
     const verify = input.status === "completed"
       ? task?.verify
@@ -464,9 +468,9 @@ export function registerWorkerCapabilities(pi: ExtensionAPI): WorkerToolDisclosu
     const next = "NEXT · End this turn. The harness settles the outcome; do not repeat submission or cancellation acknowledgments.";
     const content = input.presentation === "work"
       ? `WORK · current session\nSUBMISSION INTENT QUEUED · ${input.taskId} · ${input.status === "completed" ? "success" : "failed"}\n${verify}\n${next}`
-      : `BOARD · current session\nSUBMITTED · ${input.taskId} · ${input.status}\n${verify}\n${next}`;
+      : `TASKS · current session\nSUBMITTED · ${input.taskId} · ${input.status}\n${verify}\n${next}`;
     // The subject rides along in details: a worker process never hydrates the
-    // leader's in-memory board, so its row cannot look the task up by itself.
+    // leader's in-memory tasks, so its row cannot look the task up by itself.
     const details = input.presentation === "work"
       ? { action: "submit", outcome: "queued", id: input.taskId, subject: task?.subject, status: input.status === "completed" ? "success" : "failed", verify: Boolean(task?.verify || roleVerify) }
       : { taskId: input.taskId, subject: task?.subject, status: input.status, verify: Boolean(task?.verify || roleVerify) };

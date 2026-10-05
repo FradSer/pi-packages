@@ -106,6 +106,11 @@ def test_completion_evidence_and_no_work_contracts() -> None:
     assert len(outcomes) >= 9
 
 
+def test_command_handler_contracts() -> None:
+    outcomes = assert_all_pass("goal_command.mts")
+    assert len(outcomes) >= 2, f"expected the /goal command contract, got {len(outcomes)}"
+
+
 def test_thread_lifecycle_contracts() -> None:
     outcomes = assert_all_pass("goal_thread.mts")
     assert len(outcomes) >= 9
@@ -147,7 +152,9 @@ def test_dashboard_geometry_and_input_contracts() -> None:
     sends, because matchesKey compares raw byte sequences, not key names.
     """
     outcomes = assert_all_pass("goal_dashboard.mts")
-    assert len(outcomes) >= 7, f"expected the full dashboard contract, got {len(outcomes)}"
+    # The expanded panel is retired: the surface is one passive row plus the
+    # elapsed contract, so the dashboard suite is these two scenarios.
+    assert len(outcomes) >= 2, f"expected the dashboard contract, got {len(outcomes)}"
 
 
 def test_the_live_check_is_opt_in_and_gated() -> None:

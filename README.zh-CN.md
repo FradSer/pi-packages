@@ -72,6 +72,10 @@ Memory、Harness 和 AGENTS.md 默认仍自动应用通过验证的变更。即�
 
 学习在异步处理前冻结任务，关闭会话后停止。学习设置损坏时关闭自动学习并报告原因；`/memory status` 查看实际策略、存储、学习状态和队列诊断。跳过的任务只保存私有、按项目隔离的引用，`/consolidate backfill` 查看其状态，不回放历史或调用模型。关闭自动学习后，已有知识仍可读取。
 
+在用户级 `continual-learning.json` 中配置 `jev`，或提供 `TYPESAFE_API_KEY` 环境变量，即可启用可选的 Jev 判断：选择学习方向并审查已通过代码校验的候选；证据、隐私、写入权限和 Harness 执行仍由父进程控制。不确定或不可用时沿用现有选择器或保存提案，不新增命令。详见[配置与评估说明](packages/continual-learning/README.md#optional-jev-judgments)。 [改善验收报告](packages/continual-learning/tests/jev-improvement-evaluation.md)分别记录真实中英文判断、插件实际效果和剩余误拦，不把模拟测试算作效果提升。 [严格全流程审计](packages/continual-learning/tests/jev-workflow-strict-evaluation.md)要求真实配对效果提升；此前四场公开样本的真实同版本对照为 36/50 → 50/50 效果，十四项改善、零退步；费用增加，不能推广为所有项目都更好。 [扩大的中英文与 Docker 评估](packages/continual-learning/tests/jev-expanded-evaluation.md)保留新的真实项目失败和修复；短候选的安全性改善不能证明大型仓库轨迹的自动学习产出提高。
+
+完整维护也会从空 Memory 中提取新知识。当前会话没有有效证据时，可冻结同一项目最近的一份有界会话，并在回执中记录来源摘要；没有证据也没有已有 Memory 时，零模型调用，报告 `no learning input`。
+
 Harness 编写与自动学习默认写入项目 `.pi/harness.json`；明确请求个人配置时使用 `.pi/harness.local.json`（`/harness --local`）。用户层包括 `~/.pi/agent/harness.json` 和按项目隔离的 `~/.pi/agent/harness/<scopeKey>.json`，项目层优先。Skill 指导需要已注册的 skill 及其展开后的调用；文件保存成功不等于触发验证通过，更不代表全局语义强制执行。
 
 **安装：**
@@ -124,7 +128,9 @@ pi install npm:pi-matt-pocock
 
 按明确的结果契约运行输出繁杂的有限命令，返回一条结构化终态结果。有限工作流建议使用 `completion="exit"`，最终验证后等待退出码为零，并校验捕获的 JSON；默认匹配模式在首次终态匹配时停止进程组。Pi v1.0 中仅含 monitor 的界面工具批次异步唤醒；混合批次、codemode 和无界面调用直接返回终态。输出背压、大小限制和相同捕获值的引用去重控制上下文开销，`/monitor` 提供可滚动的诊断。
 
-原生离线实测中，重复捕获场景比优化前降低约 60% 的累计输入估算，高噪声成功场景比未加载插件的 bash 降低约 90.4%。小输出和完整的大 JSON 仍可能更贵。验证覆盖 36 个原生传输场景、44 次 monitor 调用及 6 个 CLI/JSON/RPC/TUI 场景；另有 76 个原生会话、208 次命令执行测量 token。完整结果、方法和准确性边界见[包 README](packages/monitor/README.md#optimization-results-and-measured-limits)。这些数据采用脚本提供响应和本地分词估算；简单小命令继续使用 bash，相关任务可用 codemode 批量等待并返回经过校验的必要字段。
+可选 `compact=true` 成功回复保留必要数据，通过原生调用关联省去重复元数据。设计对照实验中，八任务 codemode 批量执行保留完整 JSON，比八次独立 bash 调用降低 61.2–76.3% 的累计输入估算；同样任务合并成一次 bash 则更便宜。按任务需要选择监控契约。方案对比、载荷校验、调度及超时差异、包测试结果见[包 README](packages/monitor/README.md#design-alternatives-and-adopted-optimization)。 [提示词注入](packages/monitor/README.md#injected-execution-policy)现已每轮检查当前启用工具：codemode 是可选能力，bash 可用时才推荐分组，否则使用直接 monitor 调用；文档列出各能力组合的提示词成本。
+
+[TUI 审视](packages/monitor/README.md#tui-rendering-review)补上终态配色、状态前置、自适应运行列表、值预览与完整值视图、帮助和控制台实时刷新，不产生模型消息；原生终端验证覆盖四种尺寸。[启动展开](packages/monitor/README.md#startup-presentation-and-model-boundary)沿用统一 Pi 样式，优先显示有效配置，并保留模型启动回执。
 
 **工具：** `monitor_start`、`monitor_stop`
 

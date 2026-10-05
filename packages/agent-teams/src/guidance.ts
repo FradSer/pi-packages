@@ -1,5 +1,5 @@
 import { AGENT_REFERENCE_PATH, formatAgentGuidance } from "@fradser/pi-subagents";
-import { WORKER_BUILTIN_TOOLS } from "@fradser/pi-subagents";
+import { AGENT_BUILTIN_TOOLS } from "@fradser/pi-subagents";
 
 // One delivery contract for both idle and active Leader prompts.
 const LEADER_DELIVERY_GUIDANCE = `
@@ -73,12 +73,12 @@ completion or repeat unchanged findings.
 export function buildIdleLeaderGuidance(cwd?: string): string {
   return `## Agent Teams
 
-Use \`agent\` with an explicit action: \`start\` for a new child, with a
-\`prompt\` to hand it work now or without one to leave it idle waiting for a Task,
-\`inspect\` and \`list\` for Presence, and \`stop\` with an exact session handle. Delegate an unknown role inline, based on
-\`${AGENT_REFERENCE_PATH}\`; it resolves live at spawn and persists only when asked.
+Use the selected subagent interface. The five intent tools are the only child
+tool surface: \`agent_start\` with a prompt, \`agent_input\` with delivery next or steer,
+\`agent_inspect\`/\`agent_list\` for Presence, and \`agent_stop\` for exact-session close.
+Identity selects saved \`agent.md\`; label is display only. Temporary instructions stay in memory. Role reference: \`${AGENT_REFERENCE_PATH}\`.
 
-Choose explicit minimal tools: ${WORKER_BUILTIN_TOOLS.join(", ")} are canonical built-ins.
+Choose minimal canonical tools: ${AGENT_BUILTIN_TOOLS.join(", ")}.
 Omitted tools or [] grant coordination-only access, not file or shell access. Check the returned effective grant.
 Delegate concrete acceptance criteria and an explicit verification gate where appropriate;
 ungated completion is not independently verified. An inform needs no acknowledgment unless
@@ -93,8 +93,8 @@ ${formatAgentGuidance(cwd)}`;
 export function buildTeamLeaderGuidance(cwd?: string): string {
   return `## Agent Teams Orchestration
 
-The current session coordinates through three tools:
-- \`agent\`: \`start\` (with a \`prompt\` to hand it work now, or without one to leave it idle), \`inspect\`, \`list\`, and exact-session \`stop\`. It never records a task and never dispatches work to a named participant.
+The current session coordinates through three tool families:
+- Subagents: \`agent_start\`, \`agent_input\` (delivery next or steer), \`agent_stop\`, \`agent_inspect\`, and \`agent_list\`. Disk \`agent.md\` supplies identity. Use exact sessions and reuse them for dependent follow-ups.
 - \`task\`: create (subject, optional dependsOn, resources, verify, supersedes), list, update (id, status=in_progress|pending, or content), complete (id, outcome, result), and reopen (id). One vocabulary for every participant.
 - \`message\`: \`inform\` or \`request\` messages.
 
@@ -102,14 +102,13 @@ Delegate independent Work once with concrete acceptance criteria and an explicit
 where appropriate. Ungated completion is not independently verified. Check the returned effective
 tool grant: omitted tools or [] are coordination-only, with no bash or file access.
 An inform needs no acknowledgment unless a decision changes.
-Send a Work Session new information that changes its assignment. Do not ask for progress reports
-or repeat instructions.
-The worker autonomously completes its assignment. Results, verification outcomes and actionable failures arrive automatically; continue independent work or yield rather than
-polling, status requests, or repeated guidance.
+Send a Work Session new information that changes its assignment; each message is the whole update.
+The worker autonomously completes its assignment. Results, verification outcomes and actionable failures
+arrive as messages; keep working on your own assignment while they come.
 
 Agent session handles are incarnation-bound. Task IDs are stable, and a Task names
 no owner: whoever acts on it holds it, and holding ends at \`complete\`, at process
-exit, or at \`agent stop\` — there is no release verb. Automatic final answers and
+exit, or at exact-session stop — there is no release verb. Automatic final answers and
 \`task complete\` share one acceptance pipeline. \`message\` carries peer and Leader
 talk and grants no lifecycle authority.
 
@@ -118,20 +117,21 @@ ${LEADER_DELIVERY_GUIDANCE}
 
 For recovery, keep the existing Task ID. Nothing is released by request: stop the
 stale session, or wait for the attempt to end, and its lease is released with it. Do
-not create a competing duplicate through \`agent start\` with a prompt. A started
+not create a competing duplicate through another startup. A started
 resident with no prompt has no initial work and no model kickoff, but remains
-eligible for later board notices and takes work itself; it is not permanently idle.
+eligible for later tasks notices and takes work itself; it is not permanently idle.
 
-Observe stalled sessions in \`/agent-teams\`. The harness never reclaims, restarts, or replaces a teammate. Never terminate a teammate merely because it has worked long; exact-session stop is explicit and never proof of Work completion.
+Observe stalled sessions in \`/agent-teams\`; the harness leaves every child to its Leader. Exact-session
+stop ends a child whose Work is delivered or abandoned — completion lives in the Work Item.
 
 A failed Task returns to pending under a recovery hold and waits: it cannot be taken
 until somebody proceeds with a stated reason. Retired attempts' reports stop
 instructing you.
 
-### Yield while teammates work
+### Yield while agents work
 
-Continue independent work while teammates run. If none remains, end the turn; results resume the session automatically.
-Do not extend the turn with sleep, polling, legacy status requests, unsolicited steers, or repeated guidance.
+Continue independent work while agents run, and end the turn when the work in hand is done; a result
+resumes the session and opens the next one.
 
 Available agents:
 ${formatAgentGuidance(cwd)}

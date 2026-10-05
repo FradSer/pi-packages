@@ -87,20 +87,14 @@ function findLastMessage(ctx: ExtensionContext): { role: string; stopReason?: st
 }
 
 /**
- * Read the last valid persisted entry id. Invalid trailing lines are ignored because
- * a session may be observed while another process is appending to it.
+ * Bytes of a session file read when looking for the tip entry. The tip is always
+ * at the end, so a long session must not be read in full on every
+ * continuation. A window that contains no complete entry falls back to a full
+ * read, so an enormous trailing entry still resolves.
  */
-export function readDiskTipEntryId(sessionFile: string | undefined): string | null {
-  if (!sessionFile) return null;
+const TIP_WINDOW_BYTES = 512 * 1024;
 
-  let content: string;
-  try {
-    content = fs.readFileSync(sessionFile, "utf8");
-  } catch {
-    return null;
-  }
-
-  const lines = content.split("\n");
+function parseTipFromLines(lines: string[]): string | null {
   for (let index = lines.length - 1; index >= 0; index -= 1) {
     const line = lines[index].trim();
     if (!line) continue;
@@ -116,6 +110,35 @@ export function readDiskTipEntryId(sessionFile: string | undefined): string | nu
   }
 
   return null;
+}
+
+/**
+ * Read the last valid persisted entry id. Invalid trailing lines are ignored because
+ * a session may be observed while another process is appending to it.
+ */
+export function readDiskTipEntryId(sessionFile: string | undefined): string | null {
+  if (!sessionFile) return null;
+
+  try {
+    const handle = fs.openSync(sessionFile, "r");
+    try {
+      const size = fs.fstatSync(handle).size;
+      if (size > TIP_WINDOW_BYTES) {
+        const buffer = Buffer.allocUnsafe(TIP_WINDOW_BYTES);
+        const read = fs.readSync(handle, buffer, 0, TIP_WINDOW_BYTES, size - TIP_WINDOW_BYTES);
+        const lines = buffer.toString("utf8", 0, read).split("\n");
+        // The window starts mid-line whenever it is not at offset 0.
+        if (read === TIP_WINDOW_BYTES) lines.shift();
+        const tip = parseTipFromLines(lines);
+        if (tip) return tip;
+      }
+      return parseTipFromLines(fs.readFileSync(handle, "utf8").split("\n"));
+    } finally {
+      fs.closeSync(handle);
+    }
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -157,8 +180,8 @@ export function stripDirectContinuationMessages<
   return filtered;
 }
 
-function sendDirectContinuation(host: ContinuationHost): void {
-  host.sendMessage(
+async function sendDirectContinuation(host: ContinuationHost): Promise<void> {
+  await host.sendMessage(
     {
       customType: CONTINUATION_MESSAGE_TYPE,
       content: "",
@@ -180,7 +203,7 @@ async function performContinuation(
   }
 
   if (target.isDirectContinuation) {
-    sendDirectContinuation(host);
+    await sendDirectContinuation(host);
     return;
   }
 

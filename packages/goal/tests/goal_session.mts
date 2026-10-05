@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { JsonObject } from "@earendil-works/pi-ai";
 import { fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import {
   createAgentSessionFromServices,
@@ -27,10 +28,13 @@ import {
   type CreateAgentSessionRuntimeFactory,
 } from "@earendil-works/pi-coding-agent";
 import type { GoalRecord } from "../src/record.ts";
-import { readGoalLedger } from "../src/ledger.ts";
+import { readGoalLedger, ledgerPath } from "../src/ledger.ts";
 import { GoalStore, newGoalId } from "../src/store.ts";
 import { goalRequest } from "../src/prompt.ts";
 import { goalRecordPath } from "../src/paths.ts";
+import { appendJsonlLine } from "@fradser/pi-kit";
+import { registerGoalTools } from "../src/tools.ts";
+import type { GoalCore } from "../src/core.ts";
 
 const results: string[] = [];
 async function scenario(name: string, body: () => Promise<void> | void): Promise<void> {
@@ -101,8 +105,8 @@ async function run(options: {
   reloadAfterTurn?: boolean;
   /** Seed one open goal, as an earlier session would have left it. */
   seedGoal?: boolean;
-  /** Enable auto-select in the project settings before the session starts. */
-  autoSelect?: boolean;
+  /** Seed an older settings file that still asks for automatic goal adoption. */
+  legacyAutoSelect?: boolean;
 }): Promise<SessionOutcome> {
   const agentDir = fs.mkdtempSync(join(tmpdir(), "goal-agent-"));
   const cwd = fs.mkdtempSync(join(tmpdir(), "goal-project-"));
@@ -119,9 +123,12 @@ async function run(options: {
     });
     if (!seeded.ok) throw new Error(`seeding failed: ${seeded.message}`);
   }
-  if (options.autoSelect) {
+  if (options.legacyAutoSelect) {
     fs.mkdirSync(join(cwd, ".pi", "goals"), { recursive: true });
-    fs.writeFileSync(join(cwd, ".pi", "goals", "settings.json"), JSON.stringify({ autoSelectSingleGoal: true }));
+    // `autoSelectSingleGoal` was removed with automatic adoption. It must stay
+    // harmless when an older settings file still carries it.
+    fs.writeFileSync(join(cwd, ".pi", "goals", "settings.json"),
+      JSON.stringify({ autoSelectSingleGoal: true, researchModel: "claude-haiku" }));
   }
 
   const released = { value: () => {} };
@@ -274,7 +281,7 @@ export default function (pi: Parameters<typeof goal>[0]) {
 
   // An archived goal moved its ledger with it, so the history has to be read
   // from wherever the goal actually ended up.
-  const ledgerFrom = outcomeRoot(cwd, goalId, openIds.length > 0);
+  const ledgerFrom = outcomeRoot(goalId, openIds.length > 0);
   const allEvents = ledgerFrom ? readLedgerFrom(join(cwd, ledgerFrom, "ledger.jsonl")) : events;
   // Captured here because the project directory is removed below: the research
   // file's existence is the assertion, and it cannot be read afterwards.
@@ -305,7 +312,7 @@ export default function (pi: Parameters<typeof goal>[0]) {
   return outcome;
 }
 
-function outcomeRoot(cwd: string, goalId: string | undefined, open: boolean): string | undefined {
+function outcomeRoot(goalId: string | undefined, open: boolean): string | undefined {
   if (!goalId) return undefined;
   return open ? join(".pi", "goals", goalId) : join(".pi", "goals", "archived", goalId);
 }
@@ -331,7 +338,7 @@ function readRecord(cwd: string, goalId: string): GoalRecord | undefined {
 }
 
 /** create_goal, then one tool call, then a plain reply. */
-function script(...calls: [string, Record<string, unknown>][]): ReturnType<typeof fauxAssistantMessage>[] {
+function script(...calls: [string, JsonObject][]): ReturnType<typeof fauxAssistantMessage>[] {
   const responses: ReturnType<typeof fauxAssistantMessage>[] = [
     fauxAssistantMessage(fauxToolCall("create_goal", { objective: "Ship the export" }), { stopReason: "toolUse" }),
   ];
@@ -566,7 +573,7 @@ await (async () => {
       plan: { checks: [{ met: false, report: "Still open." }] },
       responses: [fauxAssistantMessage("Hello.")],
       seedGoal: true,
-      autoSelect: true,
+      legacyAutoSelect: true,
     });
     const first = outcome.toolSets[0] as string[];
     assert.ok(!first.includes("update_goal"), `another thread's goal cannot be managed: ${first}`);
@@ -624,7 +631,10 @@ await (async () => {
     // One thread has one goal. A second create must not split its state.
     assert.equal(outcome.goalIds?.length, 1);
     assert.equal(outcome.researchCount, 1);
-    assert.match(outcome.prompt ?? "", /goal_[a-z0-9_]+: research/);
+    // A session holds one goal, so its id is noise the reader must filter on every
+    // line. The research subject is just "research".
+    assert.match(outcome.prompt ?? "", /research/);
+    assert.doesNotMatch(outcome.prompt ?? "", /goal_[a-z0-9_]+:/, "no goal id is shown");
     assert.match(outcome.prompt ?? "", /CSV findings\./);
   });
 
@@ -667,9 +677,70 @@ await (async () => {
     assert.ok(outcome!.goal || outcome!.archived, "and the goal is still coherent afterwards");
   });
 
+
 })().catch((error) => {
   results.push(`FAIL harness: ${error instanceof Error ? error.stack : String(error)}`);
   process.exitCode = 1;
 });
+
+// Driven directly, outside the scripted turn: the harness never routes tool
+// output to the provider, so `outcome.prompt` cannot observe the tool's own
+// result, which is where the cursor has to appear.
+{
+  const name = "a long history hands back the cursor that continues it";
+  try {
+    const projectRoot = fs.mkdtempSync(join(tmpdir(), "goal-cursor-"));
+    const store = new GoalStore({ projectRoot });
+    const created = store.create({ objective: "A goal with a long history.", owner: "session-a", id: newGoalId() });
+    assert.ok(created.ok, created.ok ? "" : created.message);
+    const file = ledgerPath(projectRoot, created.goal.id);
+    fs.mkdirSync(join(file, ".."), { recursive: true });
+    // pi-kit pages a ledger at 256 KiB, so a cursor only exists past that bound.
+    for (let index = 0; index < 1200; index += 1) {
+      appendJsonlLine(file, { type: "goal_blocked", goalId: created.goal.id, reason: "x".repeat(600), at: new Date(1700000000000 + index).toISOString() }, { label: "seed" });
+    }
+    const registered: { name: string; execute?: (...args: unknown[]) => unknown }[] = [];
+    const core = {
+      pi: { registerTool: (tool: { name: string }) => registered.push(tool) },
+      bindUi: () => {},
+      goal: created.goal,
+      store,
+    };
+    registerGoalTools(core as unknown as GoalCore);
+    const get = registered.find((tool) => tool.name === "get_goal");
+    assert.ok(get?.execute, "get_goal is registered with an execute");
+    const read = async (cursor?: string): Promise<string> => {
+      const out = (await get.execute!("id", cursor ? { section: "history", cursor } : { section: "history" }, undefined, undefined, {})) as { content?: { text?: string }[] };
+      return out.content?.[0]?.text ?? "";
+    };
+    // A cursor that is merely present proves nothing: a fabricated one satisfies
+    // a `/cursor=/` check while repeating page one forever. The contract is that
+    // following it actually walks the history, so this follows it.
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    let pages = 0;
+    for (; pages < 20; pages += 1) {
+      const text = await read(cursor);
+      // Only event lines, which begin with their timestamp. The per-page subject line
+      // repeats by design and is not an event.
+      seen.push(...text.split("\n").filter((line) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(line)));
+      const next = /cursor="([^"]+)"/.exec(text)?.[1];
+      if (!next) {
+        assert.match(text, /End of history\./, `the last page must say so, got ${text.slice(-120)}`);
+        break;
+      }
+      assert.notEqual(next, cursor, "a cursor must advance, not repeat itself");
+      cursor = next;
+    }
+    assert.ok(pages > 1, `a 1,201-event history must take several pages, took ${pages}`);
+    assert.equal(new Set(seen).size, seen.length, "no event may be served twice");
+    assert.equal(seen.length, 1_201, `every seeded event is reached exactly once, saw ${seen.length}`);
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+    results.push(`ok ${name}`);
+  } catch (error) {
+    results.push(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
+}
 
 process.stdout.write(`${JSON.stringify(results)}\n`);

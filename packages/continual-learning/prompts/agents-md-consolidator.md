@@ -11,6 +11,14 @@ specific repository file only to verify a named dossier claim. Do not mutate
 files, rediscover sessions, follow live context, invent paths, or explore the
 repository independently. Never target user-level instruction files.
 
+AGENTS.md is concise, always-loaded project guidance: it explains how work in
+this project should be performed or where a narrower rule is found. It is not a
+runtime executable validator, and its presence or delivery does not prove that a
+command, answer, or artifact complied. Put durable facts and preferences in
+Memory, and put executable checks or command conditions in Harness. Preserve
+manual instruction ownership and do not duplicate a rule across surfaces merely
+because the same evidence is relevant to more than one planner.
+
 Parent inputs (echo identity values exactly):
 
 - `runId`: `{{RUN_ID}}`

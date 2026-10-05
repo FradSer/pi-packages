@@ -90,6 +90,8 @@ function assertSafeConfigTarget(file: string): void {
 }
 
 function validPair(provider: unknown, model: unknown): MemoryConfig | undefined {
+  if ((provider !== undefined && (typeof provider !== "string" || !provider.trim())) ||
+      (model !== undefined && (typeof model !== "string" || !model.trim()))) return undefined;
   const p = nonEmpty(provider);
   const m = nonEmpty(model);
   if (!p && !m) return {};
@@ -192,4 +194,52 @@ export function writeMemoryConfig(config: MemoryConfig): void {
 
 export function memoryConfigPath(): string {
   return configPath();
+}
+
+export type JevStage = "selection" | "memory" | "harness";
+export interface JevLearningConfig {
+  model: string;
+  /** Grants semantic participation only, never file-write authority. */
+  scopes: JevStage[];
+  allowPrivateMemory?: boolean;
+  apiKey?: string;
+}
+export interface JevConfigState {
+  config?: JevLearningConfig;
+  invalid?: "invalid-config";
+  disabled?: boolean;
+}
+
+/** User-level opt-in, using the same safe file boundaries as memory.json.
+ * Reads only the Jev section; unrelated unified configuration is preserved. */
+export function readJevConfigState(): JevConfigState {
+  try {
+    const root = assertSafeAgentDir(false);
+    const file = join(root, "continual-learning.json");
+    if (!lstatIfPresent(file)) return {};
+    assertSafeConfigTarget(file);
+    if (lstatSync(file).size > 4096) return { invalid: "invalid-config" };
+    const raw: unknown = JSON.parse(readFileSync(file, "utf8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { invalid: "invalid-config" };
+    const jev = (raw as Record<string, unknown>).jev;
+    if (jev === undefined) return {};
+    if (jev === false) return { disabled: true };
+    if (jev !== true && (!jev || typeof jev !== "object" || Array.isArray(jev))) return { invalid: "invalid-config" };
+    const value = (jev === true ? {} : jev) as Record<string, unknown>;
+    if (Object.keys(value).some(key => !["model", "scopes", "enabled", "allowPrivateMemory", "apiKey"].includes(key))
+      || (value.enabled !== undefined && typeof value.enabled !== "boolean")
+      || (value.apiKey !== undefined && (typeof value.apiKey !== "string" || !value.apiKey.trim()))
+      || (value.allowPrivateMemory !== undefined && typeof value.allowPrivateMemory !== "boolean")) return { invalid: "invalid-config" };
+    const model = value.model ?? "jev-1.13.0";
+    const scopes = value.scopes ?? ["selection", "memory", "harness"];
+    if (typeof model !== "string" || !/^(?:jev-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|jev-latest|jev-preview)$/.test(model)
+      || !Array.isArray(scopes) || scopes.length < 1 || scopes.length > 3
+      || !scopes.every(scope => ["selection", "memory", "harness"].includes(scope))
+      || new Set(scopes).size !== scopes.length) return { invalid: "invalid-config" };
+    if (value.enabled === false) return { disabled: true };
+    return { config: { model, scopes: scopes as JevStage[], allowPrivateMemory: value.allowPrivateMemory === true,
+      ...(typeof value.apiKey === "string" ? { apiKey: value.apiKey } : {}) } };
+  } catch {
+    return { invalid: "invalid-config" };
+  }
 }

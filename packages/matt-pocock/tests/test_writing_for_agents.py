@@ -1,4 +1,4 @@
-from test_package import run_typescript
+from matt_pocock_helpers import run_typescript
 
 
 def test_writing_capability_includes_model_aware_authoring_guidance() -> None:

@@ -1,0 +1,158 @@
+{
+  "evidence": "real-jev-same-input-ascii-tab-proof-comparison",
+  "productionWriteEligible": false,
+  "sourceSha256": "b0506f43c55a47ffb43806ca5f82005cfb8f79f6b49b6317ef4e595588bd769c",
+  "comparison": "Research-only: same current proof, counterevidence replaces regex with exact code-proved matching description",
+  "usageComplete": false,
+  "passed": false,
+  "knownInputTokens": 19524,
+  "knownEstimatedCostUsd": 0.000820008,
+  "diagnostics": {
+    "before": [
+      {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.84,
+          "probabilities": {
+            "compatible": 0.89,
+            "contradicts": 0.06,
+            "unclear": 0.05
+          }
+        }
+      },
+      {
+        "authority_0": {
+          "choice": "lasting",
+          "confidence": 0.99,
+          "probabilities": {
+            "lasting": 1,
+            "conditional": 0,
+            "temporary": 0,
+            "elsewhere": 0,
+            "absent": 0
+          }
+        },
+        "explanation_0": {
+          "choice": "faithful",
+          "confidence": 0.92,
+          "probabilities": {
+            "faithful": 0.95,
+            "extra": 0.05,
+            "invented": 0,
+            "unclear": 0
+          }
+        },
+        "family_0": {
+          "choice": "authorized",
+          "confidence": 0.97,
+          "probabilities": {
+            "authorized": 0.98,
+            "extra": 0.02,
+            "unclear": 0
+          }
+        }
+      },
+      {
+        "counter_0_1": {
+          "choice": "compatible",
+          "confidence": 0.78,
+          "probabilities": {
+            "compatible": 0.86,
+            "contradicts": 0.08,
+            "unclear": 0.06
+          }
+        }
+      }
+    ],
+    "after": [
+      {
+        "authority_0": {
+          "choice": "lasting",
+          "confidence": 0.99,
+          "probabilities": {
+            "lasting": 1,
+            "conditional": 0,
+            "temporary": 0,
+            "elsewhere": 0,
+            "absent": 0
+          }
+        },
+        "explanation_0": {
+          "choice": "faithful",
+          "confidence": 0.97,
+          "probabilities": {
+            "faithful": 0.98,
+            "extra": 0.02,
+            "invented": 0,
+            "unclear": 0
+          }
+        },
+        "family_0": {
+          "choice": "authorized",
+          "confidence": 0.98,
+          "probabilities": {
+            "authorized": 0.99,
+            "extra": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    ]
+  },
+  "results": [
+    {
+      "snapshotSha256": "489143c7461d7583fa9e9529238956324b4f72aadd0d6f0f91a63ce6ebdfd851",
+      "proposalSha256": "91d3959466be62ba789ea722ba6ba3f79a6aae5e5b1b8dc8e35ed93646526d80",
+      "expectedAllow": true,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 3608,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 22,
+          "coveredEntries": 22,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 18106,
+          "outputTokens": 238,
+          "estimatedCostUsd": 0.000760452,
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unavailable",
+          "durationMs": 446,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 22,
+          "coveredEntries": 0,
+          "evidenceWindows": 2,
+          "completedWindows": 0,
+          "requestCount": 3,
+          "completedRequests": 1,
+          "model": "jev-1.13.0",
+          "knownInputTokens": 1418,
+          "knownEstimatedCostUsd": 5.9556000000000004e-05
+        }
+      }
+    }
+  ],
+  "failureOrigin": "research wrapper used criterion instead of official Choice instructions field; not Jev service evidence",
+  "judgeAttempts": 6,
+  "calls": 4,
+  "outboundRequests": {
+    "before": 3,
+    "after": 1
+  },
+  "interpretation": "Unmodified baseline and support request reached service; two counter rewrites threw before transport. Preserve these paid responses, exclude this invalid wrapper run from quality comparison."
+}

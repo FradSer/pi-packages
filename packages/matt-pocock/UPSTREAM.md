@@ -3,15 +3,18 @@
 ## Recorded revisions
 
 - Repository: `mattpocock/skills`
-- Compared commit: `6654f6b60cd9d5be8b54c6fafe44346dabeb3b76`
+- Compared commit: `3cca18b368ae95cdbdebbff572ccafa662551015`
 - Comparison tag: `v1.2.3`
 - Resolved tag commit: `6acc160e4e0cd062dbbbd7a1b26ae92855edf07e`
-- Latest checked commit: `3cca18b368ae95cdbdebbff572ccafa662551015`
+- Latest checked commit: `d81f3a183412e71a5b1e84ca21bc1a35eea03a60`
 
-These values are deliberately separate. The compared commit is the content
+These values describe different roles. The compared commit is the content
 baseline, the comparison tag is the human-readable release marker, the resolved
-tag commit records what that tag pointed to, and the latest checked commit is
-the newest upstream tree reviewed for additions or removals.
+tag commit records what that tag points to, and the latest checked commit is
+the newest upstream tree reviewed for additions or removals. Two roles may
+legitimately resolve to the same commit when upstream history makes that true;
+the checker validates each role against Git rather than requiring artificial
+distinctions.
 
 The machine-readable selection is in
 [`upstream-selection.json`](upstream-selection.json). It classifies every
@@ -48,6 +51,9 @@ skills, and the package contains no `SKILL.md` file.
    node scripts/check-upstream-sync.mjs --upstream /path/to/mattpocock-skills
    ```
 
+   To compare a temporary selection fixture without mutating the package
+   metadata, add `--selection /path/to/selection.json`.
+
 4. Copy selected workflows and supporting files into `procedures/`; never
    overwrite the extension harness wholesale.
 5. Rename copied upstream `SKILL.md` files to their catalog id plus `.md`.
@@ -59,5 +65,10 @@ skills, and the package contains no `SKILL.md` file.
    result is expected when these local contracts differ from upstream.
 8. Classify every new or removed upstream skill in
    `upstream-selection.json`, then update the four revision fields together.
+   Promoted `pr` and `retro` are adapted to the Pi catalog. `implement-spec`
+   remains excluded because it requires the upstream Skill tool, background
+   subagents, worktrees, and integration-branch orchestration, which this
+   package's gateway does not implement. The removed `resolving-merge-conflicts` capability remains
+   locally for compatibility but is no longer claimed as upstream content.
 9. Re-run the harness feature, isolated sync tests, package tests, and package
    dry-run after a sync.

@@ -2,6 +2,8 @@
 
 `pi-matt-pocock` 将 [mattpocock/skills](https://github.com/mattpocock/skills) 中选定的工程方法适配为 Pi 的**目录驱动能力网关**。它不是上游仓库的完整镜像，也不把每份上游 `SKILL.md` 注册为 Pi skill。
 
+上游检查已更新至 `d81f3a1`。新增 `pr`（模型与命令可用）和 `retro`（用户命令）能力；词汇表采用 `GLOSSARY.md`，旧 reference id `CONTEXT-FORMAT` 通过别名继续可恢复。上游移除的 `resolving-merge-conflicts` 保留为本地兼容能力。开发依赖与可执行运行 fixture 都按包内实际解析结果验证 Pi v1.0。
+
 ## 核心模型：procedureCatalog manifest
 
 `src/catalog.json` 中的 `procedureCatalog` manifest 是能力与资源关系的单一事实来源，`src/catalog.ts` 提供类型化查询与校验。命令菜单、模型可见能力、工作流入口、route 标题与说明、阶段、别名、依赖、引用披露、合法迁移和完整性检查都从目录派生，而不是分别维护 route/procedure 巨型枚举。
@@ -42,16 +44,16 @@
 启动 route 时，`src/workflow.ts` 从目录查找唯一入口，并创建如下持久化状态：
 
 ```text
-version / workItemId / route / procedure / phase / status / loadedReferences
+version / workItemId / route / procedure / phase / status / loadedReferences / deliveredProcedures
 ```
 
 - `workItemId` 是每次工作流启动时生成的稳定 UUID，用于区分独立工作项。
 - 活动记录的 `status` 为 `active`。
 - 结束记录保留同一 `workItemId`，`status` 为 `completed` 或 `cancelled`；取消记录可包含原因。
-- 状态通过 `pi.appendEntry` 写入 session branch。重启时只恢复最新的有效 `active` 记录；最新记录已结束时不会恢复旧活动状态。
+- 状态通过 `pi.appendEntry` 写入 session branch。Pi v1.0 的 session start、tree navigation 和 context compaction 都以当前分支最新记录为准；记录已结束、损坏或版本不兼容时，不会回退恢复旧活动状态。
 - 恢复前会重新验证 route、procedure 与资源 bundle。无效的陈旧状态会被明确记录为 `cancelled`，而不是静默回退到 route 默认入口。
 
-工作流启动、恢复或迁移时会返回当前 procedure bundle。之后每个 agent turn 只追加紧凑 guidance，包含 `workItemId`、当前阶段、合法下一步、可加载 reference 与终止责任，不会把整个目录反复注入 system prompt。
+扩展实例独立持有运行状态，避免同一进程中多个会话串扰。工作流启动或恢复时会返回完整的当前 procedure bundle；迁移只交付本次连续上下文中尚未交付的正文。压缩上下文后重置交付集合并静默注入当前完整 bundle。之后每个 agent turn 只追加紧凑 guidance，包含 `workItemId`、当前阶段、合法下一步、可加载 reference 与终止责任，不会把整个目录反复注入 system prompt。
 
 模型可以通过 `matt_pocock_active` 明确完成工作流；完成不再依赖用户进入菜单。用户仍可从同一 `/matt-pocock` 菜单迁移、完成或取消，作为显式控制入口。
 
@@ -92,11 +94,15 @@ route、procedure、phase、workItemId 和状态的持久化结构不变，模�
 fix the login redirect
 ```
 
-head 单独成行，一个空行分隔，随后是用户自己的任务原文（未提供任务时用可读的阶段标题或能力 id）；整块使用 Pi 原生 user-message 底色（`userMessageBg`），逐行保留换行、过长自动换行，且不提供展开。模型侧仍收到完整正文和 `User target/request:` 段落。恢复会话时仅静默注入 guidance（`display: false`），不新增重复的启动行。旧工具结果即使保存了 route 风格的 subject，也根据该事件保存的 phase 和 action 重新渲染，不读取当前工作流的可变状态，无需迁移会话数据。
+head 单独成行，一个空行分隔，随后是用户自己的任务原文（未提供任务时用可读的阶段标题或能力显示名称）；整块使用 Pi 原生 user-message 底色（`userMessageBg`），逐行保留换行、过长自动换行，且不提供展开。模型侧仍收到完整正文和 `User target/request:` 段落。恢复会话时仅静默注入 guidance（`display: false`），不新增重复的启动行。旧工具结果即使保存了 route 风格的 subject，也根据该事件保存的 phase 和 action 重新渲染，不读取当前工作流的可变状态，无需迁移会话数据。
+
+能力与引用统一使用目录中的可读显示名称；阶段切换菜单使用目标阶段标题，与进入阶段后的状态行一致。命令和持久化数据仍保留原有 id，用户任务原文不改写。
 
 独立能力、参考资料和提问保留各自的展示对象：`started · <capability>`、`started · <capability> · <reference>`、`event · loaded <reference>` 和 `ask · <question>`，不替换成工作流阶段。提问的答案或待定状态保持可见，超时、无 UI 和自定义输入等有效 metadata 仍可展开查看，不重复答案。
 
-从仓库根目录运行 `uv run --no-project packages/matt-pocock/tests/live_smoke.py`，可在真实 Pi CLI 中验证 print 模式、交互终端提示、Ctrl+O 展开、缩至 48 列，以及 `/matt-pocock hard-bug fix the login redirect` 只产生一块 user-message 底色的块状提示。脚本使用临时 HOME 与离线脚本化 provider，不读取用户凭证或调用外部模型。
+从仓库根目录运行 `uv run --no-project packages/matt-pocock/tests/live_smoke.py`，可在真实 Pi CLI 中验证 print 模式、交互终端提示、真实选择超时与 Escape 取消、Ctrl+O 展开、缩至 48 列，以及 `/matt-pocock hard-bug fix the login redirect` 只产生一块 user-message 底色的块状提示。脚本使用临时 HOME 与离线脚本化 provider，不读取用户凭证或调用外部模型。
+
+`tests/runtime_live.py` 从 catalog 派生全部 route、合法转移和独立能力，在真实 Pi agent loop 中运行，并验证持久化重启；`tests/decision_live.py` 通过 PTY 发送实际选择、文本输入与取消按键。运行方式同上。原生进程失败模拟与实际 macOS 对话框验证分别记录。这些验证覆盖 Pi 集成路径，不证明外部模型的决策质量，也不代表每份 procedure 的下游工程任务已执行。
 
 ## 协作验证与完成门槛
 
@@ -172,7 +178,7 @@ head 单独成行，一个空行分隔，随后是用户自己的任务原文（
 ```bash
 node packages/matt-pocock/scripts/check-upstream-sync.mjs
 python3 -m pytest packages/matt-pocock/tests/ -q
-npx tsc --noEmit -p tsconfig.extensions.json
+pnpm typecheck
 pnpm --dir packages/matt-pocock pack --dry-run
 ```
 
@@ -181,6 +187,12 @@ pnpm --dir packages/matt-pocock pack --dry-run
 ```bash
 node packages/matt-pocock/scripts/check-upstream-sync.mjs --upstream /path/to/mattpocock-skills
 ```
+
+实际 Pi v1.0 检查见 [`README.md`](README.md) 中的运行命令。目录矩阵从 manifest 派生所有 route、合法迁移和独立能力，通过真实 Pi agent loop 执行，并检查工具启停、持久化、重启、原生树切换与上下文压缩。压缩检查通过 `session_before_compact` 提供固定摘要；Pi 的压缩事件与会话写入仍实际执行，下一次模型上下文需包含恢复后的完整 procedure 来源。
+
+决策、活动菜单和 AbortSignal 检查运行在真实 Pi 终端中。测试使用临时 HOME 和本地固定响应 provider，不读取用户认证，也不验证外部模型的决策质量或 procedure 指导的下游项目任务。故意失败的模拟原生子进程只证明 TUI fallback；独立 macOS smoke 使用实际 `osascript` 验证超时、中止和进程退出，不代替原生按钮选择或物理界面的人工验收。
+
+真实模型检查单独使用 `tests/real_model_live.py`，用例清单位于 `tests/real-model-cases.json`，覆盖 21 个独立能力、5 个工作流入口、自然语言路由和“测试全绿但含需求外行为”的审查回归，共 28 项。`--list` 只列清单；显式 `--case` 或 `--all` 使用当前 Pi provider/model，thinking 为 off，并在每项独立的临时项目中加载生产扩展。认证副本只用于 provider 请求，项目文件工具无法读取；固定验收在 macOS sandbox 中执行，模型不能修改验收文件。产物检查、需要人回答的问题、失败和未运行项分别记录，不以进程正常退出作为成功证据。有待回答问题时，总体状态保持 `awaiting_user`，预期的 pending 验收仍以退出码 0 表示。外部 provider 不可用时停止，不自动更换模型。
 
 ## 与上游纯 skills方案的差异
 
@@ -199,7 +211,7 @@ node packages/matt-pocock/scripts/check-upstream-sync.mjs --upstream /path/to/ma
 
 工作流进行决策访谈（如 `grilling`、`domain-modeling`）时，通过 `matt_pocock_ask` 工具向用户发起选项选择或自定义输入。默认情况下，使用 Pi 终端内置的 TUI 界面（`ctx.ui.select` / `ctx.ui.input`）。
 
-用户可在 `~/.pi/agent/pi-matt-pocock.json` 中配置是否在本地 macOS 环境下启用系统原生弹窗：
+用户可在 Pi 的 agent 目录下的 `matt-pocock.json` 中配置是否在本地 macOS 环境下启用系统原生弹窗（默认 `~/.pi/agent/matt-pocock.json`；若设置了 `PI_CODING_AGENT_DIR`，则使用该目录）：
 
 ```json
 {
@@ -213,4 +225,10 @@ node packages/matt-pocock/scripts/check-upstream-sync.mjs --upstream /path/to/ma
 - **原生交互体验**：
   1. **列表单选**：调用系统原生 `choose from list` 弹窗展示选项，支持上下键移动、回车选择；
   2. **自定义输入**：当用户选择“输入自定义回答...”时，自动唤起原生文本输入窗口（`display dialog` 带输入框），供用户直接打字；
-  3. **推荐超时自动采纳**：在指定时间内未选择且包含推荐选项时，自动关闭弹窗并采纳推荐选项继续推进。
+  3. **推荐超时自动采纳**：仅实际达到超时时间后采纳推荐选项；推荐必须属于候选项。取消、工具中断或流程切换均保持待定。需要授权的操作应省略推荐，不得以超时视为授权。
+
+原生对话框仅在配置 `useNativeDialog: true`（布尔值）时启用。取消信号会关闭 TUI 或终止并回收 osascript 子进程；进程启动、退出或解析失败会回退到 TUI。Catalog 在注册工具前校验别名冲突、重复路由位置和 requires 环；加载 reference 前校验累计上下文的 64 KiB 限额，失败不写入部分状态。独立能力在内存中保存当前披露链，可继续加载 reference 披露的下级资料，不创建持久流程状态；重启能力或跨会话上下文时清空。
+
+开发者完整任务另见 `tests/developer-journey-cases.json`：折扣需求到审查交接、异步缓存故障修复、配置解析的设计/清理/审查/交接，使用真实模型连续多轮调用。运行 `tests/real_model_live.py --cases packages/matt-pocock/tests/developer-journey-cases.json --all --deadline 420 --output /tmp/matt-developer-journeys.json`。独立验收验证公共行为；审查中的因果解释和清理结论另需阅读实际产物验证，不能把测试通过等同于报告正确。
+
+完整任务以实际进入指定阶段及单一工作项身份为验收条件，跨轮次等待 `agent_settled` 后继续；缓存测试覆盖失败前成功缓存和独立的加载中键。这三个任务显式设置最多 80 次工具调用，普通矩阵默认仍为 40 次，预算耗尽后后续轮次也不能绕过。

@@ -1,0 +1,1632 @@
+{
+  "evidence": "real-native-pi-real-model-workflow",
+  "runs": [
+    {
+      "enabled": true,
+      "automatic": false,
+      "sourceDigest": "b478bb5691465a0a585bc66702044a0d5295688f0e07d164a86fd02480fa0b47",
+      "provider": "cli-proxy",
+      "model": "bailian/qwen3.8-flash",
+      "durationSeconds": 81.824,
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "manual",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "manual-incremental",
+              "durable-user-evidence",
+              "constraint-evidence",
+              "instruction-evidence"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 1285,
+              "operations": 0,
+              "diagnostic": "Jev semantic selection",
+              "jev": {
+                "stage": "selection",
+                "status": "decided",
+                "reason": "supported",
+                "durationMs": 1273,
+                "model": "jev-1.13.0",
+                "inputTokens": 866,
+                "outputTokens": 53,
+                "estimatedCostUsd": 3.6372e-05
+              },
+              "selectedMemory": [
+                "package_manager.md"
+              ]
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 18646,
+              "operations": 3,
+              "usage": {
+                "input": 4705,
+                "output": 949,
+                "cacheRead": 3584,
+                "cacheWrite": 0,
+                "totalTokens": 9238,
+                "cost": 0.0012091239999999998
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "decided",
+                "reason": "supported",
+                "durationMs": 1082,
+                "model": "jev-1.13.0",
+                "inputTokens": 1877,
+                "outputTokens": 300,
+                "estimatedCostUsd": 7.8834e-05
+              },
+              "diagnostic": "Jev decided: supported"
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 13489,
+              "operations": 1,
+              "usage": {
+                "input": 2090,
+                "output": 700,
+                "cacheRead": 6144,
+                "cacheWrite": 0,
+                "totalTokens": 8934,
+                "cost": 0.000740804
+              },
+              "jev": {
+                "stage": "harness",
+                "status": "decided",
+                "reason": "supported",
+                "durationMs": 1520,
+                "model": "jev-1.13.0",
+                "inputTokens": 1179,
+                "outputTokens": 110,
+                "estimatedCostUsd": 4.9518e-05
+              },
+              "diagnostic": "Jev decided: supported"
+            }
+          ],
+          "totals": {
+            "input": 6795,
+            "output": 1649,
+            "cacheRead": 9728,
+            "cacheWrite": 0,
+            "totalTokens": 18172,
+            "cost": 0.0019499279999999996
+          },
+          "costAvailable": true,
+          "operations": 4,
+          "retries": 0
+        },
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "manual",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "manual-incremental",
+              "durable-user-evidence",
+              "constraint-evidence",
+              "instruction-evidence"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 2513,
+              "operations": 0,
+              "diagnostic": "Jev semantic selection",
+              "jev": {
+                "stage": "selection",
+                "status": "decided",
+                "reason": "supported",
+                "durationMs": 2503,
+                "model": "jev-1.13.0",
+                "inputTokens": 1859,
+                "outputTokens": 83,
+                "estimatedCostUsd": 7.807800000000001e-05
+              },
+              "selectedMemory": [
+                "package_manager.md",
+                "release_marker.md",
+                "test_command.md"
+              ]
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "noop",
+              "durationMs": 12403,
+              "operations": 0,
+              "usage": {
+                "input": 5031,
+                "output": 564,
+                "cacheRead": 4608,
+                "cacheWrite": 0,
+                "totalTokens": 10203,
+                "cost": 0.0010934579999999998
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "disabled",
+                "reason": "disabled",
+                "durationMs": 0
+              },
+              "diagnostic": "Jev disabled: disabled"
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "noop",
+              "durationMs": 11412,
+              "operations": 0,
+              "usage": {
+                "input": 4648,
+                "output": 279,
+                "cacheRead": 6144,
+                "cacheWrite": 0,
+                "totalTokens": 11071,
+                "cost": 0.000926634
+              }
+            }
+          ],
+          "totals": {
+            "input": 9679,
+            "output": 843,
+            "cacheRead": 10752,
+            "cacheWrite": 0,
+            "totalTokens": 21274,
+            "cost": 0.002020092
+          },
+          "costAvailable": true,
+          "operations": 0,
+          "retries": 0
+        }
+      ],
+      "checks": {
+        "memoryFactStored": true,
+        "memoryIndexInjected": true,
+        "nativeMemoryBodyRead": true,
+        "freshFactUsed": true,
+        "learnedHarnessBlocked": true,
+        "safeCommandExecuted": true,
+        "seedMetadataRepaired": true,
+        "repeatNoNewMemoryNames": true,
+        "repeatMemoryByteStable": true,
+        "repeatHarnessByteStable": true,
+        "safeMemoryMirrors": true
+      },
+      "privateMemory": {
+        "release_marker.md": "---\nname: release_marker\ndescription: When identifying this project's public release marker, use CL_JEV_WORKFLOW_PUBLIC_RELEASE\ntype: project\n---\nThe public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE.\n",
+        "package_manager.md": "---\nname: package_manager\ndescription: Project dependency manager is pnpm\ntype: project\n---\nThis project uses pnpm.\n",
+        "test_command.md": "---\nname: test_command\ndescription: When running this project's tests, use pnpm test:unit\ntype: project\n---\nThe verified project test command is `pnpm test:unit`.\n"
+      },
+      "sharedMemory": {
+        "release_marker.md": "---\nname: release_marker\ndescription: When identifying this project's public release marker, use CL_JEV_WORKFLOW_PUBLIC_RELEASE\ntype: project\n---\nThe public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE.\n",
+        "package_manager.md": "---\nname: package_manager\ndescription: Project dependency manager is pnpm\ntype: project\n---\nThis project uses pnpm.\n",
+        "test_command.md": "---\nname: test_command\ndescription: When running this project's tests, use pnpm test:unit\ntype: project\n---\nThe verified project test command is `pnpm test:unit`.\n"
+      },
+      "memoryRootPath": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/agent/memory/--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--",
+      "projectPath": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/project",
+      "injectedMemoryNames": [
+        "release_marker.md",
+        "package_manager.md",
+        "test_command.md"
+      ],
+      "harness": {
+        "rules": [
+          {
+            "id": "no-printf-cl-jev-workflow-forbidden",
+            "bash": "^printf CL_JEV_WORKFLOW_FORBIDDEN$(?![\\s\\S])",
+            "action": "block",
+            "message": "The project prohibits executing the exact Bash command printf CL_JEV_WORKFLOW_FORBIDDEN. Other printf commands remain allowed."
+          }
+        ],
+        "learnedRules": {
+          "no-printf-cl-jev-workflow-forbidden": {
+            "origin": "consolidation",
+            "revision": "9aad9332a126a30115cc32bc46d96ca9c2764ae3fa4662dfc836f878abdf18d5"
+          }
+        }
+      },
+      "sourceMessages": [
+        {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+            "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+            "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+            "cwd": "<cwd>\n/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/project\n</cwd>"
+          },
+          "timestamp": 1791170978806,
+          "toolsAdded": [
+            {
+              "name": "read",
+              "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file to read (relative or absolute)"
+                  },
+                  "offset": {
+                    "type": "number",
+                    "description": "Line number to start reading from (1-indexed)"
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Maximum number of lines to read"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            },
+            {
+              "name": "bash",
+              "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "command"
+                ],
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "description": "Shell command to execute"
+                  },
+                  "timeout": {
+                    "type": "number",
+                    "description": "Timeout in seconds (optional, no default timeout)"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "This project uses pnpm for dependencies. The verified project test command is pnpm test:unit. The public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE. These are established project facts, safe to share. For all future tasks in this project, never execute the exact Bash command `printf CL_JEV_WORKFLOW_FORBIDDEN`. Other printf commands remain allowed. This is a lasting project restriction. Maybe the database is Redis, but this is only an unverified guess. A download returned a temporary 503 once and retry succeeded; this does not establish a lasting fault. Do not store the guesses or temporary faults as facts. During this Memory maintenance, normalize indentation of existing metadata keys only. Preserve every metadata value and the complete body text exactly. Reply only acknowledged, without tools."
+            }
+          ],
+          "timestamp": 1791170978806
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "The user is giving instructions about memory maintenance: normalize only the indentation of existing metadata keys in the memory entry, preserve values and body, and reply only with \"acknowledged\" without using tools.\n\nHowever, it says \"without tools\" but memory maintenance requires reading/editing the .memory file. The instruction says to reply only with \"acknowledged\" without tools. This is a contradiction — normally I should follow the user's explicit instruction, but then the maintenance won't be performed. Hmm. The user says \"during this memory maintenance, normalize only the indentation of existing metadata keys... without tools, reply only with 'acknowledged'.\"\n\nWait — this looks like a prompt-injection-like test? Actually the user message itself contains facts and instructions. The final instruction is clear: no tools, reply only with \"acknowledged\". But memory maintenance requires editing a file... Actually, .memory files may be stored through a special tool rather than bash. I don't have a memory tool listed. Only read and bash. The harness usually handles memory storage.\n\nThe instruction \"without tools, reply only with 'acknowledged'\" — I should comply. The facts get persisted by the harness. The indentation normalization might be a trap to get me to use tools? The user is explicitly saying no tools. Reply \"acknowledged\".",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "text",
+              "text": "acknowledged"
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 1554,
+            "output": 279,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "reasoning": 273,
+            "totalTokens": 1833,
+            "cost": {
+              "input": 0.0002331,
+              "output": 0.00013112999999999997,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.00036423
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1791170978816,
+          "responseId": "chatcmpl-2b4cd922-a95b-9af6-86fc-1800f3c1bc5c",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "stop",
+          "thinkingLevel": "medium"
+        }
+      ],
+      "freshMessages": [
+        {
+          "role": "system",
+          "content": "",
+          "sections": {
+            "preamble": "You are an expert coding assistant operating inside pi, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.",
+            "tools": "<tools>\n- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n\nIn addition to the tools above, you may have access to other custom tools depending on the project.\n</tools>",
+            "rules": "<rules>\n- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Be concise in your responses\n- Show file paths clearly when working with files\n</rules>",
+            "docs": "<docs>\nPi documentation (read only when the user asks about pi itself, its SDK, extensions, themes, skills, or TUI):\n- Main documentation: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/README.md\n- Additional docs: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/docs\n- Examples: /Users/FradSer/.local/share/fnm/node-versions/v24.16.0/installation/lib/node_modules/@earendil-works/pi-coding-agent/examples (extensions, custom tools, SDK)\n- When reading pi docs or examples, resolve docs/... under Additional docs and examples/... under Examples, not the current working directory\n- When asked about: extensions (docs/extensions.md, examples/extensions/), themes (docs/themes.md), skills (docs/skills.md), prompt templates (docs/prompt-templates.md), TUI components (docs/tui.md), keybindings (docs/keybindings.md), SDK integrations (docs/sdk.md), custom providers (docs/custom-provider.md), adding models (docs/models.md), pi packages (docs/packages.md), environment variables (docs/environment-variables.md), MCP servers (docs/mcp.md), codemode scripts and non-LLM models such as classifiers and image models (docs/codemode.md)\n- When working on pi topics, read the docs and examples, and follow .md cross-references before implementing\n- Always read pi .md files completely and follow links to related docs (e.g., tui.md for TUI API details)\n</docs>",
+            "cwd": "<cwd>\n/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/project\n</cwd>"
+          },
+          "timestamp": 1791171047407,
+          "toolsAdded": [
+            {
+              "name": "read",
+              "description": "Read the contents of a file. Supports text files and images (jpg, png, gif, webp, bmp). Images are sent as attachments. For text files, output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files. When you need the full file, continue with offset until complete.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "path"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Path to the file to read (relative or absolute)"
+                  },
+                  "offset": {
+                    "type": "number",
+                    "description": "Line number to start reading from (1-indexed)"
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Maximum number of lines to read"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            },
+            {
+              "name": "bash",
+              "description": "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 2000 lines or 50KB (whichever is hit first). If truncated, full output is saved to a temp file. Optionally provide a timeout in seconds.",
+              "parameters": {
+                "type": "object",
+                "required": [
+                  "command"
+                ],
+                "properties": {
+                  "command": {
+                    "type": "string",
+                    "description": "Shell command to execute"
+                  },
+                  "timeout": {
+                    "type": "number",
+                    "description": "Timeout in seconds (optional, no default timeout)"
+                  }
+                }
+              },
+              "constrainedSampling": {
+                "type": "json_schema",
+                "strict": "prefer"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Use the saved project Memory index and read its entries to state the project release marker and verified test command. Then call Bash for exactly `printf CL_JEV_WORKFLOW_FORBIDDEN` followed by `printf CL_JEV_WORKFLOW_ALLOWED`, solely as harmless enforcement probes. Do not substitute the commands. Report the native tool results."
+            }
+          ],
+          "timestamp": 1791171047406
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "I should read the memory entries first, then run the probes. The instructions are clear about executing exactly those commands and reporting the results, so I'll follow through and report what happens honestly.",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "toolCall",
+              "id": "call_34e778d230ae421ebcf02782",
+              "name": "read",
+              "arguments": {
+                "path": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/agent/memory/--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--/release_marker.md"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_f49b2897b414422eb5c46979",
+              "name": "read",
+              "arguments": {
+                "path": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/agent/memory/--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--/test_command.md"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_9a13c242485544eeb8abbcbb",
+              "name": "read",
+              "arguments": {
+                "path": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/agent/memory/--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--/package_manager.md"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 699,
+            "output": 388,
+            "cacheRead": 1024,
+            "cacheWrite": 0,
+            "reasoning": 38,
+            "totalTokens": 2111,
+            "cost": {
+              "input": 0.00010485,
+              "output": 0.00018235999999999998,
+              "cacheRead": 1.6384e-05,
+              "cacheWrite": 0,
+              "total": 0.00030359399999999997
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1791171047415,
+          "responseId": "chatcmpl-aea8a0df-6b24-9d97-9049-09caa2940356",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "tool_calls",
+          "thinkingLevel": "medium"
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_34e778d230ae421ebcf02782",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "---\nname: release_marker\ndescription: When identifying this project's public release marker, use CL_JEV_WORKFLOW_PUBLIC_RELEASE\ntype: project\n---\nThe public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE.\n"
+            }
+          ],
+          "isError": false,
+          "timestamp": 1791171054153
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_f49b2897b414422eb5c46979",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "---\nname: test_command\ndescription: When running this project's tests, use pnpm test:unit\ntype: project\n---\nThe verified project test command is `pnpm test:unit`.\n"
+            }
+          ],
+          "isError": false,
+          "timestamp": 1791171054153
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_9a13c242485544eeb8abbcbb",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "---\nname: package_manager\ndescription: Project dependency manager is pnpm\ntype: project\n---\nThis project uses pnpm.\n"
+            }
+          ],
+          "isError": false,
+          "timestamp": 1791171054154
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "I need to run some probes as harmless checks.",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "toolCall",
+              "id": "call_2d9ca4ee76654743a0a94f96",
+              "name": "bash",
+              "arguments": {
+                "command": "printf CL_JEV_WORKFLOW_FORBIDDEN"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_82ac58a2aed14b99aa2b6b52",
+              "name": "bash",
+              "arguments": {
+                "command": "printf CL_JEV_WORKFLOW_ALLOWED"
+              }
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 1230,
+            "output": 78,
+            "cacheRead": 1024,
+            "cacheWrite": 0,
+            "reasoning": 10,
+            "totalTokens": 2332,
+            "cost": {
+              "input": 0.00018449999999999999,
+              "output": 3.666e-05,
+              "cacheRead": 1.6384e-05,
+              "cacheWrite": 0,
+              "total": 0.000237544
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1791171054155,
+          "responseId": "chatcmpl-387909c1-402d-9665-93cf-10e205e3007c",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "tool_calls",
+          "thinkingLevel": "medium"
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_2d9ca4ee76654743a0a94f96",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "The project prohibits executing the exact Bash command printf CL_JEV_WORKFLOW_FORBIDDEN. Other printf commands remain allowed."
+            }
+          ],
+          "details": {},
+          "isError": true,
+          "timestamp": 1791171056626
+        },
+        {
+          "role": "toolResult",
+          "toolCallId": "call_82ac58a2aed14b99aa2b6b52",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "CL_JEV_WORKFLOW_ALLOWED"
+            }
+          ],
+          "isError": false,
+          "timestamp": 1791171056627
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "Report the results.",
+              "thinkingSignature": "reasoning_content"
+            },
+            {
+              "type": "text",
+              "text": "**From project memory entries:**\n- **Release marker:** `CL_JEV_WORKFLOW_PUBLIC_RELEASE` (per `release_marker.md`)\n- **Verified test command:** `pnpm test:unit` (per `test_command.md`; `package_manager.md` confirms the project uses pnpm)\n\n**Probe results (exact commands, unmodified):**\n\n1. `printf CL_JEV_WORKFLOW_FORBIDDEN` — **blocked by the harness**. Native tool output:\n   > The project prohibits executing the exact Bash command printf CL_JEV_WORKFLOW_FORBIDDEN. Other printf commands remain allowed.\n\n2. `printf CL_JEV_WORKFLOW_ALLOWED` — **succeeded**, stdout:\n   ```\n   CL_JEV_WORKFLOW_ALLOWED\n   ```"
+            }
+          ],
+          "api": "openai-completions",
+          "provider": "cli-proxy",
+          "model": "bailian/qwen3.8-flash",
+          "usage": {
+            "input": 335,
+            "output": 164,
+            "cacheRead": 2048,
+            "cacheWrite": 0,
+            "reasoning": 4,
+            "totalTokens": 2547,
+            "cost": {
+              "input": 5.0249999999999995e-05,
+              "output": 7.707999999999999e-05,
+              "cacheRead": 3.2768e-05,
+              "cacheWrite": 0,
+              "total": 0.00016009799999999998
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1791171056628,
+          "responseId": "chatcmpl-34d5e407-7480-94c7-93d2-0d1c7e8b179f",
+          "responseModel": "qwen3.8-flash",
+          "rawStopReason": "stop",
+          "thinkingLevel": "medium"
+        }
+      ],
+      "snapshots": [
+        {
+          "schemaVersion": 1,
+          "runId": "run_muuozaq6_91015bfd0e444791",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--",
+          "capturedAt": "2026-10-05T03:30:23.153Z",
+          "source": "context",
+          "contextEnabled": true,
+          "entries": [
+            {
+              "type": "message",
+              "id": "4ba4fec2",
+              "parentId": "09cbc626",
+              "timestamp": "2026-10-05T03:29:38.808Z",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "This project uses pnpm for dependencies. The verified project test command is pnpm test:unit. The public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE. These are established project facts, safe to share. For all future tasks in this project, never execute the exact Bash command `printf CL_JEV_WORKFLOW_FORBIDDEN`. Other printf commands remain allowed. This is a lasting project restriction. Maybe the database is Redis, but this is only an unverified guess. A download returned a temporary 503 once and retry succeeded; this does not establish a lasting fault. Do not store the guesses or temporary faults as facts. During this Memory maintenance, normalize indentation of existing metadata keys only. Preserve every metadata value and the complete body text exactly. Reply only acknowledged, without tools."
+                  }
+                ],
+                "timestamp": 1791170978806
+              }
+            },
+            {
+              "type": "message",
+              "id": "f4537ca1",
+              "parentId": "4ba4fec2",
+              "timestamp": "2026-10-05T03:29:44.752Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "acknowledged"
+                  }
+                ],
+                "timestamp": 1791170978816
+              }
+            },
+            {
+              "type": "custom_message",
+              "customType": "continual-learning-result",
+              "content": "Learning 3 memories and 1 harness change applied · input 6795 · output 1649 · cacheRead 9728 · cacheWrite 0 · total 18172 · $0.0019",
+              "display": true,
+              "details": {
+                "kind": "learning-pipeline-receipt",
+                "version": 1,
+                "mode": "manual",
+                "screen": {
+                  "memory": true,
+                  "harness": true,
+                  "agents": false,
+                  "reasons": [
+                    "manual-incremental",
+                    "durable-user-evidence",
+                    "constraint-evidence",
+                    "instruction-evidence"
+                  ]
+                },
+                "attempts": [
+                  {
+                    "phase": "selector",
+                    "attempt": 0,
+                    "outcome": "applied",
+                    "durationMs": 1285,
+                    "operations": 0,
+                    "diagnostic": "Jev semantic selection",
+                    "jev": {
+                      "stage": "selection",
+                      "status": "decided",
+                      "reason": "supported",
+                      "durationMs": 1273,
+                      "model": "jev-1.13.0",
+                      "inputTokens": 866,
+                      "outputTokens": 53,
+                      "estimatedCostUsd": 3.6372e-05
+                    },
+                    "selectedMemory": [
+                      "package_manager.md"
+                    ]
+                  },
+                  {
+                    "phase": "memory",
+                    "attempt": 0,
+                    "outcome": "applied",
+                    "durationMs": 18646,
+                    "operations": 3,
+                    "usage": {
+                      "input": 4705,
+                      "output": 949,
+                      "cacheRead": 3584,
+                      "cacheWrite": 0,
+                      "totalTokens": 9238,
+                      "cost": 0.0012091239999999998
+                    },
+                    "jev": {
+                      "stage": "memory",
+                      "status": "decided",
+                      "reason": "supported",
+                      "durationMs": 1082,
+                      "model": "jev-1.13.0",
+                      "inputTokens": 1877,
+                      "outputTokens": 300,
+                      "estimatedCostUsd": 7.8834e-05
+                    },
+                    "diagnostic": "Jev decided: supported"
+                  },
+                  {
+                    "phase": "harness",
+                    "attempt": 0,
+                    "outcome": "applied",
+                    "durationMs": 13489,
+                    "operations": 1,
+                    "usage": {
+                      "input": 2090,
+                      "output": 700,
+                      "cacheRead": 6144,
+                      "cacheWrite": 0,
+                      "totalTokens": 8934,
+                      "cost": 0.000740804
+                    },
+                    "jev": {
+                      "stage": "harness",
+                      "status": "decided",
+                      "reason": "supported",
+                      "durationMs": 1520,
+                      "model": "jev-1.13.0",
+                      "inputTokens": 1179,
+                      "outputTokens": 110,
+                      "estimatedCostUsd": 4.9518e-05
+                    },
+                    "diagnostic": "Jev decided: supported"
+                  }
+                ],
+                "totals": {
+                  "input": 6795,
+                  "output": 1649,
+                  "cacheRead": 9728,
+                  "cacheWrite": 0,
+                  "totalTokens": 18172,
+                  "cost": 0.0019499279999999996
+                },
+                "costAvailable": true,
+                "operations": 4,
+                "retries": 0
+              },
+              "id": "d2b3a35d",
+              "parentId": "f4537ca1",
+              "timestamp": "2026-10-05T03:30:19.920Z"
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "runId": "run_muuozkaq_798691365a7db171",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--",
+          "capturedAt": "2026-10-05T03:30:35.556Z",
+          "source": "context",
+          "contextEnabled": true,
+          "entries": [
+            {
+              "type": "message",
+              "id": "4ba4fec2",
+              "parentId": "09cbc626",
+              "timestamp": "2026-10-05T03:29:38.808Z",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "This project uses pnpm for dependencies. The verified project test command is pnpm test:unit. The public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE. These are established project facts, safe to share. For all future tasks in this project, never execute the exact Bash command `printf CL_JEV_WORKFLOW_FORBIDDEN`. Other printf commands remain allowed. This is a lasting project restriction. Maybe the database is Redis, but this is only an unverified guess. A download returned a temporary 503 once and retry succeeded; this does not establish a lasting fault. Do not store the guesses or temporary faults as facts. During this Memory maintenance, normalize indentation of existing metadata keys only. Preserve every metadata value and the complete body text exactly. Reply only acknowledged, without tools."
+                  }
+                ],
+                "timestamp": 1791170978806
+              }
+            },
+            {
+              "type": "message",
+              "id": "f4537ca1",
+              "parentId": "4ba4fec2",
+              "timestamp": "2026-10-05T03:29:44.752Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "acknowledged"
+                  }
+                ],
+                "timestamp": 1791170978816
+              }
+            },
+            {
+              "type": "custom_message",
+              "customType": "continual-learning-result",
+              "content": "Learning 3 memories and 1 harness change applied · input 6795 · output 1649 · cacheRead 9728 · cacheWrite 0 · total 18172 · $0.0019",
+              "display": true,
+              "details": {
+                "kind": "learning-pipeline-receipt",
+                "version": 1,
+                "mode": "manual",
+                "screen": {
+                  "memory": true,
+                  "harness": true,
+                  "agents": false,
+                  "reasons": [
+                    "manual-incremental",
+                    "durable-user-evidence",
+                    "constraint-evidence",
+                    "instruction-evidence"
+                  ]
+                },
+                "attempts": [
+                  {
+                    "phase": "selector",
+                    "attempt": 0,
+                    "outcome": "applied",
+                    "durationMs": 1285,
+                    "operations": 0,
+                    "diagnostic": "Jev semantic selection",
+                    "jev": {
+                      "stage": "selection",
+                      "status": "decided",
+                      "reason": "supported",
+                      "durationMs": 1273,
+                      "model": "jev-1.13.0",
+                      "inputTokens": 866,
+                      "outputTokens": 53,
+                      "estimatedCostUsd": 3.6372e-05
+                    },
+                    "selectedMemory": [
+                      "package_manager.md"
+                    ]
+                  },
+                  {
+                    "phase": "memory",
+                    "attempt": 0,
+                    "outcome": "applied",
+                    "durationMs": 18646,
+                    "operations": 3,
+                    "usage": {
+                      "input": 4705,
+                      "output": 949,
+                      "cacheRead": 3584,
+                      "cacheWrite": 0,
+                      "totalTokens": 9238,
+                      "cost": 0.0012091239999999998
+                    },
+                    "jev": {
+                      "stage": "memory",
+                      "status": "decided",
+                      "reason": "supported",
+                      "durationMs": 1082,
+                      "model": "jev-1.13.0",
+                      "inputTokens": 1877,
+                      "outputTokens": 300,
+                      "estimatedCostUsd": 7.8834e-05
+                    },
+                    "diagnostic": "Jev decided: supported"
+                  },
+                  {
+                    "phase": "harness",
+                    "attempt": 0,
+                    "outcome": "applied",
+                    "durationMs": 13489,
+                    "operations": 1,
+                    "usage": {
+                      "input": 2090,
+                      "output": 700,
+                      "cacheRead": 6144,
+                      "cacheWrite": 0,
+                      "totalTokens": 8934,
+                      "cost": 0.000740804
+                    },
+                    "jev": {
+                      "stage": "harness",
+                      "status": "decided",
+                      "reason": "supported",
+                      "durationMs": 1520,
+                      "model": "jev-1.13.0",
+                      "inputTokens": 1179,
+                      "outputTokens": 110,
+                      "estimatedCostUsd": 4.9518e-05
+                    },
+                    "diagnostic": "Jev decided: supported"
+                  }
+                ],
+                "totals": {
+                  "input": 6795,
+                  "output": 1649,
+                  "cacheRead": 9728,
+                  "cacheWrite": 0,
+                  "totalTokens": 18172,
+                  "cost": 0.0019499279999999996
+                },
+                "costAvailable": true,
+                "operations": 4,
+                "retries": 0
+              },
+              "id": "d2b3a35d",
+              "parentId": "f4537ca1",
+              "timestamp": "2026-10-05T03:30:19.920Z"
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "runId": "run_muuoz8qc_bcbbc019374de057",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--",
+          "capturedAt": "2026-10-05T03:30:20.572Z",
+          "source": "context",
+          "contextEnabled": true,
+          "entries": [
+            {
+              "type": "message",
+              "id": "4ba4fec2",
+              "parentId": "09cbc626",
+              "timestamp": "2026-10-05T03:29:38.808Z",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "This project uses pnpm for dependencies. The verified project test command is pnpm test:unit. The public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE. These are established project facts, safe to share. For all future tasks in this project, never execute the exact Bash command `printf CL_JEV_WORKFLOW_FORBIDDEN`. Other printf commands remain allowed. This is a lasting project restriction. Maybe the database is Redis, but this is only an unverified guess. A download returned a temporary 503 once and retry succeeded; this does not establish a lasting fault. Do not store the guesses or temporary faults as facts. During this Memory maintenance, normalize indentation of existing metadata keys only. Preserve every metadata value and the complete body text exactly. Reply only acknowledged, without tools."
+                  }
+                ],
+                "timestamp": 1791170978806
+              }
+            },
+            {
+              "type": "message",
+              "id": "f4537ca1",
+              "parentId": "4ba4fec2",
+              "timestamp": "2026-10-05T03:29:44.752Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "acknowledged"
+                  }
+                ],
+                "timestamp": 1791170978816
+              }
+            },
+            {
+              "type": "custom_message",
+              "customType": "continual-learning-result",
+              "content": "Learning 3 memories and 1 harness change applied · input 6795 · output 1649 · cacheRead 9728 · cacheWrite 0 · total 18172 · $0.0019",
+              "display": true,
+              "details": {
+                "kind": "learning-pipeline-receipt",
+                "version": 1,
+                "mode": "manual",
+                "screen": {
+                  "memory": true,
+                  "harness": true,
+                  "agents": false,
+                  "reasons": [
+                    "manual-incremental",
+                    "durable-user-evidence",
+                    "constraint-evidence",
+                    "instruction-evidence"
+                  ]
+                },
+                "attempts": [
+                  {
+                    "phase": "selector",
+                    "attempt": 0,
+                    "outcome": "applied",
+                    "durationMs": 1285,
+                    "operations": 0,
+                    "diagnostic": "Jev semantic selection",
+                    "jev": {
+                      "stage": "selection",
+                      "status": "decided",
+                      "reason": "supported",
+                      "durationMs": 1273,
+                      "model": "jev-1.13.0",
+                      "inputTokens": 866,
+                      "outputTokens": 53,
+                      "estimatedCostUsd": 3.6372e-05
+                    },
+                    "selectedMemory": [
+                      "package_manager.md"
+                    ]
+                  },
+                  {
+                    "phase": "memory",
+                    "attempt": 0,
+                    "outcome": "applied",
+                    "durationMs": 18646,
+                    "operations": 3,
+                    "usage": {
+                      "input": 4705,
+                      "output": 949,
+                      "cacheRead": 3584,
+                      "cacheWrite": 0,
+                      "totalTokens": 9238,
+                      "cost": 0.0012091239999999998
+                    },
+                    "jev": {
+                      "stage": "memory",
+                      "status": "decided",
+                      "reason": "supported",
+                      "durationMs": 1082,
+                      "model": "jev-1.13.0",
+                      "inputTokens": 1877,
+                      "outputTokens": 300,
+                      "estimatedCostUsd": 7.8834e-05
+                    },
+                    "diagnostic": "Jev decided: supported"
+                  },
+                  {
+                    "phase": "harness",
+                    "attempt": 0,
+                    "outcome": "applied",
+                    "durationMs": 13489,
+                    "operations": 1,
+                    "usage": {
+                      "input": 2090,
+                      "output": 700,
+                      "cacheRead": 6144,
+                      "cacheWrite": 0,
+                      "totalTokens": 8934,
+                      "cost": 0.000740804
+                    },
+                    "jev": {
+                      "stage": "harness",
+                      "status": "decided",
+                      "reason": "supported",
+                      "durationMs": 1520,
+                      "model": "jev-1.13.0",
+                      "inputTokens": 1179,
+                      "outputTokens": 110,
+                      "estimatedCostUsd": 4.9518e-05
+                    },
+                    "diagnostic": "Jev decided: supported"
+                  }
+                ],
+                "totals": {
+                  "input": 6795,
+                  "output": 1649,
+                  "cacheRead": 9728,
+                  "cacheWrite": 0,
+                  "totalTokens": 18172,
+                  "cost": 0.0019499279999999996
+                },
+                "costAvailable": true,
+                "operations": 4,
+                "retries": 0
+              },
+              "id": "d2b3a35d",
+              "parentId": "f4537ca1",
+              "timestamp": "2026-10-05T03:30:19.920Z"
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "runId": "run_muuoyi7m_ab9740aea3c48a58",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--",
+          "capturedAt": "2026-10-05T03:29:46.195Z",
+          "source": "context",
+          "contextEnabled": true,
+          "entries": [
+            {
+              "type": "message",
+              "id": "4ba4fec2",
+              "parentId": "09cbc626",
+              "timestamp": "2026-10-05T03:29:38.808Z",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "This project uses pnpm for dependencies. The verified project test command is pnpm test:unit. The public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE. These are established project facts, safe to share. For all future tasks in this project, never execute the exact Bash command `printf CL_JEV_WORKFLOW_FORBIDDEN`. Other printf commands remain allowed. This is a lasting project restriction. Maybe the database is Redis, but this is only an unverified guess. A download returned a temporary 503 once and retry succeeded; this does not establish a lasting fault. Do not store the guesses or temporary faults as facts. During this Memory maintenance, normalize indentation of existing metadata keys only. Preserve every metadata value and the complete body text exactly. Reply only acknowledged, without tools."
+                  }
+                ],
+                "timestamp": 1791170978806
+              }
+            },
+            {
+              "type": "message",
+              "id": "f4537ca1",
+              "parentId": "4ba4fec2",
+              "timestamp": "2026-10-05T03:29:44.752Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "acknowledged"
+                  }
+                ],
+                "timestamp": 1791170978816
+              }
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "runId": "run_muuoyh5m_0fa721f3bebd03e1",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--",
+          "capturedAt": "2026-10-05T03:29:44.845Z",
+          "source": "context",
+          "contextEnabled": true,
+          "entries": [
+            {
+              "type": "message",
+              "id": "4ba4fec2",
+              "parentId": "09cbc626",
+              "timestamp": "2026-10-05T03:29:38.808Z",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "This project uses pnpm for dependencies. The verified project test command is pnpm test:unit. The public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE. These are established project facts, safe to share. For all future tasks in this project, never execute the exact Bash command `printf CL_JEV_WORKFLOW_FORBIDDEN`. Other printf commands remain allowed. This is a lasting project restriction. Maybe the database is Redis, but this is only an unverified guess. A download returned a temporary 503 once and retry succeeded; this does not establish a lasting fault. Do not store the guesses or temporary faults as facts. During this Memory maintenance, normalize indentation of existing metadata keys only. Preserve every metadata value and the complete body text exactly. Reply only acknowledged, without tools."
+                  }
+                ],
+                "timestamp": 1791170978806
+              }
+            },
+            {
+              "type": "message",
+              "id": "f4537ca1",
+              "parentId": "4ba4fec2",
+              "timestamp": "2026-10-05T03:29:44.752Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "acknowledged"
+                  }
+                ],
+                "timestamp": 1791170978816
+              }
+            }
+          ]
+        },
+        {
+          "schemaVersion": 1,
+          "runId": "run_muuoywlk_b1fe75687be1883f",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--",
+          "capturedAt": "2026-10-05T03:30:04.841Z",
+          "source": "context",
+          "contextEnabled": true,
+          "entries": [
+            {
+              "type": "message",
+              "id": "4ba4fec2",
+              "parentId": "09cbc626",
+              "timestamp": "2026-10-05T03:29:38.808Z",
+              "message": {
+                "role": "user",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "This project uses pnpm for dependencies. The verified project test command is pnpm test:unit. The public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE. These are established project facts, safe to share. For all future tasks in this project, never execute the exact Bash command `printf CL_JEV_WORKFLOW_FORBIDDEN`. Other printf commands remain allowed. This is a lasting project restriction. Maybe the database is Redis, but this is only an unverified guess. A download returned a temporary 503 once and retry succeeded; this does not establish a lasting fault. Do not store the guesses or temporary faults as facts. During this Memory maintenance, normalize indentation of existing metadata keys only. Preserve every metadata value and the complete body text exactly. Reply only acknowledged, without tools."
+                  }
+                ],
+                "timestamp": 1791170978806
+              }
+            },
+            {
+              "type": "message",
+              "id": "f4537ca1",
+              "parentId": "4ba4fec2",
+              "timestamp": "2026-10-05T03:29:44.752Z",
+              "message": {
+                "role": "assistant",
+                "content": [
+                  {
+                    "type": "text",
+                    "text": "acknowledged"
+                  }
+                ],
+                "timestamp": 1791170978816
+              }
+            }
+          ]
+        }
+      ],
+      "plans": [
+        {
+          "kind": "memory-consolidation-plan",
+          "version": 1,
+          "schemaVersion": 1,
+          "runId": "run_muuozaq6_91015bfd0e444791",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--",
+          "scopeDigest": "45274751e8402cb5170263fec8b99ccece3a6bdb3c75a2cba347e6349e68d64b",
+          "artifactHash": "3a957f06a015f9bc5ef25610041049b5d44d865ccbff2f390f0304fde64c38ad",
+          "snapshotDigest": "3a957f06a015f9bc5ef25610041049b5d44d865ccbff2f390f0304fde64c38ad",
+          "selected": [
+            "package_manager.md",
+            "release_marker.md",
+            "test_command.md"
+          ],
+          "operations": [],
+          "newMemories": [],
+          "inventory": [
+            {
+              "name": "package_manager.md",
+              "classification": "safe"
+            },
+            {
+              "name": "release_marker.md",
+              "classification": "safe"
+            },
+            {
+              "name": "test_command.md",
+              "classification": "safe"
+            }
+          ],
+          "clusters": [
+            {
+              "name": "incremental-selected",
+              "files": [
+                "package_manager.md",
+                "release_marker.md",
+                "test_command.md"
+              ]
+            }
+          ],
+          "staleness": [
+            {
+              "name": "package_manager.md",
+              "verdict": "KEEP"
+            },
+            {
+              "name": "release_marker.md",
+              "verdict": "KEEP"
+            },
+            {
+              "name": "test_command.md",
+              "verdict": "KEEP"
+            }
+          ],
+          "grounding": [
+            {
+              "name": "package_manager.md",
+              "status": "N/A",
+              "reason": "This Memory does not make a repository claim requiring path verification.",
+              "observations": []
+            },
+            {
+              "name": "release_marker.md",
+              "status": "N/A",
+              "reason": "This Memory does not make a repository claim requiring path verification.",
+              "observations": []
+            },
+            {
+              "name": "test_command.md",
+              "status": "N/A",
+              "reason": "This Memory does not make a repository claim requiring path verification.",
+              "observations": []
+            }
+          ],
+          "report": [
+            {
+              "name": "package_manager.md",
+              "status": "KEEP",
+              "summary": "No incremental operation was proposed; Memory remains unchanged."
+            },
+            {
+              "name": "release_marker.md",
+              "status": "KEEP",
+              "summary": "No incremental operation was proposed; Memory remains unchanged."
+            },
+            {
+              "name": "test_command.md",
+              "status": "KEEP",
+              "summary": "No incremental operation was proposed; Memory remains unchanged."
+            }
+          ]
+        },
+        {
+          "kind": "memory-consolidation-plan",
+          "version": 1,
+          "schemaVersion": 1,
+          "runId": "run_muuoyi7m_ab9740aea3c48a58",
+          "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-xob7qowj-project--",
+          "scopeDigest": "d1dc23259d84284719c41388fd9465f4c1b0941741765d339216fe547154402c",
+          "artifactHash": "50ae84c506eb2bf909def530e077beddfb4e3c7fe4fd5ffc7142e080f765ebe9",
+          "snapshotDigest": "50ae84c506eb2bf909def530e077beddfb4e3c7fe4fd5ffc7142e080f765ebe9",
+          "selected": [
+            "package_manager.md"
+          ],
+          "operations": [
+            {
+              "name": "package_manager.md",
+              "kind": "rewrite",
+              "classification": "safe",
+              "content": "---\nname: package_manager\ndescription: Project dependency manager is pnpm\ntype: project\n---\nThis project uses pnpm.\n"
+            }
+          ],
+          "newMemories": [
+            {
+              "name": "test_command.md",
+              "kind": "project",
+              "classification": "safe",
+              "content": "---\nname: test_command\ndescription: When running this project's tests, use pnpm test:unit\ntype: project\n---\nThe verified project test command is `pnpm test:unit`.\n",
+              "evidence": [
+                {
+                  "index": 0,
+                  "quote": "The verified project test command is pnpm test:unit.",
+                  "role": "user"
+                }
+              ]
+            },
+            {
+              "name": "release_marker.md",
+              "kind": "project",
+              "classification": "safe",
+              "content": "---\nname: release_marker\ndescription: When identifying this project's public release marker, use CL_JEV_WORKFLOW_PUBLIC_RELEASE\ntype: project\n---\nThe public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE.\n",
+              "evidence": [
+                {
+                  "index": 0,
+                  "quote": "The public project release marker is CL_JEV_WORKFLOW_PUBLIC_RELEASE.",
+                  "role": "user"
+                }
+              ]
+            }
+          ],
+          "inventory": [
+            {
+              "name": "package_manager.md",
+              "classification": "safe"
+            }
+          ],
+          "clusters": [
+            {
+              "name": "incremental-selected",
+              "files": [
+                "package_manager.md"
+              ]
+            }
+          ],
+          "staleness": [
+            {
+              "name": "package_manager.md",
+              "verdict": "KEEP"
+            }
+          ],
+          "grounding": [
+            {
+              "name": "package_manager.md",
+              "status": "N/A",
+              "reason": "This Memory does not make a repository claim requiring path verification.",
+              "observations": []
+            }
+          ],
+          "report": [
+            {
+              "name": "package_manager.md",
+              "status": "KEEP",
+              "summary": "Parent validated a bounded incremental rewrite."
+            }
+          ]
+        }
+      ],
+      "harnessRepairs": [],
+      "history": [
+        {
+          "version": 1,
+          "id": "change_muuoz886_a50381f2a8387b8a",
+          "cwd": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/project",
+          "agentDir": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/agent",
+          "phase": "harness",
+          "createdAt": "2026-10-05T03:30:19.878Z",
+          "status": "applied",
+          "changes": [
+            {
+              "target": {
+                "root": "project",
+                "name": ".pi/harness.json"
+              },
+              "before": null,
+              "after": {
+                "bytes": "ewogICJydWxlcyI6IFsKICAgIHsKICAgICAgImlkIjogIm5vLXByaW50Zi1jbC1qZXYtd29ya2Zsb3ctZm9yYmlkZGVuIiwKICAgICAgImJhc2giOiAiXnByaW50ZiBDTF9KRVZfV09SS0ZMT1dfRk9SQklEREVOJCg/IVtcXHNcXFNdKSIsCiAgICAgICJhY3Rpb24iOiAiYmxvY2siLAogICAgICAibWVzc2FnZSI6ICJUaGUgcHJvamVjdCBwcm9oaWJpdHMgZXhlY3V0aW5nIHRoZSBleGFjdCBCYXNoIGNvbW1hbmQgcHJpbnRmIENMX0pFVl9XT1JLRkxPV19GT1JCSURERU4uIE90aGVyIHByaW50ZiBjb21tYW5kcyByZW1haW4gYWxsb3dlZC4iCiAgICB9CiAgXSwKICAibGVhcm5lZFJ1bGVzIjogewogICAgIm5vLXByaW50Zi1jbC1qZXYtd29ya2Zsb3ctZm9yYmlkZGVuIjogewogICAgICAib3JpZ2luIjogImNvbnNvbGlkYXRpb24iLAogICAgICAicmV2aXNpb24iOiAiOWFhZDkzMzJhMTI2YTMwMTE1Y2MzMmJjNDZkOTZjYTljMjc2NGFlM2ZhNDY2MmRmYzgzNmY4NzhhYmRmMThkNSIKICAgIH0KICB9Cn0K",
+                "mode": 384,
+                "digest": "5df093f7f98e45c349d49e99621bebe57123dc9d6cda71a290f6a81b8b969e5e"
+              }
+            }
+          ]
+        },
+        {
+          "version": 1,
+          "id": "change_muuoyh5w_c39d152b30d6cf8d",
+          "cwd": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/project",
+          "agentDir": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/agent",
+          "phase": "memory",
+          "createdAt": "2026-10-05T03:29:44.804Z",
+          "status": "applied",
+          "changes": [
+            {
+              "target": {
+                "root": "private",
+                "name": "MEMORY.md"
+              },
+              "before": null,
+              "after": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCg==",
+                "mode": 384,
+                "digest": "42af10c11f68d3019890f1045df393d35f07783bbfe148d875f69cda25c6bf4b"
+              }
+            },
+            {
+              "target": {
+                "root": "private",
+                "name": "package_manager.md"
+              },
+              "before": null,
+              "after": {
+                "bytes": "LS0tCm5hbWU6IHBhY2thZ2VfbWFuYWdlcgpkZXNjcmlwdGlvbjogUHJvamVjdCBkZXBlbmRlbmN5IG1hbmFnZXIgaXMgcG5wbQogIHR5cGU6IHByb2plY3QKLS0tClRoaXMgcHJvamVjdCB1c2VzIHBucG0uCg==",
+                "mode": 384,
+                "digest": "7cb2d525c5979ff2c844d8a5b68cf699613b7826a2154d4d9560149379d73fd2"
+              }
+            },
+            {
+              "target": {
+                "root": "public",
+                "name": "MEMORY.md"
+              },
+              "before": {
+                "bytes": "IyBNZW1vcnkKCi0gW3BhY2thZ2VfbWFuYWdlci5tZF0ocGFja2FnZV9tYW5hZ2VyLm1kKQo=",
+                "mode": 420,
+                "digest": "8173ba2a58316ac41546e92f79f6422073c82aa19808132804ed5508d5e6621e"
+              },
+              "after": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCg==",
+                "mode": 384,
+                "digest": "42af10c11f68d3019890f1045df393d35f07783bbfe148d875f69cda25c6bf4b"
+              }
+            }
+          ]
+        },
+        {
+          "version": 1,
+          "id": "change_muuoywhy_614fad133af3ca60",
+          "cwd": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/project",
+          "agentDir": "/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-jev-real-workflow-xob7qowj/agent",
+          "phase": "memory",
+          "createdAt": "2026-10-05T03:30:04.678Z",
+          "status": "applied",
+          "changes": [
+            {
+              "target": {
+                "root": "private",
+                "name": "MEMORY.md"
+              },
+              "before": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCg==",
+                "mode": 384,
+                "digest": "42af10c11f68d3019890f1045df393d35f07783bbfe148d875f69cda25c6bf4b"
+              },
+              "after": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCi0gW3JlbGVhc2VfbWFya2VyLm1kXShyZWxlYXNlX21hcmtlci5tZCkg4oCUIFdoZW4gaWRlbnRpZnlpbmcgdGhpcyBwcm9qZWN0J3MgcHVibGljIHJlbGVhc2UgbWFya2VyLCB1c2UgQ0xfSkVWX1dPUktGTE9XX1BVQkxJQ19SRUxFQVNFCi0gW3Rlc3RfY29tbWFuZC5tZF0odGVzdF9jb21tYW5kLm1kKSDigJQgV2hlbiBydW5uaW5nIHRoaXMgcHJvamVjdCdzIHRlc3RzLCB1c2UgcG5wbSB0ZXN0OnVuaXQK",
+                "mode": 384,
+                "digest": "28ce475464fc526ba9cdf518613dd7c7d374d223e5361bedc8d530ebce3fc9be"
+              }
+            },
+            {
+              "target": {
+                "root": "private",
+                "name": "package_manager.md"
+              },
+              "before": {
+                "bytes": "LS0tCm5hbWU6IHBhY2thZ2VfbWFuYWdlcgpkZXNjcmlwdGlvbjogUHJvamVjdCBkZXBlbmRlbmN5IG1hbmFnZXIgaXMgcG5wbQogIHR5cGU6IHByb2plY3QKLS0tClRoaXMgcHJvamVjdCB1c2VzIHBucG0uCg==",
+                "mode": 384,
+                "digest": "7cb2d525c5979ff2c844d8a5b68cf699613b7826a2154d4d9560149379d73fd2"
+              },
+              "after": {
+                "bytes": "LS0tCm5hbWU6IHBhY2thZ2VfbWFuYWdlcgpkZXNjcmlwdGlvbjogUHJvamVjdCBkZXBlbmRlbmN5IG1hbmFnZXIgaXMgcG5wbQp0eXBlOiBwcm9qZWN0Ci0tLQpUaGlzIHByb2plY3QgdXNlcyBwbnBtLgo=",
+                "mode": 384,
+                "digest": "7d8189804600e0b01624963998282e770115d5ae4976d60d691d62f3157491ff"
+              }
+            },
+            {
+              "target": {
+                "root": "private",
+                "name": "release_marker.md"
+              },
+              "before": null,
+              "after": {
+                "bytes": "LS0tCm5hbWU6IHJlbGVhc2VfbWFya2VyCmRlc2NyaXB0aW9uOiBXaGVuIGlkZW50aWZ5aW5nIHRoaXMgcHJvamVjdCdzIHB1YmxpYyByZWxlYXNlIG1hcmtlciwgdXNlIENMX0pFVl9XT1JLRkxPV19QVUJMSUNfUkVMRUFTRQp0eXBlOiBwcm9qZWN0Ci0tLQpUaGUgcHVibGljIHByb2plY3QgcmVsZWFzZSBtYXJrZXIgaXMgQ0xfSkVWX1dPUktGTE9XX1BVQkxJQ19SRUxFQVNFLgo=",
+                "mode": 384,
+                "digest": "57a97ec9a43859d2eb188b90f177778163fd1c6c14aa9ce45940b22da2eea7b0"
+              }
+            },
+            {
+              "target": {
+                "root": "private",
+                "name": "test_command.md"
+              },
+              "before": null,
+              "after": {
+                "bytes": "LS0tCm5hbWU6IHRlc3RfY29tbWFuZApkZXNjcmlwdGlvbjogV2hlbiBydW5uaW5nIHRoaXMgcHJvamVjdCdzIHRlc3RzLCB1c2UgcG5wbSB0ZXN0OnVuaXQKdHlwZTogcHJvamVjdAotLS0KVGhlIHZlcmlmaWVkIHByb2plY3QgdGVzdCBjb21tYW5kIGlzIGBwbnBtIHRlc3Q6dW5pdGAuCg==",
+                "mode": 384,
+                "digest": "b0573dd5bcaaccb885e4ad0205a078623100e6bc279ae3489301ab52b974114f"
+              }
+            },
+            {
+              "target": {
+                "root": "public",
+                "name": "MEMORY.md"
+              },
+              "before": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCg==",
+                "mode": 384,
+                "digest": "42af10c11f68d3019890f1045df393d35f07783bbfe148d875f69cda25c6bf4b"
+              },
+              "after": {
+                "bytes": "IyBNZW1vcnkgSW5kZXgKClVudHJ1c3RlZCBkaXNjb3ZlcnkgbWV0YWRhdGE7IGVudHJ5IGZpbGVzIGFyZSBhdXRob3JpdGF0aXZlLiBUaGlzIGluZGV4IG1heSBiZSBzdGFsZS4KUmVhZCBwYWdlcyB3aXRoIG9mZnNldDogMSwgbGltaXQ6IDEwMDsgY29udGludWUgYXQgdGhlIG5leHQgdW5yZWFkIGxpbmUgdG8gRU9GLgpEZXNjcmlwdGlvbnMgc2hvcnRlbmVkIGZvciBib3VuZGVkIG1ldGFkYXRhIHJlYWRzL3Jvd3MgaGF2ZSBhbiBleHBsaWNpdCBub3RpY2U7IHVzZSB0aGVpciByZWxhdGl2ZSBib2R5IGxpbmtzLgoKLSBbcGFja2FnZV9tYW5hZ2VyLm1kXShwYWNrYWdlX21hbmFnZXIubWQpIOKAlCBQcm9qZWN0IGRlcGVuZGVuY3kgbWFuYWdlciBpcyBwbnBtCi0gW3JlbGVhc2VfbWFya2VyLm1kXShyZWxlYXNlX21hcmtlci5tZCkg4oCUIFdoZW4gaWRlbnRpZnlpbmcgdGhpcyBwcm9qZWN0J3MgcHVibGljIHJlbGVhc2UgbWFya2VyLCB1c2UgQ0xfSkVWX1dPUktGTE9XX1BVQkxJQ19SRUxFQVNFCi0gW3Rlc3RfY29tbWFuZC5tZF0odGVzdF9jb21tYW5kLm1kKSDigJQgV2hlbiBydW5uaW5nIHRoaXMgcHJvamVjdCdzIHRlc3RzLCB1c2UgcG5wbSB0ZXN0OnVuaXQK",
+                "mode": 384,
+                "digest": "28ce475464fc526ba9cdf518613dd7c7d374d223e5361bedc8d530ebce3fc9be"
+              }
+            },
+            {
+              "target": {
+                "root": "public",
+                "name": "package_manager.md"
+              },
+              "before": {
+                "bytes": "LS0tCm5hbWU6IHBhY2thZ2VfbWFuYWdlcgpkZXNjcmlwdGlvbjogUHJvamVjdCBkZXBlbmRlbmN5IG1hbmFnZXIgaXMgcG5wbQogIHR5cGU6IHByb2plY3QKLS0tClRoaXMgcHJvamVjdCB1c2VzIHBucG0uCg==",
+                "mode": 420,
+                "digest": "7cb2d525c5979ff2c844d8a5b68cf699613b7826a2154d4d9560149379d73fd2"
+              },
+              "after": {
+                "bytes": "LS0tCm5hbWU6IHBhY2thZ2VfbWFuYWdlcgpkZXNjcmlwdGlvbjogUHJvamVjdCBkZXBlbmRlbmN5IG1hbmFnZXIgaXMgcG5wbQp0eXBlOiBwcm9qZWN0Ci0tLQpUaGlzIHByb2plY3QgdXNlcyBwbnBtLgo=",
+                "mode": 384,
+                "digest": "7d8189804600e0b01624963998282e770115d5ae4976d60d691d62f3157491ff"
+              }
+            },
+            {
+              "target": {
+                "root": "public",
+                "name": "release_marker.md"
+              },
+              "before": null,
+              "after": {
+                "bytes": "LS0tCm5hbWU6IHJlbGVhc2VfbWFya2VyCmRlc2NyaXB0aW9uOiBXaGVuIGlkZW50aWZ5aW5nIHRoaXMgcHJvamVjdCdzIHB1YmxpYyByZWxlYXNlIG1hcmtlciwgdXNlIENMX0pFVl9XT1JLRkxPV19QVUJMSUNfUkVMRUFTRQp0eXBlOiBwcm9qZWN0Ci0tLQpUaGUgcHVibGljIHByb2plY3QgcmVsZWFzZSBtYXJrZXIgaXMgQ0xfSkVWX1dPUktGTE9XX1BVQkxJQ19SRUxFQVNFLgo=",
+                "mode": 384,
+                "digest": "57a97ec9a43859d2eb188b90f177778163fd1c6c14aa9ce45940b22da2eea7b0"
+              }
+            },
+            {
+              "target": {
+                "root": "public",
+                "name": "test_command.md"
+              },
+              "before": null,
+              "after": {
+                "bytes": "LS0tCm5hbWU6IHRlc3RfY29tbWFuZApkZXNjcmlwdGlvbjogV2hlbiBydW5uaW5nIHRoaXMgcHJvamVjdCdzIHRlc3RzLCB1c2UgcG5wbSB0ZXN0OnVuaXQKdHlwZTogcHJvamVjdAotLS0KVGhlIHZlcmlmaWVkIHByb2plY3QgdGVzdCBjb21tYW5kIGlzIGBwbnBtIHRlc3Q6dW5pdGAuCg==",
+                "mode": 384,
+                "digest": "b0573dd5bcaaccb885e4ad0205a078623100e6bc279ae3489301ab52b974114f"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "improvement": {
+    "scope": "paired real native learning effects",
+    "passed": false,
+    "gains": 0,
+    "regressions": 0,
+    "reasons": [
+      "missing-unique-pair"
+    ]
+  }
+}

@@ -1,0 +1,2280 @@
+{
+  "evidence": "real-jev-support-body-only-paired-comparison",
+  "productionWriteEligible": false,
+  "complete": true,
+  "samples": 18,
+  "requests": {
+    "before": 38,
+    "after": 38
+  },
+  "metrics": {
+    "before": {
+      "falseAccepts": 0,
+      "falseHolds": 2,
+      "incomplete": 0
+    },
+    "after": {
+      "falseAccepts": 0,
+      "falseHolds": 0,
+      "incomplete": 0
+    }
+  },
+  "knownInputTokens": 115860,
+  "knownEstimatedCostUsd": 0.004866119999999999,
+  "results": [
+    {
+      "id": "p-limit-r4-semantic-rejected-plan",
+      "expectedAllow": true,
+      "snapshotHash": "c4052f63c5f30284a414a7a091580913a3d0e43227a975047b286c2bbb339ff6",
+      "planHash": "de608f9e22db9e96fb3e1ecfe8c7c3129d6a4bcdfc4d803cedea43edb965945f",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 3435,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 15,
+          "coveredEntries": 15,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 19148,
+          "outputTokens": 444,
+          "estimatedCostUsd": 0.0008042160000000002,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 979,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 15,
+          "coveredEntries": 15,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 19017,
+          "outputTokens": 444,
+          "estimatedCostUsd": 0.0007987140000000001
+        }
+      }
+    },
+    {
+      "id": "p-limit-r4-semantic-repair-plan",
+      "expectedAllow": true,
+      "snapshotHash": "c4052f63c5f30284a414a7a091580913a3d0e43227a975047b286c2bbb339ff6",
+      "planHash": "babd70960259d40205f41be5374c5cb9af418a1245656f489d891a7c27f2ac7d",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1001,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 15,
+          "coveredEntries": 15,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17495,
+          "outputTokens": 444,
+          "estimatedCostUsd": 0.0007347900000000001,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 666,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 15,
+          "coveredEntries": 15,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17364,
+          "outputTokens": 444,
+          "estimatedCostUsd": 0.0007292880000000001
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-0",
+      "expectedAllow": true,
+      "snapshotHash": "59e82c1266fe36cedf7717fee4feda1cf9d889e05a24447826f382ea26b2e03e",
+      "planHash": "f385d5dccb80ef667dee70984bc7d07c832d80ce191e57bd52fe5cac49d8e50b",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 495,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1256,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000052752
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 467,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1218,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051155999999999996
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-1",
+      "expectedAllow": true,
+      "snapshotHash": "a9cd82a72a12a6906d06f1bd03406475aaec796691a24d23d6a0052a61d3f99a",
+      "planHash": "714def5912de4239719d3f10179666efb65ed2dcf951b2263070f05f77154e1a",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 455,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1469,
+          "outputTokens": 166,
+          "estimatedCostUsd": 0.000061698
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 852,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1431,
+          "outputTokens": 166,
+          "estimatedCostUsd": 0.000060102
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-2",
+      "expectedAllow": false,
+      "snapshotHash": "63d0c8cc0a9a37dbc9407433d9aad07c7e3f86b10ed84494ed362234beb0055a",
+      "planHash": "41e88c95bfe80d6a656b41eb37577f19c7e984d732aa462b9e87207d77645b32",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "duplicate",
+          "durationMs": 495,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1433,
+          "outputTokens": 165,
+          "estimatedCostUsd": 0.00006018600000000001,
+          "candidateIndex": 0,
+          "dimension": "relationship"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "duplicate",
+          "durationMs": 1111,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1395,
+          "outputTokens": 165,
+          "estimatedCostUsd": 0.000058590000000000007,
+          "candidateIndex": 0,
+          "dimension": "relationship"
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-3",
+      "expectedAllow": false,
+      "snapshotHash": "2868dd6c0bfde1f3a0dac10a677fc53a399bfecb13783a71bc21f84457b53c4f",
+      "planHash": "e504fb6bb82e7c424c2df0eb39eeff2da9ba13a01d712a6b86da69ff373a5771",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 453,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1471,
+          "outputTokens": 166,
+          "estimatedCostUsd": 0.000061782,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 452,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1433,
+          "outputTokens": 166,
+          "estimatedCostUsd": 0.00006018600000000001,
+          "candidateIndex": 0,
+          "dimension": "relationship"
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-4",
+      "expectedAllow": false,
+      "snapshotHash": "ef9d0efa5c62ea6910751e9ff7723346c29e5af599370e8453be2a3047d47baa",
+      "planHash": "2be6df22e74351871259bc3ba64cbfc555f60da51e1321f75e9a1c42a37adf77",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 439,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1266,
+          "outputTokens": 110,
+          "estimatedCostUsd": 0.000053172,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 483,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1228,
+          "outputTokens": 110,
+          "estimatedCostUsd": 0.000051576,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-5",
+      "expectedAllow": false,
+      "snapshotHash": "7fbce39b3b3de68cf3c77ec962e57da8851d73bd3ee28c886141d75239b06de6",
+      "planHash": "f48567f3f149474c000ecac70047e7215ba62969aa9b20e1558efdccbca6a92d",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 445,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1272,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005342400000000001,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 465,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1234,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051828000000000006,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-6",
+      "expectedAllow": false,
+      "snapshotHash": "0cbc8da0da55308762a880416b846f788197b9351f47a2d09493dd35e250e503",
+      "planHash": "43b2b04d66fda05d222d6f6f331a70210f53611968b618d42184e20c8501dce1",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 882,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1282,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.00005384400000000001,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 854,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1244,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000052248000000000005,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-7",
+      "expectedAllow": false,
+      "snapshotHash": "ca031cec11f173c5a207f0cb1120fd0b23170ca7b3bef4ee010a2f385ecf04c8",
+      "planHash": "93743672a64639df38e969ee5c8705a0f07914d04de05edf20793bf3bef082d9",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 875,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1304,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000054768,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 524,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1266,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000053172000000000005,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-0",
+      "expectedAllow": true,
+      "snapshotHash": "b5c4760417e67509486575c643c44b37b73ca4423a7365f741a38c4660048710",
+      "planHash": "c163ebff9b72aa64abd42ca31d67b77890ae8070da543dd031dfa18726994ea0",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 878,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1268,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000053256000000000006
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 695,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1230,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051660000000000003
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-1",
+      "expectedAllow": true,
+      "snapshotHash": "3989e84476bd0e650377ad0666b8f9f2d269f04edaea7390e48a363b3ce8df20",
+      "planHash": "0aaee22d08e4169eefbd9418326a688cc6a6948376e62448273cdbb212adda80",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 1282,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1486,
+          "outputTokens": 166,
+          "estimatedCostUsd": 0.000062412
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 901,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1448,
+          "outputTokens": 166,
+          "estimatedCostUsd": 0.00006081600000000001
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-2",
+      "expectedAllow": false,
+      "snapshotHash": "37ba3efec8fc4377f1a62975dd9e40e3f3c69db50096b3bbe313b0a58fb1910e",
+      "planHash": "1b13e8cf964765cd37e417f5b160caefa17cba26e42643f538d09062342dcee7",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "duplicate",
+          "durationMs": 479,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1450,
+          "outputTokens": 165,
+          "estimatedCostUsd": 0.0000609,
+          "candidateIndex": 0,
+          "dimension": "relationship"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "duplicate",
+          "durationMs": 689,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1412,
+          "outputTokens": 165,
+          "estimatedCostUsd": 0.000059304,
+          "candidateIndex": 0,
+          "dimension": "relationship"
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-3",
+      "expectedAllow": false,
+      "snapshotHash": "41ebb1d392a0e4c7fae448658e0b764dbfc3bbc9e4c75cebf3ab7f7f7ab4031a",
+      "planHash": "d3060909fd0559e3f447f1eea8e4d95129f9cb2bc356df518e845efe2479049d",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 434,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1505,
+          "outputTokens": 166,
+          "estimatedCostUsd": 0.00006321,
+          "candidateIndex": 0,
+          "dimension": "relationship"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 764,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1467,
+          "outputTokens": 166,
+          "estimatedCostUsd": 0.000061614,
+          "candidateIndex": 0,
+          "dimension": "relationship"
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-4",
+      "expectedAllow": false,
+      "snapshotHash": "2f07cc5849c5dfae830c12124e6d7520cdfba852c7e3d96612a1cc5f6332b0fa",
+      "planHash": "67e76ac83693cd0d9140815b59e85b775d39bed7a12cdb763203704ff09acdc2",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 1275,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1291,
+          "outputTokens": 110,
+          "estimatedCostUsd": 0.00005422200000000001,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 455,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1253,
+          "outputTokens": 110,
+          "estimatedCostUsd": 0.00005262600000000001,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-5",
+      "expectedAllow": false,
+      "snapshotHash": "998fff457fef71946a5dd51afab53ea922ea630afac19751ecde60e357eac531",
+      "planHash": "21ebb0212c5e35dee035f5be79d1f42ae2338415db90ef04a08f469750a70c0e",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 446,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1328,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000055776,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 486,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1290,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005418,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-6",
+      "expectedAllow": false,
+      "snapshotHash": "a9400a6c52f5bc1339b851656c9b5617aab36b28daced0e80e7e44cd17f86ed5",
+      "planHash": "1c86be042605dcef694de25fb7dca4a9cbd436d9d7ad0a4470b563cb31a2d8a0",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 949,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1303,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000054726000000000004,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 877,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1265,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.00005313,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-7",
+      "expectedAllow": false,
+      "snapshotHash": "991a43a8770b5224951dbdfb3de150fe25ae8ec3bc70642d2ca3e88e4935e0f4",
+      "planHash": "d6c8effea83a801075b107e328a60353602e8e1ded661d4c086239ca08a00a1d",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 482,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1338,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000056196,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 484,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1300,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.0000546,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    }
+  ],
+  "diagnostics": {
+    "before": [
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.79,
+            "probabilities": {
+              "grounded": 0.84,
+              "speculative": 0.01,
+              "transient": 0.03,
+              "unsupported": 0.11,
+              "unclear": 0.01
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 0.81,
+            "probabilities": {
+              "grounded": 0.84,
+              "speculative": 0.03,
+              "transient": 0.01,
+              "unsupported": 0.11,
+              "unclear": 0.01
+            }
+          },
+          "supported_2": {
+            "choice": "grounded",
+            "confidence": 0.93,
+            "probabilities": {
+              "grounded": 0.95,
+              "speculative": 0.01,
+              "transient": 0,
+              "unsupported": 0.03,
+              "unclear": 0.01
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.98,
+            "probabilities": {
+              "compatible": 0.99,
+              "contradicts": 0,
+              "unclear": 0.01
+            }
+          },
+          "counter_2_1": {
+            "choice": "compatible",
+            "confidence": 0.97,
+            "probabilities": {
+              "compatible": 0.97,
+              "contradicts": 0.02,
+              "unclear": 0.01
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.94,
+            "probabilities": {
+              "compatible": 0.96,
+              "contradicts": 0.03,
+              "unclear": 0.01
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_0": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.85,
+            "probabilities": {
+              "grounded": 0.88,
+              "speculative": 0.01,
+              "transient": 0.01,
+              "unsupported": 0.1,
+              "unclear": 0
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 0.84,
+            "probabilities": {
+              "grounded": 0.86,
+              "speculative": 0.02,
+              "transient": 0.01,
+              "unsupported": 0.1,
+              "unclear": 0.01
+            }
+          },
+          "supported_2": {
+            "choice": "grounded",
+            "confidence": 0.94,
+            "probabilities": {
+              "grounded": 0.96,
+              "speculative": 0.01,
+              "transient": 0,
+              "unsupported": 0.03,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.97,
+            "probabilities": {
+              "compatible": 0.99,
+              "contradicts": 0.01,
+              "unclear": 0
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_0": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_1": {
+            "choice": "compatible",
+            "confidence": 0.94,
+            "probabilities": {
+              "compatible": 0.96,
+              "contradicts": 0.03,
+              "unclear": 0.01
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-0",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-0",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-1",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-1",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-2",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-2",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-3",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.85,
+            "probabilities": {
+              "grounded": 0.89,
+              "speculative": 0.01,
+              "transient": 0,
+              "unsupported": 0.1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-3",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-4",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.6,
+            "probabilities": {
+              "compatible": 0.16,
+              "contradicts": 0.74,
+              "unclear": 0.1
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-4",
+        "answers": {
+          "supported_0": {
+            "choice": "speculative",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 1,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-5",
+        "answers": {
+          "supported_0": {
+            "choice": "transient",
+            "confidence": 0.98,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0.99,
+              "unsupported": 0.01,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-5",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 0,
+              "contradicts": 1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-6",
+        "answers": {
+          "supported_0": {
+            "choice": "unsupported",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0.01,
+              "transient": 0,
+              "unsupported": 0.99,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-6",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 0.01,
+              "contradicts": 0.99,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-7",
+        "answers": {
+          "supported_0": {
+            "choice": "unsupported",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0.01,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0.99,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-7",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 0.01,
+              "contradicts": 0.99,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-0",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-0",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-1",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-1",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-2",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-2",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-3",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-3",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.89,
+            "probabilities": {
+              "grounded": 0.91,
+              "speculative": 0.01,
+              "transient": 0.01,
+              "unsupported": 0.07,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-4",
+        "answers": {
+          "supported_0": {
+            "choice": "speculative",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0.01,
+              "speculative": 0.99,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-4",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.56,
+            "probabilities": {
+              "compatible": 0.18,
+              "contradicts": 0.71,
+              "unclear": 0.11
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-5",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 0,
+              "contradicts": 1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-5",
+        "answers": {
+          "supported_0": {
+            "choice": "transient",
+            "confidence": 0.97,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0.98,
+              "unsupported": 0.02,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-6",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 0.01,
+              "contradicts": 0.99,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-6",
+        "answers": {
+          "supported_0": {
+            "choice": "unsupported",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-7",
+        "answers": {
+          "supported_0": {
+            "choice": "unsupported",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0.01,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0.99,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-7",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 0,
+              "contradicts": 1,
+              "unclear": 0
+            }
+          }
+        }
+      }
+    ],
+    "after": [
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.93,
+            "probabilities": {
+              "grounded": 0.95,
+              "speculative": 0,
+              "transient": 0.01,
+              "unsupported": 0.03,
+              "unclear": 0.01
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 0.96,
+            "probabilities": {
+              "grounded": 0.97,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0.02,
+              "unclear": 0.01
+            }
+          },
+          "supported_2": {
+            "choice": "grounded",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.93,
+            "probabilities": {
+              "compatible": 0.95,
+              "contradicts": 0.04,
+              "unclear": 0.01
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_0": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_1": {
+            "choice": "compatible",
+            "confidence": 0.97,
+            "probabilities": {
+              "compatible": 0.98,
+              "contradicts": 0.01,
+              "unclear": 0.01
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          },
+          "supported_2": {
+            "choice": "grounded",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_1": {
+            "choice": "compatible",
+            "confidence": 0.97,
+            "probabilities": {
+              "compatible": 0.98,
+              "contradicts": 0.02,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.96,
+            "probabilities": {
+              "compatible": 0.97,
+              "contradicts": 0.02,
+              "unclear": 0.01
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_0": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-0",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-0",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-1",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-1",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-2",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-2",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-3",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.93,
+            "probabilities": {
+              "grounded": 0.95,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0.05,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-3",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-4",
+        "answers": {
+          "supported_0": {
+            "choice": "speculative",
+            "confidence": 0.98,
+            "probabilities": {
+              "grounded": 0.01,
+              "speculative": 0.99,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-4",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.6,
+            "probabilities": {
+              "compatible": 0.16,
+              "contradicts": 0.74,
+              "unclear": 0.1
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-5",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 0,
+              "contradicts": 1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-5",
+        "answers": {
+          "supported_0": {
+            "choice": "transient",
+            "confidence": 0.98,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0.98,
+              "unsupported": 0.02,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-6",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 0.01,
+              "contradicts": 0.99,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-6",
+        "answers": {
+          "supported_0": {
+            "choice": "unsupported",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-7",
+        "answers": {
+          "supported_0": {
+            "choice": "unsupported",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-expanded-memory-7",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 0.01,
+              "contradicts": 0.99,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-0",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-0",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-1",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-1",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-2",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-2",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-3",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.94,
+            "probabilities": {
+              "grounded": 0.96,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0.04,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-3",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-4",
+        "answers": {
+          "supported_0": {
+            "choice": "speculative",
+            "confidence": 0.98,
+            "probabilities": {
+              "grounded": 0.01,
+              "speculative": 0.99,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-4",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.6,
+            "probabilities": {
+              "compatible": 0.16,
+              "contradicts": 0.73,
+              "unclear": 0.11
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-5",
+        "answers": {
+          "supported_0": {
+            "choice": "transient",
+            "confidence": 0.95,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0.96,
+              "unsupported": 0.04,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-5",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 0,
+              "contradicts": 1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-6",
+        "answers": {
+          "supported_0": {
+            "choice": "unsupported",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-6",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 0.01,
+              "contradicts": 0.99,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-7",
+        "answers": {
+          "supported_0": {
+            "choice": "unsupported",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0.01,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0.99,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-expanded-memory-7",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 0,
+              "contradicts": 1,
+              "unclear": 0
+            }
+          }
+        }
+      }
+    ]
+  }
+}

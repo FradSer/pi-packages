@@ -126,7 +126,7 @@ def test_readable_private_path_uses_canonical_project_path_and_shared_scope_lock
         assert result["alias"]["harnessDir"] == result["physical"]["harnessDir"]
 
 
-def test_readable_private_root_replaces_whitespace_with_dashes() -> None:
+def test_readable_private_root_preserves_whitespace() -> None:
     result = run_bun(
         """
         import { escapedProjectPath, resolveMemoryPaths } from './packages/continual-learning/extensions/memory-paths.ts';
@@ -349,6 +349,35 @@ def test_invalid_memory_config_is_reported_without_crashing_or_overwriting() -> 
         assert result["state"]["invalid"]
         assert result["state"]["config"] == {}
         assert result["raw"] == "null\n"
+
+
+def test_invalid_model_fields_never_become_an_empty_valid_config(tmp_path: Path) -> None:
+    agent = tmp_path / "agent"
+    agent.mkdir()
+    result = run_bun(
+        r'''
+          import fs from 'node:fs'; import path from 'node:path';
+          const { readMemoryConfigState } = await import('./packages/continual-learning/extensions/config.ts');
+          const file = path.join(process.env.PI_CODING_AGENT_DIR, 'memory.json');
+          const invalid = [
+            { provider: 12, model: 34 }, { provider: false, model: false },
+            { provider: null, model: null }, { provider: {}, model: [] },
+            { provider: '', model: '' }, { provider: '  ', model: '  ' },
+          ];
+          const states = invalid.map(value => {
+            const raw = JSON.stringify(value); fs.writeFileSync(file, raw);
+            const state = readMemoryConfigState();
+            return { invalid: Boolean(state.invalid), config: state.config, preserved: fs.readFileSync(file, 'utf8') === raw };
+          });
+          fs.writeFileSync(file, '{}'); const fallback = readMemoryConfigState();
+          fs.writeFileSync(file, JSON.stringify({provider: ' provider ', model: ' model '})); const valid = readMemoryConfigState();
+          console.log(JSON.stringify({ states, fallback, valid }));
+        ''',
+        {"PI_CODING_AGENT_DIR": str(agent)},
+    )
+    assert result["states"] == [{"invalid": True, "config": {}, "preserved": True}] * 6
+    assert result["fallback"] == {"config": {}, "present": True}
+    assert result["valid"] == {"config": {"provider": "provider", "model": "model"}, "present": True}
 
 
 def test_realpath_aliases_share_scope(tmp_path: Path) -> None:
@@ -719,6 +748,65 @@ def test_mirror_drift_is_normalized_before_the_run() -> None:
         assert "(harness only)" not in result["publicIndex"]
 
 
+def test_mirror_normalization_uses_markdown_link_targets_for_private_entries() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        agent = root / "agent"
+        repo.mkdir()
+        initialize_git_repo(repo)
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ normalizeMirrorDrift }} from './packages/continual-learning/extensions/consolidation-run.ts';
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            import {{ mkdirSync, writeFileSync, readFileSync, existsSync, utimesSync }} from 'node:fs';
+            const memory = resolveMemoryPaths({json.dumps(str(repo))});
+            mkdirSync(memory.harnessDir, {{ recursive: true }}); mkdirSync(memory.publicDir, {{ recursive: true }});
+            writeFileSync(memory.harnessDir + '/MEMORY.md', '- [decoy.md](private.md) (harness only)\\n');
+            writeFileSync(memory.harnessDir + '/decoy.md', 'safe body\\n');
+            writeFileSync(memory.harnessDir + '/private.md', 'private body\\n');
+            writeFileSync(memory.publicDir + '/decoy.md', 'old safe body\\n');
+            utimesSync(memory.harnessDir + '/decoy.md', 2000, 2000); utimesSync(memory.publicDir + '/decoy.md', 1000, 1000);
+            const outcome = await normalizeMirrorDrift(memory);
+            console.log(JSON.stringify({{
+              removed: outcome.removed,
+              decoy: readFileSync(memory.publicDir + '/decoy.md', 'utf8'),
+              privateCopied: existsSync(memory.publicDir + '/private.md'),
+            }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result == {"removed": [], "decoy": "safe body\n", "privateCopied": False}
+
+
+def test_mirror_normalization_rejects_missing_marked_file_before_copying_anything() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        agent = root / "agent"
+        repo.mkdir()
+        initialize_git_repo(repo)
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ normalizeMirrorDrift }} from './packages/continual-learning/extensions/consolidation-run.ts';
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            import {{ mkdirSync, writeFileSync, existsSync }} from 'node:fs';
+            const memory = resolveMemoryPaths({json.dumps(str(repo))});
+            mkdirSync(memory.harnessDir, {{ recursive: true }}); mkdirSync(memory.publicDir, {{ recursive: true }});
+            writeFileSync(memory.harnessDir + '/MEMORY.md', '- [missing.md](missing.md) (harness only)\\n');
+            writeFileSync(memory.harnessDir + '/safe.md', 'safe body\\n');
+            let error = '';
+            try {{ await normalizeMirrorDrift(memory); }} catch (cause) {{ error = String(cause); }}
+            console.log(JSON.stringify({{ error, copied: existsSync(memory.publicDir + '/safe.md') }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert "missing private" in result["error"]
+        assert result["copied"] is False
+
+
 def test_missing_harness_root_imports_public_instead_of_deleting() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
@@ -749,6 +837,73 @@ def test_missing_harness_root_imports_public_instead_of_deleting() -> None:
             "removed": [],
             "imported": "kept\n",
         }
+
+
+def test_missing_public_root_is_created_before_private_memory_is_mirrored() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        agent = root / "agent"
+        repo.mkdir()
+        initialize_git_repo(repo)
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ normalizeMirrorDrift }} from './packages/continual-learning/extensions/consolidation-run.ts';
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            import {{ mkdirSync, writeFileSync, readFileSync, existsSync }} from 'node:fs';
+            const memory = resolveMemoryPaths({json.dumps(str(repo))});
+            mkdirSync(memory.harnessDir, {{ recursive: true }});
+            writeFileSync(memory.harnessDir + '/kept.md', 'kept from private root\\n');
+            const outcome = await normalizeMirrorDrift(memory);
+            console.log(JSON.stringify({{
+              repaired: outcome.repaired,
+              removed: outcome.removed,
+              publicExists: existsSync(memory.publicDir),
+              privateCopy: readFileSync(memory.harnessDir + '/kept.md', 'utf8'),
+              publicCopy: readFileSync(memory.publicDir + '/kept.md', 'utf8'),
+              privateIndex: readFileSync(memory.harnessDir + '/MEMORY.md', 'utf8'),
+              publicIndex: readFileSync(memory.publicDir + '/MEMORY.md', 'utf8'),
+            }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert result["repaired"] == [{"name": "kept.md", "direction": "harness-to-public"}]
+        assert result["removed"] == []
+        assert result["publicExists"] is True
+        assert result["privateCopy"] == result["publicCopy"] == "kept from private root\n"
+        assert "- [kept.md](kept.md)" in result["privateIndex"]
+        assert "- [kept.md](kept.md)" in result["publicIndex"]
+
+
+def test_mirror_normalization_rejects_a_symlinked_memory_root() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        repo = root / "repo"
+        agent = root / "agent"
+        outside = root / "outside"
+        repo.mkdir()
+        outside.mkdir()
+        initialize_git_repo(repo)
+        result = run_bun(
+            f"""
+            process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
+            import {{ normalizeMirrorDrift }} from './packages/continual-learning/extensions/consolidation-run.ts';
+            import {{ resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
+            import {{ mkdirSync, symlinkSync, writeFileSync, readdirSync }} from 'node:fs';
+            const memory = resolveMemoryPaths({json.dumps(str(repo))});
+            mkdirSync(memory.harnessDir, {{ recursive: true }});
+            writeFileSync(memory.harnessDir + '/known.md', 'known\\n');
+            writeFileSync({json.dumps(str(outside / 'orphan.md'))}, 'outside\\n');
+            symlinkSync({json.dumps(str(outside))}, memory.publicDir, 'dir');
+            let error = '';
+            try {{ await normalizeMirrorDrift(memory); }} catch (cause) {{ error = String(cause); }}
+            console.log(JSON.stringify({{ error, outside: readdirSync({json.dumps(str(outside))}) }}));
+            """,
+            {"PI_CODING_AGENT_DIR": str(agent)},
+        )
+        assert "regular directory" in result["error"]
+        assert result["outside"] == ["orphan.md"]
 
 
 def test_obsolete_private_roots_are_ignored_without_mutation() -> None:

@@ -38,7 +38,17 @@ Tools are progressively exposed based on active session state:
    - `action: "cancel"`: Cancel the active workflow with an explicit reason.
 3. **Active-only tool**: `matt_pocock_ask`
    - Prompt the user for structured, genuinely user-owned decisions with selectable options.
-   - Supports recommended choices, automatic timeout adoption, and custom text input.
+   - Supports recommended choices, automatic adoption after an actual elapsed timeout, and custom text input. An explicit deadline dismisses the selector; elapsed clock readings alone never imply a timeout. Escape, abort, and branch changes leave the decision pending. Recommendations must match an offered option; approval-required actions need an explicit response without a timeout recommendation.
+
+## Pi v1.0 runtime boundaries
+
+This extension targets Pi v1.0 (`@earendil-works/pi-*`). Each extension instance owns its workflow state. Session start, tree navigation, and context compaction silently restore the active branch's complete procedure context; subsequent transitions deliver only new bodies. Malformed or incompatible newest records disable workflow-only tools rather than resurrecting older work. Restored phases must match the catalog placement.
+
+Workflow changes and session boundaries dismiss pending questions and menus. A late selection cannot act on a replacement work item. Invalid arguments to `status` or `complete` report usage without cancelling the active work.
+
+Standalone reference loading remembers the current capability's disclosure chain in memory, so a reference can disclose further references without creating workflow state. This chain resets when the capability restarts or the session context changes. Standalone procedures ask decisions in conversation rather than relying on workflow-only tools.
+
+The catalog is validated before tools are registered, including alias conflicts, duplicate route placements, and required dependency cycles. A cumulative reference bundle is validated against the 64 KiB limit before state is persisted. Dialog cancellation propagates to Pi UI and native subprocesses; native process failures fall back to Pi UI.
 
 ## Workflow Routes & Graph Topology
 
@@ -106,8 +116,11 @@ The following curated capabilities are reachable via `matt_pocock_workflow` (`mo
 - **`deslop`**: Eliminating AI code smell patterns while keeping interfaces and tests green.
 - **`wizard`**: Generating interactive human-in-the-loop shell wizards.
 - **`grilling`**: Relentlessly interviewing requirements one question at a time.
-- **`domain-modeling`**: Clarifying ubiquitous domain language and CONTEXT.md.
+- **`domain-modeling`**: Clarifying ubiquitous domain language and GLOSSARY.md.
 - **`tdd`**: Running the BDD-driven red-green automation loop.
+- **`pr`**: Writing a concise PR body with evidence and merge risk.
+
+User-invoked capabilities also appear in the command menu. `/matt-pocock retro` reviews a session and proposes improvements to the agent environment. The upstream glossary rename retains `CONTEXT-FORMAT` as an alias of `GLOSSARY-FORMAT`, so existing workflow records can still restore. `resolving-merge-conflicts` remains a local compatibility capability after its removal upstream.
 
 ## Lifecycle Display Lines
 
@@ -170,17 +183,61 @@ The `matt-pocock-procedure` message renderer owns that block layout. A `/matt-po
 
 These operations keep their own subjects rather than substituting a workflow phase:
 
-- **Reference loading (`load`)**: `[matt pocock] event · loaded <reference>` (e.g. `[matt pocock] event · loaded HTML-REPORT`).
-- **Standalone capability**: `[matt pocock] started · <capability>` (e.g. `[matt pocock] started · research`).
+- **Reference loading (`load`)**: `[matt pocock] event · loaded <reference>` (e.g. `[matt pocock] event · loaded HTML Report`).
+- **Standalone capability**: `[matt pocock] started · <capability>` (e.g. `[matt pocock] started · Diagnosing Bugs`).
 - **Standalone reference**: `[matt pocock] started · <capability> · <reference>`.
 - **`matt_pocock_ask`**: `[matt pocock] ask · <question>`, with the answer or pending status below. Timeout, no-UI, and custom-input metadata remain available on expansion without repeating the answer.
 - **Fallback**: `[matt pocock] event · workflow updated` when no action or subject is available.
 
-For offline verification in the real Pi CLI, run `uv run --no-project packages/matt-pocock/tests/live_smoke.py` from the repository root. It checks print mode, interactive terminal rows, Ctrl+O expansion, resizing to 48 columns, and `/matt-pocock hard-bug fix the login redirect` delivering one block row on the user-message band, with a scripted provider and temporary home; it does not use your credentials or call an external model.
+Capability and reference names use readable catalog labels consistently. Transition-menu choices use their destination phase titles, matching lifecycle rows. Command identifiers and saved resource ids remain unchanged; user-supplied tasks are displayed verbatim.
+
+Run the actual Pi checks from the repository root:
+
+```bash
+uv run --no-project packages/matt-pocock/tests/live_smoke.py
+uv run --no-project packages/matt-pocock/tests/runtime_live.py
+uv run --no-project packages/matt-pocock/tests/restore_live.py
+uv run --no-project packages/matt-pocock/tests/decision_live.py
+uv run --no-project packages/matt-pocock/tests/active_menu_live.py
+uv run --no-project packages/matt-pocock/tests/abort_live.py
+uv run --no-project packages/matt-pocock/tests/adversarial_live.py
+node --import tsx/esm packages/matt-pocock/tests/native_real_smoke.ts
+```
+
+The lifecycle check covers print mode, terminal rows, timeout and Escape, Ctrl+O, 48-column resizing, and the user-message band. The catalog matrix derives routes, legal transitions and standalone capabilities from the manifest and exercises them through Pi's agent loop, including persistence, restart, native tree navigation and native compaction. The compaction probe supplies a deterministic summary through `session_before_compact`; Pi still performs compaction and session persistence. Restored procedure sources are checked in the next model context.
+
+The restart boundary check also covers completed/cancelled latest records, incompatible versions, and invalid phase/reference/procedure records, with older active records still present. It verifies inactive tools and guidance, and cancellation records for invalid active state.
+
+The adversarial check opens real Pi selectors and menus, then injects deterministic state changes through the registered handlers. It verifies immediate dismissal, replacement work-item identity, and reference-only loading before and after a user command. Package tests additionally derive resource/alias/disclosure/transition cases from the catalog and test exact UTF-8 size boundaries in disposable package copies.
+
+Repository verification details and reproduced failures are recorded in [the adversarial verification report](tests/ADVERSARIAL-VERIFICATION.md).
+
+The decision and active-menu checks send actual keyboard input through Pi's terminal UI. They cover option/custom input, cancellation, timeout, View, Transition, Cancel and Complete. The abort check interrupts a live selector with an AbortSignal. These Pi checks use an isolated home, allowlisted process settings and a deterministic local provider; they do not inherit provider credentials or validate external-model decisions or downstream project work performed by a procedure.
+
+The decision check deliberately fails a simulated native subprocess to exercise TUI fallback. On macOS, the separate native smoke uses the real `osascript` to verify list/input/prompt timeout and list abort, including process exit. It does not automate native button selection or verify physical rendering. Package tests also typecheck every TypeScript test fixture and verify package-local Pi v1.0 dependency resolution.
+
+The separate real-model matrix covers all 21 standalone capabilities, five workflow entries, natural-language routing, and a review regression where passing tests coexist with unrequested behavior (28 cases). Listing it does not read credentials or start Pi:
+
+```bash
+uv run --no-project packages/matt-pocock/tests/real_model_live.py --list
+uv run --no-project packages/matt-pocock/tests/real_model_live.py --case cap-pr --output /tmp/matt-real-pr.json
+uv run --no-project packages/matt-pocock/tests/real_model_live.py --all --output /tmp/matt-real-matrix.json
+```
+
+`--case` and `--all` call the configured real provider and model, with thinking off. Each case uses a disposable project and agent directory; authentication files are copied with private permissions and deleted afterward. The production extension runs through native Pi RPC. File tools stay inside the project, fixed tests run in a macOS sandbox, and the verifier cannot be modified. Results distinguish verified artifacts, questions awaiting an answer, failures, and skipped cases. If any question is pending, the aggregate remains `awaiting_user`; an expected pending result has exit code 0. A provider failure stops the matrix instead of switching models. These runs are deliberately separate from the credential-free package test suite.
+
+Three multi-turn developer journeys additionally cover an agreed discount feature through review and handoff, async cache incident repair, and configuration cleanup through design, de-slop, review and handoff. Their fixed acceptance tests verify public behavior and independent cache keys; review notes are also inspected for unsupported causal claims and misleading verdicts. Workflow journeys require the actual requested stages and one work item. The harness waits for Pi agent settlement between turns. These longer journeys explicitly allow up to 80 tool calls; the ordinary matrix retains its default 40-call budget, and exhaustion blocks later turns too.
+
+```bash
+uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packages/matt-pocock/tests/developer-journey-cases.json --list
+uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packages/matt-pocock/tests/developer-journey-cases.json --all --deadline 420 --output /tmp/matt-developer-journeys.json
+```
+
+The developer journey evidence and observed limitations are documented in [DEVELOPER-JOURNEYS.md](tests/DEVELOPER-JOURNEYS.md).
 
 ## Configuration
 
-You can optionally configure native macOS dialog prompts for `matt_pocock_ask` via `~/.pi/agent/pi-matt-pocock.json`:
+You can optionally configure native macOS dialog prompts for `matt_pocock_ask` via `matt-pocock.json` in Pi's agent directory (`~/.pi/agent/matt-pocock.json`, or `$PI_CODING_AGENT_DIR/matt-pocock.json` when that variable is set):
 
 ```json
 {
@@ -188,10 +245,20 @@ You can optionally configure native macOS dialog prompts for `matt_pocock_ask` v
 }
 ```
 
-By default (`useNativeDialog: false` or missing file), Pi uses its built-in TUI selection dialog. Native dialogs are automatically guarded to only trigger on local macOS GUI sessions (SSH sessions, non-macOS platforms, and CI environments always fall back cleanly to terminal TUI).
+Only the boolean `true` enables native dialogs; strings and numbers keep them disabled. By default (`useNativeDialog: false` or missing file), Pi uses its built-in TUI selection dialog. Native dialogs are automatically guarded to only trigger on local macOS GUI sessions (SSH sessions, non-macOS platforms, and CI environments always fall back cleanly to terminal TUI).
 
 See the detailed [中文架构说明](ARCHITECTURE.zh-CN.md), the upstream [selection metadata](upstream-selection.json) and [sync rules](UPSTREAM.md), and the deliberately deferred items in [TODO.md](TODO.md).
 
 ## License
 
 MIT
+
+Eight additional developer fixtures cover generated frontend HTML, API request boundaries, authorization, versioned migration, operation-count performance, localization, lexical paths and behavioral test design. Together with the earlier journeys, these cover eleven developer task categories. The catalog-derived inventory checks every supported standalone capability and route; JSON boundary checks cover all JSON value classes.
+
+```bash
+uv run --no-project packages/matt-pocock/tests/type_inventory.py
+uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packages/matt-pocock/tests/expanded-type-cases.json --list
+uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packages/matt-pocock/tests/expanded-type-cases.json --all --deadline 300 --output /tmp/matt-expanded-types.json
+```
+
+The real-model verifier returns bounded redacted diagnostics and requires an immutable acceptance completion marker, so an early successful process exit cannot silently skip acceptance. See [TEST-TYPES.md](tests/TEST-TYPES.md) for the coverage inventory, actual attempts and limitations. These checks do not establish browser assistive-technology behavior, deployed services, physical input or every possible software task.

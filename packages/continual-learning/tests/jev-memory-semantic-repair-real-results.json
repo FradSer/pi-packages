@@ -1,0 +1,78 @@
+{
+  "evidence": "real-worker-and-jev-over-archived-native-candidate",
+  "sourceArtifact": "jev-sparse-native-en-first-complete.json",
+  "applicationVerified": false,
+  "before": {
+    "decision": "propose",
+    "telemetry": {
+      "stage": "memory",
+      "status": "propose",
+      "reason": "uncertain",
+      "durationMs": 1172,
+      "model": "jev-1.13.0",
+      "inputTokens": 979,
+      "outputTokens": 64,
+      "estimatedCostUsd": 4.1118e-05,
+      "candidateIndex": 0,
+      "dimension": "support"
+    }
+  },
+  "repair": {
+    "outcome": "repaired",
+    "durationMs": 44105,
+    "plan": {
+      "kind": "incremental-memory-plan",
+      "version": 1,
+      "schemaVersion": 1,
+      "runId": "run_muuqk1yg_0ac23691b96175da",
+      "scopeKey": "--private-var-folders-vn-whfnt01d4b19zg44txbtznbc0000gn-T-cl-jev-real-workflow-079gh8w5-project--",
+      "scopeDigest": "dd4d08dd9d1afbc8c18d676bfff3c1e4d269ba48a6bcf9b151762e1d1b34b028",
+      "artifactHash": "f328ae48847381cd43a6545a1cea9a75929d9dec365c4204b5a5fcbb396efa1b",
+      "snapshotDigest": "f328ae48847381cd43a6545a1cea9a75929d9dec365c4204b5a5fcbb396efa1b",
+      "operations": [],
+      "newMemories": [
+        {
+          "name": "team_glossary.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: team_glossary\ndescription: The public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE is called Starboat and the greenlight entrypoint reads pnpm test:unit\ntype: project\n---\nThe public release tag `CL_JEV_WORKFLOW_PUBLIC_RELEASE` is called \"Starboat\". The greenlight entrypoint reads `pnpm test:unit`.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Around here the public release tag CL_JEV_WORKFLOW_PUBLIC_RELEASE goes by Starboat; the greenlight entrypoint reads pnpm test:unit. A public team glossary note. Acknowledge briefly without invoking tools.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    },
+    "usage": {
+      "input": 3123,
+      "output": 2363,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "totalTokens": 5486,
+      "cost": 0.00157906
+    }
+  },
+  "after": {
+    "decision": "allow",
+    "telemetry": {
+      "stage": "memory",
+      "status": "decided",
+      "reason": "supported",
+      "durationMs": 1005,
+      "model": "jev-1.13.0",
+      "inputTokens": 959,
+      "outputTokens": 64,
+      "estimatedCostUsd": 4.0278e-05
+    }
+  },
+  "parentValidation": {
+    "exitCode": 0,
+    "stdout": "{\"checks\":[\"plan\"],\"details\":{\"binding\":{\"artifactHash\":\"f328ae48847381cd43a6545a1cea9a75929d9dec365c4204b5a5fcbb396efa1b\",\"receiptPath\":null,\"runDir\":\"/private/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/cl-public-repair-validator-hpvpnv0l\",\"runId\":\"run_muuqk1yg_0ac23691b96175da\",\"scopeDigest\":\"dd4d08dd9d1afbc8c18d676bfff3c1e4d269ba48a6bcf9b151762e1d1b34b028\"},\"inventoryCount\":1,\"newMemoryCount\":1},\"ok\":true}\n",
+    "stderr": "",
+    "snapshotDigestMatches": true,
+    "applicationVerified": false
+  }
+}

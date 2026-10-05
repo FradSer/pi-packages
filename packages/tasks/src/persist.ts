@@ -1,17 +1,17 @@
 /**
- * Durable Work Item persistence.
+ * Durable Task persistence.
  *
- * Board layout (persists across restarts, never auto-cleaned):
- *   ~/.pi/agent/tasks/<sessionKey>/board.json           leader-owned board file
+ * Layout (persists across restarts, never auto-cleaned):
+ *   ~/.pi/agent/tasks/<sessionKey>/tasks.json            sole-writer task file
  *   ~/.pi/agent/tasks/<sessionKey>/claims/<id>.json      exclusive-create claim intents
  *   ~/.pi/agent/tasks/<sessionKey>/submissions/<id>.json exclusive-create submit intents
  *
- * Concurrency: the leader is the sole writer of `board.json`, replaced
- * atomically. A worker never writes the board; it expresses intent through an
- * exclusive-create marker file, so exactly one racer wins a contested claim.
+ * Concurrency: the task file has exactly one writer, replaced atomically. A
+ * participant never writes it; it expresses intent through an exclusive-create
+ * marker file, so exactly one racer wins a contested claim.
  *
- * Operator-visible wording says "Work snapshot", not "Agent Teams": this package
- * owns the file and may be installed without the team runtime.
+ * Loading and writes use only `tasks.json`. No other filename participates in
+ * task persistence.
  */
 
 import * as fs from "node:fs";
@@ -26,71 +26,74 @@ import {
   writeJsonAtomic,
   type IntentValidation,
 } from "@fradser/pi-kit";
-import { WORK_RUNTIME_VERSION, type BoardTask, type TaskIntent } from "./types.ts";
+import { TASKS_FILE_VERSION, type Task, type TaskIntent } from "./types.ts";
 
 /** Intent label used in diagnostics, so an operator reads the same wording this
  * package has always produced. */
 const INTENT_LABEL = "task intent";
+
+/** The one file this session's tasks live in. */
+const TASKS_FILE = "tasks.json";
 
 /** An unparseable intent younger than this may still be mid-publish elsewhere,
  * so it is retried rather than destroyed. Re-exported under the name this
  * package has always used; the value and semantics are pi-kit's default. */
 export const INTENT_PUBLISH_GRACE_MS = DEFAULT_INTENT_PUBLISH_GRACE_MS;
 
-/** Root of all per-session board directories. */
+/** Root of all per-session task directories. */
 export function tasksRoot(): string {
   return path.join(getAgentDir(), "tasks");
 }
 
 export { sessionKey };
 
-export function boardDir(sessionFile: string | undefined, cwd: string): string {
+export function tasksDir(sessionFile: string | undefined, cwd: string): string {
   return path.join(tasksRoot(), sessionKey(sessionFile, cwd));
 }
 
-export function boardFilePath(sessionFile: string | undefined, cwd: string): string {
-  return path.join(boardDir(sessionFile, cwd), "board.json");
+export function tasksFilePath(sessionFile: string | undefined, cwd: string): string {
+  return path.join(tasksDir(sessionFile, cwd), TASKS_FILE);
 }
 
-export function claimsDir(boardDirectory: string): string {
-  return path.join(boardDirectory, "claims");
+export function claimsDir(taskDirectory: string): string {
+  return path.join(taskDirectory, "claims");
 }
 
-export function submissionsDir(boardDirectory: string): string {
-  return path.join(boardDirectory, "submissions");
+export function submissionsDir(taskDirectory: string): string {
+  return path.join(taskDirectory, "submissions");
 }
 
-/** Read the persisted board. An absent file is a fresh session; a present but
- * unreadable one is an error, never an empty board — silently treating it as
- * empty would discard durable Work. */
-export function readBoardFile(file: string): { tasks: Record<string, BoardTask> } | undefined {
+/** Read the persisted tasks. An absent file is a fresh store; a present but
+ *  unreadable one is an error, never an empty store — silently treating it as
+ *  empty would discard durable Tasks. */
+export function readTasksFile(file: string): { tasks: Record<string, Task> } | undefined {
   let raw: string;
   try {
     raw = fs.readFileSync(file, "utf-8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw new Error(`Work snapshot at ${file} could not be read: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`The task file at ${file} could not be read: ${error instanceof Error ? error.message : String(error)}`);
   }
-  let parsed: { runtimeVersion?: number; tasks?: Record<string, BoardTask> };
+  let parsed: { runtimeVersion?: number; tasks?: Record<string, Task> };
   try {
-    parsed = JSON.parse(raw) as { runtimeVersion?: number; tasks?: Record<string, BoardTask> };
+    parsed = JSON.parse(raw) as { runtimeVersion?: number; tasks?: Record<string, Task> };
   } catch {
-    throw new Error(`Work snapshot at ${file} is not valid JSON; refusing to treat it as an empty board.`);
+    throw new Error(`The task file at ${file} is not valid JSON; refusing to treat it as empty.`);
   }
-  if (parsed.tasks && parsed.runtimeVersion !== WORK_RUNTIME_VERSION) {
-    throw new Error(`Incompatible Work snapshot version ${String(parsed.runtimeVersion)}; expected ${WORK_RUNTIME_VERSION}.`);
+  if (parsed.tasks && parsed.runtimeVersion !== TASKS_FILE_VERSION) {
+    throw new Error(`Incompatible task file version ${String(parsed.runtimeVersion)}; expected ${TASKS_FILE_VERSION}.`);
   }
   return parsed.tasks ? { tasks: parsed.tasks } : undefined;
 }
 
-export function writeBoardFile(file: string, tasks: Record<string, BoardTask>): void {
+export function writeTasksFile(file: string, tasks: Record<string, Task>): void {
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  writeJsonAtomic(file, { runtimeVersion: WORK_RUNTIME_VERSION, tasks });
+  writeJsonAtomic(file, { runtimeVersion: TASKS_FILE_VERSION, tasks });
 }
 
 /**
- * Express a board intent through an exclusive-create marker file. Returns true
- * exactly when this caller won the race for the Work id.
+ * Express a task intent through an exclusive-create marker file. Returns true
+ * exactly when this caller won the race for the Task id.
  */
 export function createTaskIntent(dir: string, taskId: string, intent: TaskIntent): boolean {
   return createExclusiveJsonFile(dir, taskId, intent, {
@@ -100,22 +103,29 @@ export function createTaskIntent(dir: string, taskId: string, intent: TaskIntent
 }
 
 /** Field checks that make a parsed marker a usable intent. A record missing its
- * holder identity cannot be attributed, so it is rejected rather than guessed. */
+ *  holder identity cannot be attributed, so it is rejected rather than guessed. */
 function validateTaskIntent(parsed: unknown): IntentValidation<TaskIntent> {
   const candidate = parsed as Partial<TaskIntent> | null;
   if (
     typeof candidate?.taskId !== "string" || candidate.taskId.trim() === ""
-    || typeof candidate.worker !== "string" || candidate.worker.trim() === ""
+    || typeof candidate.participant !== "string" || candidate.participant.trim() === ""
     || typeof candidate.spawnId !== "string" || candidate.spawnId.trim() === ""
     || typeof candidate.timestamp !== "number" || !Number.isFinite(candidate.timestamp)
   ) {
-    return { ok: false, reason: "requires non-empty taskId/worker/spawnId and finite timestamp" };
+    return { ok: false, reason: "requires non-empty taskId/participant/spawnId and finite timestamp" };
   }
   if (candidate.status !== undefined && candidate.status !== "completed" && candidate.status !== "failed") {
     return { ok: false, reason: "invalid submission status" };
   }
   if (typeof candidate.result !== "undefined" && typeof candidate.result !== "string") {
     return { ok: false, reason: "invalid submission result" };
+  }
+  if (
+    typeof candidate.verdict !== "undefined"
+    && candidate.verdict !== "pass"
+    && candidate.verdict !== "fail"
+  ) {
+    return { ok: false, reason: "invalid submission verdict" };
   }
   return { ok: true, value: candidate as TaskIntent };
 }

@@ -1,20 +1,20 @@
-import { WORKER_BUILTIN_TOOLS } from "@fradser/pi-subagents";
+import { AGENT_BUILTIN_TOOLS } from "@fradser/pi-subagents";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { isValidTeammateName, listTeammates } from "./state.ts";
+import { isValidAgentName, listAgents } from "./state.ts";
 import { resolveAgent } from "@fradser/pi-subagents";
-import { shutdownTeammateExact, spawnTeammate } from "./team-machine.ts";
-import { normalizeCoordinationParams, requireParsedParams, type Teammate } from "./types.ts";
+import { shutdownAgentExact, spawnAgent } from "./team-machine.ts";
+import { normalizeCoordinationParams, requireParsedParams, type Agent } from "./types.ts";
 import { snapshotWorkContext } from "@fradser/pi-subagents";
 import { exactSessionRoute, resolveExactSession } from "./recipient.ts";
 
 export interface AgentActionRuntime {
-  spawnTeammate: typeof spawnTeammate;
-  shutdownTeammateExact: typeof shutdownTeammateExact;
+  spawnAgent: typeof spawnAgent;
+  shutdownAgentExact: typeof shutdownAgentExact;
 }
 
-type Definition = Parameters<typeof spawnTeammate>[0]["definition"];
+type Definition = Parameters<typeof spawnAgent>[0]["definition"];
 
-function session(teammate: Teammate) {
+function session(teammate: Agent) {
   const tools = teammate.tools;
   const coordinationOnly = tools !== undefined && tools.every((tool) => tool === "message" || tool === "task");
   return {
@@ -28,7 +28,7 @@ function session(teammate: Teammate) {
 }
 
 function requireName(name: string): void {
-  if (!isValidTeammateName(name)) throw new Error(`Invalid Agent name "${name}".`);
+  if (!isValidAgentName(name)) throw new Error(`Invalid Agent name "${name}".`);
 }
 
 export function runAgentAction(
@@ -52,15 +52,15 @@ export function runAgentAction(
     if (!params.name) throw new Error("Agent inspect requires a name.");
     requireName(params.name);
     if (!params.session) throw new Error("Agent inspect requires an exact session handle.");
-    const matched = resolveExactSession(params.session, listTeammates());
-    if (!matched || matched.agent !== params.name) throw new Error(`No current session "${params.session}" belongs to @${params.name}.`);
+    const matched = resolveExactSession(params.session, listAgents());
+    if (!matched || matched.name !== params.name) throw new Error(`No current session "${params.session}" belongs to @${params.name}.`);
     return { action: "inspect", outcome: "inspected", agent: params.name, sessions: [session(matched)] };
   }
   if (params.action === "stop") {
     if (!params.session) throw new Error("Agent stop requires an exact session handle.");
-    const matched = resolveExactSession(params.session, listTeammates());
+    const matched = resolveExactSession(params.session, listAgents());
     if (!matched) throw new Error(`No living session named "${params.session}".`);
-    return runtime.shutdownTeammateExact(matched.name, matched.spawnId).then((result) => {
+    return runtime.shutdownAgentExact(matched.name, matched.spawnId).then((result) => {
       if (!result.ok) throw new Error(result.error);
       // The name comes from the resolved session, not from the request: a stop
       // carries only a handle, so a receipt keyed on the request would be unnamed
@@ -87,7 +87,7 @@ export function runAgentAction(
   // work, and requiring a role up front would make the normal two spawn shapes —
   // do this one thing, or sit ready — behave differently from the tool.
   if (params.prompt && !params.definition && !resolveAgent(params.name, _cwd)) {
-    throw new Error(`A prompt needs a role. @${params.name} has no definition: pass description and role_prompt, or use a name that already has one. Choose only needed canonical tools: ${WORKER_BUILTIN_TOOLS.join(", ")}. Omitted tools or [] grant coordination-only access.`);
+    throw new Error(`A prompt needs a role. @${params.name} has no definition: pass description and role_prompt, or use a name that already has one. Choose only needed canonical tools: ${AGENT_BUILTIN_TOOLS.join(", ")}. Omitted tools or [] grant coordination-only access.`);
   }
   // One spawn verb with an optional prompt. `delegate` and `start` were the same
   // operation dispatched twice, and the only difference was whether a prompt was
@@ -96,9 +96,9 @@ export function runAgentAction(
   const prompt = params.prompt?.trim();
   if (params.prompt !== undefined && !prompt) throw new Error("An empty prompt is not a task. Omit it to leave the agent idle.");
   const context = params.fork ? snapshotWorkContext(sessionManager) : undefined;
-  const result = runtime.spawnTeammate({
+  const result = runtime.spawnAgent({
     name: params.name,
-    agent: params.name,
+    role: params.name,
     // A prompt is delivered, not recorded: spawning creates no task, so there is
     // no work id, no resource lease, and no verify gate to attach. Anything that
     // needs a record is a task the caller creates and the participant takes.
@@ -108,23 +108,22 @@ export function runAgentAction(
     ...(context ? { context } : {}),
   });
   if (!result.ok) throw new Error(result.error);
-  const receipt = (teammate: Teammate) => ({
+  const receipt = (teammate: Agent) => ({
     action: "start",
     outcome: "started",
     agent: params.name,
     prompted: Boolean(prompt),
     session: session(teammate),
   });
-  // Readiness is awaited whenever the host offers it. A handle is the caller's
-  // only evidence that anything exists, and a child that answered proves more than
-  // one that was forked off.
+  // The machine offers one bounded startup receipt: native readiness without
+  // input, or correlated accepted input with a kickoff. Neither means completed.
   if (result.readiness) {
     return result.readiness.then((error) => {
       if (error) throw new Error(error);
-      const current = resolveExactSession(exactSessionRoute(result.teammate.name, result.teammate.spawnId), listTeammates());
+      const current = resolveExactSession(exactSessionRoute(result.agent.name, result.agent.spawnId), listAgents());
       if (!current || current.status === "stopped") throw new Error("Resident exited or was replaced before startup readiness completed.");
       return receipt(current);
     });
   }
-  return receipt(result.teammate);
+  return receipt(result.agent);
 }

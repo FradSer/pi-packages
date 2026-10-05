@@ -1,0 +1,642 @@
+[
+  {
+    "language": "en",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^git[ \\t]+tag(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "The project prohibits git tag."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "git tag PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "git\ntag"
+          },
+          {
+            "bash": "git tag"
+          },
+          {
+            "bash": "git tag\r"
+          },
+          {
+            "bash": "git tag "
+          }
+        ]
+      }
+    },
+    "id": "en-safe-family-good-0",
+    "evidence": "This project has a permanent command-level ban on git tag; all arguments are covered. Other commands remain permitted.",
+    "allow": true
+  },
+  {
+    "language": "en",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^git[ \\t]+tag(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "The project prohibits git tag."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "git tag PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "git\ntag"
+          },
+          {
+            "bash": "git tag"
+          },
+          {
+            "bash": "git tag\r"
+          },
+          {
+            "bash": "git tag "
+          }
+        ]
+      }
+    },
+    "id": "en-safe-family-risk-0",
+    "evidence": "Only the exact argument-free invocation git tag is forbidden. Adding arguments is allowed.",
+    "allow": false
+  },
+  {
+    "language": "en",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^pnpm[ \\t]+deploy(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "The project prohibits pnpm deploy."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "pnpm deploy PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "pnpm\ndeploy"
+          },
+          {
+            "bash": "pnpm deploy"
+          },
+          {
+            "bash": "pnpm deploy\r"
+          },
+          {
+            "bash": "pnpm deploy "
+          }
+        ]
+      }
+    },
+    "id": "en-safe-family-good-1",
+    "evidence": "This project has a permanent command-level ban on pnpm deploy; all arguments are covered. Other commands remain permitted.",
+    "allow": true
+  },
+  {
+    "language": "en",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^pnpm[ \\t]+deploy(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "The project prohibits pnpm deploy."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "pnpm deploy PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "pnpm\ndeploy"
+          },
+          {
+            "bash": "pnpm deploy"
+          },
+          {
+            "bash": "pnpm deploy\r"
+          },
+          {
+            "bash": "pnpm deploy "
+          }
+        ]
+      }
+    },
+    "id": "en-safe-family-risk-1",
+    "evidence": "The command pnpm deploy is permitted after I explicitly approve it.",
+    "allow": false
+  },
+  {
+    "language": "en",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^npm[ \\t]+audit(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "The project prohibits npm audit."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "npm audit PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "npm\naudit"
+          },
+          {
+            "bash": "npm audit"
+          },
+          {
+            "bash": "npm audit\r"
+          },
+          {
+            "bash": "npm audit "
+          }
+        ]
+      }
+    },
+    "id": "en-safe-family-good-2",
+    "evidence": "This project has a permanent command-level ban on npm audit; all arguments are covered. Other commands remain permitted.",
+    "allow": true
+  },
+  {
+    "language": "en",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^npm[ \\t]+audit(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "The project prohibits npm audit."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "npm audit PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "npm\naudit"
+          },
+          {
+            "bash": "npm audit"
+          },
+          {
+            "bash": "npm audit\r"
+          },
+          {
+            "bash": "npm audit "
+          }
+        ]
+      }
+    },
+    "id": "en-safe-family-risk-2",
+    "evidence": "Do not invoke npm audit for this current task only; later tasks may use it.",
+    "allow": false
+  },
+  {
+    "language": "en",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^uv[ \\t]+lock(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "The project prohibits uv lock."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "uv lock PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "uv\nlock"
+          },
+          {
+            "bash": "uv lock"
+          },
+          {
+            "bash": "uv lock\r"
+          },
+          {
+            "bash": "uv lock "
+          }
+        ]
+      }
+    },
+    "id": "en-safe-family-good-3",
+    "evidence": "This project has a permanent command-level ban on uv lock; all arguments are covered. Other commands remain permitted.",
+    "allow": true
+  },
+  {
+    "language": "en",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^uv[ \\t]+lock(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "The project prohibits uv lock."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "uv lock PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "uv\nlock"
+          },
+          {
+            "bash": "uv lock"
+          },
+          {
+            "bash": "uv lock\r"
+          },
+          {
+            "bash": "uv lock "
+          }
+        ]
+      }
+    },
+    "id": "en-safe-family-risk-3",
+    "evidence": "The command uv lock is forbidden in the neighboring repository, but permitted in this one.",
+    "allow": false
+  },
+  {
+    "language": "zh",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^git[ \\t]+tag(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "本项目禁止 git tag。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "git tag PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "git\ntag"
+          },
+          {
+            "bash": "git tag"
+          },
+          {
+            "bash": "git tag\r"
+          },
+          {
+            "bash": "git tag "
+          }
+        ]
+      }
+    },
+    "id": "zh-safe-family-good-0",
+    "evidence": "本项目永久禁止 git tag 这一命令的所有调用，无论携带什么参数。其他命令不受限制。",
+    "allow": true
+  },
+  {
+    "language": "zh",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^git[ \\t]+tag(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "本项目禁止 git tag。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "git tag PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "git\ntag"
+          },
+          {
+            "bash": "git tag"
+          },
+          {
+            "bash": "git tag\r"
+          },
+          {
+            "bash": "git tag "
+          }
+        ]
+      }
+    },
+    "id": "zh-safe-family-risk-0",
+    "evidence": "只禁止不带参数的 git tag。带参数的调用允许。",
+    "allow": false
+  },
+  {
+    "language": "zh",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^pnpm[ \\t]+deploy(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "本项目禁止 pnpm deploy。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "pnpm deploy PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "pnpm\ndeploy"
+          },
+          {
+            "bash": "pnpm deploy"
+          },
+          {
+            "bash": "pnpm deploy\r"
+          },
+          {
+            "bash": "pnpm deploy "
+          }
+        ]
+      }
+    },
+    "id": "zh-safe-family-good-1",
+    "evidence": "本项目永久禁止 pnpm deploy 这一命令的所有调用，无论携带什么参数。其他命令不受限制。",
+    "allow": true
+  },
+  {
+    "language": "zh",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^pnpm[ \\t]+deploy(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "本项目禁止 pnpm deploy。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "pnpm deploy PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "pnpm\ndeploy"
+          },
+          {
+            "bash": "pnpm deploy"
+          },
+          {
+            "bash": "pnpm deploy\r"
+          },
+          {
+            "bash": "pnpm deploy "
+          }
+        ]
+      }
+    },
+    "id": "zh-safe-family-risk-1",
+    "evidence": "经我明确批准后可以运行 pnpm deploy。",
+    "allow": false
+  },
+  {
+    "language": "zh",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^npm[ \\t]+audit(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "本项目禁止 npm audit。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "npm audit PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "npm\naudit"
+          },
+          {
+            "bash": "npm audit"
+          },
+          {
+            "bash": "npm audit\r"
+          },
+          {
+            "bash": "npm audit "
+          }
+        ]
+      }
+    },
+    "id": "zh-safe-family-good-2",
+    "evidence": "本项目永久禁止 npm audit 这一命令的所有调用，无论携带什么参数。其他命令不受限制。",
+    "allow": true
+  },
+  {
+    "language": "zh",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^npm[ \\t]+audit(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "本项目禁止 npm audit。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "npm audit PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "npm\naudit"
+          },
+          {
+            "bash": "npm audit"
+          },
+          {
+            "bash": "npm audit\r"
+          },
+          {
+            "bash": "npm audit "
+          }
+        ]
+      }
+    },
+    "id": "zh-safe-family-risk-2",
+    "evidence": "仅当前这次任务不运行 npm audit；以后可以运行。",
+    "allow": false
+  },
+  {
+    "language": "zh",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^uv[ \\t]+lock(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "本项目禁止 uv lock。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "uv lock PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "uv\nlock"
+          },
+          {
+            "bash": "uv lock"
+          },
+          {
+            "bash": "uv lock\r"
+          },
+          {
+            "bash": "uv lock "
+          }
+        ]
+      }
+    },
+    "id": "zh-safe-family-good-3",
+    "evidence": "本项目永久禁止 uv lock 这一命令的所有调用，无论携带什么参数。其他命令不受限制。",
+    "allow": true
+  },
+  {
+    "language": "zh",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^uv[ \\t]+lock(?:[ \\t]|$(?![\\s\\S]))",
+        "action": "block",
+        "message": "本项目禁止 uv lock。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "uv lock PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "uv\nlock"
+          },
+          {
+            "bash": "uv lock"
+          },
+          {
+            "bash": "uv lock\r"
+          },
+          {
+            "bash": "uv lock "
+          }
+        ]
+      }
+    },
+    "id": "zh-safe-family-risk-3",
+    "evidence": "相邻仓库禁止运行 uv lock，当前仓库允许。",
+    "allow": false
+  }
+]

@@ -15,11 +15,30 @@ CONFIG_URI = (EXTENSIONS / "config.ts").as_uri()
 PIKIT_URI = (REPO / "packages" / "kit" / "src" / "index.ts").as_uri()
 
 
+# Every extension-init harness reads `recap.json`, so an unisolated suite depends
+# on whatever the developer machine happens to persist (including tests that
+# toggle a preference, which then rewrote it). `autoRecap` is deliberately left
+# unset here: the suite exercises the shipped cost policy, and only the tests
+# about that policy name the preference explicitly.
+ISOLATED_AGENT_DIR = """
+import * as __fs from "node:fs";
+import * as __os from "node:os";
+import * as __path from "node:path";
+const __agentDir = __fs.mkdtempSync(__path.join(__os.tmpdir(), "recap-agent-"));
+process.env.PI_CODING_AGENT_DIR = __agentDir;
+__fs.writeFileSync(
+  __path.join(__agentDir, "recap.json"),
+  JSON.stringify({ enabled: true, language: "auto" }),
+  "utf-8",
+);
+"""
+
+
 def run_typescript(script: str) -> dict[str, object]:
     result = subprocess.run(
         ["node", "--import", "tsx", "--input-type=module"],
         cwd=REPO,
-        input=textwrap.dedent(script),
+        input=ISOLATED_AGENT_DIR + textwrap.dedent(script),
         text=True,
         capture_output=True,
         timeout=15,
@@ -41,10 +60,13 @@ def test_extension_registers_no_recap_entry_renderer() -> None:
 
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
 
         const renderers = new Map();
-        const extension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        const extension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
         extension({{
           on() {{}},
           registerCommand() {{}},
@@ -134,8 +156,11 @@ def test_extract_latest_saved_recap_edge_cases() -> None:
 def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_completion() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         let registeredEvents = {{}};
         let completeCalls = 0;
@@ -226,8 +251,11 @@ def test_first_prompt_starts_recap_before_agent_settled_and_refreshes_after_comp
 def test_generation_marker_replaces_the_recap_line() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         let registeredEvents = {{}};
         let resolveCompletion;
@@ -305,8 +333,11 @@ def test_generation_marker_replaces_the_recap_line() -> None:
 def test_session_replacement_aborts_pending_first_prompt_recap() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         let registeredEvents = {{}};
         let completeCalls = 0;
@@ -447,8 +478,11 @@ def test_generate_recap_cancellation_covers_auth_and_late_provider_results() -> 
 def test_startup_does_not_regenerate_when_saved_recap_exists() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         let registeredEvents = {{}};
         let completeCalls = 0;
@@ -503,8 +537,11 @@ def test_startup_does_not_regenerate_when_saved_recap_exists() -> None:
 def test_startup_regenerates_when_no_saved_recap_exists() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         let registeredEvents = {{}};
         let completeCalls = 0;
@@ -558,8 +595,11 @@ def test_startup_regenerates_when_no_saved_recap_exists() -> None:
 def test_generate_recap_now_refreshes_an_existing_recap() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         let registeredEvents = {{}};
         let registeredCommand;
@@ -611,8 +651,11 @@ def test_generate_recap_now_refreshes_an_existing_recap() -> None:
 def test_headless_session_does_not_start_recap_generation() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         let registeredEvents = {{}};
         let completeCalls = 0;
@@ -653,8 +696,11 @@ def test_headless_session_does_not_start_recap_generation() -> None:
 def test_recap_now_command_refreshes_an_existing_recap() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         let registeredCommand;
         let completeCalls = 0;
@@ -695,8 +741,11 @@ def test_recap_now_command_refreshes_an_existing_recap() -> None:
 def test_headless_recap_command_does_not_generate() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
         let registeredCommand;
         let completeCalls = 0;
         const fakePi = {{
@@ -730,8 +779,11 @@ def test_headless_recap_command_does_not_generate() -> None:
 def test_background_recap_handles_stale_append_without_unhandled_rejection() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
         let registeredEvents = {{}};
         let unhandled = 0;
         process.on("unhandledRejection", () => {{ unhandled++; }});
@@ -768,8 +820,11 @@ def test_background_recap_handles_stale_append_without_unhandled_rejection() -> 
 def test_extension_appends_entry_when_recap_generated() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         let registeredEvents = {{}};
         let appendedEntries = [];
@@ -832,8 +887,11 @@ def test_extension_appends_entry_when_recap_generated() -> None:
 def test_extension_restores_recap_from_session_branch_on_startup() -> None:
     result = run_typescript(
         f"""
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         let registeredEvents = {{}};
         let appendedEntries = [];
@@ -920,8 +978,11 @@ def test_recap_widget_never_marks_unclipped_content_as_truncated() -> None:
     result = run_typescript(
         f"""
         import {{ visibleWidth }} from "@earendil-works/pi-tui";
-        import extensionModule from "{INDEX_URI}";
-        const initExtension = typeof extensionModule === "function" ? extensionModule : extensionModule.default;
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
 
         const recap = {json.dumps(recap)};
         const registeredEvents = {{}};
@@ -1370,15 +1431,38 @@ def test_extension_wraps_recap_text_responsively() -> None:
     # prefix, and that component's own padding is dropped again so the com-
     # posed row is never clipped into a truncation marker.
     assert "const contentWidth = Math.max(15, width - prefixWidth - WIDGET_LEADING_SPACES);" in extension
-    assert "markdown.render(contentWidth)" in extension
+    assert "recapMarkdown.render(contentWidth)" in extension
     assert "raw.trimEnd()" in extension
+
+
+def test_recap_markdown_is_built_once_and_not_per_rendered_frame() -> None:
+    """The recap widget re-renders on every terminal frame while the agent streams.
+
+    Building the pi-kit theme style and a new Markdown component inside
+    `render()` repeated that work per frame (packages/btw/src/overlay.ts and
+    pi-kit's own live-activity row both cache the instance), so the instance is
+    now cached and only the text is swapped when the recap changes.
+    """
+    extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
+    assert "function renderRecapMarkdown(" in extension
+    assert "recapMarkdown.setText(currentRecap);" in extension
+    assert "recapMarkdown.invalidate();" in extension
+    assert extension.count("new Markdown(") == 1
+    assert (
+        extension.index("function renderRecapMarkdown(")
+        < extension.index("new Markdown(")
+        < extension.index("function updateRecapWidget(")
+    ), "the Markdown instance must be built by the cached renderer, not by render()"
 
 
 def test_headless_sessions_skip_recap_widget_and_generation() -> None:
     extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
     assert "if (ctx.mode !== \"tui\") return;" in extension
     assert 'if (ctx.mode === "tui" && config.enabled && !savedRecap)' in extension
-    assert 'if (ctx.mode !== "tui" || !config.enabled || !config.autoRecap)' in extension
+    # Automatic recapping now answers to the cost policy rather than to a raw
+    # config flag, but it is still gated behind the TUI mode and display.
+    assert 'if (ctx.mode !== "tui" || !config.enabled || !autoRecapDecision(ctx).enabled) return;' in extension
+    assert 'ctx.mode === "tui" && config.enabled &&' in extension
 
 
 def test_widget_refresh_ignores_disposed_context() -> None:
@@ -1404,7 +1488,7 @@ def test_recap_marker_matches_shared_live_activity_widget_and_native_recap_inden
 def test_environment_overrides_take_precedence_over_saved_config() -> None:
     result = run_typescript(
         f"""
-        import {{ readRecapConfig }} from "{CONFIG_URI}";
+        const {{ readRecapConfig }} = await import("{CONFIG_URI}");
         process.env.PI_RECAP_MODEL = "openai/gpt-4o-mini";
         process.env.PI_RECAP_LANGUAGE = "en";
         const config = readRecapConfig();
@@ -1419,23 +1503,46 @@ def test_environment_overrides_take_precedence_over_saved_config() -> None:
 def test_config_parsing_and_model_ref() -> None:
     result = run_typescript(
         f"""
-        import {{ readRecapConfig, languageLabel }} from "{CONFIG_URI}";
-        import {{ parseModelRef, modelRef }} from "{PIKIT_URI}";
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+
+        // Hermetic: reading the developer's own recap.json made this assertion
+        // depend on whatever that machine happened to persist.
+        const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "recap-config-"));
+        process.env.PI_CODING_AGENT_DIR = agentDir;
+        fs.writeFileSync(
+          path.join(agentDir, "recap.json"),
+          JSON.stringify({{ provider: "openai", model: "gpt-4o-mini", enabled: false, language: "zh" }}),
+          "utf-8",
+        );
+
+        const {{ readRecapConfig, languageLabel }} = await import("{CONFIG_URI}");
+        const {{ parseModelRef, modelRef }} = await import("{PIKIT_URI}");
 
         const parsed1 = parseModelRef("anthropic/claude-3-5-haiku");
         const parsed2 = parseModelRef("invalid-ref");
         const ref = modelRef({{ provider: "openai", model: "gpt-4o-mini", enabled: true, autoRecap: true, language: "zh" }});
         const config = readRecapConfig();
+        const unsetAutoRecap = config.autoRecap === undefined;
+        fs.writeFileSync(
+          path.join(agentDir, "recap.json"),
+          JSON.stringify({{ provider: "openai", model: "gpt-4o-mini", enabled: true, autoRecap: false, language: "auto" }}),
+          "utf-8",
+        );
+        const explicitAutoRecap = readRecapConfig().autoRecap;
         const labelAuto = languageLabel("auto");
         const labelZh = languageLabel("zh");
         const labelEn = languageLabel("en");
+        fs.rmSync(agentDir, {{ recursive: true, force: true }});
 
         console.log(JSON.stringify({{
             parsed1,
             parsed2: parsed2 ?? null,
             ref,
             enabled: config.enabled,
-            autoRecap: config.autoRecap,
+            unsetAutoRecap,
+            explicitAutoRecap,
             language: config.language,
             labelAuto,
             labelZh,
@@ -1446,9 +1553,12 @@ def test_config_parsing_and_model_ref() -> None:
     assert result["parsed1"] == {"provider": "anthropic", "model": "claude-3-5-haiku"}
     assert result["parsed2"] is None
     assert result["ref"] == "openai/gpt-4o-mini"
-    assert isinstance(result["enabled"], bool)
-    assert isinstance(result["autoRecap"], bool)
-    assert isinstance(result["language"], str)
+    assert result["enabled"] is False
+    # An unset preference must stay unset: that is what lets the cost policy
+    # decide, and it must not be silently coerced to a stored boolean.
+    assert result["unsetAutoRecap"] is True
+    assert result["explicitAutoRecap"] is False
+    assert result["language"] == "zh"
     assert "Auto" in result["labelAuto"]
     assert "Chinese" in result["labelZh"]
     assert "English" in result["labelEn"]
@@ -1576,3 +1686,588 @@ def test_all_prompt_and_ui_strings_are_english() -> None:
             if pattern.search(line):
                 offenders.append(f"{path.name}:{lineno}: {line.strip()}")
     assert not offenders, "Non-English (CJK) text found in extensions:\n" + "\n".join(offenders)
+
+
+def test_generate_recap_settles_when_credential_lookup_never_returns() -> None:
+    """The wall-clock budget must cover the whole request, credentials included.
+
+    The deadline used to be armed only after the provider call, so a credential
+    lookup that never returned left the caller awaiting a recap forever: the
+    `/recap now` handler never resolved, the `Recapping...` row stayed mounted,
+    and the first-prompt refresh chain never ran again in that session.
+    """
+    result = run_typescript(
+        f"""
+        import {{ generateRecap }} from "{RECAP_URI}";
+
+        let completeCalls = 0;
+        const started = Date.now();
+        const recap = await generateRecap(
+          {{
+            getApiKeyAndHeaders: () => new Promise(() => {{}}),
+            complete: async () => {{ completeCalls++; return {{ role: "assistant", content: [] }}; }},
+          }},
+          {{ provider: "mock", id: "m1" }},
+          "u",
+          "a",
+          undefined,
+          "auto",
+          undefined,
+          60,
+        );
+
+        console.log(JSON.stringify({{ recap, completeCalls, elapsedUnderOneSecond: Date.now() - started < 1000 }}));
+        """
+    )
+    assert result == {"recap": "", "completeCalls": 0, "elapsedUnderOneSecond": True}
+
+
+def test_generate_recap_settles_when_provider_ignores_cancellation() -> None:
+    """An uncooperative provider must not be able to hang the caller either."""
+    result = run_typescript(
+        f"""
+        import {{ generateRecap }} from "{RECAP_URI}";
+
+        const controller = new AbortController();
+        const pending = generateRecap(
+          {{
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: () => new Promise(() => {{}}),
+          }},
+          {{ provider: "mock", id: "m1" }},
+          "u",
+          "a",
+          undefined,
+          "auto",
+          controller.signal,
+          60,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        controller.abort();
+        const recap = await Promise.race([
+          pending,
+          new Promise((resolve) => setTimeout(() => resolve("still-pending"), 500)),
+        ]);
+
+        console.log(JSON.stringify({{ recap }}));
+        """
+    )
+    assert result == {"recap": ""}
+
+
+def test_widget_refresh_failure_never_rejects_a_completed_recap() -> None:
+    """`performRecap` refreshes the widget from a finally block.
+
+    Rethrowing a non-stale widget error there reported generation failure for a
+    recap that was already generated and persisted, so `/recap now` rejected.
+    """
+    result = run_typescript(
+        f"""
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
+
+        let registeredCommand;
+        let completeCalls = 0;
+        const notices = [];
+        const appended = [];
+        initExtension({{
+          on() {{}},
+          registerCommand(_name, command) {{ registeredCommand = command; }},
+          appendEntry(customType, data) {{ appended.push({{ customType, recap: data.recap }}); }},
+        }});
+
+        const fakeCtx = {{
+          mode: "tui",
+          hasUI: true,
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{
+            getBranch: () => [
+              {{ type: "message", message: {{ role: "user", content: "fix bug" }} }},
+              {{ type: "message", message: {{ role: "assistant", content: "bug fixed in auth.ts" }} }},
+            ],
+            getSessionFile: () => undefined,
+          }},
+          ui: {{
+            setWidget: () => {{
+              if (completeCalls > 0) throw new Error("renderer exploded");
+            }},
+            notify: (message, level) => notices.push({{ message, level }}),
+          }},
+          modelRegistry: {{
+            find: () => undefined,
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{
+              completeCalls++;
+              return {{ role: "assistant", content: [{{ type: "text", text: "Fixed auth bug in auth.ts" }}] }};
+            }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+
+        let outcome = "resolved";
+        await registeredCommand.handler("now", fakeCtx).catch((error) => {{
+          outcome = `rejected:${{error.message}}`;
+        }});
+
+        console.log(JSON.stringify({{
+          outcome,
+          completeCalls,
+          persisted: appended.some((entry) => entry.recap === "Fixed auth bug in auth.ts"),
+          warned: notices.some((notice) => notice.message.includes("Recap widget refresh failed") && notice.level === "warning"),
+        }}));
+        """
+    )
+    assert result["outcome"] == "resolved"
+    assert result["completeCalls"] == 1
+    assert result["persisted"] is True
+    assert result["warned"] is True
+
+
+def test_uninformative_output_gate_covers_chinese_recaps() -> None:
+    """The gate must reject a bare verb-plus-name in every configured language.
+
+    Its identifier was ASCII-only, so the retry loop it exists for never fired on
+    the package's Chinese output: `修复登录` passed while `Fixed` was rejected.
+    """
+    result = run_typescript(
+        f"""
+        import {{ isInformativeRecap }} from "{RECAP_URI}";
+
+        console.log(JSON.stringify({{
+          zhBare: isInformativeRecap("修复登录"),
+          zhVerbOnly: isInformativeRecap("修正"),
+          zhColoned: isInformativeRecap("更新："),
+          zhSpecific: isInformativeRecap("修复登录重定向问题，auth.ts 补齐回跳测试"),
+          enBare: isInformativeRecap("Fixed"),
+          enSpecific: isInformativeRecap("Fixed the auth redirect in auth.ts"),
+        }}));
+        """
+    )
+    assert result["zhBare"] is False
+    assert result["zhVerbOnly"] is False
+    assert result["zhColoned"] is False
+    assert result["zhSpecific"] is True
+    assert result["enBare"] is False
+    assert result["enSpecific"] is True
+
+
+def test_clean_recap_text_never_splits_a_grapheme_or_a_code_span() -> None:
+    """The 120 limit must not corrupt the text it truncates.
+
+    `slice(0, 120)` counted UTF-16 units, so a cut through an astral character
+    left a lone surrogate in the recap line, and a cut inside an inline code span
+    left the odd backtick the package otherwise works to preserve balanced.
+    """
+    result = run_typescript(
+        f"""
+        import {{ cleanRecapText }} from "{RECAP_URI}";
+
+        const rockets = cleanRecapText("\\u{{1F680}}".repeat(130));
+        const flags = cleanRecapText("\\u{{1F1E8}}\\u{{1F1F3}}".repeat(130));
+        const codeCut = cleanRecapText("x".repeat(112) + "`inner span of text` tail");
+        const completeSpan = cleanRecapText("`list_directory_sessions` aligned the monitor row");
+
+        console.log(JSON.stringify({{
+          rocketGraphemes: Array.from(rockets).length,
+          rocketLoneSurrogate: /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/.test(rockets),
+          flagLoneSurrogate: /[\\uD800-\\uDBFF](?![\\uDC00-\\uDFFF])|(?<![\\uD800-\\uDBFF])[\\uDC00-\\uDFFF]/.test(flags),
+          codeCutBackticks: codeCut.split("`").length - 1,
+          codeCutLength: codeCut.length,
+          completeSpan,
+        }}));
+        """
+    )
+    assert result["rocketGraphemes"] == 120
+    assert result["rocketLoneSurrogate"] is False
+    assert result["flagLoneSurrogate"] is False
+    assert result["codeCutBackticks"] == 0
+    assert result["codeCutLength"] <= 120
+    assert result["completeSpan"].startswith("`list_directory_sessions`")
+
+
+def test_completed_recap_is_reused_only_while_it_is_the_displayed_one() -> None:
+    """A stored result must not answer for a recap it was not produced from.
+
+    The previous recap belongs to the prompt, so a result generated against an
+    older recap is the wrong answer for a replaced one. The invariant is carried
+    by the produced text instead of by the request key: keying on the previous
+    recap would defeat deduplication outright, because every generation changes
+    the previous recap of the next request for the same exchange.
+    """
+    result = run_typescript(
+        f"""
+        // Loaded dynamically: config.ts resolves its path when it loads, so a
+        // hoisted static import would read the real agent directory.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
+
+        let registeredEvents = {{}};
+        let completeCalls = 0;
+        const branch = [
+          {{ type: "message", message: {{ role: "user", content: "add tests" }} }},
+          {{ type: "message", message: {{ role: "assistant", content: "auth tests added" }} }},
+        ];
+        initExtension({{
+          on(event, handler) {{ registeredEvents[event] = handler; }},
+          registerCommand() {{}},
+          appendEntry() {{}},
+        }});
+        const fakeCtx = {{
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{ getBranch: () => branch, getSessionFile: () => undefined }},
+          ui: {{ setWidget: () => {{}}, notify: () => {{}} }},
+          modelRegistry: {{
+            find: () => undefined,
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{
+              completeCalls++;
+              return {{ role: "assistant", content: [{{ type: "text", text: `Recap number ${{completeCalls}}` }}] }};
+            }},
+          }},
+          model: {{ provider: "mock", id: "m1" }},
+        }};
+
+        await registeredEvents["session_start"]({{}}, fakeCtx);
+        registeredEvents["input"]({{ source: "interactive", text: "add tests" }}, fakeCtx);
+        await registeredEvents["agent_settled"]({{}}, fakeCtx);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        const afterFirstSettle = completeCalls;
+
+        // Same exchange again, nothing else changed: the recap on screen is still
+        // the one that request produced, so it is reused.
+        registeredEvents["input"]({{ source: "interactive", text: "add tests" }}, fakeCtx);
+        await registeredEvents["agent_settled"]({{}}, fakeCtx);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        const afterRepeatedSettle = completeCalls;
+
+        // A session replacement restores a different recap for the same exchange.
+        // Restore books the restored text as the product of its request, so
+        // startup suppression still holds and the stored result is not reused.
+        await registeredEvents["session_start"]({{}}, {{
+          ...fakeCtx,
+          sessionManager: {{
+            getBranch: () => [
+              ...branch,
+              {{ type: "custom", customType: "recap", data: {{ recap: "Restored recap" }} }},
+            ],
+            getSessionFile: () => undefined,
+          }},
+        }});
+        registeredEvents["input"]({{ source: "interactive", text: "add tests" }}, fakeCtx);
+        await registeredEvents["agent_settled"]({{}}, fakeCtx);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        const afterRestoreSettle = completeCalls;
+
+        console.log(JSON.stringify({{
+          afterFirstSettle,
+          afterRepeatedSettle,
+          afterRestoreSettle,
+        }}));
+        """
+    )
+    assert result["afterFirstSettle"] == 1
+    assert result["afterRepeatedSettle"] == 1
+    assert result["afterRestoreSettle"] == 1
+    # The reuse condition is the encoded invariant, not just an accident of the
+    # paths that set both fields together today.
+    extension = (EXTENSIONS / "index.ts").read_text(encoding="utf-8")
+    assert "completedRequestRecap === currentRecap" in extension
+    assert "completedRequestRecap = savedRecap;" in extension
+    assert "completedRequestRecap = text;" in extension
+
+
+def test_automatic_recap_is_withheld_from_reasoning_models_by_default() -> None:
+    """Automatic recapping must not spend a reasoning model on every turn.
+
+    It used to run once per settled turn on the session's own model, with no
+    metering and no bound: a reasoning model burns its thinking budget before any
+    recap text exists, competing with the turn that paid for it. Manual
+    generation and the restored recap line stay available.
+    """
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+
+        // `/recap auto` persists the preference, so keep it out of the real
+        // agent directory.
+        const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "recap-auto-optin-"));
+        process.env.PI_CODING_AGENT_DIR = agentDir;
+
+        const {{ resolveAutoRecap }} = await import("{RECAP_URI}");
+
+        const matrix = {{
+          reasoningNoOverride: resolveAutoRecap(undefined, {{ reasoning: true }}, false),
+          reasoningWithOverride: resolveAutoRecap(undefined, {{ reasoning: true }}, true),
+          plainNoOverride: resolveAutoRecap(undefined, {{ reasoning: false }}, false),
+          explicitOn: resolveAutoRecap(true, {{ reasoning: true }}, false),
+          explicitOff: resolveAutoRecap(false, {{ reasoning: false }}, true),
+          noModel: resolveAutoRecap(undefined, undefined, false),
+        }};
+
+        // Loaded after the agent dir override: config.ts resolves its path at
+        // import time, so a hoisted static import would write the real one.
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
+
+        let registeredEvents = {{}};
+        let command;
+        let completeCalls = 0;
+        const notices = [];
+        let branch = [
+          {{ type: "message", message: {{ role: "user", content: "add tests" }} }},
+          {{ type: "message", message: {{ role: "assistant", content: "auth tests added" }} }},
+        ];
+        initExtension({{
+          on(event, handler) {{ registeredEvents[event] = handler; }},
+          registerCommand(_name, definition) {{ command = definition; }},
+          appendEntry() {{}},
+        }});
+        const fakeCtx = {{
+          mode: "tui",
+          hasUI: true,
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{ getBranch: () => branch, getSessionFile: () => undefined }},
+          ui: {{ setWidget: () => {{}}, notify: (message) => notices.push(message) }},
+          modelRegistry: {{
+            find: () => undefined,
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => {{
+              completeCalls++;
+              return {{ role: "assistant", content: [{{ type: "text", text: "Added auth tests" }}] }};
+            }},
+          }},
+          model: {{ provider: "mock", id: "reasoner", reasoning: true }},
+        }};
+
+        // Startup computes a recap for a session that has none; that one call is
+        // not per-turn cost, so the counter starts after it.
+        await registeredEvents["session_start"]({{}}, fakeCtx);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        const startupCalls = completeCalls;
+        completeCalls = 0;
+
+        registeredEvents["input"]({{ source: "interactive", text: "add tests" }}, fakeCtx);
+        await registeredEvents["agent_settled"]({{}}, fakeCtx);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        const settledCalls = completeCalls;
+
+        // Manual generation is never withheld.
+        await command.handler("now", fakeCtx);
+        const afterManualCalls = completeCalls;
+
+        // Opting in explicitly turns the automatic path back on, and the new
+        // exchange is one the model has not summarized yet.
+        await command.handler("auto", fakeCtx);
+        branch = [
+          ...branch,
+          {{ type: "message", message: {{ role: "user", content: "add more tests" }} }},
+          {{ type: "message", message: {{ role: "assistant", content: "boundary tests added" }} }},
+        ];
+        registeredEvents["input"]({{ source: "interactive", text: "add more tests" }}, fakeCtx);
+        await registeredEvents["agent_settled"]({{}}, fakeCtx);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+        const persistedPreference = JSON.parse(
+          fs.readFileSync(path.join(agentDir, "recap.json"), "utf-8"),
+        ).autoRecap;
+        fs.rmSync(agentDir, {{ recursive: true, force: true }});
+
+        console.log(JSON.stringify({{
+          matrix,
+          persistedPreference,
+          startupCalls,
+          settledCalls,
+          afterManualCalls,
+          afterOptInCalls: completeCalls,
+          autoNotice: notices.find((message) => message.startsWith("Auto-recap:")),
+        }}));
+        """
+    )
+    assert result["matrix"]["reasoningNoOverride"]["enabled"] is False
+    assert result["matrix"]["reasoningNoOverride"]["reason"]
+    assert result["matrix"]["reasoningWithOverride"] == {"enabled": True}
+    assert result["matrix"]["plainNoOverride"] == {"enabled": True}
+    assert result["matrix"]["explicitOn"] == {"enabled": True}
+    assert result["matrix"]["explicitOff"] == {"enabled": False}
+    assert result["matrix"]["noModel"] == {"enabled": True}
+    assert result["startupCalls"] == 1
+    assert result["settledCalls"] == 0
+    assert result["afterManualCalls"] == 1
+    assert result["afterOptInCalls"] == 2
+    assert result["persistedPreference"] is True
+    assert result["autoNotice"] == "Auto-recap: on"
+
+
+def test_automatic_recap_policy_is_reported_in_the_management_surfaces() -> None:
+    """A policy-suppressed auto-recap must be discoverable, not silent."""
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+
+        const agentDir = fs.mkdtempSync(path.join(os.tmpdir(), "recap-auto-policy-"));
+        process.env.PI_CODING_AGENT_DIR = agentDir;
+
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
+
+        let command;
+        initExtension({{ on() {{}}, registerCommand(_name, definition) {{ command = definition; }}, appendEntry() {{}} }});
+
+        const notices = [];
+        let titles = [];
+        const fakeCtx = {{
+          hasUI: false,
+          mode: "tui",
+          cwd: "/tmp/fake-cwd",
+          sessionManager: {{ getBranch: () => [], getSessionFile: () => undefined }},
+          scopedModels: [],
+          modelRegistry: {{ getAll: () => [], getAvailable: () => [], find: () => undefined }},
+          model: {{ provider: "mock", id: "reasoner", reasoning: true }},
+          ui: {{ notify: (message) => notices.push(message), select: async () => undefined, setWidget: () => {{}} }},
+        }};
+        await command.handler("", fakeCtx);
+        const summary = notices.at(-1);
+
+        const menuCtx = {{ ...fakeCtx, hasUI: true, ui: {{ ...fakeCtx.ui, select: async (title) => {{ titles.push(title); return undefined; }} }} }};
+        await command.handler("", menuCtx);
+        const menuTitle = titles.at(-1);
+        fs.rmSync(agentDir, {{ recursive: true, force: true }});
+
+        console.log(JSON.stringify({{ summary, menuTitle }}));
+        """
+    )
+    assert "Auto-recap: off" in result["summary"]
+    assert "reasoning models" in result["summary"]
+    assert "Auto: off" in result["menuTitle"]
+    assert "reasoning models" in result["menuTitle"]
+
+
+def test_directory_recap_sync_follows_the_agent_dir_and_leaves_activity_fields_alone() -> None:
+    """One registry path, one ownership check, and one owner per field.
+
+    The path used to be spelled from the home directory while the package's own
+    config honoured `PI_CODING_AGENT_DIR`, so a sandboxed agent directory still
+    wrote to the real registry. The sync also stamped `updatedAt`, a field the
+    session-activity writers own, which reordered their recency and liveness
+    views for a turn that changed nothing but its summary.
+    """
+    result = run_typescript(
+        f"""
+        import * as fs from "node:fs";
+        import * as os from "node:os";
+        import * as path from "node:path";
+
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "recap-registry-"));
+        const agentDir = path.join(root, "agent");
+        const cwd = path.join(root, "project");
+        fs.mkdirSync(agentDir, {{ recursive: true }});
+        fs.mkdirSync(cwd, {{ recursive: true }});
+        process.env.PI_CODING_AGENT_DIR = agentDir;
+
+        const {{ directorySessionsDir, getDirectorySessionKey }} = await import("{PIKIT_URI}");
+        const recordPath = path.join(directorySessionsDir(), getDirectorySessionKey(cwd), "session-1.json");
+        fs.mkdirSync(path.dirname(recordPath), {{ recursive: true }});
+        fs.writeFileSync(
+          recordPath,
+          JSON.stringify({{ cwd, pid: 42, status: "active", updatedAt: 1000, recap: "Restored from registry" }}),
+          "utf-8",
+        );
+
+        const extensionModule = await import("{INDEX_URI}");
+        const moduleValue = extensionModule.default ?? extensionModule;
+        const initExtension = typeof moduleValue === "function" ? moduleValue : moduleValue.default;
+
+        let registeredEvents = {{}};
+        let command;
+        let branch = [];
+        const widgets = [];
+        initExtension({{
+          on(event, handler) {{ registeredEvents[event] = handler; }},
+          registerCommand(_name, definition) {{ command = definition; }},
+          appendEntry() {{}},
+        }});
+        const fakeCtx = {{
+          mode: "tui",
+          hasUI: true,
+          cwd,
+          sessionManager: {{
+            getBranch: () => branch,
+            getSessionFile: () => path.join(root, "session-1.jsonl"),
+          }},
+          ui: {{ setWidget: (name, factory) => widgets.push({{ name, factory }}), notify: () => {{}} }},
+          modelRegistry: {{
+            find: () => undefined,
+            getApiKeyAndHeaders: async () => ({{ ok: true, apiKey: "k", headers: {{}} }}),
+            complete: async () => ({{ role: "assistant", content: [{{ type: "text", text: "Added auth tests" }}] }}),
+          }},
+          model: {{ provider: "mock", id: "m1", reasoning: false }},
+        }};
+
+        await registeredEvents["session_start"]({{}}, fakeCtx);
+        const recapWidget = widgets.filter((call) => call.name === "recap").at(-1);
+        const restoredLines = recapWidget?.factory
+          ? recapWidget.factory({{ requestRender: () => {{}} }}, {{ fg: (_name, text) => text }}).render(80)
+          : [];
+
+        branch = [
+          {{ type: "message", message: {{ role: "user", content: "add tests" }} }},
+          {{ type: "message", message: {{ role: "assistant", content: "auth tests added" }} }},
+        ];
+        await command.handler("now", fakeCtx);
+        const record = JSON.parse(fs.readFileSync(recordPath, "utf-8"));
+        fs.rmSync(root, {{ recursive: true, force: true }});
+
+        console.log(JSON.stringify({{
+          restored: restoredLines.some((line) => line.includes("Restored from registry")),
+          recap: record.recap,
+          updatedAt: record.updatedAt,
+          pid: record.pid,
+        }}));
+        """
+    )
+    assert result["restored"] is True
+    assert result["recap"] == "Added auth tests"
+    assert result["updatedAt"] == 1000
+    assert result["pid"] == 42
+
+
+def test_recap_prompt_rules_stay_bounded() -> None:
+    """Prompt rules must not regrow into near-duplicate lines.
+
+    Fifteen rules cost every recap, and four of them restated one requirement:
+    report only what the exchange evidences, treat requests as intent, do not
+    claim unevidenced work, and do not treat a referenced path as an inspected
+    file. The repeated wording outweighed the rule that actually applied.
+    """
+    result = run_typescript(
+        f"""
+        import {{ buildRecapPrompt }} from "{RECAP_URI}";
+
+        const withOutcome = buildRecapPrompt("u", "a");
+        const withoutOutcome = buildRecapPrompt("u", "");
+        const countRules = (prompt) => prompt
+          .split("Rules:\\n")[1]
+          .split("\\n\\n")[0]
+          .split("\\n")
+          .filter((line) => line.startsWith("- ")).length;
+
+        console.log(JSON.stringify({{
+          withOutcome: countRules(withOutcome),
+          withoutOutcome: countRules(withoutOutcome),
+          rulesAreSingleLines: !withOutcome.includes("\\n- Single line"),
+        }}));
+        """
+    )
+    assert result["withOutcome"] <= 8
+    assert result["withoutOutcome"] <= 8
+    assert result["rulesAreSingleLines"] is True

@@ -1,0 +1,74 @@
+{
+  "evidence": "real-jev-inference",
+  "cases": [
+    {
+      "id": "en-exact",
+      "evidence": "For all future tasks in this project, never execute the exact Bash command `printf SAMPLE_FORBIDDEN`. Other printf commands remain allowed.",
+      "command": "printf SAMPLE_FORBIDDEN",
+      "expected": true
+    },
+    {
+      "id": "zh-exact",
+      "evidence": "以后本项目中禁止执行确切的 Bash 命令 `printf SAMPLE_FORBIDDEN`，其他 printf 命令允许。",
+      "command": "printf SAMPLE_FORBIDDEN",
+      "expected": true
+    },
+    {
+      "id": "en-approval-exception",
+      "evidence": "Never execute printf SAMPLE_FORBIDDEN without my approval. With approval it is allowed.",
+      "command": "printf SAMPLE_FORBIDDEN",
+      "expected": false
+    },
+    {
+      "id": "zh-approval-exception",
+      "evidence": "未经我批准禁止执行 printf SAMPLE_FORBIDDEN，批准后允许执行。",
+      "command": "printf SAMPLE_FORBIDDEN",
+      "expected": false
+    },
+    {
+      "id": "en-temporary",
+      "evidence": "For this task only, do not execute printf SAMPLE_FORBIDDEN.",
+      "command": "printf SAMPLE_FORBIDDEN",
+      "expected": false
+    },
+    {
+      "id": "zh-other-target",
+      "evidence": "仅生产项目禁止 printf SAMPLE_FORBIDDEN，当前开发项目允许。",
+      "command": "printf SAMPLE_FORBIDDEN",
+      "expected": false
+    }
+  ],
+  "result": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "en-exact": {
+        "type": "noul",
+        "noul": 0.87
+      },
+      "zh-exact": {
+        "type": "noul",
+        "noul": 0.85
+      },
+      "en-approval-exception": {
+        "type": "noul",
+        "noul": 0.07
+      },
+      "zh-approval-exception": {
+        "type": "noul",
+        "noul": 0.07
+      },
+      "en-temporary": {
+        "type": "noul",
+        "noul": 0.07
+      },
+      "zh-other-target": {
+        "type": "noul",
+        "noul": 0.13
+      }
+    },
+    "usage": {
+      "input_tokens": 1214,
+      "output_tokens": 121
+    }
+  }
+}

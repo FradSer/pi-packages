@@ -38,29 +38,41 @@ const ALIASES: Record<string, ThinkingLevel> = {
 
 /**
  * The levels the current model supports, mirroring pi's own
- * getSupportedThinkingLevels: a reasoning:false model only gets off; a null
- * thinkingLevelMap entry hides a level; xhigh/max are opt-in and additionally
- * require an explicit non-null map entry; absent entries for the other levels
- * default to supported.
+ * `getSupportedThinkingLevels` rule for any other pi version:
+ * a model without reasoning only gets `off`; a `null` thinkingLevelMap entry
+ * hides a level; `xhigh`/`max` are opt-in and additionally require an explicit
+ * non-null map entry; other absent entries default to supported.
+ *
+ * `tests/test_effort_extension.py` pins this against the function pi exports,
+ * so the copy cannot drift from the host it mirrors.
  */
 function supportedLevels(ctx: ExtensionCommandContext): ThinkingLevel[] {
   const model = ctx.model;
-  if (!model) return LEVELS;
-  if (model.reasoning === false) return ["off"];
-  if (model.thinkingLevelMap) {
-    return LEVELS.filter((level) => {
-      const mapped = model.thinkingLevelMap?.[level];
-      if (mapped === null) return false;
-      if (level === "xhigh" || level === "max") return mapped !== undefined;
-      return true;
-    });
-  }
-  return LEVELS;
+  return model ? supportedThinkingLevelsFor(model) : LEVELS;
+}
+
+/**
+ * The one implementation of the mirror rule, exported for the parity test that
+ * pins it against the function pi itself exports.
+ */
+export function supportedThinkingLevelsFor(model: {
+  reasoning?: boolean;
+  thinkingLevelMap?: Record<string, unknown>;
+}): ThinkingLevel[] {
+  if (!model.reasoning) return ["off"];
+  return LEVELS.filter((level) => {
+    const mapped = model.thinkingLevelMap?.[level];
+    if (mapped === null) return false;
+    if (level === "xhigh" || level === "max") return mapped !== undefined;
+    return true;
+  });
 }
 
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("effort", {
     description: "Set the thinking level: menu, or /effort <level> (off|minimal|low|medium|high|xhigh|max)",
+    // Completions are model-independent: Pi offers argument completions without
+    // a command context, so the menu is where model support is applied.
     getArgumentCompletions: (prefix: string): AutocompleteItem[] | null => {
       const tokens = Object.keys(ALIASES).filter((alias) => alias.startsWith(prefix.toLowerCase()));
       return tokens.map((alias) => ({ value: alias, label: alias }));

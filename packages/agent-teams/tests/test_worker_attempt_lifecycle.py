@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from test_teammate_package import PACKAGE, SRC, run_node
+from test_agent_package import PACKAGE, SRC, run_node
 
 FIXTURE = (PACKAGE / "tests" / "worker-attempt-lifecycle-fixture.ts").as_uri()
 
@@ -20,10 +20,9 @@ def attempt_case(tmp_path: Path, script: str, kind: str = "direct") -> dict[str,
 
 def test_recovery_required_work_is_never_autonomously_claimable(tmp_path: Path) -> None:
     payload = attempt_case(tmp_path, '''
-        const board = JSON.parse(fs.readFileSync(fixture.binding.boardFile, "utf8"));
-        board.tasks["work-2"].recoveryRequired = true;
-        board.tasks["work-2"].status = "pending";
-        fs.writeFileSync(fixture.binding.boardFile, JSON.stringify(board));
+        const tasks = JSON.parse(fs.readFileSync(fixture.binding.tasksFile, "utf8"));
+        tasks.tasks["work-2"].status = "recovery_hold";
+        fs.writeFileSync(fixture.binding.tasksFile, JSON.stringify(tasks));
         const listed = await fixture.call("task", { action: "list" });
         let explicit;
         try { await fixture.call("task", { action: "claim", id: "work-2" }); }
@@ -33,7 +32,7 @@ def test_recovery_required_work_is_never_autonomously_claimable(tmp_path: Path) 
         console.log(JSON.stringify({ listed: listed.content[0].text, explicit, automatic,
           intents: fixture.intents(fixture.binding.claimsDir) }));
     ''', "none")
-    assert "pending/recovery-required" in str(payload["listed"]), "Board must name the recovery hold"
+    assert "recovery-hold" in str(payload["listed"]), "Tasks must name the recovery hold"
     assert "explicit leader Work assignment" in str(payload["explicit"])
     assert "held for explicit leader recovery" in str(payload["automatic"]).lower()
     assert payload["intents"] == [], "Recovery-held Work must not queue a claim intent"
@@ -44,38 +43,38 @@ def test_leader_assignment_clears_recovery_and_claim_follows(tmp_path: Path) -> 
         import assert from "node:assert/strict";
         import fs from "node:fs";
         import {{ initTeamMachine, shutdownTeamMachine, processTaskIntents, attemptSubmission }} from "{(SRC / 'team-machine.ts').as_uri()}";
-        import {{ resetState, registerTeammate, createTask, takeTask, getTask, reclaimDirectWork }} from "{(SRC / 'state.ts').as_uri()}";
+        import {{ resetState, registerAgent, createTask, takeTask, getTask, bindTask }} from "{(SRC / 'state.ts').as_uri()}";
         const reports = [];
         resetState();
         initTeamMachine({{ cwd: {str(tmp_path)!r} }}, {{ sendUpdate: r => reports.push(r), notifyChange() {{}} }});
-        registerTeammate({{ name: "w", agent: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
+        registerAgent({{ name: "w", role: "reviewer", spawnId: "s1", pid: 0, status: "working", isolation: "none", createdAt: 1, updatedAt: 1 }});
         const task = createTask({{ subject: "recoverable work" }}).task;
         takeTask(task.id, "w");
         attemptSubmission("w", "s1", task.id, "failed", "External parser rejected every authorized attempt");
         processTaskIntents();
-        const held = {{ status: getTask(task.id).status, recoveryRequired: getTask(task.id).recoveryRequired,
-          evidence: getTask(task.id).result }};
-        const recovered = reclaimDirectWork(task.id, "w", {{ id: "attempt-2", kind: "direct", resources: [] }}, "pending");
-        console.log(JSON.stringify({{ held, recovered: recovered.ok, after: getTask(task.id).recoveryRequired ?? null,
+        const held = {{ status: getTask(task.id).status, evidence: getTask(task.id).result }};
+        const recovered = bindTask(task.id, "w", {{ id: "attempt-2", kind: "direct", resources: [] }}, {{ from: ["recovery_hold"] }});
+        const after = getTask(task.id).status;
+        processTaskIntents();
+        console.log(JSON.stringify({{ held, recovered: recovered.ok, after,
           status: getTask(task.id).status }}));
         shutdownTeamMachine();
     ''')
     assert payload["held"] == {
-        "status": "pending",
-        "recoveryRequired": True,
+        "status": "recovery_hold",
         "evidence": "External parser rejected every authorized attempt",
     }
     assert payload["recovered"] is True
-    assert payload["after"] is None
-    assert payload["status"] == "in_progress"
+    assert payload["after"] == "in_progress", "Leader assignment must clear the recovery hold"
+    assert payload["status"] == "in_progress", "Settling intents must not reopen the hold"
 
 
-def test_unassigned_discussion_and_board_notice_stay_usable(tmp_path: Path) -> None:
+def test_unassigned_discussion_and_tasks_notice_stay_usable(tmp_path: Path) -> None:
     payload = attempt_case(tmp_path, '''
         await fixture.prompt("Unassigned discussion about scope");
         const discussion = await fixture.call("message", { to: "leader", body: "Context question before claiming" });
         const hidden = fixture.active();
-        await fixture.prompt("Wake up. New activity for you:\\n\\n=== BOARD NOTICE ===\\nUnclaimed tasks: work-2\\nUse work action=claim to take one.");
+        await fixture.prompt("Wake up. New activity for you:\\n\\n=== TASK NOTICE ===\\nUnclaimed tasks: work-2\\nUse work action=claim to take one.");
         const disclosed = fixture.active();
         const notice = await fixture.call("task", { action: "claim", id: "work-2" });
         console.log(JSON.stringify({ discussion: discussion.details.outcome, hidden, disclosed,
@@ -83,7 +82,7 @@ def test_unassigned_discussion_and_board_notice_stay_usable(tmp_path: Path) -> N
     ''', "none")
     assert payload["discussion"] == "queued"
     assert payload["hidden"] == ["read", "message"], "Unassigned work must stay undisclosed"
-    assert "task" in payload["disclosed"], "A board notice must disclose the task tool"
+    assert "task" in payload["disclosed"], "A task set notice must disclose the task tool"
     assert payload["notice"] == "queued"
     assert [intent["taskId"] for intent in payload["intents"]] == ["work-2"]
 
@@ -111,7 +110,7 @@ def test_claim_is_rejected_after_a_terminal_outcome(tmp_path: Path) -> None:
           .then((result) => result.details, (error) => error.message);
         console.log(JSON.stringify({ claim, intents: fixture.intents(fixture.binding.claimsDir) }));
     ''')
-    assert payload["claim"] != "queued", "A closed attempt must not queue new board work"
+    assert payload["claim"] != "queued", "A closed attempt must not queue new task work"
     assert "terminal report or is closed" in str(payload["claim"])
     assert payload["intents"] == []
 

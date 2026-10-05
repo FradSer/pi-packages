@@ -1,0 +1,1400 @@
+{
+  "evidence": "real-jev-support-body-only-shadow",
+  "productionWriteEligible": false,
+  "complete": true,
+  "samples": 10,
+  "requests": {
+    "before": 22,
+    "after": 22
+  },
+  "metrics": {
+    "before": {
+      "falseAccepts": 0,
+      "falseHolds": 2,
+      "incomplete": 0
+    },
+    "after": {
+      "falseAccepts": 0,
+      "falseHolds": 0,
+      "incomplete": 0
+    }
+  },
+  "knownInputTokens": 92966,
+  "knownEstimatedCostUsd": 0.0039045720000000007,
+  "results": [
+    {
+      "id": "p-limit-r4-semantic-rejected-plan",
+      "expectedAllow": true,
+      "snapshotHash": "c4052f63c5f30284a414a7a091580913a3d0e43227a975047b286c2bbb339ff6",
+      "planHash": "de608f9e22db9e96fb3e1ecfe8c7c3129d6a4bcdfc4d803cedea43edb965945f",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 3729,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 15,
+          "coveredEntries": 15,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 19148,
+          "outputTokens": 444,
+          "estimatedCostUsd": 0.0008042160000000002,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 603,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 15,
+          "coveredEntries": 15,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 19017,
+          "outputTokens": 444,
+          "estimatedCostUsd": 0.0007987140000000001
+        }
+      }
+    },
+    {
+      "id": "p-limit-r4-semantic-repair-plan",
+      "expectedAllow": true,
+      "snapshotHash": "c4052f63c5f30284a414a7a091580913a3d0e43227a975047b286c2bbb339ff6",
+      "planHash": "babd70960259d40205f41be5374c5cb9af418a1245656f489d891a7c27f2ac7d",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 889,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 15,
+          "coveredEntries": 15,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17495,
+          "outputTokens": 444,
+          "estimatedCostUsd": 0.0007347900000000001,
+          "candidateIndex": 1,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 798,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 15,
+          "coveredEntries": 15,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17364,
+          "outputTokens": 444,
+          "estimatedCostUsd": 0.0007292880000000001
+        }
+      }
+    },
+    {
+      "id": "en-holdout-fact",
+      "expectedAllow": true,
+      "snapshotHash": "dcb97dde5f36ab0eda9c6058acf1d39ebd02566bdae5ccdb642611f0a920bdd6",
+      "planHash": "ce9148210494fb4841115cc0963d88df486a1299570a0949850a6561d475c97c",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 856,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1238,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051996
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 428,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1200,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000050400000000000005
+        }
+      }
+    },
+    {
+      "id": "zh-holdout-fact",
+      "expectedAllow": true,
+      "snapshotHash": "0424331df54bb923c84a404039acea4076fe9641e23baccb2e740424358efca2",
+      "planHash": "3f65877d76a71d37393e8067caf68f4681f175e14996225a20bd0abcf02aa500",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 459,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1273,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000053466000000000006
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 454,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1235,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005187
+        }
+      }
+    },
+    {
+      "id": "en-holdout-preference",
+      "expectedAllow": true,
+      "snapshotHash": "0db163747bb912d91a51baa03725ab31243130722a52de1e9e6da95fecd3164f",
+      "planHash": "2b0f06f2fd85cd6c6acf0e56f77692aaad4ada35a1456f629dec3551a1a1e3bb",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 445,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1263,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005304600000000001
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 470,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1222,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051324
+        }
+      }
+    },
+    {
+      "id": "zh-holdout-preference",
+      "expectedAllow": true,
+      "snapshotHash": "e94ea8719cd576fc892710674e5c577284e85af903ef4bca8b68e58a95c4d50f",
+      "planHash": "c5c46ef44324322352ab589a0ad7fda5ac82425ce7e874c67fba2c2d440b05b0",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 690,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1311,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005506200000000001
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 440,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1270,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005334
+        }
+      }
+    },
+    {
+      "id": "en-holdout-guess",
+      "expectedAllow": false,
+      "snapshotHash": "44c9d74374cb385833f8968a83f5ed50842e633a7330ab717b78554431f71b61",
+      "planHash": "fe14cbda30c484816716cabb3150412974572b69f64d02f301b9157710050c0c",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 525,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1251,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000052542000000000006,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 458,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1213,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.00005094600000000001,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-holdout-guess",
+      "expectedAllow": false,
+      "snapshotHash": "bc7adbf6d565c59fb34916f298c5aa660b02b5c21c7361f49593f8f1ecdad677",
+      "planHash": "e2035c8f2072b31999533a75b4cef42554bc27a377120e33e18763c02e5a35f0",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 526,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1264,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000053088000000000004,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 502,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1226,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000051492,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-holdout-temporary",
+      "expectedAllow": false,
+      "snapshotHash": "c19dbc4f9ac0fbef1b8943c1ddf711ac67174838232000403c3d067d840ddf0b",
+      "planHash": "4425dc1267f7737fa785bb1011d6f400a36625fcd71c863c7bdd3c492115e2fc",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 466,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1251,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000052542,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 442,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1213,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000050946,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-holdout-temporary",
+      "expectedAllow": false,
+      "snapshotHash": "868954adef96700bb8799a0fc4b3b5768c0bd9423b20584ec80b79e41645244a",
+      "planHash": "6a0d13efc12cba65d5fd211c92dfaa41f51bb63788b8b286a74f507a2cfc30f8",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 461,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1275,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005355,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 458,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1237,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051954000000000004,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    }
+  ],
+  "diagnostics": {
+    "before": [
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_1": {
+            "choice": "compatible",
+            "confidence": 0.97,
+            "probabilities": {
+              "compatible": 0.98,
+              "contradicts": 0.01,
+              "unclear": 0.01
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.92,
+            "probabilities": {
+              "compatible": 0.95,
+              "contradicts": 0.04,
+              "unclear": 0.01
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_0": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.8,
+            "probabilities": {
+              "grounded": 0.84,
+              "speculative": 0.02,
+              "transient": 0.03,
+              "unsupported": 0.1,
+              "unclear": 0.01
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 0.85,
+            "probabilities": {
+              "grounded": 0.87,
+              "speculative": 0.02,
+              "transient": 0.01,
+              "unsupported": 0.09,
+              "unclear": 0.01
+            }
+          },
+          "supported_2": {
+            "choice": "grounded",
+            "confidence": 0.94,
+            "probabilities": {
+              "grounded": 0.96,
+              "speculative": 0.01,
+              "transient": 0,
+              "unsupported": 0.03,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_1": {
+            "choice": "compatible",
+            "confidence": 0.95,
+            "probabilities": {
+              "compatible": 0.96,
+              "contradicts": 0.03,
+              "unclear": 0.01
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.96,
+            "probabilities": {
+              "compatible": 0.97,
+              "contradicts": 0.02,
+              "unclear": 0.01
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_0": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.89,
+            "probabilities": {
+              "grounded": 0.91,
+              "speculative": 0.01,
+              "transient": 0.01,
+              "unsupported": 0.07,
+              "unclear": 0
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 0.86,
+            "probabilities": {
+              "grounded": 0.88,
+              "speculative": 0.01,
+              "transient": 0.01,
+              "unsupported": 0.09,
+              "unclear": 0.01
+            }
+          },
+          "supported_2": {
+            "choice": "grounded",
+            "confidence": 0.95,
+            "probabilities": {
+              "grounded": 0.97,
+              "speculative": 0.01,
+              "transient": 0,
+              "unsupported": 0.02,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-fact",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-fact",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-fact",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-fact",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-preference",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.98,
+            "probabilities": {
+              "grounded": 0.99,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0.01,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-preference",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-preference",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-preference",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0.99,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0.01,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-guess",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.13,
+            "probabilities": {
+              "compatible": 0.42,
+              "contradicts": 0.17,
+              "unclear": 0.41
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-guess",
+        "answers": {
+          "supported_0": {
+            "choice": "speculative",
+            "confidence": 0.95,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0.96,
+              "transient": 0,
+              "unsupported": 0.04,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-guess",
+        "answers": {
+          "supported_0": {
+            "choice": "speculative",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 1,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-guess",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.06,
+            "probabilities": {
+              "compatible": 0.38,
+              "contradicts": 0.27,
+              "unclear": 0.35
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-temporary",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 0,
+              "contradicts": 1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-temporary",
+        "answers": {
+          "supported_0": {
+            "choice": "transient",
+            "confidence": 0.92,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0.9400000000000001,
+              "unsupported": 0.06,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-temporary",
+        "answers": {
+          "supported_0": {
+            "choice": "transient",
+            "confidence": 0.91,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0.93,
+              "unsupported": 0.07,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-temporary",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 0,
+              "contradicts": 1,
+              "unclear": 0
+            }
+          }
+        }
+      }
+    ],
+    "after": [
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_1": {
+            "choice": "compatible",
+            "confidence": 0.98,
+            "probabilities": {
+              "compatible": 0.99,
+              "contradicts": 0.01,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.94,
+            "probabilities": {
+              "grounded": 0.96,
+              "speculative": 0,
+              "transient": 0.01,
+              "unsupported": 0.02,
+              "unclear": 0.01
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 0.96,
+            "probabilities": {
+              "grounded": 0.97,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0.02,
+              "unclear": 0.01
+            }
+          },
+          "supported_2": {
+            "choice": "grounded",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-rejected-plan",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.94,
+            "probabilities": {
+              "compatible": 0.96,
+              "contradicts": 0.03,
+              "unclear": 0.01
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_0": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_1": {
+            "choice": "compatible",
+            "confidence": 0.97,
+            "probabilities": {
+              "compatible": 0.97,
+              "contradicts": 0.02,
+              "unclear": 0.01
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          },
+          "supported_2": {
+            "choice": "grounded",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "p-limit-r4-semantic-repair-plan",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.98,
+            "probabilities": {
+              "compatible": 0.99,
+              "contradicts": 0.01,
+              "unclear": 0
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_2_0": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-fact",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-fact",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-fact",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-fact",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-preference",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-preference",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-preference",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-preference",
+        "answers": {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-guess",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.25,
+            "probabilities": {
+              "compatible": 0.5,
+              "contradicts": 0.12,
+              "unclear": 0.38
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-guess",
+        "answers": {
+          "supported_0": {
+            "choice": "speculative",
+            "confidence": 0.88,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0.91,
+              "transient": 0,
+              "unsupported": 0.09,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-guess",
+        "answers": {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.11,
+            "probabilities": {
+              "compatible": 0.41,
+              "contradicts": 0.29,
+              "unclear": 0.3
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-guess",
+        "answers": {
+          "supported_0": {
+            "choice": "speculative",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 1,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-temporary",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 0,
+              "contradicts": 1,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "en-holdout-temporary",
+        "answers": {
+          "supported_0": {
+            "choice": "transient",
+            "confidence": 0.85,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0.88,
+              "unsupported": 0.12,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-temporary",
+        "answers": {
+          "supported_0": {
+            "choice": "transient",
+            "confidence": 0.91,
+            "probabilities": {
+              "grounded": 0,
+              "speculative": 0,
+              "transient": 0.93,
+              "unsupported": 0.07,
+              "unclear": 0
+            }
+          }
+        }
+      },
+      {
+        "id": "zh-holdout-temporary",
+        "answers": {
+          "counter_0_0": {
+            "choice": "contradicts",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 0,
+              "contradicts": 1,
+              "unclear": 0
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -23,6 +23,8 @@ Feature: Learn from settled user tasks without a memory command
     Given auto-memory is disabled
     When a user task settles
     Then no learning pipeline starts
+    And one bounded backlog reference records the frozen task and real user revision
+    And a duplicate settled event does not append another reference
     And enabling auto-memory without another user task does not replay it
     And existing memory remains available to the model
 
@@ -106,8 +108,21 @@ Feature: Learn from settled user tasks without a memory command
     When the parent requests repair
     Then exactly one tool-free repair call receives only the rejected plan, bounded errors, selected names, and run identity
     And it receives no dossier body, snapshot path, Memory body, or repository path
+    And the repair contract repeats the exact incremental delta schema
+    And newMemories kind is exactly preference or project, with no project-fact alias
+    And a repair retains every recognizable original proposal name and selected operation kind
+    And a repaired kind may correct an originally invalid kind without changing the proposal name
+    But an existing rewrite cannot be silently replaced by a delete
+    And an empty repair is allowed only when the rejected arrays contain no recognizable intent
     And the repaired delta is expanded before the existing validation and apply gates
     But a second rejection ends the phase without a full planner rerun
+
+  Scenario: Incremental repair diagnostics preserve the first rejection
+    Given the incremental Memory delta is rejected for an invalid newMemories kind
+    And the bounded repair returns another invalid plan
+    When the parent reports the failed repair
+    Then the final bounded diagnostic includes the original rejection and the repair rejection
+    And the diagnostic contains no rejected plan body, credentials, or unbounded child output
 
   Scenario: Live verification does not substitute fixtures for learning
     Given the explicit live smoke runs against disposable project and agent roots

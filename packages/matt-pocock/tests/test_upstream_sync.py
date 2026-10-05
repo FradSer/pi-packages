@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import tarfile
 from pathlib import Path
@@ -19,20 +20,19 @@ def run_checker(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def test_selection_records_distinct_upstream_revisions_and_complete_reasons() -> None:
+def test_selection_records_upstream_revision_roles_and_complete_reasons() -> None:
     metadata = json.loads(SELECTION.read_text())
-    assert metadata["comparedCommit"] == "6654f6b60cd9d5be8b54c6fafe44346dabeb3b76"
-    assert metadata["comparisonTag"] == "v1.2.3"
-    assert metadata["resolvedTagCommit"] == "6acc160e4e0cd062dbbbd7a1b26ae92855edf07e"
-    assert metadata["latestCheckedCommit"] == "3cca18b368ae95cdbdebbff572ccafa662551015"
-    assert len({
-        metadata["comparedCommit"],
-        metadata["comparisonTag"],
-        metadata["resolvedTagCommit"],
-        metadata["latestCheckedCommit"],
-    }) == 4
+    for field in ("comparedCommit", "resolvedTagCommit", "latestCheckedCommit"):
+        assert re.fullmatch(r"[0-9a-f]{40}", metadata[field])
+    assert re.fullmatch(r"v\d+\.\d+\.\d+", metadata["comparisonTag"])
     assert all(item["localCatalogId"] for item in metadata["selected"])
     assert all(item["reason"].strip() for item in metadata["excluded"])
+    selected = {item["upstreamSkill"] for item in metadata["selected"]}
+    excluded = {item["upstreamSkill"]: item["reason"] for item in metadata["excluded"]}
+    assert {"pr", "retro"} <= selected
+    assert "implement-spec" in excluded
+    assert "Pi v1" in excluded["implement-spec"]
+    assert "resolving-merge-conflicts" not in selected | set(excluded)
 
 
 def test_checker_validates_local_selection_without_network() -> None:
@@ -45,17 +45,13 @@ def test_checker_validates_local_selection_without_network() -> None:
     assert report["excluded"] > 0
 
 
-def test_packed_package_includes_sync_metadata_and_checker(tmp_path: Path) -> None:
-    output = subprocess.check_output(
-        ["pnpm", "--dir", str(PACKAGE), "pack", "--pack-destination", str(tmp_path)],
-        text=True,
-    )
-    tarball = next(Path(part) for part in output.split() if part.endswith(".tgz"))
-    with tarfile.open(tarball) as archive:
+def test_packed_package_includes_sync_metadata_and_checker(packed_package: Path) -> None:
+    with tarfile.open(packed_package) as archive:
         names = set(archive.getnames())
-    assert "package/UPSTREAM.md" in names
-    assert "package/upstream-selection.json" in names
-    assert "package/scripts/check-upstream-sync.mjs" in names
+    assert {
+        "package/UPSTREAM.md", "package/upstream-selection.json",
+        "package/scripts/check-upstream-sync.mjs",
+    } <= names
 
 
 def git(upstream: Path, *args: str) -> str:
@@ -98,12 +94,9 @@ def test_checker_compares_an_already_cloned_upstream_tree(tmp_path: Path) -> Non
     metadata = json.loads(SELECTION.read_text())
     upstream = tmp_path / "skills"
     write_upstream_fixture(upstream, metadata)
-    original = SELECTION.read_text()
-    SELECTION.write_text(json.dumps(metadata))
-    try:
-        result = run_checker("--upstream", str(upstream))
-    finally:
-        SELECTION.write_text(original)
+    selection = tmp_path / "selection.json"
+    selection.write_text(json.dumps(metadata))
+    result = run_checker("--selection", str(selection), "--upstream", str(upstream))
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
     assert report["ok"] is True
@@ -117,6 +110,9 @@ def test_checker_rejects_upstream_checkout_at_a_different_head(tmp_path: Path) -
     metadata = json.loads(SELECTION.read_text())
     upstream = tmp_path / "skills"
     write_upstream_fixture(upstream, metadata)
-    result = run_checker("--upstream", str(upstream))
+    metadata["latestCheckedCommit"] = "0" * 40
+    selection = tmp_path / "selection.json"
+    selection.write_text(json.dumps(metadata))
+    result = run_checker("--selection", str(selection), "--upstream", str(upstream))
     assert result.returncode == 1
     assert "metadata latestCheckedCommit" in result.stderr

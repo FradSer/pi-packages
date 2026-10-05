@@ -25,7 +25,11 @@ async function desk(t) {
       pending += chunk.toString("utf8");
       const lines = pending.split("\n");
       pending = lines.pop();
-      for (const line of lines) if (line) records.push(JSON.parse(line));
+      for (const line of lines) if (line) {
+        const record = JSON.parse(line);
+        records.push(record);
+        if (record.type === "hello") socket.write(JSON.stringify({ v: 1, type: "ack", at: Date.now() }) + "\n");
+      }
     });
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

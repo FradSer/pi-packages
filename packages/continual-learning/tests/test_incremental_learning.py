@@ -276,10 +276,11 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
           fs.mkdirSync(path.join(cwd, '.memory'), { recursive: true });
           fs.writeFileSync(path.join(cwd, '.memory', 'known.md'), '---\nname: known\ndescription: Known fact\ntype: project\n---\nKNOWN_BODY\n');
           let response = '';
+          let exitCode = 0;
           const kit = await import('./packages/kit/src/index.ts');
           mock.module('./packages/kit/src/index.ts', () => ({
             ...kit,
-            runPiWorker: async () => ({ text: response, exitCode: 0, stderr: '', cancelled: false }),
+            runPiWorker: async () => ({ text: response, exitCode, stderr: 'PRIVATE_WORKER_STDERR', cancelled: false }),
           }));
           const { selectIncrementalLearning } = await import('./packages/continual-learning/extensions/incremental-learning.ts');
           const selection = selected => ({
@@ -323,10 +324,17 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
           const storedReason = fs.existsSync(clippedDossier)
             ? JSON.parse(fs.readFileSync(clippedDossier, 'utf8')).selection.reason
             : null;
+          exitCode = 1;
+          const failedWorker = await selectIncrementalLearning({
+            cwd, taskSlice: { kind: 'learning-task-slice', version: 1, entries: [] },
+            contextDigest: 'invalid-digest', outputDir: unknownDir,
+          });
           console.log(JSON.stringify({
             unknown: unknown.outcome,
             ambiguous: ambiguous.outcome,
             unknownError: unknown.error,
+            unknownDiagnostic: unknown.diagnostic,
+            workerDiagnostic: failedWorker.diagnostic,
             ambiguousError: ambiguous.error,
             diagnostics,
             unknownDossier: fs.existsSync(path.join(unknownDir, 'incremental-learning-dossier.json')),
@@ -342,6 +350,8 @@ def test_selector_rejects_unknown_names_and_ambiguous_objects_without_dossier() 
         "unknown": "failed",
         "ambiguous": "failed",
         "unknownError": "selector rejected: selected filename is not an exact indexed Memory name",
+        "unknownDiagnostic": "selector rejected: selected filename is not an exact indexed Memory name",
+        "workerDiagnostic": "selector worker failed",
         "ambiguousError": "selector rejected: expected exactly one JSON object",
         "diagnostics": [
             "selector rejected: context digest does not match this run",

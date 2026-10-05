@@ -1,239 +1,403 @@
-"""The three packages as a configured install.
+"""Real configured-install checks, isolated by default.
 
-The E2E suites compose an install by hand, which proves each combination works but
-says nothing about whether a real Pi actually finds them. This checks the other
-half: the three local paths are in the agent's package sources, and a real
-`pi --print` against the *configured* set exposes all three tools.
-
-The probe reads the live tool list through the extension API and writes it out, so
-what is asserted is what the host built rather than what a manifest promised.
+Ordinary pnpm check declares local packages in disposable settings and uses Pi's
+real package resolver and CLI. It never reads a personal HOME/config or loads a
+personal extension. PI_INSTALL_SETTINGS is an explicit, read-only declaration
+AUDIT opt-in only; loader and smoke runs remain isolated even in that mode.
+The separately invoked pnpm check:install keeps its live user-install semantics.
 """
-
 from __future__ import annotations
 
 import json
 import os
-import re
-import secrets
-import shutil
-import subprocess
+import sys
+import tarfile
+import threading
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[1]
-AGENT_TEAMS = REPO / "packages" / "agent-teams"
-PROBE = AGENT_TEAMS / "tests" / "install-probe.ts"
-PROBE_SOURCE = PROBE
-
-# The three packages the split produces, and the tool each one owns.
-PACKAGE_TOOLS = {
-    "packages/subagents": "agent",
-    "packages/tasks": "task",
-    "packages/agent-teams": "message",
-}
-COORDINATION = set(PACKAGE_TOOLS.values())
+SUPPORT = Path(__file__).resolve().parent / "install-wiring"
+sys.path.insert(0, str(SUPPORT))
+from install_wiring_helper import (  # noqa: E402
+    COORDINATION, PACKAGE_TOOLS, REPO, Install, audit, audit_settings, executable,
+    isolated_install, loader_report, pi_command, pi_report, run, workspace_pi_packages,
+)
 
 
-def settings_path() -> Path:
-    """The agent settings a user's own Pi reads.
-
-    `PI_CODING_AGENT_DIR` is deliberately ignored: inside a session it points at
-    that session's own sandbox, whose package list is not the install this suite is
-    about. An explicit override exists for a test that wants a different agent dir.
-    """
-    override = os.environ.get("PI_INSTALL_SETTINGS")
-    return Path(override) if override else Path(os.path.expanduser("~/.pi/agent/settings.json"))
+@pytest.fixture
+def declared_install(tmp_path: Path) -> Install:
+    """Every workspace Pi package is declared, but not all are executed."""
+    return isolated_install(tmp_path / "declared", workspace_pi_packages())
 
 
-def configured_sources() -> list[str]:
-    path = settings_path()
-    if not path.is_file():
-        pytest.skip(f"no agent settings at {path}")
+def configured_sources(install: Install) -> list[str]:
+    path = audit_settings(install)
+    assert path.is_file(), f"no explicitly selected settings at {path}"
     data = json.loads(path.read_text(encoding="utf-8"))
-    entries = data.get("packages", [])
-    return [
-        str(entry.get("source", "")) if isinstance(entry, dict) else str(entry)
-        for entry in entries
-    ]
+    return [str(entry.get("source", "")) if isinstance(entry, dict) else str(entry)
+            for entry in data.get("packages", [])]
 
 
-@pytest.mark.parametrize("relative,tool", sorted(PACKAGE_TOOLS.items()))
-def test_each_package_is_a_configured_source(relative: str, tool: str) -> None:
-    """One entry per package, resolved from the same install the goal describes.
+def test_default_sources_do_not_read_personal_settings(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Given unrelated personal settings, default checks use real local declarations."""
+    personal = tmp_path / "personal" / ".pi" / "agent"
+    personal.mkdir(parents=True)
+    path = personal / "settings.json"
+    original = json.dumps({"packages": ["./unrelated-personal-extension"]})
+    path.write_text(original, encoding="utf-8")
+    inherited = tmp_path / "session-agent"
+    inherited.mkdir()
+    (inherited / "settings.json").write_text(original, encoding="utf-8")
+    monkeypatch.setenv("HOME", str(tmp_path / "personal"))
+    monkeypatch.setenv("PI_CODING_AGENT_DIR", str(inherited))
+    monkeypatch.setenv("OPENAI_API_KEY", "unrelated-temporary-credential")
+    monkeypatch.setenv("PI_TEAMMATE_ENV_ALLOW", "OPENAI_API_KEY")
+    monkeypatch.setenv("NODE_OPTIONS", "--require=/nonexistent-personal-preload.cjs")
+    monkeypatch.delenv("PI_INSTALL_SETTINGS", raising=False)
 
-    Matched on the path tail rather than an exact string because `pi install`
-    records a path relative to the agent directory, and an exact match would make
-    the test depend on how the entry happened to be written.
-    """
-    sources = configured_sources()
-    expected_tail = f"{relative}/index.ts" if relative.endswith("agent-teams") else f"{relative}"
-    matching = [source for source in sources if source.endswith(expected_tail) or source.endswith(f"{relative}")]
-    assert matching, f"{relative} is not a configured source; configured: {sources}"
+    install = isolated_install(tmp_path / "isolated", workspace_pi_packages())
+    sources = configured_sources(install)
+    for package in PACKAGE_TOOLS:
+        assert str(REPO / "packages" / package) in sources, sources
+    assert install.env["HOME"] == str(install.home)
+    assert install.env["PI_CODING_AGENT_DIR"] == str(install.agent_dir)
+    for key in ("OPENAI_API_KEY", "PI_TEAMMATE_ENV_ALLOW", "PI_INSTALL_SETTINGS"):
+        assert key not in install.env, key
+    assert "/nonexistent-personal-preload" not in install.env["NODE_OPTIONS"]
+    assert path.read_text(encoding="utf-8") == original
+    assert (inherited / "settings.json").read_text(encoding="utf-8") == original
 
 
-def test_the_install_check_script_passes() -> None:
-    """`check:install` is the repository's own statement that the workspace and
-    the agent agree. Asserted here so a missing local path fails this suite rather
-    than only surfacing in a release run."""
-    pi = shutil.which("pnpm")
-    if pi is None:
-        pytest.skip("pnpm is required for the installation check")
-    result = subprocess.run(
-        [pi, "check:install"], cwd=REPO, capture_output=True, text=True, timeout=180
-    )
+@pytest.mark.parametrize("package", sorted(PACKAGE_TOOLS))
+def test_each_package_is_a_configured_source(declared_install: Install, package: str) -> None:
+    """Package directories, not hand-listed entry files, drive manifest discovery."""
+    assert str(REPO / "packages" / package) in declared_install.sources()
+
+
+def test_the_install_check_script_passes(declared_install: Install) -> None:
+    """The unchanged live-audit CLI gets an explicit disposable path by default."""
+    selected = audit_settings(declared_install)
+    original = selected.read_bytes()
+    result = audit(declared_install, selected)
+    assert selected.read_bytes() == original
     assert result.returncode == 0, result.stdout + result.stderr
+    assert "OK:" in result.stdout, result.stdout
+    assert not declared_install.records("network-attempts.jsonl")
 
 
-def test_a_real_install_exposes_all_three_coordination_tools(tmp_path: Path) -> None:
-    """A real `pi --print` against the configured package set.
+@pytest.mark.parametrize("fault,finding", [("missing", "MISSING  packages/tasks"), ("dead", "DEAD     settings.packages")])
+def test_missing_declarations_and_dead_sources_fail(
+    declared_install: Install, fault: str, finding: str,
+) -> None:
+    data = json.loads(declared_install.settings.read_text(encoding="utf-8"))
+    if fault == "missing":
+        data["packages"].remove(str(REPO / "packages" / "tasks"))
+    else:
+        data["packages"].append(str(declared_install.root / "nonexistent-package"))
+    declared_install.settings.write_text(json.dumps(data), encoding="utf-8")
+    original = declared_install.settings.read_bytes()
+    result = audit(declared_install, declared_install.settings)
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert finding in result.stdout, result.stdout
+    assert declared_install.settings.read_bytes() == original, "audit must not repair declarations"
 
-    This is the assertion the hand-composed E2E cannot make: that the manifest,
-    the agent's sources and the host's loader agree. Only `agent`, `task` and
-    `message` are asserted; the other tools in the surface come from unrelated
-    installed packages and are not this suite's business.
-    """
-    pi = shutil.which("pi")
-    if pi is None:
-        pytest.skip("the Pi CLI is required for the install surface check")
-    if not PROBE.is_file():
-        pytest.fail(f"the install probe is missing at {PROBE}")
 
-    dump = tmp_path / "tools.json"
-    env = {
-        key: value
-        for key, value in os.environ.items()
-        if not key.startswith("PI_TEAMMATE_")
-    }
-    env.update({
-        # A local auth token so the scripted provider is accepted, and offline mode
-        # so a mistake that reaches the network fails rather than hangs.
-        "PI_E2E_AUTH": secrets.token_hex(16),
-        "PI_INSTALL_PROBE": str(dump),
-        "PI_OFFLINE": "1",
-    })
-    result = subprocess.run(
-        [pi, "--print", "--no-session", "--no-context-files", "--no-skills",
-         "--no-prompt-templates", "--no-themes", "--provider", "install-probe",
-         "--model", "deterministic", "--thinking", "off",
-         "--extension", str(PROBE), "report the tool surface"],
-        cwd=REPO, env=env, capture_output=True, text=True, timeout=120,
-    )
+def test_explicit_live_audit_is_opt_in_read_only_and_not_a_loader_config(
+    declared_install: Install, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A disposable stand-in exercises opt-in; never read the user's real settings.
+    selected = tmp_path / "explicit-settings.json"
+    selected.write_text(json.dumps({"packages": []}), encoding="utf-8")
+    original = selected.read_bytes()
+    monkeypatch.setenv("PI_INSTALL_SETTINGS", str(selected))
+    assert audit_settings(declared_install) == selected
+    assert configured_sources(declared_install) == []
+    result = audit(declared_install, audit_settings(declared_install))
+    assert result.returncode == 1 and "MISSING" in result.stdout, result.stdout
+    assert selected.read_bytes() == original
+    assert declared_install.env["PI_CODING_AGENT_DIR"] == str(declared_install.agent_dir)
+    assert "PI_INSTALL_SETTINGS" not in declared_install.env
+    isolated = isolated_install(tmp_path / "live-mode-loader", [REPO / "packages" / "agent-teams"])
+    assert COORDINATION <= {tool["name"] for tool in pi_report(isolated)["tools"]}
+
+
+def test_real_loader_does_not_load_ambient_personal_or_project_extensions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    personal = tmp_path / "ambient-home" / ".pi" / "agent"
+    inherited = tmp_path / "ambient-agent"
+    marker = tmp_path / "ambient-loaded"
+    source = f'import {{ writeFileSync }} from "node:fs"; export default function () {{ writeFileSync({json.dumps(str(marker))}, "loaded"); }}'
+    snapshots: dict[Path, bytes] = {}
+    for agent_dir in (personal, inherited):
+        extensions = agent_dir / "extensions"
+        extensions.mkdir(parents=True)
+        extension = extensions / "personal.ts"
+        extension.write_text(source, encoding="utf-8")
+        settings = agent_dir / "settings.json"
+        settings.write_text(json.dumps({"extensions": [str(extension)], "packages": []}), encoding="utf-8")
+        snapshots[settings] = settings.read_bytes()
+    monkeypatch.setenv("HOME", str(tmp_path / "ambient-home"))
+    monkeypatch.setenv("PI_CODING_AGENT_DIR", str(inherited))
+    install = isolated_install(tmp_path / "isolated", [REPO / "packages" / "agent-teams"])
+    project_extensions = install.cwd / ".pi" / "extensions"
+    project_extensions.mkdir(parents=True)
+    (project_extensions / "ambient.ts").write_text(source, encoding="utf-8")
+    report = pi_report(install)
+    assert COORDINATION <= {tool["name"] for tool in report["tools"]}
+    assert not marker.exists(), "an unrelated ambient extension ran"
+    for settings, original in snapshots.items():
+        assert settings.read_bytes() == original
+
+
+INSTALLS = {
+    ("subagents",): set(PACKAGE_TOOLS["subagents"]),
+    ("tasks",): set(PACKAGE_TOOLS["tasks"]),
+    ("subagents", "tasks"): COORDINATION - {"message"},
+    ("agent-teams",): COORDINATION,
+    ("subagents", "tasks", "agent-teams"): COORDINATION,
+}
+
+
+def expected_entries(packages: tuple[str, ...]) -> set[Path]:
+    entries: set[Path] = set()
+    for package in packages:
+        directory = REPO / "packages" / package
+        manifest = json.loads((directory / "package.json").read_text(encoding="utf-8"))
+        assert manifest["pi"]["extensions"][0] == "./index.ts"
+        entries.update((directory / entry).resolve() for entry in manifest["pi"]["extensions"])
+    return entries
+
+
+@pytest.mark.parametrize("packages,expected", sorted(INSTALLS.items()))
+def test_a_real_install_exposes_exactly_its_coordination_tools(
+    tmp_path: Path, packages: tuple[str, ...], expected: set[str],
+) -> None:
+    install = isolated_install(tmp_path / "install", [REPO / "packages" / name for name in packages])
+    loaded = loader_report(install)
+    assert loaded["errors"] == [], loaded["errors"]
+    assert loaded["settingsErrors"] == [], loaded["settingsErrors"]
+    extensions = loaded["extensions"]
+    actual_entries = [Path(extension["resolvedPath"]).resolve() for extension in extensions]
+    assert set(actual_entries) == expected_entries(packages), actual_entries
+    assert len(actual_entries) == len(set(actual_entries)), "Pi loaded one physical entry twice"
+    registrants = [tool["name"] for extension in extensions for tool in extension["tools"]]
+    assert set(registrants) & COORDINATION == expected, registrants
+    for tool in expected:
+        assert registrants.count(tool) == 1, f"{tool} has duplicate registrants: {registrants}"
+    for extension in extensions:
+        assert extension["sourceInfo"]["origin"] == "package", extension
+        assert extension["sourceInfo"]["source"] in install.sources(), extension
+
+    report = pi_report(install)
+    names = [tool["name"] for tool in report["tools"]]
+    assert set(names) & COORDINATION == expected, names
+    assert not {"work", "agent_event", "install_surface_probe", "live_smoke_probe"} & set(names)
+    for tool in report["tools"]:
+        if tool["name"] in expected:
+            assert tool["sourceInfo"]["origin"] == "package", tool
+            schema = tool["parameters"]
+            assert schema["type"] == "object" and schema["additionalProperties"] is False, schema
+            assert not {"oneOf", "anyOf", "allOf"} & schema.keys(), schema
+            assert "target" not in schema["properties"] and "definition" not in schema["properties"], schema
+    start = next((tool for tool in report["tools"] if tool["name"] == "agent_start"), None)
+    if start:
+        # A start is one input, not a lifecycle: every other intent tool addresses an
+        # exact session instead.
+        assert start["parameters"]["required"] == ["prompt"], start["parameters"]
+        assert set(start["parameters"]["properties"]) == {
+            "prompt", "identity", "label", "instructions", "tools", "model", "fork",
+        }, start["parameters"]
+
+
+def test_pi_cli_lists_the_actual_disposable_declarations(declared_install: Install) -> None:
+    original = declared_install.settings.read_bytes()
+    result = run(declared_install, [*pi_command(), "list", "--no-approve"])
     assert result.returncode == 0, result.stdout + result.stderr
-    assert dump.is_file(), f"the probe never read the tool surface:\n{result.stdout}"
-    names = json.loads(dump.read_text(encoding="utf-8"))
-    assert COORDINATION <= set(names), f"missing: {sorted(COORDINATION - set(names))}"
-    # `getAllTools` is keyed by name, so a second registrant for one of these would
-    # have collapsed here rather than shown up as a duplicate. The enumeration in
-    # test_tool_registration_combinations is what proves there is only one.
-    assert PROBE.stem not in COORDINATION
+    for source in declared_install.sources():
+        assert f"  {source}\n" in result.stdout, result.stdout
+    assert "Project packages:" not in result.stdout
+    assert declared_install.settings.read_bytes() == original
 
 
-def test_packed_manifests_carry_no_workspace_protocol() -> None:
-    """A `workspace:` specifier does not survive packing, and one reaching npm makes
-    the package unresolvable for a consumer.
-
-    `publish-release.mjs` already refuses a tarball that contains one, and
-    `pack:check` is how that is run. Asserted here as well because this is the suite
-    that owns install wiring, and the failure a consumer hits is an install failure.
-    """
-    pnpm = shutil.which("pnpm")
-    if pnpm is None:
-        pytest.skip("pnpm is required for the pack check")
-    result = subprocess.run(
-        [pnpm, "pack:check"], cwd=REPO, capture_output=True, text=True, timeout=600
-    )
+def test_packed_manifests_carry_no_workspace_protocol(declared_install: Install) -> None:
+    result = run(declared_install, [executable("pnpm"), "pack:check"], cwd=REPO, timeout=600)
     assert result.returncode == 0, result.stdout + result.stderr
-    for name, tool in sorted(PACKAGE_TOOLS.items()):
-        package = (REPO / name).resolve()
-        manifest = json.loads((package / "package.json").read_text(encoding="utf-8"))
-        declared = manifest.get("pi", {}).get("extensions", [])
-        assert declared, f"{name} declares no extension entry"
-        # A package's *own* entry must be a real file that its files list ships. A
-        # manifest naming a file the tarball omits fails at load time with nothing
-        # that names the cause.
-        own = declared[0]
-        assert own == "./index.ts", f"{name} must load its own root index first, not {own}"
-        assert (package / "index.ts").is_file(), f"{name}/index.ts is missing"
-        assert "index.ts" in manifest.get("files", []), f"{name} does not ship its own entry"
-        # A bundled dependency's path resolves through node_modules. In the
-        # workspace that is a symlink to a sibling package, so comparing it against
-        # this package's files list is meaningless — what matters is that the path
-        # is a node_modules path naming a package that exists.
+    assert "Validated packed manifests" in result.stdout
+    assert not declared_install.records("network-attempts.jsonl")
+
+
+@pytest.mark.parametrize("package", sorted(PACKAGE_TOOLS))
+def test_coordination_tarballs_ship_declared_entries(declared_install: Install, package: str) -> None:
+    directory = REPO / "packages" / package
+    destination = declared_install.root / "packed"
+    destination.mkdir()
+    result = run(declared_install, [executable("pnpm"), "--dir", str(directory), "pack",
+        "--pack-destination", str(destination), "--json"], cwd=REPO)
+    assert result.returncode == 0, result.stdout + result.stderr
+    packed = json.loads(result.stdout)
+    filename = packed[0]["filename"] if isinstance(packed, list) else packed["filename"]
+    tarball = Path(filename)
+    if not tarball.is_absolute():
+        tarball = destination / tarball
+    with tarfile.open(tarball) as archive:
+        member = archive.extractfile("package/package.json")
+        assert member is not None
+        manifest = json.load(member)
+        declared = manifest["pi"]["extensions"]
+        assert declared[0] == "./index.ts"
+        assert "package/index.ts" in archive.getnames(), "packed entry is missing"
+        assert "package/src/extension.ts" in archive.getnames() or "package/src/index.ts" in archive.getnames()
         for entry in declared[1:]:
-            assert entry.startswith("./node_modules/"), \
-                f"{name} loads {entry}, which is neither its own entry nor a bundled path"
-            target = (package / entry.removeprefix("./")).resolve()
-            assert target.is_file(), f"{name} bundles {entry}, which does not resolve"
-        assert tool, f"{name} owns no tool"
+            assert entry.startswith("./node_modules/"), entry
+            assert (directory / entry).resolve().is_file(), entry
+            dependency = "/".join(Path(entry).parts[1:-1])
+            assert dependency in manifest["dependencies"], manifest
+        for section in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
+            assert all("workspace:" not in spec for spec in manifest.get(section, {}).values())
 
 
-SMOKE = AGENT_TEAMS / "tests" / "live-smoke.ts"
+@pytest.fixture
+def smoke_install(tmp_path: Path) -> Iterator[tuple[Install, list[dict[str, object]]]]:
+    """Native RPC child uses only a disposable credential and loopback endpoint."""
+    requests: list[dict[str, object]] = []
+
+    class ChildModel(BaseHTTPRequestHandler):
+        def log_message(self, _format: str, *args: object) -> None:
+            pass
+
+        def do_GET(self) -> None:
+            if self.path != "/v1/accepted":
+                self.send_error(404, "Unknown isolated model observation endpoint")
+                return
+            if not self.server.accepted.wait(timeout=15):
+                self.send_error(503, "No native child model request arrived")
+                return
+            self.send_response(204)
+            self.end_headers()
+
+        def do_POST(self) -> None:
+            payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            requests.append(payload)
+            self.server.accepted.set()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            # Hold the reply open until stop. Startup may wait for RPC acceptance,
+            # but it must not wait for model completion or fabricate an answer.
+            self.wfile.write(b': isolated child input accepted\n\n')
+            self.wfile.flush()
+            self.server.release.wait(timeout=30)
+            try:
+                self.wfile.write(b'data: [DONE]\n\n')
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+    install = isolated_install(tmp_path / "smoke", [REPO / "packages" / "agent-teams"])
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ChildModel)
+    server.daemon_threads = True
+    release = threading.Event()
+    server.release = release
+    server.accepted = threading.Event()
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    auth = json.loads((install.agent_dir / "auth.json").read_text(encoding="utf-8"))
+    (install.agent_dir / "models.json").write_text(json.dumps({"providers": {
+        "install-wiring-child": {"api": "openai-completions", "apiKey": auth["install-wiring"]["key"],
+            "baseUrl": f"http://127.0.0.1:{server.server_port}/v1",
+            "models": [{"id": "deterministic", "name": "Loopback fixture", "reasoning": False,
+                "input": ["text"], "contextWindow": 200000, "maxTokens": 4096,
+                "cost": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0}}]}
+    }}), encoding="utf-8")
+    try:
+        yield install, requests
+    finally:
+        release.set()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
 
 
-def test_the_harness_probe_is_not_one_of_the_three() -> None:
-    """The suite's own probe must not be mistaken for a coordination tool.
+def test_loopback_model_arrival_observer_requires_real_http(smoke_install: tuple) -> None:
+    from http.client import HTTPConnection
+    from urllib.parse import urlparse
 
-    Every surface assertion in this repository is written as "these three, and no
-    others", so a harness that reported itself would make those checks off by one
-    while still reading as a real tool. Asserted on the source, since the name is a
-    static fact and a process would only restate it.
-    """
-    probe_name = re.search(r'probe:\s*"([a-z_]+)"', PROBE_SOURCE.read_text(encoding="utf-8"))
-    assert probe_name, f"no probe name found in {PROBE_SOURCE}"
-    assert probe_name.group(1) not in {"agent", "task", "message"}, probe_name.group(1)
+    install, requests = smoke_install
+    models = json.loads((install.agent_dir / "models.json").read_text())
+    endpoint = urlparse(models["providers"]["install-wiring-child"]["baseUrl"])
+    model = HTTPConnection(endpoint.hostname, endpoint.port, timeout=3)
+    observer = HTTPConnection(endpoint.hostname, endpoint.port, timeout=3)
+    try:
+        model.request("POST", "/v1/chat/completions", json.dumps({"fixture": "observer-only"}),
+            headers={"Content-Type": "application/json"})
+        response = model.getresponse()
+        assert response.status == 200
+        observer.request("GET", "/v1/accepted")
+        assert observer.getresponse().status == 204
+        assert requests == [{"fixture": "observer-only"}]
+        assert not install.records("rpc.jsonl"), "HTTP model arrival does not invent native RPC acknowledgement"
+    finally:
+        observer.close()
+        model.close()
 
 
-def test_the_configured_install_runs_the_tools_end_to_end() -> None:
-    """Registration is not the same as working.
+def test_the_configured_install_runs_the_tools_end_to_end(smoke_install: tuple) -> None:
+    install, requests = smoke_install
+    report = pi_report(install, scenario="smoke")
+    calls = report["calls"]
+    tasks = [call for call in calls if call["name"] in ("create_task", "list_tasks", "update_task")]
+    assert [call["name"] for call in tasks] == [
+        "create_task", "list_tasks", "update_task", "update_task", "update_task",
+    ], tasks
+    assert all(not call["isError"] for call in tasks[:4]), tasks
+    assert [call["details"].get("status") for call in tasks[:4]] == ["pending", None, "in_progress", "completed"]
+    task_id = tasks[0]["details"]["id"]
+    assert tasks[1]["details"]["tasks"][0]["id"] == task_id
+    assert tasks[2]["details"]["id"] == tasks[3]["details"]["id"] == task_id
+    assert tasks[2]["details"]["task"]["holder"] == "main"
+    assert tasks[4]["isError"] and "assign" in tasks[4]["text"]
+    message = next(call for call in calls if call["name"] == "message")
+    assert "nobody-here" in message["text"] and message["isError"], message
+    agents = [call for call in calls if call["name"].startswith("agent_")]
+    assert len(agents) == 6, agents
+    assert agents[0]["isError"], "an identity with no legal name must be refused"
+    assert all(not call["isError"] for call in agents[1:]), agents
+    assert agents[1]["details"]["disposition"] == "started" and agents[1]["details"]["prompted"] is True
+    assert agents[1]["details"]["session"].startswith("session:")
+    assert agents[2]["details"]["disposition"] == "inspected"
+    assert agents[2]["details"]["sessions"][0]["session"] == agents[1]["details"]["session"]
+    assert agents[3]["details"]["disposition"] == "stopped" and agents[3]["details"]["state"] == "stopped"
+    assert agents[4]["details"]["disposition"] == "started" and agents[4]["details"]["prompted"] is True
+    assert "Input accepted" in agents[4]["text"]
+    assert agents[5]["details"]["disposition"] == "stopped"
+    events = install.records("rpc.jsonl")
+    idle_receipt = next(index for index, event in enumerate(events)
+        if event["kind"] == "tool-result" and event.get("name") == "install-idle")
+    input_receipt = next(index for index, event in enumerate(events)
+        if event["kind"] == "tool-result" and event.get("name") == "install-input")
+    assert idle_receipt < input_receipt, events
+    assert any(event["kind"] == "response" and event.get("command") == "prompt"
+        and event.get("success") is True for event in events[:input_receipt]), events
+    spawned = [event["pid"] for event in events if event["kind"] == "spawn"]
+    closed = [event["pid"] for event in events if event["kind"] == "close"]
+    assert len(spawned) == 2 and set(spawned) == set(closed), events
+    # At least one arrival is proven: the provider holds the install-input receipt
+    # until the loopback reports a request, so a run that reached here without one
+    # already failed. At most one per spawned child, because a start never
+    # fabricates a second turn. The old bound was exactly one, which only held
+    # while a start could leave a child without work.
+    assert 1 <= len(requests) <= len(spawned), (requests, spawned)
+    assert not (install.agent_dir / "agents").exists(), "temporary smoke must not persist roles"
+    assert not (install.agent_dir / "subagent-sessions").exists()
 
-    The suite above proves the three tools are present in a real install. This one
-    calls them, because a tool that registers and then refuses every call is still
-    broken and only execution shows the difference. It runs against the configured
-    package set with no package chosen by hand, so it covers the path a user gets.
 
-    The script drives create, list, take and complete on the board, then checks the
-    two boundaries a surface assertion cannot: a removed verb is refused, and a
-    message to a recipient that does not exist is refused with a reason rather than
-    reported as sent.
-    """
-    pi = shutil.which("pi")
-    if pi is None:
-        pytest.skip("the Pi CLI is required for the live smoke")
-    if not SMOKE.is_file():
-        pytest.fail(f"the live smoke script is missing at {SMOKE}")
-
-    env = {k: v for k, v in os.environ.items() if not k.startswith("PI_TEAMMATE_")}
-    env.update({"PI_E2E_AUTH": secrets.token_hex(16), "PI_OFFLINE": "1"})
-    result = subprocess.run(
-        [pi, "--print", "--no-session", "--no-context-files", "--no-skills",
-         "--no-prompt-templates", "--no-themes", "--provider", "live-smoke",
-         "--model", "deterministic", "--thinking", "off",
-         "--extension", str(SMOKE), "run the smoke"],
-        cwd=REPO, env=env, capture_output=True, text=True, timeout=120,
-    )
-    assert result.returncode == 0, result.stdout + result.stderr
-    line = next(
-        (raw for raw in result.stdout.splitlines() if raw.strip().startswith("E2E_REPORT")), None
-    )
-    assert line, f"the smoke run produced no report:\n{result.stdout}"
-    calls = json.loads(line.strip()[len("E2E_REPORT "):])["calls"]
-    by_name: dict[str, list[dict]] = {}
-    for call in calls:
-        by_name.setdefault(call["name"], []).append(call)
-
-    board = by_name.get("task", [])
-    assert len(board) == 5, [c["text"][:40] for c in board]
-    states = [c["details"].get("status") for c in board[:4]]
-    assert states == ["pending", None, "in_progress", "completed"], states
-    # Taking records the caller as the holder. A Task has no assignee field, so
-    # this is the only place an owner can come from.
-    assert board[2]["details"]["task"]["holder"] == "main", board[2]["details"]
-    # The fifth task call is a removed verb, refused rather than ignored.
-    assert board[4]["isError"] is True and "assign" in board[4]["text"], board[4]["text"]
-
-    message = (by_name.get("message") or [{}])[0]
-    assert "nobody-here" in message.get("text", ""), message
-
-    agent = (by_name.get("agent") or [{}])[0]
-    assert agent.get("isError") is True, "an invalid agent name must not validate"
+def test_network_guard_rejects_non_loopback_before_connecting(declared_install: Install) -> None:
+    result = run(declared_install, [executable("node"), "-e",
+        "require('node:net').connect({host: '192.0.2.1', port: 443})"])
+    assert result.returncode != 0 and "forbids non-loopback" in result.stderr
+    assert declared_install.records("network-attempts.jsonl"), "the guard itself must be exercised"

@@ -415,14 +415,23 @@ console.log(JSON.stringify({{ sameRef: first === second }}));
         script = f"""
 import registerWorktreeCompletion, {{ filterForeignWorktreeSearchLines }} from {json.dumps(COMPLETION_EXTENSION.as_uri())};
 const handlers = new Map();
-const pi = {{ on: (event, handler) => handlers.set(event, handler) }};
+const declaredTools = [
+  {{ name: "fffind", parameters: {{ properties: {{ exclude: {{ type: "string" }} }} }} }},
+  {{ name: "legacy-find", parameters: {{ properties: {{ path: {{ type: "string" }} }} }} }},
+];
+const pi = {{
+  on: (event, handler) => handlers.set(event, handler),
+  getAllTools: () => declaredTools,
+}};
 const ctx = {{ cwd: {json.dumps(str(self.main))} }};
 registerWorktreeCompletion(pi);
 
-// Test tool_call injects exclude
+// tool_call injects exclude only into a tool that declares it
 const toolCallHandler = handlers.get("tool_call");
 const fffindCall = {{ toolName: "fffind", input: {{ path: "src/" }} }};
 toolCallHandler(fffindCall, ctx);
+const undeclaredCall = {{ toolName: "legacy-find", input: {{ path: "src/" }} }};
+toolCallHandler(undeclaredCall, ctx);
 
 // Test tool_result filters lines
 const rawSearchResult = [
@@ -441,11 +450,15 @@ const filteredResult = toolResultHandler({{
 
 console.log(JSON.stringify({{
   excludeInjected: fffindCall.input.exclude,
+  undeclaredInput: undeclaredCall.input,
   filteredText: filteredResult.content[0].text,
 }}));
 """
         report = run_ts(script)
         self.assertIn(".pi/worktrees/**", report["excludeInjected"])
+        # A tool owned by another package is never given a parameter it does not
+        # declare; its output is still filtered on the way back.
+        self.assertEqual(report["undeclaredInput"], {"path": "src/"})
         self.assertNotIn("wt-b", report["filteredText"])
         self.assertNotIn("wt-sub", report["filteredText"])
         self.assertIn("packages/utils/src/index.ts", report["filteredText"])

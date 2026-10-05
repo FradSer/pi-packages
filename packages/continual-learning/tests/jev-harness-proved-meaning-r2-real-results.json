@@ -1,0 +1,719 @@
+{
+  "evidence": "real-jev-inference-fixed-long-harness-cases",
+  "candidateStrategy": "verbatim-original-user-restriction",
+  "comparisonLimit": "Message shape changed from earlier paraphrase runs; not a same-candidate judge comparison",
+  "baselineScope": "Old full-evidence transport without citation parameter; not legacy generation or end-to-end effects",
+  "complete": true,
+  "passed": true,
+  "calls": 36,
+  "knownInputTokens": 158407,
+  "judgments": [
+    {
+      "counter_0_1": {
+        "choice": "compatible",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.98,
+          "contradicts": 0.01,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "counter_0_0": {
+        "choice": "compatible",
+        "confidence": 0.98,
+        "probabilities": {
+          "compatible": 0.98,
+          "contradicts": 0.01,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "authority_0": {
+        "choice": "lasting",
+        "confidence": 1,
+        "probabilities": {
+          "lasting": 1,
+          "conditional": 0,
+          "temporary": 0,
+          "elsewhere": 0,
+          "absent": 0
+        }
+      },
+      "family_0": {
+        "choice": "authorized",
+        "confidence": 0.97,
+        "probabilities": {
+          "authorized": 0.98,
+          "extra": 0.02,
+          "unclear": 0
+        }
+      }
+    },
+    {
+      "counter_0_2": {
+        "choice": "compatible",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.98,
+          "contradicts": 0.01,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "counter_0_4": {
+        "choice": "compatible",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.98,
+          "contradicts": 0.01,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "counter_0_3": {
+        "choice": "compatible",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.98,
+          "contradicts": 0.01,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "counter_0_0": {
+        "choice": "compatible",
+        "confidence": 0.98,
+        "probabilities": {
+          "compatible": 0.98,
+          "contradicts": 0.01,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "authority_0": {
+        "choice": "lasting",
+        "confidence": 1,
+        "probabilities": {
+          "lasting": 1,
+          "conditional": 0,
+          "temporary": 0,
+          "elsewhere": 0,
+          "absent": 0
+        }
+      },
+      "family_0": {
+        "choice": "authorized",
+        "confidence": 0.96,
+        "probabilities": {
+          "authorized": 0.97,
+          "extra": 0.03,
+          "unclear": 0
+        }
+      }
+    },
+    {
+      "counter_0_2": {
+        "choice": "compatible",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.98,
+          "contradicts": 0.01,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "counter_0_1": {
+        "choice": "compatible",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.98,
+          "contradicts": 0.01,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "counter_0_4": {
+        "choice": "contradicts",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.01,
+          "contradicts": 0.98,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "counter_0_3": {
+        "choice": "compatible",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.98,
+          "contradicts": 0.01,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "counter_0_1": {
+        "choice": "contradicts",
+        "confidence": 0.58,
+        "probabilities": {
+          "compatible": 0.25,
+          "contradicts": 0.72,
+          "unclear": 0.03
+        }
+      }
+    },
+    {
+      "authority_0": {
+        "choice": "absent",
+        "confidence": 0.74,
+        "probabilities": {
+          "lasting": 0.02,
+          "conditional": 0.18,
+          "temporary": 0,
+          "elsewhere": 0,
+          "absent": 0.8
+        }
+      },
+      "family_0": {
+        "choice": "extra",
+        "confidence": 1,
+        "probabilities": {
+          "authorized": 0,
+          "extra": 1,
+          "unclear": 0
+        }
+      }
+    },
+    {
+      "counter_0_0": {
+        "choice": "contradicts",
+        "confidence": 0.62,
+        "probabilities": {
+          "compatible": 0.23,
+          "contradicts": 0.75,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_2": {
+        "choice": "contradicts",
+        "confidence": 0.61,
+        "probabilities": {
+          "compatible": 0.24,
+          "contradicts": 0.74,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_3": {
+        "choice": "contradicts",
+        "confidence": 0.68,
+        "probabilities": {
+          "compatible": 0.2,
+          "contradicts": 0.78,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_4": {
+        "choice": "contradicts",
+        "confidence": 0.7,
+        "probabilities": {
+          "compatible": 0.18,
+          "contradicts": 0.8,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "authority_0": {
+        "choice": "lasting",
+        "confidence": 0.99,
+        "probabilities": {
+          "lasting": 1,
+          "conditional": 0,
+          "temporary": 0,
+          "elsewhere": 0,
+          "absent": 0
+        }
+      },
+      "family_0": {
+        "choice": "authorized",
+        "confidence": 0.89,
+        "probabilities": {
+          "authorized": 0.93,
+          "extra": 0.07,
+          "unclear": 0
+        }
+      }
+    },
+    {
+      "counter_0_1": {
+        "choice": "compatible",
+        "confidence": 0.95,
+        "probabilities": {
+          "compatible": 0.96,
+          "contradicts": 0.02,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_0": {
+        "choice": "compatible",
+        "confidence": 0.95,
+        "probabilities": {
+          "compatible": 0.96,
+          "contradicts": 0.02,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_2": {
+        "choice": "compatible",
+        "confidence": 0.95,
+        "probabilities": {
+          "compatible": 0.97,
+          "contradicts": 0.01,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_4": {
+        "choice": "compatible",
+        "confidence": 0.93,
+        "probabilities": {
+          "compatible": 0.95,
+          "contradicts": 0.02,
+          "unclear": 0.03
+        }
+      }
+    },
+    {
+      "counter_0_3": {
+        "choice": "compatible",
+        "confidence": 0.94,
+        "probabilities": {
+          "compatible": 0.96,
+          "contradicts": 0.02,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "authority_0": {
+        "choice": "lasting",
+        "confidence": 1,
+        "probabilities": {
+          "lasting": 1,
+          "conditional": 0,
+          "temporary": 0,
+          "elsewhere": 0,
+          "absent": 0
+        }
+      },
+      "family_0": {
+        "choice": "authorized",
+        "confidence": 0.86,
+        "probabilities": {
+          "authorized": 0.91,
+          "extra": 0.09,
+          "unclear": 0
+        }
+      }
+    },
+    {
+      "counter_0_2": {
+        "choice": "compatible",
+        "confidence": 0.96,
+        "probabilities": {
+          "compatible": 0.97,
+          "contradicts": 0.01,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_0": {
+        "choice": "compatible",
+        "confidence": 0.95,
+        "probabilities": {
+          "compatible": 0.96,
+          "contradicts": 0.02,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_1": {
+        "choice": "compatible",
+        "confidence": 0.94,
+        "probabilities": {
+          "compatible": 0.96,
+          "contradicts": 0.02,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_3": {
+        "choice": "compatible",
+        "confidence": 0.92,
+        "probabilities": {
+          "compatible": 0.95,
+          "contradicts": 0.03,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_4": {
+        "choice": "contradicts",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.02,
+          "contradicts": 0.98,
+          "unclear": 0
+        }
+      }
+    },
+    {
+      "authority_0": {
+        "choice": "absent",
+        "confidence": 0.56,
+        "probabilities": {
+          "lasting": 0.03,
+          "conditional": 0.32,
+          "temporary": 0,
+          "elsewhere": 0,
+          "absent": 0.65
+        }
+      },
+      "family_0": {
+        "choice": "extra",
+        "confidence": 1,
+        "probabilities": {
+          "authorized": 0,
+          "extra": 1,
+          "unclear": 0
+        }
+      }
+    },
+    {
+      "counter_0_2": {
+        "choice": "contradicts",
+        "confidence": 0.82,
+        "probabilities": {
+          "compatible": 0.11,
+          "contradicts": 0.87,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_1": {
+        "choice": "contradicts",
+        "confidence": 0.82,
+        "probabilities": {
+          "compatible": 0.11,
+          "contradicts": 0.87,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_0": {
+        "choice": "contradicts",
+        "confidence": 0.85,
+        "probabilities": {
+          "compatible": 0.09,
+          "contradicts": 0.9,
+          "unclear": 0.01
+        }
+      }
+    },
+    {
+      "counter_0_3": {
+        "choice": "contradicts",
+        "confidence": 0.82,
+        "probabilities": {
+          "compatible": 0.1,
+          "contradicts": 0.88,
+          "unclear": 0.02
+        }
+      }
+    },
+    {
+      "counter_0_4": {
+        "choice": "contradicts",
+        "confidence": 0.8,
+        "probabilities": {
+          "compatible": 0.12,
+          "contradicts": 0.87,
+          "unclear": 0.01
+        }
+      }
+    }
+  ],
+  "knownEstimatedCostUsd": 0.006653094,
+  "rows": [
+    {
+      "id": "en-lasting-family",
+      "language": "en",
+      "expectedAllow": true,
+      "snapshotDigest": "d2c25f3a69f18a4c9d0093e92bd31e0e8607972111aad2163065de4abb7e68b6",
+      "snapshotBytes": 101087,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 2375,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "verbatimExplanations": 1,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26319,
+          "outputTokens": 320,
+          "estimatedCostUsd": 0.0011053980000000003
+        }
+      }
+    },
+    {
+      "id": "en-later-approval-exception",
+      "language": "en",
+      "expectedAllow": false,
+      "snapshotDigest": "287785dbe443ef38f5eba0e2c9c9d5fb1e679e4add86e514824697459daa81a1",
+      "snapshotBytes": 101211,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 2047,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 32,
+          "coveredEntries": 32,
+          "verbatimExplanations": 1,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26351,
+          "outputTokens": 322,
+          "estimatedCostUsd": 0.0011067420000000002,
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "en-exact-only-family-expansion",
+      "language": "en",
+      "expectedAllow": false,
+      "snapshotDigest": "b0aee7ed26f34d2d5f1c64c61d1f32ef71b71b25dbf78b73f1272bab80cf7920",
+      "snapshotBytes": 101106,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1227,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "verbatimExplanations": 1,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26355,
+          "outputTokens": 331,
+          "estimatedCostUsd": 0.00110691,
+          "candidateIndex": 0,
+          "dimension": "authority"
+        }
+      }
+    },
+    {
+      "id": "zh-lasting-family",
+      "language": "zh",
+      "expectedAllow": true,
+      "snapshotDigest": "d8de3a7de4eafe1bac07d0651df70aad6ac22f66c30874f53ba3e75ad15a4b70",
+      "snapshotBytes": 101096,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 2045,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "verbatimExplanations": 1,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26427,
+          "outputTokens": 320,
+          "estimatedCostUsd": 0.0011099340000000001
+        }
+      }
+    },
+    {
+      "id": "zh-later-approval-exception",
+      "language": "zh",
+      "expectedAllow": false,
+      "snapshotDigest": "e796f99f7cf48fa6aa65b4c3412c6a87c93bacb41b265a79657fcec086d56140",
+      "snapshotBytes": 101206,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 1034,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 32,
+          "coveredEntries": 32,
+          "verbatimExplanations": 1,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26468,
+          "outputTokens": 322,
+          "estimatedCostUsd": 0.0011116560000000001,
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "zh-exact-only-family-expansion",
+      "language": "zh",
+      "expectedAllow": false,
+      "snapshotDigest": "157df3e7a6141ab1c2eac7f97fb3dfe4167ea44ea6ab181049357d621006fca0",
+      "snapshotBytes": 101108,
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "bounds",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1427,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "verbatimExplanations": 1,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 26487,
+          "outputTokens": 331,
+          "estimatedCostUsd": 0.001112454,
+          "candidateIndex": 0,
+          "dimension": "authority"
+        }
+      }
+    }
+  ]
+}

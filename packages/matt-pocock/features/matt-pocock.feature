@@ -2,6 +2,41 @@ Feature: Matt Pocock workflow harness
   Expose Matt Pocock engineering workflows through one Pi harness command
   without globally discoverable child skills.
 
+  Scenario: Adversarial gateway requests preserve the current work item
+    Given a Pi v1 session has an active workflow or standalone disclosure chain
+    When malformed, incompatible, repeated, or unauthorized requests are attempted
+    Then rejected requests do not partially change persisted state or active tools
+    And valid aliases and repeated operations follow the catalog contract
+
+  Scenario: Reading a reference does not invoke its user-only capability
+    Given setup-matt-pocock-skills is a user-only standalone capability
+    When the model gateway reads its disclosed domain reference
+    Then only the reference body is returned without invoking the capability or changing workflow state
+    And a direct model request to invoke the capability remains rejected
+
+  Scenario: Delayed menus cannot mutate a replacement workflow
+    Given a menu is waiting on a workflow choice for work item A
+    When A is completed or cancelled and work item B starts before the old choice arrives
+    Then the old menu is dismissed and cannot complete, transition, or overwrite B
+
+  Scenario: A resolved menu choice cannot race a replacement workflow
+    Given a menu choice has resolved for work item A
+    When A is replaced before the asynchronous menu handler resumes
+    Then validation and the selected action run together against A
+    And the old choice cannot act on work item B
+
+  Scenario: A decision cannot outlive its workflow state
+    Given a decision is waiting for user input
+    When the workflow ends, changes phase, or the session changes branch
+    Then a late answer remains pending and cannot answer for the new state
+    And the waiting selector and any native subprocess are cleaned up
+
+  Scenario: Constructed resource and restore boundaries fail atomically
+    Given a resource bundle or persisted record is at a catalog or size boundary
+    When it is invalid or exceeds the UTF-8 byte limit
+    Then it fails explicitly without partial delivery or state changes
+    And a valid boundary case remains usable
+
   Scenario: The harness opens one workflow-routing menu
     Given a Pi session has loaded pi-matt-pocock
     When the user invokes /matt-pocock without arguments
@@ -152,6 +187,18 @@ Feature: Matt Pocock workflow harness
     And running one does not create persistent workflow state
     And the package still contains no SKILL.md file
 
+  Scenario: Promoted upstream capabilities use the single Pi gateway
+    Given the upstream catalog includes the promoted pr and retro capabilities
+    When the user selects either capability through /matt-pocock
+    Then the gateway injects its adapted plain Markdown procedure
+    And it does not create a persistent workflow state for the capability
+
+  Scenario: Domain modeling follows the upstream GLOSSARY rename
+    Given the domain-modeling procedure is loaded
+    When it describes the project's domain document
+    Then it refers to GLOSSARY.md and GLOSSARY-MAP.md
+    And it does not require the removed CONTEXT-FORMAT resource
+
   Scenario: Conditional references load through the active gateway
     Given an active procedure or one of its required dependencies discloses a reference by catalog id
     When the agent loads that reference
@@ -266,7 +313,7 @@ Feature: Matt Pocock workflow harness
     When Pi renders that procedure start
     Then the head row shows [matt pocock] started alone
     And one blank band row separates that head from the block body
-    And the block body is the user's own task verbatim when provided, otherwise the readable phase title or capability id
+    And the block body is the user's own task verbatim when provided, otherwise the readable phase title or capability label
     And a multi-line task keeps every authored line on its own row on pi's native user-message band with no expand hint
     And the procedure body is delivered as a displayed procedure message rather than a user message
     And model-facing guidance and persisted workflow state remain complete and unchanged
@@ -401,10 +448,11 @@ Feature: Matt Pocock workflow harness
     And macOS dialogs raise on unsupported environments and enforce a three-button limit
 
   Scenario: Native dialog configuration defaults to disabled and respects user opt-in
-    Given a configuration file path or absence in ~/.pi/agent/pi-matt-pocock.json
+    Given a configuration file path or absence in Pi's agent directory as matt-pocock.json
     When loading the package configuration
     Then it defaults to native dialogs disabled
     And it enables native dialogs only when useNativeDialog is explicitly true
+    And it resolves the path through Pi's agent directory, honoring PI_CODING_AGENT_DIR
 
   Scenario: Native dialog presents choice list and opens an input dialog for custom answers
     Given native macOS dialog is enabled and supported
@@ -477,3 +525,114 @@ Feature: Matt Pocock workflow harness
     Given a workflow is active
     When the agent calls matt_pocock_active with an undeclared field
     Then request validation rejects it before changing workflow state
+
+  Scenario: Extension instances own independent workflow state
+    Given two Pi extension runtimes load Matt Pocock in the same process
+    When one starts a workflow
+    Then only its own session receives state entries and active tools
+    And the other runtime can start its own workflow independently
+
+  Scenario: Branch navigation and compaction restore current instructions
+    Given a workflow has delivered procedure instructions
+    When the session navigates its tree or compacts context
+    Then the current branch determines the active workflow and tools
+    And the complete active procedure context is silently delivered again
+    And the delivery set includes only that restored context
+
+  Scenario: A malformed newest record does not resurrect old work
+    Given an active workflow entry is followed by an incompatible or malformed workflow entry
+    When the branch is restored
+    Then the old active workflow is not restored
+    And active-only tools remain disabled with a warning
+
+  Scenario: Cancelled or aborted decisions never adopt a recommendation
+    Given an active workflow asks a question with a recommended option
+    When the user cancels or the tool is aborted
+    Then the answer remains pending
+    And only an actual elapsed timeout can adopt the recommendation
+    And the recommendation must name one of the offered options
+
+  Scenario: Native dialogs require explicit boolean opt-in
+    Given configuration contains a string or number instead of true
+    When the native dialog configuration is loaded
+    Then native dialogs remain disabled
+
+  Scenario: Standalone references disclose further references without workflow state
+    Given a standalone capability discloses an optional reference
+    When that loaded reference discloses another reference
+    Then the gateway can load the newly disclosed reference
+    And it does not persist workflow state or activate workflow-only tools
+
+  Scenario: Catalog validation rejects ambiguous identities and eager cycles
+    Given a catalog alias conflicts with an id or a required dependency graph contains a cycle
+    When the catalog is validated
+    Then the conflict or cycle is reported before the extension registers its gateway
+
+  Scenario: Automatic compaction restores instructions before its retry
+    Given Pi v1.0 is recovering an overflowing agent turn
+    When session_compact restores an active workflow
+    Then the silent procedure message is appended without starting a turn
+    And restoration does not wait for the user's next prompt
+
+  Scenario: Only the question deadline can select a timeout recommendation
+    Given a question has a recommended option and a timeout
+    When the UI returns no answer without the deadline firing
+    Then the question remains pending regardless of elapsed clock readings
+    When the deadline fires
+    Then the selection is dismissed through its abort signal and adopts the recommendation
+
+  Scenario: Disabling custom answers preserves literal option labels
+    Given a question disables custom answers
+    And an offered option is named Type custom answer...
+    When the user selects that option
+    Then it is returned as an ordinary selected answer without opening text input
+
+  Scenario: Review evidence describes reachable execution paths
+    Given an async cache has no replacement or invalidation operation
+    When reviewing a rejection handler's identity guard
+    Then a claimed stale-request race must include a reachable interleaving from the actual API
+    And hypothetical future operations cannot establish that a guard is load-bearing
+
+  Scenario: Cleanup reports retained findings honestly
+    Given a cleanup retains a known redundant guard without a current requirement
+    When verification remains green
+    Then the retained finding prevents CLEAN
+    And readability preferences are not described as behavioral compatibility requirements
+
+  Scenario: A judgement call does not erase an unresolved review smell
+    Given a review identifies redundant defensive code
+    When no current requirement justifies keeping it
+    Then the unresolved Standards finding requires REWORK even without a repository lint rule
+
+  Scenario: Cleanup evidence distinguishes execution from reasoning
+    Given a cleanup considers rejected alternative implementations
+    When writing its verification note
+    Then only an actually failed command is described as an observed test failure
+    And an unexecuted alternative is labelled as reasoning rather than test evidence
+
+  Scenario: Each workflow step exposes callable state controls
+    Given a workflow starts or changes its active procedure
+    When the model receives the state contract
+    Then it includes exact transition calls for the current allowed targets and exact reference-load calls
+    And a failed transition leaves the current procedure authoritative
+    And an agreed task can proceed without reopening settled decisions
+
+  Scenario: Removing an inert guard preserves the accepted grammar
+    Given source analysis proves a predicate cannot change any outcome
+    When a developer removes that predicate in a cleanup
+    Then it does not require a new product policy or specification change
+    And the final cleanup, review and handoff describe the same verified candidate
+
+  Scenario: All lifecycle resource names use catalog display labels
+    Given any standalone capability or loaded reference
+    When Pi renders tool results or procedure messages, including saved results
+    Then it shows the readable catalog label rather than a raw procedure id
+    And workflow phases keep their readable phase titles
+    And user-authored task text and persisted resource ids remain unchanged
+
+  Scenario: Transition menus use readable names without changing targets
+    Given an active workflow with legal next procedures
+    When its transition menu opens
+    Then its title uses readable route and phase titles
+    And each choice uses the target phase title that its lifecycle row will show
+    And each choice resolves to the same internal target id

@@ -1,5 +1,23 @@
 Feature: Preserve complete bounded Pi result Markdown over Desk Link
 
+  Scenario: Plain user messages retain the same multiline body as text parts
+    Given a user message carries a pasted multiline prompt as a string
+    When the reporter extracts its events
+    Then its Markdown body retains the original newlines within the user byte limit
+
+  Scenario: Finalized messages update activity immediately
+    Given an authenticated reporter has already sent its session snapshot
+    When it records a new assistant message or tool result
+    Then the new activity and timestamp are sent before its new event batch
+    And no periodic discovery refresh or status transition is needed
+
+  Scenario: TCP records tolerate packet boundaries without accepting oversized frames
+    Given an inbound record splits a Unicode character between TCP packets
+    When the transport decodes the stream
+    Then the record preserves the exact Unicode text
+    When a complete or unfinished inbound record exceeds 1 MiB including its LF
+    Then the transport closes once and never interprets an oversized record suffix as a new record
+
   Scenario: A finalized tool result retains all text blocks
     Given a tool result contains a Markdown table and a fenced code block in separate text parts
     And it contains non-text parts and tool metadata

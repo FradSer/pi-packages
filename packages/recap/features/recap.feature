@@ -55,6 +55,28 @@ Feature: Session Recap
     Then the recap prompt identifies the work as starting or planned
     And it forbids claiming actions, files, connections, or results that are not evidenced
 
+  Scenario: Automatic recapping is withheld from reasoning models by default
+    Given automatic recapping has no explicit preference stored
+    And the recap model is the session's own reasoning model, which the user never chose for recaps
+    When a turn settles
+    Then no recap request is sent for that turn
+    And manual generation and the restored recap line stay available
+    When the user runs "/recap auto" or chooses a recap model
+    Then automatic recapping resumes
+    And the preference is persisted as an explicit choice
+
+  Scenario: The cost policy is reported instead of silently skipping turns
+    Given automatic recapping is suppressed by the cost policy
+    When the user opens the recap menu or the headless configuration summary
+    Then the auto-recap state is shown as off with the reason
+    And the option to enable auto-recap is offered
+
+  Scenario: Startup recap for a session that has none is not withheld
+    Given an existing TUI session with history and no saved recap
+    And automatic recapping is suppressed by the cost policy
+    When session_start fires
+    Then the one startup recap is still computed
+
   Scenario: Recap is informative and scannable
     Given a raw model summary
     When cleaned and formatted
@@ -62,11 +84,23 @@ Feature: Session Recap
     And quotes, markdown wrappers, and redundant prefixes are stripped
 
   Scenario: Empty or meaningless recap output is retried
-    Given the recap model returns no text or only a generic action plus a bare identifier
+    Given the recap model returns no text, only a generic action plus a bare identifier, or only a bare label
     When a recap is generated
-    Then the output is rejected as uninformative
+    Then the output is rejected as uninformative in every configured language
     And the model is asked once more for a specific recap
     And only an informative retry can be displayed or persisted
+
+  Scenario: The recap prompt rules stay bounded
+    Given a recap is generated
+    When its prompt is built
+    Then each rule states one distinct requirement
+    And the rule list stays short enough that no rule outweighs the rest
+
+  Scenario: The recap length cap never corrupts the recap
+    Given a recap longer than the length cap that contains astral characters or an inline code span
+    When it is truncated for display
+    Then no character is split into a lone surrogate
+    And an inline code span opened by the cut is dropped instead of left unbalanced
 
   Scenario: Recap models have enough output budget to finish a summary
     Given a recap model uses part of its completion budget for reasoning
@@ -118,6 +152,8 @@ Feature: Session Recap
     When recap state is read or synchronized
     Then each registry record is addressed by its canonical hashed directory identity
     And a record with a different canonical cwd is ignored
+    And the registry path resolves the same way for every package that shares it
+    And the recap field is the only one the recap package writes
 
   Scenario: Existing session restores persisted recap on startup across restarts
     Given a session with a persisted recap in session branch history
@@ -203,11 +239,32 @@ Feature: Session Recap
     Then the previous request is cancelled
     And the newer result cannot be overwritten by the previous result
 
+  Scenario: A stored recap is reused only while it is the displayed one
+    Given an exchange already has a completed recap request
+    When the same exchange is recapped again while that recap is displayed
+    Then the stored result is reused
+    When a restored recap replaces it for the same exchange
+    Then the stored result is not reused for the replaced recap
+
   Scenario: Recap generation times out safely
     Given recap generation does not complete before its timeout
     When the timeout is reached
     Then the request is cancelled
     And the previous recap is shown again
+
+  Scenario: The recap budget bounds the whole request
+    Given credential lookup for a recap request never returns
+    Or a recap provider ignores cancellation and never resolves
+    When the recap budget is reached
+    Then the caller receives an empty recap instead of waiting forever
+    And no provider completion is started without credentials
+
+  Scenario: A widget refresh failure never fails a completed recap
+    Given a recap was generated and persisted
+    And refreshing the recap widget fails
+    When the recap request settles
+    Then the request still succeeds with the generated recap
+    And the widget failure is reported as a warning rather than thrown
 
   Scenario: Pre-cancelled recap generation does not authenticate or complete
     Given recap generation receives an already aborted signal

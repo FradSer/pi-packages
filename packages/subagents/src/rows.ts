@@ -18,7 +18,8 @@
 
 import { keyHint, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { bindLifecycleRenderers, type createStaticToolLifecycleResultRenderer, type LifecycleRendererBindings, type ToolLifecycleSpec, type ToolLifecycleTheme } from "@fradser/pi-kit";
+import { createLiveActivityWidget, bindLifecycleRenderers, type createStaticToolLifecycleResultRenderer, type LifecycleRendererBindings, type ToolLifecycleSpec, type ToolLifecycleTheme } from "@fradser/pi-kit";
+import { readParentMessageNotice, type ParentMessageNotice } from "./parent-message.ts";
 
 /** The spec builder a caller passes in; the binding supplies the geometry. */
 export type AgentRowSpec = Parameters<typeof createStaticToolLifecycleResultRenderer>[0]["createSpec"];
@@ -31,9 +32,19 @@ const agentRows = bindLifecycleRenderers({
   hostComponent: ToolExecutionComponent,
 });
 
-/** Build the `renderResult` for one row spec. Injected into `registerAgentTool`
+/** The standalone entry owns activity state; pi-kit owns the passive row. */
+export function createAgentActivityWidget() {
+  return createLiveActivityWidget({
+    key: "subagents-activity",
+    placement: "aboveEditor",
+    fit: truncateToWidth,
+    activityFormat: "markdown",
+  });
+}
+
+/** Build the `renderResult` for one row spec. Injected into `registerIntentTools`
  *  so the library stays TUI-free and only the loaded entry paints. */
-export function createAgentResultRenderer(spec: { createSpec: AgentRowSpec }): unknown {
+export function createAgentResultRenderer(spec: { createSpec: AgentRowSpec }): ReturnType<typeof agentRows.result> {
   return agentRows.result(spec.createSpec);
 }
 
@@ -53,4 +64,36 @@ export function createSessionMessageRenderer(
     (value: { details?: unknown }) => createSpec(value.details),
     bindings(),
   )(message as never, state, theme);
+}
+
+/** The intermediate child message has its own row language and sender. Its
+ * original body is the Markdown summary, while session/input metadata stays
+ * in the expanded lifecycle details. */
+export function parentMessageSpec(notice: ParentMessageNotice): ToolLifecycleSpec {
+  return {
+    kind: "event",
+    tool: "agent",
+    subject: `@${notice.name}`,
+    label: "message",
+    summary: [notice.text],
+    summaryFormat: "markdown",
+    details: [
+      `session · ${notice.session}`,
+      ...(notice.inputId ? [`input · ${notice.inputId}`] : []),
+      `sequence · ${notice.sequence}`,
+    ],
+  };
+}
+
+/** Bind the intermediate message to the same passive lifecycle row geometry. */
+export function createParentMessageRenderer(
+  bindings: () => Pick<LifecycleRendererBindings, "ui" | "cwd"> = () => ({}),
+) {
+  return createSessionMessageRenderer((details) => {
+    const notice = readParentMessageNotice(details);
+    return notice ? parentMessageSpec(notice) : {
+      kind: "event", tool: "agent", subject: "a parent message", label: "unreadable",
+      summary: ["The intermediate message details were invalid."],
+    };
+  }, bindings);
 }

@@ -4,10 +4,10 @@ import { notifyPi } from "@fradser/pi-kit";
 import {
   publishStateSnapshot,
   sendLeaderMessage,
-  shutdownTeammateExact,
-  spawnTeammate,
+  shutdownAgentExact,
+  spawnAgent,
 } from "./team-machine.ts";
-import { livingTeammates } from "./state.ts";
+import { livingAgents } from "./state.ts";
 
 import { AgentEventParams, LEADER_RECIPIENT } from "./types.ts";
 import { openTeamConsole, refreshTeamUI } from "./ui.ts";
@@ -50,7 +50,7 @@ export function registerMessageTool(pi: ExtensionAPI, runtime: { sendLeaderMessa
       if (params.to === LEADER_RECIPIENT) return refuse("The leader cannot send a message to itself.");
       let to: string;
       try {
-        to = resolveRecipient(params.to, livingTeammates()).name;
+        to = resolveRecipient(params.to, livingAgents()).name;
       } catch (error) {
         return refuse(error instanceof Error ? error.message : String(error));
       }
@@ -68,7 +68,7 @@ export function registerMessageTool(pi: ExtensionAPI, runtime: { sendLeaderMessa
 // The `task` tool is registered by @fradser/pi-tasks' own extension entry. This
 // package loads it through its manifest rather than calling its registrar, so
 // there is exactly one registrant of that tool in every install combination.
-// The leader learns about board transitions on `pi-tasks:*` events instead.
+// The leader learns about tasks transitions on `pi-tasks:*` events instead.
 
 /** Temporary seam. Each registrar moves to its owning package; this keeps the
  *  existing entry point and its test fixtures intact until that lands. */
@@ -81,10 +81,10 @@ export function registerMessageTool(pi: ExtensionAPI, runtime: { sendLeaderMessa
  * collides or is silently dropped depending on load order, and neither failure is
  * visible from here.
  *
- * The leader learns about board transitions on `pi-tasks:*` events rather than
+ * The leader learns about tasks transitions on `pi-tasks:*` events rather than
  * being called by pi-tasks, so the domain never has to know a resident exists.
  */
-export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntime & { sendLeaderMessage: typeof sendLeaderMessage } = { spawnTeammate, shutdownTeammateExact, sendLeaderMessage }): void {
+export function registerLeaderTools(pi: ExtensionAPI, runtime: AgentActionRuntime & { sendLeaderMessage: typeof sendLeaderMessage } = { spawnAgent, shutdownAgentExact, sendLeaderMessage }): void {
   registerMessageTool(pi, runtime);
 }
 
@@ -93,13 +93,13 @@ function teamStatusSummary(): string {
   const rolesLine = roles.length > 0
     ? `${roles.length} persistent agent role${roles.length === 1 ? "" : "s"}: ${roles.join(", ")}`
     : "No agent roles discovered.";
-  const roster = livingTeammates().map((t) => `@${t.name} (${t.agent}, ${t.status})`).join("\n") || "No living sessions.";
+  const roster = livingAgents().map((t) => `@${t.name} (${t.role}, ${t.status})`).join("\n") || "No living sessions.";
   return `${roster}\n${rolesLine}`;
 }
 
 export function registerTeamCommand(pi: ExtensionAPI): void {
   pi.registerCommand("agent-teams", {
-    description: "Agent Teams management console: session teammates and persistent agent roles",
+    description: "Agent Teams management console: session agents and persistent agent roles",
     handler: async (_args, ctx) => {
       publishStateSnapshot();
       if (ctx.mode !== "tui") { notifyPi(ctx.ui, teamStatusSummary(), "info"); return; }

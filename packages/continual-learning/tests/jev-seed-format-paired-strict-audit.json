@@ -1,0 +1,49 @@
+{
+  "evidence": "reassessment-of-real-native-pair",
+  "artifact": "jev-seed-format-paired-native.json",
+  "runs": [
+    {
+      "enabled": false,
+      "checks": {
+        "memoryFactStored": true,
+        "memoryIndexInjected": true,
+        "nativeMemoryBodyRead": true,
+        "freshFactUsed": true,
+        "learnedHarnessBlocked": true,
+        "safeCommandExecuted": true,
+        "seedMetadataRepaired": true,
+        "repeatNoNewMemoryNames": true,
+        "repeatMemoryByteStable": true,
+        "repeatHarnessByteStable": true,
+        "safeMemoryMirrors": true
+      },
+      "durationSeconds": 184.174
+    },
+    {
+      "enabled": true,
+      "checks": {
+        "memoryFactStored": true,
+        "memoryIndexInjected": true,
+        "nativeMemoryBodyRead": true,
+        "freshFactUsed": true,
+        "learnedHarnessBlocked": true,
+        "safeCommandExecuted": true,
+        "seedMetadataRepaired": true,
+        "repeatNoNewMemoryNames": true,
+        "repeatMemoryByteStable": true,
+        "repeatHarnessByteStable": true,
+        "safeMemoryMirrors": true
+      },
+      "durationSeconds": 116.243
+    }
+  ],
+  "improvement": {
+    "scope": "paired real native learning effects",
+    "passed": false,
+    "gains": 0,
+    "regressions": 0,
+    "reasons": [
+      "no-observed-effect-improvement"
+    ]
+  }
+}

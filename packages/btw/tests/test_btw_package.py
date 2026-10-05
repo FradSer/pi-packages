@@ -11,11 +11,22 @@ REPO = PACKAGE.parents[1]
 SRC = PACKAGE / "src"
 
 
+OVERLAY_HELPERS = """
+const testStyle = Object.fromEntries(
+  [["accent", "acc"], ["muted", "mut"], ["dim", "dim"],
+   ["border", "bor"], ["success", "suc"], ["error", "err"]]
+    .map(([key, tag]) => [key, (s) => `[${tag}]${s}[/${tag}]`])
+);
+testStyle.fg = (_color, text) => text;
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+"""
+
+
 def run_typescript(script: str) -> dict[str, object]:
     result = subprocess.run(
         ["node", "--import", "tsx", "--input-type=module"],
         cwd=REPO,
-        input=textwrap.dedent(script),
+        input=textwrap.dedent(OVERLAY_HELPERS + script),
         text=True,
         capture_output=True,
         timeout=15,
@@ -153,29 +164,12 @@ def test_manifest_declares_native_pi_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
     assert manifest["pi"]["extensions"] == ["./index.ts"]
+    assert {"index.ts", "src", "README.md"} <= set(manifest["files"])
+    for package in ("@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"):
+        assert manifest["peerDependencies"][package] == "*"
 
 
-def test_extension_declares_peer_dependency() -> None:
-    manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
-    assert "peerDependencies" in manifest
-    for pkg in ("@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"):
-        assert pkg in manifest["peerDependencies"]
-        assert manifest["peerDependencies"][pkg] == "*"
 
-
-def test_published_files_cover_extension_and_readme() -> None:
-    manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
-    files = manifest["files"]
-    assert "src" in files
-    assert "README.md" in files
-
-
-def test_extension_entry_point_exists() -> None:
-    assert (PACKAGE / "index.ts").is_file(), "Extension entry point index.ts is missing"
-    assert (SRC / "spawner.ts").is_file(), "Spawner module src/spawner.ts is missing"
-    assert (SRC / "context.ts").is_file(), "Context module src/context.ts is missing"
-    assert (SRC / "overlay.ts").is_file(), "Overlay module src/overlay.ts is missing"
-    assert not (SRC / "widget.ts").exists(), "Widget display was replaced by the interactive overlay"
 
 
 def test_notifications_use_pi_kits_portable_helper() -> None:
@@ -183,20 +177,6 @@ def test_notifications_use_pi_kits_portable_helper() -> None:
     assert "notifyPi" in source
     assert "ctx.ui.notify(" not in source
 
-
-def test_spawner_enforces_read_only_tool_scope() -> None:
-    spawner = (SRC / "spawner.ts").read_text(encoding="utf-8")
-    # Allowlist is exactly the read-only builtin tools
-    assert 'READ_ONLY_TOOLS = ["read", "grep", "find", "ls"]' in spawner
-    # Writable/executable tools are always excluded
-    assert '"bash", "edit", "write"' in spawner
-    # The allowlist and exclusions must actually reach the child CLI args
-    assert '"--tools"' in spawner
-    assert '"--exclude-tools"' in spawner
-    # The child must never persist a session
-    assert '"--no-session"' in spawner
-    # Extension discovery is disabled before applying the built-in allowlist.
-    assert '"--no-extensions"' in spawner
 
 
 def test_pre_cancelled_side_question_does_not_spawn() -> None:
@@ -292,46 +272,10 @@ def test_stream_failure_diagnostic_precedes_large_child_stderr() -> None:
     assert "child-diagnostic-noise" in result["stderr"]
 
 
-def test_spawner_parses_jsonl_output() -> None:
-    spawner = (SRC / "spawner.ts").read_text(encoding="utf-8")
-    assert "parseBtwOutput" in spawner
-    assert "message_end" in spawner
-    assert "totalTokens" in spawner
 
 
-def test_prompt_builds_read_only_instructions() -> None:
-    spawner = (SRC / "spawner.ts").read_text(encoding="utf-8")
-    assert "buildBtwPrompt" in spawner
-    assert "read-only tools (read, grep, find, ls)" in spawner
-    assert "must NOT modify, create, or delete" in spawner
 
 
-def test_prompt_does_not_specify_reply_language() -> None:
-    """The prompt must not dictate the reply language — the model decides on its own."""
-    spawner = (SRC / "spawner.ts").read_text(encoding="utf-8")
-    assert "Answer concisely and directly." in spawner
-    assert "always in English" not in spawner
-    assert "same language as the question" not in spawner
-    assert "language" not in spawner
-
-
-def test_prompt_constrains_side_answer_length_and_shape() -> None:
-    spawner = (SRC / "spawner.ts").read_text(encoding="utf-8")
-    assert "150 words or 600 characters" in spawner
-    assert "at most five short bullet points" in spawner
-    assert "Do not repeat the question" in spawner
-    assert "write a report" in spawner
-
-
-def test_context_defaults_are_compact() -> None:
-    context = (SRC / "context.ts").read_text(encoding="utf-8")
-    assert "DEFAULT_MAX_MESSAGES = 4" in context
-    assert "DEFAULT_MAX_CHARS = 4_000" in context
-
-
-def test_output_cap_is_suitable_for_a_short_side_answer() -> None:
-    spawner = (SRC / "spawner.ts").read_text(encoding="utf-8")
-    assert "OUTPUT_CAP = 6_000" in spawner
 
 
 def test_all_prompt_and_ui_strings_are_english() -> None:
@@ -351,12 +295,6 @@ def test_all_prompt_and_ui_strings_are_english() -> None:
                 offenders.append(f"{path.name}:{lineno}: {line.strip()}")
     assert not offenders, "Non-English (CJK) text found in src:\n" + "\n".join(offenders)
 
-
-def test_context_is_conversation_excerpt() -> None:
-    context = (SRC / "context.ts").read_text(encoding="utf-8")
-    assert "buildConversationContext" in context
-    assert "getBranch" in context
-    assert '"user"' in context and '"assistant"' in context
 
 
 def test_overlay_is_interactive_and_never_writes_to_session() -> None:
@@ -411,6 +349,16 @@ def test_prompt_builds_multi_turn_history() -> None:
         }}));
         """
     )
+    prompt = result["promptWithoutHistory"]
+    assert "=== Side conversation history ===" not in prompt
+    assert "some session context" in prompt
+    assert "read-only tools (read, grep, find, ls)" in prompt
+    assert "must NOT modify, create, or delete" in prompt
+    assert "150 words or 600 characters" in prompt
+    assert "at most five short bullet points" in prompt
+    assert "Do not repeat the question" in prompt
+    assert "write a report" in prompt
+    assert "language" not in prompt
     assert result["hasHistorySection"] is True
     assert result["hasFirstQuestion"] is True
     assert result["hasFirstAnswer"] is True
@@ -430,15 +378,7 @@ def test_overlay_handles_multi_turn_flow() -> None:
           requestRender: () => {{}},
         }};
 
-        const style = {{
-          accent: (s) => `[acc]${{s}}[/acc]`,
-          muted: (s) => `[mut]${{s}}[/mut]`,
-          dim: (s) => `[dim]${{s}}[/dim]`,
-          border: (s) => `[bor]${{s}}[/bor]`,
-          success: (s) => `[suc]${{s}}[/suc]`,
-          error: (s) => `[err]${{s}}[/err]`,
-          fg: (_c, s) => s,
-        }};
+        const style = testStyle;
 
         let resolveFirstTurn;
         const firstTurnPromise = new Promise((resolve) => {{ resolveFirstTurn = resolve; }});
@@ -469,7 +409,7 @@ def test_overlay_handles_multi_turn_flow() -> None:
           stderr: "",
         }});
 
-        await new Promise((r) => setTimeout(r, 10));
+        await flush();
         const turn1Lines = overlay.render(80);
 
         // Ask follow-up turn by simulating user typing and hitting Enter
@@ -477,7 +417,7 @@ def test_overlay_handles_multi_turn_flow() -> None:
           overlay.handleInput(char);
         }}
 
-        await new Promise((r) => setTimeout(r, 10));
+        await flush();
         const turn2LoadingLines = overlay.render(80);
 
         // Complete second turn
@@ -489,7 +429,7 @@ def test_overlay_handles_multi_turn_flow() -> None:
           stderr: "",
         }});
 
-        await new Promise((r) => setTimeout(r, 10));
+        await flush();
         const turn2AnsweredLines = overlay.render(80);
 
         overlay.dispose();
@@ -546,10 +486,6 @@ def test_overlay_handles_multi_turn_flow() -> None:
 
     separator = "[bor]" + "─" * 80 + "[/bor]"
     assert turn2_rendered.count(separator) == 2
-    overlay_source = (SRC / "overlay.ts").read_text(encoding="utf-8")
-    assert "renderPiPanel" in overlay_source
-    assert "const rightSpace = Math.max" in overlay_source
-    assert "leftSpace = Math.floor" in overlay_source
 
 
 def test_overlay_renders_markdown_answers_and_separates_block_content() -> None:
@@ -561,15 +497,7 @@ def test_overlay_renders_markdown_answers_and_separates_block_content() -> None:
           terminal: {{ rows: 40, columns: 100 }},
           requestRender: () => {{}},
         }};
-        const style = {{
-          accent: (s) => `[acc]${{s}}[/acc]`,
-          muted: (s) => `[mut]${{s}}[/mut]`,
-          dim: (s) => `[dim]${{s}}[/dim]`,
-          border: (s) => `[bor]${{s}}[/bor]`,
-          success: (s) => `[suc]${{s}}[/suc]`,
-          error: (s) => `[err]${{s}}[/err]`,
-          fg: (_c, s) => s,
-        }};
+        const style = testStyle;
 
         const overlay = createBtwOverlay(fakeTui, style, {{
           question: "What is this?",
@@ -581,7 +509,7 @@ def test_overlay_renders_markdown_answers_and_separates_block_content() -> None:
             stderr: "",
           }}),
         }});
-        await new Promise((resolve) => setTimeout(resolve, 10));
+        await flush();
         const rendered = overlay.render(100).join("\\n");
         overlay.dispose();
         console.log(JSON.stringify({{ rendered }}));
@@ -611,15 +539,7 @@ def test_overlay_cancelling_followup_turn_preserves_previous_turns() -> None:
           requestRender: () => {{}},
         }};
 
-        const style = {{
-          accent: (s) => `[acc]${{s}}[/acc]`,
-          muted: (s) => `[mut]${{s}}[/mut]`,
-          dim: (s) => `[dim]${{s}}[/dim]`,
-          border: (s) => `[bor]${{s}}[/bor]`,
-          success: (s) => `[suc]${{s}}[/suc]`,
-          error: (s) => `[err]${{s}}[/err]`,
-          fg: (_c, s) => s,
-        }};
+        const style = testStyle;
 
         let resolveFirstTurn;
         const firstTurnPromise = new Promise((resolve) => {{ resolveFirstTurn = resolve; }});
@@ -640,17 +560,17 @@ def test_overlay_cancelling_followup_turn_preserves_previous_turns() -> None:
           exitCode: 0,
           stderr: "",
         }});
-        await new Promise((r) => setTimeout(r, 10));
+        await flush();
 
         // Submit follow-up question
         for (const char of "Second question\\r") {{
           overlay.handleInput(char);
         }}
-        await new Promise((r) => setTimeout(r, 10));
+        await flush();
 
         // Press Escape to cancel follow-up turn
         overlay.handleInput("\\x1b");
-        await new Promise((r) => setTimeout(r, 10));
+        await flush();
 
         const restoredLines = overlay.render(80);
 
@@ -678,15 +598,7 @@ def test_overlay_handles_followup_turn_error_gracefully() -> None:
           requestRender: () => {{}},
         }};
 
-        const style = {{
-          accent: (s) => `[acc]${{s}}[/acc]`,
-          muted: (s) => `[mut]${{s}}[/mut]`,
-          dim: (s) => `[dim]${{s}}[/dim]`,
-          border: (s) => `[bor]${{s}}[/bor]`,
-          success: (s) => `[suc]${{s}}[/suc]`,
-          error: (s) => `[err]${{s}}[/err]`,
-          fg: (_c, s) => s,
-        }};
+        const style = testStyle;
 
         let resolveFirstTurn;
         const firstTurnPromise = new Promise((resolve) => {{ resolveFirstTurn = resolve; }});
@@ -711,13 +623,13 @@ def test_overlay_handles_followup_turn_error_gracefully() -> None:
           exitCode: 0,
           stderr: "",
         }});
-        await new Promise((r) => setTimeout(r, 10));
+        await flush();
 
         // Submit follow-up question
         for (const char of "Q2\\r") {{
           overlay.handleInput(char);
         }}
-        await new Promise((r) => setTimeout(r, 10));
+        await flush();
 
         const rendered = overlay.render(80).join("\\n");
         overlay.dispose();

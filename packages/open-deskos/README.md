@@ -58,7 +58,7 @@ Each desk has its own token, so a machine that feeds several desks states them i
 ## What is reported
 
 - The current session's live identity, goal, activity, and events, plus other sessions registered on this machine in `directory-sessions` metadata (written by `pi-utils` and `pi-keyboard`). On resumed, reloaded, or forked reporter start, the current session replays its bounded durable JSONL tail before forwarding later live messages, so a resumed Pi does not appear as running with an empty Desk Link stream. UUID and timestamp-prefixed UUID aliases merge into one session.
-- State: `running` requires working metadata, a live Pi process, and timestamps compatible with that process's lifetime; live idle/settled records are `settled`. Dead/invalid/reused PIDs, unverifiable processes, and explicitly exited records are `exited`. One bounded process-table read (1 MiB, 2-second timeout) checks all PIDs; only the newest unambiguous session registered to a PID can be live. For the current session, Pi's own idle/agent events take precedence.
+- State: `running` requires working metadata, a live Pi process, and timestamps compatible with that process's lifetime; live idle/settled records are `settled`. Dead/invalid/reused PIDs, unverifiable processes, and explicitly exited records are `exited`. One bounded process-table read (1 MiB; a 2-second deadline on Unix, 5 seconds for Windows CIM) checks all PIDs; only the newest unambiguous session registered to a PID can be live. Quoted Windows launcher paths retain spaces. A failed or stalled query cannot leave discovery waiting indefinitely. For the current session, Pi's own idle/agent events take precedence.
 - Original metadata start/update times, optional session name, goal, and activity/recap. Scanning does not invent a new activity timestamp or read session histories.
 - Bounded session events: the newest contiguous tail of at most 300 events and 1,048,576 UTF-8 bytes per session, counting text and tool names. Event bodies preserve line structure with per-kind limits: user 8 KiB, thinking 4 KiB, tool call 4 KiB, assistant 16 KiB, and tool result 64 KiB.
 - Tool results preserve their complete multiline Markdown, including tables, code fences, and whitespace, up to 65,536 UTF-8 bytes per result. All text parts are joined with two newlines; images and arbitrary result metadata are not sent. Any body shortened at its kind's byte limit carries `truncated: true` and never splits a Unicode code point. A result's optional `toolName` is a separate 200-character summary, not a prefix inserted into the Markdown. A tool call and the result that answers it both carry the optional `toolCallId` Pi wrote for that call, and a result Pi recorded as an error carries `isError: true`, so a consumer pairs a result with its own call and reads the outcome from Pi's record instead of from event order. A tool call event's text names what the call was doing, not merely where it looked: `bash: <command>`, `search: <pattern>` for a content or filename search, and `<tool>: <path|query|subject>` otherwise. Session activity remains a short first-line summary.
@@ -92,12 +92,39 @@ Declare where this machine's session endpoints live, and every Pi session on thi
 export ODK_SESSION_HOST_SOCKET="$HOME/.local/run/open-deskos/sessions"
 ```
 
+An existing Pi process keeps the environment from its launch. If it has no endpoint, exit Pi when idle.
+Set the variable in its launching shell, then resume the existing session file:
+
+```sh
+pi --session /absolute/path/to/existing-session.jsonl
+```
+
+Use the original file, and keep only one live process for that session. Resuming preserves its session identity and history.
+
 Each session then serves the task protocol a desk's voice agent already speaks — `list`, `status`, `prompt`, `cancel` — on `<directory>/<sessionId>.sock`, with a `0600` descriptor beside it naming its socket, project and state. `start`, `launch`, `end` and `history` are refused with one fixed reason: this process is one session, not a session host.
+
+This endpoint works independently of reporting credentials on Unix. On Windows it is explicitly unavailable until private IPC is supported; `/open-deskos status` reports the refusal. Windows Desk Link reporting and remote Hosted Pi control remain supported. The packaged `session-control` launcher selects the requested task identity when several sessions share a project.
 
 - **It is a declared capability, never a default.** A machine that declares no endpoint has none to reach. An endpoint that lets something else hand a session work is a decision, not something a package turns on.
 - **Ownership is the only gate.** The socket lives in a `0700` directory with a `0600` socket. There is no token to present, and nothing listens on the network.
 - **A desk reaches it over your own SSH session.** Run the `session-control` launcher on the far side of it; it finds a node runtime itself, because a login session's PATH is not the one an interactive shell has. With no socket named it resolves the session from the request's own project, and a project no session serves is answered with the protocol's own refusal rather than with some other session's reply.
-- **Every session answers at its own endpoint.** A desk that means one of several sessions says which project, not whichever bound first.
+- **Every session answers at its own endpoint.** A root-directory list collects live sessions in that directory and its descendants. Status, prompt, and cancel require the exact project and session ID returned by that list.
+- **A missing reply does not mean no sessions.** List results retain healthy endpoints and report `incomplete` and `unavailable` when an endpoint fails. A truncated or incomplete list cannot establish that a session is absent.
+
+For a dedicated SSH identity, use a fixed relay command with approved project roots:
+
+```sh
+session-control --find --allow-root /private/tmp/odk-session-demo --allow-root /Users/FradSer/Developer/FradSer
+```
+
+Repeat `--allow-root` for up to 16 existing absolute directories. The relay resolves each root and requested project before socket contact.
+It accepts only version 1 list, status, prompt, and cancel requests inside an approved root.
+It refuses outside projects, broad ancestors, symlink escapes, and invalid requests. It preserves the original project string for session identity.
+The fixed command ignores `SSH_ORIGINAL_COMMAND`. Without `--allow-root`, the existing CLI behavior stays unchanged.
+The root check restricts session selection. Pi keeps its original tools and permissions. This check does not sandbox the selected session.
+- **Input follows the original session.** A prompt uses normal Pi Enter behavior: steer during a running turn. An explicit `followUp` waits for the next turn. Commands and prompt templates expand as they do in Pi.
+- **Submission and execution have separate evidence.** Pi's public extension API does not acknowledge an individual message. Native prompt receipts therefore report `delivery: unknown`, retain their `mutationId`, and prohibit automatic replay. Status reports the session's observed prompt, response, and activity; matching text cannot certify a particular mutation.
+- **Retries cannot silently repeat a mutation.** Within one SessionHost lifetime, the same mutation ID and payload reuse their original receipt. Conflicting payloads are refused. The host retains at most 256 mutation receipts, then refuses new mutations rather than forgetting old ones. Receipts do not survive a process restart or extension reload.
 - **The endpoint never keeps Pi alive.** It is unref'd, so reaching this session is not a reason this session cannot be closed.
 
 ## What is not
@@ -121,6 +148,8 @@ The menu is the same in every configuration, and a row that is unavailable names
 ## Behavior when the link drops
 
 The reporter reconnects with a growing wait (1s, 2s, 4s … capped at 30s) and keeps exactly one link. Both retained history and pending events obey the per-session 300-event / 1,048,576-byte bounds. Each new connection sends the current session state and replays the complete retained event tail, even when there were no new offline events, because the service can forget machine state after its last link closes. Later flushes on that connection send only new events.
+
+The link remains `connecting` until the service accepts `hello` with a valid v1 ACK. A refused or silent handshake becomes `offline` and retries; connecting the TCP socket alone does not establish authenticated reporting. Records retain UTF-8 characters across packet boundaries. Session shutdown invalidates pending replay, attachment, and startup work, so a late callback cannot recreate an endpoint or affect a replacement session.
 
 The control connection is separate and does not reproduce that behavior: list, launch, and history requests use a connection that closes after the answer, and a connection is held only while this machine is attached to a Hosted Pi. Losing it does not affect reporting, and it does not end the session on the desk.
 

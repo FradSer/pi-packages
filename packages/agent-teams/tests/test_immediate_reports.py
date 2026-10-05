@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from test_teammate_package import PACKAGE, SRC, run_node
+from test_agent_package import PACKAGE, SRC, run_node
 
 
 @pytest.mark.parametrize("leader_idle", [False, True])
@@ -17,7 +17,7 @@ def test_reports_are_handed_off_without_waiting(tmp_path: Path, leader_idle: boo
         f'''\
         import extension from "{(SRC / 'index.ts').as_uri()}";
         import {{ drainTeammateOutboxes, shutdownTeamMachine, applyProgress }} from "{(SRC / 'team-machine.ts').as_uri()}";
-        import {{ registerTeammate, createTask, takeTask, getTeammate }} from "{(SRC / 'state.ts').as_uri()}";
+        import {{ registerAgent, createTask, takeTask, getAgent }} from "{(SRC / 'state.ts').as_uri()}";
         import {{ appendWorkerEvent, stateFilePath, workerOutboxPath }} from "{(SRC / 'statefile.ts').as_uri()}";
         const hooks = new Map();
         const sent = [];
@@ -36,11 +36,11 @@ def test_reports_are_handed_off_without_waiting(tmp_path: Path, leader_idle: boo
         extension(pi);
         await hooks.get('session_start')({{}}, ctx);
         try {{
-          registerTeammate({{ name: 'author', agent: 'worker', spawnId: 's1', pid: 0,
+          registerAgent({{ name: 'author', role: 'worker', spawnId: 's1', pid: 0,
             status: 'working', isolation: 'none', createdAt: 1, updatedAt: 1 }});
           const task = createTask({{ subject: 'Validate work' }}).task;
           takeTask(task.id, 'author');
-          const assignmentId = getTeammate('author').assignment.id;
+          const assignmentId = getAgent('author').assignment.id;
           applyProgress('author', 's1', {{ text: '', turns: 1, finalResponse: false }});
           const outbox = workerOutboxPath(stateFilePath(undefined, cwd), 'author', 's1');
           for (const [id, body, status] of [
@@ -87,9 +87,10 @@ def test_leader_guidance_limits_steering_to_new_information() -> None:
     )
     guidance = str(payload["guidance"])
     assert "new information that changes its assignment" in guidance
-    assert "Do not ask for progress reports or repeat instructions" in guidance
+    # Positive form: what a message is for, rather than what asking again is not.
+    assert "each message is the whole update" in guidance
     assert "The worker autonomously completes its assignment" in guidance
-    assert "continue independent work or yield" in guidance
+    assert "keep working on your own assignment while they come" in guidance
 
 
 def test_real_pi_delivers_reports_before_the_next_tool(tmp_path: Path) -> None:

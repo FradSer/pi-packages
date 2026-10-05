@@ -1,0 +1,258 @@
+{
+  "cases": 36,
+  "monitors": 44,
+  "observed": [
+    {
+      "name": "rpc-success",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-failure",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-missing",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-invalid-json",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-json-primitives",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-timeout",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-mixed-success",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "rpc-mixed-failure",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "rpc-mixed-missing",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "rpc-nested-success",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "rpc-nested-failure",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "rpc-nested-json-primitives",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "rpc-parallel",
+      "passed": true,
+      "provider_requests": 4,
+      "monitors": 3,
+      "custom_terminal_messages": 3
+    },
+    {
+      "name": "rpc-codemode-parallel",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 3,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-parallel",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 3,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-codemode-parallel",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 3,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "rpc-stop",
+      "passed": true,
+      "provider_requests": 3,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-real-monitor-typecheck",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-real-monitor-regressions",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-real-compiler-diagnostic",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "rpc-exit-half-line",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-exit-late-nonzero",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-exit-invalid-json",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-exit-json-primitives",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-exit-late-failure",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-exit-candidate-timeout",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-exit-EOF",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "rpc-exit-signal",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 1
+    },
+    {
+      "name": "print-exit-half-line",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-exit-late-nonzero",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-exit-invalid-json",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-exit-json-primitives",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-exit-late-failure",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-exit-candidate-timeout",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-exit-EOF",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    },
+    {
+      "name": "print-exit-signal",
+      "passed": true,
+      "provider_requests": 2,
+      "monitors": 1,
+      "custom_terminal_messages": 0
+    }
+  ]
+}

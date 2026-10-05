@@ -7,8 +7,6 @@
  * sibling worktrees or the main checkout.
  */
 
-import { execFileSync } from "node:child_process";
-import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -19,63 +17,20 @@ import type {
 	AutocompleteItem,
 	AutocompleteProvider,
 } from "@earendil-works/pi-tui";
+import {
+	canonicalize,
+	canonicalizeBestEffort,
+	gitOutput,
+	isInside,
+	listWorktrees,
+	mainWorktreeRoot,
+	managedWorktreesDir,
+} from "./git/worktrees.ts";
 
 export interface WorktreeRoots {
 	currentRoot: string | null;
 	foreignRoots: string[];
 	managedWorktreeDir: string | null;
-}
-
-function canonicalize(candidate: string): string {
-	try {
-		return fs.realpathSync(candidate);
-	} catch {
-		return path.resolve(candidate);
-	}
-}
-
-/**
- * Realpath the deepest existing ancestor and append the non-existent remainder,
- * so candidates under symlinked directories still land in the canonical space
- * even when their leaf does not exist.
- */
-const canonicalCache = new Map<string, string>();
-
-function canonicalizeBestEffort(candidate: string): string {
-	const hit = canonicalCache.get(candidate);
-	if (hit !== undefined) return hit;
-
-	let remainder = "";
-	let current = candidate;
-	let resolved: string | null = null;
-	for (;;) {
-		try {
-			resolved = `${fs.realpathSync(current)}${remainder}`;
-			break;
-		} catch {
-			const parent = path.dirname(current);
-			if (parent === current) break;
-			remainder = `${path.sep}${path.basename(current)}${remainder}`;
-			current = parent;
-		}
-	}
-	if (resolved === null) return candidate;
-
-	if (canonicalCache.size >= 1024) canonicalCache.clear();
-	canonicalCache.set(candidate, resolved);
-	return resolved;
-}
-
-function runGit(cwd: string, args: string[]): string | null {
-	try {
-		return execFileSync("git", args, {
-			cwd,
-			encoding: "utf-8",
-			stdio: ["ignore", "pipe", "ignore"],
-		}).trim();
-	} catch {
-		return null;
-	}
 }
 
 /**
@@ -84,24 +39,10 @@ function runGit(cwd: string, args: string[]): string | null {
  * empty/null and filtering is disabled.
  */
 export function collectWorktreeRoots(cwd: string): WorktreeRoots {
-	const porcelain = runGit(cwd, ["worktree", "list", "--porcelain"]);
-	if (!porcelain) return { currentRoot: null, foreignRoots: [], managedWorktreeDir: null };
+	const entries = listWorktrees(cwd);
+	if (entries.length === 0) return { currentRoot: null, foreignRoots: [], managedWorktreeDir: null };
 
-	interface Entry {
-		bare: boolean;
-		root: string;
-	}
-	const entries: Entry[] = [];
-	for (const line of porcelain.split("\n")) {
-		if (line.startsWith("worktree ")) {
-			entries.push({ bare: false, root: canonicalize(line.slice(9)) });
-		} else if (line.trim() === "bare") {
-			const last = entries[entries.length - 1];
-			if (last) last.bare = true;
-		}
-	}
-
-	const topLevel = runGit(cwd, ["rev-parse", "--show-toplevel"]);
+	const topLevel = gitOutput(cwd, ["rev-parse", "--show-toplevel"]);
 	let currentRoot = topLevel ? canonicalize(topLevel) : null;
 	if (!currentRoot) {
 		// A session opened at a bare repository has no toplevel; treat the bare
@@ -118,12 +59,11 @@ export function collectWorktreeRoots(cwd: string): WorktreeRoots {
 					.map((entry) => entry.root)
 					.filter((root) => root !== currentRoot);
 
-	const mainRoot = entries[0]?.root ?? currentRoot;
-	const managedWorktreeDir = mainRoot
-		? path.join(mainRoot, ".pi", "worktrees")
-		: null;
-
-	return { currentRoot, foreignRoots, managedWorktreeDir };
+	return {
+		currentRoot,
+		foreignRoots,
+		managedWorktreeDir: managedWorktreesDir(mainWorktreeRoot(entries)),
+	};
 }
 
 /**
@@ -143,8 +83,8 @@ export function suggestionToPath(value: string): string {
 	return candidate.replace(/[\\/]+$/, "");
 }
 
-function isInside(candidate: string, root: string): boolean {
-	return candidate === root || candidate.startsWith(`${root}${path.sep}`);
+function isInsideManagedDir(candidate: string, root: string): boolean {
+	return isInside(candidate, canonicalizeBestEffort(path.join(root, ".pi", "worktrees")));
 }
 
 /** True when the suggestion resolves inside a non-current git worktree root or managed worktrees dir. */
@@ -171,13 +111,8 @@ export function isInForeignWorktree(
 	const canonicalAbsolute = canonicalizeBestEffort(absolute);
 
 	// Inside the current worktree, hide the internal .pi/worktrees directory
-	if (roots.currentRoot) {
-		const ownManagedDir = canonicalizeBestEffort(
-			path.join(roots.currentRoot, ".pi", "worktrees"),
-		);
-		if (isInside(canonicalAbsolute, ownManagedDir)) {
-			return true;
-		}
+	if (roots.currentRoot && isInsideManagedDir(canonicalAbsolute, roots.currentRoot)) {
+		return true;
 	}
 
 	// Outside the current worktree, hide the repo's managed .pi/worktrees directory
@@ -341,6 +276,50 @@ function worktreeCompletionProvider(
 	};
 }
 
+/** Search tools whose result text is filtered back to the active worktree. */
+const SEARCH_TOOLS = new Set(["fffind", "ffgrep", "find", "grep"]);
+
+/** Exclude patterns every managed worktree directory is covered by. */
+const MANAGED_EXCLUDE_PATTERNS = [".pi/worktrees/**", ".pi/worktrees"];
+
+/**
+ * True when the target tool actually declares an `exclude` parameter.
+ *
+ * The search tools belong to other packages, so this package may not assume
+ * their input shape: writing an unknown key can fail schema validation. When
+ * the declaration is unavailable, skip injection — the tool_result filter below
+ * still keeps foreign paths out of the transcript.
+ */
+function acceptsExclude(pi: ExtensionAPI, toolName: string): boolean {
+	const tools = pi.getAllTools?.();
+	if (!Array.isArray(tools)) return false;
+	const tool = tools.find((candidate) => candidate.name === toolName);
+	const properties = (tool?.parameters as { properties?: Record<string, unknown> } | undefined)?.properties;
+	return properties !== undefined && "exclude" in properties;
+}
+
+function withManagedWorktreeExclude(input: Record<string, unknown>): void {
+	const existingExclude = input.exclude;
+	if (Array.isArray(existingExclude)) {
+		for (const pattern of MANAGED_EXCLUDE_PATTERNS) {
+			if (!existingExclude.includes(pattern)) existingExclude.push(pattern);
+		}
+		return;
+	}
+	if (typeof existingExclude === "string") {
+		const parts = existingExclude
+			.split(",")
+			.map((part) => part.trim())
+			.filter(Boolean);
+		for (const pattern of MANAGED_EXCLUDE_PATTERNS) {
+			if (!parts.includes(pattern)) parts.push(pattern);
+		}
+		input.exclude = parts.join(",");
+		return;
+	}
+	if (!existingExclude) input.exclude = MANAGED_EXCLUDE_PATTERNS.join(",");
+}
+
 export default function registerWorktreeCompletion(pi: ExtensionAPI): void {
 	pi.on("session_start", (_event, ctx) => {
 		activeCwd = ctx.cwd;
@@ -361,38 +340,21 @@ export default function registerWorktreeCompletion(pi: ExtensionAPI): void {
 				: `Blocked ${event.toolName} of a different git worktree: ${event.input.path}. Active cwd: ${ctx.cwd}. Resolve project paths inside the active worktree, or use enter_worktree to switch sessions first.` };
 		}
 
-		// Inject foreign worktree exclude patterns into search tools
-		if (event.toolName === "fffind" || event.toolName === "ffgrep" || event.toolName === "find" || event.toolName === "grep") {
+		// Keep search tools from walking into other checkouts. The tool owns
+		// its input schema, so only a declared `exclude` is written to.
+		if (SEARCH_TOOLS.has(event.toolName)) {
 			const roots = getWorktreeRoots(ctx.cwd);
-			if (roots.foreignRoots.length > 0 || roots.managedWorktreeDir) {
-				const input = event.input as Record<string, unknown>;
-				const existingExclude = input.exclude;
-				const foreignPatterns = [".pi/worktrees/**", ".pi/worktrees"];
-
-				if (Array.isArray(existingExclude)) {
-					for (const p of foreignPatterns) {
-						if (!existingExclude.includes(p)) (existingExclude as string[]).push(p);
-					}
-				} else if (typeof existingExclude === "string") {
-					const parts = existingExclude.split(",").map((s) => s.trim()).filter(Boolean);
-					for (const p of foreignPatterns) {
-						if (!parts.includes(p)) parts.push(p);
-					}
-					input.exclude = parts.join(",");
-				} else if (!existingExclude) {
-					input.exclude = foreignPatterns.join(",");
-				}
+			if (
+				(roots.foreignRoots.length > 0 || roots.managedWorktreeDir) &&
+				acceptsExclude(pi, event.toolName)
+			) {
+				withManagedWorktreeExclude(event.input as Record<string, unknown>);
 			}
 		}
 	});
 
 	pi.on("tool_result", (event, ctx) => {
-		if (
-			event.toolName === "fffind" ||
-			event.toolName === "ffgrep" ||
-			event.toolName === "find" ||
-			event.toolName === "grep"
-		) {
+		if (SEARCH_TOOLS.has(event.toolName)) {
 			const roots = getWorktreeRoots(ctx.cwd);
 			if (!roots.currentRoot && roots.foreignRoots.length === 0 && !roots.managedWorktreeDir) {
 				return;

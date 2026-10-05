@@ -14,8 +14,12 @@ export default function (pi: ExtensionAPI): void {
     const trace = process.env.PI_GOAL_OFFLINE_WIDGET;
     if (!trace || ctx.mode !== "tui") return;
     const setWidget = ctx.ui.setWidget.bind(ctx.ui);
-    ctx.ui.setWidget = (key, factory, options) => {
-      if (key !== "goal-status" || typeof factory !== "function") return setWidget(key, factory, options);
+    ctx.ui.setWidget = (key, content, options) => {
+      // Pi overloads setWidget for plain lines and for a component factory, so
+      // each branch is forwarded on its own terms instead of one union value.
+      if (typeof content !== "function") return setWidget(key, content, options);
+      const factory = content;
+      if (key !== "goal-status") return setWidget(key, factory, options);
       setWidget(key, (tui, theme) => {
         const component = factory(tui, theme);
         return { ...component, render(width) {

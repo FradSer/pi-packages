@@ -14,7 +14,7 @@ export default function liveSmoke(pi: ExtensionAPI): void {
     probe: "live_smoke_probe",
     turns: [
       { tool: "task", args: { action: "create", subject: "Live smoke task", resources: ["firmware"] } },
-      { tool: "task", args: { action: "list", claimable: true } },
+      { tool: "task", args: { operation: "list", claimable: true } },
       { tool: "task", args: { action: "update", id: "$prev.id", status: "in_progress" } },
       { tool: "task", args: { action: "complete", id: "$prev.id", outcome: "success", result: "smoke passed" } },
       // A removed verb must be refused by name, not silently ignored.
@@ -22,7 +22,7 @@ export default function liveSmoke(pi: ExtensionAPI): void {
       // The communication tool is live: it validates its recipient rather than
       // claiming success for an address that does not exist.
       { tool: "message", args: { to: "nobody-here", body: "status?", kind: "inform" } },
-      { tool: "agent", args: { action: "start", name: "../escape" } },
+      { tool: "agent", args: { operation: "start", name: "../escape" } },
     ],
   });
 }

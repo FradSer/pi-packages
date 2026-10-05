@@ -1,0 +1,345 @@
+[
+  {
+    "id": "cap-research",
+    "expectSource": "research",
+    "kind": "artifact",
+    "artifact": "notes/RESEARCH.md",
+    "keywords": [
+      "PRIMARY-SOURCE.md",
+      "quantity"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for research. Research only the local primary source PRIMARY-SOURCE.md and SPEC.md about receipt quantity semantics. Write a short cited note at notes/RESEARCH.md identifying one firm finding and one uncertainty. No web access or code changes. Run fixture_checks after writing."
+  },
+  {
+    "id": "cap-prototype",
+    "expectSource": "prototype",
+    "kind": "artifact",
+    "artifact": "notes/PROTOTYPE.md",
+    "keywords": [
+      "quantity",
+      "result"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for prototype. Answer one logic question: does multiplying unitPrice by quantity preserve exact decimal totals for our receipt? Make a throwaway prototype at prototypes/rounding.mjs exporting lineTotal(price, quantity) that multiplies the inputs. fixture_checks executes the prototype through fixed sandboxed tests. Explain its numerical result and limitation in notes/PROTOTYPE.md. Do not change production source. Run fixture_checks.",
+    "fixture": "prototype",
+    "forbiddenPatterns": {
+      "notes/PROTOTYPE.md": [
+        "(?i)production needs[^.]*explicit per-line rounding"
+      ]
+    }
+  },
+  {
+    "id": "cap-code-review",
+    "expectSource": "code-review",
+    "kind": "artifact",
+    "artifact": "notes/REVIEW.md",
+    "keywords": [
+      "quantity",
+      "SPEC.md"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for code-review. Review src/receipt.mjs against SPEC.md and AGENTS.md. Report actionable findings with file evidence, separating standards from spec compliance, in notes/REVIEW.md. Do not fix source. Run fixture_checks."
+  },
+  {
+    "id": "cap-review-scope-creep",
+    "expectSource": "code-review",
+    "kind": "artifact",
+    "artifact": "notes/REVIEW.md",
+    "keywords": [
+      "Spec",
+      "REWORK",
+      "quantity"
+    ],
+    "sourceUnchanged": true,
+    "fixture": "scope-creep",
+    "prompt": "Use matt_pocock_workflow in mode capability for code-review. Review the task candidate in src/receipt.mjs against SPEC.md and AGENTS.md. Separate the Standards and Spec verdicts and try to refute PASS. Write the review in notes/REVIEW.md. This is review only: do not modify the implementation. Run fixture_checks.",
+    "checkTests": true,
+    "requiresRed": false
+  },
+  {
+    "id": "cap-pr",
+    "expectSource": "pr",
+    "kind": "artifact",
+    "artifact": "notes/PR.md",
+    "keywords": [
+      "Summary",
+      "Evidence",
+      "Merge",
+      "quantity"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for pr. Draft a PR body in notes/PR.md for the proposed quantity multiplication fix described in SPEC.md, explicitly saying it is proposed and has not been applied or verified yet. Include evidence and merge danger/door/blast radius. No remote PR or source edit. Run fixture_checks."
+  },
+  {
+    "id": "cap-diagnosing-bugs",
+    "expectSource": "diagnosing-bugs",
+    "kind": "artifact",
+    "artifact": "notes/DIAGNOSIS.md",
+    "keywords": [
+      "quantity",
+      "red"
+    ],
+    "checkTests": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for diagnosing-bugs. Reproduce the receipt quantity bug with fixture_checks before guessing, diagnose it, fix only src/receipt.mjs, rerun fixture_checks to green, and record red/green evidence in notes/DIAGNOSIS.md. The fixed acceptance file must remain unchanged."
+  },
+  {
+    "id": "cap-codebase-design",
+    "expectSource": "codebase-design",
+    "kind": "artifact",
+    "artifact": "notes/DESIGN.md",
+    "keywords": [
+      "interface",
+      "receipt"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for codebase-design. Compare two concrete interfaces for calculating a receipt, one whole-receipt function and one line-total API, using this tiny repository. Write the tradeoff and recommended public seam in notes/DESIGN.md; no implementation. Run fixture_checks.",
+    "forbiddenPatterns": {
+      "notes/DESIGN.md": [
+        "(?i)not per line\\s*\\(SPEC line 2\\)"
+      ]
+    }
+  },
+  {
+    "id": "cap-writing-for-agents",
+    "expectSource": "writing-for-agents",
+    "kind": "artifact",
+    "artifact": "notes/AGENT-GUIDE.md",
+    "keywords": [
+      "fixture_checks",
+      "SPEC.md"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for writing-for-agents. Write notes/AGENT-GUIDE.md as concise agent instructions for this toy repository, pointing to SPEC.md and the fixed fixture_checks command, with an explicit no-network boundary. Do not alter existing AGENTS.md or production source. Run fixture_checks."
+  },
+  {
+    "id": "cap-resolving-merge-conflicts",
+    "expectSource": "resolving-merge-conflicts",
+    "kind": "artifact",
+    "artifact": "notes/MERGE.md",
+    "keywords": [
+      "quantity",
+      "round"
+    ],
+    "checkTests": true,
+    "fixture": "merge",
+    "prompt": "Use matt_pocock_workflow in mode capability for resolving-merge-conflicts. The toy repository has an actual local Git merge in progress. Inspect the conflict and both sides' intent using the supplied MERGE-CONTEXT.md. Resolve src/receipt.mjs preserving quantity multiplication and cent rounding, explain both intents in notes/MERGE.md, and run fixture_checks. Do not commit or access any remote.",
+    "requiresRed": false
+  },
+  {
+    "id": "cap-deslop",
+    "expectSource": "deslop",
+    "kind": "artifact",
+    "artifact": "notes/DESLOP.md",
+    "keywords": [
+      "receipt",
+      "behavior"
+    ],
+    "fixture": "slop",
+    "checkTests": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for deslop. Simplify the unnecessary defensive clutter in src/receipt.mjs while preserving the already-correct behavior. Record the removed clutter in notes/DESLOP.md and run fixture_checks before and after."
+  },
+  {
+    "id": "cap-wizard",
+    "expectSource": "wizard",
+    "kind": "artifact",
+    "artifact": "wizard.sh",
+    "keywords": [
+      "TOTAL_STAGES",
+      "STAGES"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for wizard. Generate wizard.sh for a human to set a local receipt currency and optional local display name in .env. Use the delivered template, with idempotent .env updates and no remote operations. Do not execute the interactive wizard. fixture_checks performs its syntax validation."
+  },
+  {
+    "id": "cap-grilling",
+    "expectSource": "grilling",
+    "kind": "pending",
+    "sourceUnchanged": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for grilling. Interview me about whether receipts should round each line or only the final total. Inspect discoverable repository facts first, then ask one concrete unresolved decision in conversation and wait for my answer. Do not implement."
+  },
+  {
+    "id": "cap-domain-modeling",
+    "expectSource": "domain-modeling",
+    "kind": "artifact",
+    "artifact": "GLOSSARY.md",
+    "keywords": [
+      "quantity",
+      "receipt"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for domain-modeling. Based on SPEC.md and PRIMARY-SOURCE.md, sharpen the existing GLOSSARY.md definitions of receipt, unit price, quantity and line total. Record uncertainties without inventing policy. Run fixture_checks.",
+    "forbiddenPatterns": {
+      "GLOSSARY.md": [
+        "\\bsrc/",
+        "\\.mjs\\b",
+        "\\bcalculateTotal\\b",
+        "(?im)^##\\s+(?:Open questions|Resolutions)",
+        "(?i)Total.{0,35}only.{0,15}rounded"
+      ]
+    }
+  },
+  {
+    "id": "cap-tdd",
+    "expectSource": "tdd",
+    "kind": "artifact",
+    "artifact": "notes/TDD.md",
+    "keywords": [
+      "red",
+      "green"
+    ],
+    "checkTests": true,
+    "prompt": "Use matt_pocock_workflow in mode capability for tdd. SPEC.md already contains agreed Given/When/Then scenarios. Run fixture_checks to observe RED for the quantity defect, minimally fix src/receipt.mjs, observe GREEN, then record evidence in notes/TDD.md. Do not change the immutable tests."
+  },
+  {
+    "id": "user-grill-me",
+    "expectSource": "grill-me",
+    "kind": "pending",
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock grill-me Interview me about adding receipt discounts. First inspect SPEC.md, then ask one unresolved product decision and wait for my answer. No implementation."
+  },
+  {
+    "id": "user-handoff",
+    "expectSource": "handoff",
+    "kind": "artifact",
+    "artifact": ".tmp/HANDOFF.md",
+    "keywords": [
+      "quantity",
+      "SPEC.md"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock handoff Prepare a handoff for the next agent about the unresolved receipt quantity bug, using SPEC.md and SESSION_LOG.md. Write the handoff to .tmp/HANDOFF.md (the temporary directory of this isolated project) and give its path. Do not edit source. Run fixture_checks."
+  },
+  {
+    "id": "user-retro",
+    "expectSource": "retro",
+    "kind": "artifact",
+    "artifact": "notes/RETRO.md",
+    "keywords": [
+      "SPEC.md",
+      "RED"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock retro Review SESSION_LOG.md as the session transcript. Propose concrete improvements to agent instructions that would have prevented the skipped reproduction and ambiguous spec. Write proposals only in notes/RETRO.md; do not apply them or change source. Run fixture_checks."
+  },
+  {
+    "id": "user-improve-codebase-architecture",
+    "expectSource": "improve-codebase-architecture",
+    "kind": "artifact",
+    "artifact": "notes/ARCHITECTURE.html",
+    "keywords": [
+      "receipt",
+      "interface"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock improve-codebase-architecture Survey this tiny receipt module, produce the candidate HTML report at notes/ARCHITECTURE.html. Compare public interfaces and show a modest deepening opportunity. Stop for my choice before designing or implementing it. Run fixture_checks."
+  },
+  {
+    "id": "user-setup-matt-pocock-skills",
+    "expectSource": "setup-matt-pocock-skills",
+    "kind": "pending",
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock setup-matt-pocock-skills Inspect this toy repository and begin configuring an issue tracker. There is no selected tracker or remote. Ask the next necessary choice, then wait for my answer. Do not silently pick a tracker or write configuration."
+  },
+  {
+    "id": "user-teach",
+    "expectSource": "teach",
+    "kind": "pending",
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock teach Teach me how receipt quantities and rounding interact, using PRIMARY-SOURCE.md as a local learning resource. This is the first session and my level and goal are not yet known. Ask the next necessary question and wait before claiming a lesson is complete."
+  },
+  {
+    "id": "user-to-questionnaire",
+    "expectSource": "to-questionnaire",
+    "kind": "artifact",
+    "artifact": "notes/QUESTIONNAIRE.md",
+    "keywords": [
+      "round",
+      "quantity"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock to-questionnaire Our product owner knows the missing receipt policy: per-line versus final-total rounding and whether zero quantity is valid. They understand receipts but not code. Write a short questionnaire for that owner at notes/QUESTIONNAIRE.md, with answer choices and why each answer changes the design. Run fixture_checks.",
+    "forbiddenPatterns": {
+      "notes/QUESTIONNAIRE.md": [
+        "(?i)Today\\s+we\\s+just\\s+add[^\\n]*round",
+        "(?im)^#{1,6}[^\\n]*negative quantity[^\\n]*negative price"
+      ]
+    }
+  },
+  {
+    "id": "user-wait-what",
+    "expectSource": "wait-what",
+    "kind": "artifact",
+    "artifact": "notes/EXPLANATION.md",
+    "keywords": [
+      "quantity",
+      "round"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock wait-what Previous message to re-pitch: 'A quantized accumulator applies cardinality at the line seam, then stabilizes monetary precision.' I did not understand it. Explain it using SPEC.md in plain language with one numerical receipt example, write notes/EXPLANATION.md, and ask whether this is clear. Run fixture_checks."
+  },
+  {
+    "id": "route-idea-to-ship",
+    "expectSource": "grill-with-docs",
+    "route": "idea-to-ship",
+    "kind": "pending",
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock idea-to-ship Add optional receipt discounts. Inspect the local docs, ask one unresolved product decision through the workflow decision tool, and wait for the fixture user's answer before implementation."
+  },
+  {
+    "id": "route-hard-bug",
+    "expectSource": "diagnosing-bugs",
+    "route": "hard-bug",
+    "kind": "artifact",
+    "artifact": "notes/BUG-FIX.md",
+    "keywords": [
+      "quantity",
+      "green"
+    ],
+    "checkTests": true,
+    "prompt": "/matt-pocock hard-bug Fix the receipt quantity defect described in SPEC.md. Obtain a tight red loop using fixture_checks, move through legal workflow transitions to implement and review the minimal fix, and write notes/BUG-FIX.md with red/green evidence. No external actions. Do not claim completion before acceptance is green. Complete the workflow only after reviewing the passing fix.",
+    "terminal": "completed",
+    "forbiddenPatterns": {
+      "src/receipt.mjs": [
+        "quantity\\s*\\?\\?",
+        "quantity\\s*\\|\\|"
+      ]
+    }
+  },
+  {
+    "id": "route-triage",
+    "expectSource": "triage",
+    "route": "triage",
+    "kind": "pending",
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock triage Incoming task: receipts need discounts, but per-line versus whole-receipt policy is missing. Inspect SPEC.md and ask one missing decision through the active workflow tool, then wait before making an implementation brief."
+  },
+  {
+    "id": "route-wayfinding",
+    "expectSource": "wayfinder",
+    "route": "wayfinding",
+    "kind": "pending",
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock wayfinding Map a future multi-currency receipt system. The settlement currency and exchange-rate source are undecided. Inspect local docs, ask the first decision through the active workflow tool, and wait before creating a build plan."
+  },
+  {
+    "id": "route-architecture",
+    "expectSource": "improve-codebase-architecture",
+    "route": "architecture",
+    "kind": "artifact",
+    "artifact": "notes/ARCHITECTURE.html",
+    "keywords": [
+      "receipt",
+      "interface"
+    ],
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock architecture Survey this receipt repository and produce a candidate HTML report at notes/ARCHITECTURE.html. Stop for my selection before implementation. Use only local files and fixture_checks."
+  },
+  {
+    "id": "natural-routing",
+    "kind": "pending",
+    "routing": true,
+    "sourceUnchanged": true,
+    "prompt": "/matt-pocock I want to add discounts to receipts but have not decided the policy. Use matt-pocock's routing tool to select an appropriate workflow, inspect the local docs and ask the next required decision. Wait for my answer before implementing anything."
+  }
+]

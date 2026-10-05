@@ -90,6 +90,13 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     And a symlinked project .pi path cannot redirect skill guidance outside the project
     And swapping either captured Memory root to a symlink during apply fails before redirected writes
 
+  Scenario: Direct AGENTS.md apply rejects sensitive content before any write
+    Given a direct apply caller supplies a validated extraction or generated AGENTS.md unit containing credential material
+    When the exported AGENTS.md apply boundary is invoked
+    Then it refuses the plan before creating receipts or changing AGENTS.md
+    And neither the private Memory root nor the project Memory mirror contains the credential
+    And the diagnostic identifies sensitive material without echoing the credential
+
   Scenario: Extracted rule ownership uses exact runtime identities
     Given an existing rule has id " artifact-host " with surrounding spaces
     When an extraction proposes the distinct id "artifact-host"

@@ -1,50 +1,69 @@
 /**
- * The `task` tool: the model-facing surface of the task board.
+ * The model-facing surface: four tools over one store.
  *
- * Built on the store's public transitions rather than on a tool-local board, so
- * a single-session board and a spawned agent's board are the same code. The tool
- * owns two things only: validating input, and turning a store refusal into text
- * a model can act on.
+ * One tool per operation: `create_task`, `get_task`, `list_tasks`, `update_task`.
+ * The shape follows Claude Code's task tools, for one reason that matters more
+ * than the resemblance — a lifecycle position is reachable by exactly one call,
+ * and a refusal can name the call that earned it.
  *
- * Two decisions here are what make the surface small.
+ * The names follow this workspace rather than Claude Code's. `create_task` sits
+ * beside `create_goal` and `get_task` beside `get_goal`: verb first, the noun as
+ * the object, snake_case. A PascalCase name imported from another product reads
+ * as someone else's vocabulary in a session where every other tool here is
+ * snake_case.
  *
- * **The caller is the holder.** `take` and `complete` fill the holder from the
- * caller's own runtime identity, so there is no parameter through which a model
- * could name a different participant. That is why this file has no `assignee`
- * field at any action, and why a leader cannot hand work to a named agent: the
- * board states what must be done, and a participant raises a hand by taking it.
+ * The single `task` tool this replaces had one parameterization standing in for
+ * two: `update status=pending` and `reopen` were the same call. Its `update` also
+ * carried a `status` field the store had deliberately refused, because an open
+ * status lets a caller bypass the preconditions the named transitions enforce.
  *
- * **The action set is closed.** `create`, `list`, `update`, `complete`, and
- * `reopen` are the whole vocabulary. `assign`, `claim`, `release`, `abandon`,
- * `reclaim`, `submit`, `supersede`, and `get` are absent because each is either
- * a status transition the store already expresses, or a release the runtime
- * performs automatically.
+ * **The caller is the holder.** `update_task` fills the holder from the caller's
+ * own runtime identity, so no parameter anywhere lets a model name a different
+ * participant. A task states what must be done; a participant takes it.
  *
- * `list` reports per-task state a model would otherwise have to infer: who holds
- * it, whether a recovery hold is set, and what it depends on. Without those, a
- * pending task the model must not take looks identical to one it may.
+ * **`update_task` is the fat one, and that is inherited on purpose.** It moves a
+ * task between states, changes its content, and edits its brief — the same
+ * division Claude Code uses, where one declaration covers four operations rather
+ * than four declarations competing for the prompt. What it does not inherit is
+ * the rest; the differences are listed where they occur, because each one is a
+ * deliberate refusal rather than an oversight.
+ *
+ * `list_tasks` reports per-task state a model would otherwise have to infer: who
+ * holds it, whether a recovery hold is set, and what it depends on. Without
+ * those, a pending task the model must not take looks identical to one it may.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { emptyToolCall, type createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
+import { emptyToolCall } from "@fradser/pi-kit";
 import {
+  ALL_COMPLETION_CHECKS,
+  MAIN_SESSION,
+  blockedDependencies,
+  claimableTasks,
+  completableTasks,
+  storeNotice,
   completeTaskWithOutcome,
   createTask,
-  MAIN_SESSION,
   getTask,
   listTasks,
   reopenTask,
   takeTask,
   updateTask,
 } from "./store.ts";
-import type { BoardTask } from "./types.ts";
-import type { WorkContext } from "./context.ts";
+import { TASK_STATUSES, type CompletionVerdict, type Task, type TaskStatus } from "./types.ts";
+import { formatTaskHandoff, normalizeTaskContext } from "./context.ts";
+import { TASK_DISPLAY_LABEL, taskDependencyLines, taskStatusText, taskSummaryText } from "./display.ts";
 
-/** Tool ids this extension registers. Declared so a spawner can grant it
- *  without hardcoding a name, mirroring the subagents worker extension. */
-export const TASK_CAPABILITY_TOOLS: readonly string[] = ["task"];
+/** Tool ids this extension registers. Declared so a spawner can grant them
+ *  without hardcoding names, mirroring the subagents extension. */
+export const TASK_CAPABILITY_TOOLS: readonly string[] = ["create_task", "get_task", "list_tasks", "update_task"];
 
-const STATUS_ENUM = ["pending", "in_progress", "completed", "superseded"] as const;
+/** The statuses the declared result and the list filter may name.
+ *
+ *  The store's own list, not a copy of it: a status added to `TASK_STATUSES`
+ *  reaches the declared schema, the list filter and the restored-status check at
+ *  once, which is what keeps a projection from failing its own declaration. */
+const STATUS_ENUM = TASK_STATUSES;
 
 const stringArray = (description: string) => ({
   type: "array",
@@ -52,64 +71,269 @@ const stringArray = (description: string) => ({
   description,
 });
 
-/** A flat schema, one object per action.
+const idField = { type: "string", minLength: 1, description: "The task id, copied from create_task or list_tasks." };
+
+/** The per-task context a caller may record, as a schema rather than a cast.
  *
- * Flat on purpose: the earlier tool nested `target.session` inside an object,
- * which some harnesses deliver as a JSON string, and a union root then forces a
- * tolerance layer in every consumer. The only nesting left is `definition`-shaped
- * data, which is genuinely structured. */
-export const TASK_TOOL_PARAMS = {
+ *  Declared because the model is the caller: a bare `object` leaves it guessing
+ *  field names, and it guessed `handOff` once already. The shape is also what
+ *  `normalizeTaskContext` checks, so the schema and the store cannot drift into
+ *  accepting a context the budget cannot account for. */
+const CONTEXT_PARAMS = {
   type: "object",
   properties: {
-    action: {
-      type: "string",
-      enum: ["create", "list", "update", "complete", "reopen"],
-      description: "create records a task; list reads the board; update edits content or takes a task; complete delivers an outcome; reopen returns a completed task to pending.",
+    workspacePath: { type: "string", description: "The workspace this task ran in. Pi resolves the session from it." },
+    handoff: {
+      type: "object",
+      properties: {
+        candidate: { type: "string", description: "The revision or scoped snapshot the outgoing attempt checked." },
+        delta: { type: "string", description: "What the outgoing attempt changed, in its own words." },
+        verification: { type: "string", description: "Checks that ran and their outcomes." },
+        priorFindings: stringArray("Findings a successor must not lose. Added to, never replaced."),
+        outstanding: stringArray("Work known to be unfinished or unverified."),
+      },
+      additionalProperties: false,
+      description: "The brief a successor receives. Fields merge with whatever the task already carries.",
     },
-    subject: { type: "string", minLength: 1, description: "create: what must be done." },
-    id: { type: "string", minLength: 1, description: "update, complete, reopen: the task id." },
-    outcome: {
-      type: "string",
-      enum: ["success", "failed"],
-      description: "complete: success delivers the result; failed returns the task to pending under a recovery hold and retains the blocker as evidence.",
-    },
-    result: { type: "string", description: "complete: the evidence for the outcome." },
-    reason: {
-      type: "string",
-      description: "update: required to take a task under a recovery hold; reopen: why it is being reopened.",
-    },
-    description: { type: "string", description: "update: the full brief." },
-    verify: { type: "string", description: "create/update: an independent completion gate, as a prompt rather than a command." },
-    resources: stringArray("create/update: tags that cannot overlap while both tasks are in progress."),
-    dependsOn: stringArray("create: task ids that must complete first."),
-    supersedes: stringArray("create: task ids this one replaces atomically."),
-    status: {
-      type: "string",
-      enum: ["in_progress", "pending"],
-      description: "update: in_progress takes the task for you; pending returns a completed one.",
-    },
-    context: { type: "object", description: "update: per-task working context." },
-    status_filter: {
+    refs: {
       type: "array",
-      items: { type: "string", enum: STATUS_ENUM },
-      description: "list: restrict to these statuses.",
+      items: {
+        type: "object",
+        properties: {
+          kind: { type: "string", enum: ["work", "report", "file"], description: "What kind of thing is referenced." },
+          id: { type: "string", description: "Task id, report id, or repository-relative path." },
+          note: { type: "string", description: "Why this reference matters." },
+        },
+        required: ["kind", "id"],
+        additionalProperties: false,
+      },
+      description: "Prior work, reports, and files this task builds on.",
     },
-    claimable: { type: "boolean", description: "list: restrict to tasks that can be taken right now." },
-    limit: { type: "number", description: "list: cap the number of tasks returned." },
+    budgetBytes: {
+      type: "number",
+      minimum: 1,
+      maximum: 64 * 1024,
+      description: "Byte ceiling for this task's retained context. A task may be held to less than the default, never to more.",
+    },
   },
-  required: ["action"],
   additionalProperties: false,
 } as const;
 
-/** The call line is shown by the host, so the extension draws nothing itself. */
-/** Bounded so a long-lived board cannot make one tool result the whole context. */
+/** The shape of a Task as a result carries it. Every field is something a caller
+ *  would otherwise have to infer and get wrong; `recovery_hold` in particular is
+ *  a state of its own, and a Task in it cannot be taken without a reason.
+ *
+ *  A type alias rather than an interface: this is plain JSON on its way to
+ *  `structuredContent`, and only an alias carries the implicit index signature
+ *  that lets it. An interface here would need a cast at the one boundary that
+ *  wants JSON, which is the cast this shape exists to remove. */
+export type TaskProjection = {
+  recordKind?: "task" | "execution";
+  id: string;
+  subject: string;
+  description?: string;
+  status: TaskStatus;
+  holder?: string;
+  recoveryNote?: string;
+  dependsOn: string[];
+  /** Among `dependsOn`, the ones not yet completed. Absent when none are. */
+  blockedBy?: string[];
+  verify?: string;
+  result?: string;
+  supersededBy?: string;
+  completionVerdict?: CompletionVerdict;
+};
+
+/** List items omit the detailed body, acceptance gate, and completion evidence. */
+export type TaskSummary = Omit<TaskProjection, "description" | "verify" | "result" | "completionVerdict">;
+
+/** What a result says, as data.
+ *
+ *  Declared because these tools are queried by things that are not a model
+ *  reading prose: a codemode script asking which work is claimable, a coordinator
+ *  waking a participant, a test asserting a transition. The text is the same
+ *  information for a model; this is the information, and
+ *  `TASK_TOOL_OUTPUT_SCHEMA` promises the two agree. */
+export type TaskToolDetails = {
+  ok: boolean;
+  /** Present on a refusal, and the only field a refusal carries besides `ok`. */
+  error?: string;
+  tool?: string;
+  id?: string;
+  status?: string;
+  outcome?: string;
+  verdict?: CompletionVerdict;
+  task?: TaskProjection;
+  tasks?: TaskSummary[];
+  /** The successor brief, rendered. Only `get_task` carries it. */
+  brief?: string;
+  replaced?: string[];
+  invalidated?: TaskProjection[];
+  withdrawn?: string[];
+  count?: number;
+  shown?: number;
+  truncated?: boolean;
+  notice?: string;
+};
+
+/** The per-task projection as the declared result describes it.
+ *
+ *  Spelled out rather than left as a bare `object`, because the consumer this
+ *  exists for is a codemode script: a schema with no properties here hands the
+ *  script an untyped bag and puts it back to reading the text. */
+const TASK_PROJECTION_SCHEMA = {
+  type: "object",
+  properties: {
+    recordKind: { type: "string", enum: ["task", "execution"], description: "Execution history does not trigger task reminders or autonomous claims." },
+    id: { type: "string", description: "Task id, derived from the subject unless one was given." },
+    subject: { type: "string", description: "What must be done." },
+    description: { type: "string", description: "The full brief." },
+    status: { type: "string", enum: STATUS_ENUM, description: "Where the task is in its lifecycle." },
+    holder: { type: "string", description: "The participant that took it." },
+    recoveryNote: { type: "string", description: "Why a recovery hold was cleared." },
+    dependsOn: { type: "array", items: { type: "string" }, description: "Task ids that must complete first." },
+    blockedBy: { type: "array", items: { type: "string" }, description: "Among dependsOn, the ones not completed. Absent when none are." },
+    verify: { type: "string", description: "The completion gate a fresh reviewer answers." },
+    result: { type: "string", description: "Evidence recorded for the current or last attempt." },
+    supersededBy: { type: "string", description: "The replacement that made this task obsolete." },
+    completionVerdict: { type: "string", enum: ["pass", "fail"], description: "The gate verdict recorded at completion, when the task declared a gate." },
+  },
+  required: ["id", "subject", "status", "dependsOn"],
+  additionalProperties: false,
+} as const;
+
+const TASK_SUMMARY_SCHEMA = {
+  ...TASK_PROJECTION_SCHEMA,
+  properties: {
+    recordKind: TASK_PROJECTION_SCHEMA.properties.recordKind,
+    id: TASK_PROJECTION_SCHEMA.properties.id,
+    subject: TASK_PROJECTION_SCHEMA.properties.subject,
+    status: TASK_PROJECTION_SCHEMA.properties.status,
+    holder: TASK_PROJECTION_SCHEMA.properties.holder,
+    recoveryNote: TASK_PROJECTION_SCHEMA.properties.recoveryNote,
+    dependsOn: TASK_PROJECTION_SCHEMA.properties.dependsOn,
+    blockedBy: TASK_PROJECTION_SCHEMA.properties.blockedBy,
+    supersededBy: TASK_PROJECTION_SCHEMA.properties.supersededBy,
+  },
+} as const;
+
+/** The declared result, mirroring `TaskToolDetails` field for field.
+ *
+ *  Closed on purpose: a result carrying a field this does not name is a result a
+ *  caller was told it could rely on and cannot, and the tests drive every tool to
+ *  keep the two in step. */
+export const TASK_TOOL_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    ok: { type: "boolean", description: "Whether the requested change was carried out." },
+    error: { type: "string", description: "Why a refusal happened." },
+    tool: { type: "string", description: "The tool this result answers." },
+    id: { type: "string", description: "The task this result is about." },
+    status: { type: "string", description: "The task's status after the change." },
+    outcome: { type: "string", enum: ["success", "failed"], description: "The outcome a completion delivered." },
+    verdict: { type: "string", enum: ["pass", "fail"], description: "The answer to the task's declared completion gate." },
+    task: TASK_PROJECTION_SCHEMA,
+    tasks: { type: "array", items: TASK_SUMMARY_SCHEMA, description: "Task summaries. Use get_task for the detailed body and evidence." },
+    brief: { type: "string", description: "The successor brief, rendered for whoever picks this task up." },
+    replaced: { type: "array", items: { type: "string" }, description: "Tasks a creation made obsolete." },
+    invalidated: { type: "array", items: TASK_PROJECTION_SCHEMA, description: "Tasks returned to pending after a dependency was reopened." },
+    withdrawn: { type: "array", items: { type: "string" }, description: "Ids of tasks returned to pending after a dependency was reopened." },
+    count: { type: "number", description: "How many tasks matched a list." },
+    shown: { type: "number", description: "How many of them this result carries." },
+    truncated: { type: "boolean", description: "Whether a list was cut short." },
+    notice: { type: "string", description: "A store-level fact the caller needs, such as an unreadable file." },
+  },
+  required: ["ok"],
+  additionalProperties: false,
+} as const;
+
+export const TASK_CREATE_PARAMS = {
+  type: "object",
+  properties: {
+    subject: { type: "string", minLength: 1, description: "What must be done." },
+    description: { type: "string", description: "The full brief." },
+    verify: { type: "string", description: "An independent completion gate, as a prompt rather than a command." },
+    dependsOn: stringArray("Task ids that must complete first."),
+    supersedes: stringArray("Task ids this one replaces atomically."),
+  },
+  required: ["subject"],
+  additionalProperties: false,
+} as const;
+
+export const TASK_GET_PARAMS = {
+  type: "object",
+  properties: { id: idField },
+  required: ["id"],
+  additionalProperties: false,
+} as const;
+
+export const TASK_LIST_PARAMS = {
+  type: "object",
+  properties: {
+    statusFilter: {
+      type: "array",
+      items: { type: "string", enum: STATUS_ENUM },
+      description: "Restrict to these statuses.",
+    },
+    claimable: { type: "boolean", description: "Restrict to tasks that can be taken right now." },
+    ready: { type: "boolean", description: "Restrict to tasks that could be completed right now: an attempt on the record, every dependency done." },
+    limit: { type: "number", minimum: 0, description: "Cap the number of tasks returned. 0 returns none. Bounded by the store either way." },
+  },
+  additionalProperties: false,
+} as const;
+
+/** The positions `update_task` can move a task to. A named list rather than
+ *  `TaskStatus`, because this is not a status of the record: it is the three
+ *  routes a caller may take, and `superseded` is not among them. Declared above
+ *  the parameter object that spreads it, and used again by the handler that has
+ *  to refuse anything outside it. */
+const TASK_UPDATE_STATUSES = ["in_progress", "completed", "pending"] as const;
+
+export const TASK_UPDATE_PARAMS = {
+  type: "object",
+  properties: {
+    id: idField,
+    // The one fat field, inherited from Claude Code's update_task. It routes to
+    // the named store transition rather than assigning a value, so every
+    // precondition still applies and each position is still reachable one way:
+    //   in_progress -> take    (requires `reason` while a recovery hold is set)
+    //   completed   -> complete (requires `outcome`; a completion is a judgement)
+    //   pending     -> reopen   (only from completed)
+    status: {
+      type: "string",
+      enum: [...TASK_UPDATE_STATUSES],
+      description: "Move the task. in_progress takes it for you, completed delivers it and needs an outcome, pending reopens a completed one.",
+    },
+    outcome: {
+      type: "string",
+      enum: ["success", "failed"],
+      description: "With status=completed: success delivers the result; failed returns the task to pending under a recovery hold and retains the blocker as evidence.",
+    },
+    result: { type: "string", description: "With status=completed: the evidence for the outcome. Required: a success with no result is refused." },
+    verdict: {
+      type: "string",
+      enum: ["pass", "fail"],
+      description: "With status=completed: the answer to this task's declared completion gate. Required when the task has a gate.",
+    },
+    reason: { type: "string", description: "With status=in_progress: required to take a task under a recovery hold, stating how the blocker was addressed." },
+    subject: { type: "string", minLength: 1, description: "Without status: replace the task name. The id stays unchanged." },
+    description: { type: "string", description: "Without status: replace the full task body." },
+    dependsOn: stringArray("Without status: replace the prerequisite ids. Use [] to clear them. Unknown ids and cycles are refused."),
+    verify: { type: "string", description: "Without status: replace the independent completion gate." },
+    context: CONTEXT_PARAMS,
+  },
+  required: ["id"],
+  additionalProperties: false,
+} as const;
+
+/** Bounded so a long-lived store cannot make one result the whole context. */
 export const MAX_LISTED_TASKS = 40;
 
-/** Channels a board transition is announced on.
+/** Channels a transition is announced on.
  *
  * A coordinator subscribes to these instead of being called, so this package
- * never has to know what a resident is. With nobody listening the emit is a
- * no-op, which is the correct degradation: a standalone board records the change
+ * never has to know what a participant is. With nobody listening the emit is a
+ * no-op, which is the correct degradation: a standalone store records the change
  * and nobody is notified, rather than failing because a host is absent. */
 export const TASK_EVENTS = {
   created: "pi-tasks:task-created",
@@ -119,58 +343,84 @@ export const TASK_EVENTS = {
   updated: "pi-tasks:task-updated",
 } as const;
 
-/** Per-task projection. Every field here is something a model would otherwise
- *  have to infer and get wrong; `recoveryRequired` in particular is the reason
- *  a pending task can be untakeable. */
-function project(task: BoardTask) {
+/** The per-task projection, exactly as the declared result describes it. */
+function project(task: Task): TaskProjection {
   return {
+    ...summarize(task),
+    ...(task.description ? { description: task.description } : {}),
+    ...(task.verify ? { verify: task.verify } : {}),
+    ...(task.result ? { result: task.result } : {}),
+    ...(task.completionVerdict ? { completionVerdict: task.completionVerdict } : {}),
+  };
+}
+
+function summarize(task: Task): TaskSummary {
+  const blockedBy = blockedDependencies(task);
+  return {
+    ...(task.recordKind ? { recordKind: task.recordKind } : {}),
     id: task.id,
     subject: task.subject,
-    ...(task.description ? { description: task.description } : {}),
     status: task.status,
     ...(task.claimedBy ? { holder: task.claimedBy } : {}),
-    ...(task.recoveryRequired ? { recoveryRequired: true } : {}),
     ...(task.recoveryNote ? { recoveryNote: task.recoveryNote } : {}),
     dependsOn: task.dependsOn,
-    ...(task.verify ? { verify: task.verify } : {}),
-    ...(task.resources.length > 0 ? { resources: task.resources } : {}),
-    ...(task.result ? { result: task.result } : {}),
+    // Which of the declared edges are unfinished, so a caller does not have to
+    // hold a list in its head to answer "can I finish this yet".
+    ...(blockedBy.length > 0 ? { blockedBy } : {}),
     ...(task.supersededBy ? { supersededBy: task.supersededBy } : {}),
   };
 }
 
-interface TaskToolResult {
+interface ToolResult {
   content: Array<{ type: "text"; text: string }>;
-  details: Record<string, unknown>;
+  details: TaskToolDetails;
+  /** The same information as `details`, under the name a declared output schema
+   *  puts it at. A caller that is not reading prose receives this; the model
+   *  receives `content`. */
+  structuredContent?: TaskToolDetails;
   isError?: boolean;
 }
 
-function text(body: string): TaskToolResult["content"] {
+function text(body: string): ToolResult["content"] {
   return [{ type: "text", text: body }];
 }
 
-function fail(message: string): TaskToolResult {
-  return { content: text(message), details: { ok: false, error: message }, isError: true };
+function fail(tool: string, message: string): ToolResult {
+  const details: TaskToolDetails = { ok: false, tool, error: message };
+  return { content: text(message), details, structuredContent: details, isError: true };
 }
 
-function ok(body: string, details: Record<string, unknown>): TaskToolResult {
-  return { content: text(body), details: { ...details, ok: true } };
+function ok(body: string, details: Omit<TaskToolDetails, "ok">): ToolResult {
+  const complete: TaskToolDetails = { ...details, ok: true };
+  return { content: text(body), details: complete, structuredContent: complete };
 }
 
-/** The caller's board identity. A spawned agent binds through the environment;
- *  anything else is the main session. Derived, never supplied by the model. */
+/** The environment variable a spawned participant binds through.
+ *
+ * Named and owned here rather than read from whatever prefix a spawner happens
+ * to use. The child gets this from its spawner, and a spawner that names its own
+ * vocabulary here would couple this package to that package's internals: renaming
+ * an env var on one side would silently turn every participant's take into a
+ * take by the main session. Exported so the spawner spells it by import. */
+export const TASK_HOLDER_ENV = "PI_TASK_HOLDER";
+
+/** The caller's identity. A spawned participant binds through the environment;
+ * anything else is the main session. Derived, never supplied by the model. */
 export function callerIdentity(env: NodeJS.ProcessEnv = process.env): string {
-  const worker = env.PI_TEAMMATE_WORKER_NAME?.trim();
-  if (worker) return worker;
+  const participant = env[TASK_HOLDER_ENV]?.trim();
+  if (participant) return participant;
   return MAIN_SESSION;
 }
 
-export async function executeTaskTool(
-  params: Record<string, unknown>,
-  options: { env?: NodeJS.ProcessEnv; limit?: number; emit?: (channel: string, payload: unknown) => void } = {},
-): Promise<TaskToolResult> {
-  const me = callerIdentity(options.env);
-  const limit = Math.min(options.limit ?? MAX_LISTED_TASKS, MAX_LISTED_TASKS);
+/** What every tool shares: a reader for its own parameters, the caller's
+ *  identity, a host-supplied cap, and the event bus. */
+interface CallOptions {
+  env?: NodeJS.ProcessEnv;
+  limit?: number;
+  emit?: (channel: string, payload: unknown) => void;
+}
+
+function readers(params: Record<string, unknown>) {
   const str = (key: string): string | undefined => {
     const value = params[key];
     return typeof value === "string" && value.trim() ? value.trim() : undefined;
@@ -184,212 +434,408 @@ export async function executeTaskTool(
       return entry.trim();
     });
   };
+  return { str, list };
+}
 
-  const action = str("action");
+/** `create_task`: record what must be done. */
+export async function executeTaskCreate(
+  params: Record<string, unknown>,
+  options: CallOptions = {},
+): Promise<ToolResult> {
+  const { str, list } = readers(params);
+  const subject = str("subject");
+  if (!subject) return fail("create_task", "Creating a task requires a subject stating what must be done.");
+  const dependsOn = list("dependsOn") ?? [];
+  const unknown = dependsOn.filter((id) => !getTask(id));
+  if (unknown.length > 0) return fail("create_task", `Unknown task id in dependsOn: ${unknown.join(", ")}.`);
+  const created = createTask({
+    subject,
+    ...(str("description") ? { description: str("description") } : {}),
+    dependsOn,
+    ...(str("verify") ? { verify: str("verify") } : {}),
+    ...(list("supersedes") ? { supersedes: list("supersedes") } : {}),
+  });
+  if (!created.ok) return fail("create_task", created.reason);
+  const replaced = created.superseded.map((task) => task.id);
+  options.emit?.(TASK_EVENTS.created, {
+    id: created.task.id,
+    resources: created.task.resources,
+    status: created.task.status,
+    replaced,
+  });
+  return ok(
+    [
+      `TASK · ${created.task.id} · ${created.task.status} · ${created.task.subject}`,
+      // What a creation made obsolete is state a person wants. How to spell the
+      // next call is not: that is the tool descriptions' job, and they are in the
+      // prompt either way.
+      ...(replaced.length > 0 ? [`REPLACED · ${replaced.join(", ")}`] : []),
+    ].join("\n"),
+    { tool: "create_task", id: created.task.id, status: created.task.status, task: project(created.task), replaced },
+  );
+}
 
-  if (action === "create") {
-    const subject = str("subject");
-    if (!subject) return fail("Creating a task requires a subject stating what must be done.");
-    const dependsOn = list("dependsOn") ?? [];
-    const unknown = dependsOn.filter((id) => !getTask(id));
-    if (unknown.length > 0) return fail(`Unknown task id in dependsOn: ${unknown.join(", ")}.`);
-    const created = createTask({
-      subject,
-      ...(str("description") ? { description: str("description") } : {}),
-      dependsOn,
-      ...(list("resources") ? { resources: list("resources") } : {}),
-      ...(str("verify") ? { verify: str("verify") } : {}),
-      ...(list("supersedes") ? { supersedes: list("supersedes") } : {}),
-    });
-    if (!created.ok) return fail(created.error);
-    const replaced = created.superseded.map((task) => task.id);
-    options.emit?.(TASK_EVENTS.created, {
-      id: created.task.id,
-      resources: created.task.resources,
-      status: created.task.status,
-      replaced,
-    });
-    return ok(
-      [
-        `TASK · ${created.task.id} · ${created.task.status} · ${created.task.subject}`,
-        ...(replaced.length > 0 ? [`REPLACED · ${replaced.join(", ")}`] : []),
-        "NEXT · take it with update status=in_progress, or list to find work others have not taken",
-      ].join("\n"),
-      { action: "create", id: created.task.id, status: created.task.status, task: project(created.task), replaced },
-    );
+/** `get_task`: one task in full, including the brief a successor needs.
+ *
+ *  The reason this exists rather than a wider `list_tasks`: a list is bounded, so
+ *  it leaves the brief out, and without a way to read the brief a handoff is
+ *  written for nobody. */
+export async function executeTaskGet(
+  params: Record<string, unknown>,
+  _options: CallOptions = {},
+): Promise<ToolResult> {
+  const { str } = readers(params);
+  const id = str("id");
+  if (!id) return fail("get_task", "Reading a task requires its id.");
+  const task = getTask(id);
+  if (!task) return fail("get_task", `Task "${id}" does not exist.`);
+  const brief = formatTaskHandoff(task.context?.handoff);
+  return ok(
+    [
+      `TASK · ${task.id} · ${task.status} · ${task.subject}`,
+      ...(task.status === "recovery_hold" ? [`RECOVERY HOLD · ${task.recoveryNote ?? "take it with a reason stating how the blocker was addressed"}`] : []),
+      ...(task.dependsOn.length > 0 ? [`DEPENDS ON · ${task.dependsOn.join(", ")}`] : []),
+      ...(blockedDependencies(task).length > 0 ? [`BLOCKED BY · ${blockedDependencies(task).join(", ")}`] : []),
+      ...(task.description ? [task.description] : []),
+      ...(task.verify ? [`VERIFY · ${task.verify}`] : []),
+      ...(brief ? ["", brief] : []),
+      ...(task.result ? ["", `EVIDENCE · ${task.result}`] : []),
+    ].join("\n"),
+    {
+      tool: "get_task",
+      id: task.id,
+      status: task.status,
+      task: project(task),
+      ...(brief ? { brief } : {}),
+    },
+  );
+}
+
+/** `list_tasks`: the tasks, bounded by whichever cap is tightest. */
+export async function executeTaskList(
+  params: Record<string, unknown>,
+  options: CallOptions = {},
+): Promise<ToolResult> {
+  const { list } = readers(params);
+  // Every stated cap applies, and the store's own ceiling applies whether anyone
+  // asked or not. A `limit` a caller sent is a real bound: reading only the host
+  // option meant a model asking for three tasks got forty and had no way to know
+  // the parameter it was given did nothing.
+  //
+  // Floored before it is applied and refused below zero, because a cap of `0.5`
+  // is not a cap of half a task: floored to 0 it returned an empty list that
+  // claimed to be a truncated one. `0` is a legitimate request and is honoured
+  // as the empty list it asks for.
+  if (typeof params.limit === "number" && Number.isFinite(params.limit) && params.limit < 0) {
+    return fail("list_tasks", "limit must not be negative; omit it for the store's own ceiling, or pass 0 for no tasks.");
+  }
+  const limit = [
+    MAX_LISTED_TASKS,
+    ...(typeof options.limit === "number" && Number.isFinite(options.limit) && options.limit >= 0
+      ? [Math.floor(options.limit)]
+      : []),
+    ...(typeof params.limit === "number" && Number.isFinite(params.limit) && params.limit >= 0
+      ? [Math.floor(params.limit)]
+      : []),
+  ].reduce((smallest, cap) => Math.min(smallest, cap));
+
+  const statuses = list("statusFilter");
+  // Both filters read the store's own predicates rather than restating them.
+  // `claimable` and `ready` are answers the task store keeps and the take and
+  // completion paths enforce; a second copy here is one that can disagree with
+  // the path it is describing, which is how a filter starts hiding work.
+  const claimableIds = params.claimable === true ? new Set(claimableTasks().map((task) => task.id)) : undefined;
+  // `ready` answers the other half of the same question `claimable` answers: not
+  // what can be started, but what can be finished, which is the one a model needs
+  // after it has just finished one of a split it created.
+  const readyIds = params.ready === true ? new Set(completableTasks().map((task) => task.id)) : undefined;
+  const matching = listTasks().filter((task) => {
+    if (statuses && !statuses.includes(task.status)) return false;
+    if (claimableIds && !claimableIds.has(task.id)) return false;
+    if (readyIds && !readyIds.has(task.id)) return false;
+    return true;
+  });
+  const shown = matching.slice(0, limit);
+  const notice = storeNotice();
+  return ok(
+    shown.length === 0
+      ? "TASK · none"
+      : shown.map((task) => {
+        const deps = task.dependsOn.length > 0 ? ` · depends=${task.dependsOn.join(",")}` : "";
+        return `- ${task.id} · ${task.status}${deps} · ${task.subject}`;
+      }).join("\n"),
+    {
+      tool: "list_tasks",
+      count: matching.length,
+      shown: shown.length,
+      truncated: matching.length > shown.length,
+      // A file that could not be read is a fact the model needs: it is looking
+      // at an empty set of tasks that is not empty on disk.
+      ...(notice ? { notice } : {}),
+      tasks: shown.map(summarize),
+    },
+  );
+}
+
+/** `update_task`: move a task, or change what it says.
+ *
+ *  `status` routes to the named store transition rather than assigning a value.
+ *  That is the whole reason the single `task` tool's `update` was wrong: it
+ *  reassigned the field and so had to re-implement each precondition by hand,
+ *  while the store's own `update_task` interface refused the field outright. */
+export async function executeTaskUpdate(
+  params: Record<string, unknown>,
+  options: CallOptions = {},
+): Promise<ToolResult> {
+  const me = callerIdentity(options.env);
+  const { str, list } = readers(params);
+  const id = str("id");
+  if (!id) return fail("update_task", "Updating a task requires its id.");
+  const status = str("status");
+
+  // A status that is not one of the three is refused by name rather than
+  // falling through to the content branch, where a caller would be told it had
+  // supplied nothing to change — while it had in fact supplied a status this
+  // the task store does not define. Name the supported statuses in the refusal.
+  if (status !== undefined && !TASK_UPDATE_STATUSES.includes(status as (typeof TASK_UPDATE_STATUSES)[number])) {
+    return fail("update_task", `status "${status}" is not a position this task set knows; use ${TASK_UPDATE_STATUSES.join(", ")}.`);
   }
 
-  if (action === "list") {
-    const statuses = list("status_filter");
-    const claimableOnly = params.claimable === true;
-    const matching = listTasks().filter((task) => {
-      if (statuses && !statuses.includes(task.status)) return false;
-      if (!claimableOnly) return true;
-      return task.status === "pending"
-        && !task.recoveryRequired
-        && task.dependsOn.every((id) => getTask(id)?.status === "completed");
-    });
-    const shown = matching.slice(0, limit);
-    return ok(
-      shown.length === 0
-        ? "TASK · none"
-        : shown.map((task) => {
-          const held = task.claimedBy ? ` · @${task.claimedBy}` : "";
-          const hold = task.recoveryRequired ? " · recovery hold" : "";
-          const deps = task.dependsOn.length > 0 ? ` · depends=${task.dependsOn.join(",")}` : "";
-          return `- ${task.id} · ${task.status}${held}${hold}${deps} · ${task.subject}`;
-        }).join("\n"),
-      {
-        action: "list",
-        count: matching.length,
-        shown: shown.length,
-        truncated: matching.length > shown.length,
-        tasks: shown.map(project),
-      },
-    );
+  if (status !== undefined && ["subject", "description", "dependsOn", "verify", "context"].some(key => params[key] !== undefined)) {
+    return fail("update_task", "Use separate calls for content edits and status changes. No change was recorded.");
   }
 
-  if (action === "update") {
-    const id = str("id");
-    if (!id) return fail("Updating a task requires its id.");
-    const status = str("status");
-    if (status === "in_progress") {
-      const taken = takeTask(id, me, { ...(str("reason") ? { reason: str("reason") } : {}) });
-      if (!taken.ok) return fail(taken.reason);
-      options.emit?.(TASK_EVENTS.taken, { id, holder: me, resources: taken.task.resources });
-      return ok(`TASK · ${id} · in_progress · @${me}`, { action: "take", id, status: taken.task.status, task: project(taken.task) });
-    }
-    if (status === "pending") {
-      const reopened = reopenTask(id);
-      if (!reopened.ok) return fail(reopened.reason);
-      options.emit?.(TASK_EVENTS.reopened, { id });
-      return ok(`TASK · ${id} · pending · reopened`, { action: "reopen", id, status: reopened.task.status, task: project(reopened.task) });
-    }
-    const patch: Parameters<typeof updateTask>[1] = {
-      ...(params.description !== undefined ? { description: str("description") ?? "" } : {}),
-      ...(params.verify !== undefined ? { verify: str("verify") ?? "" } : {}),
-      ...(params.resources !== undefined ? { resources: list("resources") ?? [] } : {}),
-      ...(params.context !== undefined ? { context: params.context as WorkContext } : {}),
-    };
-    if (Object.keys(patch).length === 0) {
-      return fail("Update a task with status, or with at least one of description, verify, resources, context.");
-    }
-    const updated = updateTask(id, patch);
-    if (!updated.ok) return fail(updated.reason);
-    options.emit?.(TASK_EVENTS.updated, { id });
-    return ok(`TASK · ${id} · updated`, { action: "update", id, status: updated.task.status, task: project(updated.task) });
+  if (status === "in_progress") {
+    const taken = takeTask(id, me, { ...(str("reason") ? { reason: str("reason") } : {}) });
+    if (!taken.ok) return fail("update_task", taken.reason);
+    options.emit?.(TASK_EVENTS.taken, { id, holder: me, resources: taken.task.resources });
+    return ok(`TASK · ${id} · in_progress`, { tool: "update_task", id, status: taken.task.status, task: project(taken.task) });
   }
 
-  if (action === "complete") {
-    const id = str("id");
-    if (!id) return fail("Completing a task requires its id.");
+  if (status === "completed") {
     const outcome = str("outcome");
     if (outcome !== "success" && outcome !== "failed") {
-      return fail("outcome is required and must be success or failed. A blocker recorded as an ordinary answer is not a failure.");
+      return fail("update_task", "outcome is required and must be success or failed. A blocker recorded as an ordinary answer is not a failure.");
     }
-    const delivered = completeTaskWithOutcome(id, me, outcome, str("result"));
-    if (!delivered.ok) return fail(delivered.reason);
+    // The tasks's own facts decide whether this completion is supportable:
+    // dependencies finished, evidence recorded, an attempt on the record, and a
+    // declared gate answered. It does not run the gate — a gate is a prompt, and
+    // a task set that evaluates prompts runs agents. It demands the answer and
+    // records it, so the omission is impossible even though the answer itself is
+    // taken on trust, and a completed task says afterwards which kind of done it
+    // was.
+    const delivered = completeTaskWithOutcome(id, me, outcome, str("result"), {
+      checks: ALL_COMPLETION_CHECKS,
+      result: str("result"),
+      ...(str("verdict") ? { verdict: str("verdict") as CompletionVerdict } : {}),
+    });
+    if (!delivered.ok) return fail("update_task", delivered.reason);
     const task = delivered.task;
     options.emit?.(TASK_EVENTS.completed, { id, outcome, holder: me, status: task.status });
     return ok(
       outcome === "success"
         ? `TASK · ${id} · completed`
         : `TASK · ${id} · pending · recovery hold · blocker retained`,
-      { action: "complete", id, outcome, status: task.status, task: project(task) },
+      {
+        tool: "update_task",
+        id,
+        outcome,
+        status: task.status,
+        task: project(task),
+        ...(task.completionVerdict ? { verdict: task.completionVerdict } : {}),
+      },
     );
   }
 
-  if (action === "reopen") {
-    const id = str("id");
-    if (!id) return fail("Reopening a task requires its id.");
+  if (status === "pending") {
     const reopened = reopenTask(id);
-    if (!reopened.ok) return fail(reopened.reason);
-    options.emit?.(TASK_EVENTS.reopened, { id });
-    return ok(`TASK · ${id} · pending · reopened`, { action: "reopen", id, status: reopened.task.status, task: project(reopened.task) });
+    if (!reopened.ok) return fail("update_task", reopened.reason);
+    options.emit?.(TASK_EVENTS.reopened, { id, invalidated: reopened.invalidated.map((task) => task.id) });
+    // What the reopen withdrew is named, not left for the model to discover on
+    // the next list: a conclusion drawn on a premise that just moved is the thing
+    // most likely to be missed, and it is the thing most expensive to miss.
+    return ok(
+      [
+        `TASK · ${id} · pending · reopened`,
+        ...(reopened.invalidated.length > 0
+          ? [`WITHDRAWN · ${reopened.invalidated.map((task) => task.id).join(", ")} · back in pending: they were completed on a premise this reopening withdraws`]
+          : []),
+      ].join("\n"),
+      {
+        tool: "update_task",
+        id,
+        status: reopened.task.status,
+        task: project(reopened.task),
+        ...(reopened.invalidated.length > 0
+          ? { invalidated: reopened.invalidated.map((task) => project(task)), withdrawn: reopened.invalidated.map((task) => task.id) }
+          : {}),
+      },
+    );
   }
 
-  return fail(`Unknown task action "${action ?? ""}". Use create, list, update, complete, or reopen.`);
+  // Content only. A status transition is one of the three named routes above, so
+  // this cannot become a second way in.
+  const patch: Parameters<typeof updateTask>[1] = {
+    ...(params.subject !== undefined ? { subject: str("subject") ?? "" } : {}),
+    ...(params.description !== undefined ? { description: str("description") ?? "" } : {}),
+    ...(params.dependsOn !== undefined ? { dependsOn: list("dependsOn") } : {}),
+    ...(params.verify !== undefined ? { verify: str("verify") ?? "" } : {}),
+  };
+  if (params.context !== undefined) {
+    // Read, not cast. The context arrives from a model, and a cast would store
+    // whatever spelling it used: a `handOff` key is then retained on the Task
+    // forever, read by no brief and measured by no budget.
+    const context = normalizeTaskContext(params.context);
+    if (!context.ok) return fail("update_task", context.error);
+    patch.context = context.value;
+  }
+  if (Object.keys(patch).length === 0) {
+    return fail("update_task", "Supply status, or edit at least one of subject, description, dependsOn, verify, context.");
+  }
+  const updated = updateTask(id, patch);
+  if (!updated.ok) return fail("update_task", updated.reason);
+  options.emit?.(TASK_EVENTS.updated, { id });
+  return ok(`TASK · ${id} · updated`, { tool: "update_task", id, status: updated.task.status, task: project(updated.task) });
 }
 
-/** The single registrant of `task`. Registers unconditionally and owns no other
- *  tool; a collaborator that wants to be told about board changes subscribes to
- *  `pi.events` rather than being called from here. */
 /**
- * The row for one `task` result.
+ * The row for one result.
  *
  * The subject is the work, not the id: a reader looking at a row asks what is
  * being done, and the id is what they look up when they act on it.
  */
-const taskRowSpec: Parameters<typeof createStaticToolLifecycleResultRenderer>[0]["createSpec"] = (result) => {
-  const details = (result.details ?? {}) as {
-    id?: string;
-    status?: string;
-    outcome?: string;
-    count?: number;
-    task?: { subject?: string; dependsOn?: string[]; resources?: string[]; holder?: string; recoveryRequired?: boolean };
-    tasks?: Array<{ id: string; subject: string; status: string; holder?: string; dependsOn?: string[]; recoveryRequired?: boolean }>;
-  };
+export const TASK_ROW_SPEC: import("./rows.ts").TaskRowSpec = (result, options) => {
+  const details = (result.details ?? {}) as TaskToolDetails;
   const content = (result.content ?? []) as Array<{ text?: string }>;
-  const text = content.map((part) => part.text ?? "").join("\n");
+  const body = content.map((part) => part.text ?? "").join("\n");
   const state = details.status ?? details.outcome;
+  const count = details.count ?? details.tasks?.length ?? 0;
   const subject = details.task?.subject
-    ?? (details.tasks?.length ? `${details.count ?? details.tasks.length} task(s)` : "task");
+    ?? (details.tasks ? `${count} task${count === 1 ? "" : "s"}` : "task");
   const summary = details.tasks
-    ? details.tasks.flatMap((task) => [
-      `- ${task.subject} · ${task.status}${task.holder ? ` · @${task.holder}` : ""}${task.recoveryRequired ? " · recovery hold" : ""}`,
-    ])
-    : text.split("\n").filter(Boolean).filter((line) => !/^TASK · /.test(line));
+    ? details.tasks.map(task => `- ${taskSummaryText(task)}`)
+    : details.task
+      ? [
+        ...(options?.expanded === false ? taskDependencyLines(details.task) : []),
+        ...(details.replaced?.length ? [`REPLACED · ${details.replaced.join(", ")}`] : []),
+        ...(details.withdrawn?.length ? [`WITHDRAWN · ${details.withdrawn.join(", ")} · returned to pending`] : []),
+      ]
+      : body.split("\n").filter(Boolean).filter(line => !/^TASK · /.test(line));
   return {
     kind: "started",
-    tool: "task",
-    subject: state ? `${subject} · ${state}` : subject,
-    ...(details.outcome && !state ? { label: details.outcome } : {}),
+    tool: TASK_DISPLAY_LABEL,
+    label: details.tool?.replace(/_tasks?$/, "") ?? "status",
+    subject: state ? `${subject} · ${taskStatusText(state)}` : subject,
     summary,
     details: [
-      ...(details.task?.dependsOn?.length ? [`depends · ${details.task.dependsOn.join(", ")}`] : []),
-      ...(details.task?.resources?.length ? [`resources · ${details.task.resources.join(", ")}`] : []),
-      ...(details.task?.holder ? [`holder · @${details.task.holder}`] : []),
-      ...(details.task?.recoveryRequired ? ["hold · the last attempt failed; take it with a reason"] : []),
-      ...(details.outcome === "failed" ? ["note · a recorded failure returns the task to pending under a recovery hold"] : []),
-      ...(details.outcome === "success" ? ["note · acceptance is a judgement against the task's requirements, not the act of recording"] : []),
+      // A file that could not be read belongs on the row: the model is looking at
+      // an empty set of tasks that is not empty on disk.
+      ...(details.notice ? [`notice · ${details.notice}`] : []),
+      ...(details.task?.description ? ["Description:", ...details.task.description.split("\n"), ""] : []),
+      ...(details.task?.verify ? ["Verify:", ...details.task.verify.split("\n"), ""] : []),
+      ...(details.task ? taskDependencyLines(details.task) : []),
+      ...(details.task?.status === "recovery_hold" ? [`hold · ${details.task.recoveryNote ?? "recovery required"}`] : []),
+      ...(details.tool === "get_task" && details.brief ? details.brief.split("\n") : []),
+      ...(details.tool === "get_task" && details.task?.result ? [`evidence · ${details.task.result}`] : []),
     ],
   };
 };
 
-export function registerTaskTool(
+/** Injected geometry for the rows, supplied by the extension entry — the only
+ *  layer allowed to import the TUI. Absent means no custom renderer, so a
+ *  headless caller gets Pi's own default. */
+type RenderResult = (spec: { createSpec: typeof TASK_ROW_SPEC }) => unknown;
+
+interface Registration {
+  name: string;
+  label: string;
+  promptSnippet: string;
+  description: string;
+  parameters: unknown;
+  execute: (params: Record<string, unknown>, options: CallOptions) => Promise<ToolResult>;
+}
+
+/** The four tools, in the order a model meets them: record, find, read, change. */
+const TOOLS: readonly Registration[] = [
+  {
+    name: "create_task",
+    label: "Task create",
+    promptSnippet: "Record what must be done on the shared task list",
+    description: "Record one task with a subject and optional description. Use dependsOn to name prerequisite task ids. Independent tasks can run in parallel; dependent tasks wait until every prerequisite completes. Returns an id derived from the subject. supersedes replaces unfinished tasks and redirects their dependents atomically. verify states the completion requirements as a prompt, not a command.",
+    parameters: TASK_CREATE_PARAMS,
+    execute: executeTaskCreate,
+  },
+  {
+    name: "get_task",
+    label: "Task get",
+    promptSnippet: "Read one task's name, detailed content, dependencies, and evidence",
+    description: "Read one task by id. Returns its name, full description, status, dependencies, unfinished prerequisites, completion evidence, and successor brief. list_tasks returns bounded summaries; use get_task for the full task body.",
+    parameters: TASK_GET_PARAMS,
+    execute: executeTaskGet,
+  },
+  {
+    name: "list_tasks",
+    label: "Task list",
+    promptSnippet: "List task names, status, dependencies, and recovery holds",
+    description: "List bounded task summaries: id, name, status, dependencies, unfinished prerequisites, and recovery holds. Runtime holder information remains available as data. Use get_task for detailed content and evidence. Filter by status, claimable work, or completion readiness, and set limit to cap the result.",
+    parameters: TASK_LIST_PARAMS,
+    execute: executeTaskList,
+  },
+  {
+    name: "update_task",
+    label: "Task update",
+    promptSnippet: "Update task content, dependencies, status, or completion evidence",
+    description: "Update one task. status=in_progress starts your attempt only when all prerequisites are completed. Perform the actual work before calling status=completed. Completion needs outcome=success or failed; success requires result evidence and a pass verdict when verify is declared. Failure records the blocker and sets a recovery hold. Taking held work needs an explicit recovery reason. status=pending reopens a completed task and invalidates dependent attempts and completions. Without status, edit subject, description, dependsOn, verify, or context. The id stays unchanged after a rename. dependsOn replaces prerequisite ids; [] clears them. Dependency edits reject unknown ids, self-dependencies, and cycles. An active or completed task cannot gain unfinished prerequisites. Use separate calls for content edits and status changes. This tool never starts or stops a participant and never dispatches work to a named one.",
+    parameters: TASK_UPDATE_PARAMS,
+    execute: executeTaskUpdate,
+  },
+];
+
+/** The single registrant of all four. Registers unconditionally and owns no other
+ *  tool; a collaborator that wants to be told about changes subscribes to
+ *  `pi.events` rather than being called from here. */
+export function registerTaskTools(
   pi: ExtensionAPI,
   options: {
     env?: NodeJS.ProcessEnv;
     /** Builds the result renderer from a spec. Supplied by the extension entry,
-     *  the only layer allowed to import the TUI. Absent means no custom renderer,
-     *  so a headless caller gets Pi's own default. */
-    renderResult?: (spec: { createSpec: Parameters<typeof createStaticToolLifecycleResultRenderer>[0]["createSpec"] }) => unknown;
+     *  the only layer allowed to import the TUI. */
+    renderResult?: RenderResult;
   } = {},
 ): void {
   // Resolved once, defensively. Announcing a transition is optional, so a host
   // without an event bus must degrade to the same no-op as a host with nobody
-  // subscribed — never to a failed board action.
+  // subscribed — never to a failed tasks action.
   const emit = typeof pi.events?.emit === "function"
     ? (channel: string, payload: unknown) => { pi.events.emit(channel, payload); }
     : undefined;
-  pi.registerTool({
-    name: "task",
-    label: "Task",
-    promptSnippet: "Record, take, and deliver work on the shared task board",
-    description: "The shared task board. Record what must be done with create, replace an obsolete task with create supersedes, find work with list, take it with update status=in_progress, return a completed one with reopen, deliver it with complete outcome=success, and report a blocker with complete outcome=failed. This tool never starts or stops an agent and never dispatches work to a named participant: it states what must be done, and a participant takes it.",
-    parameters: TASK_TOOL_PARAMS as never,
-    renderShell: "self",
-    renderCall: emptyToolCall,
-    // Attached only when the caller can supply real geometry. A row built without
-    // it renders in tests and takes the terminal down on the first repaint.
-    ...(options.renderResult ? { renderResult: options.renderResult({ createSpec: taskRowSpec }) as never } : {}),
-    // Every tool in this repository draws a row rather than dumping its text. The
-    // board row leads with what must be done and keeps the id, the dependencies
-    // and the holder for expansion — a row that shows an id is noise, but a row
-    // that shows no subject is useless.
-
-    async execute(_toolCallId, params) {
-      return executeTaskTool(params as Record<string, unknown>, { env: options.env, ...(emit ? { emit } : {}) });
-    },
-  });
+  for (const tool of TOOLS) {
+    pi.registerTool({
+      name: tool.name,
+      label: tool.label,
+      promptSnippet: tool.promptSnippet,
+      description: tool.description,
+      parameters: tool.parameters as never,
+      // Declared so the result is read as data by everything that is not the
+      // model: a codemode script asking which work is claimable receives the
+      // projections rather than a text block it has to take apart.
+      outputSchema: TASK_TOOL_OUTPUT_SCHEMA as never,
+      // Every call touches one file under this session's own directory and
+      // nothing else, so the tool says it does not reach beyond this machine
+      // rather than leaving a permission extension to assume it might. It makes
+      // no claim about destructiveness, because it cannot keep one: reopening
+      // erases the result a completion recorded, and superseding has no inverse
+      // verb.
+      annotations: { readOnlyHint: false, idempotentHint: false, openWorldHint: false },
+      renderShell: "self",
+      renderCall: emptyToolCall,
+      // Attached only when the caller can supply real geometry. A row built
+      // without it renders in tests and takes the terminal down on the first
+      // repaint.
+      ...(options.renderResult ? { renderResult: options.renderResult({ createSpec: TASK_ROW_SPEC }) as never } : {}),
+      async execute(_toolCallId: string, params: never) {
+        return tool.execute(params as Record<string, unknown>, { env: options.env, ...(emit ? { emit } : {}) });
+      },
+    } as never);
+  }
 }

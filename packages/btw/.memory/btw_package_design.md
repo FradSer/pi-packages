@@ -30,24 +30,16 @@ The overlay (`ctx.ui.custom(..., { overlay: true })`) is the right primitive:
 - Adaptive height: `render()` returns content-sized lines (short answers shrink the
   panel, long answers cap at ~40% of terminal rows via `maxAnswerBody` and remain scrollable without a hidden-line count).
 - `CancellableLoader` drives the spinner; its signal kills the child on escape.
-- Escape closes (handleInput), arrows/pgup/pgdn/home/end scroll.
+- Escape closes or cancels. Arrows and page keys scroll. Home and End scroll only while loading.
 
-## Mouse wheel: impossible for extension UI (pi core limitation)
+## Mouse and compact layout
 
-pi fullscreen mode uses TuiAltScreen, which registers its viewport input listener
-FIRST in the input-listener chain (`addInputListener` in the constructor) and
-unconditionally `{ consume: true }` for every wheel/mouse sequence
-(`handleViewportInput` → `parseWheelEvent`/`parseSgrMouseEvent`). `TuiBase.handleTerminalInput`
-returns on the first `consume`, so `ctx.ui.onTerminalInput` extensions never see mouse
-events. Keyboard scrolling is the only option without a pi core change (forwarding mouse
-to focused overlays/widgets).
+Pi 1.0.0 routes normalized wheel events to overlays. btw handles these events without parsing terminal mouse protocols.
+Regular mode retains terminal-owned scrollback. Keyboard navigation remains available.
 
-## Widget approach (tried and dropped)
-
-`createBtwOverlay` used `ctx.ui.custom(..., { overlay: true })` with a state machine
-(loading -> answer/error) and hand-rolled scrolling. It was replaced by the widget
-because a modal overlay captures focus and was the wrong shape. The scrolling/padding
-lessons are preserved below.
+The overlay delegates focus to its native Input. Home and End edit the visible composer.
+Small terminals remove decorative spacing. The minimum size is 20 columns and 8 rows.
+The answer viewport uses the space remaining after measured controls and panel rows.
 
 ## Multi-turn side conversation
 

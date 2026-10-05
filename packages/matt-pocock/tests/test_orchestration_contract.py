@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from test_package import run_typescript
+from matt_pocock_helpers import run_typescript
 
 
 @pytest.fixture(scope="module")
@@ -73,3 +73,16 @@ def test_review_bundle_supports_local_spec_and_proportional_review(instructions:
         assert obsolete not in text
     assert "Standards" in text and "Spec" in text and "Refute-before-PASS" in text
     assert bundle["byteLength"] <= 64 * 1024
+
+
+def test_each_step_contract_provides_exact_callable_state_controls() -> None:
+    from matt_pocock_helpers import RUNTIME_HARNESS
+    result = run_typescript(RUNTIME_HARNESS + '''
+        const r = runtime();
+        const started = await r.call("matt_pocock_workflow", {mode:"workflow",route:"hard-bug"});
+        const transitioned = await r.call("matt_pocock_active", {action:"transition",target:"implement"});
+        console.log(JSON.stringify({started:started.content[0].text, transitioned:transitioned.content[0].text}));
+    ''')
+    assert '{"action":"transition","target":"implement"}' in result["started"]
+    assert '{"action":"transition","target":"code-review"}' in result["transitioned"]
+    assert "Failed controls do not change" in result["transitioned"]

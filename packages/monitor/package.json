@@ -3,6 +3,9 @@
   "version": "2.3.1",
   "description": "Result-contract background monitoring for Pi — capture noisy command output outside model context and expose one structured terminal result",
   "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "keywords": [
     "pi-package",
     "monitor",
@@ -24,6 +27,7 @@
   "files": [
     "index.ts",
     "src",
+    "references",
     "README.md"
   ],
   "dependencies": {
@@ -38,5 +42,9 @@
     "extensions": [
       "./index.ts"
     ]
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^1.0.0",
+    "@earendil-works/pi-tui": "^1.0.0"
   }
 }

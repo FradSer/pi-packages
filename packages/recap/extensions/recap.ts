@@ -12,9 +12,13 @@ import type {
 import type { ModelRegistry } from "@earendil-works/pi-coding-agent";
 import { extractTextContent } from "@fradser/pi-kit";
 
-/** Minimal structural view of a session message entry. */
+/** Wall-clock budget for one whole recap request, credentials included. */
 export const RECAP_TIMEOUT_MS = 30_000;
 
+/** Hard display limit, mirroring the "at most 120 characters" prompt rule. */
+export const RECAP_TEXT_LIMIT = 120;
+
+/** Minimal structural view of a session message entry. */
 export interface RecapSessionEntry {
   type: string;
   customType?: string;
@@ -130,22 +134,20 @@ export function buildRecapPrompt(
   }
 
   const hasAssistantOutcome = assistant.trim().length > 0;
+  // One rule per distinct failure mode. The evidence rules used to be four
+  // near-duplicate lines; every recap paid for the redundancy and the model
+  // weighed the repeated wording above the rule that actually applied.
   const lines = [
     "You are an informative session recap generator.",
     "Summarise the latest session progress in one single-line recap of at most 120 characters.",
     "Include only the action, target, and result or current progress.",
     "Rules:",
-    "- Maintain continuous context: update and advance the previous recap with the latest work done.",
-    "- Treat user requests, plans, references, and desired outcomes as intent, not evidence that work occurred.",
-    "- Access, permission, capability, or a referenced path is not evidence that a connection was made or a file was inspected.",
-    "- Report an action, file change, connection, configuration, debugging step, or result only when the exchange explicitly evidences it.",
-    "- Do not claim actions, files, connections, or results that are not evidenced.",
-    "- State the specific action, target components/files, and key outcome or current progress.",
-    "- Output ONLY the summary text. No quotes, no markdown, no conversational filler, no prefixes.",
-    "- Single line only (no newlines).",
+    "- One line naming the action, its target files or components, and the evidenced outcome or current progress.",
+    "- Do not claim actions, files, connections, or results that are not evidenced; access, permission, or a referenced path is not evidence that a connection was made or a file inspected.",
+    "- Advance the previous recap with the latest work done instead of restarting the summary.",
+    "- Output only the summary text: no quotes, markdown, prefixes, explanations, advice, or greetings.",
+    "- Be concrete and scannable; a specific short claim beats a vague long one.",
     langRule,
-    "- Be concrete and scannable rather than vague.",
-    "- Do not explain, advise, greet, repeat the prompt, or mention this conversation.",
   ];
 
   if (!hasAssistantOutcome) {
@@ -168,6 +170,32 @@ export function buildRecapPrompt(
   );
 
   return lines.join("\n");
+}
+
+/** Split text into user-perceived characters so a cap never breaks one in half. */
+function toGraphemes(text: string): string[] {
+  const Segmenter = Intl.Segmenter;
+  if (typeof Segmenter !== "function") return Array.from(text);
+  return Array.from(
+    new Segmenter(undefined, { granularity: "grapheme" }).segment(text),
+    (part) => part.segment,
+  );
+}
+
+/**
+ * Enforce the display contract without corrupting the text: cut on grapheme
+ * boundaries so no astral character is split into a lone surrogate, then drop a
+ * code span the cut opened but never closed, which the widget would otherwise
+ * render with a literal backtick.
+ */
+function capRecapText(text: string, limit: number): string {
+  const graphemes = toGraphemes(text);
+  let capped = graphemes.length <= limit ? text : graphemes.slice(0, limit).join("");
+  const backticks = capped.split("`").length - 1;
+  if (backticks % 2 !== 0) {
+    capped = capped.slice(0, capped.lastIndexOf("`")).trimEnd();
+  }
+  return capped.trim();
 }
 
 /**
@@ -202,7 +230,7 @@ export function cleanRecapText(raw: string): string {
   // Strip trailing period if present
   text = text.replace(/[.\u3002]+$/, "");
   // Keep the display contract aligned with the prompt's hard limit.
-  return text.slice(0, 120).trim();
+  return capRecapText(text, RECAP_TEXT_LIMIT);
 }
 
 /** Reject empty labels and generic verb-plus-identifier output with no useful context. */
@@ -210,15 +238,22 @@ export function isInformativeRecap(text: string): boolean {
   const recap = text.trim();
   if (!recap) return false;
 
-  const identifier = "[`'\"“”‘’]?[A-Za-z][A-Za-z0-9_.:/-]*[`'\"“”‘’]?";
+  const identifier = "[`'\"“”‘’]?[A-Za-z0-9_.\u4E00-\u9FFF:/-][A-Za-z0-9_.\u4E00-\u9FFF:/-]*[`'\"“”‘’]?";
+  // The identifier must cover the languages this package is configured for: an
+  // ASCII-only pattern let a bare Chinese object through the gate that rejects
+  // the same shape in English.
   if (new RegExp(`^${identifier}$`).test(recap)) return false;
 
   const genericAction =
     "(?:fix(?:ed|ing)?|update(?:d|ing)?|adjust(?:ed|ing)?|improve(?:d|ing)?|refactor(?:ed|ing)?|\\u4fee\\u6b63|\\u4fee\\u590d|\\u4fee\\u6539|\\u66f4\\u65b0|\\u4f18\\u5316|\\u8c03\\u6574|\\u5904\\u7406|\\u6539\\u8fdb|\\u5b8c\\u5584)";
-  return !new RegExp(
+  // Two shapes carry no information: a generic verb followed by a bare name, and
+  // a generic verb followed by nothing but its label.
+  const genericWithName = new RegExp(
     `^${genericAction}\\s*[:\\uFF1A-]?\\s*${identifier}$`,
     "i",
-  ).test(recap);
+  );
+  const bareLabel = new RegExp(`^${genericAction}\\s*[:\\uFF1A-]+\\s*$`, "i");
+  return !(genericWithName.test(recap) || bareLabel.test(recap));
 }
 
 /** Extract text from assistant message response. */
@@ -238,7 +273,46 @@ export function textFromResponse(message: AssistantMessage): string {
 }
 
 /**
+ * Arm the request's single wall-clock boundary.
+ *
+ * The boundary is armed before credentials are requested, and it settles the
+ * returned promise instead of only signalling the provider: credential lookup
+ * takes no signal, and a provider that ignores one would otherwise leave the
+ * caller awaiting a recap that can never arrive.
+ */
+function armRecapDeadline(
+  signal: AbortSignal | undefined,
+  timeoutMs: number,
+): { controller: AbortController; settled: Promise<string>; dispose: () => void } {
+  const controller = new AbortController();
+  let release: (() => void) | undefined;
+  const settled = new Promise<string>((resolve) => {
+    release = () => resolve("");
+  });
+  const abort = () => {
+    controller.abort();
+    release?.();
+  };
+  const timer = setTimeout(abort, timeoutMs);
+  signal?.addEventListener("abort", abort, { once: true });
+  // A signal that aborted between the caller's check and this listener would
+  // never fire it, so re-read the state once the handlers exist.
+  if (signal?.aborted) abort();
+  return {
+    controller,
+    settled,
+    dispose: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", abort);
+    },
+  };
+}
+
+/**
  * Generate a concise recap in-process using Pi's ModelRegistry.
+ *
+ * Always settles: a deadline, an external abort, and an uncooperative provider
+ * all resolve to an empty recap instead of hanging the caller.
  */
 export async function generateRecap(
   registry: ModelRegistry,
@@ -248,19 +322,18 @@ export async function generateRecap(
   previousRecap?: string,
   language: string = "auto",
   signal?: AbortSignal,
+  timeoutMs: number = RECAP_TIMEOUT_MS,
 ): Promise<string> {
   if (signal?.aborted) return "";
-  const controller = new AbortController();
-  const abort = () => controller.abort();
-  signal?.addEventListener("abort", abort, { once: true });
+  const deadline = armRecapDeadline(signal, timeoutMs);
+  const { controller } = deadline;
 
   try {
-    const auth = await registry.getApiKeyAndHeaders(model);
-    if (!auth.ok || controller.signal.aborted) return "";
+    const work = (async (): Promise<string> => {
+      const auth = await registry.getApiKeyAndHeaders(model);
+      if (!auth.ok || controller.signal.aborted) return "";
 
-    const prompt = buildRecapPrompt(user, assistant, previousRecap, language);
-    const timeout = setTimeout(abort, RECAP_TIMEOUT_MS);
-    try {
+      const prompt = buildRecapPrompt(user, assistant, previousRecap, language);
       for (let attempt = 0; attempt < 2; attempt++) {
         const retryRule = attempt === 0
           ? ""
@@ -296,10 +369,64 @@ export async function generateRecap(
         }
       }
       return "";
-    } finally {
-      clearTimeout(timeout);
-    }
+    })();
+    return await Promise.race([work, deadline.settled]);
   } finally {
-    signal?.removeEventListener("abort", abort);
+    deadline.dispose();
   }
+}
+
+/** One recap request's identity, shared by generation and by startup restore. */
+export function recapRequestKey(
+  exchange: { user: string; assistant: string },
+  model: Pick<Model<Api>, "provider" | "id">,
+  language: string,
+): string {
+  return [
+    exchange.user,
+    exchange.assistant,
+    model.provider,
+    model.id,
+    language,
+  ].join("\u0000");
+}
+
+/** Outcome of the automatic-recap cost policy. */
+export interface AutoRecapDecision {
+  enabled: boolean;
+  /** Present when automatic recapping is suppressed by policy, not by choice. */
+  reason?: string;
+}
+
+/** Whether recapping this model needs an explicit opt-in. */
+function needsRecapOptIn(model: Pick<Model<Api>, "reasoning">): boolean {
+  return model.reasoning === true;
+}
+
+/**
+ * Decide whether a settled turn may recap itself.
+ *
+ * An explicit `autoRecap` preference always wins. Otherwise a reasoning model
+ * the user never chose for recaps is too expensive to run on every turn: its
+ * reasoning budget is spent before any summary text exists, and the recap then
+ * competes with the turn that paid for it. Such a model keeps manual
+ * `/recap now`, the restored recap line, and the display — only the automatic
+ * per-turn call is withheld until the user opts in or names a recap model.
+ */
+export function resolveAutoRecap(
+  preference: boolean | undefined,
+  model: Pick<Model<Api>, "reasoning"> | undefined,
+  hasModelOverride: boolean,
+): AutoRecapDecision {
+  if (preference !== undefined) {
+    return { enabled: preference };
+  }
+  if (model && !hasModelOverride && needsRecapOptIn(model)) {
+    return {
+      enabled: false,
+      reason:
+        "off by default for reasoning models; run /recap auto or choose a recap model",
+    };
+  }
+  return { enabled: true };
 }

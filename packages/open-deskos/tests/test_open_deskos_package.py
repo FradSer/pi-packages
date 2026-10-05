@@ -60,7 +60,7 @@ def test_manifest_declares_native_pi_package() -> None:
     assert "pi-package" in manifest["keywords"]
     assert manifest["name"] == "pi-open-deskos"
     assert manifest["pi"]["extensions"] == ["./index.ts"]
-    assert set(manifest["files"]) >= {"index.ts", "src", "fixtures", "README.md", "README.zh-CN.md"}
+    assert set(manifest["files"]) >= {"index.ts", "src", "fixtures", "README.md", "README.zh-CN.md", "session-control"}
     fixture = json.loads((PACKAGE / "fixtures" / "control-v2.json").read_text(encoding="utf-8"))
     assert fixture["handshake"]["transcript"] == "open-deskos-control-v2\n2\nnonce-fixture\ndesk-mac\nconsole-session"
     assert fixture["requests"]["attachFresh"]["after"] is None
@@ -68,7 +68,7 @@ def test_manifest_declares_native_pi_package() -> None:
 
 def test_control_contract_fixture_matches_the_desk_copy() -> None:
     """The v2 control contract ships in both repositories; drift must be loud wherever both exist."""
-    desk = PACKAGE.parents[2] / "open-deskos" / "runtime" / "linux" / "tests" / "fixtures" / "control-v2.json"
+    desk = PACKAGE.parents[2] / "open-deskos" / "runtime" / "shell" / "tests" / "fixtures" / "control-v2.json"
     if not desk.is_file():
         pytest.skip("sibling open-deskos checkout is not present")
     assert (PACKAGE / "fixtures" / "control-v2.json").read_bytes() == desk.read_bytes(), (
@@ -278,7 +278,7 @@ function harness() {
       const sent = [];
       const transport = {
         sent,
-        open() { open?.(); },
+        open(accepted = true) { open?.(); if (accepted) record?.({ v: 1, type: "ack", at: 1700000000000 }); },
         dropFromService(reason) { close?.(reason); },
         deliver(value) { record?.(value); },
         impl: {
@@ -336,7 +336,7 @@ def test_a_configured_reporter_opens_one_link_and_reports_its_session() -> None:
     assert result["connecting"] == "connecting"
     assert result["link"] == "connected"
     assert result["transports"] == 1, "one link at a time"
-    assert result["records"] == ["hello", "sessions", "events"], "identity travels once, then events are append-only"
+    assert result["records"] == ["hello", "sessions", "sessions", "events"], "new events publish current activity before their append-only batch"
     assert result["hello"] == {"v": 1, "type": "hello", "machine": "desk-mac", "token": "t"}
     reported = result["sessions"][0]
     assert reported["sessionId"] == "s1"
@@ -588,7 +588,7 @@ def test_only_a_service_ack_resets_the_reconnect_wait() -> None:
         const refusedReporter = new DeskReporter({ config, createTransport: refused.create, now: () => 1700000000000, schedule: refused.schedule });
         refusedReporter.start();
         for (let attempt = 0; attempt < 3; attempt += 1) {
-          refused.transports[attempt].open();
+          refused.transports[attempt].open(false);
           refused.transports[attempt].dropFromService("token refused");
           refused.timers[attempt]();
         }
@@ -639,7 +639,11 @@ def test_a_session_switch_keeps_reporting() -> None:
         const server = net.createServer((socket) => {
           peers.push(socket);
           socket.on("data", (chunk) => {
-            for (const line of chunk.toString("utf8").split("\n")) if (line.trim()) received.push(JSON.parse(line));
+            for (const line of chunk.toString("utf8").split("\n")) if (line.trim()) {
+              const record = JSON.parse(line);
+              received.push(record);
+              if (record.type === "hello") socket.write(JSON.stringify({ v: 1, type: "ack", at: Date.now() }) + "\n");
+            }
           });
         });
         await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));

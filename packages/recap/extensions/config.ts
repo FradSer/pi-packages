@@ -9,7 +9,12 @@ export interface RecapConfig {
   provider?: string;
   model?: string;
   enabled: boolean;
-  autoRecap: boolean;
+  /**
+   * Undefined means the user never chose: automatic recapping then follows the
+   * cost policy in `resolveAutoRecap`, which withholds it from reasoning models
+   * the user never picked for recaps.
+   */
+  autoRecap?: boolean;
   language: RecapLanguage;
 }
 
@@ -52,7 +57,7 @@ export function readRecapConfig(): RecapConfig {
     provider: envModel?.provider ?? envProvider ?? nonEmpty(file.provider),
     model: envModelId ?? nonEmpty(file.model),
     enabled: file.enabled !== false,
-    autoRecap: file.autoRecap !== false,
+    autoRecap: typeof file.autoRecap === "boolean" ? file.autoRecap : undefined,
     language: envLang ?? nonEmpty(file.language) ?? "auto",
   };
 }

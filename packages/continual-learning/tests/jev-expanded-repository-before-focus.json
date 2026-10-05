@@ -1,0 +1,20 @@
+{
+  "evidence": "real-jev-inference-frozen-public-repository-replay",
+  "snapshotDigest": "acbd24a72e14580e4b84c00a6ba73061f7831dbf3629908bdae20142345e0f09",
+  "planDigest": "57b90f12ee123b76b9932a79e769b85239a97276c52987a095513befa0d2c0f5",
+  "snapshotBytes": 53627,
+  "candidates": 2,
+  "decision": "propose",
+  "telemetry": {
+    "stage": "memory",
+    "status": "propose",
+    "reason": "uncertain",
+    "durationMs": 1579,
+    "model": "jev-1.13.0",
+    "inputTokens": 15391,
+    "outputTokens": 122,
+    "estimatedCostUsd": 0.000646422,
+    "candidateIndex": 0,
+    "dimension": "support"
+  }
+}

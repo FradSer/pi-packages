@@ -1,0 +1,269 @@
+"""Real Pi print and PTY reproductions backed only by a loopback model server."""
+from __future__ import annotations
+
+import json
+import os
+import re
+import subprocess
+import time
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from native_support import NativeTui, records
+
+REPO = Path(__file__).resolve().parents[3]
+
+
+SHORT_RESULT = "2"
+MULTILINE_RESULT = "FIRST_RESULT_LINE\n\nSECOND_RESULT_LINE"
+LONG_RESULT = "word " * 55 + "REQUIRED_RESULT_TAIL"
+
+
+
+
+
+
+def test_native_print_returns_once_and_parent_shutdown_closes_temporary_child(native_command: tuple, tmp_path: Path) -> None:
+    command, env, snapshots, requests, release = native_command
+    release.set()
+    result = subprocess.run([*command, '--print'], cwd=tmp_path, env=env,
+        input='', text=True, capture_output=True, timeout=45)
+    assert result.returncode == 0, result.stderr + result.stdout
+    events = records(snapshots)
+    receipts = [event for event in events if event['kind'] == 'receipt']
+    answers = [event for event in events if event['kind'] == 'result']
+    assert len(receipts) == len(answers) == len(requests) == 1, events
+    assert 'arrives automatically' in receipts[0]['content'][0]['text']
+    assert receipts[0]['details']['session'].startswith('session:')
+    assert answers[0]['options'] == {'deliverAs': 'followUp', 'triggerTurn': True}
+    assert answers[0]['content'].endswith(env['PI_AGENT_RESULT_TEXT'] + '\n</agent-result>')
+    assert answers[0]['details']['text'] == env['PI_AGENT_RESULT_TEXT']
+    assert answers[0]['details']['turn'] == 1
+    assert events[-1] == {'kind': 'shutdown', 'living': 0, 'results': 1}, events
+    assert not any(event['kind'] == 'mount' for event in events)
+    assert not (tmp_path / 'agent' / 'agents').exists()
+    assert not (tmp_path / 'agent' / 'subagent-sessions').exists()
+
+
+# Formatting axes belong here, not in every lifecycle/control reproduction.
+@pytest.mark.parametrize("case,native_command", [
+    ("default", SHORT_RESULT), ("default", MULTILINE_RESULT), ("interrupt-expansion", LONG_RESULT),
+], indirect=["native_command"], ids=["short", "multiline", "steered-long"])
+def test_native_tui_shows_activity_resizes_retains_idle_and_clears_on_shutdown(native_command: tuple, tmp_path: Path, case: str) -> None:
+    command, env, snapshots, requests, release = native_command
+    steering = "STEER_FIRST_LINE " + "steering " * 45 + "REQUIRED_STEER_TAIL"
+    if case == "interrupt-expansion":
+        env = {**env, "PI_AGENT_USAGE_CASE": case, "PI_AGENT_STEER_TEXT": steering}
+    tui = NativeTui(command, cwd=tmp_path, env=env, rows=28, columns=90)
+
+    def widget_at(width: int) -> bool:
+        return any(event['kind'] == 'widget' and event['width'] == width for event in records(snapshots))
+
+    try:
+        tui.wait_for(lambda: bool(requests) and 'calculator · Starting...' in tui.screen())
+        model = 'subagents-local-fixture/arithmetic'
+        collapsed = [event for event in records(snapshots)
+            if event['kind'] == 'agent-row' and event.get('action') == 'agent_start' and not event['partial'] and not event['expanded']]
+        assert collapsed, 'the native tool must render its settled startup receipt'
+        assert all(model not in '\n'.join(event['lines']) for event in collapsed), collapsed
+        assert f'model · {model}' not in tui.screen()
+        # Native Ctrl+O expansion reveals exactly one model detail, while the
+        # original model-facing receipt still contains its own configuration.
+        if case == "interrupt-expansion":
+            tui.wait_for(lambda: "NATIVE_INTERRUPT_READY" in tui.screen())
+            steering_rows = [event for event in records(snapshots) if event['kind'] == 'agent-row'
+                and event.get('action') == 'agent_input' and not event['partial'] and not event['expanded']]
+            assert steering_rows and all('to expand' in '\n'.join(event['lines']) for event in steering_rows)
+            assert all('REQUIRED_STEER_TAIL' not in '\n'.join(event['lines']) for event in steering_rows)
+        tui.send(b'\x0f')
+        tui.wait_for(lambda: any(event['kind'] == 'agent-row' and event.get('action') == 'agent_start' and event['expanded']
+            for event in records(snapshots)))
+        if case == "interrupt-expansion":
+            tui.wait_for(lambda: any(event['kind'] == 'agent-row' and event.get('action') == 'agent_input' and event['expanded']
+                for event in records(snapshots)))
+            steering_rows = [event for event in records(snapshots) if event['kind'] == 'agent-row'
+                and event.get('action') == 'agent_input' and not event['partial'] and event['expanded']]
+            assert steering_rows and all(event['bounded'] for event in steering_rows)
+            for event in steering_rows:
+                row = '\n'.join(event['lines'])
+                assert row.count('REQUIRED_STEER_TAIL') == row.count('STEER_FIRST_LINE') == 1, row
+                assert row.count('steering') == 45, row
+                assert 'state · working' in row and 'next · runtime' in row, row
+                assert 'session · session:' in row, row
+            steered = next(event for event in records(snapshots)
+            if event['kind'] == 'receipt' and event['details'].get('operation') == 'agent_input')
+            assert steered['details']['prompt'] == steering and steered['structuredContent']['prompt'] == steering
+        expanded = [event for event in records(snapshots)
+            if event['kind'] == 'agent-row' and event.get('action') == 'agent_start' and not event['partial'] and event['expanded']]
+        assert expanded and all(event['bounded'] for event in expanded)
+        for event in expanded:
+            row = '\n'.join(event['lines'])
+            assert row.count(model) == 1, row
+            assert f'model · {model}' in row and 'MODEL ·' not in row, row
+        receipt = next(event for event in records(snapshots) if event['kind'] == 'receipt')
+        assert f'Model: {model}' in receipt['content'][0]['text']
+        assert receipt['details']['model'] == model
+        tui.send(b'\x0f')
+        for width in (48, 240):
+            tui.resize(width)
+
+            tui.wait_for(lambda: widget_at(width))
+        events = records(snapshots)
+        widgets = [event for event in events if event['kind'] == 'widget']
+        assert widgets and all(event['bounded'] for event in widgets)
+        assert any(event['kind'] == 'mount' and event['placement'] == 'aboveEditor' for event in events)
+        assert all(not re.search(r'session:|[0-9a-f]{8}-[0-9a-f]{4}-', '\n'.join(event['lines'])) for event in widgets)
+        tui.resize(90)
+
+        release.set()
+        tui.wait_for(lambda: 'SUBAGENT_RESULT_2' in tui.screen())
+        tui.wait_for(lambda: any(event['kind'] == 'widget'
+            and 'calculator · Idle · ready for input' in '\n'.join(event['lines'])
+            for event in records(snapshots)))
+        # Steering can create another assistant response in the same sequence,
+        # not a second child/input lifetime. Only the final settlement delivers.
+        assert len(requests) == (2 if case == "interrupt-expansion" else 1)
+        if case == "interrupt-expansion":
+            assert steering in json.dumps(requests[-1], ensure_ascii=False)
+        events = records(snapshots)
+        assert len([event for event in events if event['kind'] == 'result']) == 1
+        idle_widgets = [event for event in events if event['kind'] == 'widget'
+            and 'calculator · Idle · ready for input' in '\n'.join(event['lines'])]
+        assert idle_widgets and all(event['bounded'] for event in idle_widgets), events
+        assert all('○' in '\n'.join(event['lines']) and 'Working' not in '\n'.join(event['lines'])
+            for event in idle_widgets), idle_widgets
+        result_text = env['PI_AGENT_RESULT_TEXT']
+        collapsed_results = [event for event in events if event['kind'] == 'result-row' and not event['expanded']]
+        assert collapsed_results and all(event['bounded'] for event in collapsed_results), events
+        for event in collapsed_results:
+            row = '\n'.join(event['lines'])
+            assert 'Session Result' not in row and not re.search(r'turn [0-9]', row), row
+            assert ('to expand' in row) is (result_text != '2'), row
+            if result_text == '2':
+                assert [line.strip() for line in event['lines'] if line.strip()] == ['[agent] reported · @calculator', '2']
+        tui.send(b'\x0f')
+        tui.wait_for(lambda: any(event['kind'] == 'result-row' and event['expanded'] for event in records(snapshots)))
+        expanded_results = [event for event in records(snapshots) if event['kind'] == 'result-row' and event['expanded']]
+        assert expanded_results and all(event['bounded'] for event in expanded_results)
+        for event in expanded_results:
+            row = '\n'.join(event['lines'])
+            assert 'Session Result' not in row and 'to expand' not in row, row
+            if result_text == '2':
+                assert [line.strip() for line in event['lines'] if line.strip()] == ['[agent] reported · @calculator', '2']
+            elif 'FIRST_RESULT_LINE' in result_text:
+                assert row.count('FIRST_RESULT_LINE') == row.count('SECOND_RESULT_LINE') == 1, row
+            else:
+                assert row.count('REQUIRED_RESULT_TAIL') == 1, row
+                assert row.count('word') == 55, row
+        delivered = next(event for event in records(snapshots) if event['kind'] == 'result')
+        assert delivered['details']['text'] == result_text and delivered['details']['turn'] == 1
+        assert delivered['details']['session'].startswith('session:')
+        tui.send(b'/quit\r')
+        tui.wait_for(lambda: tui.process.poll() is not None)
+        assert tui.process.returncode == 0
+        assert any(event['kind'] == 'clear' for event in records(snapshots))
+        assert records(snapshots)[-1] == {'kind': 'shutdown', 'living': 0, 'results': 1}
+    finally:
+        release.set()
+        tui.close()
+
+
+@pytest.mark.parametrize("interface", ["print", "tui"])
+@pytest.mark.parametrize("diagnostic,case", [("", "stopped-inspect"),
+    ("\x1b[31mNATIVE_ERROR_HEAD\x1b[0m\x07" + " x" * 12000 + "RAW_ERROR_TAIL", "stopped-inspect"),
+    ("", "cancel-startup-wait"), ("", "codemode-lifecycle")],
+    ids=["without-error", "long-retained-error", "cancel-startup-wait", "codemode-lifecycle"])
+def test_native_inspect_reports_retained_stopped_facts_not_a_failed_row(
+    native_command: tuple, tmp_path: Path, interface: str, diagnostic: str, case: str,
+) -> None:
+    """Native lifecycle; invented retained error specifically probes readback bounds."""
+    command, env, snapshots, requests, release = native_command
+    env = {**env, "PI_AGENT_USAGE_CASE": case, "PI_AGENT_INSPECT_DIAGNOSTIC": diagnostic}
+    release.set()
+    if interface == "print":
+        result = subprocess.run([*command, "--print"], cwd=tmp_path, env=env,
+            input="", text=True, capture_output=True, timeout=45)
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert "NATIVE_STOPPED_INSPECT_OK" in result.stdout, result.stdout + result.stderr
+    else:
+        tui = NativeTui(command, cwd=tmp_path, env=env, rows=28, columns=90, timeout=45)
+        try:
+            tui.wait_for(lambda: "NATIVE_STOPPED_INSPECT_OK" in tui.screen())
+            if case == "cancel-startup-wait":
+                # No route came back, so no stop or inspect row exists: the roster
+                # read and the uncertain start row are the whole witness.
+                assert "[agent] uncertain · @calculator" in tui.screen(), tui.screen()
+                assert "[agent] listed · @children" in tui.screen(), tui.screen()
+            elif case != "codemode-lifecycle":
+                assert "[agent] inspected · @calculator" in tui.screen(), tui.screen()
+                assert "calculator · stopped" in tui.screen(), tui.screen()
+            else:
+                # Native codemode uses Pi's own unbracketed title, not pi-kit.
+                assert "codemode" in tui.screen() and "Script error:" not in tui.screen(), tui.screen()
+            assert "No living session" not in tui.screen(), tui.screen()
+            if case != "cancel-startup-wait":
+                assert "[agent] failed" not in tui.screen(), tui.screen()
+            else:
+                assert "cancelled" in tui.screen(), tui.screen()
+            if case != "codemode-lifecycle":
+                expanded_action = "agent_list" if case == "cancel-startup-wait" else "agent_inspect"
+                tui.send(b"\x0f")
+                tui.wait_for(lambda: any(event["kind"] == "agent-row"
+                    and event.get("action") == expanded_action and event["expanded"]
+                    for event in records(snapshots)))
+                rows = [event for event in records(snapshots) if event["kind"] == "agent-row"
+                    and event.get("action") == expanded_action]
+                assert rows and all(event["bounded"] for event in rows), rows
+                assert all("[agent] " in "\n".join(event["lines"]) for event in rows), rows
+            tui.send(b"/quit\r")
+            tui.wait_for(lambda: tui.process.poll() is not None)
+            assert tui.process.returncode == 0
+        finally:
+            tui.close()
+    events = records(snapshots)
+    receipts = [event for event in events if event["kind"] == "receipt"]
+    if case == "cancel-startup-wait":
+        # A cancelled start returns no route, so the only follow-up a caller can make
+        # is the roster read. It has to show the child the cancellation could not.
+        assert [event["details"]["operation"] for event in receipts] == ["agent_start", "agent_list"], receipts
+        assert receipts[0]["details"]["disposition"] == "uncertain" and receipts[0]["isError"] is True
+        assert receipts[0]["details"]["controlOutcome"] == "uncertain"
+        listed, = receipts[1]["details"]["sessions"]
+        assert listed["label"] == "calculator", listed
+        cancelled, = [event for event in events if event["kind"] == "cancelled-native-start"]
+        assert cancelled["living"] == 1 and cancelled["details"]["dispatched"] is True
+        assert not receipts[1]["isError"]
+        assert events[-1] == {"kind": "shutdown", "living": 0, "results": 1}
+        return
+    assert [event["details"]["operation"] for event in receipts] == ["agent_start", "agent_stop", "agent_inspect"], receipts
+    if True:
+        assert receipts[0]["details"]["ok"] and not receipts[0]["isError"], receipts
+    assert all(event["details"]["ok"] and not event["isError"] for event in receipts[1:]), receipts
+    for event in receipts:
+        assert event["structuredContent"]["operation"] == event["details"]["operation"]
+        assert event["structuredContent"]["disposition"] == event["details"]["disposition"]
+        assert event["structuredContent"]["ok"] == event["details"]["ok"]
+    started, stopped, inspected = [event["details"] for event in receipts]
+    view, = inspected["sessions"]
+    assert view["status"] == "stopped" and view["session"] == started["session"] == stopped["session"]
+    assert view["liveText"] == env["PI_AGENT_RESULT_TEXT"] and view["sequenceEnded"] is True
+    assert view["resultKind"] == "result"
+    preservation, = [event for event in events if event["kind"] == "inspect-preservation"]
+    assert preservation == {"kind": "inspect-preservation", "unchanged": True,
+        "rawErrorLength": len(diagnostic), "errorRetained": True}
+    if diagnostic:
+        expected = ("NATIVE_ERROR_HEAD" + " x" * 12000 + "RAW_ERROR_TAIL")[:1000] + "… [diagnostic truncated]"
+        assert view["error"] == expected
+        inspected_event = receipts[-1]
+        assert "error · " + expected in inspected_event["content"][0]["text"]
+        assert "RAW_ERROR_TAIL" not in json.dumps(inspected_event)
+        assert "\x1b" not in inspected_event["content"][0]["text"] and "\x07" not in inspected_event["content"][0]["text"]
+    else:
+        assert "error" not in view
+    assert len(requests) == 1, "Inspect must not start another model request or revive the child"
+    assert len([event for event in events if event["kind"] == "result"]) == 1
+    assert events[-1] == {"kind": "shutdown", "living": 0, "results": 1}
+    assert not (tmp_path / "agent" / "agents").exists()
+    assert not (tmp_path / "agent" / "subagent-sessions").exists()

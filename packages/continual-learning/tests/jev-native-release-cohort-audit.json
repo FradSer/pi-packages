@@ -1,0 +1,391 @@
+{
+  "scope": "fixed four-case native workflow cohort",
+  "passed": true,
+  "gains": 14,
+  "regressions": 0,
+  "reasons": [],
+  "cases": {
+    "approval-native-ui-en": {
+      "scope": "paired real native learning effects",
+      "passed": false,
+      "gains": 0,
+      "regressions": 0,
+      "reasons": [
+        "no-observed-effect-improvement"
+      ]
+    },
+    "temporary-zh": {
+      "scope": "paired real native learning effects",
+      "passed": false,
+      "gains": 0,
+      "regressions": 0,
+      "reasons": [
+        "no-observed-effect-improvement"
+      ]
+    },
+    "sparse-memory-en": {
+      "scope": "paired real native learning effects",
+      "passed": true,
+      "gains": 7,
+      "regressions": 0,
+      "reasons": []
+    },
+    "sparse-memory-zh": {
+      "scope": "paired real native learning effects",
+      "passed": true,
+      "gains": 7,
+      "regressions": 0,
+      "reasons": []
+    }
+  },
+  "evidence": "audit-of-retained-real-native-pairs",
+  "costScope": "Two learning passes only; source/fresh-session generation excluded. Jev costs are tariff estimates, not invoices. Missing usage is unknown.",
+  "artifacts": [
+    "jev-native-release-cohort-approval-en.json",
+    "jev-native-release-cohort-temporary-zh.json",
+    "jev-native-release-cohort-sparse-en.json",
+    "jev-native-release-cohort-sparse-zh.json"
+  ],
+  "resources": {
+    "approval-native-ui-en": {
+      "pair": {
+        "scope": "paired real native learning effects",
+        "passed": false,
+        "gains": 0,
+        "regressions": 0,
+        "reasons": [
+          "no-observed-effect-improvement"
+        ]
+      },
+      "baseline": {
+        "effectsPassed": 13,
+        "effectsTotal": 13,
+        "durationSeconds": 115.206,
+        "pipelineWorkerCostUsd": 0.0047338779999999995,
+        "workerCostAvailable": true,
+        "pipelineWorkerTokens": 46641,
+        "returnedJevJudgments": 0,
+        "jevModelVersions": [],
+        "jevInputTokens": 0,
+        "jevOutputTokens": 0,
+        "jevJudgmentMs": 0,
+        "estimatedJevCostUsd": 0,
+        "judgmentsWithoutUsage": 0,
+        "phaseOutcomes": [
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "applied"
+            ],
+            [
+              "harness",
+              "applied"
+            ]
+          ],
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "noop"
+            ],
+            [
+              "harness",
+              "noop"
+            ]
+          ]
+        ]
+      },
+      "jev": {
+        "effectsPassed": 13,
+        "effectsTotal": 13,
+        "durationSeconds": 201.049,
+        "pipelineWorkerCostUsd": 0.007248391999999999,
+        "workerCostAvailable": true,
+        "pipelineWorkerTokens": 51148,
+        "returnedJevJudgments": 4,
+        "jevModelVersions": [
+          "jev-1.13.0"
+        ],
+        "jevInputTokens": 6028,
+        "jevOutputTokens": 599,
+        "jevJudgmentMs": 4123,
+        "estimatedJevCostUsd": 0.00025317600000000003,
+        "judgmentsWithoutUsage": 0,
+        "phaseOutcomes": [
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "applied"
+            ],
+            [
+              "harness",
+              "applied"
+            ]
+          ],
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "noop"
+            ],
+            [
+              "harness",
+              "noop"
+            ]
+          ]
+        ]
+      }
+    },
+    "temporary-zh": {
+      "pair": {
+        "scope": "paired real native learning effects",
+        "passed": false,
+        "gains": 0,
+        "regressions": 0,
+        "reasons": [
+          "no-observed-effect-improvement"
+        ]
+      },
+      "baseline": {
+        "effectsPassed": 11,
+        "effectsTotal": 11,
+        "durationSeconds": 122.15,
+        "pipelineWorkerCostUsd": 0.004978008,
+        "workerCostAvailable": true,
+        "pipelineWorkerTokens": 46916,
+        "returnedJevJudgments": 0,
+        "jevModelVersions": [],
+        "jevInputTokens": 0,
+        "jevOutputTokens": 0,
+        "jevJudgmentMs": 0,
+        "estimatedJevCostUsd": 0,
+        "judgmentsWithoutUsage": 0,
+        "phaseOutcomes": [
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "applied"
+            ],
+            [
+              "harness",
+              "applied"
+            ]
+          ],
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "noop"
+            ],
+            [
+              "harness",
+              "noop"
+            ]
+          ]
+        ]
+      },
+      "jev": {
+        "effectsPassed": 11,
+        "effectsTotal": 11,
+        "durationSeconds": 113.631,
+        "pipelineWorkerCostUsd": 0.005257418,
+        "workerCostAvailable": true,
+        "pipelineWorkerTokens": 44591,
+        "returnedJevJudgments": 4,
+        "jevModelVersions": [
+          "jev-1.13.0"
+        ],
+        "jevInputTokens": 5676,
+        "jevOutputTokens": 470,
+        "jevJudgmentMs": 4360,
+        "estimatedJevCostUsd": 0.00023839200000000003,
+        "judgmentsWithoutUsage": 0,
+        "phaseOutcomes": [
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "applied"
+            ],
+            [
+              "harness",
+              "applied"
+            ]
+          ],
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "noop"
+            ],
+            [
+              "harness",
+              "noop"
+            ]
+          ]
+        ]
+      }
+    },
+    "sparse-memory-en": {
+      "pair": {
+        "scope": "paired real native learning effects",
+        "passed": true,
+        "gains": 7,
+        "regressions": 0,
+        "reasons": []
+      },
+      "baseline": {
+        "effectsPassed": 6,
+        "effectsTotal": 13,
+        "durationSeconds": 25.675,
+        "pipelineWorkerCostUsd": 0,
+        "workerCostAvailable": true,
+        "pipelineWorkerTokens": 0,
+        "returnedJevJudgments": 0,
+        "jevModelVersions": [],
+        "jevInputTokens": 0,
+        "jevOutputTokens": 0,
+        "jevJudgmentMs": 0,
+        "estimatedJevCostUsd": 0,
+        "judgmentsWithoutUsage": 0,
+        "phaseOutcomes": [
+          [],
+          []
+        ]
+      },
+      "jev": {
+        "effectsPassed": 13,
+        "effectsTotal": 13,
+        "durationSeconds": 83.857,
+        "pipelineWorkerCostUsd": 0.0026277439999999996,
+        "workerCostAvailable": true,
+        "pipelineWorkerTokens": 23184,
+        "returnedJevJudgments": 3,
+        "jevModelVersions": [
+          "jev-1.13.0"
+        ],
+        "jevInputTokens": 2756,
+        "jevOutputTokens": 185,
+        "jevJudgmentMs": 3467,
+        "estimatedJevCostUsd": 0.00011575200000000001,
+        "judgmentsWithoutUsage": 0,
+        "phaseOutcomes": [
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "applied"
+            ]
+          ],
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "noop"
+            ]
+          ]
+        ]
+      }
+    },
+    "sparse-memory-zh": {
+      "pair": {
+        "scope": "paired real native learning effects",
+        "passed": true,
+        "gains": 7,
+        "regressions": 0,
+        "reasons": []
+      },
+      "baseline": {
+        "effectsPassed": 6,
+        "effectsTotal": 13,
+        "durationSeconds": 22.664,
+        "pipelineWorkerCostUsd": 0,
+        "workerCostAvailable": true,
+        "pipelineWorkerTokens": 0,
+        "returnedJevJudgments": 0,
+        "jevModelVersions": [],
+        "jevInputTokens": 0,
+        "jevOutputTokens": 0,
+        "jevJudgmentMs": 0,
+        "estimatedJevCostUsd": 0,
+        "judgmentsWithoutUsage": 0,
+        "phaseOutcomes": [
+          [],
+          []
+        ]
+      },
+      "jev": {
+        "effectsPassed": 13,
+        "effectsTotal": 13,
+        "durationSeconds": 74.702,
+        "pipelineWorkerCostUsd": 0.002946714,
+        "workerCostAvailable": true,
+        "pipelineWorkerTokens": 23783,
+        "returnedJevJudgments": 3,
+        "jevModelVersions": [
+          "jev-1.13.0"
+        ],
+        "jevInputTokens": 2983,
+        "jevOutputTokens": 242,
+        "jevJudgmentMs": 3129,
+        "estimatedJevCostUsd": 0.000125286,
+        "judgmentsWithoutUsage": 0,
+        "phaseOutcomes": [
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "applied"
+            ]
+          ],
+          [
+            [
+              "selector",
+              "applied"
+            ],
+            [
+              "memory",
+              "noop"
+            ]
+          ]
+        ]
+      }
+    }
+  }
+}

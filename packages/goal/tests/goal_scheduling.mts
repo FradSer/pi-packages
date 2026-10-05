@@ -18,7 +18,8 @@ import { join, resolve } from "node:path";
 import { GoalStore, newGoalId } from "../src/store.ts";
 import { GoalScheduler, type SchedulerHost } from "../src/scheduler.ts";
 import { goalPromptParts, statusLabel, untrustedObjectiveBlock } from "../src/prompt.ts";
-import { budgetReached, type GoalRecord } from "../src/record.ts";
+import { randomToken, type GoalRecord } from "../src/record.ts";
+import { readGoalLedger } from "../src/ledger.ts";
 import type { GoalSettings } from "../src/settings.ts";
 
 const root = mkdtempSync(join(tmpdir(), "goal-sched-"));
@@ -82,7 +83,6 @@ function arm(goalId: string): GoalRecord {
 }
 
 void repoRoot;
-void budgetReached;
 
 await scenario("a hostile objective stays inside its block", () => {
   // Asserting that the wrapper exists proves the prose was written, not that the
@@ -207,11 +207,449 @@ await scenario("a recorded next action ends the turn and is kept for the next on
   const scheduler = new GoalScheduler(session.host);
   const goal = focusNewGoal(session, "session-a");
   scheduler.schedule(arm(goal.id), noSettings);
-  const claimed = scheduler.claim()!;
+  // The claim consumes the decision; the count only proves one authorized run.
+  const claimed = scheduler.claim();
+  assert.ok(claimed, "an armed decision is claimed exactly once");
   const declared = scheduler.declare(read(goal.id)!, "run the tests", noSettings);
   assert.ok(declared.ok, JSON.stringify(declared));
   assert.equal(read(goal.id)?.scheduler?.nextAction, "run the tests", "the next turn starts from this");
   assert.equal(read(goal.id)?.scheduler?.used, 1, "the run was counted exactly once");
+});
+
+await scenario("a goal stopped after the pre-lock read claims nothing", () => {
+  const owner = "session-a";
+  const session = makeHost(owner);
+  const goal = focusNewGoal(session, owner);
+  // A budgeted goal with a ready decision is what arming sees.
+  const budgeted = store.apply({
+    expectedGoalId: goal.id,
+    mutate: (draft) => ({ ...draft, tokenBudget: 100, scheduler: draft.scheduler ? { ...draft.scheduler, phase: "ready" } : undefined }),
+  });
+  assert.ok(budgeted.ok, JSON.stringify(budgeted));
+  // The claim reads a healthy record and passes every precondition. Another
+  // writer then takes the lock first and stops the goal, which is the whole
+  // window the pre-lock check cannot see.
+  const racing = new GoalScheduler({
+    ...session.host,
+    apply: (spec) => {
+      const stopped = store.apply({
+        expectedGoalId: goal.id,
+        mutate: (draft) => ({
+          ...draft,
+          status: "budget_limited",
+          autoContinue: false,
+          usage: { ...draft.usage, tokensUsed: 100 },
+          scheduler: draft.scheduler ? { ...draft.scheduler, phase: "ready" } : undefined,
+        }),
+      });
+      assert.ok(stopped.ok, JSON.stringify(stopped));
+      return store.apply({ ...spec });
+    },
+  });
+  racing.schedule(read(goal.id)!, noSettings);
+  assert.equal(racing.claim(), null, "a goal stopped since the read cannot be claimed into a run");
+  assert.equal(read(goal.id)?.scheduler?.used ?? 0, 0, "no run was consumed");
+  assert.equal(read(goal.id)?.status, "budget_limited", "the goal keeps its own reason for stopping");
+  assert.equal(
+    readGoalLedger(root, goal.id).filter((event) => event.type === "goal_claimed").length,
+    0,
+    "no claim was recorded",
+  );
+});
+
+await scenario("a checkpoint is refused after the goal is paused mid-flight", () => {
+  const owner = "session-a";
+  const session = makeHost(owner);
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, owner);
+  scheduler.schedule(arm(goal.id), noSettings);
+  const claimed = scheduler.claim();
+  assert.ok(claimed, "the armed decision is claimed");
+  // A user pauses the goal between the checkpoint's pre-lock validation and the
+  // write. The checkpoint must still be refused: accepting it would let the turn
+  // continue on a goal the user just stopped.
+  const racing = new GoalScheduler({
+    ...session.host,
+    apply: (spec) => {
+      const paused = store.apply({
+        expectedGoalId: goal.id,
+        mutate: (draft) => ({ ...draft, status: "paused", autoContinue: false }),
+      });
+      assert.ok(paused.ok, JSON.stringify(paused));
+      return store.apply({ ...spec });
+    },
+  });
+  const accepted = racing.acceptCheckpoint(claimed);
+  assert.equal(accepted.ok, false, "a paused goal must not accept a checkpoint");
+  assert.equal(read(goal.id)?.status, "paused", "and the user pause stands");
+  assert.notEqual(read(goal.id)?.scheduler?.phase, "running", "the dispatch does not start");
+});
+
+await scenario("a losing claimant never pauses the goal another owner resumed", () => {
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  scheduler.schedule(arm(goal.id), noSettings);
+  // Another session takes the goal over between this claim's pre-lock read and
+  // its locked write. The claim is correctly refused, and the refusal must not
+  // then pause a goal this session no longer owns.
+  const losing = new GoalScheduler({
+    ...session.host,
+    apply: (spec) => {
+      const taken = store.apply({
+        expectedGoalId: goal.id,
+        mutate: (draft) => ({
+          ...draft,
+          scheduler: draft.scheduler
+            ? { ...draft.scheduler, owner: "session-b", generation: randomToken() }
+            : undefined,
+        }),
+      });
+      assert.ok(taken.ok, JSON.stringify(taken));
+      return store.apply({ ...spec });
+    },
+  });
+  losing.schedule(read(goal.id)!, noSettings);
+  assert.equal(losing.claim(), null, "a claim refused after a takeover authorizes nothing");
+  assert.equal(read(goal.id)?.status, "active", "the new owner's goal is not paused by the loser");
+});
+
+await scenario("a goal on its last authorized run still accepts its checkpoint", () => {
+  // The claim spends the allowance, not the checkpoint. Re-judging the run
+  // budget when the checkpoint arrives refuses the final run's own turn and
+  // strands a run the goal was legitimately given.
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  const settings: GoalSettings = { maxAutonomousRuns: 1 };
+  scheduler.schedule(arm(goal.id), settings);
+  const claimed = scheduler.claim();
+  assert.ok(claimed, "the one authorized run is claimed");
+  assert.equal(read(goal.id)?.scheduler?.used, 1, "and it is the only one");
+  const accepted = scheduler.acceptCheckpoint(claimed);
+  assert.equal(accepted.ok, true, `the claimed run must be able to start, got ${JSON.stringify(accepted)}`);
+  assert.equal(read(goal.id)?.scheduler?.phase, "running");
+});
+
+await scenario("a checkpoint is refused when its dispatch was replaced", () => {
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  scheduler.schedule(arm(goal.id), noSettings);
+  const claimed = scheduler.claim();
+  assert.ok(claimed, "the armed decision is claimed");
+  // Between validation and the write, the same owner installs a replacement
+  // dispatch. Accepting now would start the replacement, not the checkpoint
+  // that was handed in.
+  const racing = new GoalScheduler({
+    ...session.host,
+    apply: (spec) => {
+      const replaced = store.apply({
+        expectedGoalId: goal.id,
+        mutate: (draft) => ({
+          ...draft,
+          scheduler: draft.scheduler
+            ? { ...draft.scheduler, generation: randomToken(), dispatch: { id: "replacement", claimedAt: Date.now() } }
+            : undefined,
+        }),
+      });
+      assert.ok(replaced.ok, JSON.stringify(replaced));
+      return store.apply({ ...spec });
+    },
+  });
+  const accepted = racing.acceptCheckpoint(claimed);
+  assert.equal(accepted.ok, false, "a superseded dispatch must not be accepted");
+  assert.equal(read(goal.id)?.scheduler?.dispatch?.id, "replacement", "and the replacement is left untouched");
+  assert.notEqual(read(goal.id)?.scheduler?.phase, "running", "nothing was started");
+});
+
+await scenario("a stale view cannot let a claimant pause the goal another owner resumed", () => {
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  scheduler.schedule(arm(goal.id), noSettings);
+  // This claimant's view is a snapshot from before the takeover, so every
+  // pre-lock check it makes still sees an active goal it owns. Only the check
+  // inside the pause write itself can catch what actually happened.
+  const stale = read(goal.id)!;
+  let writes = 0;
+  const loser = new GoalScheduler({
+    ...session.host,
+    readFocused: () => stale,
+    apply: (spec) => {
+      writes += 1;
+      // Ownership rotates during the claim write, so the claim is refused by
+      // the generation check and the pause write becomes the one that must
+      // refuse. This is the reviewer's window: after the read that judged it.
+      if (writes === 1) {
+        const taken = store.apply({
+          expectedGoalId: goal.id,
+          mutate: (draft) => ({
+            ...draft,
+            scheduler: draft.scheduler
+              ? { ...draft.scheduler, owner: "session-b", generation: randomToken() }
+              : undefined,
+          }),
+        });
+        assert.ok(taken.ok, JSON.stringify(taken));
+      }
+      return store.apply({ ...spec });
+    },
+  });
+  loser.schedule(stale, noSettings);
+  assert.equal(loser.claim(), null, "the stale claim authorizes nothing");
+  assert.equal(writes, 2, "the claim and the pause write were both attempted");
+  assert.equal(read(goal.id)?.scheduler?.owner, "session-b");
+  assert.equal(read(goal.id)?.status, "active", "the new owner's goal is never paused");
+});
+
+await scenario("an agent cannot pause a goal another session owns", () => {
+  // Every agent stop routes through pause(), so this one case covers the
+  // scheduler's internal paths (settled, dispatchFailed, the claim refusal)
+  // and the update_goal tool, none of which can opt out of the guard.
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  const taken = store.apply({
+    expectedGoalId: goal.id,
+    mutate: (draft) => ({
+      ...draft,
+      scheduler: draft.scheduler ? { ...draft.scheduler, owner: "session-b" } : undefined,
+    }),
+  });
+  assert.ok(taken.ok, JSON.stringify(taken));
+  assert.equal(scheduler.pause(goal, "a reason the other session never agreed to"), false,
+    "an agent stop is refused");
+  assert.equal(read(goal.id)?.status, "active", "the other session's goal is untouched");
+  // A user pause carries its own authority and is exempt.
+  const user = new GoalScheduler(makeHost("session-user").host);
+  assert.equal(user.pause(goal, "Paused by the user.", "user"), true, "a user pause still applies");
+  assert.equal(read(goal.id)?.status, "paused");
+});
+
+await scenario("a checkpoint is refused when only its generation was replaced", () => {
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  scheduler.schedule(arm(goal.id), noSettings);
+  const claimed = scheduler.claim();
+  assert.ok(claimed, "the armed decision is claimed");
+  const racing = new GoalScheduler({
+    ...session.host,
+    apply: (spec) => {
+      const replaced = store.apply({
+        expectedGoalId: goal.id,
+        mutate: (draft) => ({
+          ...draft,
+          scheduler: draft.scheduler ? { ...draft.scheduler, generation: randomToken() } : undefined,
+        }),
+      });
+      assert.ok(replaced.ok, JSON.stringify(replaced));
+      return store.apply({ ...spec });
+    },
+  });
+  assert.equal(racing.acceptCheckpoint(claimed).ok, false, "a stale generation must not start");
+  assert.notEqual(read(goal.id)?.scheduler?.phase, "running");
+});
+
+await scenario("a checkpoint is refused when only its dispatch id was replaced", () => {
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  scheduler.schedule(arm(goal.id), noSettings);
+  const claimed = scheduler.claim();
+  assert.ok(claimed, "the armed decision is claimed");
+  const racing = new GoalScheduler({
+    ...session.host,
+    apply: (spec) => {
+      const replaced = store.apply({
+        expectedGoalId: goal.id,
+        mutate: (draft) => ({
+          ...draft,
+          scheduler: draft.scheduler
+            ? { ...draft.scheduler, dispatch: { id: "replacement", claimedAt: Date.now() } }
+            : undefined,
+        }),
+      });
+      assert.ok(replaced.ok, JSON.stringify(replaced));
+      return store.apply({ ...spec });
+    },
+  });
+  assert.equal(racing.acceptCheckpoint(claimed).ok, false, "a superseded dispatch must not start");
+  assert.notEqual(read(goal.id)?.scheduler?.phase, "running");
+});
+
+await scenario("a checkpoint is refused when the token budget is spent", () => {
+  // The run allowance is discharged by the claim and must not be rejudged here.
+  // The token budget is different: a goal that has spent its lifetime tokens
+  // stops, whatever run count its allowance has left.
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  scheduler.schedule(arm(goal.id), noSettings);
+  const claimed = scheduler.claim();
+  assert.ok(claimed, "the armed decision is claimed");
+  const racing = new GoalScheduler({
+    ...session.host,
+    apply: (spec) => {
+      const spent = store.apply({
+        expectedGoalId: goal.id,
+        mutate: (draft) => ({ ...draft, tokenBudget: 100, usage: { ...draft.usage, tokensUsed: 100 } }),
+      });
+      assert.ok(spent.ok, JSON.stringify(spent));
+      return store.apply({ ...spec });
+    },
+  });
+  assert.equal(racing.acceptCheckpoint(claimed).ok, false, "a budget-spent goal must not start a run");
+  assert.notEqual(read(goal.id)?.scheduler?.phase, "running");
+});
+
+await scenario("a claim is refused when its decision is no longer ready", () => {
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  scheduler.schedule(arm(goal.id), noSettings);
+  // The armed decision can be cancelled before the claim takes its lock. An
+  // idle decision authorizes nothing, so the claim must refuse it.
+  const racing = new GoalScheduler({
+    ...session.host,
+    apply: (spec) => {
+      const relaxed = store.apply({
+        expectedGoalId: goal.id,
+        mutate: (draft) => ({ ...draft, scheduler: draft.scheduler ? { ...draft.scheduler, phase: "idle" } : undefined }),
+      });
+      assert.ok(relaxed.ok, JSON.stringify(relaxed));
+      return store.apply({ ...spec });
+    },
+  });
+  racing.schedule(arm(goal.id), noSettings);
+  // `arm` is called after the host is built, so the decision is armed on the
+  // record the racing host will see. Without this the claim returns null simply
+  // because it was never armed, and the scenario proves nothing.
+  assert.equal(racing.claim(), null, "an idle decision authorizes nothing");
+  assert.equal(read(goal.id)?.scheduler?.used ?? 0, 0, "no run was consumed");
+});
+
+await scenario("a settled progress write never overwrites a replacement dispatch", () => {
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  scheduler.schedule(arm(goal.id), noSettings);
+  const claimed = scheduler.claim();
+  assert.ok(claimed, "the armed decision is claimed");
+  assert.ok(scheduler.acceptCheckpoint(claimed).ok, "the claim starts its dispatch");
+  const snapshot = read(goal.id)!;
+  const replacement = { id: "replacement-progress", generation: randomToken() };
+  let writes = 0;
+  const racing = new GoalScheduler({
+    ...session.host,
+    apply: (spec) => {
+      writes += 1;
+      if (writes === 1) {
+        const started = store.apply({
+          expectedGoalId: goal.id,
+          mutate: (draft) => ({
+            ...draft,
+            scheduler: draft.scheduler
+              ? { ...draft.scheduler, phase: "running", generation: replacement.generation, dispatch: { id: replacement.id, claimedAt: Date.now() } }
+              : undefined,
+          }),
+        });
+        assert.ok(started.ok, JSON.stringify(started));
+      }
+      return store.apply({ ...spec });
+    },
+  });
+  racing.settled(snapshot, noSettings, true, true);
+  const after = read(goal.id)!;
+  assert.equal(after.scheduler?.dispatch?.id, replacement.id, "the replacement dispatch survives progress write");
+  assert.equal(after.scheduler?.generation, replacement.generation, "and its generation is not rotated");
+  assert.equal(after.scheduler?.phase, "running", "and it is still running");
+});
+
+await scenario("a settled promotion write never overwrites a replacement dispatch", () => {
+  const session = makeHost("session-a");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-a");
+  scheduler.schedule(arm(goal.id), noSettings);
+  const claimed = scheduler.claim();
+  assert.ok(claimed, "the armed decision is claimed");
+  assert.ok(scheduler.acceptCheckpoint(claimed).ok, "the claim starts its dispatch");
+  const snapshot = read(goal.id)!;
+  const replacement = { id: "replacement-promotion", generation: randomToken() };
+  let writes = 0;
+  const racing = new GoalScheduler({
+    ...session.host,
+    apply: (spec) => {
+      writes += 1;
+      if (writes === 2) {
+        const started = store.apply({
+          expectedGoalId: goal.id,
+          mutate: (draft) => ({
+            ...draft,
+            scheduler: draft.scheduler
+              ? { ...draft.scheduler, phase: "running", generation: replacement.generation, dispatch: { id: replacement.id, claimedAt: Date.now() } }
+              : undefined,
+          }),
+        });
+        assert.ok(started.ok, JSON.stringify(started));
+      }
+      return store.apply({ ...spec });
+    },
+  });
+  racing.settled(snapshot, noSettings, true, true);
+  const after = read(goal.id)!;
+  assert.equal(after.scheduler?.dispatch?.id, replacement.id, "the replacement dispatch survives promotion write");
+  assert.equal(after.scheduler?.generation, replacement.generation, "and its generation is not rotated");
+  assert.equal(after.scheduler?.phase, "running", "and it is still running");
+});
+
+await scenario("a stale settlement stop never deletes the dispatch that replaced it", () => {
+  // The stop is justified by one revision. A replacement that starts after the
+  // settlement snapshot is read carries its own live dispatch, and a stop written
+  // on the old grounds would end work this session has already handed over.
+  for (const stop of ["allowance", "idle"] as const) {
+    const session = makeHost("session-a");
+    const scheduler = new GoalScheduler(session.host);
+    const goal = focusNewGoal(session, "session-a");
+    scheduler.schedule(arm(goal.id), noSettings);
+    const claimed = scheduler.claim();
+    assert.ok(claimed, "the armed decision is claimed");
+    assert.ok(scheduler.acceptCheckpoint(claimed).ok, "the claim starts its dispatch");
+    const snapshot = store.apply({
+      expectedGoalId: goal.id,
+      mutate: (draft) => ({
+        ...draft,
+        // The allowance stop reads `used`; the idle stop reads `idleRuns`.
+        scheduler: draft.scheduler ? { ...draft.scheduler, idleRuns: stop === "idle" ? 2 : 0 } : undefined,
+      }),
+    });
+    assert.ok(snapshot.ok, JSON.stringify(snapshot));
+    const replacement = { id: `replacement-${stop}`, generation: randomToken() };
+    const racing = new GoalScheduler({
+      ...session.host,
+      apply: (spec) => {
+        // Resume, claim and accept leave a live dispatch behind them. This is
+        // what lands in the window between the settlement read and its stop.
+        const started = store.apply({
+          expectedGoalId: goal.id,
+          mutate: (draft) => ({
+            ...draft,
+            scheduler: draft.scheduler
+              ? { ...draft.scheduler, phase: "running", idleRuns: 0, used: 0, generation: replacement.generation, dispatch: { id: replacement.id, claimedAt: Date.now() } }
+              : undefined,
+          }),
+        });
+        assert.ok(started.ok, JSON.stringify(started));
+        return store.apply({ ...spec });
+      },
+    });
+    racing.settled(snapshot.goal, { maxAutonomousRuns: 1 }, true, true);
+    const after = read(goal.id)!;
+    assert.equal(after.scheduler?.dispatch?.id, replacement.id, `${stop}: the replacement dispatch survives`);
+    assert.equal(after.scheduler?.generation, replacement.generation, `${stop}: and its generation is untouched`);
+    assert.equal(after.status, "active", `${stop}: and it is still running`);
+  }
 });
 
 await scenario("a denied scheduler stays denied", () => {
@@ -313,6 +751,20 @@ await scenario("goal prompts carry the unmet line when the check deferred one", 
   const withLine = goalPromptParts(goal, noSettings, { unmet: "the export row count must match the filter" });
   assert.match(withLine.counters, /NOT met: the export row count must match the filter/);
   assert.equal(withLine.state, without.state, "and the cached policy is untouched");
+});
+
+await scenario("a successful claim is recorded in the ledger", () => {
+  const session = makeHost("session-ledger");
+  const scheduler = new GoalScheduler(session.host);
+  const goal = focusNewGoal(session, "session-ledger");
+  scheduler.schedule(arm(goal.id), noSettings);
+  const claimed = scheduler.claim();
+  assert.ok(claimed, "the armed decision is claimed");
+  const events = readGoalLedger(root, goal.id);
+  const entry = events.find((event) => event.type === "goal_claimed");
+  assert.ok(entry, `a spent decision must be durable, saw ${events.map((event) => event.type).join(",") || "no events"}`);
+  assert.equal(entry.run, claimed.run);
+  assert.equal(entry.dispatchId, claimed.dispatchId);
 });
 
 rmSync(root, { recursive: true, force: true });

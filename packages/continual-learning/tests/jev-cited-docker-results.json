@@ -1,0 +1,208 @@
+{
+  "evidence": "real-pi-independent-docker-project-runs",
+  "baselineScope": "Independent generated trajectories, not same-trajectory semantic comparisons",
+  "latestSourceFullyDockerVerified": false,
+  "rounds": [
+    {
+      "run": "20261005-cited-review-r1",
+      "sourceDigest": "d2380ff8e2fa10b95206587d496c55b44a1b7fea40eadb5200ac927749718322",
+      "providerRequests": 160,
+      "providerErrors": 0,
+      "jevRequests": 23,
+      "jevResponsesWithUsage": 23,
+      "jevActualModels": [
+        "jev-1.13.0"
+      ],
+      "jevInputTokens": 184957,
+      "jevEstimatedCostUsd": 0.007768194000000001,
+      "offPassed": 0,
+      "onPassed": 0,
+      "projects": [
+        {
+          "project": "click",
+          "repository": "https://github.com/pallets/click.git",
+          "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+          "jevMode": "off",
+          "sourceDigest": "d2380ff8e2fa10b95206587d496c55b44a1b7fea40eadb5200ac927749718322",
+          "status": "failed",
+          "stage": "fresh-session-recall",
+          "checks": {
+            "regressionChanged": true,
+            "privatePreference": true,
+            "safeFact": true,
+            "safeMirrorIdentical": true
+          },
+          "failureReason": "Fresh session failed to use its learned preference"
+        },
+        {
+          "project": "click",
+          "repository": "https://github.com/pallets/click.git",
+          "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+          "jevMode": "on",
+          "sourceDigest": "d2380ff8e2fa10b95206587d496c55b44a1b7fea40eadb5200ac927749718322",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "failureReason": "No successful real Jev memory judgment"
+        },
+        {
+          "project": "mitt",
+          "repository": "https://github.com/developit/mitt.git",
+          "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+          "jevMode": "off",
+          "sourceDigest": "d2380ff8e2fa10b95206587d496c55b44a1b7fea40eadb5200ac927749718322",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "failureReason": "Durable no-push requirement produced no Harness rule"
+        },
+        {
+          "project": "mitt",
+          "repository": "https://github.com/developit/mitt.git",
+          "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+          "jevMode": "on",
+          "sourceDigest": "d2380ff8e2fa10b95206587d496c55b44a1b7fea40eadb5200ac927749718322",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "failureReason": "No successful real Jev memory judgment"
+        },
+        {
+          "project": "p-limit",
+          "repository": "https://github.com/sindresorhus/p-limit.git",
+          "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+          "jevMode": "off",
+          "sourceDigest": "d2380ff8e2fa10b95206587d496c55b44a1b7fea40eadb5200ac927749718322",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "failureReason": "Real task produced no Memory changes"
+        },
+        {
+          "project": "p-limit",
+          "repository": "https://github.com/sindresorhus/p-limit.git",
+          "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+          "jevMode": "on",
+          "sourceDigest": "d2380ff8e2fa10b95206587d496c55b44a1b7fea40eadb5200ac927749718322",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "failureReason": "No successful real Jev memory judgment"
+        }
+      ]
+    },
+    {
+      "run": "20261005-cited-review-final",
+      "sourceDigest": "eda772cf3ffd7959b8205878fbeaf0a99fa0a3dce4a1c2a520e62c349d789662",
+      "providerRequests": 125,
+      "providerErrors": 0,
+      "jevRequests": 24,
+      "jevResponsesWithUsage": 24,
+      "jevActualModels": [
+        "jev-1.13.0"
+      ],
+      "jevInputTokens": 131811,
+      "jevEstimatedCostUsd": 0.005536062,
+      "offPassed": 1,
+      "onPassed": 0,
+      "projects": [
+        {
+          "project": "click",
+          "repository": "https://github.com/pallets/click.git",
+          "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+          "jevMode": "on",
+          "sourceDigest": "eda772cf3ffd7959b8205878fbeaf0a99fa0a3dce4a1c2a520e62c349d789662",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "failureReason": "No successful real Jev memory judgment"
+        },
+        {
+          "project": "click",
+          "repository": "https://github.com/pallets/click.git",
+          "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+          "jevMode": "off",
+          "sourceDigest": "eda772cf3ffd7959b8205878fbeaf0a99fa0a3dce4a1c2a520e62c349d789662",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "failureReason": "Durable no-push requirement produced no Harness rule"
+        },
+        {
+          "project": "mitt",
+          "repository": "https://github.com/developit/mitt.git",
+          "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+          "jevMode": "off",
+          "sourceDigest": "eda772cf3ffd7959b8205878fbeaf0a99fa0a3dce4a1c2a520e62c349d789662",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "failureReason": "Durable no-push requirement produced no Harness rule"
+        },
+        {
+          "project": "mitt",
+          "repository": "https://github.com/developit/mitt.git",
+          "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+          "jevMode": "on",
+          "sourceDigest": "eda772cf3ffd7959b8205878fbeaf0a99fa0a3dce4a1c2a520e62c349d789662",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {
+            "regressionChanged": true
+          },
+          "failureReason": "No successful real Jev memory judgment"
+        },
+        {
+          "project": "p-limit",
+          "repository": "https://github.com/sindresorhus/p-limit.git",
+          "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+          "jevMode": "off",
+          "sourceDigest": "eda772cf3ffd7959b8205878fbeaf0a99fa0a3dce4a1c2a520e62c349d789662",
+          "status": "passed",
+          "stage": "complete",
+          "checks": {
+            "regressionChanged": true,
+            "privatePreference": true,
+            "safeFact": true,
+            "safeMirrorIdentical": true,
+            "baselinePrivateRecall": true,
+            "freshPrivateRecall": true,
+            "freshFullMemoryReads": true,
+            "freshVerifiedCommand": true,
+            "nativeBashBlocked": true,
+            "blockedSideEffectAbsent": true,
+            "unrelatedBashExecuted": true
+          },
+          "failureReason": null
+        },
+        {
+          "project": "p-limit",
+          "repository": "https://github.com/sindresorhus/p-limit.git",
+          "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+          "jevMode": "on",
+          "sourceDigest": "eda772cf3ffd7959b8205878fbeaf0a99fa0a3dce4a1c2a520e62c349d789662",
+          "status": "failed",
+          "stage": "real-regression-task",
+          "checks": {},
+          "failureReason": "Project existing timing assertion failed before learning"
+        }
+      ]
+    }
+  ]
+}

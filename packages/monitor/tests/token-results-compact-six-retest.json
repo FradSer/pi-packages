@@ -1,0 +1,690 @@
+{
+  "method": "Native Pi 1.0 offline CLI; actual provider context; installed pi-ai Responses serializers; local tiktoken estimates of serialized input/tools, not billed tokens; no caching discount or real model routing evaluated.",
+  "cases": [
+    {
+      "name": "quick-small",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "match",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 712,
+        "o200k_base": 720
+      },
+      "final_request": {
+        "utf8_bytes": 3625,
+        "cl100k_base": 913,
+        "o200k_base": 918
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 13126,
+        "cl100k_base": 3250,
+        "o200k_base": 3276
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 454,
+        "cl100k_base": 147,
+        "o200k_base": 147
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 13580,
+        "cl100k_base": 3397,
+        "o200k_base": 3423
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 103,
+        "cl100k_base": 34,
+        "o200k_base": 34
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 400,
+        "cl100k_base": 133,
+        "o200k_base": 133
+      },
+      "terminal_content_sha256": [
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e",
+        "8221ac66be71558c921fb44cfb66f7997699aea754d917763882d6d9eddc836e"
+      ]
+    },
+    {
+      "name": "quick-small",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "match",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 992,
+        "o200k_base": 1007
+      },
+      "final_request": {
+        "utf8_bytes": 5204,
+        "cl100k_base": 1253,
+        "o200k_base": 1265
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 18830,
+        "cl100k_base": 4490,
+        "o200k_base": 4544
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 706,
+        "cl100k_base": 204,
+        "o200k_base": 204
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 19536,
+        "cl100k_base": 4694,
+        "o200k_base": 4748
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 127,
+        "cl100k_base": 37,
+        "o200k_base": 37
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 652,
+        "cl100k_base": 190,
+        "o200k_base": 190
+      },
+      "terminal_content_sha256": [
+        "d1ab10f1b513a72c00d3c5701b2f07c6d02db4c250758cf31ae4d0e6d3a807a3",
+        "d1ab10f1b513a72c00d3c5701b2f07c6d02db4c250758cf31ae4d0e6d3a807a3",
+        "d1ab10f1b513a72c00d3c5701b2f07c6d02db4c250758cf31ae4d0e6d3a807a3"
+      ]
+    },
+    {
+      "name": "noisy-success",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "match",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 711,
+        "o200k_base": 719
+      },
+      "final_request": {
+        "utf8_bytes": 159853,
+        "cl100k_base": 28397,
+        "o200k_base": 28402
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 325582,
+        "cl100k_base": 58218,
+        "o200k_base": 58244
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 775,
+        "cl100k_base": 291,
+        "o200k_base": 297
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 326357,
+        "cl100k_base": 58509,
+        "o200k_base": 58541
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 155938,
+        "cl100k_base": 27345,
+        "o200k_base": 27345
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 721,
+        "cl100k_base": 277,
+        "o200k_base": 283
+      },
+      "terminal_content_sha256": [
+        "1d8447a2718f180f4da7b629a9c38bae20fe8a3b88857bde187c671a7daa2f19",
+        "ec46206db9687dc503b8edd0f30791940cc412d64ed47b61f5ea0864cecbcf5e",
+        "35c42b489753c6e50ba17e7bbb2c3bffc15d42d63ff97af1f3b6ea1b9cba57a3"
+      ]
+    },
+    {
+      "name": "noisy-success",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "match",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 991,
+        "o200k_base": 1006
+      },
+      "final_request": {
+        "utf8_bytes": 5603,
+        "cl100k_base": 1429,
+        "o200k_base": 1441
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 19628,
+        "cl100k_base": 4840,
+        "o200k_base": 4894
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1033,
+        "cl100k_base": 351,
+        "o200k_base": 357
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 20661,
+        "cl100k_base": 5191,
+        "o200k_base": 5251
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 127,
+        "cl100k_base": 37,
+        "o200k_base": 37
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 979,
+        "cl100k_base": 337,
+        "o200k_base": 343
+      },
+      "terminal_content_sha256": [
+        "d1ab10f1b513a72c00d3c5701b2f07c6d02db4c250758cf31ae4d0e6d3a807a3",
+        "d1ab10f1b513a72c00d3c5701b2f07c6d02db4c250758cf31ae4d0e6d3a807a3",
+        "d1ab10f1b513a72c00d3c5701b2f07c6d02db4c250758cf31ae4d0e6d3a807a3"
+      ]
+    },
+    {
+      "name": "unique-10k-failure",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "match",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 714,
+        "o200k_base": 722
+      },
+      "final_request": {
+        "utf8_bytes": 163384,
+        "cl100k_base": 68172,
+        "o200k_base": 63122
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 332644,
+        "cl100k_base": 137769,
+        "o200k_base": 127685
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 865,
+        "cl100k_base": 309,
+        "o200k_base": 315
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 333509,
+        "cl100k_base": 138078,
+        "o200k_base": 128000
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 159403,
+        "cl100k_base": 67108,
+        "o200k_base": 62050
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 811,
+        "cl100k_base": 295,
+        "o200k_base": 301
+      },
+      "terminal_content_sha256": [
+        "5cbdb6ae5f7ce141503bfe7f0a8da66b7e572a896bf674619d6c13a099e2b517",
+        "888d696ea6d1792e100b1004f3a2a2cdfb0b5126b299a71cb90ae7aa5c0f3e2c",
+        "8690fe385bd4a8a9dacfa3424fe8398d5494fb728015706b39f094f4f46468df"
+      ]
+    },
+    {
+      "name": "unique-10k-failure",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "match",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 992,
+        "o200k_base": 1007
+      },
+      "final_request": {
+        "utf8_bytes": 19142,
+        "cl100k_base": 6091,
+        "o200k_base": 6106
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 46706,
+        "cl100k_base": 14169,
+        "o200k_base": 14229
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1276,
+        "cl100k_base": 423,
+        "o200k_base": 429
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 47982,
+        "cl100k_base": 14592,
+        "o200k_base": 14658
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 13429,
+        "cl100k_base": 4635,
+        "o200k_base": 4635
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1222,
+        "cl100k_base": 409,
+        "o200k_base": 415
+      },
+      "terminal_content_sha256": [
+        "e2f73ee7058c8dcdd7aa9097a8ebbb4f49189e98cdbc66a3b2d820ae52785811",
+        "d6589417c6dc295b77912adaf70ff5aa4a175b018d6403906a4d5ac7423ee4f2",
+        "8b265923a68e323015654eef182ca2c7706ab7fb84961b2eebc36ea14f1f4e6c"
+      ]
+    },
+    {
+      "name": "json-24k",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "match",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 712,
+        "o200k_base": 720
+      },
+      "final_request": {
+        "utf8_bytes": 77593,
+        "cl100k_base": 10219,
+        "o200k_base": 10224
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 161062,
+        "cl100k_base": 21862,
+        "o200k_base": 21888
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 619,
+        "cl100k_base": 207,
+        "o200k_base": 210
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 161681,
+        "cl100k_base": 22069,
+        "o200k_base": 22098
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 73882,
+        "cl100k_base": 9268,
+        "o200k_base": 9268
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 565,
+        "cl100k_base": 193,
+        "o200k_base": 196
+      },
+      "terminal_content_sha256": [
+        "479feafad54bb398f94b6d4c2f2554efe675800d24651bab5da89e051a633997",
+        "479feafad54bb398f94b6d4c2f2554efe675800d24651bab5da89e051a633997",
+        "479feafad54bb398f94b6d4c2f2554efe675800d24651bab5da89e051a633997"
+      ]
+    },
+    {
+      "name": "json-24k",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "match",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 991,
+        "o200k_base": 1006
+      },
+      "final_request": {
+        "utf8_bytes": 6110,
+        "cl100k_base": 1603,
+        "o200k_base": 1615
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 20642,
+        "cl100k_base": 5188,
+        "o200k_base": 5242
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 898,
+        "cl100k_base": 285,
+        "o200k_base": 288
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 21540,
+        "cl100k_base": 5473,
+        "o200k_base": 5530
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 817,
+        "cl100k_base": 295,
+        "o200k_base": 295
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 844,
+        "cl100k_base": 271,
+        "o200k_base": 274
+      },
+      "terminal_content_sha256": [
+        "5c6727388542d805edf97227027ea4e0c2512e9fcebb4f489fcedbce53730ffd",
+        "ea943ef94334c553e788df812538164acffc3f4073a8ca4bc58ffa1f2ba50d35",
+        "48eb5b0cfd9706a0f7f3034cbbd6e8de47372a07351c47d97b80ac4c6bd9cb6e"
+      ]
+    },
+    {
+      "name": "ordinary-captures-duplicated",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "match",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 713,
+        "o200k_base": 721
+      },
+      "final_request": {
+        "utf8_bytes": 15931,
+        "cl100k_base": 2462,
+        "o200k_base": 2467
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 37738,
+        "cl100k_base": 6350,
+        "o200k_base": 6376
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 484,
+        "cl100k_base": 162,
+        "o200k_base": 162
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 38222,
+        "cl100k_base": 6512,
+        "o200k_base": 6538
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 12379,
+        "cl100k_base": 1567,
+        "o200k_base": 1567
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 430,
+        "cl100k_base": 148,
+        "o200k_base": 148
+      },
+      "terminal_content_sha256": [
+        "58a585cc7323a6b00d697140d8a124dd392b59a87a15e4b3dd08a63bd2a8bfbe",
+        "58a585cc7323a6b00d697140d8a124dd392b59a87a15e4b3dd08a63bd2a8bfbe",
+        "58a585cc7323a6b00d697140d8a124dd392b59a87a15e4b3dd08a63bd2a8bfbe"
+      ]
+    },
+    {
+      "name": "ordinary-captures-duplicated",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "match",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 992,
+        "o200k_base": 1007
+      },
+      "final_request": {
+        "utf8_bytes": 7208,
+        "cl100k_base": 2109,
+        "o200k_base": 2126
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 22838,
+        "cl100k_base": 6201,
+        "o200k_base": 6266
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1471,
+        "cl100k_base": 615,
+        "o200k_base": 618
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 24309,
+        "cl100k_base": 6816,
+        "o200k_base": 6884
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 1366,
+        "cl100k_base": 482,
+        "o200k_base": 484
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1417,
+        "cl100k_base": 601,
+        "o200k_base": 604
+      },
+      "terminal_content_sha256": [
+        "858da7e27be4eeb1688e6221d3ab51fc15d439a55f76c76663d73c5703c7a790",
+        "eac3baadfb85085d902c7f7c5ae1ae1de5641dcc4f425466217e677eaab61334",
+        "76ab1627c4f268e45aff7a43cd7583a55e8755cc561484f03b3d30103e38adb7"
+      ]
+    },
+    {
+      "name": "unicode-noisy-success",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "match",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 714,
+        "o200k_base": 722
+      },
+      "final_request": {
+        "utf8_bytes": 161938,
+        "cl100k_base": 50627,
+        "o200k_base": 39040
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 329752,
+        "cl100k_base": 102683,
+        "o200k_base": 79525
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 763,
+        "cl100k_base": 273,
+        "o200k_base": 267
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 330515,
+        "cl100k_base": 102956,
+        "o200k_base": 79792
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 158059,
+        "cl100k_base": 49599,
+        "o200k_base": 38016
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 709,
+        "cl100k_base": 259,
+        "o200k_base": 253
+      },
+      "terminal_content_sha256": [
+        "817d05fd5ac417266daa686eb1151fb45c07cc8c65b5acf0593e8e690a905261",
+        "fc3d0fd3a02f7d4c6c982676979598f1329e23b2c6a074f5fe3494fe9af0f58a",
+        "4b1b593bce70af119b1c0dd661d0bf783ac7b6172e9bf9cda3638ea598d50339"
+      ]
+    },
+    {
+      "name": "unicode-noisy-success",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "match",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 991,
+        "o200k_base": 1006
+      },
+      "final_request": {
+        "utf8_bytes": 5591,
+        "cl100k_base": 1405,
+        "o200k_base": 1408
+      },
+      "equivalence": "3 real repeat executions; no polling savings inferred. When measured, the timeout scenario requests the same 100ms limit in both tools; monitor deadline includes startup/worker cost whereas bash timer covers process execution. Codemode validates required status/JSON integrity then emits a lossy predefined summary; escaped over-budget JSON is explicitly unparsed, not counted as lossless savings.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 19604,
+        "cl100k_base": 4792,
+        "o200k_base": 4828
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1045,
+        "cl100k_base": 336,
+        "o200k_base": 330
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 20649,
+        "cl100k_base": 5128,
+        "o200k_base": 5158
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 127,
+        "cl100k_base": 37,
+        "o200k_base": 37
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 991,
+        "cl100k_base": 322,
+        "o200k_base": 316
+      },
+      "terminal_content_sha256": [
+        "d1ab10f1b513a72c00d3c5701b2f07c6d02db4c250758cf31ae4d0e6d3a807a3",
+        "d1ab10f1b513a72c00d3c5701b2f07c6d02db4c250758cf31ae4d0e6d3a807a3",
+        "d1ab10f1b513a72c00d3c5701b2f07c6d02db4c250758cf31ae4d0e6d3a807a3"
+      ]
+    }
+  ],
+  "encodings": [
+    "cl100k_base",
+    "o200k_base"
+  ],
+  "repeats": 3,
+  "snapshot": {
+    "date": "2026-10-04",
+    "Pi_CLI": "1.0.2",
+    "Node": "24.16.0",
+    "platform": "macOS",
+    "raw_report_sha256": "dcf9ef0df8b536f1478256a6d127b3d32d13bd9681505fb1639c3a7610a420ec",
+    "raw_report_local_path": "/tmp/monitor-compact-six-retest-20261004.json"
+  }
+}

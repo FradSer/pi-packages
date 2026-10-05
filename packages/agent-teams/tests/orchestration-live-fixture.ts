@@ -2,11 +2,11 @@
 import assert from "node:assert/strict";
 import { createAssistantMessageEventStream, getSystemMessageText, type AssistantMessage, type ToolCall } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import agentTeams from "../src/index.ts";
+import teamRuntime from "../src/index.ts";
 import mattPocock from "../../matt-pocock/src/index.ts";
 
 export default function (pi: ExtensionAPI): void {
-  agentTeams(pi);
+  teamRuntime(pi);
   mattPocock(pi);
   let step = 0;
   pi.registerProvider("orchestration-guidance-fixture", {

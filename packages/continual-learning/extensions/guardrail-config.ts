@@ -17,6 +17,16 @@ export interface ConfigPaths {
 }
 export interface ResolvedHarnessConfigWithPaths { config: ResolvedHarnessConfig; paths: ConfigPaths }
 
+/** Stable precedence shared by loading, authoring previews, and consolidation.
+ * Keep the scoped user layer between global user rules and project rules. */
+export const HARNESS_LAYER_ORDER = ["user", "user.scoped", "project", "project.local"] as const;
+
+export function compareHarnessLayers(left: Pick<RuleLayer, "source">, right: Pick<RuleLayer, "source">): number {
+  const leftIndex = HARNESS_LAYER_ORDER.indexOf(left.source as (typeof HARNESS_LAYER_ORDER)[number]);
+  const rightIndex = HARNESS_LAYER_ORDER.indexOf(right.source as (typeof HARNESS_LAYER_ORDER)[number]);
+  return (leftIndex < 0 ? HARNESS_LAYER_ORDER.length : leftIndex) - (rightIndex < 0 ? HARNESS_LAYER_ORDER.length : rightIndex);
+}
+
 /**
  * Where a project's personal Harness configuration lives.
  *

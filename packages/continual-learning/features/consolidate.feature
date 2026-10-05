@@ -1,6 +1,6 @@
 Feature: Memory management with automatic learning and manual consolidation
   The memory extension learns from settled user tasks when auto-memory is on.
-  The /memory menu and /consolidate command also start consolidation explicitly.
+  The /memory request and /consolidate command also start learning explicitly.
   Read-only planners propose changes; the parent validates and applies them.
 
   Background:
@@ -21,7 +21,8 @@ Feature: Memory management with automatic learning and manual consolidation
 
   Scenario: /memory management menu includes auto-memory toggle
     Given the user opens the /memory menu
-    Then it offers options to consolidate memory, edit user instructions, edit project instructions, open memory folder, and toggle auto-memory
+    Then it offers Browse memories, Learning settings, and Recent learning
+    And Learning settings offers model search, automatic learning, and advanced phase policies
     And selecting toggle auto-memory flips the setting and persists it
 
   Scenario: Automatic consolidation follows deterministic evidence screening
@@ -343,12 +344,50 @@ Feature: Memory management with automatic learning and manual consolidation
     When its runtime, tests, and documentation are inspected
     Then no project-local private memory directory is recognized, migrated, guarded, or documented
 
+  Scenario: Real learning acceptance distinguishes new private, shared, and updated Memory
+    Given a disposable real-Pi learning task has one seeded project Memory entry
+    And the task requests one unambiguous private preference and one unique shared project fact
+    And the task explicitly requests an update to the seeded entry
+    When the learning pipeline completes
+    Then the selector dossier and validated Memory plan name the seeded entry in their selected scope
+    And the validated plan contains an operation that updates that seeded entry
+    And the private preference is marked harness-only in the private index and has no project mirror, including when its wording is paraphrased
+    And the private marker is absent from every project .memory document including MEMORY.md, AGENTS.md, and .pi/harness.json
+    And the shared fact is byte-identical in the private and project Memory roots
+    And the updated entry's current frontmatter and current instruction use `bun run verify`, while explicitly superseded history may retain `bun run check`
+    And the learning receipt records applied Memory, Harness, and AGENTS.md phases
+    And a fresh real-Pi session reads the exact learned public Memory paths with native read results and reports `bun run verify` plus the learned release marker
+    And the allowed native Bash result is tied to the exact `printf CL_RUNTIME_FRESH_OK` call
+
+  Scenario: Live Bash refusal is bound to the requested call
+    Given a fresh session contains a Bash tool call for the learned prohibited command
+    And another unrelated Bash call has an error result
+    When the live acceptance reads assistant tool calls and tool results
+    Then only a failed result with the requested call's toolCallId counts as the learned block
+    And the result's native toolName is Bash and a same-id result from another tool does not count
+    And the refusal reason identifies a Harness policy or prohibition
+    And an unrelated `printf` result containing the success marker does not count as the allowed call
+    And a canonical path alias still identifies the AGENTS.md post receipt target
+
   Scenario: Pre-run mirror normalization repairs safe-file drift
     Given the private and project-shared copies of a safe memory file differ before the run
     When a consolidation run is created
     Then the parent overwrites the older copy with the newer side's bytes first
     And private-marked or orphan project-shared files are removed
     And both indexes are regenerated before planning
+
+  Scenario: A missing project mirror is created before private Memory is shared
+    Given the private Memory root contains a safe entry and the project .memory root is absent
+    When pre-run mirror normalization runs
+    Then it creates the project .memory root before copying the safe entry
+    And the private and project copies are byte-identical
+    And both discovery indexes are regenerated
+
+  Scenario: Mirror normalization fails closed on a replaced project root
+    Given the project .memory path is a symlink to an outside directory
+    When pre-run mirror normalization runs
+    Then it rejects the root before reading or deleting outside entries
+    And the outside directory remains unchanged
 
   Scenario: Parent validates before and after scoped mutation
     Given the child returns a valid plan for selected memory files
@@ -432,3 +471,14 @@ Feature: Memory management with automatic learning and manual consolidation
     Given a validated plan has been applied and a post receipt records its raw plan digest
     When the plan artifact is replaced with another schema-valid plan before final validation
     Then final validation rejects the receipt even when identity, selected scope, and final memory hashes still match
+
+  Scenario: Repair diagnostics respect their declared character limit
+    Given oversized original and repair rejection reasons
+    When the bounded repair diagnostic is formatted
+    Then it contains at most 1200 characters including the truncation marker
+    And sensitive material is detected before truncating a reason
+
+  Scenario: Shared verification rejects symbolic links
+    Given a shared Memory path is a symbolic link to private or missing content
+    When the real learning smoke verifies shared surfaces
+    Then the symbolic link is reported as an invalid shared output

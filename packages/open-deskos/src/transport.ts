@@ -1,6 +1,8 @@
 import { connect, type Socket } from "node:net";
 import { DESK_LINK_PROTOCOL, type DeskLinkConfig, type DeskLinkRecord } from "./types.ts";
 
+const MAX_INBOUND_FRAME_BYTES = 1024 * 1024;
+
 /**
  * A Desk Link transport. The reporter never touches a socket directly, so the
  * wire contract is testable without a network.
@@ -32,7 +34,7 @@ export function parseRecords(chunk: string, remainder: string): { records: unkno
 }
 
 /** The real Desk Link: one outbound TCP connection with newline-delimited JSON. */
-export function createTcpTransport(config: DeskLinkConfig): DeskTransport {
+export function createTcpTransport(config: DeskLinkConfig, options: { connectTimeoutMs?: number } = {}): DeskTransport {
   const openHandlers: Array<() => void> = [];
   const closeHandlers: Array<(reason: string) => void> = [];
   const recordHandlers: Array<(record: unknown) => void> = [];
@@ -42,6 +44,9 @@ export function createTcpTransport(config: DeskLinkConfig): DeskTransport {
   const socket: Socket = connect({ host: config.host, port: config.port });
   socket.setKeepAlive(true, 15000);
   socket.setNoDelay(true);
+  // Node's stream decoder retains incomplete UTF-8 code points across packets.
+  socket.setEncoding("utf8");
+  socket.setTimeout(options.connectTimeoutMs ?? 10000);
 
   const announceClose = (reason: string): void => {
     if (closed) return;
@@ -50,14 +55,32 @@ export function createTcpTransport(config: DeskLinkConfig): DeskTransport {
   };
 
   socket.on("connect", () => {
+    if (closed) return;
+    socket.setTimeout(0);
     for (const handler of openHandlers) handler();
   });
-  socket.on("data", (chunk: Buffer) => {
-    const parsed = parseRecords(chunk.toString("utf8"), remainder);
-    remainder = parsed.pending.length > 4096 ? "" : parsed.pending;
+  socket.on("timeout", () => {
+    announceClose("connection timeout");
+    socket.destroy();
+  });
+  socket.on("data", (chunk: string) => {
+    if (closed) return;
+    const text = remainder + chunk;
+    const lines = text.split("\n");
+    // Never discard a prefix and parse the suffix as an independent record.
+    if (lines.some((line) => Buffer.byteLength(line) + 1 > MAX_INBOUND_FRAME_BYTES)) {
+      announceClose("inbound record exceeds 1 MiB frame limit");
+      socket.destroy();
+      return;
+    }
+    const parsed = parseRecords(chunk, remainder);
+    remainder = parsed.pending;
     for (const record of parsed.records) for (const handler of recordHandlers) handler(record);
   });
-  socket.on("error", (error: Error) => announceClose(error.message));
+  socket.on("error", (error: Error) => {
+    announceClose(error.message);
+    socket.destroy();
+  });
   socket.on("close", () => announceClose("link closed"));
 
   return {

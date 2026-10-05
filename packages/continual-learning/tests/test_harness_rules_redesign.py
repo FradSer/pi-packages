@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from support import isolated_run_bun as run_bun
 
 
@@ -528,6 +530,38 @@ def test_text_guidance_no_self_trigger_and_extracts_all_visible_sources() -> Non
     assert result['hasGuidance'] is False
 
 
+def test_text_guidance_excludes_harness_notes_in_string_tool_results() -> None:
+    result = run_bun('''
+      import { extractModelVisibleTexts } from './packages/continual-learning/extensions/harness-guidance-planner.ts';
+
+      const texts = extractModelVisibleTexts([
+        { role: 'toolResult', content: '[harness-bash-note]\\nsecret keyword' },
+        { role: 'toolResult', content: '[harness-config-note]\\nother secret keyword' },
+        { role: 'toolResult', content: 'native output\\n[harness-bash-note]\\nsecret keyword' },
+        { role: 'toolResult', content: 'ordinary tool result with keyword' },
+        { role: 'bashExecution', command: 'echo ok', output: 'native shell output\\n[harness-bash-note]\\nsecret keyword' },
+      ]);
+      console.log(JSON.stringify({ texts }));
+    ''')
+    assert result['texts'] == ['native output', 'ordinary tool result with keyword', 'echo ok', 'native shell output']
+
+
+def test_text_guidance_preserves_note_markers_in_user_and_custom_text() -> None:
+    result = run_bun('''
+      import { extractModelVisibleTexts } from './packages/continual-learning/extensions/harness-guidance-planner.ts';
+
+      const texts = extractModelVisibleTexts([
+        { role: 'user', content: '[harness-bash-note]\\nUser documentation deliberately uses the marker.' },
+        { role: 'custom', customType: 'project-note', content: '[harness-config-note]\\nProject documentation deliberately uses the marker.' },
+      ]);
+      console.log(JSON.stringify({ texts }));
+    ''')
+    assert result['texts'] == [
+        '[harness-bash-note]\nUser documentation deliberately uses the marker.',
+        '[harness-config-note]\nProject documentation deliberately uses the marker.',
+    ]
+
+
 def test_bash_hook_integration() -> None:
     result = run_bun('''
       import path from 'node:path';
@@ -688,6 +722,76 @@ def test_harness_guidance_hook_integration() -> None:
     assert 'Only for this /skill:open-deskos-widget task' in result['skillContent']
     assert 'Overlay relationship.' in result['skillContent']
     assert result['skillRuleIds'] == ['skill-rule']
+
+
+def test_registered_text_guidance_reports_scoped_source_and_retirement_owner(tmp_path: Path) -> None:
+    result = run_bun(f'''
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path / "agent"))};
+      import fs from 'node:fs'; import path from 'node:path';
+      import registerHarnessGuidance from './packages/continual-learning/extensions/harness-guidance.ts';
+      import {{ configPaths }} from './packages/continual-learning/extensions/guardrail-config.ts';
+      const cwd={json.dumps(str(tmp_path))};
+      const paths=configPaths(cwd);
+      fs.mkdirSync(path.dirname(paths.userScoped), {{recursive:true}});
+      fs.writeFileSync(paths.userScoped, JSON.stringify({{rules:[{{id:'scoped-text',text:'needle',instructions:'Scoped guidance'}}]}}));
+      const hooks={{}}, entries=[];
+      registerHarnessGuidance({{on:(name,handler)=>hooks[name]=handler,registerEntryRenderer(){{}},appendEntry:(type,data)=>entries.push({{type,data}})}});
+      const event={{type:'before_agent_start',prompt:'needle',systemPrompt:'',systemPromptOptions:{{skills:[]}}}};
+      const first=await hooks.before_agent_start(event,{{cwd,sessionManager:{{buildContextEntries:()=>[]}}}});
+      fs.rmSync(paths.userScoped,{{force:true}});
+      const retained=[{{type:'custom_message',customType:'harness-guidance',content:first.message.content,display:false,details:first.message.details}}];
+      fs.mkdirSync(path.dirname(paths.project),{{recursive:true}});
+      fs.writeFileSync(paths.project, JSON.stringify({{rules:[{{id:'scoped-text',text:'needle',instructions:'Scoped guidance'}}]}}));
+      const ownerChanged=await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>retained}}}});
+      fs.rmSync(paths.project,{{force:true}});
+      const second=await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>retained}}}});
+      const oldRetained=[{{type:'custom_message',customType:'harness-guidance',content:first.message.content,display:false,details:{{entries:[{{id:'scoped-text',revision:first.message.details.entries[0].revision,status:'active'}}]}}}}];
+      const oldRetired=await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>oldRetained}}}});
+      console.log(JSON.stringify({{
+        paths, first:first.message.details.entries,
+        firstEvent:entries.find(entry=>entry.data?.kind==='text-rule')?.data,
+        ownerChanged:ownerChanged?.message?.details?.entries ?? [],
+        retired:second.message.details.entries,
+        retiredEvent:entries.find(entry=>entry.data?.kind==='text-rule' && entry.data?.source==='user.scoped' && entry.data?.prompt.includes('retired'))?.data,
+        oldRetired:oldRetired.message.details.entries,
+        oldRetiredEvent:entries.at(-1)?.data,
+      }}));
+    ''')
+    assert result['first'][0]['source'] == 'user.scoped'
+    assert result['firstEvent']['source'] == 'user.scoped'
+    assert result['firstEvent']['file'] == result['paths']['userScoped']
+    assert result['ownerChanged'] == []
+    assert result['retired'][0]['status'] == 'retired'
+    assert result['retired'][0]['source'] == 'user.scoped'
+    assert result['retiredEvent']['source'] == 'user.scoped'
+    assert result['retiredEvent']['file'] == result['paths']['userScoped']
+    assert result['oldRetired'][0].get('source') is None
+    assert result['oldRetiredEvent']['source'] == 'unknown'
+    assert result['oldRetiredEvent']['file'] == '(unknown)'
+
+
+def test_registered_guidance_holds_text_plan_when_context_rebuild_fails(tmp_path: Path) -> None:
+    result = run_bun(f'''
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path / "agent"))};
+      import fs from 'node:fs'; import path from 'node:path';
+      import registerHarnessGuidance from './packages/continual-learning/extensions/harness-guidance.ts';
+      const cwd={json.dumps(str(tmp_path))};
+      fs.mkdirSync(path.join(cwd,'.pi'), {{recursive:true}});
+      fs.writeFileSync(path.join(cwd,'.pi','harness.json'), JSON.stringify({{rules:[{{id:'text-rule',text:'needle',instructions:'Do not duplicate this guidance.'}}]}}));
+      const hooks={{}}, entries=[];
+      registerHarnessGuidance({{on:(name,handler)=>hooks[name]=handler,registerEntryRenderer(){{}},appendEntry:(type,data)=>entries.push({{type,data}})}});
+      const result=await hooks.before_agent_start(
+        {{type:'before_agent_start',prompt:'needle',systemPrompt:'',systemPromptOptions:{{skills:[]}}}},
+        {{cwd,sessionManager:{{buildContextEntries:()=>{{throw new Error('context-failure')}}}}}},
+      );
+      console.log(JSON.stringify({{result,entries}}));
+    ''')
+    assert result.get('result') is None
+    incomplete = [entry['data'] for entry in result['entries'] if entry['data'].get('kind') == 'text-incomplete']
+    assert len(incomplete) == 1
+    assert incomplete[0]['source'] == 'unknown'
+    assert incomplete[0]['file'] == '(unknown)'
+    assert not any(entry['data'].get('kind') == 'text-rule' for entry in result['entries'])
 
 
 

@@ -21,7 +21,7 @@ def test_extension_registers_memory_and_consolidate_commands() -> None:
 
 def test_dreaming_widget_starts_before_selector_and_survives_memory_phase_completion() -> None:
     content = source()
-    pipeline = content[content.index('async function startConsolidationPipeline'):content.index('async function editInstructions')]
+    pipeline = content[content.index('async function startConsolidationPipeline'):content.index('const LEARNING_RESULT_MESSAGE')]
     command = content[content.index('pi.registerCommand("consolidate"'):content.index('pi.registerCommand("memory"')]
     assert 'await resolvePackageDir()' not in command
     assert pipeline.index('setDreamingWidget(ctx') < pipeline.index('selectIncrementalLearning({')
@@ -83,15 +83,16 @@ def test_consolidation_contract_is_parent_owned() -> None:
     assert "createConsolidationReceipt" in content
     assert "releaseConsolidationRun" in content
     assert "parent-owned validation receipt" in content
-    # Consolidation evidence must come from the frozen snapshot, never a live
-    # session read. The learning backlog is the one permitted exception and it
-    # resolves a *path* to queue later, not content to learn from. So the guard
-    # is split: naming the accessor is allowed, reading the file is not.
+    # Current-session evidence is frozen. Explicit full may read one bounded
+    # same-project historical source through the parent, excluding this file.
     backlog = content[content.index("function queueSettledTask("):]
-    assert backlog, "the backlog queueing helper is missing"
-    assert "getSessionFile" in backlog, content
+    assert "getSessionFile" in backlog
     outside = content[:content.index("function queueSettledTask(")]
-    assert "getSessionFile" not in outside, content
+    assert outside.count("getSessionFile") == 1
+    fallback = outside[outside.index('if (fullMode)'):outside.index("const taskSlice", outside.index('if (fullMode)'))]
+    assert "recentProjectLearningInput" in fallback
+    assert "currentSessionFile: invocationContext.sessionManager.getSessionFile?.()" in fallback
+    assert "snapshotSessionContext(invocationContext, recent.entries)" in fallback
     for read in ("readFileSync(sessionFile", "readFile(entry.sessionFile", "Bun.file(sessionFile"):
         assert read not in content, read
     assert "G1" not in content
@@ -235,6 +236,40 @@ def test_rejection_reason_is_head_clipped_at_a_word_agnostic_budget() -> None:
     assert result[0] == "short reason"
     assert result[1].startswith("Consolidation validator rejected the plan:")
     assert result[1].endswith("…") and len(result[1]) == 241
+
+
+def test_incremental_repair_diagnostic_obeys_the_exact_limit_and_redacts_before_clipping() -> None:
+    # Given oversized reasons and a credential split at the clipping boundary,
+    # When diagnostics are formatted, Then neither size nor privacy may weaken.
+    result = run_bun("""
+      import { formatIncrementalRepairDiagnostic } from './packages/continual-learning/extensions/inject-memory.ts';
+      const long = formatIncrementalRepairDiagnostic('x'.repeat(5000), 'y'.repeat(5000));
+      const secret = formatIncrementalRepairDiagnostic('x'.repeat(785) + ' password=supersecret');
+      console.log(JSON.stringify({length: long.length, secret}));
+    """)
+    assert result["length"] <= 1200
+    assert "password" not in result["secret"]
+    assert "redacted sensitive repair diagnostic" in result["secret"]
+
+
+def test_incremental_repair_diagnostic_keeps_original_and_repair_rejections_bounded() -> None:
+    result = run_bun(
+        """
+        import { formatIncrementalRepairDiagnostic } from './packages/continual-learning/extensions/inject-memory.ts';
+        const original = 'newMemories[0].kind must be preference or project';
+        const repair = 'newMemories[0].evidence must contain 1..8 entries';
+        const diagnostic = formatIncrementalRepairDiagnostic(original, repair);
+        const redacted = formatIncrementalRepairDiagnostic(original, `${repair}; password=supersecret`);
+        console.log(JSON.stringify({ diagnostic, redacted, bounded: diagnostic.length <= 1200, secret: redacted.includes('supersecret') }));
+        """
+    )
+    assert result["bounded"] is True
+    assert "original rejection" in result["diagnostic"]
+    assert "preference or project" in result["diagnostic"]
+    assert "repair rejection" in result["diagnostic"]
+    assert "evidence must contain" in result["diagnostic"]
+    assert result["secret"] is False
+    assert "redacted sensitive repair diagnostic" in result["redacted"]
 
 
 def test_task_feedback_lines_only_exist_with_rejection_feedback() -> None:

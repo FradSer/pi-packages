@@ -1,0 +1,23 @@
+{
+  "runs": [
+    {
+      "scenario": "sparse-memory-en",
+      "evidence": "real-native-attempt-without-final-artifact",
+      "processExit": 1,
+      "reason": "evaluation-assumed-private-memory-root-after-skipped-learning",
+      "usageKnown": false,
+      "costKnown": false,
+      "stderr": "WARN `--no-project` was provided, but no project was found\nTraceback (most recent call last):\n  File \"/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_jev_workflow.py\", line 321, in <module>\n    main()\n    ~~~~^^\n  File \"/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_jev_workflow.py\", line 309, in main\n    runs.append(trial(enabled, Path(directory).resolve(), automatic, scenario=scenario))\n                ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_jev_workflow.py\", line 243, in trial\n    current = private_memory_root(agent)\n  File \"/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_smoke.py\", line 152, in private_memory_root\n    assert len(roots) == 1, f\"Expected one canonical private Memory root, found {roots}\"\n           ^^^^^^^^^^^^^^^\nAssertionError: Expected one canonical private Memory root, found []\n"
+    },
+    {
+      "scenario": "sparse-memory-zh",
+      "evidence": "real-native-attempt-without-final-artifact",
+      "processExit": 1,
+      "reason": "evaluation-assumed-private-memory-root-after-skipped-learning",
+      "usageKnown": false,
+      "costKnown": false,
+      "stderr": "WARN `--no-project` was provided, but no project was found\nTraceback (most recent call last):\n  File \"/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_jev_workflow.py\", line 321, in <module>\n    main()\n    ~~~~^^\n  File \"/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_jev_workflow.py\", line 309, in main\n    runs.append(trial(enabled, Path(directory).resolve(), automatic, scenario=scenario))\n                ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_jev_workflow.py\", line 243, in trial\n    current = private_memory_root(agent)\n  File \"/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_smoke.py\", line 152, in private_memory_root\n    assert len(roots) == 1, f\"Expected one canonical private Memory root, found {roots}\"\n           ^^^^^^^^^^^^^^^\nAssertionError: Expected one canonical private Memory root, found []\n"
+    }
+  ],
+  "comparison": "unverified; no final native artifact survived this evaluator exception"
+}

@@ -59,7 +59,7 @@ def test_the_backlog_stores_references_and_never_content() -> None:
     value = isolated_run_bun(SNIPPET)
     # An index over conversations, not a copy of them.
     assert value["carriesContent"] is False, value
-    assert value["entryKeys"] == ["version", "sessionFile", "from", "to", "digest", "reason", "queuedAt"], value
+    assert value["entryKeys"] == ["version", "sessionFile", "from", "to", "digest", "reason", "queuedAt", "scopeKey"], value
     # A task with no session reference cannot be queued blind.
     assert value["noSession"] is False, value
 

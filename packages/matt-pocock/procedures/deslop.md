@@ -31,6 +31,8 @@ Resolve the change set before touching anything:
 
 ### 2. Inventory findings
 
+For a compound guard, justify each predicate separately by tracing the exact expression and conversion order on a concrete input. A failure rejected by another predicate does not prove this one necessary. If no distinguishing input is established, record the claimed necessity as unverified rather than converting a redundant check into a proven requirement. Removing a proven inert predicate preserves the accepted grammar and does not require changing the spec or obtaining a new product decision. Reconcile cleanup, review and handoff verdicts against the final candidate after remediation.
+
 Scan the scope once per category. Produce a findings list: category, location (file plus hunk), the offending line quoted, and the replacement plan. A finding without a concrete replacement plan is not ready to fix — leave it as a reported finding.
 
 ### 3. Rewrite
@@ -43,7 +45,7 @@ Apply the plans in one pass, category by category. For each rewrite:
 
 ### 4. Verify
 
-Run the verification the repository already uses — tests, typecheck, and lint. A de-slop pass ends green or it has not ended.
+Run the verification the repository already uses — tests, typecheck, and lint. A de-slop pass ends green or it has not ended. Record each actually failed command and its observed result separately from reasoning about an unexecuted alternative. Do not describe a rejected design, source inspection or hypothetical regression as a test failure unless that candidate was executed and failed. Label untested conclusions and preserve the real verification sequence in cleanup and handoff notes. Reconcile the summary, findings, verdict and handoff against that sequence before finishing; remove contradictory counts or claims about failed attempts.
 
 ### 5. Verdict
 
@@ -53,4 +55,4 @@ Report under three headings:
 - **Findings** — slop that could not be removed without a behavior change, test coverage, or a design decision, each with the reason.
 - **Skipped** — categories skipped because repository tooling already enforces them.
 
-End with a binary verdict: **CLEAN** only if every planned rewrite landed and verification is green; **PARTIAL** when findings remain. Never report CLEAN with unverified skips.
+End with a binary verdict: **CLEAN** only if every planned rewrite landed, verification is green, and no findings remain; **PARTIAL** when findings remain. A retained finding cannot be made CLEAN by excluding it from the rewrite plan. A readability preference is not a behavioral compatibility requirement: if a known redundant check is kept only to document intent, state that reason honestly and keep the finding in the PARTIAL verdict. Proven necessary guards are not clutter; explain their current requirement rather than listing them as unresolved findings. Never report CLEAN with unverified skips.

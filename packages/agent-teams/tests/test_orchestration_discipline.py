@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from test_teammate_package import PACKAGE, SRC, run_node
+from test_agent_package import PACKAGE, SRC, run_node
 
 
 @pytest.fixture(scope="module")
@@ -80,21 +80,20 @@ def test_work_recheck_needs_explicit_refreshed_context(tmp_path: Path) -> None:
       task.description = "Inspect candidate v1 against baseline B0";
       const priorReport = "Spec REWORK: reviewer scope and stale candidate brief";
       assert.ok(completeTaskWithOutcome(task.id, "reviewer", "success", priorReport).ok);
-      const before = await call("task", { action: "list" });
-      const saved = before.details.tasks.find(entry => entry.id === task.id);
-      assert.equal(saved.result, priorReport);
-      await call("task", { action: "update", id: task.id, status: "pending", reason: "Inspect candidate v2 instead" });
-      const after = await call("task", { action: "list" });
-      const reopened = after.details.tasks.find(entry => entry.id === task.id);
+      const before = await call("list_tasks", {});
+      const savedResult = (await call("get_task", { id: task.id })).details.task.result;
+      assert.equal(savedResult, priorReport);
+      await call("update_task", { id: task.id, status: "pending", reason: "Inspect candidate v2 instead" });
+      const reopened = (await call("get_task", { id: task.id })).details.task;
       assert.equal(reopened.description, "Inspect candidate v1 against baseline B0");
       assert.equal(reopened.result, undefined);
       // This synthetic original is completed again only to exercise a linked follow-up.
       assert.ok(takeTask(task.id, "reviewer").ok);
-      assert.ok(completeTaskWithOutcome(task.id, "reviewer", "success", saved.result).ok);
-      const description = `Bounded recheck: baseline B0; candidate v2; delta fixes two findings. Prior findings: ${saved.result}. Safe checks: prompt contract only.`;
-      const followUp = await call("task", { action: "create", subject: "Recheck review corrections",
-        description, dependsOn: [task.id], resources: ["review:scope"] });
-      // A created task is pending; whether it can be taken right now is a board
+      assert.ok(completeTaskWithOutcome(task.id, "reviewer", "success", savedResult).ok);
+      const description = `Bounded recheck: baseline B0; candidate v2; delta fixes two findings. Prior findings: ${savedResult}. Safe checks: prompt contract only.`;
+      const followUp = await call("create_task", { subject: "Recheck review corrections",
+        description, dependsOn: [task.id] });
+      // A created task is pending; whether it can be taken right now is a task set
       // question answered by `list claimable`, not a property of the creation.
       assert.equal(followUp.details.status, "pending");
       console.log(JSON.stringify({ oldDescription: reopened.description, clearedResult: reopened.result ?? null,

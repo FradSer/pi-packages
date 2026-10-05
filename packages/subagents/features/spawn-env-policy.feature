@@ -84,7 +84,7 @@ Feature: Spawn environment policy withholds secrets from Agent children
   Rule: Spawner overrides are authoritative
 
     Scenario: Caller-supplied bindings always win
-      Given a spawn that supplies its own worker binding variables
+      Given a spawn that supplies its own agent binding variables
       When the child environment is resolved
       Then every supplied binding keeps its supplied value
       And a supplied name absent from the allowlist still reaches the child

@@ -152,6 +152,48 @@ Feature: Harness consolidation alongside memory consolidation
     Then the phase fails
     And the diagnostic names the remaining defect
 
+  Scenario: A missing structured plan gets one bounded recovery
+    Given the Harness planner exits without emitting a structured plan
+    When the parent recovers from the bound snapshot and dossier
+    Then a fresh read-only child receives the same protocol and model
+    And raw rejected output is not relayed into the recovery prompt
+    And the recovered plan is validated and accepted
+
+  Scenario: Missing structured output cannot trigger repeated repairs
+    Given the Harness planner and its one recovery child both emit no structured plan
+    When the parent finishes the planning phase
+    Then exactly two children were spawned
+    And the phase fails without a second recovery attempt
+
+  Scenario: A recovered plan still gets no second repair
+    Given the initial Harness planner emits no structured plan
+    And the recovery child emits a plan that fails validation
+    When the parent revalidates the recovered plan
+    Then exactly two children were spawned
+    And the phase fails with the remaining validation diagnostic
+
+  Scenario: Unsafe extraction failures do not trigger recovery
+    Given the child emits a foreign-identity or ambiguous set of plans
+    When the parent extracts the child output
+    Then no recovery child is started
+    And the extraction failure is returned unchanged
+
+  Scenario: A recovery child that is cancelled is recorded as cancelled
+    Given the initial Harness planner emits no structured plan
+    And the recovery child closes after the phase is cancelled
+    When the parent finishes the planning phase
+    Then the recovery attempt is cancelled rather than failed
+
+  Scenario: Terminated Harness children retain bounded prior usage
+    Given a Harness child reports usage before timing out or exceeding stdout bounds
+    When the parent terminates that child
+    Then usage is reported exactly once from the bounded capture
+
+  Scenario: An unplanned signal is not mislabeled as cancellation
+    Given a Harness child closes with a null exit code while the phase is current
+    When the parent classifies the child result
+    Then the attempt is failed rather than cancelled
+
   Scenario: A repair may not drift onto different evidence
     Given the Harness planner returns a plan that fails validation
     When the repair child runs
@@ -164,3 +206,9 @@ Feature: Harness consolidation alongside memory consolidation
     When the parent prepares to apply it
     Then no repair child runs
     And the plan is applied exactly as it does today
+
+  Scenario: Optional report formatting cannot suppress valid constraints
+    Given a plan whose only structural error is an invalid optional report
+    When the parent removes that report and repeats complete validation
+    Then valid rules continue to semantic review without consuming model repair
+    And identity, evidence, permissions and executable cases remain unchanged

@@ -1,0 +1,332 @@
+{
+  "evidence": "real-jev-inference-read-only-design-ablation",
+  "modelRequested": "jev-1.13.0",
+  "productionChanged": false,
+  "contextProjectionSafetyEstablished": false,
+  "knownCalls": 13,
+  "knownInputTokens": 79430,
+  "knownEstimatedCostUsd": 0.00333606,
+  "rows": [
+    {
+      "project": "click",
+      "variant": "original-full",
+      "expected": "unlabeled-generated-plan",
+      "evidenceBytes": 107080,
+      "candidates": 5,
+      "productionWriteEligible": false,
+      "snapshotDigest": "f973fa0beea434cb2938caf0a3a9f4971865ff9fc22d0408b8167dba9f56926e",
+      "planDigest": "8d7827eea6725154c9d2900810991515d68f8421fc0d67ca9a04ae7fd01451e2",
+      "decision": "propose",
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "bounds",
+        "durationMs": 0
+      }
+    },
+    {
+      "project": "click",
+      "variant": "minimal-full",
+      "expected": "allow-three-explicit-facts",
+      "evidenceBytes": 107080,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "f973fa0beea434cb2938caf0a3a9f4971865ff9fc22d0408b8167dba9f56926e",
+      "planDigest": "8d7827eea6725154c9d2900810991515d68f8421fc0d67ca9a04ae7fd01451e2",
+      "decision": "propose",
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "bounds",
+        "durationMs": 0
+      }
+    },
+    {
+      "project": "click",
+      "variant": "minimal-cited-research-only",
+      "expected": "allow-three-explicit-facts",
+      "evidenceBytes": 1505,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "f973fa0beea434cb2938caf0a3a9f4971865ff9fc22d0408b8167dba9f56926e",
+      "planDigest": "8d7827eea6725154c9d2900810991515d68f8421fc0d67ca9a04ae7fd01451e2",
+      "decision": "allow",
+      "telemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2735,
+        "model": "jev-1.13.0",
+        "inputTokens": 1638,
+        "outputTokens": 186,
+        "estimatedCostUsd": 0.00006879600000000001
+      }
+    },
+    {
+      "project": "click",
+      "variant": "later-correction-cited-research-only",
+      "expected": "propose",
+      "evidenceBytes": 1762,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "f973fa0beea434cb2938caf0a3a9f4971865ff9fc22d0408b8167dba9f56926e",
+      "planDigest": "8d7827eea6725154c9d2900810991515d68f8421fc0d67ca9a04ae7fd01451e2",
+      "decision": "propose",
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 484,
+        "model": "jev-1.13.0",
+        "inputTokens": 1693,
+        "outputTokens": 180,
+        "estimatedCostUsd": 0.000071106,
+        "candidateIndex": 0,
+        "dimension": "support"
+      }
+    },
+    {
+      "project": "click",
+      "variant": "unsupported-addition-cited-research-only",
+      "expected": "propose",
+      "evidenceBytes": 1505,
+      "candidates": 1,
+      "productionWriteEligible": false,
+      "snapshotDigest": "f973fa0beea434cb2938caf0a3a9f4971865ff9fc22d0408b8167dba9f56926e",
+      "planDigest": "8d7827eea6725154c9d2900810991515d68f8421fc0d67ca9a04ae7fd01451e2",
+      "decision": "propose",
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "unsupported",
+        "durationMs": 680,
+        "model": "jev-1.13.0",
+        "inputTokens": 1006,
+        "outputTokens": 61,
+        "estimatedCostUsd": 0.000042252,
+        "candidateIndex": 0,
+        "dimension": "support"
+      }
+    },
+    {
+      "project": "p-limit",
+      "variant": "original-full",
+      "expected": "unlabeled-generated-plan",
+      "evidenceBytes": 50484,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "e49c2f63c34da4b3c3c8b167db9bddded8700c9931e19b3285a35733cb87efaa",
+      "planDigest": "c90448926c18d0d52010147dd6e9165c493fd09f614c218df56347f49cfc0af8",
+      "decision": "propose",
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 656,
+        "model": "jev-1.13.0",
+        "inputTokens": 20707,
+        "outputTokens": 186,
+        "estimatedCostUsd": 0.0008696940000000001,
+        "candidateIndex": 1,
+        "dimension": "support"
+      }
+    },
+    {
+      "project": "p-limit",
+      "variant": "minimal-full",
+      "expected": "allow-three-explicit-facts",
+      "evidenceBytes": 50484,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "e49c2f63c34da4b3c3c8b167db9bddded8700c9931e19b3285a35733cb87efaa",
+      "planDigest": "c90448926c18d0d52010147dd6e9165c493fd09f614c218df56347f49cfc0af8",
+      "decision": "allow",
+      "telemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 613,
+        "model": "jev-1.13.0",
+        "inputTokens": 20550,
+        "outputTokens": 186,
+        "estimatedCostUsd": 0.0008631
+      }
+    },
+    {
+      "project": "p-limit",
+      "variant": "minimal-cited-research-only",
+      "expected": "allow-three-explicit-facts",
+      "evidenceBytes": 1516,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "e49c2f63c34da4b3c3c8b167db9bddded8700c9931e19b3285a35733cb87efaa",
+      "planDigest": "c90448926c18d0d52010147dd6e9165c493fd09f614c218df56347f49cfc0af8",
+      "decision": "allow",
+      "telemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 399,
+        "model": "jev-1.13.0",
+        "inputTokens": 1639,
+        "outputTokens": 186,
+        "estimatedCostUsd": 0.00006883800000000001
+      }
+    },
+    {
+      "project": "p-limit",
+      "variant": "later-correction-cited-research-only",
+      "expected": "propose",
+      "evidenceBytes": 1773,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "e49c2f63c34da4b3c3c8b167db9bddded8700c9931e19b3285a35733cb87efaa",
+      "planDigest": "c90448926c18d0d52010147dd6e9165c493fd09f614c218df56347f49cfc0af8",
+      "decision": "propose",
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 369,
+        "model": "jev-1.13.0",
+        "inputTokens": 1694,
+        "outputTokens": 180,
+        "estimatedCostUsd": 0.000071148,
+        "candidateIndex": 0,
+        "dimension": "support"
+      }
+    },
+    {
+      "project": "p-limit",
+      "variant": "unsupported-addition-cited-research-only",
+      "expected": "propose",
+      "evidenceBytes": 1516,
+      "candidates": 1,
+      "productionWriteEligible": false,
+      "snapshotDigest": "e49c2f63c34da4b3c3c8b167db9bddded8700c9931e19b3285a35733cb87efaa",
+      "planDigest": "c90448926c18d0d52010147dd6e9165c493fd09f614c218df56347f49cfc0af8",
+      "decision": "propose",
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "unsupported",
+        "durationMs": 421,
+        "model": "jev-1.13.0",
+        "inputTokens": 1008,
+        "outputTokens": 61,
+        "estimatedCostUsd": 0.000042336,
+        "candidateIndex": 0,
+        "dimension": "support"
+      }
+    },
+    {
+      "project": "mitt",
+      "variant": "original-full",
+      "expected": "unlabeled-generated-plan",
+      "evidenceBytes": 30823,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "17a84f471c9abceadb8e115d41ab760349eb348ac45c5d8bb7541d98ac4d1110",
+      "planDigest": "e05be8fcfb9c449c701aeb2e316b696c1f1fb3cd45f4f09a6d322d0adaa5c683",
+      "decision": "allow",
+      "telemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 521,
+        "model": "jev-1.13.0",
+        "inputTokens": 12801,
+        "outputTokens": 186,
+        "estimatedCostUsd": 0.0005376420000000001
+      }
+    },
+    {
+      "project": "mitt",
+      "variant": "minimal-full",
+      "expected": "allow-three-explicit-facts",
+      "evidenceBytes": 30823,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "17a84f471c9abceadb8e115d41ab760349eb348ac45c5d8bb7541d98ac4d1110",
+      "planDigest": "e05be8fcfb9c449c701aeb2e316b696c1f1fb3cd45f4f09a6d322d0adaa5c683",
+      "decision": "allow",
+      "telemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 522,
+        "model": "jev-1.13.0",
+        "inputTokens": 12381,
+        "outputTokens": 186,
+        "estimatedCostUsd": 0.0005200020000000001
+      }
+    },
+    {
+      "project": "mitt",
+      "variant": "minimal-cited-research-only",
+      "expected": "allow-three-explicit-facts",
+      "evidenceBytes": 1500,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "17a84f471c9abceadb8e115d41ab760349eb348ac45c5d8bb7541d98ac4d1110",
+      "planDigest": "e05be8fcfb9c449c701aeb2e316b696c1f1fb3cd45f4f09a6d322d0adaa5c683",
+      "decision": "allow",
+      "telemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 413,
+        "model": "jev-1.13.0",
+        "inputTokens": 1630,
+        "outputTokens": 186,
+        "estimatedCostUsd": 0.00006846
+      }
+    },
+    {
+      "project": "mitt",
+      "variant": "later-correction-cited-research-only",
+      "expected": "propose",
+      "evidenceBytes": 1757,
+      "candidates": 3,
+      "productionWriteEligible": false,
+      "snapshotDigest": "17a84f471c9abceadb8e115d41ab760349eb348ac45c5d8bb7541d98ac4d1110",
+      "planDigest": "e05be8fcfb9c449c701aeb2e316b696c1f1fb3cd45f4f09a6d322d0adaa5c683",
+      "decision": "propose",
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 498,
+        "model": "jev-1.13.0",
+        "inputTokens": 1685,
+        "outputTokens": 180,
+        "estimatedCostUsd": 0.00007077000000000002,
+        "candidateIndex": 0,
+        "dimension": "support"
+      }
+    },
+    {
+      "project": "mitt",
+      "variant": "unsupported-addition-cited-research-only",
+      "expected": "propose",
+      "evidenceBytes": 1500,
+      "candidates": 1,
+      "productionWriteEligible": false,
+      "snapshotDigest": "17a84f471c9abceadb8e115d41ab760349eb348ac45c5d8bb7541d98ac4d1110",
+      "planDigest": "e05be8fcfb9c449c701aeb2e316b696c1f1fb3cd45f4f09a6d322d0adaa5c683",
+      "decision": "propose",
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "unsupported",
+        "durationMs": 360,
+        "model": "jev-1.13.0",
+        "inputTokens": 998,
+        "outputTokens": 61,
+        "estimatedCostUsd": 0.000041916,
+        "candidateIndex": 0,
+        "dimension": "support"
+      }
+    }
+  ]
+}

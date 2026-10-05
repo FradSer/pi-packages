@@ -1,224 +1,281 @@
-/**
- * Durable per-Agent workspaces.
- *
- * Pi stores sessions under `~/.pi/agent/sessions/`, grouped by working
- * directory, and `--continue` opens the most recent session for the current
- * working directory. The working path is therefore the memory key: a stable
- * workspace per Agent is what makes Pi's own session storage usable as that
- * Agent's working memory, with Pi's compaction, branching, `/resume` picker, and
- * `/export` doing the work a bespoke scheme would have to rebuild.
- *
- * This is why a workspace is durable and per-Agent rather than per-task and
- * disposable. The previous per-task worktree was removed on completion, which
- * orphaned its session group every task — fragmentation that looks like amnesia
- * and also accumulates storage without bound.
- *
- * Layout: `~/.pi/agent/workspaces/<agent>/<project-slug>/`, a linked worktree of
- * the project repository. User scope rather than `<repo>/.pi/worktrees/` because
- * a cross-project Agent needs one home per project, and because durable state
- * does not belong inside a checkout. Durability also amortizes provisioning:
- * `node_modules`, virtualenvs, and build caches are paid once per workspace.
- *
- * Isolation of writes is a separate layer. A worktree separates the filesystem;
- * it does not confine what a `bash` grant can touch. Kernel write confinement is
- * the sandbox-profile layer and is not implemented here — see
- * docs/spec-agent-teams-three-package-split.md.
+/** Private durable data homes. Scratch is an ordinary directory, never a
+ * project checkout: children always launch in the original project cwd.
+ * Provisioning is authorized by the caller's resolved disk identity and does
+ * not synthesize an agent.md, run Git, preserve, release or remove output.
  */
 
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
-import { safeFileName } from "@fradser/pi-kit";
-
-export type WorkspaceIsolation = "isolated" | "shared";
+import { createExclusiveJsonFile, writeJsonAtomic } from "@fradser/pi-kit";
 
 export interface AgentWorkspace {
-  /** Working directory handed to the child. */
   cwd: string;
-  /** Whether the child got its own linked worktree. */
-  isolation: "worktree" | "none";
-  /** True when an existing workspace was reused rather than created. Reuse is
-   * the normal case and is what preserves working memory. */
+  workspacePath: string;
+  sessionDir: string;
+  /** Whether the ordinary scratch directory existed before this provision. */
   reused: boolean;
-  /** Branch backing an isolated workspace. */
-  branch?: string;
-  /** Repository the workspace is linked to. */
-  repoRoot?: string;
-  /** Why isolation was unavailable, when it was requested. Surfaced rather than
-   * silently sharing the leader's tree. */
-  reason?: string;
 }
 
-/** Root of all durable Agent workspaces. */
-export function workspacesRoot(): string {
-  return path.join(getAgentDir(), "workspaces");
+export interface AgentHomeState {
+  createdAt: string;
+  lastProject: string;
+  memoryEntryCount: number;
 }
 
-/** A stable, filesystem-safe slug for one project, so the same repository always
- * resolves to the same workspace and therefore the same Pi session group. */
+/** Identity names must map to a single unambiguous canonical directory. */
+export function assertAgentName(name: string): void {
+  if (!/^[a-z][a-z0-9._-]{0,63}$/i.test(name) || name.toLowerCase().endsWith(".local")) {
+    throw new Error(`Invalid agent name "${name}". Use letters, digits, dots, dashes, underscores; .local is reserved for project overrides.`);
+  }
+}
+
+/** Reject a lexical escape, symlink or non-directory ancestor beneath an
+ * explicitly configured root. System aliases above the root (e.g. /var on
+ * macOS) are not data symlinks. The root itself must not be a symlink.
+ * Read-only: missing path components are permitted, never created.
+ */
+export function assertAgentStoragePath(root: string, candidate: string): void {
+  const base = path.resolve(root);
+  const target = path.resolve(candidate);
+  const relative = path.relative(base, target);
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`Refusing a path outside the Agent storage root: ${candidate}`);
+  }
+  const parts = relative ? relative.split(path.sep) : [];
+  let current = base;
+  for (let index = 0; index <= parts.length; index++) {
+    let stat: fs.Stats;
+    try { stat = fs.lstatSync(current); } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    if (stat.isSymbolicLink()) throw new Error(`Refusing a symlink in Agent storage: ${current}`);
+    if (index < parts.length && !stat.isDirectory()) throw new Error(`Expected an Agent storage directory: ${current}`);
+    if (index < parts.length) current = path.join(current, parts[index]);
+  }
+}
+
+/** Pi recent-session discovery follows file links. Reject them (including
+ * hard links) before provisioning and again at the shared spawn boundary. */
+export function assertPrivateSessionFiles(sessionDir: string): boolean {
+  const root = path.resolve(sessionDir);
+  assertAgentStoragePath(root, root);
+  let entries: fs.Dirent[];
+  try { entries = fs.readdirSync(root, { withFileTypes: true }); } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+  let found = false;
+  for (const entry of entries) {
+    if (!entry.name.endsWith(".jsonl")) continue;
+    const file = path.join(root, entry.name);
+    assertAgentStoragePath(root, file);
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.nlink !== 1) throw new Error(`Refusing linked or non-regular private history: ${file}`);
+    const descriptor = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+    try {
+      const opened = fs.fstatSync(descriptor);
+      if (!opened.isFile() || opened.nlink !== 1 || opened.dev !== stat.dev || opened.ino !== stat.ino) {
+        throw new Error(`Private history changed during validation: ${file}`);
+      }
+    } finally { fs.closeSync(descriptor); }
+    found = true;
+  }
+  return found;
+}
+
+export function agentHomePath(agentName: string): string {
+  assertAgentName(agentName);
+  return path.join(path.resolve(getAgentDir()), "agents", agentName);
+}
+
+export function agentWorkspacePath(agentName: string): string {
+  return path.join(agentHomePath(agentName), "workspace");
+}
+
+function parentSessionSlug(parentSessionId: string): string {
+  if (typeof parentSessionId !== "string" || parentSessionId.trim().length === 0) {
+    throw new Error("Parent session ID must be a non-empty string.");
+  }
+  if (Buffer.byteLength(parentSessionId, "utf8") > 4096) {
+    throw new Error("Parent session ID exceeds the 4 KiB limit.");
+  }
+  return `parent-${createHash("sha256").update(parentSessionId, "utf8").digest("hex")}`;
+}
+
+export function agentSessionPath(agentName: string, projectCwd: string, parentSessionId?: string): string {
+  const projectPath = path.join(agentHomePath(agentName), "projects", projectSlug(projectCwd));
+  if (parentSessionId === undefined) return path.join(projectPath, "session");
+  return path.join(projectPath, "parents", parentSessionSlug(parentSessionId), "session");
+}
+
+/** Kept byte-for-byte equivalent to the legacy slug algorithm so private
+ * histories keep their existing stable project keys during migration.
+ */
 export function projectSlug(cwd: string): string {
   const resolved = safeRealpath(cwd);
-  const readable = resolved
-    .replace(/^[/\\]/, "")
-    .replace(/[/\\:]+/g, "-")
-    .replace(/[^A-Za-z0-9._-]+/g, "-")
-    .slice(-120);
-  // A readable suffix alone can collide across machines and mounts, so the hash
-  // is what actually distinguishes two projects; the readable part is for humans.
+  const readable = resolved.replace(/^[/\\]/, "").replace(/[/\\:]+/g, "-")
+    .replace(/[^A-Za-z0-9._-]+/g, "-").slice(-120);
   const digest = createHash("sha256").update(resolved).digest("hex").slice(0, 12);
   return `${readable || "project"}-${digest}`;
 }
 
 function safeRealpath(candidate: string): string {
+  try { return fs.realpathSync(candidate); } catch { return path.resolve(candidate); }
+}
+
+function existingDirectory(candidate: string): boolean {
   try {
-    return fs.realpathSync(candidate);
-  } catch {
-    return path.resolve(candidate);
+    if (!fs.lstatSync(candidate).isDirectory()) throw new Error(`Expected an Agent storage directory: ${candidate}`);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
   }
 }
 
-/** The durable workspace path for one Agent in one project. */
-export function agentWorkspacePath(agentName: string, cwd: string): string {
-  return path.join(workspacesRoot(), safeFileName(agentName), projectSlug(cwd));
+export type AgentMemoryState = AgentHomeState & Record<string, unknown>;
+
+function isMemoryState(value: unknown): value is AgentMemoryState {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    && "createdAt" in value && typeof value.createdAt === "string" && Number.isFinite(Date.parse(value.createdAt))
+    && "lastProject" in value && typeof value.lastProject === "string"
+    && "memoryEntryCount" in value && typeof value.memoryEntryCount === "number"
+    && Number.isSafeInteger(value.memoryEntryCount) && value.memoryEntryCount >= 0;
 }
 
-function runGit(cwd: string, args: string[]): { status: number | null; stdout: string; stderr: string } {
-  const result = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf-8" });
-  return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+/** Read existing package-owned data, retaining unknown fields. No identity
+ * declaration or missing state is created. Malformed/symlinked data fails. */
+export function readAgentHomeState(agentName: string): AgentMemoryState | undefined {
+  const file = path.join(agentHomePath(agentName), "state.json");
+  assertAgentStoragePath(path.resolve(getAgentDir()), file);
+  let raw: string;
+  try {
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.nlink !== 1) throw new Error(`Refusing linked or non-regular Agent state file: ${file}`);
+    raw = fs.readFileSync(file, "utf-8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { throw new Error(`Malformed Agent state: ${file}`); }
+  if (!isMemoryState(value) || ("name" in value && value.name !== agentName)) {
+    throw new Error(`Malformed Agent state: ${file}`);
+  }
+  return value;
 }
 
-/** Whether an existing directory is still a usable linked worktree. A workspace
- * whose repository was moved or pruned must be reported, not silently reused as
- * an ordinary directory that happens to have stale files. */
-function isUsableWorktree(candidate: string): boolean {
-  if (!fs.existsSync(path.join(candidate, ".git"))) return false;
-  return runGit(candidate, ["rev-parse", "--is-inside-work-tree"]).status === 0;
+/** Shared synchronous read-modify-write seam for provisioning and child Memory.
+ * Every writer must use state.json.lock. A busy/crashed writer is not guessed
+ * dead: bounded contention fails explicitly and its lock remains untouched. */
+export function updateExistingAgentHomeState(
+  agentName: string,
+  update: (latest: AgentMemoryState) => AgentMemoryState,
+): AgentMemoryState | undefined {
+  const home = agentHomePath(agentName);
+  const file = path.join(home, "state.json");
+  if (!fs.existsSync(file)) return undefined;
+  readAgentHomeState(agentName); // Refuse bad data before acquiring a lock.
+  const lock = `${file}.lock`;
+  assertAgentStoragePath(path.resolve(getAgentDir()), lock);
+  const deadline = Date.now() + 1000;
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  let fd: number;
+  for (;;) {
+    try {
+      fd = fs.openSync(lock, "wx", 0o600);
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (Date.now() >= deadline) throw new Error(`Agent state update refused: lock is occupied at ${lock}.`);
+      Atomics.wait(pause, 0, 0, 10);
+    }
+  }
+  const ownedLock = fs.fstatSync(fd);
+  const tmp = `${file}.${process.pid}.tmp`; // pi-kit's atomic replacement path.
+  let createdTmp = false;
+  try {
+    const latest = readAgentHomeState(agentName);
+    if (!latest) return undefined;
+    const next = { ...latest, ...update({ ...latest }), createdAt: latest.createdAt };
+    if (!isMemoryState(next)) throw new Error(`Malformed Agent state update: ${file}`);
+    assertAgentStoragePath(path.resolve(getAgentDir()), tmp);
+    // Exclusive reservation avoids deleting or following someone else's temp.
+    fs.closeSync(fs.openSync(tmp, "wx", 0o600));
+    createdTmp = true;
+    writeJsonAtomic(file, next);
+    return next;
+  } finally {
+    if (createdTmp) fs.rmSync(tmp, { force: true });
+    fs.closeSync(fd);
+    const current = fs.lstatSync(lock);
+    if (current.dev === ownedLock.dev && current.ino === ownedLock.ino) fs.unlinkSync(lock);
+  }
 }
 
-/**
- * Resolve one Agent's durable workspace, creating it on first use.
- *
- * Falls back to the caller's cwd when isolation is impossible — a non-repository
- * working directory, or a repository with no commit to branch from — and says so
- * in `reason` rather than pretending the child is isolated.
- */
-export function ensureAgentWorkspace(input: {
-  agentName: string;
-  cwd: string;
-  isolation: WorkspaceIsolation;
-}): AgentWorkspace {
-  const shared = (reason?: string): AgentWorkspace => ({
-    cwd: input.cwd,
-    isolation: "none",
-    reused: false,
-    ...(reason ? { reason } : {}),
-  });
-  if (input.isolation === "shared") return shared();
-
-  const target = agentWorkspacePath(input.agentName, input.cwd);
-  if (isUsableWorktree(target)) {
-    const branch = runGit(target, ["rev-parse", "--abbrev-ref", "HEAD"]).stdout.trim();
-    const repoRoot = runGit(target, ["rev-parse", "--git-common-dir"]).stdout.trim();
-    return {
-      cwd: target,
-      isolation: "worktree",
-      reused: true,
-      ...(branch ? { branch } : {}),
-      ...(repoRoot ? { repoRoot: safeRealpath(path.resolve(target, repoRoot, "..")) } : {}),
-    };
-  }
-
-  const toplevel = runGit(input.cwd, ["rev-parse", "--show-toplevel"]);
-  if (toplevel.status !== 0) return shared("the working directory is not a git repository");
-  const repoRoot = toplevel.stdout.trim();
-  const head = runGit(repoRoot, ["rev-parse", "HEAD"]);
-  if (head.status !== 0 || !head.stdout.trim()) {
-    return shared("the repository has no commit to branch from");
-  }
-
-  const branch = `agent/${input.agentName}`;
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  // A durable branch means the Agent's workspace has continuity across attempts.
-  // Reattach when it already exists; otherwise create it from the current HEAD.
-  const branchExists = runGit(repoRoot, ["rev-parse", "--verify", `refs/heads/${branch}`]).status === 0;
-  const add = branchExists
-    ? runGit(repoRoot, ["worktree", "add", target, branch])
-    : runGit(repoRoot, ["worktree", "add", target, "-b", branch, "HEAD"]);
-  if (add.status !== 0) {
-    return shared(
-      `a linked worktree could not be created at ${target}: ${(add.stderr || add.stdout).trim()}`,
-    );
-  }
-  return { cwd: target, isolation: "worktree", reused: false, branch, repoRoot: safeRealpath(repoRoot) };
+function memoryEntryCount(memoryPath: string): number {
+  if (!fs.existsSync(memoryPath)) return 0;
+  return fs.readdirSync(memoryPath, { withFileTypes: true })
+    .filter(entry => {
+      if (!entry.isFile() || entry.name === "MEMORY.md" || !entry.name.endsWith(".md")) return false;
+      try { return fs.lstatSync(path.join(memoryPath, entry.name)).nlink === 1; } catch { return false; }
+    }).length;
 }
 
-/**
- * Explicitly retire one Agent workspace. Never called on completion: a durable
- * workspace is the Agent's home and its Pi session group, and deleting it would
- * destroy working memory.
- *
- * The directory is removed only after its work is committed to the branch, so
- * the record survives. A commit failure preserves the directory and reports it,
- * because removing it would destroy the only copy of the work.
- */
-export function releaseAgentWorkspace(input: {
-  agentName: string;
-  cwd: string;
-}): { ok: true; committed: boolean } | { ok: false; error: string } {
-  const target = agentWorkspacePath(input.agentName, input.cwd);
-  if (!isUsableWorktree(target)) {
-    fs.rmSync(target, { recursive: true, force: true });
-    return { ok: true, committed: false };
+export function ensureAgentWorkspace(input: { agentName: string; cwd: string; parentSessionId?: string }): AgentWorkspace {
+  const root = path.resolve(getAgentDir());
+  const home = agentHomePath(input.agentName);
+  const cwd = path.resolve(input.cwd);
+  const workspacePath = agentWorkspacePath(input.agentName);
+  const sessionDir = agentSessionPath(input.agentName, cwd, input.parentSessionId);
+  const memoryPath = path.join(home, "memory");
+  const indexFile = path.join(memoryPath, "MEMORY.md");
+  const stateFile = path.join(home, "state.json");
+  const directories = [home, memoryPath, path.join(memoryPath, "proposals"), workspacePath, sessionDir];
+  // Preflight all destinations before creating any directory or replacing state.
+  for (const directory of directories) {
+    assertAgentStoragePath(root, directory);
+    existingDirectory(directory);
   }
-  runGit(target, ["add", "-A"]);
-  const commit = runGit(target, ["commit", "-m", `agent(${input.agentName}): preserve workspace before release`]);
-  const committed = commit.status === 0;
-  if (!committed && !/nothing to commit/i.test(`${commit.stderr ?? ""}${commit.stdout ?? ""}`)) {
-    return {
-      ok: false,
-      error: `commit failed: ${(commit.stderr || commit.stdout).trim()}; workspace left in place at ${target} so the work is not lost`,
-    };
+  for (const file of [indexFile, stateFile, `${stateFile}.${process.pid}.tmp`]) assertAgentStoragePath(root, file);
+  if (fs.existsSync(indexFile)) {
+    const indexStat = fs.lstatSync(indexFile);
+    if (!indexStat.isFile() || indexStat.nlink !== 1) throw new Error(`Refusing linked or non-regular Memory index file: ${indexFile}`);
   }
-  const commonDir = runGit(target, ["rev-parse", "--git-common-dir"]).stdout.trim();
-  const repoRoot = commonDir ? safeRealpath(path.resolve(target, commonDir, "..")) : undefined;
-  const remove = repoRoot ? runGit(repoRoot, ["worktree", "remove", "--force", target]) : { status: 1, stderr: "unknown repository root", stdout: "" };
-  if (remove.status !== 0) {
-    return { ok: false, error: `worktree remove failed: ${(remove.stderr || remove.stdout).trim()}` };
+  // .git may be a linked-worktree file, a directory, or a dangling symlink.
+  try {
+    fs.lstatSync(path.join(workspacePath, ".git"));
+    throw new Error(`Refusing a Git workspace as ordinary scratch: ${workspacePath}; manual migration is required.`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-  if (repoRoot) runGit(repoRoot, ["worktree", "prune"]);
-  return { ok: true, committed };
-}
-
-/**
- * Preserve a durable workspace at the end of an attempt: commit whatever is
- * uncommitted onto the Agent's branch and leave the directory in place.
- *
- * This is the opposite of `releaseAgentWorkspace` and is what completion calls.
- * Removing the directory would destroy the Agent's Pi session group, which is its
- * working memory, so completion never removes anything. Committing first means an
- * interrupted or crashed attempt still leaves its work retrievable on the branch.
- */
-export function preserveAgentWorkspace(input: {
-  agentName: string;
-  cwd: string;
-}): { ok: true; committed: boolean; branch?: string } | { ok: false; error: string } {
-  if (!isUsableWorktree(input.cwd)) {
-    return { ok: true, committed: false };
+  assertPrivateSessionFiles(sessionDir);
+  let state = readAgentHomeState(input.agentName);
+  const reused = existingDirectory(workspacePath);
+  const count = memoryEntryCount(memoryPath);
+  for (const directory of directories) fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
+  assertAgentStoragePath(root, indexFile);
+  try {
+    fs.writeFileSync(indexFile, ["# Agent Memory Index", "", "Capability-focused methods, judgment criteria, and operating patterns.", ""].join("\n"),
+      { encoding: "utf8", mode: 0o600, flag: "wx" });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
   }
-  const branch = runGit(input.cwd, ["rev-parse", "--abbrev-ref", "HEAD"]).stdout.trim() || undefined;
-  runGit(input.cwd, ["add", "-A"]);
-  const commit = runGit(input.cwd, [
-    "commit",
-    "-m",
-    `agent(${input.agentName}): preserve attempt output`,
-  ]);
-  const output = `${commit.stderr ?? ""}${commit.stdout ?? ""}`;
-  if (commit.status === 0) return { ok: true, committed: true, ...(branch ? { branch } : {}) };
-  if (/nothing to commit/i.test(output)) return { ok: true, committed: false, ...(branch ? { branch } : {}) };
-  return {
-    ok: false,
-    error: `commit failed: ${output.trim()}; the workspace stays at ${input.cwd} so nothing is lost`,
-  };
+  if (!state) {
+    // Exclusive atomic initialization makes creation time agree across parent
+    // processes; later state replacements use pi-kit's tmp+rename primitive.
+    createExclusiveJsonFile(home, "state", { createdAt: new Date().toISOString(), lastProject: cwd, memoryEntryCount: count });
+    assertAgentStoragePath(root, stateFile);
+    state = readAgentHomeState(input.agentName);
+    if (!state) throw new Error(`Agent state initialization was not observed: ${stateFile}`);
+  }
+  // Memory appends and provisioning share the same latest-state lock so an
+  // earlier snapshot cannot erase fields or override another writer's count.
+  updateExistingAgentHomeState(input.agentName, latest => ({
+    ...latest, lastProject: cwd, memoryEntryCount: memoryEntryCount(memoryPath),
+  }));
+  return { cwd, workspacePath, sessionDir, reused };
 }

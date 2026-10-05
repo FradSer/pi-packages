@@ -22,19 +22,28 @@ pnpm --dir packages/agent-teams pack --dry-run
 
 ## Style and Architecture
 
-- **Tool Surface**: Exactly three public tools: `agent`, `work`, and `agent_event`.
-  `/agent-teams` is the human management surface. Do not add compatibility
-  registrations for obsolete lifecycle/message/task tools.
-- **Agent Actions**: `agent` uses strict actions: `delegate` (new independent Work),
-  `start` (unassigned resident), `inspect` (presence), and `stop` (exact session).
-- **Work Lifecycle**: `work` owns task state. Leaders use `create`, `list`, `assign`,
-  `release`, `reopen`, and `supersede`. Workers use `list`, `claim`, `release`,
-  and `submit`. Submission triggers the verification gate when configured.
-- **Communication**: `agent_event` is communication-only (`inform` or `request`).
-  Never use sleep, polling loops, or status probes to wait for resident teammates;
-  end the turn and await native notification.
-- **Persistence**: Team state persists atomically via `statefile.ts` to
-  `~/.pi/agent/teams/<session>.json`.
+- **Tool Surface**: The bundle exposes `agent`, `task`, and `message`, each
+  registered by its owning package. `/agent-teams` is the human management
+  surface; obsolete tools and verbs have no compatibility registrations.
+- **Agent Actions**: `start`, `send`, `interrupt`, `inspect`, `list`, and `stop`.
+  Every child settles to IDLE/sendable until stop or parent shutdown. Start/send
+  and public steering await correlated native RPC acknowledgement; preserve
+  authority on uncertain timeout and never retarget exact incarnation handles.
+- **Identity and data**: Read @../subagents/VISION.md and @../subagents/AUTHORITY.md
+  before changing child controls or storage. Disk `agent.md` alone declares a
+  durable identity. Inline roles are session-only. No persistence/Memory/worktree
+  switches, model-created disk definitions, Git workspace or automatic commits.
+  Durable data uses one private home; children edit the original project cwd.
+- **Task Lifecycle**: `task` owns create/list/update/complete/reopen. Participants
+  take work with `update status=in_progress`; a task declares no assignee. Failed
+  results require explicit failed completion, and configured verification gates
+  must not be bypassed by callback ordering or draining a report.
+- **Communication**: `message` is communication-only (`inform` or `request`) and
+  changes no execution ownership or acceptance. Results arrive automatically;
+  continue independent work or end the turn, never poll to wait.
+- **Persistence**: Communication snapshots belong to `statefile.ts`; the durable
+  task storage belongs to pi-tasks. Do not duplicate either record in child identity
+  or use presence as acceptance evidence.
 
 ## Testing Guidelines
 

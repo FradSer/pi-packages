@@ -1,4 +1,4 @@
-import type { Teammate } from "./types.ts";
+import type { Agent } from "./types.ts";
 
 export function sessionRoute(name: string): string {
   return `session:${name}`;
@@ -13,7 +13,7 @@ export function parseExactSessionRoute(route: string): { name: string; spawnId: 
   return match ? { name: match[1], spawnId: match[2] } : undefined;
 }
 
-export function resolveExactSession(route: string, roster: readonly Teammate[]): Teammate | undefined {
+export function resolveExactSession(route: string, roster: readonly Agent[]): Agent | undefined {
   const parsed = parseExactSessionRoute(route);
   if (!parsed) return undefined;
   return roster.find((teammate) => teammate.name === parsed.name && teammate.spawnId === parsed.spawnId && teammate.status !== "stopped");
@@ -24,7 +24,7 @@ export function resolveExactSession(route: string, roster: readonly Teammate[]):
  *  name cannot consume mail addressed to its predecessor. */
 export function resolveRecipient(
   to: string,
-  roster: ReadonlyArray<{ name: string; agent: string; status: string; spawnId?: string }>,
+  roster: ReadonlyArray<{ name: string; role: string; status: string; spawnId?: string }>,
 ): { name: string; spawnId?: string } {
   const exact = parseExactSessionRoute(to);
   if (exact) {
@@ -35,7 +35,7 @@ export function resolveRecipient(
   const explicit = to.startsWith("session:");
   const name = explicit ? to.slice("session:".length) : to;
   const living = roster.filter((entry) => entry.status !== "stopped");
-  const recipients = living.filter((entry) => entry.name === name || (!explicit && entry.agent === to));
+  const recipients = living.filter((entry) => entry.name === name || (!explicit && entry.role === to));
   if (recipients.length > 1) {
     throw new Error(`Ambiguous Agent @${to}. Use a precise route: ${recipients.map((entry) => entry.spawnId ? exactSessionRoute(entry.name, entry.spawnId) : sessionRoute(entry.name)).join(", ")}.`);
   }

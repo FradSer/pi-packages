@@ -1,0 +1,254 @@
+[
+  {
+    "source": "cl-jev-workflow-results.json",
+    "enabled": false,
+    "automatic": false,
+    "durationSeconds": 148.549,
+    "checksAsOriginallyCollected": {
+      "memoryFactStored": true,
+      "memoryIndexInjected": true,
+      "freshFactUsed": true,
+      "learnedHarnessBlocked": false,
+      "safeCommandExecuted": true,
+      "repeatNoNewMemoryNames": true,
+      "repeatMemoryByteStable": true,
+      "repeatHarnessByteStable": true,
+      "safeMemoryMirrors": true
+    },
+    "phaseOutcomes": [
+      [
+        [
+          "selector",
+          "applied"
+        ],
+        [
+          "memory",
+          "applied"
+        ],
+        [
+          "harness",
+          "applied"
+        ]
+      ],
+      [
+        [
+          "selector",
+          "applied"
+        ],
+        [
+          "memory",
+          "noop"
+        ],
+        [
+          "harness",
+          "noop"
+        ]
+      ]
+    ],
+    "jevRequestsWithUsage": 0,
+    "jevEstimatedCostUsd": 0,
+    "note": "Earlier checks used a weaker readback verifier; diagnostic trials, not final authoritative native evidence."
+  },
+  {
+    "source": "cl-jev-workflow-results.json",
+    "enabled": true,
+    "automatic": false,
+    "durationSeconds": 129.722,
+    "checksAsOriginallyCollected": {
+      "memoryFactStored": false,
+      "memoryIndexInjected": true,
+      "freshFactUsed": false,
+      "learnedHarnessBlocked": false,
+      "safeCommandExecuted": true,
+      "repeatNoNewMemoryNames": true,
+      "repeatMemoryByteStable": true,
+      "repeatHarnessByteStable": true,
+      "safeMemoryMirrors": true
+    },
+    "phaseOutcomes": [
+      [
+        [
+          "selector",
+          "applied"
+        ],
+        [
+          "memory",
+          "proposed"
+        ],
+        [
+          "harness",
+          "proposed"
+        ]
+      ],
+      [
+        [
+          "selector",
+          "applied"
+        ],
+        [
+          "memory",
+          "proposed"
+        ],
+        [
+          "harness",
+          "proposed"
+        ]
+      ]
+    ],
+    "jevRequestsWithUsage": 6,
+    "jevEstimatedCostUsd": 0.000383124,
+    "note": "Earlier checks used a weaker readback verifier; diagnostic trials, not final authoritative native evidence."
+  },
+  {
+    "source": "cl-jev-auto-workflow-results.json",
+    "enabled": true,
+    "automatic": true,
+    "durationSeconds": 152.858,
+    "checksAsOriginallyCollected": {
+      "memoryFactStored": false,
+      "memoryIndexInjected": true,
+      "freshFactUsed": false,
+      "learnedHarnessBlocked": false,
+      "safeCommandExecuted": true,
+      "repeatNoNewMemoryNames": true,
+      "repeatMemoryByteStable": true,
+      "repeatHarnessByteStable": true,
+      "safeMemoryMirrors": true
+    },
+    "phaseOutcomes": [
+      [
+        [
+          "selector",
+          "applied"
+        ],
+        [
+          "memory",
+          "proposed"
+        ],
+        [
+          "harness",
+          "proposed"
+        ]
+      ],
+      [
+        [
+          "selector",
+          "applied"
+        ],
+        [
+          "memory",
+          "proposed"
+        ],
+        [
+          "harness",
+          "proposed"
+        ]
+      ]
+    ],
+    "jevRequestsWithUsage": 6,
+    "jevEstimatedCostUsd": 0.000290514,
+    "note": "Earlier checks used a weaker readback verifier; diagnostic trials, not final authoritative native evidence."
+  },
+  {
+    "source": "cl-jev-fixed-manual-results.json",
+    "enabled": true,
+    "automatic": false,
+    "durationSeconds": 330.932,
+    "checksAsOriginallyCollected": {
+      "memoryFactStored": true,
+      "memoryIndexInjected": true,
+      "nativeMemoryBodyRead": true,
+      "freshFactUsed": true,
+      "learnedHarnessBlocked": false,
+      "safeCommandExecuted": true,
+      "repeatNoNewMemoryNames": true,
+      "repeatMemoryByteStable": true,
+      "repeatHarnessByteStable": true,
+      "safeMemoryMirrors": true
+    },
+    "phaseOutcomes": [
+      [
+        [
+          "selector",
+          "applied"
+        ],
+        [
+          "memory",
+          "applied"
+        ],
+        [
+          "harness",
+          "proposed"
+        ]
+      ],
+      [
+        [
+          "selector",
+          "applied"
+        ],
+        [
+          "memory",
+          "noop"
+        ],
+        [
+          "harness",
+          "proposed"
+        ]
+      ]
+    ],
+    "jevRequestsWithUsage": 5,
+    "jevEstimatedCostUsd": 0.000313026,
+    "note": "Earlier checks used a weaker readback verifier; diagnostic trials, not final authoritative native evidence."
+  },
+  {
+    "source": "cl-jev-fixed-auto-results.json",
+    "enabled": true,
+    "automatic": true,
+    "durationSeconds": 100.248,
+    "checksAsOriginallyCollected": {
+      "memoryFactStored": true,
+      "memoryIndexInjected": true,
+      "nativeMemoryBodyRead": true,
+      "freshFactUsed": true,
+      "learnedHarnessBlocked": false,
+      "safeCommandExecuted": true,
+      "repeatNoNewMemoryNames": true,
+      "repeatMemoryByteStable": true,
+      "repeatHarnessByteStable": true,
+      "safeMemoryMirrors": true
+    },
+    "phaseOutcomes": [
+      [
+        [
+          "selector",
+          "applied"
+        ],
+        [
+          "memory",
+          "applied"
+        ],
+        [
+          "harness",
+          "proposed"
+        ]
+      ],
+      [
+        [
+          "selector",
+          "applied"
+        ],
+        [
+          "memory",
+          "noop"
+        ],
+        [
+          "harness",
+          "proposed"
+        ]
+      ]
+    ],
+    "jevRequestsWithUsage": 5,
+    "jevEstimatedCostUsd": 0.00024591,
+    "note": "Earlier checks used a weaker readback verifier; diagnostic trials, not final authoritative native evidence."
+  }
+]

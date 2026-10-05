@@ -1,30 +1,31 @@
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
+import { getAgentDir } from "@earendil-works/pi-coding-agent";
 
 export interface PiMattPocockConfig {
   useNativeDialog: boolean;
 }
 
+/**
+ * Resolve the package config inside Pi's agent directory, so
+ * PI_CODING_AGENT_DIR overrides apply like they do for the rest of Pi.
+ */
 export function defaultConfigFile(): string {
-  return path.join(os.homedir(), ".pi", "agent", "pi-matt-pocock.json");
+  return path.join(getAgentDir(), "matt-pocock.json");
 }
 
 /**
- * Load package configuration from ~/.pi/agent/pi-matt-pocock.json
+ * Load package configuration from Pi's agent directory (matt-pocock.json)
  * Defaults to useNativeDialog: false if the file is absent or invalid.
  */
 export function loadConfig(configPath?: string): PiMattPocockConfig {
   const targetPath = configPath ?? process.env.PI_MATT_POCOCK_CONFIG_FILE ?? defaultConfigFile();
   try {
-    if (!fs.existsSync(targetPath)) {
-      return { useNativeDialog: false };
-    }
     const raw = fs.readFileSync(targetPath, "utf8");
     const parsed = JSON.parse(raw);
     return {
-      useNativeDialog: Boolean(parsed?.useNativeDialog),
+      useNativeDialog: parsed?.useNativeDialog === true,
     };
   } catch {
     return { useNativeDialog: false };
@@ -67,6 +68,85 @@ export function isNativeDialogSupported(options: NativeDialogEnvironment = {}): 
   return true;
 }
 
+interface JxaResult {
+  stdout: string;
+  timedOut: boolean;
+  aborted: boolean;
+}
+
+function normalizeTimeoutSeconds(value: number | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error("Native dialog timeout must be a finite number greater than zero.");
+  }
+  if (value * 1000 > 2_147_483_647) {
+    throw new Error("Native dialog timeout exceeds the Node.js timer limit.");
+  }
+  return value;
+}
+
+function validateDialogButtons(buttons: string[], defaultButton: string, cancelButton: string | undefined): void {
+  if (buttons.some((button) => !button.trim()) || new Set(buttons).size !== buttons.length) {
+    throw new Error("Native dialog buttons must be non-empty and unique.");
+  }
+  if (!buttons.includes(defaultButton)) {
+    throw new Error(`Native dialog default button is not offered: ${defaultButton}`);
+  }
+  if (cancelButton !== undefined && !buttons.includes(cancelButton)) {
+    throw new Error(`Native dialog cancel button is not offered: ${cancelButton}`);
+  }
+}
+
+function parseNativeJson(stdout: string, message: string): unknown {
+  try {
+    return JSON.parse(stdout.trim());
+  } catch {
+    throw new Error(message);
+  }
+}
+
+/** Close native dialogs with their owning tool; always reap the subprocess. */
+async function runJxa(script: string, options: { timeoutSeconds?: number; signal?: AbortSignal }): Promise<JxaResult> {
+  if (options.signal?.aborted) return { stdout: "", timedOut: false, aborted: true };
+  return new Promise((resolve, reject) => {
+    const proc = spawn("osascript", ["-l", "JavaScript", "-e", script], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let aborted = false;
+    let timer: NodeJS.Timeout | undefined;
+    let escalation: NodeJS.Timeout | undefined;
+    const stop = () => {
+      proc.kill("SIGTERM");
+      escalation ??= setTimeout(() => proc.kill("SIGKILL"), 500);
+    };
+    const abort = () => { aborted = true; stop(); };
+    const cleanup = () => {
+      if (timer) clearTimeout(timer);
+      if (escalation) clearTimeout(escalation);
+      options.signal?.removeEventListener("abort", abort);
+    };
+    options.signal?.addEventListener("abort", abort, { once: true });
+    if (options.signal?.aborted) abort();
+    if (options.timeoutSeconds !== undefined && options.timeoutSeconds > 0) {
+      timer = setTimeout(() => { timedOut = true; stop(); }, options.timeoutSeconds * 1000);
+    }
+    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString("utf8"); });
+    proc.once("error", (error) => { cleanup(); reject(error); });
+    proc.once("close", (code) => {
+      cleanup();
+      if (!aborted && !timedOut && code !== 0 && !stderr.includes("-128") && !stderr.includes("User canceled")) {
+        reject(new Error("Native dialog process failed."));
+      } else {
+        resolve({ stdout, timedOut, aborted });
+      }
+    });
+  });
+}
+
 export interface MacosChooseFromListOptions {
   title?: string;
   prompt: string;
@@ -75,6 +155,7 @@ export interface MacosChooseFromListOptions {
   okButtonName?: string;
   cancelButtonName?: string;
   timeoutSeconds?: number;
+  signal?: AbortSignal;
 }
 
 export interface MacosChooseFromListResult {
@@ -119,77 +200,16 @@ export async function macosChooseFromList(
     JSON.stringify(res);
   `;
 
-  return new Promise<MacosChooseFromListResult>((resolve) => {
-    const proc = spawn("osascript", ["-l", "JavaScript", "-e", jxaScript], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-    let isTimedOut = false;
-    let timer: NodeJS.Timeout | undefined;
-    let killEscalation: NodeJS.Timeout | undefined;
-
-    if (options.timeoutSeconds !== undefined && options.timeoutSeconds > 0) {
-      timer = setTimeout(() => {
-        isTimedOut = true;
-        try {
-          proc.kill("SIGTERM");
-        } catch {
-          // ignore kill errors
-        }
-        killEscalation = setTimeout(() => {
-          try {
-            proc.kill("SIGKILL");
-          } catch {
-            // ignore kill errors
-          }
-        }, 500);
-      }, options.timeoutSeconds * 1000);
-    }
-
-    proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
-    });
-    proc.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf8");
-    });
-
-    proc.on("error", () => {
-      if (timer) clearTimeout(timer);
-      if (killEscalation) clearTimeout(killEscalation);
-      resolve({ action: "cancelled" });
-    });
-
-    proc.on("close", (code) => {
-      if (timer) clearTimeout(timer);
-      if (killEscalation) clearTimeout(killEscalation);
-
-      if (isTimedOut) {
-        return resolve({ action: "timed_out" });
-      }
-
-      if (code === 0 && stdout.trim()) {
-        try {
-          const parsed = JSON.parse(stdout.trim());
-          if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "string") {
-            return resolve({ action: "selected", item: parsed[0] });
-          }
-          if (parsed === false) {
-            return resolve({ action: "cancelled" });
-          }
-        } catch {
-          // fallback
-        }
-      }
-
-      if (stderr.includes("-128") || stderr.includes("User canceled")) {
-        return resolve({ action: "cancelled" });
-      }
-
-      resolve({ action: "cancelled" });
-    });
-  });
+  const result = await runJxa(jxaScript, { ...options, timeoutSeconds: normalizeTimeoutSeconds(options.timeoutSeconds) });
+  if (result.aborted) return { action: "cancelled" };
+  if (result.timedOut) return { action: "timed_out" };
+  if (!result.stdout.trim()) return { action: "cancelled" };
+  const parsed: unknown = parseNativeJson(result.stdout, "Invalid native selection result.");
+  if (Array.isArray(parsed) && parsed.length === 1 && typeof parsed[0] === "string" && items.includes(parsed[0])) {
+    return { action: "selected", item: parsed[0] };
+  }
+  if (parsed === false) return { action: "cancelled" };
+  throw new Error("Invalid native selection result.");
 }
 
 export interface MacosInputDialogOptions {
@@ -200,6 +220,7 @@ export interface MacosInputDialogOptions {
   defaultButton?: string;
   cancelButton?: string;
   timeoutSeconds?: number;
+  signal?: AbortSignal;
 }
 
 export interface MacosInputDialogResult {
@@ -214,85 +235,15 @@ export async function macosInputDialog(
   options: MacosInputDialogOptions,
   envOptions: NativeDialogEnvironment = {},
 ): Promise<MacosInputDialogResult> {
-  if (!isNativeDialogSupported(envOptions)) {
-    throw new Error("Native macOS dialog is not supported in this environment (non-macOS or SSH session).");
-  }
-
-  const buttons = options.buttons && options.buttons.length > 0 ? options.buttons : ["取消", "确定"];
-  if (buttons.length > 3) {
-    throw new Error(`macOS displayDialog supports at most 3 buttons, got ${buttons.length}`);
-  }
-
-  const defaultButton = options.defaultButton ?? buttons[buttons.length - 1];
-  const cancelButton = options.cancelButton ?? (buttons.includes("取消") ? "取消" : (buttons.includes("Cancel") ? "Cancel" : undefined));
-  const timeoutSeconds = options.timeoutSeconds && options.timeoutSeconds > 0 ? Math.floor(options.timeoutSeconds) : undefined;
-
-  const jxaScript = `
-    const app = Application.currentApplication();
-    app.includeStandardAdditions = true;
-    app.activate();
-    const opts = {
-      buttons: ${JSON.stringify(buttons)},
-      defaultButton: ${JSON.stringify(defaultButton)},
-      ${cancelButton ? `cancelButton: ${JSON.stringify(cancelButton)},` : ""}
-      ${options.title ? `withTitle: ${JSON.stringify(options.title)},` : ""}
-      defaultAnswer: ${JSON.stringify(options.defaultAnswer ?? "")},
-      ${timeoutSeconds !== undefined ? `givingUpAfter: ${timeoutSeconds},` : ""}
-    };
-    const res = app.displayDialog(${JSON.stringify(options.prompt)}, opts);
-    JSON.stringify(res);
-  `;
-
-  return new Promise<MacosInputDialogResult>((resolve) => {
-    const proc = spawn("osascript", ["-l", "JavaScript", "-e", jxaScript], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
-    });
-    proc.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf8");
-    });
-
-    proc.on("error", () => {
-      resolve({ action: "cancelled" });
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0 && stdout.trim()) {
-        try {
-          const parsed = JSON.parse(stdout.trim()) as {
-            buttonReturned?: string;
-            textReturned?: string;
-            gaveUp?: boolean;
-          };
-          if (parsed.gaveUp) {
-            return resolve({
-              action: "timed_out",
-              text: parsed.textReturned,
-            });
-          }
-          const isCancel = cancelButton && parsed.buttonReturned === cancelButton;
-          return resolve({
-            action: isCancel ? "cancelled" : "confirmed",
-            text: parsed.textReturned,
-          });
-        } catch {
-          // fallback
-        }
-      }
-
-      if (stderr.includes("-128") || stderr.includes("User canceled")) {
-        return resolve({ action: "cancelled" });
-      }
-
-      resolve({ action: "cancelled" });
-    });
-  });
+  const buttons = options.buttons?.length ? options.buttons : ["取消", "确定"];
+  const result = await displayDialog({
+    ...options,
+    message: options.prompt,
+    defaultAnswer: options.defaultAnswer ?? "",
+    buttons,
+    cancelButton: options.cancelButton ?? (buttons.includes("取消") ? "取消" : buttons.includes("Cancel") ? "Cancel" : undefined),
+  }, envOptions, "Invalid native input result.");
+  return { action: result.action, text: result.text };
 }
 
 export interface MacosPromptOptions {
@@ -302,6 +253,7 @@ export interface MacosPromptOptions {
   defaultButton?: string;
   cancelButton?: string;
   timeoutSeconds?: number;
+  signal?: AbortSignal;
 }
 
 export interface MacosPromptResult {
@@ -318,6 +270,14 @@ export async function macosPrompt(
   options: MacosPromptOptions,
   envOptions: NativeDialogEnvironment = {},
 ): Promise<MacosPromptResult> {
+  return displayDialog(options, envOptions, "Invalid native prompt result.");
+}
+
+async function displayDialog(
+  options: MacosPromptOptions & { title?: string },
+  envOptions: NativeDialogEnvironment,
+  invalidMessage: string,
+): Promise<MacosPromptResult> {
   if (!isNativeDialogSupported(envOptions)) {
     throw new Error("Native macOS dialog is not supported in this environment (non-macOS or SSH session).");
   }
@@ -329,7 +289,9 @@ export async function macosPrompt(
 
   const defaultButton = options.defaultButton ?? buttons[buttons.length - 1];
   const cancelButton = options.cancelButton ?? (buttons.includes("Cancel") ? "Cancel" : undefined);
-  const timeoutSeconds = options.timeoutSeconds && options.timeoutSeconds > 0 ? Math.floor(options.timeoutSeconds) : undefined;
+  validateDialogButtons(buttons, defaultButton, cancelButton);
+  const timeoutSeconds = normalizeTimeoutSeconds(options.timeoutSeconds);
+  const nativeTimeoutSeconds = timeoutSeconds === undefined ? undefined : Math.ceil(timeoutSeconds);
 
   const jxaScript = `
     const app = Application.currentApplication();
@@ -339,65 +301,39 @@ export async function macosPrompt(
       buttons: ${JSON.stringify(buttons)},
       defaultButton: ${JSON.stringify(defaultButton)},
       ${cancelButton ? `cancelButton: ${JSON.stringify(cancelButton)},` : ""}
+      ${options.title ? `withTitle: ${JSON.stringify(options.title)},` : ""}
       ${options.defaultAnswer !== undefined ? `defaultAnswer: ${JSON.stringify(options.defaultAnswer)},` : ""}
-      ${timeoutSeconds !== undefined ? `givingUpAfter: ${timeoutSeconds},` : ""}
+      ${nativeTimeoutSeconds !== undefined ? `givingUpAfter: ${nativeTimeoutSeconds},` : ""}
     };
     const res = app.displayDialog(${JSON.stringify(options.message)}, opts);
     JSON.stringify(res);
   `;
 
-  return new Promise<MacosPromptResult>((resolve) => {
-    const proc = spawn("osascript", ["-l", "JavaScript", "-e", jxaScript], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString("utf8");
-    });
-    proc.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString("utf8");
-    });
-
-    proc.on("error", () => {
-      resolve({ action: "cancelled", gaveUp: false });
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0 && stdout.trim()) {
-        try {
-          const parsed = JSON.parse(stdout.trim()) as {
-            buttonReturned?: string;
-            textReturned?: string;
-            gaveUp?: boolean;
-          };
-          if (parsed.gaveUp) {
-            return resolve({
-              action: "timed_out",
-              button: parsed.buttonReturned || undefined,
-              text: parsed.textReturned,
-              gaveUp: true,
-            });
-          }
-          const isCancel = cancelButton && parsed.buttonReturned === cancelButton;
-          return resolve({
-            action: isCancel ? "cancelled" : "confirmed",
-            button: parsed.buttonReturned,
-            text: parsed.textReturned,
-            gaveUp: false,
-          });
-        } catch {
-          // JSON parsing failure fallback
-        }
-      }
-
-      if (stderr.includes("-128") || stderr.includes("User canceled")) {
-        return resolve({ action: "cancelled", gaveUp: false });
-      }
-
-      resolve({ action: "cancelled", gaveUp: false });
-    });
-  });
+  const result = await runJxa(jxaScript, { ...options, timeoutSeconds });
+  if (result.aborted) return { action: "cancelled", gaveUp: false };
+  if (result.timedOut) return { action: "timed_out", gaveUp: true };
+  if (!result.stdout.trim()) return { action: "cancelled", gaveUp: false };
+  const parsed = parseNativeJson(result.stdout, invalidMessage);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(invalidMessage);
+  const record = parsed as { buttonReturned?: unknown; textReturned?: unknown; gaveUp?: unknown };
+  if (
+    (record.buttonReturned !== undefined && typeof record.buttonReturned !== "string")
+    || (record.textReturned !== undefined && typeof record.textReturned !== "string")
+    || (record.gaveUp !== undefined && typeof record.gaveUp !== "boolean")
+  ) throw new Error(invalidMessage);
+  if (record.gaveUp === true) {
+    return {
+      action: "timed_out",
+      gaveUp: true,
+      button: typeof record.buttonReturned === "string" ? record.buttonReturned : undefined,
+      text: typeof record.textReturned === "string" ? record.textReturned : undefined,
+    };
+  }
+  if (typeof record.buttonReturned !== "string" || !buttons.includes(record.buttonReturned)) throw new Error(invalidMessage);
+  return {
+    action: record.buttonReturned === cancelButton ? "cancelled" : "confirmed",
+    button: record.buttonReturned,
+    text: typeof record.textReturned === "string" ? record.textReturned : undefined,
+    gaveUp: false,
+  };
 }

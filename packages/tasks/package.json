@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-tasks",
   "version": "0.1.0",
-  "description": "Task board for Pi packages \u2014 the task data model, status machine, dependency-graph and resource-conflict rules, durable board persistence, per-task context, and the `task` tool. Registers one tool and no other.",
+  "description": "Durable tasks for Pi: dependency-aware task tools, completion evidence, successor context, and bounded unfinished-task reminders before settlement.",
   "keywords": [
     "pi-tasks",
     "pi-packages",
@@ -26,7 +26,8 @@
     "README.md"
   ],
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
   },
   "dependencies": {
     "@fradser/pi-kit": "workspace:*"
@@ -35,5 +36,9 @@
     "extensions": [
       "./index.ts"
     ]
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^1.0.0",
+    "@earendil-works/pi-tui": "^1.0.0"
   }
 }

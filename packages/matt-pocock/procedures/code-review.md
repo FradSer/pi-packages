@@ -76,7 +76,15 @@ Give the reviewer both briefs for bounded work, or one brief per reviewer when s
 - The spec or confirmed conversation requirements and scenarios.
 - The brief: "Report: (a) Gherkin scenarios (Given/When/Then) in the spec that are missing or partial; (b) behaviour in the diff that wasn't asked for (scope creep); (c) requirements that look implemented but where the implementation looks wrong. If the spec contains Gherkin scenarios, those are the authoritative acceptance criteria. Quote the spec line for each finding. Under 400 words."
 
+Unconfirmed scope creep is a Spec finding; non-breaking behavior requires an explicit compatibility requirement before Spec PASS.
+
 If the spec is missing, skip the Spec review and note this in the final report.
+
+### Evidence for causal claims
+
+Before calling a concurrency guard load-bearing, show a reachable interleaving using the actual public API: which operation replaces or deletes the entry, when each callback runs, and how the guard changes the observable result. A hypothetical future invalidation or replacement operation is not evidence about this candidate. If no such operation exists, describe the guard as redundant or a deliberate readability preference, not as a verified race fix. Apply the same standard to other causal claims: distinguish an observed failure, a source-supported possibility, and an untested hypothesis. Green tests alone do not prove the explanation.
+
+A judgement call changes confidence, not the verdict: once the report identifies an unresolved smell, Standards is REWORK even if no lint rule prohibits it. If current evidence shows the candidate is not a smell, explain that refutation and remove it from the findings; naming it a deliberate preference or a safeguard for a hypothetical future API does not resolve it. Do not let a necessary rejection handler justify a separate redundant identity guard by association.
 
 ### 5. Aggregate
 
@@ -107,7 +115,7 @@ In step 5.5's Standards scoring, treat a read memory file as a red flag: if the 
 After presenting the two reports, emit a binary verdict per axis:
 
 - **Standards axis**: binary PASS (no unresolved standard violations or smells in the Standards report) / REWORK (any standard violation or listed smell).
-- **Spec axis**: binary PASS (all Gherkin scenarios in the spec demonstrably implemented) / REWORK (any scenario missing/partial/wrong).
+- **Spec axis**: PASS requires every scenario, no unresolved scope creep, and no wrong implementation; otherwise REWORK. Non-breaking fallback requires an explicit compatibility requirement.
 
 **Refute-before-PASS (red-team protocol):** Before assigning PASS to either axis, attempt to refute your own PASS:
 

@@ -17,6 +17,10 @@ export default function (pi: ExtensionAPI): void {
   assert.ok(snapshots, "An isolated renderer snapshot path is required");
   const registered: ExtensionAPI = {
     ...pi,
+    sendUserMessage(...args) {
+      appendFileSync(snapshots, JSON.stringify({ kind: "follow-up", message: String(args[0]) }) + "\n");
+      return pi.sendUserMessage(...args);
+    },
     registerMessageRenderer<T>(customType: string, renderer: MessageRenderer<T>) {
       pi.registerMessageRenderer<T>(customType, (message, options, theme) => {
         const component = renderer(message, options, theme);
@@ -66,7 +70,10 @@ export default function (pi: ExtensionAPI): void {
       notify(message, type);
     };
     const receipt = buildLearningReceipt("automatic", { memory: false, harness: false, agents: true, reasons: ["instruction-evidence"] },
-      [{ phase: "agents", attempt: 0, outcome: "applied", durationMs: 10, operations: 1 }]);
+      [{ phase: "selector", attempt: 0, outcome: "applied", durationMs: 3, operations: 0,
+        selectedMemory: ["test-command.md"], diagnostic: "Jev fallback: uncertain; legacy selector",
+        jev: {stage:"selection",status:"fallback",reason:"uncertain",durationMs:3,model:"jev-1.13.0",inputTokens:100,outputTokens:20,estimatedCostUsd:0.0000042} },
+        { phase: "agents", attempt: 0, outcome: "applied", durationMs: 10, operations: 1 }]);
     pi.sendMessage({ customType: "continual-learning-result", content: "Learning result", display: true, details: receipt });
     appendFileSync(snapshots, JSON.stringify({ kind: "entry", customType: "continual-learning-result", data: receipt }) + "\n");
     const entries = [

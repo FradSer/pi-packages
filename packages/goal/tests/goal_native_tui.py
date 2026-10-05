@@ -6,6 +6,7 @@ import json
 import os
 import pathlib
 import pty
+import re
 import select
 import signal
 import struct
@@ -108,7 +109,18 @@ def main() -> None:
             assert "Revised offline acceptance" in revised["objective"], revised
             assert revised["scheduler"]["used"] == 1, revised
             assert b"revised and activated" in output, output.decode(errors="replace")[-4000:]
-            assert b"goal" in output and b"running" in output, "the active widget was rendered"
+            assert b"Pursuing goal" in output, "the active row reads as a sentence"
+            _seen = [ln for ln in output.decode(errors="replace").splitlines() if "goal" in ln.lower() or any(c in ln for c in "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏○✓✗")]
+            # A goal id is `goal_<base36>_<base36>`. The fixture filename
+            # `goal_offline_fixture.ts` also starts `goal_`, so match the id
+            # shape rather than the prefix.
+            # The fixture filename `goal_offline_fixture.ts` is a test artifact,
+            # not product output, and it has the same shape as a goal id
+            # (`goal_<6+>_<4+>`). Strip it before judging the transcript.
+            _probe = output.replace(b"goal_offline_fixture.ts", b"")
+            _hit = re.search(rb"goal_[a-z0-9]{6,}_[a-z0-9]{4,}", _probe)
+            assert _hit is None, "goal id shown near: " + repr(_probe[max(0, _hit.start() - 200):_hit.end() + 80])
+            assert b"running" not in output, "the status verb is the row itself, not a field"
             send("/goal resume")
             r = record()
             assert r["scheduler"]["used"] == 1, r

@@ -1,8 +1,10 @@
 export * from "./src/context.ts";
 export * from "./src/graph.ts";
+export * from "./src/rows.ts";
 export * from "./src/persist.ts";
 export * from "./src/types.ts";
 export * from "./src/store.ts";
+export * from "./src/stop-check.ts";
 export * from "./src/tool.ts";
 // The Pi extension entry. Re-exported as the default so one file is both the
 // library surface and the extension Pi loads.

@@ -40,7 +40,7 @@ export default function liveChild(pi: ExtensionAPI): void {
     probe: "live_child_probe",
     turns: [
       { tool: "agent", args: {
-        action: "start",
+        operation: "start",
         name: "realchild",
         prompt: "Reply with exactly LIVE_CHILD_OK and nothing else. Do not use tools.",
         model: process.env.PI_LIVE_CHILD_MODEL,
@@ -49,8 +49,8 @@ export default function liveChild(pi: ExtensionAPI): void {
       // Polls rather than asserting immediately: the report is delivered when the
       // child's turn settles, and the first read is usually too early.
       { tool: "live_child_probe", args: { probe: "wait" } },
-      { tool: "agent", args: { action: "list" } },
-      { tool: "agent", args: { action: "stop", session: "$prev.agents.0.session" } },
+      { tool: "agent", args: { operation: "list" } },
+      { tool: "agent", args: { operation: "stop", session: "$prev.agents.0.session" } },
     ],
   });
   pi.on("message_end", (event) => {

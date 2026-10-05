@@ -11,7 +11,7 @@
  * reachable through its predecessor's handle.
  */
 
-import type { Teammate } from "./roster.ts";
+import type { Agent } from "./roster.ts";
 
 /** `session:<name>` — the name, bound to whichever incarnation is living now. */
 export function sessionRoute(name: string): string {
@@ -32,13 +32,13 @@ export function parseExactSessionRoute(route: string): { name: string; spawnId: 
  *  incarnation is gone. A retired handle never resolves to its replacement. */
 export function resolveExactSession(
   route: string,
-  roster: readonly Teammate[],
-): Teammate | undefined {
+  roster: readonly Agent[],
+): Agent | undefined {
   const parsed = parseExactSessionRoute(route);
   if (!parsed) return undefined;
   return roster.find(
-    (teammate) => teammate.name === parsed.name
-      && teammate.spawnId === parsed.spawnId
-      && teammate.status !== "stopped",
+    (agent) => agent.name === parsed.name
+      && agent.spawnId === parsed.spawnId
+      && agent.status !== "stopped",
   );
 }

@@ -41,9 +41,17 @@ Feature: npm publish and credential guard
     Then the call is blocked with the publish label
 
   Scenario: Blocked publish commands redirect to pnpm publish in the terminal instructions
+    Given the working directory is inside a pnpm workspace
     When bash runs "npm publish" or "npm publish --access public"
     Then the block reason redirects the terminal command to pnpm publish
     And it warns that npm publish in a pnpm workspace leaks workspace protocol dependencies
+
+  Scenario: Advice outside a pnpm workspace is conditional and the command unchanged
+    Given the working directory has no pnpm lockfile
+    When bash runs "npm publish"
+    Then the block reason keeps the original command for the user's terminal
+    And the workspace warning is conditional instead of asserting a pnpm workspace
+    And the reason names no project-specific skill or repository layout
 
   Scenario: Command-position anchoring avoids false positives
     When bash runs "echo npm login", "cat pnpm-publish-notes.txt",

@@ -13,11 +13,11 @@ child.stderr = new PassThrough();
 child.stdin = new Writable({ write(chunk, _encoding, callback) { commands.push(JSON.parse(String(chunk))); callback(); } });
 mock.method(childProcess, "spawn", () => child);
 syncBuiltinESMExports();
-const { spawnResident, sendWorkerSteer, sendWorkerFollowUp } = await import("@fradser/pi-subagents");
+const { spawnResident, sendAgentSteer, sendAgentFollowUp } = await import("@fradser/pi-subagents");
 const updates: Array<{ finalResponse?: boolean; controlError?: string }> = [];
-spawnResident({ workerName: "fixture", onUpdate: (update) => updates.push(update), onExit: () => {} });
-sendWorkerFollowUp("fixture", "peer");
-sendWorkerSteer("fixture", "leader active");
+spawnResident({ agentName: "fixture", onUpdate: (update) => updates.push(update), onExit: () => {} });
+sendAgentFollowUp("fixture", "peer");
+sendAgentSteer("fixture", "leader active");
 assert.deepEqual(commands.filter(({ type }) => type === "prompt").map(({ type, streamingBehavior }) => ({ type, streamingBehavior })), [
   { type: "prompt", streamingBehavior: "followUp" }, { type: "prompt", streamingBehavior: "steer" },
 ]);
@@ -27,7 +27,7 @@ child.stdout.write(JSON.stringify({ type: "message_end", message: { role: "assis
 assert.equal(updates.at(-1)?.finalResponse, false);
 child.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\n");
 assert.equal(updates.at(-1)?.finalResponse, true);
-sendWorkerSteer("fixture", "leader idle");
+sendAgentSteer("fixture", "leader idle");
 assert.equal(commands.at(-1)?.type, "prompt", "Idle delivery must start work, not strand a queue-only steer");
 child.stdout.write(JSON.stringify({ type: "response", command: "prompt", success: false, error: "input rejected" }) + "\n");
 assert.match(updates.at(-1)?.controlError ?? "", /input rejected/);
@@ -35,18 +35,18 @@ const { mkdtempSync, rmSync } = await import("node:fs");
 const { tmpdir } = await import("node:os");
 const { join } = await import("node:path");
 const { initTeamMachine, shutdownTeamMachine, sendLeaderMessage, drainTeammateOutboxes } = await import("../src/team-machine.ts");
-const { resetState, registerTeammate, getTeammate } = await import("../src/state.ts");
+const { resetState, registerAgent, getAgent } = await import("../src/state.ts");
 const { stateFilePath, workerOutboxPath, appendWorkerEvent } = await import("../src/statefile.ts");
 const cwd = mkdtempSync(join(tmpdir(), "leader-lifecycle-"));
 try {
   resetState();
   initTeamMachine({ cwd }, { sendUpdate: () => {}, notifyChange: () => {} });
-  registerTeammate({ name: "fixture", agent: "role", spawnId: "s", pid: 100, status: "working", isolation: "none", createdAt: 1, updatedAt: 1,
+  registerAgent({ name: "fixture", role: "role", spawnId: "s", pid: 100, status: "working", createdAt: 1, updatedAt: 1,
     assignment: { id: "old", kind: "direct", resources: [] } });
   const outbox = workerOutboxPath(stateFilePath(undefined, cwd), "fixture", "s");
   appendWorkerEvent(outbox, { id: "terminal", type: "message", worker: "fixture", spawnId: "s", assignmentId: "old", body: "done", status: "completed" });
   drainTeammateOutboxes();
-  assert.equal(getTeammate("fixture")?.status, "working", "Terminal report cannot settle execution");
+  assert.equal(getAgent("fixture")?.status, "working", "Terminal report cannot settle execution");
   const { deliverFreshAssignment } = await import("@fradser/pi-subagents");
   // Exercise the transport after explicit lifecycle authorization, not a
   // removed message-owned reopen operation.
@@ -59,7 +59,7 @@ try {
   const resetIndex = commands.findIndex((command) => command.id === resetId);
   child.stdout.write(`${JSON.stringify({ type: "agent_settled" })}\n${JSON.stringify({ type: "agent_settled" })}\n`);
   assert.equal(commands.filter((command) => command.type === "new_session").length, resetCount, "Repeated settlement lines must not duplicate the reset");
-  sendWorkerSteer("fixture", "same-attempt guidance");
+  sendAgentSteer("fixture", "same-attempt guidance");
   assert.equal(commands.at(-1)?.type, "new_session", "Guidance must wait instead of steering the old session during reset");
   child.stdout.write(JSON.stringify({ id: resetId, type: "response", command: "new_session", success: true, data: { cancelled: false } }) + "\n");
   await new Promise((resolve) => setImmediate(resolve));

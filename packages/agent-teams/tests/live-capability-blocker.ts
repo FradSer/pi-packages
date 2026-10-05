@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { registerLeaderTools } from "../src/tools.ts";
-import { initTeamMachine, shutdownTeamMachine, teardownTeammates } from "../src/team-machine.ts";
+import { initTeamMachine, shutdownTeamMachine, teardownAgents } from "../src/team-machine.ts";
 import { getTask, resetState } from "../src/state.ts";
-import { registerAgentTool, type LeaderReport } from "@fradser/pi-subagents";
+import { registerIntentTools, type LeaderReport } from "@fradser/pi-subagents";
 
 const model = process.env.LIVE_AGENT_WORK_MODEL;
 assert.ok(model, "Select an authenticated model explicitly for this opt-in test");
@@ -22,11 +22,11 @@ try {
     if (report.finished) { reports.push(report); done.resolve(report); }
   } });
   registerLeaderTools({ registerTool(tool) { tools.set(tool.name, tool); }, getActiveTools: () => [], setActiveTools() {} } as unknown as ExtensionAPI);
-  registerAgentTool({ registerTool(tool) { tools.set(tool.name);
-  registerTaskTool({ registerTool(tool) { tools.set(tool.name);
+  registerIntentTools({ registerTool(tool) { tools.set(tool.name);
+  registerTaskTools({ registerTool(tool) { tools.set(tool.name);
   const result = await tools.get("agent")!.execute("live", {
     action: "delegate", name: "capability-blocker", model,
-    prompt: "Read the local file evidence.txt using a file tool and report its content. Do not invent evidence. If required tools are absent, follow your Worker Protocol and explicitly submit failed with the missing capabilities. Do not send an agent_event or ordinary final instead of failed submission.",
+    prompt: "Read the local file evidence.txt using a file tool and report its content. Do not invent evidence. If required tools are absent, follow your Agent Protocol and explicitly submit failed with the missing capabilities. Do not send an agent_event or ordinary final instead of failed submission.",
     definition: { description: "Verify missing capability handling", prompt: "Execute only the assigned work; never invent evidence.", tools: [] },
   }, undefined, undefined, ctx);
   const content = JSON.parse((result.content[0] as { text: string }).text);
@@ -40,7 +40,7 @@ try {
     reportStatus: report.status, workStatus: getTask(content.work.id)?.status, reports: reports.length, cwd }));
 } finally {
   clearTimeout(timer);
-  await teardownTeammates();
+  await teardownAgents();
   shutdownTeamMachine();
   resetState();
 }

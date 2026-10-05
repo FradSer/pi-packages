@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import tempfile
 from pathlib import Path
+
+import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -20,7 +24,10 @@ CEILINGS = {
     # Raised for the same change: a Worker must know its turn is bound to one
     # Assignment Attempt and must end the turn after a terminal outcome.
     "tmWorker": 2_150,
-    "mpInactiveCatalog": 2_650,
+    # Raised for the standalone capabilities the procedure catalog gained (`pr`,
+    # `retro`, glossary). Each one adds a listed entry the Leader must be able to
+    # route to, so the catalog grows by their names and one-line descriptions.
+    "mpInactiveCatalog": 3_900,
     "utilPeerRecap": 1_550,
     "monitorSection": 800,
     "contextSection": 250,
@@ -31,11 +38,18 @@ CEILINGS = {
 # ceiling is the governance line, not a claim that no section could be smaller.
 # Raised by 100 for the attempt-bound recovery contract, which adds mandatory
 # instruction bytes to the active Leader and Worker sections.
-TOTAL_CEILING = 16_100
+# Raised to 16_800 for the same catalog growth: the total moved from 15.9K to a
+# measured 16.3K, and the ceiling stays a governance line above it.
+TOTAL_CEILING = 16_800
 
 
 def measure() -> dict[str, int]:
     script = """
+    import { mkdtempSync, rmSync } from "node:fs";
+    import { tmpdir } from "node:os";
+    import { join } from "node:path";
+    const project = mkdtempSync(join(tmpdir(), "prompt-budget-project-"));
+    process.on("exit", () => rmSync(project, { recursive: true, force: true }));
     import { formatMemoriesBlock, type MemoryLoadResult } from './packages/continual-learning/extensions/memory-files.ts';
     import { buildIdleLeaderGuidance, buildTeamLeaderGuidance, WORKER_GUIDANCE } from './packages/agent-teams/src/guidance.ts';
     import { availableWorkflowsGuidance } from './packages/matt-pocock/src/workflow.ts';
@@ -86,8 +100,8 @@ def measure() -> dict[str, int]:
 
     console.log(JSON.stringify({
       clMemoryIndex: formatMemoriesBlock(memory).length,
-      tmIdleLeader: buildIdleLeaderGuidance().length,
-      tmActiveLeader: buildTeamLeaderGuidance().length,
+      tmIdleLeader: buildIdleLeaderGuidance(project).length,
+      tmActiveLeader: buildTeamLeaderGuidance(project).length,
       tmWorker: WORKER_GUIDANCE.length,
       mpInactiveCatalog: availableWorkflowsGuidance().length,
       utilPeerRecap: formatCrossSessionRecap(peers as never).length,
@@ -99,13 +113,18 @@ def measure() -> dict[str, int]:
       } as never).length,
     }));
     """
-    result = subprocess.run(
-        ["bun", "-e", script],
-        cwd=REPO,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    # The fixture controls catalog size; personal Agents and credentials are
+    # not inputs to a fixed-section budget. Keep the existing ceilings intact.
+    with tempfile.TemporaryDirectory(prefix="prompt-budget-home-") as home:
+        env = {key: value for key, value in os.environ.items() if not key.startswith("PI_")}
+        env.update({"HOME": home, "PI_CODING_AGENT_DIR": str(Path(home) / "agent"), "PI_OFFLINE": "1"})
+        result = subprocess.run(
+            ["bun", "-e", script],
+            cwd=REPO, env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
     assert result.returncode == 0, result.stderr
     return json.loads(result.stdout.strip().splitlines()[-1])
 
@@ -115,6 +134,20 @@ def test_every_injected_section_stays_within_its_documented_ceiling() -> None:
     assert set(measured) == set(CEILINGS), "every governed section is measured"
     for name, ceiling in CEILINGS.items():
         assert measured[name] <= ceiling, f"{name} injected {measured[name]} chars, ceiling {ceiling}"
+
+
+def test_budget_measurement_is_independent_of_ambient_agents(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    empty = tmp_path / "empty-agent"
+    monkeypatch.setenv("PI_CODING_AGENT_DIR", str(empty))
+    baseline = measure()
+    catalog = tmp_path / "personal-agent" / "agents"
+    catalog.mkdir(parents=True)
+    for index in range(8):
+        (catalog / f"reviewer-{index}.md").write_text(
+            f"---\nname: reviewer-{index}\ndescription: ambient role unrelated to the benchmark\ntools: read\n---\nReview only.\n"
+        )
+    monkeypatch.setenv("PI_CODING_AGENT_DIR", str(catalog.parent))
+    assert measure() == baseline
 
 
 def test_worst_case_leader_turn_stays_within_the_total_ceiling() -> None:

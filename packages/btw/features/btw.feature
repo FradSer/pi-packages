@@ -1,4 +1,24 @@
 Feature: Read-only side questions
+
+  Scenario: Input focus and editing follow the host
+    Given the overlay contains a completed answer
+    When the host changes overlay focus
+    Then the composer follows the host focus
+    And Home and End edit the question instead of scrolling the answer
+
+  Scenario: Small terminals retain essential controls
+    Given a terminal has at least 8 rows and 20 columns
+    When the overlay renders in any turn state
+    Then its rows fit within the 80% overlay height limit
+    And the composer remains visible after an answer
+    And smaller terminals display a close action and size requirement
+
+  Scenario: Native wheel input and invalidation preserve the turn
+    Given an answer viewport or an active turn
+    When the host sends a normalized wheel event or invalidates caches
+    Then wheel input scrolls only the answer
+    And invalidation does not stop active animation
+
   The btw extension answers a side question in an isolated Pi child process
   without adding a session or leaving temporary prompt material behind.
 
@@ -42,6 +62,7 @@ Feature: Read-only side questions
     When the btw overlay opens
     Then the overlay is rendered directly over the main session input area
     And the overlay has no bottom margin
+    And the answer viewport leaves room for the composer and footer within the 80% overlay height limit
 
   Scenario: Side-question overlay uses pi-kit's shared panel frame
     Given an interactive side question overlay
@@ -79,7 +100,20 @@ Feature: Read-only side questions
     Given a current session contains many messages
     When the side question context is built
     Then at most four recent messages are included
-    And the context is capped at 4000 characters
+    And the context is capped at 4000 characters including the truncation marker
+    And selected messages remain in chronological order
+
+  Scenario: Context limits can disable the excerpt
+    Given a context message or character limit is zero
+    When the side question context is built
+    Then the excerpt is empty
+
+  Scenario: A cancelled follow-up cannot replace a later answer
+    Given an initial side question has been answered
+    And a follow-up question is still loading
+    When the user cancels the follow-up and asks another question
+    And the cancelled question returns a late answer
+    Then the overlay keeps only completed turns and the new answer
 
   Scenario: Excessive side output is capped before display
     Given the side child returns an unusually long answer

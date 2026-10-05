@@ -1,0 +1,16 @@
+[
+  {
+    "id": "p-limit-r4-semantic-rejected-plan",
+    "snapshot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/p-limit-on/memory/runs/--work-p-limit--/run_muvdp3hm_9b595961f10f9091/snapshot.json",
+    "plan": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/p-limit-on/memory/runs/--work-p-limit--/run_muvdp3hm_9b595961f10f9091/semantic-rejected-plan.json",
+    "snapshotHash": "c4052f63c5f30284a414a7a091580913a3d0e43227a975047b286c2bbb339ff6",
+    "planHash": "de608f9e22db9e96fb3e1ecfe8c7c3129d6a4bcdfc4d803cedea43edb965945f"
+  },
+  {
+    "id": "p-limit-r4-semantic-repair-plan",
+    "snapshot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/p-limit-on/memory/runs/--work-p-limit--/run_muvdp3hm_9b595961f10f9091/snapshot.json",
+    "plan": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/p-limit-on/memory/runs/--work-p-limit--/run_muvdp3hm_9b595961f10f9091/semantic-repair-plan.json",
+    "snapshotHash": "c4052f63c5f30284a414a7a091580913a3d0e43227a975047b286c2bbb339ff6",
+    "planHash": "babd70960259d40205f41be5374c5cb9af418a1245656f489d891a7c27f2ac7d"
+  }
+]

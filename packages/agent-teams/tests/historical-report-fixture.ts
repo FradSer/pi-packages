@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import agentTeams from "../src/index.ts";
-import { applyProgress, createBoardTask, drainTeammateOutboxes, shutdownTeammate } from "../src/team-machine.ts";
-import { createTask, getTeammate, reclaimDirectWork, registerTeammate, revertInFlightAttempt, takeTask } from "../src/state.ts";
+import teamRuntime from "../src/index.ts";
+import { applyProgress, createCoordinatedTask, drainTeammateOutboxes, shutdownAgent } from "../src/team-machine.ts";
+import { bindTask, createTask, getAgent, registerAgent, revertUndeliveredTake, takeTask } from "../src/state.ts";
 import { appendWorkerEvent, stateFilePath, workerOutboxPath } from "../src/statefile.ts";
 import type { LeaderReport } from "@fradser/pi-subagents";
 
@@ -19,7 +19,7 @@ function reportsIn(details: unknown): LeaderReport[] {
 }
 
 export default function (pi: ExtensionAPI): void {
-  agentTeams(pi);
+  teamRuntime(pi);
   const transition = process.env.PI_REPORT_HISTORY_TRANSITION;
   let calls = 0;
   let produced = false;
@@ -68,42 +68,45 @@ export default function (pi: ExtensionAPI): void {
     name: "produce_historical_reports", label: "Produce reports", description: "Queue native reports, then change the attempt lifecycle.",
     parameters: Type.Object({}),
     async execute(_id, _params, _signal, _update, ctx) {
-      const worker = { name: "history-worker", agent: "fixture", spawnId: "history-spawn", pid: 0,
-        status: "working" as const, isolation: "none" as const, createdAt: 1, updatedAt: 1 };
-      assert.ok(registerTeammate(worker).ok);
+      const agent = { name: "history-worker", role: "fixture", spawnId: "history-spawn", pid: 0,
+        status: "working" as const, createdAt: 1, updatedAt: 1 };
+      assert.ok(registerAgent(agent).ok);
       const created = createTask({ subject: "Historical fixture work" });
       assert.ok(created.ok);
-      assert.ok(takeTask(created.task.id, worker.name).ok);
-      const assignmentId = getTeammate(worker.name)!.assignment!.id;
-      applyProgress(worker.name, worker.spawnId, { text: "", turns: 1, finalResponse: false });
-      const outbox = workerOutboxPath(stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd), worker.name, worker.spawnId);
+      assert.ok(takeTask(created.task.id, agent.name).ok);
+      const assignmentId = getAgent(agent.name)!.assignment!.id;
+      applyProgress(agent.name, agent.spawnId, { text: "", turns: 1, finalResponse: false });
+      const outbox = workerOutboxPath(stateFilePath(ctx.sessionManager.getSessionFile(), ctx.cwd), agent.name, agent.spawnId);
       for (const [index, body] of bodies.entries()) {
-        appendWorkerEvent(outbox, { id: `history-${index}`, type: "message", worker: worker.name, spawnId: worker.spawnId,
+        appendWorkerEvent(outbox, { id: `history-${index}`, type: "message", worker: agent.name, spawnId: agent.spawnId,
           assignmentId, body, status: index === 0 ? "inform" : "request", timestamp: 100 + index });
         drainTeammateOutboxes();
       }
       if (transition === "stopped" || transition === "replacement") {
-        assert.equal((await shutdownTeammate(worker.name)).ok, true);
+        assert.equal((await shutdownAgent(agent.name)).ok, true);
         if (transition === "replacement") {
-          assert.equal(registerTeammate({ ...worker, spawnId: "replacement-spawn", status: "idle" }).ok, true);
-          assert.ok(reclaimDirectWork(created.task.id, worker.name,
-            { id: "replacement-attempt", kind: "direct", resources: [] }, "pending").ok);
+          assert.equal(registerAgent({ ...agent, spawnId: "replacement-spawn", status: "idle" }).ok, true);
+          // The retired attempt's shutdown holds the Work for recovery. Only a
+          // deliberate assignment clears that hold, and it is what makes the
+          // retired reports historical: their assignment no longer matches.
+          assert.ok(bindTask(created.task.id, agent.name,
+            { id: "replacement-attempt", kind: "direct", resources: [] }, { from: ["recovery_hold"] }).ok);
         }
       } else if (transition === "released") {
-        assert.ok(revertInFlightAttempt(created.task.id, "Fixture release"));
+        assert.ok(revertUndeliveredTake(created.task.id, agent.name, "Fixture release"));
       } else if (transition === "superseded") {
-        assert.equal(createBoardTask({ subject: "Replacement fixture work", supersedes: [created.task.id] }).ok, true);
+        assert.equal(createCoordinatedTask({ subject: "Replacement fixture work", supersedes: [created.task.id] }).ok, true);
       } else if (transition === "completed") {
-        appendWorkerEvent(outbox, { id: "terminal", type: "message", worker: worker.name, spawnId: worker.spawnId,
+        appendWorkerEvent(outbox, { id: "terminal", type: "message", worker: agent.name, spawnId: agent.spawnId,
           assignmentId, body: acceptedBody, status: "completed", timestamp: 200 });
         drainTeammateOutboxes();
-        applyProgress(worker.name, worker.spawnId, { text: acceptedBody, turns: 1, finalResponse: true });
-        assert.equal((await shutdownTeammate(worker.name)).ok, true);
+        applyProgress(agent.name, agent.spawnId, { text: acceptedBody, turns: 1, finalResponse: true });
+        assert.equal((await shutdownAgent(agent.name)).ok, true);
       } else {
         assert.equal(transition, "active");
       }
       pi.sendMessage({ customType: "agent-teams-harness", display: true, content: harnessBody,
-        details: { teammate: worker.name, spawnId: worker.spawnId, origin: "harness",
+        details: { agent: agent.name, spawnId: agent.spawnId, origin: "harness",
           harnessEvent: { type: "fixture-diagnostic", subject: "Fixture diagnostic" }, body: harnessBody } },
       { triggerTurn: true, deliverAs: "steer" });
       assert.equal(received.length, 0, "Native reports must not split a tool call from its result");

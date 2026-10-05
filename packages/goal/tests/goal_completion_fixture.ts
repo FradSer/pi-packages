@@ -11,9 +11,15 @@ export default function (pi: ExtensionAPI): void {
   pi.on("session_start", (_event, ctx) => {
     if (!trace || ctx.mode !== "tui") return;
     const setWidget = ctx.ui.setWidget.bind(ctx.ui);
-    ctx.ui.setWidget = (key, value, options) => {
-      if (key === "goal-status") appendFileSync(trace, JSON.stringify({ kind: "widget", mounted: typeof value === "function", placement: options?.placement }) + "\n");
-      setWidget(key, value, options);
+    ctx.ui.setWidget = (key, content, options) => {
+      if (key === "goal-status") {
+        const mounted = typeof content === "function";
+        const placement = mounted && options ? options.placement : undefined;
+        appendFileSync(trace, JSON.stringify({ kind: "widget", mounted, placement }) + "\n");
+      }
+      // Two Pi overloads: plain lines, or a component factory.
+      if (typeof content === "function") return setWidget(key, content, options);
+      return setWidget(key, content, options);
     };
   });
   goal(pi, {

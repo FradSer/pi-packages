@@ -1,7 +1,7 @@
 /**
  * Team state management for the current session only: the teammate roster,
- * the in-memory task board, and the single leader inbox. The leader process
- * is the sole writer of this snapshot and of board.json.
+ * the in-memory task storage, and the single leader inbox. The leader process
+ * is the sole writer of this snapshot and of tasks.json.
  */
 
 import { nonEmpty } from "@fradser/pi-kit";
@@ -15,26 +15,30 @@ import {
 // The roster — one child process per entry, its lifecycle, and the revisions that
 // say when it changed — is an execution fact, so it lives in @fradser/pi-subagents
 // with the spawner that creates those processes. This module keeps the snapshot,
-// the leader inbox, and the board callback, and points `teammates` at the roster's
+// the leader inbox, and the tasks callback, and points `agents` at the roster's
 // own map by identity so no snapshot schema changes and no version bump is needed.
 import {
-  assignTeammate,
-  getTeammate,
-  livingTeammates,
-  teammates as roster,
+  assignAgent,
+  getAgent,
+  livingAgents,
+  agents as roster,
   progressRevision as rosterProgressRevision,
   resetRoster,
   rosterRevision as currentRosterRevision,
-  type Teammate,
+  type Agent,
 } from "@fradser/pi-subagents";
 // The Work Item graph and resource rules are pure and live in @fradser/pi-tasks, so the
-// leader, the worker, and any board-only consumer share one implementation.
+// leader, the worker, and any tasks-only consumer share one implementation.
 // `activeAssignmentConflict` below is the roster-backed policy on top of
 // `resourcesConflict`, and stays here because it reads the roster.
 import {
-  configureBoardStore,
+  bindTask,
+  configureTaskStore,
+  createTask,
+  discardTask,
   resourcesConflict,
-  tasks as boardTasks,
+  tasks as storedTasks,
+  type WorkAssignment as WorkerAssignment,
 } from "@fradser/pi-tasks";
 
 export const MAX_LEADER_MAILBOX_MESSAGES = 4096;
@@ -45,13 +49,12 @@ export const MAX_LEADER_MAILBOX_BYTES = 8 * 1024 * 1024;
 export const MAX_PEER_DELIVERED_IDS = 512;
 /** Bounded forensic routing history; mailbox files retain the full peer transcript. */
 export const MAX_PEER_DELIVERY_STATES = 4096;
-export const MAX_TASK_DEPENDENCIES = 32;
 
 function emptyState(): TeamState {
   return {
     runtimeVersion: TEAM_RUNTIME_VERSION,
-    teammates: roster,
-    tasks: boardTasks,
+    agents: roster,
+    tasks: storedTasks,
     leaderMailbox: [],
     messageCounter: 0,
     workerEventOffsets: {},
@@ -69,47 +72,47 @@ function nextMessageId(): string {
 }
 
 export function resetState(): void {
-  for (const id of Object.keys(boardTasks)) delete boardTasks[id];
+  for (const id of Object.keys(storedTasks)) delete storedTasks[id];
   resetRoster();
   state = emptyState();
-  boardRevisionCounter++;
+  tasksRevisionCounter++;
   stateRevisionCounter++;
 }
 
 // ── Persistence revisions ────────────────────────────────────────
 // state.ts owns every in-memory mutation, so it is the one place that can say
 // exactly which artifact changed. Stream progress is counted separately: a
-// running teammate must not force the roster, the board, or the debug snapshot
+// running teammate must not force the roster, the tasks, or the debug snapshot
 // to be rewritten on every token. Every persisted mutation in this module bumps
 // one of these counters, so a mutation that forgets to bump would not be written
 // until something else changed — add the bump with any new mutator.
 let stateRevisionCounter = 0;
-let boardRevisionCounter = 0;
+let tasksRevisionCounter = 0;
 
-/** Revision of the whole snapshot: roster, board, mailbox, and offsets.
+/** Revision of the whole snapshot: roster, tasks, mailbox, and offsets.
  *
  * Composed rather than single-sourced, because the roster now has its own counter
  * in another package. Every input is monotonic, so the sum changes whenever any
  * of them does, which is the only property the snapshot writer relies on: it
  * compares against the last written value and rewrites on inequality. */
 export function stateRevision(): number {
-  return stateRevisionCounter + currentRosterRevision() + boardRevisionCounter;
+  return stateRevisionCounter + currentRosterRevision() + tasksRevisionCounter;
 }
 
 /** Revision of the worker-readable roster, owned by @fradser/pi-subagents. */
 export { currentRosterRevision as rosterRevision };
 
-/** Revision of the persisted board. */
-export function boardRevision(): number {
-  return boardRevisionCounter;
+/** Revision of the persisted tasks. */
+export function tasksRevision(): number {
+  return tasksRevisionCounter;
 }
 
 /** Revision of streamed progress only; never persisted on its own. */
 export { rosterProgressRevision as progressRevision };
 
-/** Record a board change made outside this module's task mutators. */
-export function markBoardChanged(): void {
-  boardRevisionCounter++;
+/** Record a task set change made outside this module's task mutators. */
+export function markTasksChanged(): void {
+  tasksRevisionCounter++;
   stateRevisionCounter++;
 }
 
@@ -149,16 +152,16 @@ export function setTeamDefaultModel(ref: string | undefined): void {
 // entry point, and every existing consumer imports it from here.
 
 export {
-  assignTeammate,
-  getTeammate,
-  idleTeammates,
-  isValidTeammateName,
-  listTeammates,
-  livingTeammates,
-  registerTeammate,
-  updateTeammate,
-  updateTeammateProgress,
-  teammates,
+  assignAgent,
+  getAgent,
+  idleAgents,
+  isValidAgentName,
+  listAgents,
+  livingAgents,
+  registerAgent,
+  updateAgent,
+  updateAgentProgress,
+  agents,
 } from "@fradser/pi-subagents";
 
 /** Drop the oldest mailbox entries until both the count and byte caps hold. */
@@ -186,7 +189,7 @@ export function deliverToLeader(msg: Omit<MailboxMessage, "id" | "timestamp">): 
 
 /** Apply a validated report event exactly once by event id. */
 export function receiveWorkerMessage(event: WorkerReportEvent, options?: { archived?: boolean }): boolean {
-  const sender = getTeammate(event.worker);
+  const sender = getAgent(event.worker);
   if (!sender || sender.spawnId !== event.spawnId) return false;
   if (state.leaderMailbox.some((message) => message.id === event.id)) return false;
   state.leaderMailbox.push({
@@ -246,15 +249,15 @@ export function getPeerDeliveryState(messageId: string): "queued" | "routed" | "
   return state.peerDeliveryStates?.[messageId];
 }
 
-// ── Board: creation and queries ───────────────────────────────────
+// ── Tasks: creation and queries ───────────────────────────────────
 
 /** Maximum characters in a generated slug task id (suffix included). */
 export function activeAssignmentConflict(
   resources: readonly string[],
   exceptWorker?: string,
-): Teammate | undefined {
+): Agent | undefined {
   if (resources.length === 0) return undefined;
-  return livingTeammates().find((teammate) => {
+  return livingAgents().find((teammate) => {
     if (teammate.name === exceptWorker) return false;
     const assignment = teammate.assignment;
     const retainsWorkAuthority = teammate.currentTaskId !== undefined
@@ -265,21 +268,56 @@ export function activeAssignmentConflict(
   });
 }
 
-// ── Board (delegated to pi-tasks) ────────────────────────────────
+// ── Tasks (delegated to pi-tasks) ────────────────────────────────
 //
 // There is deliberately no `release` here. A lease is given back on completion,
 // on process exit, and on stop; the runtime's own half-start reverts go through
-// `revertInFlightAttempt`, and a holder that must free a lease it is not giving
+// `revertUndeliveredTake`, and a holder that must free a lease it is not giving
 // up uses `acknowledgeSupersession`. Those name what happened instead of offering
 // one verb that can take any task from anyone.
 export {
   createTask, getTask, listTasks, pendingTasks, claimableTasks, taskDependenciesMet,
-  createDirectWork, discardDirectWork, reclaimDirectWork, takeTask, claimedDependents,
-  reopenCompletedWork, releaseTasksOf, applyClaimIntent, revertInFlightAttempt,
+  takeTask, claimedDependents, reopenTask, failTasksHeldBy,
+  applyClaimIntent, revertUndeliveredTake, bindTask, discardTask,
   acknowledgeSupersession, completeTaskWithOutcome,
-  applySubmissionIntent, loadBoard, setTaskContext,
+  applySubmissionIntent, loadTasks, setTaskContext,
 } from "@fradser/pi-tasks";
 export type { WorkAssignment as WorkerAssignment } from "@fradser/pi-tasks";
+
+/**
+ * Create a Task and bind it to a named holder in one step, rolling the creation
+ * back if the bind is refused.
+ *
+ * Composed here rather than offered by the tasks, because it is a coordinator's
+ * move: the task store states what must be done and takes only what a holder chose to
+ * take, while this names a holder and mints its lease. The rollback matters —
+ * without it a refusal would leave a Task whose id resolves to nothing.
+ */
+export function createBoundWork(input: {
+    id: string;
+    subject: string;
+    description?: string;
+    resources?: string[];
+    verify?: string;
+    holder: string;
+    assignment: WorkerAssignment;
+  }): { ok: true; task: import("@fradser/pi-tasks").Task } | { ok: false; reason: string } {
+    const created = createTask({
+      id: input.id,
+      recordKind: "execution",
+      subject: input.subject,
+      ...(input.description ? { description: input.description } : {}),
+      ...(input.resources ? { resources: input.resources } : {}),
+      ...(input.verify ? { verify: input.verify } : {}),
+    });
+    if (!created.ok) return { ok: false, reason: created.reason };
+    const bound = bindTask(input.id, input.holder, input.assignment, { from: ["pending"] });
+    if (!bound.ok) {
+      discardTask(input.id, input.holder);
+      return { ok: false, reason: bound.reason };
+    }
+    return { ok: true, task: bound.task };
+  }
 
 // ── State inspection ──────────────────────────────────────────────
 
@@ -287,13 +325,21 @@ export function getState(): TeamState {
   return state;
 }
 
-configureBoardStore({
+configureTaskStore({
   get: (name) => {
-    const t = getTeammate(name);
+    const t = getAgent(name);
     return t ? { name: t.name, spawnId: t.spawnId, status: t.status,
                 assignment: t.assignment, currentTaskId: t.currentTaskId } : undefined;
   },
+  // A stopped agent holds nothing, and a replaced one is not the incarnation that
+  // published the intent. Only the roster knows either, which is why the tasks
+  // asks rather than comparing spawn ids itself.
+  current: (name, incarnation) => {
+    const t = getAgent(name);
+    if (!t || t.status === "stopped") return false;
+    return incarnation === undefined || t.spawnId === incarnation;
+  },
   conflicting: (resources, except) => activeAssignmentConflict(resources, except),
-  sync: (name, assignment, taskId) => { assignTeammate(name, assignment, taskId); },
-  changed: () => { boardRevisionCounter++; stateRevisionCounter++; },
+  sync: (name, assignment, taskId) => { assignAgent(name, assignment, taskId); },
+  changed: () => { tasksRevisionCounter++; stateRevisionCounter++; },
 });

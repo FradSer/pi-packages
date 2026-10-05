@@ -7,6 +7,7 @@ Feature: Result-contract background monitoring
     Given the pi-monitor-fradser extension is loaded
 
   Scenario: Starting a monitor requires a success result contract
+    Given the UI-host tool batch contains only monitor_start calls
     When monitor_start runs with a command, description, and result pattern
     Then a background process is spawned for the command
     And an interactive tool call returns immediately without blocking
@@ -39,6 +40,7 @@ Feature: Result-contract background monitoring
     And monitor_start does not apply the bare PCRE flag diagnostic
 
   Scenario: Starting a monitor gives the agent a usable acknowledgement without adding TUI noise
+    Given the UI-host tool batch contains only monitor_start calls
     Given monitor_start accepts a monitor description
     When an interactive monitor is started
     Then the model-facing tool result identifies the started monitor and its monitor id
@@ -55,11 +57,22 @@ Feature: Result-contract background monitoring
     And an explicit description still overrides the derived label
 
   Scenario: A noninteractive monitor returns its terminal result in the same tool call
-    Given monitor_start runs in print or JSON mode
+    Given monitor_start runs in a session with no UI host, which is print or JSON mode
     When a monitor reaches a terminal result
     Then the tool waits for that terminal result instead of relying on a queued message
     And the tool result contains the compact terminal report and structured terminal details
     And the tool result does not terminate the current agent turn
+    And no terminal custom message is sent
+
+  Scenario: The delivery path follows whether the session has a UI host
+    Given monitor_start runs in a session that reports a UI host, which is TUI or RPC mode
+    And the tool batch contains only monitor_start calls
+    When a monitor starts
+    Then the start terminates the current agent turn and returns a pending acknowledgement
+    And the terminal result arrives later as one `monitor-result` message
+    Given monitor_start runs in a session that reports no UI host, which is print or JSON mode
+    When a monitor starts
+    Then the tool waits for the terminal result and returns it from the same call
     And no terminal custom message is sent
 
   Scenario: Concise system guidance covers finite installation and verification commands
@@ -100,14 +113,20 @@ Feature: Result-contract background monitoring
     And command feedback uses Pi-kit's notification adapter
 
   Scenario: Starting a monitor renders one shared lifecycle row
-    Given monitor_start accepts a monitor description
+    Given a monitor-only UI batch accepts a monitor description
     When a monitor is started
     Then the tool call renderer is empty
     And the tool result renders `[monitor] started · <description>` through the bound pi-kit lifecycle renderer
     And the startup row paints the shared background band with the configured expansion hint
-    And expanding the row shows the command, the success contract, and the monitor id as `label · value` fields
-    And an optional failure pattern is shown as its own `label · value` field
-    And the monitor id stays visible because monitor_stop needs it
+    And expanding the row shows the command and the success contract
+    And every band label starts with an uppercase letter
+    And a scalar field reads `Label: value`
+    And the command keeps its label on its own row and its shell syntax below it carries Pi theme colors
+    And an optional failure pattern is shown as its own `Label: value` field
+    And a non-default completion mode and a non-default timeout each get their own field
+    And default completion, default timeout and the always-pending terminal state get no field
+    And the row omits the cwd because no parameter can change it
+    And the row omits the monitor id because the model-facing result already carries it for monitor_stop
     And the tool result does not render a duplicate monitor start
     And the tool result still terminates the current agent turn
 
@@ -121,6 +140,19 @@ Feature: Result-contract background monitoring
     And the agent is woken exactly once with status "success"
     And the model-facing result uses compact key-value text instead of pretty JSON
     And successful completion does not include noisy diagnostic output
+
+  Scenario: A complete sentinel without a trailing newline resolves a still-running command
+    Given a monitor is running with a result pattern and a long timeout
+    When the command writes a complete sentinel without a trailing newline and keeps running
+    Then the unterminated trailing line is evaluated against the contract once its bytes have been idle briefly
+    And the monitor completes on that match rather than at process exit or at the timeout
+    And the retained log still records the full line once its newline arrives
+
+  Scenario: A sentinel split by a write pause still matches the joined line
+    Given a monitor is running with a result pattern
+    When the sentinel arrives in two writes separated by a pause longer than the unterminated-line idle window
+    Then the partial buffer is not committed by the idle evaluation
+    And the sentinel still matches once the line is complete
 
   Scenario: A failure pattern exposes one structured failure
     Given a monitor is running with a failure pattern
@@ -164,7 +196,7 @@ Feature: Result-contract background monitoring
 
   Scenario: Terminal results include bounded diagnostics without a polling tool
     Given a monitor has captured stdout and stderr
-    When the monitor reaches a terminal result
+    When the monitor reaches a failure, timeout, result_missing, or stopped result
     Then the result includes a bounded tail of source-labelled output
     And no follow-up output-reading tool is available or required
 
@@ -175,10 +207,10 @@ Feature: Result-contract background monitoring
     And the message details retain the full structured result object
 
   Scenario: Terminal results use native Pi custom message content
-    Given a monitor reaches a terminal result
+    Given an asynchronous monitor reaches a terminal result
     When the result is sent back to the agent
     Then the transport content contains the compact terminal report without a custom envelope
-    And the message details retain the monitor description and full structured result object
+    And the message details retain the monitor ID, description, and full structured result object
 
   Scenario: Terminal result notifications use the compact monitor event style
     Given a monitor reaches a terminal result
@@ -189,7 +221,25 @@ Feature: Result-contract background monitoring
     And the collapsed content line does not hard-code `Ctrl+O`
     And the collapsed content line does not start with `⏺`
     And the collapsed content line is the only semantic monitor event
-    And the expanded body lists status, elapsed, result, and output as `label · value` fields
+    And the expanded body lists status, elapsed, result, and output as `Label: value` fields
+    And the expanded body names the completion mode that produced the result
+    And a contract-terminated run shows `Stopped by:` next to the status, because its success is partial
+    And the expanded body omits the monitor id, which the console list keeps as the selection key
+    And the model-facing result carries `completion=` and `stopped_by=` on the same run
+
+  Scenario: A run that did not pass names the next actor
+    Given a monitor reached a terminal result that is not a success
+    When the model-facing result is formatted
+    Then one `next=` line states the actor's next move for that cause
+    And a success carries evidence instead of a `next=` line
+
+  Scenario: The console reads like the lifecycle rows
+    Given a monitor is running or finished
+    When the `/monitor` console lists its details
+    Then every field reads `Label: value` with an uppercase first letter
+    And the command keeps its label on its own row with highlighted shell syntax below it
+    And the success and failure patterns read `Success condition:` and `Failure condition:`
+    And the detail pane spends no row on a description the list row already shows
 
   Scenario: Captured output is bounded
     Given a monitor is running
@@ -198,9 +248,9 @@ Feature: Result-contract background monitoring
     And truncation is surfaced in the terminal result
 
   Scenario: Repeated diagnostic lines are collapsed in terminal output
-    Given a monitor captures the same source-labelled diagnostic lines repeatedly
+    Given a monitor captures adjacent identical source-labelled diagnostic lines repeatedly
     When the monitor times out without the contracted result
-    Then the terminal diagnostic tail contains each repeated line once
+    Then the terminal diagnostic tail contains each adjacent repeated run once
     And the repetition count is included without marking the output truncated
 
   Scenario: Monitor stop tool is progressively disclosed while monitors run
@@ -214,6 +264,14 @@ Feature: Result-contract background monitoring
     Then monitor_stop is inactive
     And monitor_start remains active
     And session shutdown leaves monitor_stop inactive
+
+  Scenario: The tool disclosure is written only when the running-monitor state changes
+    Given monitor_start and monitor_stop tools are registered
+    When the running-monitor state is re-evaluated without changing
+    Then the session tool allowlist is not written again
+    And a second concurrent monitor activates monitor_stop without a second write
+    And stopping one of several monitors does not write the allowlist
+    And stopping the last monitor writes it exactly once
 
   Scenario: Stopping a monitor manually
     Given a monitor is running

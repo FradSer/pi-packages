@@ -34,6 +34,8 @@ When the shape of that interface is itself in question — how deep the module i
 
 ## Rules of the loop
 
+- **Preserve the public contract.** Keep exports and supported input semantics unchanged unless the agreed scenario changes them. Probe adjacent boundaries, including empty inputs, names resembling special path segments, identity and equality rules, before accepting an optimization. Keep new helpers private. Required fields remain required; do not invent fallback values or optional-field policies merely to make checks green.
+- **Report observed evidence.** Read the actual test diagnostics. Record executed test failures and measured operation counts; label source-based predictions separately. If diagnostics are unavailable, say so rather than inventing assertion counts or measurements.
 - **Red before green.** Write the failing test first, then only enough code to pass it. Don't anticipate future tests or add speculative features.
 - **One slice at a time.** One seam, one test, one minimal implementation per cycle.
 - **Refactoring is not part of the loop.** It belongs to the review stage (see [code-review](code-review.md)), not the red → green implementation cycle.

@@ -40,6 +40,20 @@ Feature: /effort thinking-level command
     When the user runs /effort
     Then only "off" is offered
 
+  Scenario: The supported-level rule mirrors pi instead of approximating it
+    Given models whose reasoning flag is absent, whose thinking level map hides a level with null,
+      or that declare no entry for xhigh and max
+    When the menu is built
+    Then an absent reasoning flag offers only "off" like pi does
+    And a null entry hides its level and undeclared xhigh and max stay hidden
+    And the local rule matches the function pi exports for every such model
+
+  Scenario: Argument completions are model-independent
+    Given the user is typing a /effort argument
+    When completions are requested
+    Then canonical levels and short aliases are offered
+    And model support is applied by the menu rather than by completions
+
   Scenario: Effort status notifications use the shared Pi-kit notification adapter
     Given the /effort command needs to report a validation or selection outcome
     When it notifies the user

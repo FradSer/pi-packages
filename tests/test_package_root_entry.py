@@ -13,6 +13,7 @@ RUNTIME_PACKAGES = {
     "keyboard",
     "monitor",
     "continual-learning",
+    "goal",
     "plan-mode",
     "recap",
     "utils",

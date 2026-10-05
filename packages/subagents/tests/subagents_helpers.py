@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 import textwrap
 from pathlib import Path
 
@@ -21,6 +22,18 @@ def source(name: str) -> str:
     return (SRC / name).read_text(encoding="utf-8")
 
 
+def run_isolated_node(script: str, *, env_overrides: dict[str, str] | None = None,
+                      module_mocks: bool = False) -> dict[str, object]:
+    """Run a scenario with a private HOME, Pi directory and project root."""
+    with tempfile.TemporaryDirectory(prefix="subagents-test-") as directory:
+        root = Path(directory)
+        return run_node(script, module_mocks=module_mocks, env_overrides={
+            "HOME": directory, "PI_CODING_AGENT_DIR": str(root / "agent"),
+            "PI_TEST_CWD": directory, "XDG_CONFIG_HOME": str(root / "config"),
+            "XDG_CACHE_HOME": str(root / "cache"), **(env_overrides or {}),
+        })
+
+
 def run_node(
     script: str,
     *args: str,
@@ -31,7 +44,7 @@ def run_node(
     stdout line as JSON.
 
     `PI_TEAMMATE_*` is stripped so a coordination binding left over in the
-    developer's shell cannot make a spawned child believe it is a worker.
+    developer's shell cannot make a spawned child believe it is an agent.
     `module_mocks` enables node's module mocking, for the cases where the seam
     under test is the real spawn and only the child process is faked.
     """

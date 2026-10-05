@@ -66,6 +66,12 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       When the personal definition is deleted
       Then the project definition becomes effective
 
+    Scenario: Preserve the configured order of every Harness layer
+      Given global shared, project-scoped personal, project shared, and project personal layers exist
+      When a write or consolidation validates the effective configuration
+      Then the layers are resolved in that same nearest-layer order
+      And project-scoped personal rules are not treated as global rules
+
     Scenario: Diagnose duplicate identities
       Given one file declares the same id twice
       When the file is loaded
@@ -90,6 +96,12 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
         | load       |
         | first load |
         | hot reload |
+
+    Scenario: Mark incomplete Bash provenance as unknown
+      Given Bash evaluation is incomplete before a rule source can be identified
+      When a Bash call is held fail-closed
+      Then the diagnostic source is unknown
+      And the diagnostic file is unknown rather than built-in
 
     Scenario: Keep a clearly scoped text error separate from Bash
       Given a winning rule has only a text selector with an invalid regex
@@ -191,6 +203,24 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       And its outer same-id declaration stays shadowed
 
   Rule: Text guidance scans the retained conversation before the next generation
+    Scenario: Report the effective text rule owner
+      Given a matching text rule comes from the project-scoped personal layer
+      When guidance is delivered through before_agent_start
+      Then the diagnostic identifies the user.scoped source and its actual file
+      And changing only the source layer with the same rule meaning does not refresh guidance
+
+    Scenario: Preserve the last known owner when text guidance retires
+      Given delivered text guidance records its source metadata
+      When that rule is removed and the next turn retires it
+      Then the retirement diagnostic keeps the recorded source and file identity
+      And an older session without source metadata reports an unknown source
+
+    Scenario: Hold text guidance when retained context cannot be reconstructed
+      Given the session manager fails while rebuilding retained context
+      When the next assistant request is prepared
+      Then text guidance matching is reported incomplete
+      And no text guidance is activated, updated, or retired for that turn
+
     Scenario Outline: Match a project name in any supported text source
       Given a text rule matches A项目 or Project A
       And the current conversation contains Project A in "<source>"
@@ -234,6 +264,18 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       When the rules are evaluated
       Then only rule A is eligible in that evaluation
       And existing Harness-owned guidance contributes no match
+
+    Scenario: Exclude Harness notes from string tool results
+      Given a tool result stores a Harness Bash or configuration note as a string
+      And an adapter may flatten native output and the Harness note into one string
+      When text rules scan retained model-visible messages
+      Then the Harness note does not trigger a text rule
+      And ordinary text in the same tool result remains eligible
+
+    Scenario: Preserve explicit user and custom text that resembles a Harness note
+      Given user or non-Harness custom text deliberately contains a Harness note marker
+      When text rules scan retained model-visible messages
+      Then the explicit text remains eligible evidence
 
   Rule: Guidance preserves the existing request prefix
     Scenario: Append newly matched guidance at the tail

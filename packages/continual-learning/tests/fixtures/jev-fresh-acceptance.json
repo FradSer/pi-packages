@@ -1,0 +1,356 @@
+[
+  {
+    "id": "en-fresh-valid-rule-0",
+    "language": "en",
+    "evidence": "Within this repository, all subsequent work must avoid running the exact command `echo RELEASE_LOCK`. This rule continues across tasks; other commands are permitted.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo RELEASE_LOCK$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute echo RELEASE_LOCK in this repository."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo RELEASE_LOCK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OPEN"
+          },
+          {
+            "bash": "echo RELEASE_LOCK\r"
+          },
+          {
+            "bash": "echo RELEASE_LOCK "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-fresh-valid-rule-1",
+    "language": "en",
+    "evidence": "Within this repository, all subsequent work must avoid running the exact command `printf REVIEW_MARKER`. This rule continues across tasks; other commands are permitted.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^printf REVIEW_MARKER$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute printf REVIEW_MARKER in this repository."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "printf REVIEW_MARKER",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OPEN"
+          },
+          {
+            "bash": "printf REVIEW_MARKER\r"
+          },
+          {
+            "bash": "printf REVIEW_MARKER "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-fresh-risk-rule-0",
+    "language": "en",
+    "evidence": "In this repository, echo SHIPPING_GATE needs my approval for future tasks, and is permitted once approved.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo SHIPPING_GATE$(?![\\s\\S])",
+        "action": "block",
+        "message": "Never execute echo SHIPPING_GATE, even with approval in future tasks."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo SHIPPING_GATE",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OPEN"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "en-fresh-risk-rule-1",
+    "language": "en",
+    "evidence": "For the current demo alone, avoid echo SHIPPING_GATE. Future tasks may run it.",
+    "memory": false,
+    "harness": false,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo SHIPPING_GATE$(?![\\s\\S])",
+        "action": "block",
+        "message": "Never execute echo SHIPPING_GATE, even with approval in future tasks."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo SHIPPING_GATE",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OPEN"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "en-fresh-valid-memory-0",
+    "language": "en",
+    "evidence": "The public preview port for this repository is 9042.",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "The project public preview port is 9042."
+    },
+    "allow": true
+  },
+  {
+    "id": "en-fresh-valid-memory-1",
+    "language": "en",
+    "evidence": "This repository uses uv. Its confirmed static analysis command is uv run pyright.",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "Run static analysis with uv run pyright."
+    },
+    "allow": true,
+    "existing": "The project uses uv."
+  },
+  {
+    "id": "en-fresh-risk-memory-0",
+    "language": "en",
+    "evidence": "Perhaps the preview uses port 9042. This is just a guess; no one checked.",
+    "memory": false,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "The preview port is 9042."
+    },
+    "allow": false
+  },
+  {
+    "id": "en-fresh-risk-memory-1",
+    "language": "en",
+    "evidence": "The static analysis service failed once and then recovered. There is no persistent failure.",
+    "memory": false,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "Static analysis is permanently unavailable and must never be attempted."
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-fresh-valid-rule-0",
+    "language": "zh",
+    "evidence": "在这个仓库中，后续所有任务都不得运行确切命令 `echo RELEASE_LOCK`。这项约束持续生效，其他命令可以执行。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo RELEASE_LOCK$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute echo RELEASE_LOCK in this repository."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo RELEASE_LOCK",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OPEN"
+          },
+          {
+            "bash": "echo RELEASE_LOCK\r"
+          },
+          {
+            "bash": "echo RELEASE_LOCK "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-fresh-valid-rule-1",
+    "language": "zh",
+    "evidence": "在这个仓库中，后续所有任务都不得运行确切命令 `printf REVIEW_MARKER`。这项约束持续生效，其他命令可以执行。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^printf REVIEW_MARKER$(?![\\s\\S])",
+        "action": "block",
+        "message": "Do not execute printf REVIEW_MARKER in this repository."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "printf REVIEW_MARKER",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OPEN"
+          },
+          {
+            "bash": "printf REVIEW_MARKER\r"
+          },
+          {
+            "bash": "printf REVIEW_MARKER "
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-fresh-risk-rule-0",
+    "language": "zh",
+    "evidence": "以后本仓库执行 echo SHIPPING_GATE 需要我批准，批准后允许执行。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo SHIPPING_GATE$(?![\\s\\S])",
+        "action": "block",
+        "message": "Never execute echo SHIPPING_GATE, even with approval in future tasks."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo SHIPPING_GATE",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OPEN"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-fresh-risk-rule-1",
+    "language": "zh",
+    "evidence": "仅当前演示不要运行 echo SHIPPING_GATE，以后的任务允许执行。",
+    "memory": false,
+    "harness": false,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^echo SHIPPING_GATE$(?![\\s\\S])",
+        "action": "block",
+        "message": "Never execute echo SHIPPING_GATE, even with approval in future tasks."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "echo SHIPPING_GATE",
+            "expected": "block"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "echo OPEN"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-fresh-valid-memory-0",
+    "language": "zh",
+    "evidence": "本仓库公开预览端口是 9042。",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "本项目公开预览端口是 9042。"
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-fresh-valid-memory-1",
+    "language": "zh",
+    "evidence": "本仓库使用 uv，已确认的静态分析命令是 uv run pyright。",
+    "memory": true,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "使用 uv run pyright 执行静态分析。"
+    },
+    "allow": true,
+    "existing": "本项目使用 uv。"
+  },
+  {
+    "id": "zh-fresh-risk-memory-0",
+    "language": "zh",
+    "evidence": "预览也许使用 9042 端口，这只是猜测，没人检查。",
+    "memory": false,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "预览端口是 9042。"
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-fresh-risk-memory-1",
+    "language": "zh",
+    "evidence": "静态分析服务失败了一次，随后恢复，没有持久故障。",
+    "memory": false,
+    "harness": false,
+    "stage": "memory",
+    "candidate": {
+      "content": "静态分析永久不可用，以后禁止尝试。"
+    },
+    "allow": false
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "project": "click",
+    "planPath": "click-on/memory/runs/--work-click--/run_muv9srgf_a2123ab797567fd1/plan.json",
+    "planHash": "68d17cdd41c3422675759bcb960b6d8b5d2f7a451af1435560fc659fe7aeec71",
+    "snapshotHash": "c84a6418c6732862d6df3ec48a2030fb11d943846fab5816cb7e541e365d0407"
+  },
+  {
+    "project": "mitt",
+    "planPath": "mitt-on/memory/runs/--work-mitt--/run_muvabq7e_05419dfa5c6c4606/plan.json",
+    "planHash": "d8c455238ebb8484d548c85953e0551f7d9c7acbfec14bde1eca8026d7806b52",
+    "snapshotHash": "0369b7a916d14bd57ca90dcecbe97bab4da140c8679e77cd5d897ca076a777b0"
+  }
+]

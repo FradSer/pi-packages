@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from test_teammate_package import PACKAGE, SRC, run_node
+from test_agent_package import PACKAGE, SRC, run_node
 
 
 def test_finish_entry_describes_assignment_not_process() -> None:
@@ -25,7 +25,7 @@ def test_finish_entry_describes_assignment_not_process() -> None:
           getActiveTools: () => [], getAllTools: () => [], setActiveTools() {{}},
         }});
         const theme = {{ fg: (_color, text) => text }};
-        const output = renderers.get(TEAMMATE_FINISHED_ENTRY_TYPE)({{ data: {{ teammate: 'worker' }} }}, {{}}, theme).render(100).join('');
+        const output = renderers.get(TEAMMATE_FINISHED_ENTRY_TYPE)({{ data: {{ agent: 'worker' }} }}, {{}}, theme).render(100).join('');
         console.log(JSON.stringify({{ output }}));
     ''')
     assert "Assignment" in payload["output"]
@@ -45,10 +45,10 @@ def test_late_report_label_is_visible_collapsed_and_expanded() -> None:
         }});
         const theme = {{ fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text }};
         const renderer = renderers.get('agent-teams-report');
-        const message = {{ details: {{ agent: 'role', teammate: 'worker', body: 'Original report body.', deliveredAfterStop: true }} }};
+        const message = {{ details: {{ agent: 'role', agent: 'worker', body: 'Original report body.', deliveredAfterStop: true }} }};
         const outputs = [false, true].map((expanded) => renderer(message, {{ expanded, outputPad: 0 }}, theme).render(100).join('\\n'));
         const narrow = renderer(message, {{ expanded: false, outputPad: 0 }}, theme).render(24);
-        const normal = renderer({{ details: {{ agent: 'role', teammate: 'worker', body: 'Normal.' }} }}, {{ expanded: false, outputPad: 0 }}, theme).render(100).join('\\n');
+        const normal = renderer({{ details: {{ agent: 'role', agent: 'worker', body: 'Normal.' }} }}, {{ expanded: false, outputPad: 0 }}, theme).render(100).join('\\n');
         console.log(JSON.stringify({{ outputs, narrowFits: narrow.every((line) => visibleWidth(line) <= 24), normal }}));
     ''')
     assert all("late delivery" in output.lower() for output in payload["outputs"])
@@ -60,7 +60,7 @@ def test_late_report_label_is_visible_collapsed_and_expanded() -> None:
 def test_normal_report_keeps_authored_time_without_after_stop_marker() -> None:
     payload = run_node(f'''
         import {{ annotateReportDelivery, formatReports }} from "@fradser/pi-subagents";
-        const original = {{ agent: 'role', teammate: 'worker', body: 'Original.', timestamp: 100 }};
+        const original = {{ agent: 'role', agent: 'worker', body: 'Original.', timestamp: 100 }};
         const report = annotateReportDelivery(original, 200);
         console.log(JSON.stringify({{ original, report, content: formatReports([report]) }}));
     ''')

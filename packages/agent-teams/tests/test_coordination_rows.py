@@ -27,7 +27,11 @@ def test_coordination_rows_are_readable_without_identifiers(tmp_path: Path) -> N
         ["node", "tests/coordination-rows-fixture.ts"],
         cwd=PACKAGE,
         env={
-            **{key: value for key, value in os.environ.items() if not key.startswith("PI_TEAMMATE_")},
+            # A spawned teammate runs the suite with its own holder bound. A
+            # fixture that inherits that binding takes work as the teammate and
+            # fails for a reason the fixture chose, not for the one under test.
+            **{key: value for key, value in os.environ.items()
+               if not key.startswith("PI_TEAMMATE_") and key not in {"PI_TASK_HOLDER", "PI_TEAM_STATE_DIR"}},
             "PI_CODING_AGENT_DIR": str(agent_dir),
         },
         capture_output=True,
@@ -53,7 +57,7 @@ import { createAssistantMessageEventStream } from "@earendil-works/pi-ai";
 import { initTheme, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager, setKeybindings, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { registerComposedTools } from "__COMPOSED__";
-import { registerWorkerCapabilities } from "__WORKER__";
+import { registerChildCapabilities } from "__WORKER__";
 
 const message = "FIRST-CONTENT " + Array.from({ length: 28 }, (_, i) => `evidence-${i}`).join(" ") + " LAST-CONTENT";
 const hyperlink = "\u001b]8;;https://example.test\u001b\\LINK-LABEL\u001b]8;;\u001b\\";
@@ -64,7 +68,7 @@ const expected = `[message] to @${args.to} · steered · ${message} LINK-LABEL${
 const tools = new Map();
 const capture = (prefix) => ({ registerTool: (tool) => tools.set(`${prefix}:${tool.name}`, tool), on() {} });
 registerComposedTools(capture("leader"));
-registerWorkerCapabilities(capture("worker"));
+registerChildCapabilities(capture("worker"));
 
 export default function (pi) {
   pi.on("session_start", (_event, ctx) => {

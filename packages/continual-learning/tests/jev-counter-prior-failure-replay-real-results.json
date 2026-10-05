@@ -1,0 +1,293 @@
+{
+  "evidence": "real-jev-same-candidate-complete-evidence-context-ablation",
+  "productionWriteEligible": false,
+  "baselineScope": "Current complete-state judgments versus research invalidation criteria; unchanged evidence and thresholds",
+  "calls": 18,
+  "usageComplete": true,
+  "knownInputTokens": 88688,
+  "knownEstimatedCostUsd": 0.0037248960000000005,
+  "rows": [
+    {
+      "project": "click",
+      "planHash": "68d17cdd41c3422675759bcb960b6d8b5d2f7a451af1435560fc659fe7aeec71",
+      "snapshotHash": "c84a6418c6732862d6df3ec48a2030fb11d943846fab5816cb7e541e365d0407",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 3789,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 13,
+          "coveredEntries": 13,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 27091,
+          "outputTokens": 560,
+          "estimatedCostUsd": 0.0011378220000000001
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 1732,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 13,
+          "coveredEntries": 13,
+          "evidenceWindows": 5,
+          "completedWindows": 5,
+          "requestCount": 6,
+          "completedRequests": 6,
+          "model": "jev-1.13.0",
+          "inputTokens": 27341,
+          "outputTokens": 560,
+          "estimatedCostUsd": 0.001148322
+        }
+      },
+      "judgments": [
+        {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 1,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        },
+        {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 0.98,
+            "probabilities": {
+              "compatible": 0.99,
+              "contradicts": 0.01,
+              "unclear": 0
+            }
+          }
+        },
+        {
+          "counter_0_2": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_2": {
+            "choice": "compatible",
+            "confidence": 0.98,
+            "probabilities": {
+              "compatible": 0.99,
+              "contradicts": 0.01,
+              "unclear": 0
+            }
+          }
+        },
+        {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 0.99,
+              "contradicts": 0.01,
+              "unclear": 0
+            }
+          }
+        },
+        {
+          "counter_0_4": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_4": {
+            "choice": "compatible",
+            "confidence": 0.98,
+            "probabilities": {
+              "compatible": 0.99,
+              "contradicts": 0.01,
+              "unclear": 0
+            }
+          }
+        },
+        {
+          "counter_0_3": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_3": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "project": "mitt",
+      "planHash": "d8c455238ebb8484d548c85953e0551f7d9c7acbfec14bde1eca8026d7806b52",
+      "snapshotHash": "0369b7a916d14bd57ca90dcecbe97bab4da140c8679e77cd5d897ca076a777b0",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 640,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 16,
+          "coveredEntries": 16,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17078,
+          "outputTokens": 299,
+          "estimatedCostUsd": 0.000717276
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 590,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 16,
+          "coveredEntries": 16,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17178,
+          "outputTokens": 299,
+          "estimatedCostUsd": 0.000721476
+        }
+      },
+      "judgments": [
+        {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.98,
+            "probabilities": {
+              "grounded": 0.98,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0.01,
+              "unclear": 0.01
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 0.99,
+            "probabilities": {
+              "grounded": 1,
+              "speculative": 0,
+              "transient": 0,
+              "unsupported": 0,
+              "unclear": 0
+            }
+          }
+        },
+        {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        },
+        {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 1,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.99,
+            "probabilities": {
+              "compatible": 1,
+              "contradicts": 0,
+              "unclear": 0
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

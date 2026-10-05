@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import type { JsonObject } from "@earendil-works/pi-ai";
 import { fauxProvider, fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai/providers/faux";
 import { createAgentSessionFromServices, createAgentSessionRuntime, createAgentSessionServices, ModelRuntime, SessionManager } from "@earendil-works/pi-coding-agent";
 import { GoalStore } from "../src/store.ts";
@@ -15,7 +16,7 @@ process.env.PI_CODING_AGENT_DIR = agentDir;
 const extension = join(root, "fixture.mts");
 writeFileSync(extension, `import goal from ${JSON.stringify(resolve("packages/goal/src/index.ts"))};
 export default pi => goal(pi, { projectRoot: ${JSON.stringify(cwd)}, runCheck: async () => ({met:false,report:"Not yet."}) });`);
-const tool = (name: string, args: Record<string, unknown>) => fauxAssistantMessage(fauxToolCall(name, args), { stopReason: "toolUse" });
+const tool = (name: string, args: JsonObject) => fauxAssistantMessage(fauxToolCall(name, args), { stopReason: "toolUse" });
 const provider = fauxProvider({ provider: "goal-native-rejection", models: [{ id: "worker" }] });
 provider.setResponses([
   tool("create_goal", { objective: "Old goal" }),
@@ -44,8 +45,11 @@ try {
   const store = new GoalStore({ projectRoot: cwd });
   const goal = store.readPool()[0]!;
   assert.equal(goal.status, "paused");
+  // The model is cleared to force Pi's preflight to reject the request. The
+  // typed state forbids undefined, so the removal is asserted and cast once.
   const model = session.agent.state.model;
-  session.agent.state.model = undefined;
+  assert.ok(model, "the fixture session must have a model before removing it");
+  session.agent.state.model = undefined as unknown as typeof model;
   await session.prompt("/goal Rejected setting request");
   await new Promise(resolve => setTimeout(resolve, 25));
   assert.ok(errors.some(error => error.includes("No model selected")), JSON.stringify(errors));

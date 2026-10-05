@@ -18,6 +18,8 @@ export interface DeskReporterOptions {
   now?: () => number;
   /** Injected so reconnect scheduling is asserted without waiting. */
   schedule?: (run: () => void, delayMs: number) => (() => void) | void;
+  /** Authentication deadline, separate from capped reconnect scheduling. */
+  scheduleHandshake?: (run: () => void, delayMs: number) => (() => void) | void;
   /** Called on every link-state change, so a surface can stop showing a stale one. */
   onChange?: (snapshot: DeskLinkSnapshot) => void;
 }
@@ -40,6 +42,7 @@ export interface DeskLinkSnapshot {
 
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30000;
+const HANDSHAKE_TIMEOUT_MS = 10000;
 const MAX_RECORD_BYTES = 65536;
 const MAX_EVENTS_RECORD_BYTES = 1024 * 1024;
 /** Sessions one machine may report at once. */
@@ -80,6 +83,7 @@ export class DeskReporter {
   readonly #createTransport: (config: DeskLinkConfig) => DeskTransport;
   readonly #now: () => number;
   readonly #schedule: NonNullable<DeskReporterOptions["schedule"]>;
+  readonly #scheduleHandshake: NonNullable<DeskReporterOptions["scheduleHandshake"]>;
   readonly #onChange: ((snapshot: DeskLinkSnapshot) => void) | undefined;
   readonly #sessions = new Map<string, SessionEntry>();
 
@@ -92,6 +96,7 @@ export class DeskReporter {
   #active = false;
   #generation = 0;
   #cancelReconnect: (() => void) | void = undefined;
+  #cancelHandshake: (() => void) | void = undefined;
   #currentSessionId = "";
 
   constructor(options: DeskReporterOptions) {
@@ -100,6 +105,11 @@ export class DeskReporter {
     this.#now = options.now ?? (() => Date.now());
     this.#onChange = options.onChange;
     this.#schedule = options.schedule ?? ((run, delayMs) => {
+      const timer = setTimeout(run, delayMs);
+      timer.unref?.();
+      return () => clearTimeout(timer);
+    });
+    this.#scheduleHandshake = options.scheduleHandshake ?? ((run, delayMs) => {
       const timer = setTimeout(run, delayMs);
       timer.unref?.();
       return () => clearTimeout(timer);
@@ -134,6 +144,8 @@ export class DeskReporter {
     this.#generation += 1;
     this.#cancelReconnect?.();
     this.#cancelReconnect = undefined;
+    this.#cancelHandshake?.();
+    this.#cancelHandshake = undefined;
     if (this.#link === "connected") this.#send({ v: DESK_LINK_PROTOCOL, type: "bye", machine: this.#config.machine });
     const transport = this.#transport;
     this.#transport = null;
@@ -237,6 +249,7 @@ export class DeskReporter {
     entry.events = retainEvents([...entry.events, ...bounded]);
     entry.pending = retainEvents([...entry.pending, ...bounded]);
     entry.session = { ...entry.session, activity: boundEventText(bounded[bounded.length - 1]?.text) || entry.session.activity, updatedAt: this.#now() };
+    this.#sessionsDirty = true;
     this.#flush();
   }
 
@@ -291,39 +304,71 @@ export class DeskReporter {
     if (!this.#active || this.#stopped || this.#transport !== null) return;
     this.#link = "connecting";
     this.#notify();
-    const transport = this.#createTransport(this.#config);
-    this.#transport = transport;
-    transport.onOpen(() => {
-      if (!this.#active || this.#transport !== transport) return;
-      this.#lastError = undefined;
-      this.#link = "connected";
+    let transport: DeskTransport;
+    try {
+      transport = this.#createTransport(this.#config);
+    } catch (error) {
+      this.#link = "offline";
+      this.#lastError = error instanceof Error ? error.message : "transport creation failed";
       this.#notify();
+      this.#scheduleReconnect();
+      return;
+    }
+    this.#transport = transport;
+    let opened = false;
+    transport.onOpen(() => {
+      if (!this.#active || this.#transport !== transport || opened) return;
+      opened = true;
       this.#send({ v: DESK_LINK_PROTOCOL, type: "hello", machine: this.#config.machine, token: this.#config.token });
-      // The service discards machine state after its last link closes. Replay
-      // the bounded tail, not pending plus history. v1 has no event IDs, so a
-      // surviving sibling link can cause duplicate retained events on replay.
-      for (const entry of this.#sessions.values()) entry.pending = [...entry.events];
-      this.#sessionsDirty = true;
-      this.#flush();
+      if (this.#transport !== transport || this.#link === "connected") return;
+      this.#cancelHandshake = this.#scheduleHandshake(() => {
+        if (this.#transport !== transport || this.#link !== "connecting") return;
+        this.#failTransport(transport, "reporting acknowledgement timeout");
+      }, HANDSHAKE_TIMEOUT_MS);
     });
     transport.onClose((reason) => {
       if (!this.#active || this.#transport !== transport) return;
-      this.#link = "offline";
-      this.#lastError = reason;
-      this.#notify();
-      if (this.#transport === transport) this.#transport = null;
-      this.#scheduleReconnect();
+      this.#failTransport(transport, reason);
     });
     transport.onRecord((record) => {
       if (!this.#active || this.#transport !== transport) return;
       // The service's ack is the only proof the link was accepted. Resetting the
       // backoff on a bare TCP connect would make a refused token retry forever.
-      if (typeof record === "object" && record !== null && (record as { type?: unknown }).type === "ack") {
+      if (typeof record !== "object" || record === null) return;
+      const reply = record as { v?: unknown; type?: unknown; reason?: unknown };
+      if (reply.v !== DESK_LINK_PROTOCOL) return;
+      if (reply.type === "error") {
+        this.#failTransport(transport, boundEventText(reply.reason) || "reporting link refused");
+        return;
+      }
+      if (reply.type === "ack" && opened && this.#link === "connecting") {
+        this.#cancelHandshake?.();
+        this.#cancelHandshake = undefined;
         this.#attempts = 0;
+        this.#lastError = undefined;
+        this.#link = "connected";
+        this.#notify();
+        // A server restart forgets the machine's state: replay one retained tail.
+        // v1 has no IDs, so a surviving sibling link can retain duplicates.
+        for (const entry of this.#sessions.values()) entry.pending = [...entry.events];
+        this.#sessionsDirty = true;
+        this.#flush();
       }
       // v1 is report-only. A future `prompt` record is the reserved control hook
       // and is deliberately not handled here.
     });
+  }
+
+  #failTransport(transport: DeskTransport, reason: string): void {
+    if (this.#transport !== transport) return;
+    this.#cancelHandshake?.();
+    this.#cancelHandshake = undefined;
+    this.#transport = null;
+    this.#link = "offline";
+    this.#lastError = reason;
+    transport.close();
+    this.#notify();
+    this.#scheduleReconnect();
   }
 
   #scheduleReconnect(): void {
@@ -428,6 +473,12 @@ export class DeskReporter {
   }
 
   #send(record: DeskLinkRecord): void {
-    this.#transport?.send(record);
+    const transport = this.#transport;
+    if (transport === null) return;
+    try {
+      transport.send(record);
+    } catch (error) {
+      this.#failTransport(transport, error instanceof Error ? error.message : "transport write failed");
+    }
   }
 }

@@ -1,0 +1,546 @@
+[
+  {
+    "id": "en-family-good-0",
+    "language": "en",
+    "evidence": "For all future tasks in this project, never run git fetch, with or without extra arguments. Other commands are permitted.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^git[ \\t]+fetch(?:[ \\t]|$)",
+        "action": "block",
+        "message": "This project prohibits running git fetch."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "git fetch PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "git\nfetch"
+          },
+          {
+            "bash": "git fetch"
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-family-risk-0",
+    "language": "en",
+    "evidence": "For future tasks, never run exactly git fetch with no arguments. Invocations with arguments are allowed.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^git[ \\t]+fetch(?:[ \\t]|$)",
+        "action": "block",
+        "message": "This project prohibits running git fetch."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "git fetch PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "git\nfetch"
+          },
+          {
+            "bash": "git fetch"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "en-family-good-1",
+    "language": "en",
+    "evidence": "For all future tasks in this project, never run pnpm publish, with or without extra arguments. Other commands are permitted.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^pnpm[ \\t]+publish(?:[ \\t]|$)",
+        "action": "block",
+        "message": "This project prohibits running pnpm publish."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "pnpm publish PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "pnpm\npublish"
+          },
+          {
+            "bash": "pnpm publish"
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-family-risk-1",
+    "language": "en",
+    "evidence": "In future tasks never run pnpm publish without asking me first; I may approve it.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^pnpm[ \\t]+publish(?:[ \\t]|$)",
+        "action": "block",
+        "message": "This project prohibits running pnpm publish."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "pnpm publish PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "pnpm\npublish"
+          },
+          {
+            "bash": "pnpm publish"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "en-family-good-2",
+    "language": "en",
+    "evidence": "For all future tasks in this project, never run npm install, with or without extra arguments. Other commands are permitted.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^npm[ \\t]+install(?:[ \\t]|$)",
+        "action": "block",
+        "message": "This project prohibits running npm install."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "npm install PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "npm\ninstall"
+          },
+          {
+            "bash": "npm install"
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-family-risk-2",
+    "language": "en",
+    "evidence": "Only for this one task, do not run npm install. Future tasks are unaffected.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^npm[ \\t]+install(?:[ \\t]|$)",
+        "action": "block",
+        "message": "This project prohibits running npm install."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "npm install PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "npm\ninstall"
+          },
+          {
+            "bash": "npm install"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "en-family-good-3",
+    "language": "en",
+    "evidence": "For all future tasks in this project, never run uv sync, with or without extra arguments. Other commands are permitted.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^uv[ \\t]+sync(?:[ \\t]|$)",
+        "action": "block",
+        "message": "This project prohibits running uv sync."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "uv sync PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "uv\nsync"
+          },
+          {
+            "bash": "uv sync"
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "en-family-risk-3",
+    "language": "en",
+    "evidence": "In a different project, never run uv sync. It is allowed in this project.",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^uv[ \\t]+sync(?:[ \\t]|$)",
+        "action": "block",
+        "message": "This project prohibits running uv sync."
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "uv sync PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "uv\nsync"
+          },
+          {
+            "bash": "uv sync"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-family-good-0",
+    "language": "zh",
+    "evidence": "今后在本项目中，禁止运行 git fetch，包括带任何额外参数的调用。其他命令可以执行。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^git[ \\t]+fetch(?:[ \\t]|$)",
+        "action": "block",
+        "message": "本项目禁止运行 git fetch。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "git fetch PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "git\nfetch"
+          },
+          {
+            "bash": "git fetch"
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-family-risk-0",
+    "language": "zh",
+    "evidence": "今后禁止运行不带参数的 git fetch，带参数的调用允许执行。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^git[ \\t]+fetch(?:[ \\t]|$)",
+        "action": "block",
+        "message": "本项目禁止运行 git fetch。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "git fetch PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git show"
+          },
+          {
+            "bash": "git\nfetch"
+          },
+          {
+            "bash": "git fetch"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-family-good-1",
+    "language": "zh",
+    "evidence": "今后在本项目中，禁止运行 pnpm publish，包括带任何额外参数的调用。其他命令可以执行。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^pnpm[ \\t]+publish(?:[ \\t]|$)",
+        "action": "block",
+        "message": "本项目禁止运行 pnpm publish。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "pnpm publish PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "pnpm\npublish"
+          },
+          {
+            "bash": "pnpm publish"
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-family-risk-1",
+    "language": "zh",
+    "evidence": "今后运行 pnpm publish 前必须先征求我的同意，我可以批准。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^pnpm[ \\t]+publish(?:[ \\t]|$)",
+        "action": "block",
+        "message": "本项目禁止运行 pnpm publish。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "pnpm publish PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "pnpm\npublish"
+          },
+          {
+            "bash": "pnpm publish"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-family-good-2",
+    "language": "zh",
+    "evidence": "今后在本项目中，禁止运行 npm install，包括带任何额外参数的调用。其他命令可以执行。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^npm[ \\t]+install(?:[ \\t]|$)",
+        "action": "block",
+        "message": "本项目禁止运行 npm install。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "npm install PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "npm\ninstall"
+          },
+          {
+            "bash": "npm install"
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-family-risk-2",
+    "language": "zh",
+    "evidence": "仅本次任务不要运行 npm install，不限制以后的任务。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^npm[ \\t]+install(?:[ \\t]|$)",
+        "action": "block",
+        "message": "本项目禁止运行 npm install。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "npm install PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "npm\ninstall"
+          },
+          {
+            "bash": "npm install"
+          }
+        ]
+      }
+    },
+    "allow": false
+  },
+  {
+    "id": "zh-family-good-3",
+    "language": "zh",
+    "evidence": "今后在本项目中，禁止运行 uv sync，包括带任何额外参数的调用。其他命令可以执行。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^uv[ \\t]+sync(?:[ \\t]|$)",
+        "action": "block",
+        "message": "本项目禁止运行 uv sync。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "uv sync PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "uv\nsync"
+          },
+          {
+            "bash": "uv sync"
+          }
+        ]
+      }
+    },
+    "allow": true
+  },
+  {
+    "id": "zh-family-risk-3",
+    "language": "zh",
+    "evidence": "另一个项目禁止运行 uv sync，当前项目允许执行。",
+    "memory": true,
+    "harness": true,
+    "stage": "harness",
+    "candidate": {
+      "rule": {
+        "bash": "^uv[ \\t]+sync(?:[ \\t]|$)",
+        "action": "block",
+        "message": "本项目禁止运行 uv sync。"
+      },
+      "cases": {
+        "positive": [
+          {
+            "bash": "uv sync PUBLIC_ARG"
+          }
+        ],
+        "negative": [
+          {
+            "bash": "git status"
+          },
+          {
+            "bash": "uv\nsync"
+          },
+          {
+            "bash": "uv sync"
+          }
+        ]
+      }
+    },
+    "allow": false
+  }
+]

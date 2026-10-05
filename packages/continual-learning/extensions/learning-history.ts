@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { getAgentDir, withFileMutationQueue } from "@earendil-works/pi-coding-agent";
-import { acquireConsolidationLock, containsSensitiveMemoryMaterial, hashMemoryRoot, normalizeMirrorDrift, resolveConsolidationRunPaths, sha256Digest, writeFileAtomic } from "./consolidation-run";
+import { acquireConsolidationLock, containsSensitiveMemoryMaterial, hashMemoryRoot, normalizeMirrorDrift, parseMemoryIndexNames, parsePrivateIndexNames, resolveConsolidationRunPaths, sha256Digest, writeFileAtomic } from "./consolidation-run";
 import { isMemoryFilename } from "./memory-files";
 import { canonicalProjectCwd, resolveMemoryPaths, type MemoryPaths } from "./memory-paths";
 import type { LearningSurface } from "./learning-controls";
@@ -200,8 +200,8 @@ export async function normalizeTrackedMemory(memory: MemoryPaths) {
   const shared = memory.publicDir ? await hashMemoryRoot(memory.publicDir) : {};
   let index = "";
   if (canonical["MEMORY.md"]) index = (await readLearningFile(path.join(memory.harnessDir, "MEMORY.md"), MAX_FILE_BYTES)).toString("utf8");
-  const privateNames = index.split(/\r?\n/).filter(line => /\(\s*harness[\s_-]+only\s*\)/i.test(line)).flatMap(line => [...line.matchAll(/\]\(([A-Za-z0-9][A-Za-z0-9_-]*\.md)\)/g)].map(match => match[1]));
-  const names = new Set(["MEMORY.md", ...Object.keys({ ...canonical, ...shared }).filter(name => canonical[name] !== shared[name]), ...privateNames.filter(name => shared[name])]);
+  const privateNames = parsePrivateIndexNames(index);
+  const names = new Set(["MEMORY.md", ...Object.keys({ ...canonical, ...shared }).filter(name => canonical[name] !== shared[name]), ...Object.keys(shared).filter(name => privateNames.has(name.toLowerCase()))]);
   const files = [...names].flatMap(name => [path.join(memory.harnessDir, name), ...(memory.publicDir ? [path.join(memory.publicDir, name)] : [])]);
   return recordLearningMutation(memory.cwd, "memory", files, () => normalizeMirrorDrift(memory));
 }
@@ -300,11 +300,10 @@ async function assertUndoPrivacy(cwd: string, changes: Change[], direction: "bef
   const index = await desired({ root: "private", name: "MEMORY.md" });
   const indexText = index ? Buffer.from(index.bytes, "base64").toString("utf8") : "";
   if (!changes.some(change => change.target.root !== "project")) return;
-  const privateNames = new Set(indexText.split(/\r?\n/).filter(line => /\(\s*harness[\s_-]+only\s*\)/i.test(line))
-    .flatMap(line => [...line.matchAll(/\]\(([A-Za-z0-9][A-Za-z0-9_-]*\.md)\)/g)].map(match => match[1].toLowerCase())));
+  const privateNames = parsePrivateIndexNames(indexText);
   const publicIndex = await desired({ root: "public", name: "MEMORY.md" });
   const publicText = publicIndex ? Buffer.from(publicIndex.bytes, "base64").toString("utf8") : "";
-  if (/\(\s*harness[\s_-]+only\s*\)/i.test(publicText) || [...publicText.matchAll(/\]\(([A-Za-z0-9][A-Za-z0-9_-]*\.md)\)/g)].some(match => privateNames.has(match[1].toLowerCase()))) throw new Error("Undo would expose private Memory index metadata");
+  if (/\(\s*harness[\s_-]+only\s*\)/i.test(publicText) || [...parseMemoryIndexNames(publicText)].some(name => privateNames.has(name))) throw new Error("Undo would expose private Memory index metadata");
   const names = new Set([...Object.keys(await hashMemoryRoot(paths.harnessDir)), ...Object.keys(await hashMemoryRoot(paths.publicDir)), ...changes.filter(item => item.target.root !== "project").map(item => item.target.name)]);
   names.delete("MEMORY.md");
   for (const name of names) {

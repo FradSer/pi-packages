@@ -1,5 +1,5 @@
 Feature: Unassigned resident startup without execution
-  Agent start creates presence, not Work. Later autonomous board acquisition remains supported.
+  Agent start creates presence, not Work. Later autonomous tasks acquisition remains supported.
 
   Scenario: Public start returns an unassigned resident without a model kickoff
     Given a pending Work Item and an inline Agent definition
@@ -25,9 +25,9 @@ Feature: Unassigned resident startup without execution
     And no fresh session or second prompt is sent
     And other owners and stale session routes remain rejected
 
-  Scenario: Later board notices still permit deliberate autonomous acquisition
+  Scenario: Later tasks notices still permit deliberate autonomous acquisition
     Given an unassigned idle resident and claimable Work
-    When the harness delivers a valid board notice
+    When the harness delivers a valid tasks notice
     Then the Worker Work tool becomes active
     And a deliberate claim may acquire the pending Work through the existing authority guards
     And start does not promise permanent assignment-only scheduling
@@ -41,9 +41,9 @@ Feature: Unassigned resident startup without execution
 
   Scenario: The first autonomous wake retains the Agent definition
     Given an unassigned resident started without a model kickoff
-    When its first board notice or ordinary message wakes it
+    When its first tasks notice or ordinary message wakes it
     Then its Agent role instructions accompany that wake
-    And Work controls activate only for a valid assignment or board notice
+    And Work controls activate only for a valid assignment or tasks notice
 
   Scenario: Recovery transfers the same Work only after release settles
     Given an existing Work Item retains an active owner

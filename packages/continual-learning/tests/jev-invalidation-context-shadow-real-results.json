@@ -1,0 +1,234 @@
+{
+  "evidence": "real-jev-same-candidate-complete-evidence-context-ablation",
+  "productionWriteEligible": false,
+  "baselineScope": "Current complete-state judgments versus research invalidation criteria; unchanged evidence and thresholds",
+  "calls": 14,
+  "inputTokens": 51161,
+  "estimatedCostUsd": 0.0021487620000000002,
+  "rows": [
+    {
+      "project": "click",
+      "planHash": "68d17cdd41c3422675759bcb960b6d8b5d2f7a451af1435560fc659fe7aeec71",
+      "snapshotHash": "c84a6418c6732862d6df3ec48a2030fb11d943846fab5816cb7e541e365d0407",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "timeout",
+          "durationMs": 5009,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 13,
+          "coveredEntries": 3,
+          "evidenceWindows": 5,
+          "completedWindows": 1,
+          "requestCount": 4,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "knownInputTokens": 3792,
+          "knownEstimatedCostUsd": 0.000159264
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "timeout",
+          "durationMs": 5024,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 13,
+          "coveredEntries": 4,
+          "evidenceWindows": 5,
+          "completedWindows": 2,
+          "requestCount": 4,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "knownInputTokens": 12609,
+          "knownEstimatedCostUsd": 0.000529578
+        }
+      },
+      "judgments": [
+        {
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.93,
+            "probabilities": {
+              "grounded": 0.95,
+              "speculative": 0,
+              "unsupported": 0.03,
+              "transient": 0.02,
+              "unclear": 0
+            }
+          },
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 0.97,
+            "probabilities": {
+              "grounded": 0.98,
+              "speculative": 0,
+              "unsupported": 0.01,
+              "transient": 0,
+              "unclear": 0.01
+            }
+          }
+        },
+        {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.66,
+            "probabilities": {
+              "compatible": 0.77,
+              "unclear": 0.04,
+              "contradicts": 0.19
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 0.51,
+            "probabilities": {
+              "compatible": 0.67,
+              "unclear": 0.04,
+              "contradicts": 0.28
+            }
+          }
+        },
+        {
+          "counter_0_1": {
+            "choice": "compatible",
+            "confidence": 0.24,
+            "probabilities": {
+              "compatible": 0.49,
+              "unclear": 0.04,
+              "contradicts": 0.47
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.49,
+            "probabilities": {
+              "compatible": 0.66,
+              "unclear": 0.04,
+              "contradicts": 0.3
+            }
+          }
+        }
+      ]
+    },
+    {
+      "project": "mitt",
+      "planHash": "d8c455238ebb8484d548c85953e0551f7d9c7acbfec14bde1eca8026d7806b52",
+      "snapshotHash": "0369b7a916d14bd57ca90dcecbe97bab4da140c8679e77cd5d897ca076a777b0",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1893,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 16,
+          "coveredEntries": 16,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17330,
+          "outputTokens": 301,
+          "estimatedCostUsd": 0.0007278600000000001,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 929,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 16,
+          "coveredEntries": 16,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17430,
+          "outputTokens": 301,
+          "estimatedCostUsd": 0.0007320600000000001,
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "judgments": [
+        {
+          "supported_1": {
+            "choice": "grounded",
+            "confidence": 0.97,
+            "probabilities": {
+              "unsupported": 0.02,
+              "unclear": 0,
+              "grounded": 0.98,
+              "speculative": 0,
+              "transient": 0
+            }
+          },
+          "supported_0": {
+            "choice": "grounded",
+            "confidence": 0.9,
+            "probabilities": {
+              "unsupported": 0.06,
+              "unclear": 0,
+              "grounded": 0.92,
+              "speculative": 0.01,
+              "transient": 0.01
+            }
+          }
+        },
+        {
+          "counter_0_1": {
+            "choice": "contradicts",
+            "confidence": 0.52,
+            "probabilities": {
+              "contradicts": 0.68,
+              "compatible": 0.3,
+              "unclear": 0.02
+            }
+          },
+          "counter_1_1": {
+            "choice": "compatible",
+            "confidence": 0.34,
+            "probabilities": {
+              "contradicts": 0.4,
+              "compatible": 0.56,
+              "unclear": 0.04
+            }
+          }
+        },
+        {
+          "counter_0_0": {
+            "choice": "compatible",
+            "confidence": 0.38,
+            "probabilities": {
+              "contradicts": 0.38,
+              "compatible": 0.59,
+              "unclear": 0.03
+            }
+          },
+          "counter_1_0": {
+            "choice": "compatible",
+            "confidence": 0.51,
+            "probabilities": {
+              "unclear": 0.04,
+              "compatible": 0.67,
+              "contradicts": 0.29
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

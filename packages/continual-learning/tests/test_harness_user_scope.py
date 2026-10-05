@@ -74,3 +74,18 @@ def test_the_scoped_layer_reuses_the_memory_scope_key_and_stays_out_of_a_memory_
     # beside them fails privacy validation and aborts consolidation outright.
     assert value["insideMemoryRoot"] is False, value
     assert value["scopedRelative"].startswith("harness/"), value
+
+
+def test_write_and_consolidation_layer_sort_keeps_user_scoped_between_global_and_project() -> None:
+    result = isolated_run_bun(r'''
+      import { compareHarnessLayers } from './packages/continual-learning/extensions/guardrail-config.ts';
+      const layers = [
+        { source: 'project.local' },
+        { source: 'user' },
+        { source: 'project' },
+        { source: 'user.scoped' },
+      ];
+      layers.sort(compareHarnessLayers);
+      console.log(JSON.stringify(layers.map(layer => layer.source)));
+    ''')
+    assert result == ['user', 'user.scoped', 'project', 'project.local']

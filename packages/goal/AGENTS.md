@@ -54,7 +54,8 @@ the check's, so each can be set alone.
 - Register only `/goal`: bare input reads status; exact pause/resume/clear arguments manage the current goal.
   Other complete text supplies the objective and completion conditions. Never parse management verbs by prefix.
   Activation requires a matching accepted request at before_agent_start, never merely a void send call.
-  Busy requests are refused before intent is stored. Completion checks bind the scheduler generation.
+  A busy request with no goal being pursued is refused before intent is stored; one under way takes the
+  text as a revision through the same writer as `update_goal`. Completion checks bind the scheduler generation.
 - Status, tools, and the widget read fresh disk state. Paused goals do not accrue usage or run automatic checks.
   Resume must set the current scheduling owner and bind an idle context before reporting an authorized continuation.
 - Authorization is a durable decision in the record, consumed exactly once by

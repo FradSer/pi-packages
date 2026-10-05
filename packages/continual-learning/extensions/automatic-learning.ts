@@ -1,7 +1,24 @@
+/** The reason a settled task was recorded without starting a learner. */
+export type AutomaticLearningSkipReason = "auto-memory-off";
+
+export interface AutomaticLearningOptions<T> {
+  /**
+   * Called once for each real-user revision that settles while automatic
+   * learning is disabled. `context` is the already-frozen snapshot captured
+   * for that settlement; it must not be replaced with a later live context.
+   */
+  onSkipped?: (
+    context: T,
+    revision: number,
+    reason: AutomaticLearningSkipReason,
+  ) => void | Promise<void>;
+}
+
 /** Coalesce completed user tasks without learning from extension continuations. */
 export function createAutomaticLearning<T>(
   run: (context: T) => Promise<void>,
   reportError: (error: unknown, context: T) => void,
+  options: AutomaticLearningOptions<T> = {},
 ) {
   let revision = 0;
   let handledRevision = 0;
@@ -28,13 +45,19 @@ export function createAutomaticLearning<T>(
     },
     settle(context: T, enabled: boolean, settledRevision = revision): Promise<void> {
       if (stopped) return active ?? Promise.resolve();
-      if (!enabled) {
-        handledRevision = Math.max(handledRevision, settledRevision);
-        pending = undefined;
-        return active ?? Promise.resolve();
-      }
       if (settledRevision <= handledRevision) return active ?? Promise.resolve();
       handledRevision = settledRevision;
+      if (!enabled) {
+        pending = undefined;
+        let skipped: Promise<void> = Promise.resolve();
+        try {
+          skipped = Promise.resolve(options.onSkipped?.(context, settledRevision, "auto-memory-off"));
+        } catch (error) {
+          reportError(error, context);
+        }
+        skipped = skipped.catch((error) => reportError(error, context));
+        return Promise.all([active ?? Promise.resolve(), skipped]).then(() => undefined);
+      }
       pending = { context };
       active ??= drain().finally(() => { active = undefined; });
       return active;
@@ -52,13 +75,22 @@ interface AutomaticLearningDependencies {
   snapshot: (ctx: ExtensionContext) => ExtensionContext;
   run: (ctx: ExtensionContext) => Promise<void>;
   reportError: (error: unknown, ctx: ExtensionContext) => void;
+  onSkipped?: (
+    context: ExtensionContext,
+    revision: number,
+    reason: AutomaticLearningSkipReason,
+  ) => void | Promise<void>;
 }
 
 export function registerAutomaticLearning(pi: ExtensionAPI, dependencies: AutomaticLearningDependencies): void {
-  let learning = createAutomaticLearning(dependencies.run, dependencies.reportError);
+  let learning = createAutomaticLearning(dependencies.run, dependencies.reportError, {
+    onSkipped: dependencies.onSkipped,
+  });
   pi.on("session_start", () => {
     learning.stop();
-    learning = createAutomaticLearning(dependencies.run, dependencies.reportError);
+    learning = createAutomaticLearning(dependencies.run, dependencies.reportError, {
+      onSkipped: dependencies.onSkipped,
+    });
   });
   pi.on("session_shutdown", () => { learning.stop(); });
   pi.on("input", (event) => { learning.input(event.source); });

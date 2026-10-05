@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from test_teammate_package import SRC, PACKAGE, run_node
+from test_agent_package import SRC, PACKAGE, run_node
 from test_accepted_work_reporting import machine_case
 
 
@@ -11,33 +11,41 @@ def test_public_lifecycle_content_discloses_recorded_grant(tmp_path: Path, reque
     run_node(f'''
       import assert from "node:assert/strict";
       import {{ publishTeamHost, registerComposedTools }} from "./tests/composed-tools.ts";
-      import {{ registerTeammate, resetState }} from "{(SRC / 'state.ts').as_uri()}";
-      import {{ resolveWorkerTools }} from "@fradser/pi-subagents";
+      import {{ registerAgent, resetState }} from "{(SRC / 'state.ts').as_uri()}";
+      import {{ exactSessionRoute, resolveAgentTools }} from "@fradser/pi-subagents";
       import {{ WORKER_CAPABILITY_TOOLS }} from "{(SRC / 'capability-tools.ts').as_uri()}";
       resetState();
       const tools = new Map();
       const requested = {requested};
-      const grant = resolveWorkerTools(requested, WORKER_CAPABILITY_TOOLS);
+      const grant = resolveAgentTools(requested, WORKER_CAPABILITY_TOOLS);
       const runtime = {{
-        spawnTeammate(input) {{
-          const teammate = {{ name: input.name, agent: input.name, spawnId: "s1", status: "starting",
+        spawnAgent(input) {{
+          const agent = {{ name: input.name, role: input.role, spawnId: "s1", status: "starting",
             workId: input.workId, tools: grant, pid: 0, isolation: "none", createdAt: 1, updatedAt: 1 }};
-          registerTeammate(teammate);
-          return {{ ok: true, teammate }};
+          registerAgent(agent);
+          return {{ ok: true, agent }};
         }},
       }};
       registerComposedTools({{ registerTool: t => tools.set(t.name, t) }}, runtime);
       publishTeamHost(runtime);
-      const call = p => tools.get("agent").execute("test", p, undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
-      {{
+      const start = p => tools.get("agent_start").execute("test", p, undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
+      const inspect = p => tools.get("agent_inspect").execute("test", p, undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
+      // The roster name is minted by the start and only the label is authored, so
+      // every later lookup resolves the handle the receipt returned.
+      {{ 
         resetState();
-        const result = await call({{ action: "start", name: "capability-test", prompt: "Check evidence",
-          description: "Check", role_prompt: "Check", tools: requested }});
-        // The tool now answers with a structured result, and a handle rather than
-        // a projection, so the projection is read back through `inspect`.
-        assert.equal(result.details.ok, true, result.content[0].text);
-        assert.match(result.details.session, /^session:capability-test:/);
-        const inspected = await call({{ action: "inspect", session: result.details.session }});
+        const result = await start({{ prompt: "Check evidence", label: "capability-test",
+          ...(requested === undefined ? {{}} : {{ tools: requested }}) }});
+        assert.equal(result.details.operation, "agent_start");
+        assert.equal(result.details.disposition, "started", result.content[0].text);
+        assert.match(result.details.session, /^session:subagent-[0-9a-f]+:s1$/);
+        // The label is display only: it never becomes the roster key.
+        assert.equal(result.details.label, "capability-test");
+        assert.ok(!result.details.session.includes("capability-test"),
+          `label leaked into the roster handle ${{result.details.session}}`);
+        const inspected = await inspect({{ session: result.details.session }});
+        assert.equal(inspected.details.operation, "agent_inspect");
+        assert.equal(inspected.details.disposition, "inspected");
         // The effective grant is the one thing a caller routinely gets wrong by
         // assumption, so it is reported on the roster entry rather than inferred.
         assert.deepEqual(inspected.details.sessions[0].tools, grant);
@@ -47,20 +55,33 @@ def test_public_lifecycle_content_discloses_recorded_grant(tmp_path: Path, reque
         }}
       }}
       // A name with no definition, no prompt and no grant is the idle-resident
-      // case: a child that waits for work assigned to it. It succeeds, and reports
-      // the grant the roster actually recorded rather than the empty one asked
-      // for — a caller that assumed file access it did not get is the failure
-      // this prevents.
-      const idle = await call({{ action: "start", name: "unknown-capability-test" }});
-      assert.equal(idle.details.ok, true, idle.content[0].text);
-      assert.equal(idle.details.prompted, false);
-      assert.deepEqual(idle.details.grant, grant, "the reported grant is the recorded one");
-      assert.match(idle.content[0].text, /ROLE · none/);
-      // Half a role is the case worth refusing: the missing half would produce a
-      // child that silently has no instructions.
-      const halfRole = await call({{ action: "start", name: "half-role", description: "only one half" }});
-      assert.equal(halfRole.details.ok, false);
-      assert.match(halfRole.content[0].text, /both/);
+      // case: a child that waits for work assigned to it. It has no model surface
+      // any more, so the coordinator spawns it, and the roster still reports the
+      // grant actually recorded rather than the empty one asked for — a caller
+      // that assumed file access it did not get is the failure this prevents.
+      // An idle resident no longer has a model-facing start, so the coordinator
+      // creates it, and the roster still reports the grant actually recorded
+      // rather than the empty one asked for.
+      const idle = runtime.spawnAgent({{ name: "unknown-capability-test", role: "unknown-capability-test" }});
+      assert.equal(idle.ok, true);
+      assert.equal(idle.agent.status, "starting");
+      assert.deepEqual(idle.agent.tools, grant, "the recorded grant is the one asked for");
+      // The roster readback for a resident belongs to the harness that registers the
+      // child with the execution layer; here the claim is that the coordinator
+      // records the resolved grant rather than the empty one the caller asked for.
+      assert.deepEqual(idle.agent.tools, grant, "the recorded grant is the one asked for");
+      // A description with no instructions is a role with a purpose and no
+      // standing instructions. It spawns, and the receipt says the difference,
+      // because a role that teaches nothing must not read as one that does. The
+      // model surface always supplies both halves, so this is the executor's own
+      // half-role path, driven with the intent operation.
+      const {{ executeChildIntent }} = await import("@fradser/pi-subagents");
+      const halfRole = await executeChildIntent({{ operation: "start", name: "half-role",
+        description: "only one half" }}, {{ cwd: {str(tmp_path)!r} }});
+      assert.equal(halfRole.structuredContent.operation, "start");
+      assert.equal(halfRole.structuredContent.outcome, "started", halfRole.content[0].text);
+      assert.equal(halfRole.structuredContent.role, "only one half");
+      assert.match(halfRole.content[0].text, /no standing instructions/);
       console.log(JSON.stringify({{ ok: true }}));
     ''', env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path / "agent")})
 
@@ -70,16 +91,19 @@ def test_inspect_uses_recorded_grant_not_current_definition(tmp_path: Path, reco
     run_node(f'''
       import assert from "node:assert/strict";
       import {{ publishTeamHost, registerComposedTools }} from "./tests/composed-tools.ts";
-      import {{ registerTeammate, resetState }} from "{(SRC / 'state.ts').as_uri()}";
+      import {{ registerAgent, resetState }} from "{(SRC / 'state.ts').as_uri()}";
       const {{ registerSessionAgent }} = await import("@fradser/pi-subagents");
       resetState();
       registerSessionAgent({{ name: "historical", description: "Changed role", prompt: "Changed role", tools: ["bash"] }});
       const tools = new Map();
       registerComposedTools({{ registerTool: t => tools.set(t.name, t) }});
-      registerTeammate({{ name: "historical", agent: "historical", spawnId: "s1", status: "idle",
+      registerAgent({{ name: "historical", role: "historical", spawnId: "s1", status: "idle",
         tools: {recorded}, pid: 0, isolation: "none", createdAt: 1, updatedAt: 1 }});
-      const result = await tools.get("agent").execute("test", {{ action: "inspect", name: "historical",
-        session: "session:historical:s1" }}, undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
+      // Strict intent inputs address inspection only by its exact handle.
+      const result = await tools.get("agent_inspect").execute("test", {{ session: "session:historical:s1" }},
+        undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
+      assert.equal(result.details.operation, "agent_inspect");
+      assert.equal(result.details.disposition, "inspected");
       const session = result.details.sessions[0];
       assert.deepEqual(session.tools, {recorded});
       console.log(JSON.stringify({{ ok: true }}));
@@ -103,14 +127,14 @@ def test_guidance_requires_failed_blockers_and_quiet_leader_handling() -> None:
 def test_public_submit_settlement_keeps_blocked_dependents(tmp_path: Path, outcome: str) -> None:
     payload = machine_case(tmp_path, f'''
       const {{ createWorkerFixture, assistant }} = await import("{(PACKAGE / 'tests' / 'automatic-results-fixture.ts').as_uri()}");
-      const {{ boardFilePath, submissionsDir }} = await import("@fradser/pi-tasks");
+      const {{ tasksFilePath, submissionsDir }} = await import("@fradser/pi-tasks");
       const path = await import("node:path");
       const fixture = createWorkerFixture(root, "direct", "reviewer");
-      const boardSubmissions = submissionsDir(path.dirname(boardFilePath(undefined, root)));
-      fixture.binding.submissionsDir = boardSubmissions;
-      process.env.PI_TEAMMATE_SUBMISSIONS_DIR = boardSubmissions;
-      const teammate = getTeammate("reviewer");
-      fixture.roster(teammate.assignment, teammate.spawnId, "working", task.id);
+      const tasksSubmissions = submissionsDir(path.dirname(tasksFilePath(undefined, root)));
+      fixture.binding.submissionsDir = tasksSubmissions;
+      process.env.PI_TEAMMATE_SUBMISSIONS_DIR = tasksSubmissions;
+      const agent = getAgent("reviewer");
+      fixture.roster(agent.assignment, agent.spawnId, "working", task.id);
       const dependent = createTask({{ id: "dependent", subject: "Use verified evidence", dependsOn: [task.id] }}).task;
       getTask(task.id).verify = "Require actual execution evidence";
       setVerifyGateRunner(async () => ({{ kind: "fail", detail: "No execution evidence" }}));
@@ -124,14 +148,14 @@ def test_public_submit_settlement_keeps_blocked_dependents(tmp_path: Path, outco
       processTaskIntents(); settle();
       await new Promise(resolve => setImmediate(resolve));
       processTaskIntents(); settle();
-      const {{ renderTaskBoard }} = await import("{(SRC / 'worker.ts').as_uri()}");
+      const {{ renderTaskList }} = await import("{(SRC / 'worker.ts').as_uri()}");
       console.log(JSON.stringify({{ status: getTask(task.id).status,
         reports: reports.filter(r => r.finished).map(r => r.status),
-        board: renderTaskBoard([getTask(task.id), dependent]) }}));
+        task: renderTaskList([getTask(task.id), dependent]) }}));
     ''')
     assert payload["status"] != "completed"
     assert payload["reports"] == (["failed"] if outcome == "failed" else [])
-    assert "dependent · pending/blocked" in payload["board"]
+    assert "dependent · pending/blocked" in payload["task"]
 
 
 def test_inline_tools_schema_explains_least_privilege() -> None:
@@ -140,9 +164,9 @@ def test_inline_tools_schema_explains_least_privilege() -> None:
     run_node(f'''
       import assert from "node:assert/strict";
       import {{ InlineAgentDefinitionParams }} from "{(SRC / 'types.ts').as_uri()}";
-      import {{ WORKER_BUILTIN_TOOLS }} from "@fradser/pi-subagents";
+      import {{ AGENT_BUILTIN_TOOLS }} from "@fradser/pi-subagents";
       import {{ buildIdleLeaderGuidance }} from "{(SRC / 'guidance.ts').as_uri()}";
-      for (const tool of WORKER_BUILTIN_TOOLS) {{
+      for (const tool of AGENT_BUILTIN_TOOLS) {{
         assert.ok(InlineAgentDefinitionParams.properties.tools.description.includes(tool), `Schema missing ${{tool}}`);
         assert.ok(buildIdleLeaderGuidance().includes(tool), `Guidance missing ${{tool}}`);
       }}
@@ -153,7 +177,7 @@ def test_inline_tools_schema_explains_least_privilege() -> None:
 def _write_agent(path: Path, name: str, frontmatter: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
-        f"---\nname: {name}\ndescription: A test role\ntools: read, bash\nworktree: false\n{frontmatter}\n---\n\nRole body.\n",
+        f"---\nname: {name}\ndescription: A test role\ntools: read, bash\n{frontmatter}\n---\n\nRole body.\n",
         encoding="utf-8",
     )
 
@@ -166,8 +190,9 @@ def test_agent_memory_reaches_only_a_fixed_agents_spawn(tmp_path: Path) -> None:
     receipt that lies: the row would say the child may record capability lessons
     and the child would find no such tool.
     """
-    _write_agent(tmp_path / ".pi" / "agents" / "fixed.md", "fixed", "memory: true")
-    _write_agent(tmp_path / ".pi" / "agents" / "plain.md", "plain", "")
+    # VISION.md supersedes opt-in: every canonical disk identity has Memory.
+    _write_agent(tmp_path / ".pi" / "agents" / "fixed" / "agent.md", "fixed", "")
+    _write_agent(tmp_path / ".pi" / "agents" / "plain" / "agent.md", "plain", "")
     payload = run_node(
         f'''
         import childProcess from "node:child_process";
@@ -191,18 +216,18 @@ def test_agent_memory_reaches_only_a_fixed_agents_spawn(tmp_path: Path) -> None:
             terminateChildProcess: async () => true,
           }},
         }});
-        const {{ initTeamMachine, shutdownTeamMachine, spawnTeammate }} = await import({(SRC / "team-machine.ts").as_uri()!r});
-        const {{ getTeammate, resetState }} = await import({(SRC / "state.ts").as_uri()!r});
+        const {{ initTeamMachine, shutdownTeamMachine, spawnAgent }} = await import({(SRC / "team-machine.ts").as_uri()!r});
+        const {{ getAgent, resetState }} = await import({(SRC / "state.ts").as_uri()!r});
         const root = {str(tmp_path)!r};
         resetState();
         initTeamMachine({{ sessionManager: undefined, cwd: root }}, {{ sendUpdate: () => {{}}, notifyChange: () => {{}} }});
-        const fixed = spawnTeammate({{ name: "fixed-child", agent: "fixed" }});
-        const plain = spawnTeammate({{ name: "plain-child", agent: "plain" }});
-        const temporary = spawnTeammate({{ name: "temp-child", agent: "temp-role",
-          definition: {{ description: "One answer", prompt: "Answer once.", tools: ["read"], worktree: false }} }});
-        const refused = spawnTeammate({{ name: "memory-child", agent: "memory-role",
-          definition: {{ description: "Wants memory", prompt: "Remember this.", tools: ["agent_memory"], worktree: false }} }});
-        const toolsOf = (spawn) => spawn.ok ? getTeammate(spawn.teammate.name)?.tools : null;
+        const fixed = spawnAgent({{ name: "fixed-child", role: "fixed" }});
+        const plain = spawnAgent({{ name: "plain-child", role: "plain" }});
+        const temporary = spawnAgent({{ name: "temp-child", role: "temp-role",
+          definition: {{ description: "One answer", prompt: "Answer once.", tools: ["read"] }} }});
+        const refused = spawnAgent({{ name: "memory-child", role: "memory-role",
+          definition: {{ description: "Wants memory", prompt: "Remember this.", tools: ["agent_memory"] }} }});
+        const toolsOf = (spawn) => spawn.ok ? getAgent(spawn.agent.name)?.tools : null;
         // Spawns are sequential, so child N is the argv of spawn N — and a
         // refused spawn contributing no child is itself the assertion.
         const toolArgv = (args) => args[args.indexOf("--tools") + 1];
@@ -231,15 +256,16 @@ def test_agent_memory_reaches_only_a_fixed_agents_spawn(tmp_path: Path) -> None:
     assert payload["fixed"]["ok"] is True
     assert "agent_memory" in payload["fixed"]["tools"]
     assert payload["fixed"]["argv"].split(",") == payload["fixed"]["tools"]
-    assert any("worker-extension" in path for path in payload["fixed"]["extensions"]), payload["fixed"]["extensions"]
-    # A persisted Agent without the opt-in, and a Temporary Agent: minimal grants
-    # that name nothing the child cannot use.
-    for label in ("plain", "temporary"):
-        assert payload[label]["ok"] is True
-        assert "agent_memory" not in payload[label]["tools"], label
-        assert payload[label]["argv"].split(",") == payload[label]["tools"], label
-        assert not any("worker-extension" in path for path in payload[label]["extensions"]), label
-    assert payload["plain"]["tools"] == ["read", "bash", "message", "task"]
+    assert any("agent-extension" in path for path in payload["fixed"]["extensions"]), payload["fixed"]["extensions"]
+    # A disk identity without flags still gets Memory; temporary roles do not.
+    assert payload["plain"]["ok"] is True
+    assert payload["plain"]["tools"] == ["read", "bash", "agent_memory", "message", "task"]
+    assert payload["plain"]["argv"].split(",") == payload["plain"]["tools"]
+    assert any("agent-extension" in path for path in payload["plain"]["extensions"])
+    assert payload["temporary"]["ok"] is True
+    assert "agent_memory" not in payload["temporary"]["tools"]
+    assert payload["temporary"]["argv"].split(",") == payload["temporary"]["tools"]
+    assert not any("agent-extension" in path for path in payload["temporary"]["extensions"])
     assert payload["temporary"]["tools"] == ["read", "message", "task"]
     # Asking for the tool with no folder is refused rather than silently dropped.
     assert payload["refused"]["ok"] is False

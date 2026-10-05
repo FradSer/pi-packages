@@ -8,17 +8,16 @@
 import { getMarkdownTheme, keyHint, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { buildIdleLeaderGuidance, buildTeamLeaderGuidance, WORKER_GUIDANCE } from "./guidance.ts";
-import { clearSessionAgents } from "@fradser/pi-subagents";
 import { publishAgentHost } from "./agent-host.ts";
-import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, onBoardTaskChanged, onBoardTaskCreated, onBoardTaskTaken, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownTeammates } from "./team-machine.ts";
+import { getConfirmedStopTime, initTeamMachine, markTeammateFinished, onTaskChanged, onTaskCreated, onTaskTaken, removeRuntimeDir, shutdownTeamMachine, syncLeaderContext, teardownAgents } from "./team-machine.ts";
 import { cleanupExpiredStateDirs } from "./statefile.ts";
-import { getTask, getTeammate, livingTeammates, listTasks, resetState } from "./state.ts";
+import { getTask, getAgent, livingAgents, listTasks, resetState } from "./state.ts";
 import { ensureTeamWidget, refreshTeamUI, stopUiTimers } from "./ui.ts";
 import { registerLeaderTools, registerTeamCommand } from "./tools.ts";
-import { registerWorkerCapabilities, workerBinding } from "./worker.ts";
+import { registerChildCapabilities, workerBinding } from "./worker.ts";
 import { plainText } from "./tool-copy.ts";
 import { agentColor, bindLifecycleRenderers, clearPiStatus, createToolExecutionWrapper, eventToolLifecycle, formatAgentMessagePrefix, notifyPi, renderAgentMessageBand } from "@fradser/pi-kit";
-import { annotateReportDelivery, formatReports, groupReportsByTeammate, TEAMMATE_HARNESS_MESSAGE_TYPE, TEAMMATE_REPORT_MESSAGE_TYPE, type LeaderReport } from "@fradser/pi-subagents";
+import { annotateReportDelivery, formatReports, groupReportsByAgent, AGENT_HARNESS_MESSAGE_TYPE, AGENT_REPORT_MESSAGE_TYPE, type LeaderReport } from "@fradser/pi-subagents";
 import { Box, Markdown, Text, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 
 /** Geometry bound once: harness event rows share hint and wrapping. */
@@ -46,7 +45,7 @@ const HISTORICAL_ENTRY_LIMIT = 512;
 const retainedHistoricalReports = new Set<string>();
 function rememberRetainedReport(report: LeaderReport): boolean {
   const key = [
-    report.teammate ?? report.agent ?? "",
+    report.agent ?? "",
     report.spawnId ?? "",
     report.eventId ?? "",
     report.timestamp ?? 0,
@@ -67,8 +66,8 @@ function rememberRetainedReport(report: LeaderReport): boolean {
 function isHistoricalReport(report: LeaderReport): boolean {
   if (report.origin === "harness" || report.harnessEvent || report.finished
     || report.status === "completed" || report.status === "failed") return false;
-  if (!report.spawnId || !report.teammate) return false;
-  const worker = getTeammate(report.teammate);
+  if (!report.spawnId || !report.agent) return false;
+  const worker = getAgent(report.agent);
   if (!worker || worker.spawnId !== report.spawnId || worker.status === "stopped") return true;
   if (report.assignmentId !== worker.assignment?.id || worker.assignment?.closed || worker.reportSequenceEnded) return true;
   const task = worker.currentTaskId ? getTask(worker.currentTaskId) : undefined;
@@ -79,8 +78,8 @@ function sendLeaderReport(report: LeaderReport): void {
   try {
     leaderPi?.sendMessage({
       customType: report.origin === "harness" || report.harnessEvent
-        ? TEAMMATE_HARNESS_MESSAGE_TYPE
-        : TEAMMATE_REPORT_MESSAGE_TYPE,
+        ? AGENT_HARNESS_MESSAGE_TYPE
+        : AGENT_REPORT_MESSAGE_TYPE,
       content: formatReports([report]),
       display: true,
       details: report,
@@ -94,7 +93,7 @@ function sendLeaderReport(report: LeaderReport): void {
 }
 
 export function hasActiveTeamState(): boolean {
-  return livingTeammates().length > 0 || listTasks().length > 0;
+  return livingAgents().length > 0 || listTasks().length > 0;
 }
 
 function extractHarnessReport(details: unknown): LeaderReport | undefined {
@@ -104,7 +103,7 @@ function extractHarnessReport(details: unknown): LeaderReport | undefined {
 
 export default function (pi: ExtensionAPI) {
   if (workerBinding()) {
-    const workerToolDisclosure = registerWorkerCapabilities(pi);
+    const workerToolDisclosure = registerChildCapabilities(pi);
     pi.on("session_start", async () => {
       workerToolDisclosure.reset();
     });
@@ -130,7 +129,7 @@ export default function (pi: ExtensionAPI) {
     const name = data?.teammate ?? data?.agent ?? "teammate";
     return new Text(theme.fg("dim", `Historical report from @${name} retained for audit; it no longer instructs.`), 0, 0);
   });
-  pi.registerMessageRenderer(TEAMMATE_HARNESS_MESSAGE_TYPE, (message, { expanded }, theme) => {
+  pi.registerMessageRenderer(AGENT_HARNESS_MESSAGE_TYPE, (message, { expanded }, theme) => {
     const report = extractHarnessReport(message.details);
     if (!report) return new Text(String(message.content), 0, 0);
     const event = report.harnessEvent;
@@ -139,7 +138,7 @@ export default function (pi: ExtensionAPI) {
       { hostComponent: ToolExecutionComponent, ui: leaderCtx?.ui, cwd: leaderCtx?.cwd },
     )(message, { expanded }, theme);
   });
-  pi.registerMessageRenderer(TEAMMATE_REPORT_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) => {
+  pi.registerMessageRenderer(AGENT_REPORT_MESSAGE_TYPE, (message, { expanded, outputPad }, theme) => {
     const reports = deliveries.get(message) ?? extractReports(message.details);
     if (reports.length === 0) {
       const box = new Box(outputPad, 1, (text) => theme.bg("customMessageBg", text));
@@ -151,9 +150,9 @@ export default function (pi: ExtensionAPI) {
       (opt, currentTheme) => {
         const effTheme = currentTheme ?? theme;
         if (!opt.expanded) {
-          const groups = groupReportsByTeammate(reports);
+          const groups = groupReportsByAgent(reports);
           const band = renderAgentMessageBand(
-            groups.map((group) => ({ direction: "from", teammate: group.teammate, count: group.reports.length })),
+            groups.map((group) => ({ direction: "from", teammate: group.agent, count: group.reports.length })),
             { theme: effTheme, fit: truncateToWidth, visibleWidth, wrapDetail: wrapTextWithAnsi, expandHint: keyHint("app.tools.expand", "to expand") },
           );
           if (!reports.some((report) => report.deliveredAfterStop)) return band;
@@ -164,9 +163,9 @@ export default function (pi: ExtensionAPI) {
         }
         const box = new Box(outputPad, 1, (text) => effTheme.bg("customMessageBg", text));
         for (const [index, report] of reports.entries()) {
-          const teammate = report.teammate ?? report.agent ?? "teammate";
+          const agent = report.agent ?? "agent";
           const prefix = effTheme.fg("customMessageLabel", effTheme.bold(formatAgentMessagePrefix("from")));
-          const name = effTheme.fg(agentColor(teammate), `@${teammate}`);
+          const name = effTheme.fg(agentColor(agent), `@${agent}`);
           const delivery = report.deliveredAfterStop ? effTheme.fg("warning", " (late delivery; process stopped)") : "";
           box.addChild(new Text(`${prefix}${name}${delivery}`, 0, 0));
           box.addChild(new Markdown(report.body, 0, 0, getMarkdownTheme(), {
@@ -189,23 +188,23 @@ export default function (pi: ExtensionAPI) {
   registerLeaderTools(pi);
   registerTeamCommand(pi);
 
-  // The board belongs to @fradser/pi-tasks, which registers the `task` tool
-  // itself. This package subscribes to what the board announces rather than
+  // The tasks belongs to @fradser/pi-tasks, which registers the `task` tool
+  // itself. This package subscribes to what the tasks announces rather than
   // being called by it, so pi-tasks never has to know a resident exists and a
-  // standalone board with nobody listening still works.
+  // standalone tasks with nobody listening still works.
   //
   // Guarded because subscribing is optional: a host without an event bus must
-  // degrade to no coordination, not to a failed load. Board transitions still
+  // degrade to no coordination, not to a failed load. Tasks transitions still
   // record correctly; only the noticing is skipped.
   if (typeof pi.events?.on === "function") {
     pi.events.on("pi-tasks:task-created", (payload) => {
-      onBoardTaskCreated(payload as { id: string; replaced?: string[] });
+      onTaskCreated(payload as { id: string; replaced?: string[] });
     });
     pi.events.on("pi-tasks:task-taken", (payload) => {
-      onBoardTaskTaken(payload as { id: string });
+      onTaskTaken(payload as { id: string });
     });
     for (const channel of ["pi-tasks:task-completed", "pi-tasks:task-reopened", "pi-tasks:task-updated"]) {
-      pi.events.on(channel, () => onBoardTaskChanged());
+      pi.events.on(channel, () => onTaskChanged());
     }
   }
 
@@ -218,7 +217,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("context", (event) => {
     let changed = false;
     const messages = event.messages.flatMap((message) => {
-      if (message.role !== "custom" || message.customType !== TEAMMATE_REPORT_MESSAGE_TYPE) return [message];
+      if (message.role !== "custom" || message.customType !== AGENT_REPORT_MESSAGE_TYPE) return [message];
       const reports = extractReports(message.details);
       if (reports.length === 0) return [message];
       const current = reports.filter((report) => !isHistoricalReport(report));
@@ -231,7 +230,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("message_start", (event) => {
-    if (event.message.role !== "custom" || event.message.customType !== TEAMMATE_REPORT_MESSAGE_TYPE) return;
+    if (event.message.role !== "custom" || event.message.customType !== AGENT_REPORT_MESSAGE_TYPE) return;
     const deliveredAt = Date.now();
     deliveries.set(event.message, extractReports(event.message.details).map((report) => annotateReportDelivery(
       report, deliveredAt, report.spawnId ? getConfirmedStopTime(report.spawnId) : undefined,
@@ -239,7 +238,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("message_end", async (event) => {
-    if (event.message.role !== "custom" || event.message.customType !== TEAMMATE_REPORT_MESSAGE_TYPE) return;
+    if (event.message.role !== "custom" || event.message.customType !== AGENT_REPORT_MESSAGE_TYPE) return;
     const deliveredAt = Date.now();
     const reports = deliveries.get(event.message) ?? extractReports(event.message.details).map((report) => annotateReportDelivery(
       report, deliveredAt, report.spawnId ? getConfirmedStopTime(report.spawnId) : undefined,
@@ -253,7 +252,6 @@ export default function (pi: ExtensionAPI) {
       if (isHistoricalReport(report)) {
         if (rememberRetainedReport(report)) {
           pi.appendEntry(TEAMMATE_HISTORICAL_ENTRY_TYPE, {
-            teammate: report.teammate ?? report.agent,
             agent: report.agent,
             spawnId: report.spawnId,
             assignmentId: report.assignmentId,
@@ -268,7 +266,6 @@ export default function (pi: ExtensionAPI) {
       }
       if (!markTeammateFinished(report)) continue;
       pi.appendEntry(TEAMMATE_FINISHED_ENTRY_TYPE, {
-        teammate: report.teammate ?? report.agent,
         agent: report.agent,
         assignmentId: report.assignmentId,
         workId: report.workId,
@@ -291,7 +288,8 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("session_start", async (_event, ctx) => {
-    clearSessionAgents();
+    // Session-only definitions belong to the execution extension. Clearing
+    // them here would discard temporary history under another package's owner.
     resetState();
     leaderCtx = ctx;
     ensureTeamWidget(ctx);
@@ -301,11 +299,10 @@ export default function (pi: ExtensionAPI) {
         refreshTeamUI(leaderCtx);
       },
     });
-    // The `agent` tool is @fradser/pi-subagents'. It reaches this package's
-    // spawn only through a published host, and without one a child's output is
-    // discarded: the standalone path records exit status and nothing else.
+    // The execution extension owns the tool. Hosted incarnations use our
+    // report/controls; standalone incarnations keep their own result owner.
     publishAgentHost(ctx.sessionManager);
-    clearPiStatus(ctx.ui, "teammate");
+    clearPiStatus(ctx.ui, "agent");
     refreshTeamUI(ctx);
     void cleanupExpiredStateDirs(STATE_DIR_MAX_AGE_MS);
   });
@@ -322,7 +319,7 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("session_shutdown", async (_event, ctx) => {
     stopUiTimers();
-    const diagnostics = await teardownTeammates();
+    const diagnostics = await teardownAgents();
     for (const message of diagnostics) {
       notifyPi(ctx.ui, message, "warning");
     }
@@ -338,6 +335,6 @@ function extractReports(details: unknown): LeaderReport[] {
   if (Array.isArray(details)) return details as LeaderReport[];
   const typed = details as LeaderReport | { reports?: LeaderReport[] } | undefined;
   if (typed && "reports" in typed && Array.isArray(typed.reports)) return typed.reports;
-  if (typed && "teammate" in typed) return [typed as LeaderReport];
+  if (typed && ("agent" in typed || "teammate" in typed)) return [typed as LeaderReport];
   return [];
 }

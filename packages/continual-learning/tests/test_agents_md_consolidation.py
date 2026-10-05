@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from agents_md_fixtures import MODULE, SNAPSHOT, apply_plan_script, evidence, extraction_ops, prepare_extraction_roots
 from support import PKG_DIR, initialize_git_repo, run_bun as js, run_bun_script
 
@@ -379,6 +381,21 @@ def test_safe_extraction_updates_both_roots_and_preserves_private_markers(tmp_pa
     assert "coda0.com" not in result["agents"]
 
 
+def test_extraction_uses_link_target_for_existing_private_memory(tmp_path: Path) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    harness_index = agent / "memory" / "project" / "MEMORY.md"
+    harness_index.write_text("- decoy.md [Existing private display](existing-private.md) (harness only)\n", encoding="utf-8")
+    (agent / "memory" / "project" / "decoy.md").write_text("safe decoy\n", encoding="utf-8")
+    (project / ".memory" / "decoy.md").write_text("safe decoy\n", encoding="utf-8")
+    result = js(apply_plan_script(project, agent, run_dir, extraction_ops()), {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result["result"]["outcome"] == "applied"
+    assert "existing-private.md](existing-private.md) (harness only)" in result["harnessIndex"]
+    assert "decoy.md](decoy.md) (harness only)" not in result["harnessIndex"]
+    assert "decoy.md" in result["publicIndex"]
+    assert "existing-private.md" not in result["publicIndex"]
+    assert result["publicMemory"] == result["harnessMemory"]
+
+
 def test_routing_pointer_survives_while_extracted_detail_reaches_memory(tmp_path: Path) -> None:
     project, agent, run_dir = prepare_extraction_roots(tmp_path)
     ops = extraction_ops()[:1]
@@ -484,7 +501,7 @@ def test_skill_rule_extraction_preserves_distinct_rules_and_ownership_metadata(t
 
 
 def test_skill_extraction_preserves_legacy_containers_and_respects_reserved_names(tmp_path: Path) -> None:
-    from test_harness_upgrade_compatibility import LEGACY
+    from harness_legacy_fixture import LEGACY
     for conflict in (False, True):
         project, agent, run_dir = prepare_extraction_roots(tmp_path / str(conflict))
         base = json.loads(json.dumps(LEGACY))
@@ -569,6 +586,53 @@ def test_private_extraction_stays_private_and_is_indexed(tmp_path: Path) -> None
     assert result["publicMemory"] is None
     assert "fixture-regeneration.md](fixture-regeneration.md) (harness only)" in result["harnessIndex"]
     assert "existing-private.md](existing-private.md) (harness only)" in result["harnessIndex"]
+
+
+@pytest.mark.parametrize("case", ("oldText", "description", "generated", "ruleId", "preexistingDocument", "preexistingHarness"))
+def test_direct_apply_rejects_sensitive_content_before_any_write(tmp_path: Path, case: str) -> None:
+    project, agent, run_dir = prepare_extraction_roots(tmp_path)
+    before_agents = (project / "AGENTS.md").read_text(encoding="utf-8")
+    before_harness_index = (agent / "memory" / "project" / "MEMORY.md").read_text(encoding="utf-8")
+    before_public_index = (project / ".memory" / "MEMORY.md").read_text(encoding="utf-8")
+    if case == "generated":
+        generated = add_op("- Remember password=abcdefghijk", quote="stale fixtures broke the build again")
+        generated["evidence"] = [
+            evidence("stale fixtures broke the build again", 0),
+            evidence("stale fixtures broke the build again", 5),
+        ]
+        operations = [generated]
+    elif case == "ruleId":
+        operations = extraction_ops()[1:]
+        operations[0]["extraction"]["ruleId"] = "password=abcdefghijk"
+    elif case == "preexistingDocument":
+        operations = extraction_ops()[:1]
+        (project / "AGENTS.md").write_text(before_agents + "\n- Existing password=abcdefghijk\n", encoding="utf-8")
+    elif case == "preexistingHarness":
+        operations = extraction_ops()[1:]
+        (project / ".pi" / "harness.json").write_text(
+            '{"rules": [], "learnedRules": {"existing": "password=abcdefghijk"}}\n',
+            encoding="utf-8",
+        )
+    else:
+        operations = extraction_ops()[:1]
+        if case == "oldText":
+            operations[0]["oldText"] = "- Remember password=abcdefghijk"
+            (project / "AGENTS.md").write_text(before_agents + "\n- Remember password=abcdefghijk\n", encoding="utf-8")
+        else:
+            operations[0]["extraction"]["description"] = "Remember password=abcdefghijk"
+    expected_agents = (project / "AGENTS.md").read_text(encoding="utf-8")
+
+    result = js(apply_plan_script(project, agent, run_dir, operations), {"PI_CODING_AGENT_DIR": str(agent)})
+
+    assert result["result"]["outcome"] == "failed", result
+    assert "sensitive" in result["result"]["detail"].lower(), result
+    assert "abcdefghijk" not in result["result"]["detail"], result
+    assert result["agents"] == expected_agents, result
+    assert result["preReceiptExists"] is False and result["receiptExists"] is False, result
+    assert result["harnessMemory"] is None and result["publicMemory"] is None, result
+    assert result["harnessIndex"] == before_harness_index and result["publicIndex"] == before_public_index, result
+    if case == "preexistingHarness":
+        assert result["harnessConfig"] == '{"rules": [], "learnedRules": {"existing": "password=abcdefghijk"}}\n', result
 
 
 def test_skill_rule_extraction_rejects_symlinked_project_config_path(tmp_path: Path) -> None:

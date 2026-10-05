@@ -84,6 +84,14 @@ Feature: EnterWorktree and ExitWorktree session switching
     Given enter_worktree has returned but session replacement has not started
     When the user aborts the run
     Then no worktree is created and the original session stays active
+    And no transition command is dispatched
+    And the user is told the queued transition was dropped
+
+  Scenario: A queued transition refuses a second transition
+    Given enter_worktree is queued and the agent run has not settled
+    When a worktree command is invoked
+    Then the command is refused with a warning naming the pending transition
+    And no second session switch is started
 
   Scenario: A post-switch failure preserves the active worktree
     Given the replacement session has started and made edits
@@ -102,7 +110,13 @@ Feature: EnterWorktree and ExitWorktree session switching
     When the command reports that outcome
     Then it delegates notification sanitization and delivery to pi-kit
 
-  Scenario: Worktree transition tools render compact started lifecycle rows
+  Scenario: An unmanaged worktree directory is reported, never edited
+    Given a repository that does not git-ignore `.pi/`
+    When EnterWorktree creates a managed worktree
+    Then the user is told to add `.pi/` to .gitignore
+    And the extension does not write to the repository's .gitignore
+
+Scenario: Worktree transition tools render compact started lifecycle rows
     Given the Pi extension is loaded in TUI mode
     When the model calls EnterWorktree or ExitWorktree
     Then each tool owns its shell rendering with an empty call row

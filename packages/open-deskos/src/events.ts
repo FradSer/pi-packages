@@ -182,8 +182,8 @@ export function eventsFromMessage(message: unknown): SessionEvent[] {
   if (!view) return [];
   // A user message may carry plain text rather than parts.
   if (typeof view.content === "string") {
-    const text = boundEventText(view.content);
-    return text.length > 0 && view.role === "user" ? [{ kind: "user", text }] : [];
+    const event = view.role === "user" ? boundSessionEvent({ kind: "user", text: view.content }) : null;
+    return event ? [event] : [];
   }
   const parts = Array.isArray(view.content) ? view.content : [];
   if (view.role === "toolResult") {

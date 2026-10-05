@@ -22,35 +22,62 @@ import { installScriptedProvider, type ScriptedTurn } from "../../../../tests/e2
 const SCENARIO = process.env.PI_E2E_SCENARIO ?? "surface";
 const PROBE = process.env.PI_E2E_PROBE ?? "e2e_probe";
 
+/** The pending, resource-bearing task the seeded peer makes a conflict on. */
+const PEER_RESOURCE_TASK = "toolchain-refresh";
+
 const SURFACE: ScriptedTurn[] = [{ tool: PROBE, args: {} }];
 
 /**
  * A child session's whole life, through the tool surface only.
  *
- * `start` with no prompt is the idle-resident shape: it enters the worker pool and
- * waits for work rather than burning a model turn. That is the case a team depends
- * on, so it is the one exercised here.
+ * Every start takes a prompt, so this exercises the shape the intent contract
+ * actually has: the child receives real work and answers. Nothing here waits for
+ * that answer, so the roster facts this suite asserts are the synchronous ones a
+ * start receipt already carries. A temporary label is display only, so the child
+ * name the receipts carry is the generated one; the assertions follow the receipt
+ * instead of predicting it.
  */
 const AGENT_LIFECYCLE: ScriptedTurn[] = [
   { tool: PROBE, args: {} },
-  { tool: "agent", args: { action: "start", name: "scout", tools: [] } },
-  { tool: "agent", args: { action: "list" } },
-  { tool: "agent", args: { action: "inspect", session: "$prev.session" } },
-  { tool: "agent", args: { action: "stop", session: "$prev.session" } },
+  { tool: "agent_start", args: { label: "scout", prompt: "Read the evidence you are given and report what it shows.", tools: [] } },
+  { tool: "agent_list", args: {} },
+  { tool: "agent_inspect", args: { session: "$prev.session" } },
+  { tool: "agent_stop", args: { session: "$prev.session" } },
 ];
 
-/** create → take → complete, all through one tool in one process. */
-const BOARD_LIFECYCLE: ScriptedTurn[] = [
+// The fixture user authors agent.md before Pi starts. No tool invocation creates
+// or promotes a definition. Fork writes private history; the next incarnation
+// must really resume it while retaining the project cwd.
+const SAVED_AGENT_LIFECYCLE: ScriptedTurn[] = [
   { tool: PROBE, args: {} },
-  { tool: "task", args: { action: "create", subject: "Ship the release", resources: ["firmware"] } },
-  { tool: "task", args: { action: "list", claimable: true } },
-  { tool: "task", args: { action: "update", id: "$prev.id", status: "in_progress" } },
-  { tool: "task", args: { action: "complete", id: "$prev.id", outcome: "success", result: "released" } },
-  { tool: "task", args: { action: "list" } },
+  { tool: "agent_list", args: {} },
+  { tool: "agent_start", args: { identity: "saved-scout", prompt: "Read the supplied evidence.", fork: true } },
+  { tool: "agent_list", args: {} },
+  { tool: "agent_stop", args: { session: "$prev.session" } },
+  { tool: "agent_list", args: {} },
+  { tool: "agent_start", args: { identity: "saved-scout", prompt: "Read the supplied evidence again." } },
+  { tool: "agent_inspect", args: { session: "$prev.session" } },
+  { tool: "agent_stop", args: { session: "$prev.session" } },
+  { tool: "agent_list", args: {} },
+];
+
+const OFFLINE_AGENT: ScriptedTurn[] = [
+  { tool: PROBE, args: {} },
+  { tool: "agent_list", args: {} },
+];
+
+/** create → take → complete, across the tools that perform each step. */
+const TASK_LIFECYCLE: ScriptedTurn[] = [
+  { tool: PROBE, args: {} },
+  { tool: "create_task", args: { subject: "Ship the release" } },
+  { tool: "list_tasks", args: { claimable: true } },
+  { tool: "update_task", args: { id: "$prev.id", status: "in_progress" } },
+  { tool: "update_task", args: { id: "$prev.id", status: "completed", outcome: "success", result: "released" } },
+  { tool: "list_tasks", args: {} },
 ];
 
 /**
- * A board with more than one participant, and a take refused for overlap.
+ * A task set with more than one participant, and a take refused for overlap.
  *
  * The resident joins through `agent start`, which is the shape a team depends on: a
  * child with no prompt enters the pool and waits for work. The peer already holds
@@ -63,76 +90,136 @@ const BOARD_LIFECYCLE: ScriptedTurn[] = [
  * resident's own process-level take travels as an intent file, which the leader
  * applies through the same store call the `task` tool makes here.
  */
+/**
+ * A resident joins, its leader takes work, and an overlapping take is refused.
+ *
+ * `create_task` no longer takes resource tags from the model, so the overlap is
+ * staged the way a real coordination run has it: a resource-bearing task the peer
+ * already holds through its own assignment. Whoever acts on that task has to be
+ * refused, and the refusal has to name the holder — a refusal that did not say who
+ * blocked you is a dead end rather than a conflict.
+ *
+ * This is the mechanism a resident's self-serve take relies on: whoever acts holds
+ * the task, and two participants cannot hold overlapping resources at once. The
+ * resident's own process-level take travels as an intent file, which the leader
+ * applies through the same store call the `update_task` tool makes here.
+ */
 const RESIDENT_TAKES: ScriptedTurn[] = [
   { tool: PROBE, args: {} },
-  { tool: "agent", args: { action: "start", name: "scout", tools: [] } },
-  { tool: "task", args: { action: "create", subject: "Rewrite the parser", resources: ["firmware"] } },
-  { tool: "task", args: { action: "list", claimable: true } },
-  { tool: "task", args: { action: "update", id: "$prev.id", status: "in_progress" } },
-  { tool: "task", args: { action: "create", subject: "Rebuild the toolchain", resources: ["toolchain"] } },
-  { tool: "task", args: { action: "update", id: "$prev.id", status: "in_progress" } },
-  { tool: "task", args: { action: "list" } },
+  { tool: "agent_start", args: { label: "scout", prompt: "Wait for the work the leader hands you.", tools: [] } },
+  { tool: "create_task", args: { subject: "Rewrite the parser" } },
+  { tool: "list_tasks", args: { claimable: true } },
+  { tool: "update_task", args: { id: "$prev.id", status: "in_progress" } },
+  { tool: "update_task", args: { id: PEER_RESOURCE_TASK, status: "in_progress" } },
+  { tool: "list_tasks", args: {} },
 ];
 
 /**
- * All three tools, and a message that reaches a live peer.
+ * All three packages, and a message that reaches a live peer.
  *
- * The recipient is a resident the scenario started, so the assertion is that a
- * request was routed to a real participant rather than that the tool existed. A
- * bogus recipient would only prove the tool refuses.
+ * The recipient is the resident this scenario started, addressed by the exact
+ * session route the start receipt returned, so the assertion is that a request was
+ * routed to a real participant rather than that the tool existed. A bogus
+ * recipient would only prove the tool refuses.
  */
 const BUNDLE: ScriptedTurn[] = [
   { tool: PROBE, args: {} },
   // Started with a prompt, which is what gives the resident an open assignment. Mail
   // is work-bound: a message to a participant holding nothing is refused, and that
-  // refusal is correct rather than a delivery failure.
-  { tool: "agent", args: { action: "start", name: "scout", prompt: "Audit the parser changes" } },
-  { tool: "task", args: { action: "create", subject: "Coordinate the release" } },
-  { tool: "task", args: { action: "update", id: "$prev.id", status: "in_progress" } },
+  // refusal is correct rather than a delivery failure. The route comes from the
+  // receipt directly above it, so the message names the child that really exists.
+  { tool: "agent_start", args: { label: "scout", prompt: "Audit the parser changes" } },
+  { tool: "message", args: { to: "$prev.session", body: "Take the parser first", kind: "request" } },
+  { tool: "create_task", args: { subject: "Coordinate the release" } },
+  { tool: "update_task", args: { id: "$prev.id", status: "in_progress" } },
+  // The scenario settles the task it created before it ends. A run that leaves
+  // unfinished work makes the task reminder request a continuation, and a
+  // settlement handler that returns a result on the settle that ends the run
+  // leaves `pi --print` with nothing to print: the exit is clean and stdout is
+  // empty, so the report this suite reads never arrives. That interaction is a
+  // separate defect tracked on its own; a scenario about bundle kickoff has no
+  // reason to depend on it, and every assertion below is unaffected.
+  { tool: "update_task", args: { id: "$prev.id", status: "completed", outcome: "success", result: "The release coordinator is set" } },
+  // An identity with no saved definition. The intent tool refuses it before any
+  // spawn, because a label only names the display and cannot select a role. A
+  // label the caller invented would succeed instead, and that difference is what
+  // proves identity selection is real rather than decorative.
+  { tool: "agent_start", args: { identity: "no-such-role-here", prompt: "Start anyway" } },
+];
+
+/**
+ * The negative control: the two tools the tasks install cannot provide.
+ *
+ * Every argument is a literal on purpose. A cross-call placeholder would be
+ * unresolvable here — the start it reads from never succeeded — and the harness
+ * would stop the run before the second refusal was ever attempted.
+ */
+const ABSENT_TOOLS: ScriptedTurn[] = [
+  { tool: PROBE, args: {} },
+  { tool: "create_task", args: { subject: "Prove the process is live" } },
+  { tool: "agent_start", args: { label: "absent-scout", prompt: "Start anyway" } },
   { tool: "message", args: { to: "scout", body: "Take the parser first", kind: "request" } },
-  // A name with no role. The team spawn refuses it, because a resident is a role
-  // with a process attached; the standalone path would synthesise a role and
-  // succeed. So this one call says which path ran, with no model turn and no child.
-  { tool: "agent", args: { action: "start", name: "no-such-role-here" } },
 ];
 
 const SCENARIOS: Record<string, ScriptedTurn[]> = {
   surface: SURFACE,
   "agent-lifecycle": AGENT_LIFECYCLE,
-  "board-lifecycle": BOARD_LIFECYCLE,
+  "saved-agent-lifecycle": SAVED_AGENT_LIFECYCLE,
+  "offline-agent": OFFLINE_AGENT,
+  "tasks-lifecycle": TASK_LIFECYCLE,
   "resident-takes": RESIDENT_TAKES,
   bundle: BUNDLE,
+  "absent-tools": ABSENT_TOOLS,
 };
+for (const parameter of ["persistent", "memory", "worktree"]) {
+  for (const value of [false, true]) {
+    SCENARIOS[`removed-${parameter}-${value}`] = [
+      { tool: PROBE, args: {} },
+      { tool: "agent_start", args: { label: "removed-control", prompt: "Do not run", [parameter]: value } },
+    ];
+  }
+}
 
 /**
  * Seed a second participant that already holds the toolchain.
  *
- * Only when the combination includes a board. The point is that the refusal a
+ * Only when the combination includes a task set. The point is that the refusal a
  * suite asserts is produced by the real conflict check rather than staged: the peer
- * is on the roster, its holding is a real task, and the overlap is real.
+ * is on the roster, its holding is a real assignment, and the overlap is real.
+ *
+ * The roster entry is written at load time because the subagents package publishes
+ * the participant registry on its own `session_start`, and a peer added after that
+ * would be a participant the tasks never learn about. The tasks are written later,
+ * because the tasks extension clears its store on `session_start` and reads the
+ * session file back; a task seeded before that would simply vanish.
  */
-async function seedSecondParticipant(): Promise<void> {
+async function seedSecondParticipant(pi: ExtensionAPI): Promise<void> {
   if (process.env.PI_E2E_HOST !== "peer") return;
-  const { registerTeammate } = await import("@fradser/pi-subagents");
+  const { registerAgent } = await import("@fradser/pi-subagents");
   const { createTask, takeTask } = await import("@fradser/pi-tasks");
-  registerTeammate({
+  registerAgent({
     name: "peer",
-    agent: "peer",
+    role: "peer",
     spawnId: "e2e-peer",
     pid: 0,
     status: "working",
-    isolation: "none",
     currentTaskId: "peer-toolchain",
-    assignment: { id: "board:peer", kind: "board", resources: ["toolchain"] },
+    assignment: { id: "task:peer", kind: "task", resources: ["toolchain"] },
     createdAt: 1,
     updatedAt: 1,
   });
-  // A real task and a real take, so the holding the conflict check looks for is one
-  // the board actually recorded. Seeding the roster entry alone would leave the two
-  // disagreeing, and the check would walk a roster that knows nothing about it.
-  createTask({ id: "peer-toolchain", subject: "Hold the toolchain", resources: ["toolchain"] });
-  const taken = takeTask("peer-toolchain", "peer");
-  if (!taken.ok) throw new Error(`could not seed the peer holding: ${taken.reason}`);
+  pi.on("session_start", () => {
+    // A real task and a real take, so the holding the conflict check looks for is
+    // one the tasks actually recorded. Seeding the roster entry alone would leave
+    // the two disagreeing, and the check would walk a roster that knows nothing
+    // about it.
+    createTask({ id: "peer-toolchain", subject: "Hold the toolchain", resources: ["toolchain"] });
+    const taken = takeTask("peer-toolchain", "peer");
+    if (!taken.ok) throw new Error(`could not seed the peer holding: ${taken.reason}`);
+    // The task a model-facing take collides with: the same resource tag, still
+    // pending, so the conflict check runs instead of the held-by-other check.
+    createTask({ id: PEER_RESOURCE_TASK, subject: "Refresh the toolchain", resources: ["toolchain"] });
+  });
 }
 
 const packages = (process.env.PI_E2E_PACKAGES ?? "")
@@ -158,76 +245,27 @@ export default async function e2eInstall(pi: ExtensionAPI): Promise<void> {
     }
     await loaded.default(pi);
   }
-  await seedSecondParticipant();
+  await seedSecondParticipant(pi);
   if (process.env.PI_E2E_HOST === "team") {
-    // Imported here, not at module scope: loading this module configures the board
+    // Imported here, not at module scope: loading this module configures the tasks
     // store, and a combination without a team runtime must be left without it.
     // The bundle publishes the *real* team spawn path, because that is what makes
     // peer messaging work at all: the message tool resolves recipients from the
     // persisted roster, which only a team spawn writes. A fake host would register
     // an in-memory resident the message tool cannot see, and the suite would pass
     // a refusal off as delivery.
-    const team = await import("../../src/team-machine.ts");
-    const subagents = await import("@fradser/pi-subagents");
-    const { setAgentHost, exactSessionRoute } = subagents;
-    // The role is written where `discoverAgents` reads it rather than registered in
-    // memory. A module registry is only shared if both sides happened to resolve the
-    // same instance, and a bare specifier reaching the same file through a symlinked
-    // node_modules is exactly the kind of thing that decides differently by accident.
-    // A definition file is the documented mechanism and has no identity to lose.
-    // A team spawn refuses a name with no role in any scope, so the role has to
-    // exist before the resident does. This is the same registration the standalone
-    // path performs, which is why the two installs behave the same about a name.
-    const fs = await import("node:fs");
-    const path = await import("node:path");
-    const dir = path.join(process.env.PI_CODING_AGENT_DIR ?? "", "agents");
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(dir, "scout.md"), [
-      "---",
-      "description: Reads what it is pointed at and reports back",
-      "tools: []",
-      "---",
-      "Read the evidence you are given and report what it shows.",
-      "",
-    ].join("\n"), "utf-8");
-    setAgentHost({
-      start(request) {
-        const spawned = team.spawnTeammate({
-          name: request.name,
-          agent: request.name,
-          ...(request.prompt ? { prompt: request.prompt } : {}),
-          ...(request.model ? { model: request.model } : {}),
-        });
-        if (!spawned.ok) return spawned;
-        const teammate = spawned.teammate;
-        return { ok: true, session: exactSessionRoute(teammate.name, teammate.spawnId) };
-      },
-      stop: (name, spawnId) => team.shutdownTeammateExact(name, spawnId),
-    });
-  }
-  if (process.env.PI_E2E_HOST === "peer") {
-    const { setAgentHost, exactSessionRoute, registerTeammate, updateTeammate } =
-      await import("@fradser/pi-subagents");
-    setAgentHost({
-      start(request) {
-        const spawnId = `e2e-${request.name}`;
-        const registered = registerTeammate({
-          name: request.name,
-          agent: request.name,
-          spawnId,
-          pid: 0,
-          status: "idle",
-          isolation: "none",
-          createdAt: 1,
-          updatedAt: 1,
-        });
-        if (!registered.ok) return { ok: false, error: registered.error };
-        return { ok: true, session: exactSessionRoute(request.name, spawnId) };
-      },
-      stop: (name) => {
-        updateTeammate(name, { status: "stopped" });
-        return Promise.resolve({ ok: true });
-      },
+    const { registerSessionAgent } = await import("@fradser/pi-subagents");
+    // The package's session_start publishes the shipping coordinator and clears
+    // old session roles. Seed only the temporary role after that hook: a file on
+    // disk now means saved-role persistence and selects the standalone path.
+    // Neither install combination replaces native spawn/readiness with a host
+    // that merely registers a roster entry and claims it started successfully.
+    pi.on("session_start", () => {
+      registerSessionAgent({
+        name: "scout", tools: [],
+        description: "Reads what it is pointed at and reports back",
+        prompt: "Read the evidence you are given and report what it shows.",
+      });
     });
   }
   installScriptedProvider(pi, {

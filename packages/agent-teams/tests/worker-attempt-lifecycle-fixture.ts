@@ -3,29 +3,29 @@ import path from "node:path";
 import type { ExtensionAPI, ExtensionContext, ExtensionEvent, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { assistant } from "./automatic-results-fixture.ts";
 import { readJsonlBatch, readRoster, writeRoster } from "../src/statefile.ts";
-        import { writeBoardFile } from "@fradser/pi-tasks";
-import { registerWorkerCapabilities, workerBinding } from "../src/worker.ts";
+        import { writeTasksFile } from "@fradser/pi-tasks";
+import { registerChildCapabilities, workerBinding } from "../src/worker.ts";
 
 export { assistant };
 
-export function createAttemptFixture(root: string, kind: "direct" | "board" | "none" = "direct") {
+export function createAttemptFixture(root: string, kind: "direct" | "task" | "none" = "direct") {
   Object.assign(process.env, {
     PI_TEAMMATE_WORKER_NAME: "worker", PI_TEAMMATE_SPAWN_ID: "spawn-1",
-    PI_TEAMMATE_OUTBOX_FILE: `${root}/events.jsonl`, PI_TEAMMATE_INBOX_FILE: `${root}/mail/inbox-worker.jsonl`,
-    PI_TEAMMATE_ROSTER_FILE: `${root}/roster.json`, PI_TEAMMATE_BOARD_FILE: `${root}/board.json`,
+    PI_TEAMMATE_OUTBOX_FILE: `${root}/events.jsonl`, PI_TEAMMATE_INBOX_FILE: `${root}/mail/inbox-agent.jsonl`,
+    PI_TEAMMATE_ROSTER_FILE: `${root}/roster.json`, PI_TEAMMATE_TASKS_FILE: `${root}/tasks.json`,
     PI_TEAMMATE_CLAIMS_DIR: `${root}/claims`, PI_TEAMMATE_SUBMISSIONS_DIR: `${root}/submissions`,
   });
   const binding = workerBinding()!;
   writeRoster(binding.rosterFile, [
-    { name: "worker", agent: "reviewer", spawnId: "spawn-1", status: "working",
+    { name: "worker", role: "reviewer", spawnId: "spawn-1", status: "working",
       ...(kind === "none" ? {} : { currentTaskId: "work-1", assignment: { id: "attempt-1", kind, resources: [] } }) },
-    { name: "peer", agent: "reader", spawnId: "peer-1", status: "idle" },
+    { name: "peer", role: "reader", spawnId: "peer-1", status: "idle" },
   ]);
   const task = (id: string, status: "in_progress" | "pending") => ({
     id, subject: id, status, dependsOn: [], resources: [], createdAt: 1, updatedAt: 1,
     ...(status === "in_progress" ? { claimedBy: "worker" } : {}),
   });
-  writeBoardFile(binding.boardFile, { "work-1": task("work-1", "in_progress"), "work-2": task("work-2", "pending") });
+  writeTasksFile(binding.tasksFile, { "work-1": task("work-1", "in_progress"), "work-2": task("work-2", "pending") });
   type Handler = (event: ExtensionEvent, ctx: ExtensionContext) => unknown;
   const hooks = new Map<string, Handler[]>();
   const tools = new Map<string, ToolDefinition>();
@@ -36,7 +36,7 @@ export function createAttemptFixture(root: string, kind: "direct" | "board" | "n
     getActiveTools: () => [...active], setActiveTools(names) { active = [...names]; },
   };
   const ctx = { isIdle: () => true } as ExtensionContext;
-  const disclosure = registerWorkerCapabilities(pi as ExtensionAPI);
+  const disclosure = registerChildCapabilities(pi as ExtensionAPI);
   const emit = async (event: ExtensionEvent) => {
     for (const handler of hooks.get(event.type) ?? []) await handler(event, ctx);
   };

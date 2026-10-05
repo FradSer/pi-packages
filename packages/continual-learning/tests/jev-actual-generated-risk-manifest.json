@@ -1,0 +1,20 @@
+[
+  {
+    "id": "temporary-python-generalization",
+    "proposal": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/click-on/memory/history/--work-click--/change_muvd76bm_6bbd42e37cdec7b9.json",
+    "snapshot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/click-on/memory/runs/--work-click--/run_muvd36cf_473b7759b42b3dd4/snapshot.json",
+    "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/click-on/report.json",
+    "proposalHash": "fcdf1e056b9dbac775b2bc67278b1a33e19ce7ca0bb306972c98b946f9ff6c38",
+    "snapshotHash": "a00fe2fb5e7fc93ad595c6f65f4e685d42c6c6b30a806eb61196c3befd666fb3",
+    "reportHash": "4177eadff933e6dc9c05665967b8c39dbebaa4c2b88970542f66b25229e6de58"
+  },
+  {
+    "id": "quoted-compound-overmatch",
+    "proposal": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/click-on/memory/history/--work-click--/change_muvg0jov_d2ae45106447986f.json",
+    "snapshot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/click-on/memory/runs/--work-click--/run_muvfxpu0_748dc16479939ffc/snapshot.json",
+    "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/click-on/report.json",
+    "proposalHash": "2bcf572b1921fa65ab59e2da2f6b89c1225eec8e16e9286fcaa7c9767e60b05f",
+    "snapshotHash": "4ed8337363d95690f0013eb05e58e44e0f1c8cb4c3b0746f572506bd706d3aa7",
+    "reportHash": "e624b1cdad72f7a168bd2321d6c1f8bbe97aaafb1d9e4e41d3e4db8d5ed695bc"
+  }
+]

@@ -15,7 +15,11 @@ export interface DeskSnapshot extends DeskLinkSnapshot {
 export function selectConsoleDesk(configs: DeskLinkConfig[], preferred = ""): DeskLinkConfig | null {
   const wanted = preferred.trim();
   if (wanted.length > 0) {
-    return configs.find((config) => `${config.host}:${config.port}` === wanted || config.host === wanted) ?? null;
+    const exact = configs.find((config) => `${config.host}:${config.port}` === wanted
+      || `[${config.host}]:${config.port}` === wanted);
+    if (exact) return exact;
+    const matchingHosts = configs.filter((config) => config.host === wanted);
+    return matchingHosts.length === 1 ? matchingHosts[0]! : null;
   }
   return configs.find((config) => Boolean(config.controlToken)) ?? null;
 }

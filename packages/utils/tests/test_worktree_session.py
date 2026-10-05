@@ -8,6 +8,7 @@ from pathlib import Path
 UTILS_PKG_DIR = Path(__file__).resolve().parents[1]
 REPO = UTILS_PKG_DIR.parents[1]
 SESSION_EXTENSION = UTILS_PKG_DIR / "extensions" / "worktree-session.ts"
+GIT_EXTENSION = UTILS_PKG_DIR / "extensions" / "git" / "worktrees.ts"
 
 
 def run_ts(script: str) -> dict:
@@ -56,7 +57,7 @@ class WorktreeSessionTests(unittest.TestCase):
 
     def test_parse_worktree_list_preserves_bare_and_branch_metadata(self) -> None:
         result = run_ts(f"""
-import {{ parseWorktreeList }} from {json.dumps(SESSION_EXTENSION.as_uri())};
+import {{ parseWorktreeList }} from {json.dumps(GIT_EXTENSION.as_uri())};
 console.log(JSON.stringify(parseWorktreeList([
   "worktree /tmp/main",
   "HEAD abc",
@@ -157,7 +158,12 @@ console.log(JSON.stringify({{
         self.assertTrue(result["cwd"].endswith("/.pi/worktrees/feature-auth"))
         self.assertEqual(result["parentSession"], result["state"]["parentSession"])
         self.assertEqual("pi/worktree/feature-auth", result["branch"])
-        self.assertEqual([], result["notifications"])
+        # This repository ignores nothing, so the unmanaged-directory risk is
+        # reported instead of silently editing .gitignore.
+        self.assertEqual(
+            [(n["type"], n["message"]) for n in result["notifications"]],
+            [("warning", ".pi/worktrees/ is not git-ignored in this repository — add it to .gitignore or the linked worktree shows up as untracked in the parent checkout")],
+        )
 
         subprocess.run(
             ["git", "-C", str(self.repo), "worktree", "remove", "--force", result["cwd"]],
@@ -171,6 +177,21 @@ console.log(JSON.stringify({{
             text=True,
             check=True,
         )
+
+    def test_enter_command_skips_the_ignore_warning_when_already_ignored(self) -> None:
+        (self.repo / ".gitignore").write_text(".pi/\n", encoding="utf-8")
+        report = run_ts(f"""
+import fs from "node:fs";
+import path from "node:path";
+import {{ isManagedWorktreesIgnored, managedWorktreesDir }} from {json.dumps(GIT_EXTENSION.as_uri())};
+const root = {json.dumps(str(self.repo))};
+console.log(JSON.stringify({{
+  ignored: isManagedWorktreesIgnored(root),
+  managed: managedWorktreesDir(root),
+}}));
+""")
+        self.assertTrue(report["ignored"])
+        self.assertEqual(report["managed"], str(self.repo / ".pi" / "worktrees"))
 
     def test_exit_worktree_is_disclosed_only_for_replacement_sessions(self) -> None:
         script = f"""
@@ -317,6 +338,107 @@ console.log(JSON.stringify({{ painted: rendered.includes("\\u001B[44m"), rendere
 """
         result = run_ts(script)
         self.assertTrue(result["painted"], result["rendered"])
+
+    def test_queued_transition_blocks_siblings_and_survives_settlement(self) -> None:
+        script = f"""
+import ext from {json.dumps(SESSION_EXTENSION.as_uri())};
+
+const handlers = {{}};
+const commands = {{}};
+const tools = {{}};
+const sent = [];
+const notifications = [];
+const pi = {{
+  on(name, handler) {{ handlers[name] = handler; }},
+  registerCommand(name, spec) {{ commands[name] = spec; }},
+  registerTool(spec) {{ tools[spec.name] = spec; }},
+  sendUserMessage(content) {{ sent.push(content); }},
+  getActiveTools() {{ return []; }},
+  setActiveTools() {{}},
+}};
+ext(pi);
+
+const ctx = {{ ui: {{ notify(message, type) {{ notifications.push({{ message, type }}); }} }} }};
+const toolCall = (name, id) => ({{ type: "toolCall", id, name, arguments: {{}} }});
+await handlers.message_end({{ message: {{ role: "assistant", content: [toolCall("enter_worktree", "call-1")] }} }}, ctx);
+
+// A sibling tool in the same batch is refused and the run terminates.
+const beforeSibling = handlers.tool_call({{ toolName: "bash", toolCallId: "call-2" }}, ctx);
+
+// The queued transition itself succeeds and terminates the batch.
+const queued = await tools.enter_worktree.execute("call-1", {{ name: "isolated" }}, undefined);
+const afterQueue = handlers.tool_call({{ toolName: "read", toolCallId: "call-3" }}, ctx);
+
+// Settling dispatches the queued command.
+await handlers.agent_settled({{}}, ctx);
+const dispatched = [...sent];
+const afterSettle = [...notifications];
+
+// A second command while a transition is queued must not race it.
+sent.length = 0;
+await handlers.message_end({{ message: {{ role: "assistant", content: [toolCall("exit_worktree", "call-4")] }} }}, ctx);
+await tools.exit_worktree.execute("call-4", {{}}, undefined);
+const blockedByPending = await commands["enter-worktree"].handler("other", ctx);
+const blockedExit = await commands["exit-worktree"].handler("", ctx);
+
+console.log(JSON.stringify({{
+  beforeSibling,
+  queuedDetails: queued.details,
+  afterQueue,
+  dispatched,
+  afterSettle,
+  blockedByPending: notifications.at(-1),
+  blockedExitCount: notifications.length,
+}}));
+"""
+        result = run_ts(script)
+        # The batch barrier holds before and after the transition tool runs.
+        self.assertTrue(result["beforeSibling"]["block"])
+        self.assertTrue(result["beforeSibling"]["terminate"])
+        self.assertIn("Worktree transition pending", result["beforeSibling"]["reason"])
+        self.assertEqual(result["afterQueue"]["block"], True)
+        self.assertEqual(result["queuedDetails"]["status"], "queued")
+        # Settlement, not the tool call, dispatches the transition.
+        self.assertEqual(result["dispatched"], ['/enter-worktree {"name":"isolated"}'])
+        self.assertEqual(result["afterSettle"], [])
+        # A command attempted while a transition is queued is refused.
+        self.assertIn("is queued and has not been applied yet", result["blockedByPending"]["message"])
+        self.assertEqual(result["blockedByPending"]["type"], "warning")
+        self.assertEqual(result["blockedExitCount"], 2)
+
+    def test_abort_drops_the_queued_transition_and_reports_it(self) -> None:
+        script = f"""
+import ext from {json.dumps(SESSION_EXTENSION.as_uri())};
+
+const handlers = {{}};
+const tools = {{}};
+const sent = [];
+const notifications = [];
+const pi = {{
+  on(name, handler) {{ handlers[name] = handler; }},
+  registerCommand() {{}},
+  registerTool(spec) {{ tools[spec.name] = spec; }},
+  sendUserMessage(content) {{ sent.push(content); }},
+  getActiveTools() {{ return []; }},
+  setActiveTools() {{}},
+}};
+ext(pi);
+
+const ctx = {{ ui: {{ notify(message, type) {{ notifications.push({{ message, type }}); }} }} }};
+const controller = new AbortController();
+controller.abort();
+await tools.enter_worktree.execute("call-1", {{ name: "isolated" }}, controller.signal);
+await handlers.agent_settled({{}}, ctx);
+console.log(JSON.stringify({{ sent, notifications }}));
+"""
+        result = run_ts(script)
+        # The model was told the transition was pending; an abort ends the run
+        # without applying it, so nothing is dispatched and the user is told.
+        self.assertEqual(result["sent"], [])
+        self.assertEqual(len(result["notifications"]), 1)
+        self.assertEqual(result["notifications"][0]["type"], "warning")
+        self.assertIn("enter_worktree", result["notifications"][0]["message"])
+        self.assertIn("dropped", result["notifications"][0]["message"])
 
 
 if __name__ == "__main__":

@@ -9,14 +9,15 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { registerTaskTool } from "@fradser/pi-tasks";
-import { exactSessionRoute, registerAgentTool, setAgentHost, type AgentStartRequest } from "@fradser/pi-subagents";
+import { registerTaskTools } from "@fradser/pi-tasks";
+import { exactSessionRoute, registerIntentTools, setAgentHost, type AgentStartRequest } from "@fradser/pi-subagents";
 import { registerLeaderTools } from "../src/tools.ts";
 import type { AgentActionRuntime } from "../src/agent-actions.ts";
+import { sendResidentSequence, interruptResidentSequence } from "../src/team-machine.ts";
 
-/** The shape a test mocks the team spawner with. Matches `spawnTeammate`. */
+/** The shape a test mocks the team spawner with. Matches `spawnAgent`. */
 export interface FakeTeamRuntime extends AgentActionRuntime {
-  shutdownTeammateExact(name: string, spawnId: string): Promise<{ ok: true; body?: string } | { ok: false; error: string }>;
+  shutdownAgentExact(name: string, spawnId: string): Promise<{ ok: true; body?: string } | { ok: false; error: string }>;
 }
 
 /** Register all three tools, each by its owning package. */
@@ -26,8 +27,8 @@ export function registerComposedTools(
   options: { agent?: boolean; task?: boolean } = {},
 ): void {
   registerLeaderTools(pi as ExtensionAPI, runtime as never);
-  if (options.agent !== false) registerAgentTool(pi as ExtensionAPI);
-  if (options.task !== false) registerTaskTool(pi as ExtensionAPI);
+  if (options.agent !== false) registerIntentTools(pi as ExtensionAPI);
+  if (options.task !== false) registerTaskTools(pi as ExtensionAPI);
 }
 
 /**
@@ -50,16 +51,16 @@ export function publishTeamHost(runtime: FakeTeamRuntime): void {
           ...(request.definition.model ? { model: request.definition.model } : {}),
         }
         : undefined;
-      const spawned = runtime.spawnTeammate({
+      const spawned = runtime.spawnAgent({
         name: request.name,
-        agent: request.name,
+        role: request.name,
         ...(request.model ? { model: request.model } : {}),
         ...(request.prompt ? { prompt: request.prompt } : {}),
         ...(definition ? { definition } : {}),
         ...(request.tools && !definition ? { tools: request.tools } : {}),
       } as never);
       if (!spawned.ok) return spawned;
-      const teammate = (spawned as { teammate: { name: string; spawnId: string } }).teammate;
+      const agent = (spawned as { agent: { name: string; spawnId: string } }).agent;
       // A team spawn proves the child is up before it hands back a handle, so the
       // host awaits its own readiness rather than leaving "started" unverified.
       const readiness = (spawned as { readiness?: Promise<string | undefined> }).readiness;
@@ -67,8 +68,10 @@ export function publishTeamHost(runtime: FakeTeamRuntime): void {
         const failure = await readiness;
         if (failure) return { ok: false, error: failure };
       }
-      return { ok: true, session: exactSessionRoute(teammate.name, teammate.spawnId) };
+      return { ok: true, session: exactSessionRoute(agent.name, agent.spawnId) };
     },
-    stop: (name, spawnId) => runtime.shutdownTeammateExact(name, spawnId),
+    send: sendResidentSequence,
+    interrupt: interruptResidentSequence,
+    stop: (name, spawnId) => runtime.shutdownAgentExact(name, spawnId),
   });
 }

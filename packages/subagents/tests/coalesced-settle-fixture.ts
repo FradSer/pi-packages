@@ -33,18 +33,18 @@ mock.module("@fradser/pi-kit", {
   },
 });
 
-const { registerTeammate, resetRoster } = await import("../src/roster.ts");
+const { registerAgent, resetRoster } = await import("../src/roster.ts");
 const { spawnResident } = await import("../src/spawner.ts");
 
 resetRoster();
-registerTeammate({
-  name: "coalesced", agent: "coalesced", spawnId: "s1", pid: 0,
-  status: "starting", isolation: "none", createdAt: 1, updatedAt: 1,
+registerAgent({
+  name: "coalesced", role: "coalesced", spawnId: "s1", pid: 0,
+  status: "starting", scope: "session", createdAt: 1, updatedAt: 1,
 });
 
 const frames: Array<{ finalResponse?: boolean; text: string }> = [];
 const started = spawnResident({
-  workerName: "coalesced",
+  agentName: "coalesced",
   description: "Answer one question.",
   tools: [],
   cwd: process.cwd(),

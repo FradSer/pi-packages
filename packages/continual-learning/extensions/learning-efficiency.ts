@@ -1,3 +1,4 @@
+import type { JevTelemetry } from "./jev-learning";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fieldLine, type PiWorkerUsage } from "@fradser/pi-kit";
@@ -22,10 +23,22 @@ export interface LearningAttempt {
   operations: number;
   usage?: PiWorkerUsage;
   costAvailable?: boolean;
+  /** Controlled parent diagnostic; never raw worker stderr or model output. */
+  diagnostic?: string;
+  jev?: JevTelemetry;
+  selectedMemory?: string[];
 }
 
-const DURABLE_USER_PATTERN = /\b(prefer|always|never|must|should|require|decision|remember|durable|future tasks?)\b|偏好|以后|始终|永远|必须|不要|记住|约束|决定|规则|持久/iu;
+/**
+ * A screen signal is an opportunity, not a learning decision. Keep it narrow
+ * enough to avoid spending a model call on questions such as "Should I run
+ * this?", while recognizing explicit knowledge and feedback that a planner
+ * can later classify as a preference, project fact, or durable rule.
+ */
+const DURABLE_USER_PATTERN = /\b(?:prefer|always|never|must|require|decision|remember|durable|future tasks?|from now on|for future|should\s+(?:always|never|be|remain|use|not))\b|偏好|以后|始终|永远|必须|不要|记住|约束|决定|规则|持久/iu;
+const KNOWLEDGE_USER_PATTERN = /\b(?:the project|this project|this repository|this repo)\s+(?:uses?|requires?|means?|defines?|treats?)\b|\b(?:is|are)\s+the\s+(?:source of truth|canonical reference)\b|\b(?:means?|defined as|source of truth|canonical reference)\b|事实|定义|真相来源|规范来源/iu;
 const CONSTRAINT_USER_PATTERN = /\b(?:never|do not|don['’]t|must not|should not|prohibit(?:ed|s|ing)?|always\s+block)\b|不要|禁止|不得|严禁|切勿/iu;
+const VALIDATION_USER_PATTERN = /\b(?:add|write|create|require|verify|check|assert|test|keep)\b[^\n]{0,100}\b(?:test|check|assert|guard|validation|invariant|regression)\b|增加[^\n]{0,40}(?:测试|检查|断言|验证|回归)|验证[^\n]{0,40}(?:必须|不应|不能|禁止)/iu;
 const CORRECTION_PATTERN = /\b(wrong|instead|confirmed|retry)\b|不对|改成|而不是|确认|重试|纠正/iu;
 const AGENTS_PATTERN = /AGENTS\.md|instruction|workflow|process|convention|architecture|指令|流程|规范|架构/iu;
 const TOOL_FAILURE_PATTERN = /(?:^|\n)\s*(?:error|fatal)\s*:|\b(?:build|compilation|tests?|checks?)\b[^\n]{0,80}\bfailed\b|(?:构建|编译|测试|检查)失败/iu;
@@ -171,25 +184,47 @@ export interface LearningSignals {
   harnessActivity: boolean;
 }
 
-export function learningSignals(entries: readonly unknown[]): LearningSignals {
+type ScreenLearningSignals = LearningSignals & {
+  knowledge: boolean;
+  validation: boolean;
+};
+
+function deriveLearningSignals(entries: readonly unknown[]): ScreenLearningSignals {
   const userTexts = entries.filter((entry) => entryRole(entry) === "user").map(collectText).filter(Boolean);
   const constraint = userTexts.some((text) => CONSTRAINT_USER_PATTERN.test(text));
   const correction = userTexts.some((text) => CORRECTION_PATTERN.test(text));
+  const knowledge = userTexts.some((text) => DURABLE_USER_PATTERN.test(text) || KNOWLEDGE_USER_PATTERN.test(text));
+  const validation = userTexts.some((text) => VALIDATION_USER_PATTERN.test(text));
   return {
-    durableUser: constraint || userTexts.some((text) => DURABLE_USER_PATTERN.test(text)),
+    durableUser: constraint || knowledge,
     constraint,
     correction,
     instructions: userTexts.some((text) => CORRECTION_PATTERN.test(text) && AGENTS_PATTERN.test(text)),
     recovery: hasVerifiedToolRecovery(entries),
     harnessActivity: entries.some(harnessOwnedActivity),
+    knowledge,
+    validation,
+  };
+}
+
+/** Preserve the compact public signal shape; routing-only detail stays private. */
+export function learningSignals(entries: readonly unknown[]): LearningSignals {
+  const signals = deriveLearningSignals(entries);
+  return {
+    durableUser: signals.durableUser,
+    constraint: signals.constraint,
+    correction: signals.correction,
+    instructions: signals.instructions,
+    recovery: signals.recovery,
+    harnessActivity: signals.harnessActivity,
   };
 }
 
 /** Every phase the deterministic screen can back with evidence. */
-function evidenceSignals(signals: LearningSignals): { memory: boolean; harness: boolean; agents: boolean } {
+function evidenceSignals(signals: ScreenLearningSignals): { memory: boolean; harness: boolean; agents: boolean } {
   return {
     memory: signals.durableUser || signals.recovery,
-    harness: signals.constraint || signals.correction || signals.harnessActivity,
+    harness: signals.constraint || signals.correction || signals.validation || signals.harnessActivity,
     agents: signals.instructions,
   };
 }
@@ -197,16 +232,28 @@ function evidenceSignals(signals: LearningSignals): { memory: boolean; harness: 
 export function screenLearningEntries(entries: readonly unknown[], mode: LearningMode): LearningScreen {
   if (mode === "full") return { memory: true, harness: true, agents: true, reasons: ["manual-full"] };
   if (mode === "manual") return { memory: true, harness: true, agents: true, reasons: ["manual-incremental"] };
-  const signals = learningSignals(entries);
+  const signals = deriveLearningSignals(entries);
   const evidence = evidenceSignals(signals);
   return {
     ...evidence,
     reasons: [
       signals.durableUser ? "durable-user-evidence" : signals.recovery ? "verified-tool-recovery" : "no-durable-memory-evidence",
-      signals.constraint || signals.correction ? "constraint-evidence" : signals.harnessActivity ? "verified-harness-event" : "no-harness-evidence",
+      signals.constraint || signals.correction ? "constraint-evidence" : signals.validation ? "validation-evidence" : signals.harnessActivity ? "verified-harness-event" : "no-harness-evidence",
       signals.instructions ? "instruction-evidence" : "no-agents-evidence",
     ],
   };
+}
+
+/** Settings and extension status rows are not knowledge to learn from. */
+export function hasLearningInput(entries: readonly unknown[]): boolean {
+  return entries.some(entry => {
+    if (entryRole(entry) !== "user" && entryRole(entry) !== "toolResult") return false;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+    const record = entry as Record<string, unknown>;
+    const message = record.message && typeof record.message === "object"
+      ? record.message as Record<string, unknown> : record;
+    return collectText(message.content).trim().length > 0;
+  });
 }
 
 /**
@@ -216,8 +263,8 @@ export function screenLearningEntries(entries: readonly unknown[], mode: Learnin
  * start a planner the selector declined after reading this same slice.
  */
 export function manualIncrementalScreen(entries: readonly unknown[], selection: { memory: boolean; harness: boolean; agents: boolean }): LearningScreen {
-  const signals = learningSignals(entries);
-  const authoritative = { memory: signals.durableUser, harness: signals.constraint || signals.correction || signals.harnessActivity, agents: signals.instructions };
+  const signals = deriveLearningSignals(entries);
+  const authoritative = { memory: signals.durableUser, harness: signals.constraint || signals.correction || signals.validation || signals.harnessActivity, agents: signals.instructions };
   const evidence = evidenceSignals(signals);
   const memory = selection.memory || authoritative.memory;
   const harness = selection.harness || authoritative.harness;
@@ -232,7 +279,7 @@ export function manualIncrementalScreen(entries: readonly unknown[], selection: 
         ? authoritative.memory ? "durable-user-evidence" : "selector-selected-memory"
         : evidence.memory ? "selector-declined-memory" : "no-durable-memory-evidence",
       harness
-        ? authoritative.harness ? (signals.constraint || signals.correction ? "constraint-evidence" : "verified-harness-event") : "selector-selected-harness"
+        ? authoritative.harness ? (signals.constraint || signals.correction ? "constraint-evidence" : signals.validation ? "validation-evidence" : "verified-harness-event") : "selector-selected-harness"
         : authoritative.harness ? "selector-declined-harness" : "no-harness-evidence",
       agents
         ? authoritative.agents ? "instruction-evidence" : "selector-selected-agents"
@@ -273,9 +320,17 @@ export interface LearningPipelineReceipt {
   costAvailable: boolean;
   operations: number;
   retries: number;
+  input?: LearningInputSource;
 }
 
-export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen, attempts: LearningAttempt[]): LearningPipelineReceipt {
+export interface LearningInputSource {
+  source: "current-session" | "recent-project-session" | "existing-memory" | "none";
+  entryCount: number;
+  sessionId?: string;
+  sourceDigest?: string;
+}
+
+export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen, attempts: LearningAttempt[], input?: LearningInputSource): LearningPipelineReceipt {
   return {
     kind: "learning-pipeline-receipt",
     version: 1,
@@ -290,6 +345,7 @@ export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen,
     }),
     operations: attempts.reduce((total, attempt) => total + attempt.operations, 0),
     retries: attempts.filter((attempt) => attempt.attempt > 0).length,
+    ...(input ? { input } : {}),
   };
 }
 
@@ -329,7 +385,13 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
   const phases: LearningPhase[] = ["selector", "memory", "harness", "agents"];
   const outcomes: LearningOutcome[] = ["screened", "skipped", "noop", "applied", "proposed", "rejected", "failed", "cancelled"];
   const screen = receipt.screen as Partial<LearningScreen> | undefined;
-  return receipt.kind === "learning-pipeline-receipt" && receipt.version === 1 &&
+  const input = receipt.input;
+  const validInput = input === undefined || Boolean(input && typeof input === "object"
+    && ["current-session", "recent-project-session", "existing-memory", "none"].includes(input.source)
+    && Number.isSafeInteger(input.entryCount) && input.entryCount >= 0
+    && (input.sessionId === undefined || (typeof input.sessionId === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(input.sessionId)))
+    && (input.sourceDigest === undefined || (typeof input.sourceDigest === "string" && /^[a-f0-9]{64}$/.test(input.sourceDigest))));
+  return validInput && receipt.kind === "learning-pipeline-receipt" && receipt.version === 1 &&
     typeof receipt.mode === "string" && modes.includes(receipt.mode as LearningMode) &&
     Boolean(screen && typeof screen.memory === "boolean" && typeof screen.harness === "boolean" && typeof screen.agents === "boolean" && Array.isArray(screen.reasons) && screen.reasons.every((reason) => typeof reason === "string")) &&
     Array.isArray(receipt.attempts) && receipt.attempts.every((attempt) =>
@@ -359,6 +421,7 @@ export function learningSummarySubject(receipt: LearningPipelineReceipt): string
   if (surfaces.length > 0) return `${surfaces.join(" and ")} applied`;
   if (receipt.attempts.some(attempt => attempt.outcome === "proposed")) return "proposals saved for review";
   if (receipt.attempts.some((attempt) => attempt.outcome === "failed" || attempt.outcome === "rejected")) return "finished with issues";
+  if (receipt.attempts.length === 0 && receipt.screen.reasons.includes("no-learning-inputs")) return "no learning input";
   return "no durable changes";
 }
 
@@ -366,10 +429,18 @@ export function learningSummaryDetails(receipt: LearningPipelineReceipt): string
   const phaseLines = receipt.attempts.map((attempt) => `${attempt.phase}: ${attempt.outcome} · ${attempt.operations} change(s) · ${attempt.durationMs} ms`);
   return [
     fieldLine("mode", receipt.mode),
+    ...(receipt.input ? [fieldLine("source", `${receipt.input.source} · ${receipt.input.entryCount} entries${receipt.input.sessionId ? ` · ${receipt.input.sessionId}` : ""}`)] : []),
+    ...(receipt.screen.reasons.includes("no-learning-inputs") ? ["No session evidence or existing Memory. Resume a task session or use /memory <request>."] : []),
     fieldLine("operations", receipt.operations),
     fieldLine("calls", receipt.attempts.length),
     fieldLine("usage", formatLearningUsage(receipt.totals)),
     fieldLine("cost", formatLearningCost(receipt.totals, receipt.costAvailable)),
+    fieldLine("directions", [receipt.screen.memory ? "memory" : "", receipt.screen.harness ? "harness" : "", receipt.screen.agents ? "agents" : ""].filter(Boolean).join(", ") || "none"),
+    ...receipt.attempts.flatMap(attempt => [
+      ...(attempt.selectedMemory ? [fieldLine("selected Memory", attempt.selectedMemory.join(", ") || "none")] : []),
+      ...(attempt.diagnostic ? [fieldLine(`${attempt.phase} reason`, attempt.diagnostic)] : []),
+      ...(attempt.jev ? [fieldLine(`Jev ${attempt.jev.stage}`, `${attempt.jev.status}: ${attempt.jev.reason}${attempt.jev.candidateIndex !== undefined && attempt.jev.dimension ? ` · candidate ${attempt.jev.candidateIndex} ${attempt.jev.dimension}` : ""}${attempt.jev.strategy ? ` · full review ${attempt.jev.coveredEntries}/${attempt.jev.evidenceEntries} entries (${attempt.jev.completedWindows}/${attempt.jev.evidenceWindows} windows)` : ""} · ${attempt.jev.model ?? "no model response"} · ${attempt.jev.durationMs} ms · input ${attempt.jev.inputTokens ?? (attempt.jev.knownInputTokens !== undefined ? `unknown (at least ${attempt.jev.knownInputTokens})` : "unknown")} · output ${attempt.jev.outputTokens ?? "unknown"} · estimated cost ${attempt.jev.estimatedCostUsd === undefined ? (attempt.jev.knownEstimatedCostUsd !== undefined ? `unknown (at least $${attempt.jev.knownEstimatedCostUsd.toFixed(8)})` : "unavailable") : `$${attempt.jev.estimatedCostUsd.toFixed(8)}`}`)] : []),
+    ]),
     ...phaseLines,
   ];
 }

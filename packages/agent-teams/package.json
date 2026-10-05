@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-agent-teams",
   "version": "0.10.0",
-  "description": "Agent-to-Agent communication for Pi \u2014 point-to-point messaging, notices, Agent Presence, and the Team Console. A bundle: it registers `message` and loads the pi-subagents and pi-tasks extensions, so installing it gives `agent` + `task` + `message` with one registrant per tool.",
+  "description": "Agent-to-Agent communication for Pi — point-to-point messaging, notices, Agent Presence, and the Team Console. A bundle: it registers `message` and loads the pi-subagents and pi-tasks extensions, so installing it gives the subagent intent tools plus `task` and `message` with one registrant per tool.",
   "keywords": [
     "pi-package",
     "teammates",
@@ -44,5 +44,9 @@
     "@fradser/pi-kit": "workspace:*",
     "@fradser/pi-subagents": "workspace:*",
     "@fradser/pi-tasks": "workspace:*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^1.0.0",
+    "@earendil-works/pi-tui": "^1.0.0"
   }
 }

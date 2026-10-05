@@ -19,20 +19,34 @@ Feature: A standalone child returns its Session Result to the Leader session
       When that child settles again without a new turn
       Then no further Session Result is delivered
 
+    Scenario: A temporary child returns multiple results before an explicit stop
+      Given a temporary child with no disk identity
+      When it settles its first answer
+      Then it remains idle and accepts next input at the same exact incarnation
+      When the caller delivers a second input
+      Then the second answer is delivered once with a distinct sequence number
+      And no role, Memory, workspace or session history is written to disk
+      And only stop or parent shutdown closes the process
+
     Scenario: Every wake of a resident child is delivered
       Given a resident child already delivered a Session Result
       When a further turn of that child settles with an answer
       Then a second Session Result is delivered with that turn's text
       And the two results carry different turn numbers
-      # The wake itself belongs to whoever coordinates the child. With a host
-      # published the host wakes it and keeps delivery; unhosted, a child runs
-      # its kickoff turn. This scenario is therefore a property of the dedupe,
-      # not a journey any shipped configuration can drive end to end.
+      And both inputs use the same exact session
+      And no replacement child is spawned
 
-    Scenario: A settled turn with no text is not delivered
-      Given a child whose turn settles with no final text
-      When the settle is observed
-      Then no Session Result is delivered
+    Scenario: A settle without authoritative evidence is not delivered
+      Given an intermediate frame with no completed final message
+      When that frame is observed
+      Then neither a result nor an unanswered notice consumes the turn
+
+    Scenario: A completed message without final text is an unanswered outcome
+      Given an authoritative completed assistant message with blank final text
+      When the real sequence settles
+      Then one explicit unanswered follow-up is delivered instead of a blank result
+      And it carries the original bytes and available final diagnostics
+      And no review verdict or acceptance is fabricated
 
     Scenario: An empty settle does not consume the turn's one delivery
       Given a child's turn that settles with no text
@@ -47,8 +61,24 @@ Feature: A standalone child returns its Session Result to the Leader session
       Given a delivered Session Result
       When the message is rendered
       Then one row states that the child reported a result
-      And the row shows the result's first line
+      And the row shows a width-bounded preview of the complete answer
       And no session handle appears in the row
+
+    Scenario: A short result contains no duplicated answer or bookkeeping
+      Given the child's complete answer is 2
+      When the message is rendered collapsed or expanded
+      Then the answer appears exactly once below the Agent headline
+      And no Session Result or turn label repeats the delivery metadata
+      And no expansion hint is shown when all visible content fits
+      And the model-facing envelope and original details retain the exact answer, turn and session
+
+    Scenario: Only hidden result text makes a successful result expandable
+      Given a long single-line or multiline answer
+      When the message is rendered collapsed at a narrow terminal width
+      Then pi-kit advertises expansion for the hidden answer text
+      When the message is expanded or resized wide enough
+      Then every authored line and the long tail can be read without duplicate preview/body content
+      And no fixed character cap silently shortens the displayed answer
 
     Scenario: The result body survives expansion in full
       Given a delivered Session Result whose text is many lines
@@ -123,6 +153,12 @@ Feature: A standalone child returns its Session Result to the Leader session
       Then one row states that the message carried no details
       And no row claims a child ended
 
+    Scenario: Malformed notice metadata is not presented as execution evidence
+      Given a delivered message with a non-finite or out-of-range timestamp or turn number
+      When its details are read for rendering
+      Then the notice is rejected as unreadable
+      And no fabricated turn or timestamp is shown
+
     Scenario: The entry registers the renderer and the sender
       Given the package extension entry loaded
       When it registers
@@ -140,3 +176,17 @@ Feature: A standalone child returns its Session Result to the Leader session
       Given a child's output arriving with a settled turn and a new turn in one read
       When the spawner parses that output
       Then a settled frame is reported for the answered turn
+
+  Rule: One name for a child's answer, on both surfaces
+
+    Scenario: The transcript row names what the model was handed
+      Given a settled child turn delivered as a Session Result
+      When its row is rendered expanded
+      Then the row names a Session Result and the turn it carries
+      And the collapsed band already showed the answer's first line
+
+    Scenario: A child's kickoff frames the tasks positively
+      Given a child started with an assigned task
+      When its kickoff prompt is built
+      Then it says the task text is the whole assignment
+      And it names no behaviour the child is asked to avoid

@@ -1,0 +1,1080 @@
+{
+  "method": "Native offline Pi provider contexts. Local tokenizer estimates, not billing or real-model evaluations. Same explicit deadlines and required complete JSON. Native-envelope removes eligible success metadata only. Batch runs eight jobs in one codemode call, validates terminal integrity and returns all required payloads; no lossy summary.",
+  "experiment": "native-success-envelope",
+  "cases": [
+    {
+      "name": "json-false",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 712,
+        "o200k_base": 720
+      },
+      "final_request": {
+        "utf8_bytes": 3712,
+        "cl100k_base": 925,
+        "o200k_base": 930
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 13300,
+        "cl100k_base": 3274,
+        "o200k_base": 3300
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 523,
+        "cl100k_base": 156,
+        "o200k_base": 159
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 13823,
+        "cl100k_base": 3430,
+        "o200k_base": 3459
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 121,
+        "cl100k_base": 37,
+        "o200k_base": 37
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 469,
+        "cl100k_base": 142,
+        "o200k_base": 145
+      },
+      "route": "bash",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "3a276a29d695b0b893b59b9adbb50332033eb162d16f0f0856fed6f69c98cc89",
+        "3a276a29d695b0b893b59b9adbb50332033eb162d16f0f0856fed6f69c98cc89",
+        "3a276a29d695b0b893b59b9adbb50332033eb162d16f0f0856fed6f69c98cc89"
+      ]
+    },
+    {
+      "name": "json-false",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 991,
+        "o200k_base": 1006
+      },
+      "final_request": {
+        "utf8_bytes": 5736,
+        "cl100k_base": 1436,
+        "o200k_base": 1449
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 19895,
+        "cl100k_base": 4854,
+        "o200k_base": 4910
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 868,
+        "cl100k_base": 243,
+        "o200k_base": 246
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 20763,
+        "cl100k_base": 5097,
+        "o200k_base": 5156
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 485,
+        "cl100k_base": 182,
+        "o200k_base": 183
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 814,
+        "cl100k_base": 229,
+        "o200k_base": 232
+      },
+      "route": "full-metadata",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "b3686b82c19c8b976f60e4d4648cdb4d0d2c19fe7a1bacbec102bb4155d75179",
+        "9ee98cb463fcb34f71abbd55fead7aea353be6f35377dafd17bdd60d9e5a1a50",
+        "48320e35d549cde82d3a9a059404518402b8f407ca1736c3971941c935f4bbf2"
+      ]
+    },
+    {
+      "name": "json-false",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 992,
+        "o200k_base": 1007
+      },
+      "final_request": {
+        "utf8_bytes": 5459,
+        "cl100k_base": 1316,
+        "o200k_base": 1328
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 19340,
+        "cl100k_base": 4616,
+        "o200k_base": 4670
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 868,
+        "cl100k_base": 243,
+        "o200k_base": 246
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 20208,
+        "cl100k_base": 4859,
+        "o200k_base": 4916
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 208,
+        "cl100k_base": 61,
+        "o200k_base": 61
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 814,
+        "cl100k_base": 229,
+        "o200k_base": 232
+      },
+      "route": "native-envelope",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "8d7ad879f0d61636d516ba819ba6c3d25bb0ab4e1ad8073e709f11dc1e8985b6",
+        "8d7ad879f0d61636d516ba819ba6c3d25bb0ab4e1ad8073e709f11dc1e8985b6",
+        "8d7ad879f0d61636d516ba819ba6c3d25bb0ab4e1ad8073e709f11dc1e8985b6"
+      ]
+    },
+    {
+      "name": "json-repeat-512",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 711,
+        "o200k_base": 719
+      },
+      "final_request": {
+        "utf8_bytes": 5395,
+        "cl100k_base": 1191,
+        "o200k_base": 1196
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 16666,
+        "cl100k_base": 3804,
+        "o200k_base": 3830
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 613,
+        "cl100k_base": 204,
+        "o200k_base": 207
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 17279,
+        "cl100k_base": 4008,
+        "o200k_base": 4037
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 1690,
+        "cl100k_base": 244,
+        "o200k_base": 244
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 559,
+        "cl100k_base": 190,
+        "o200k_base": 193
+      },
+      "route": "bash",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e",
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e",
+        "7b5645d4962b328440d9d7b98505072816d8925e72a750054b6a77b90289697e"
+      ]
+    },
+    {
+      "name": "json-repeat-512",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 990,
+        "o200k_base": 1005
+      },
+      "final_request": {
+        "utf8_bytes": 7448,
+        "cl100k_base": 1707,
+        "o200k_base": 1721
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 23318,
+        "cl100k_base": 5394,
+        "o200k_base": 5454
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 973,
+        "cl100k_base": 294,
+        "o200k_base": 297
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 24291,
+        "cl100k_base": 5688,
+        "o200k_base": 5751
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 2068,
+        "cl100k_base": 391,
+        "o200k_base": 393
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 919,
+        "cl100k_base": 280,
+        "o200k_base": 283
+      },
+      "route": "full-metadata",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "5899f41b7176b648c794b47d49d6c84d46cbb4147e1dcfca6ada44e9ebfdc001",
+        "46db95313cb83d74663eea35cc71ca26885a504b0a6864ae9792ecccad0d6a79",
+        "e2888cee5e5d66adee59c6c6373c8abbb013966d963428154ac561dd905ca995"
+      ]
+    },
+    {
+      "name": "json-repeat-512",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 991,
+        "o200k_base": 1006
+      },
+      "final_request": {
+        "utf8_bytes": 7157,
+        "cl100k_base": 1585,
+        "o200k_base": 1597
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 22736,
+        "cl100k_base": 5152,
+        "o200k_base": 5206
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 973,
+        "cl100k_base": 294,
+        "o200k_base": 297
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 23709,
+        "cl100k_base": 5446,
+        "o200k_base": 5503
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 1777,
+        "cl100k_base": 268,
+        "o200k_base": 268
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 919,
+        "cl100k_base": 280,
+        "o200k_base": 283
+      },
+      "route": "native-envelope",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c",
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c",
+        "036bbab02b93d84ffaa7012bee7f381a39f50d3781c985dcfeb05f0bdcfcf24c"
+      ]
+    },
+    {
+      "name": "json-repeat-8192",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 711,
+        "o200k_base": 720
+      },
+      "final_request": {
+        "utf8_bytes": 28438,
+        "cl100k_base": 4074,
+        "o200k_base": 4080
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 62752,
+        "cl100k_base": 9570,
+        "o200k_base": 9600
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 616,
+        "cl100k_base": 207,
+        "o200k_base": 210
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 63368,
+        "cl100k_base": 9777,
+        "o200k_base": 9810
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 24730,
+        "cl100k_base": 3124,
+        "o200k_base": 3124
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 562,
+        "cl100k_base": 193,
+        "o200k_base": 196
+      },
+      "route": "bash",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "9b8fc09acd7235e2a0c77b930de093113687c009160f975362dab6c3c82a9565",
+        "9b8fc09acd7235e2a0c77b930de093113687c009160f975362dab6c3c82a9565",
+        "9b8fc09acd7235e2a0c77b930de093113687c009160f975362dab6c3c82a9565"
+      ]
+    },
+    {
+      "name": "json-repeat-8192",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 993,
+        "o200k_base": 1008
+      },
+      "final_request": {
+        "utf8_bytes": 6260,
+        "cl100k_base": 1643,
+        "o200k_base": 1655
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 20942,
+        "cl100k_base": 5268,
+        "o200k_base": 5322
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 979,
+        "cl100k_base": 300,
+        "o200k_base": 303
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 21921,
+        "cl100k_base": 5568,
+        "o200k_base": 5625
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 874,
+        "cl100k_base": 318,
+        "o200k_base": 318
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 925,
+        "cl100k_base": 286,
+        "o200k_base": 289
+      },
+      "route": "full-metadata",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "d1ebcf86f4338c997a807a24d26121bfb6bd5ff3535a1512ca6c7d514f3712af",
+        "dec5c7a6b243e605501c3de4879035891227a6a360f17e0142952b7aff108e3e",
+        "76c69f032915bbfeb8ff7b326f1ddd0b1c7aedcb73c749dd7cfc7e747cbc1e22"
+      ]
+    },
+    {
+      "name": "json-repeat-8192",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 993,
+        "o200k_base": 1008
+      },
+      "final_request": {
+        "utf8_bytes": 5966,
+        "cl100k_base": 1518,
+        "o200k_base": 1530
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 20354,
+        "cl100k_base": 5022,
+        "o200k_base": 5076
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 979,
+        "cl100k_base": 300,
+        "o200k_base": 303
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 21333,
+        "cl100k_base": 5322,
+        "o200k_base": 5379
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 580,
+        "cl100k_base": 193,
+        "o200k_base": 193
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 925,
+        "cl100k_base": 286,
+        "o200k_base": 289
+      },
+      "route": "native-envelope",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "6bf23c0d1a69dcd5681c58a1e79500b18cd22816de7857072130934b6225ef47",
+        "6bf23c0d1a69dcd5681c58a1e79500b18cd22816de7857072130934b6225ef47",
+        "6bf23c0d1a69dcd5681c58a1e79500b18cd22816de7857072130934b6225ef47"
+      ]
+    },
+    {
+      "name": "json-nonperiodic-24576",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 713,
+        "o200k_base": 721
+      },
+      "final_request": {
+        "utf8_bytes": 78157,
+        "cl100k_base": 42830,
+        "o200k_base": 42967
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 162190,
+        "cl100k_base": 87086,
+        "o200k_base": 87376
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1111,
+        "cl100k_base": 402,
+        "o200k_base": 405
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 163301,
+        "cl100k_base": 87488,
+        "o200k_base": 87781
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 73882,
+        "cl100k_base": 41656,
+        "o200k_base": 41788
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1057,
+        "cl100k_base": 388,
+        "o200k_base": 391
+      },
+      "route": "bash",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "11fcf9601f6d679c07cf955cc69c1b20d659145cbb5246fb2afad4e4e75ffb80",
+        "11fcf9601f6d679c07cf955cc69c1b20d659145cbb5246fb2afad4e4e75ffb80",
+        "11fcf9601f6d679c07cf955cc69c1b20d659145cbb5246fb2afad4e4e75ffb80"
+      ]
+    },
+    {
+      "name": "json-nonperiodic-24576",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 991,
+        "o200k_base": 1006
+      },
+      "final_request": {
+        "utf8_bytes": 80253,
+        "cl100k_base": 43364,
+        "o200k_base": 43514
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 168927,
+        "cl100k_base": 88708,
+        "o200k_base": 89038
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1492,
+        "cl100k_base": 501,
+        "o200k_base": 507
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 170419,
+        "cl100k_base": 89209,
+        "o200k_base": 89545
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 74282,
+        "cl100k_base": 41813,
+        "o200k_base": 41948
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1438,
+        "cl100k_base": 487,
+        "o200k_base": 493
+      },
+      "route": "full-metadata",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "bcc601cd49ca2835ded6ca1ae9a14e44e432958c1500176c161f3b133b5e99bc",
+        "fec871adf0e955fab728cb938e9e0ae2b9399eea68ae1cad5fda9d3e40cd67da",
+        "cde074b7d23ad4c2715b0df91b7c13dc74d53604cb6ce2f02d50aa31673d218e"
+      ]
+    },
+    {
+      "name": "json-nonperiodic-24576",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 992,
+        "o200k_base": 1007
+      },
+      "final_request": {
+        "utf8_bytes": 79940,
+        "cl100k_base": 43232,
+        "o200k_base": 43379
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 168302,
+        "cl100k_base": 88448,
+        "o200k_base": 88772
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1492,
+        "cl100k_base": 501,
+        "o200k_base": 507
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 169794,
+        "cl100k_base": 88949,
+        "o200k_base": 89279
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 73969,
+        "cl100k_base": 41680,
+        "o200k_base": 41812
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1438,
+        "cl100k_base": 487,
+        "o200k_base": 493
+      },
+      "route": "native-envelope",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "11b6a6d595c511ddebafef417b92d8d79c10b8c4ccb8989ca294951a5f62d914",
+        "11b6a6d595c511ddebafef417b92d8d79c10b8c4ccb8989ca294951a5f62d914",
+        "11b6a6d595c511ddebafef417b92d8d79c10b8c4ccb8989ca294951a5f62d914"
+      ]
+    },
+    {
+      "name": "late-failure",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 713,
+        "o200k_base": 721
+      },
+      "final_request": {
+        "utf8_bytes": 3868,
+        "cl100k_base": 998,
+        "o200k_base": 1003
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 13612,
+        "cl100k_base": 3422,
+        "o200k_base": 3448
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 634,
+        "cl100k_base": 204,
+        "o200k_base": 207
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 14246,
+        "cl100k_base": 3626,
+        "o200k_base": 3655
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 142,
+        "cl100k_base": 49,
+        "o200k_base": 49
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 580,
+        "cl100k_base": 190,
+        "o200k_base": 193
+      },
+      "route": "bash",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "04de6ee8bbadc298df25b2cd7c4b1016364242d635a224cca1053918e9eaf53c",
+        "04de6ee8bbadc298df25b2cd7c4b1016364242d635a224cca1053918e9eaf53c",
+        "04de6ee8bbadc298df25b2cd7c4b1016364242d635a224cca1053918e9eaf53c"
+      ]
+    },
+    {
+      "name": "late-failure",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 992,
+        "o200k_base": 1007
+      },
+      "final_request": {
+        "utf8_bytes": 6131,
+        "cl100k_base": 1576,
+        "o200k_base": 1584
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 20684,
+        "cl100k_base": 5139,
+        "o200k_base": 5185
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1087,
+        "cl100k_base": 321,
+        "o200k_base": 324
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 21771,
+        "cl100k_base": 5460,
+        "o200k_base": 5509
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 619,
+        "cl100k_base": 231,
+        "o200k_base": 227
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1033,
+        "cl100k_base": 307,
+        "o200k_base": 310
+      },
+      "route": "full-metadata",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "d3f79a39e1c1bfb4dc8a6aadf8c65e6ef55829d024aae6cd4586ef0b1f4cd347",
+        "aa6ebf399ded6a431f174bb11953300df60d7ffffb11d7527fbae8a66a064672",
+        "7fe9c0808280175833bce571c7f3398fe7ccdf736d004b594fbbeaea8ab375e5"
+      ]
+    },
+    {
+      "name": "late-failure",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 992,
+        "o200k_base": 1007
+      },
+      "final_request": {
+        "utf8_bytes": 6131,
+        "cl100k_base": 1567,
+        "o200k_base": 1576
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 20684,
+        "cl100k_base": 5118,
+        "o200k_base": 5166
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 1087,
+        "cl100k_base": 321,
+        "o200k_base": 324
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 21771,
+        "cl100k_base": 5439,
+        "o200k_base": 5490
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 619,
+        "cl100k_base": 222,
+        "o200k_base": 219
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 1033,
+        "cl100k_base": 307,
+        "o200k_base": 310
+      },
+      "route": "native-envelope",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "ab83cbb13d9d8550693d5fe00e0df95bc9618d2d9040ae4df9b43913c7df6d5b",
+        "ffcfadb8688ed51ba4d0279f8b56b6e672c0fcccd0f726d119c94d5287811e67",
+        "cf8dabbad10dfc64897380fd5bc94a6dc84d5b8800f7587d72b11c8314cca3e0"
+      ]
+    },
+    {
+      "name": "invalid-json",
+      "tool": "bash",
+      "plugin_loaded": false,
+      "completion": "exit",
+      "compact": false,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 2938,
+        "cl100k_base": 713,
+        "o200k_base": 721
+      },
+      "final_request": {
+        "utf8_bytes": 3661,
+        "cl100k_base": 929,
+        "o200k_base": 934
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 13198,
+        "cl100k_base": 3284,
+        "o200k_base": 3310
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 472,
+        "cl100k_base": 153,
+        "o200k_base": 153
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 13670,
+        "cl100k_base": 3437,
+        "o200k_base": 3463
+      },
+      "tool_schemas": {
+        "utf8_bytes": 613,
+        "cl100k_base": 131,
+        "o200k_base": 135
+      },
+      "tool_results": {
+        "utf8_bytes": 121,
+        "cl100k_base": 43,
+        "o200k_base": 43
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 418,
+        "cl100k_base": 139,
+        "o200k_base": 139
+      },
+      "route": "bash",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "90a36ad581a6169bfd51389f1c8d16baf12d256e64cd7410b6294e1606dd0ce9",
+        "90a36ad581a6169bfd51389f1c8d16baf12d256e64cd7410b6294e1606dd0ce9",
+        "90a36ad581a6169bfd51389f1c8d16baf12d256e64cd7410b6294e1606dd0ce9"
+      ]
+    },
+    {
+      "name": "invalid-json",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 991,
+        "o200k_base": 1006
+      },
+      "final_request": {
+        "utf8_bytes": 6113,
+        "cl100k_base": 1547,
+        "o200k_base": 1559
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 20648,
+        "cl100k_base": 5075,
+        "o200k_base": 5129
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 823,
+        "cl100k_base": 237,
+        "o200k_base": 237
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 21471,
+        "cl100k_base": 5312,
+        "o200k_base": 5366
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 907,
+        "cl100k_base": 299,
+        "o200k_base": 299
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 769,
+        "cl100k_base": 223,
+        "o200k_base": 223
+      },
+      "route": "full-metadata",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "5077860dc2d4c6f9e1c8d6315f57cfcebc11ff7ceb8a5dab88be106a4e27f848",
+        "16e6ef08e52b3cde9b234d27571e879412612bfd177d566175ea7d80eaf8931c",
+        "ca33af2ec9c28090e2aa98b619e82f176e38d9a41360b373bcc2fe24586aca6f"
+      ]
+    },
+    {
+      "name": "invalid-json",
+      "tool": "monitor_start",
+      "plugin_loaded": true,
+      "completion": "exit",
+      "compact": true,
+      "minimal_arguments": false,
+      "monitor_inactive": false,
+      "repeats": 3,
+      "initial_request": {
+        "utf8_bytes": 4211,
+        "cl100k_base": 991,
+        "o200k_base": 1006
+      },
+      "final_request": {
+        "utf8_bytes": 6112,
+        "cl100k_base": 1544,
+        "o200k_base": 1556
+      },
+      "equivalence": "Three real commands/four requests. Same labels, commands and explicit 5s deadline. Full metadata versus compact native success envelope; status, complete required payload/captures and warning/failure fields preserved.",
+      "cumulative_input_estimates": {
+        "utf8_bytes": 20645,
+        "cl100k_base": 5065,
+        "o200k_base": 5119
+      },
+      "generated_assistant_content_estimates": {
+        "utf8_bytes": 823,
+        "cl100k_base": 237,
+        "o200k_base": 237
+      },
+      "combined_input_output_estimates": {
+        "utf8_bytes": 21468,
+        "cl100k_base": 5302,
+        "o200k_base": 5356
+      },
+      "tool_schemas": {
+        "utf8_bytes": 1399,
+        "cl100k_base": 308,
+        "o200k_base": 317
+      },
+      "tool_results": {
+        "utf8_bytes": 906,
+        "cl100k_base": 296,
+        "o200k_base": 296
+      },
+      "tool_call_arguments": {
+        "utf8_bytes": 769,
+        "cl100k_base": 223,
+        "o200k_base": 223
+      },
+      "route": "native-envelope",
+      "executed_commands": 3,
+      "provider_requests": 4,
+      "terminal_content_sha256": [
+        "34f2c172d8011299ce7c371ce8f10091ec1f56bea58cab25a5f4274228e14013",
+        "7d7990f16fb98f9e6e7ae688fc46fad530899f6b470c3acfbef84a60277a554f",
+        "ad6f1a2b3191cf4747e686b6445af89f2fea678f796193f1a4e54010675a58eb"
+      ]
+    }
+  ],
+  "native_sessions": 18,
+  "executed_commands": 54,
+  "provider_requests": 72,
+  "status": "complete",
+  "snapshot": {
+    "date": "2026-10-04",
+    "Pi_CLI": "1.0.2",
+    "Node": "24.16.0",
+    "raw_report_sha256": "55efe562e402b08fd48f2dc431b244663c64ab83f52c70b8df353e8883006ce9",
+    "raw_report_local_path": "/tmp/monitor-design-envelope-adopted-20261004.json",
+    "notes": "Per-row equivalence corrected from the shared runner wording; numeric measurements and content hashes unchanged."
+  }
+}

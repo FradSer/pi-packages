@@ -2,6 +2,64 @@ Feature: Spend learning tokens only when durable value is plausible
   Automatic learning uses deterministic screening before any model call, shares one
   selector-built authoritative dossier, and accounts for every worker attempt.
 
+  Scenario: Empty Memory routes explicit automatic evidence without a selector model
+    Given the indexed Memory corpus is empty and the user states durable facts or preferences
+    When automatic learning selects its scope
+    Then the parent selects no existing bodies and routes its evidence-backed phases without a model call
+    And planners still propose changes for parent validation against the frozen dossier
+    And nonempty indexes and ambiguous tasks still use the metadata selector
+
+  Scenario: Headless selector failure retains a safe diagnosis
+    Given a selector returns a malformed selection containing private output
+    When the parent rejects it and writes the pipeline receipt
+    Then the selector attempt records the parent-generated rejection category
+    And the receipt does not copy raw model output or worker stderr
+
+  Scenario: Incremental learning carries evidence instead of reasoning transport
+    Given a completed task contains long assistant reasoning and provider metadata
+    When the parent freezes its incremental evidence
+    Then user and tool entries remain byte-identical with the same evidence indexes
+    And assistant visible text and tool calls remain available for context and touched paths
+    But assistant reasoning, signatures and usage metadata are excluded
+    And the original session is unchanged
+    And explicit full maintenance keeps its complete-session scope
+
+  Scenario: Empty full maintenance does not spend model tokens
+    Given a new session contains only model and thinking settings
+    And the project has no existing Memory entries
+    When the user requests full maintenance
+    Then no selector or planner is launched
+    And the result says there is no learning input rather than claiming a reviewed no-op
+
+  Scenario: Full maintenance can bootstrap knowledge
+    Given the existing Memory corpus is empty
+    And the frozen session contains a durable private preference and shared project fact
+    When the full Memory planner reviews the evidence
+    Then it proposes both new memories independently of the empty selected scope
+    And each proposal uses its exact literal kind and indexed evidence
+
+  Scenario: A fresh full run can use recent project evidence
+    Given the current session contains no user or tool evidence
+    And a recent stored session has real evidence for this exact canonical project
+    When the parent prepares full maintenance
+    Then it freezes the latest eligible session's active branch using Pi's projection
+    And the receipt identifies that source and its digest
+    And other projects, symlinks, oversized files and edited-away evidence are excluded
+    But automatic and incremental learning still use only their current task
+
+  Scenario: Full knowledge does not require an invented Harness rule
+    Given the frozen full input contains only project facts and personal response preferences
+    When the Harness planner finds no supported execution constraint
+    Then it returns an identity-bound plan with empty operations and evidence arrays
+    And it does not omit operations or invent a text rule for the personal preference
+
+  Scenario: Harness recovery preserves every attempt in the receipt
+    Given a Harness planner returns no structured plan and its one repair succeeds
+    When the parent completes the learning phase
+    Then the receipt retains the initial rejected attempt and the repaired attempt
+    And totals include both workers' reported usage and cost
+    And the receipt reports exactly one retry
+
   Scenario: Tool-verified recovery is a Memory candidate
     Given a tool reports a failure and a later tool verifies a successful build or test
     When automatic learning screens the task
@@ -20,6 +78,16 @@ Feature: Spend learning tokens only when durable value is plausible
     When automatic learning evaluates the task
     Then no selector or planner is launched
     And the receipt records zero calls and zero tokens
+
+  Scenario: Screening keeps knowledge and executable-validation opportunities distinct
+    Given the user explicitly records a project fact or asks to retain a preference
+    When automatic learning screens the frozen task
+    Then Memory is eligible to propose untrusted reference knowledge
+    And a question that merely asks what to do does not create a learning opportunity
+    Given the user asks for a regression test or invariant
+    When automatic learning screens the frozen task
+    Then Harness is eligible to propose an executable check
+    And the screen does not treat the requested check as Memory knowledge by itself
 
   Scenario: Automatic learning is lightweight
     Given automatic learning finds durable evidence

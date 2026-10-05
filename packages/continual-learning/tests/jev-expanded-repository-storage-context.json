@@ -1,0 +1,48 @@
+{
+  "evidence": "real-jev-inference-frozen-public-repository-replay",
+  "snapshotDigest": "acbd24a72e14580e4b84c00a6ba73061f7831dbf3629908bdae20142345e0f09",
+  "planDigest": "57b90f12ee123b76b9932a79e769b85239a97276c52987a095513befa0d2c0f5",
+  "snapshotBytes": 53627,
+  "candidates": 2,
+  "answers": [
+    {
+      "supported_0": {
+        "type": "choice",
+        "choice": "grounded",
+        "confidence": 0.81,
+        "probabilities": {
+          "grounded": 0.85,
+          "speculative": 0.05,
+          "transient": 0.02,
+          "unsupported": 0.07,
+          "unclear": 0.01
+        }
+      },
+      "supported_1": {
+        "type": "choice",
+        "choice": "grounded",
+        "confidence": 0.58,
+        "probabilities": {
+          "grounded": 0.66,
+          "speculative": 0.09,
+          "transient": 0.01,
+          "unsupported": 0.19,
+          "unclear": 0.05
+        }
+      }
+    }
+  ],
+  "decision": "propose",
+  "telemetry": {
+    "stage": "memory",
+    "status": "propose",
+    "reason": "uncertain",
+    "durationMs": 1461,
+    "model": "jev-1.13.0",
+    "inputTokens": 15436,
+    "outputTokens": 125,
+    "estimatedCostUsd": 0.0006483120000000001,
+    "candidateIndex": 0,
+    "dimension": "support"
+  }
+}

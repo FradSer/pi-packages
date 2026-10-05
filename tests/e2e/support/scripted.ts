@@ -14,13 +14,14 @@
  * is why the last scripted turn is a report rather than a fixed string.
  */
 
-import { createAssistantMessageEventStream, type AssistantMessage, type Message } from "@earendil-works/pi-ai";
+import { createAssistantMessageEventStream, type AssistantMessage, type JsonObject, type JsonValue, type Message } from "@earendil-works/pi-ai";
 import * as nodeFs from "node:fs";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 
 /** One turn of the script: a tool call, or the terminal report. */
 export type ScriptedTurn =
-  | { tool: string; args: Record<string, unknown> }
+  | { tool: string; args: JsonObject }
   | { report: true };
 
 export interface ScriptedOptions {
@@ -45,6 +46,7 @@ export const E2E_OK = "E2E_OK";
 /** The shape the harness parses back out of the transcript. */
 export interface E2EReport {
   tools: string[];
+  activeTools?: string[];
   calls: Array<{ name: string; isError: boolean; text: string; details: unknown }>;
 }
 
@@ -72,15 +74,33 @@ export function resolveFromResults(value: unknown, results: unknown[]): unknown 
   return undefined;
 }
 
-/** Substitute a resolved argument for every placeholder in a scripted arg set. */
-function mapValues(
-  args: Record<string, unknown>,
-  resolve: (value: unknown) => unknown,
-): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(args)) {
-    out[key] = Array.isArray(value) ? value.map((entry) => resolve(entry)) : resolve(value);
+/** Resolvers cross an unknown tool-details boundary; prove JSON before calling Pi. */
+function jsonValue(value: unknown): JsonValue {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (Array.isArray(value)) return value.map(jsonValue);
+  if (typeof value === "object" && value !== null
+    && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)) {
+    const object: JsonObject = {};
+    for (const [key, entry] of Object.entries(value)) object[key] = jsonValue(entry);
+    return object;
   }
+  throw new TypeError("A scripted tool argument must resolve to a JSON value.");
+}
+
+/** Substitute every placeholder, including nested objects and array entries. */
+function mapValues(args: JsonObject, resolve: (value: unknown) => unknown): JsonObject {
+  const map = (value: JsonValue): JsonValue => {
+    if (Array.isArray(value)) return value.map(map);
+    if (value !== null && typeof value === "object") {
+      const out: JsonObject = {};
+      for (const [key, entry] of Object.entries(value)) out[key] = map(entry);
+      return out;
+    }
+    return jsonValue(resolve(value));
+  };
+  const out: JsonObject = {};
+  for (const [key, value] of Object.entries(args)) out[key] = map(value);
   return out;
 }
 
@@ -101,8 +121,10 @@ function reportFrom(messages: Message[], probe: string): E2EReport {
   // The surface is read from the live tool list at the moment the probe ran, not
   // reconstructed here, so a tool Pi refused to register cannot appear.
   const probeCall = calls.find((call) => call.name === probe);
-  const tools = probeCall && probeCall.details && typeof probeCall.details === "object"
-    ? ((probeCall.details as { tools?: unknown }).tools as string[] | undefined) ?? []
+  const candidate = probeCall && probeCall.details && typeof probeCall.details === "object"
+    && "tools" in probeCall.details ? probeCall.details.tools : undefined;
+  const tools = Array.isArray(candidate)
+    ? candidate.filter((name): name is string => typeof name === "string")
     : [];
   return { tools, calls };
 }
@@ -119,19 +141,19 @@ export function installScriptedProvider(pi: ExtensionAPI, options: ScriptedOptio
   const { provider, probe, turns, dumpPath } = options;
   const resolve = options.resolve ?? resolveFromResults;
   let surface: string[] = [];
-  const observed: E2EReport["calls"] = [];
+  let activeSurface: string[] = [];
 
   pi.registerTool({
     name: probe,
     label: "Surface probe",
     description: "Report the tools this host actually registered.",
-    parameters: { type: "object", properties: {}, required: [], additionalProperties: false } as never,
+    parameters: Type.Object({ probe: Type.Optional(Type.String()) }, { additionalProperties: false }),
     renderShell: "self",
     renderCall: () => undefined as never,
-    execute(_id, params) {
-      const asked = (params as { probe?: string } | undefined)?.probe;
+    async execute(_id, params): Promise<AgentToolResult> {
+      const asked = params.probe;
       if (asked === "reports") {
-        const seen = (globalThis as Record<string, unknown>)["live-child-report"] ?? null;
+        const seen = jsonValue((globalThis as Record<string, unknown>)["live-child-report"] ?? null);
         return {
           content: [{ type: "text", text: JSON.stringify({ reports: seen }) }],
           details: { reports: seen },
@@ -146,6 +168,7 @@ export function installScriptedProvider(pi: ExtensionAPI, options: ScriptedOptio
       surface = typeof pi.getAllTools === "function"
         ? pi.getAllTools().map((tool) => tool.name).sort()
         : [];
+      activeSurface = typeof pi.getActiveTools === "function" ? pi.getActiveTools().sort() : [];
       if (dumpPath && surface.length > 0) {
         // Synchronous on purpose: the host may tear the extension module down as
         // soon as the turn settles, and a pending write would be lost exactly when
@@ -155,7 +178,7 @@ export function installScriptedProvider(pi: ExtensionAPI, options: ScriptedOptio
       }
       return {
         content: [{ type: "text", text: JSON.stringify({ tools: surface }) }],
-        details: { tools: surface },
+        details: { tools: surface, activeTools: activeSurface },
       };
     },
   });
@@ -184,11 +207,11 @@ export function installScriptedProvider(pi: ExtensionAPI, options: ScriptedOptio
       const results = context.messages.filter((message: Message) => message.role === "toolResult");
       const pending = script[results.length];
       const useTool = pending !== undefined;
-      const seen = results.map((result) => (result as { details?: unknown }).details ?? null);
+      const seen = results.map((result) => result.details ?? null);
       const args = useTool && pending !== undefined
-        ? mapValues(pending.args, (value) => resolve?.(value, seen) ?? value)
+        ? mapValues(pending.args, (value) => resolve(value, seen))
         : {};
-      const content = useTool && pending !== undefined
+      const content: AssistantMessage["content"] = useTool && pending !== undefined
         ? [{ type: "toolCall" as const, id: `e2e-${results.length}`, name: pending.tool, arguments: args }]
         : [{ type: "text" as const, text: `${E2E_REPORT} ${JSON.stringify(finalise(context.messages))}` }];
       const message: AssistantMessage = {
@@ -197,16 +220,37 @@ export function installScriptedProvider(pi: ExtensionAPI, options: ScriptedOptio
         provider: model.provider,
         model: model.id,
         timestamp: 1_700_000_000_000 + results.length,
-        content,
-        stopReason: useTool ? "toolUse" : "stop",
+        content: [],
+        stopReason: "pending",
         usage: {
           input: 0, output: 0, cacheRead: 0, cacheWrite: 0,
           totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
         },
       };
       const stream = createAssistantMessageEventStream();
-      void stream.push(message);
-      void stream.end(message);
+      stream.push({ type: "start", partial: message });
+      for (const block of content) {
+        const contentIndex = message.content.length;
+        if (block.type === "toolCall") {
+          const toolCall = { ...block, arguments: {} };
+          message.content.push(toolCall);
+          stream.push({ type: "toolcall_start", contentIndex, partial: message });
+          toolCall.arguments = block.arguments;
+          stream.push({ type: "toolcall_delta", contentIndex, delta: JSON.stringify(block.arguments), partial: message });
+          stream.push({ type: "toolcall_end", contentIndex, toolCall, partial: message });
+        } else if (block.type === "text") {
+          const text = { ...block, text: "" };
+          message.content.push(text);
+          stream.push({ type: "text_start", contentIndex, partial: message });
+          text.text = block.text;
+          stream.push({ type: "text_delta", contentIndex, delta: block.text, partial: message });
+          stream.push({ type: "text_end", contentIndex, content: block.text, partial: message });
+        }
+      }
+      const reason = useTool ? "toolUse" : "stop";
+      message.stopReason = reason;
+      stream.push({ type: "done", reason, message });
+      stream.end(message);
       return stream;
     },
   });
@@ -214,9 +258,6 @@ export function installScriptedProvider(pi: ExtensionAPI, options: ScriptedOptio
   /** Merge the probe's live reading into the transcript-derived calls. */
   function finalise(messages: Message[]): E2EReport {
     const derived = reportFrom(messages, probe);
-    for (const call of derived.calls) {
-      if (call.name === probe) observed.push(call);
-    }
-    return { tools: surface.length > 0 ? surface : derived.tools, calls: derived.calls };
+    return { tools: surface.length > 0 ? surface : derived.tools, activeTools: activeSurface, calls: derived.calls };
   }
 }

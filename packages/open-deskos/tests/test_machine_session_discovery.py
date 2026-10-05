@@ -22,7 +22,7 @@ def test_machine_session_discovery_regressions() -> None:
         env.pop("ODK_DESK_LINK_ADDRESS", None)
         env.pop("ODK_DESK_LINK_TOKEN", None)
         result = subprocess.run(
-            ["node", *loader, "--test", str(PACKAGE / "tests/machine-session-discovery.test.mjs"), str(PACKAGE / "tests/discovery-extension.test.mjs")],
+            ["node", *loader, "--test", str(PACKAGE / "tests/machine-session-discovery.test.mjs"), str(PACKAGE / "tests/discovery-extension.test.mjs"), str(PACKAGE / "tests/windows-process-discovery.test.mjs")],
             cwd=REPO,
             env=env,
             text=True,

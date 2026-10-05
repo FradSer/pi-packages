@@ -61,6 +61,12 @@ export function routeEntryState(route: string, workItemId: string): WorkflowStat
 }
 
 export function transitionState(state: WorkflowState, target: string): WorkflowState {
+  const currentPlacement = workflowPlacement(state.route, state.procedure);
+  if (!currentPlacement || currentPlacement.phase !== state.phase) {
+    throw new Error(
+      `Cannot transition ${state.route} from ${state.procedure}: invalid current procedure state.`,
+    );
+  }
   const normalized = normalizeProcedureId(target);
   const allowed = allowedTransitions(state.route, state.procedure);
   if (!allowed.includes(normalized)) {
@@ -75,6 +81,7 @@ export function transitionState(state: WorkflowState, target: string): WorkflowS
     procedure: normalized,
     phase: placement.phase,
     loadedReferences: [],
+    deliveredProcedures: state.deliveredProcedures ?? [],
   };
 }
 
@@ -106,15 +113,19 @@ export function formatReadableWorkflowSubject(route: string, phase: string): str
   return `${readableRouteTitle(route)} · ${readablePhaseTitle(phase)}`;
 }
 
-export function isWorkflowState(value: unknown): value is WorkflowState {
-  if (!value || typeof value !== "object") return false;
+function workflowRecord(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object") return undefined;
   const candidate = value as Record<string, unknown>;
   return candidate.version === WORKFLOW_STATE_VERSION
-    && typeof candidate.workItemId === "string"
+    && typeof candidate.workItemId === "string" && candidate.workItemId.trim().length > 0
     && typeof candidate.route === "string"
     && typeof candidate.procedure === "string"
-    && typeof candidate.phase === "string"
-    && candidate.status === "active"
+    && typeof candidate.phase === "string" ? candidate : undefined;
+}
+
+export function isWorkflowState(value: unknown): value is WorkflowState {
+  const candidate = workflowRecord(value);
+  return candidate !== undefined && candidate.status === "active"
     && Array.isArray(candidate.loadedReferences)
     && candidate.loadedReferences.every((reference) => typeof reference === "string")
     // Absent is tolerated so a workflow persisted before delivery tracking existed still
@@ -130,13 +141,8 @@ export function withDeliveryDefaults(state: WorkflowState): WorkflowState {
 }
 
 export function isTerminalWorkflowState(value: unknown): value is TerminalWorkflowState {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Record<string, unknown>;
-  return candidate.version === WORKFLOW_STATE_VERSION
-    && typeof candidate.workItemId === "string"
-    && typeof candidate.route === "string"
-    && typeof candidate.procedure === "string"
-    && typeof candidate.phase === "string"
+  const candidate = workflowRecord(value);
+  return candidate !== undefined
     && (candidate.status === "completed" || candidate.status === "cancelled");
 }
 
@@ -144,7 +150,9 @@ export function latestWorkflowRecord(entries: unknown[]): WorkflowSessionData | 
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index] as { type?: unknown; customType?: unknown; data?: unknown } | undefined;
     if (entry?.type !== "custom" || entry.customType !== WORKFLOW_STATE_ENTRY) continue;
-    if (isWorkflowState(entry.data) || isTerminalWorkflowState(entry.data)) return entry.data;
+    // The newest entry is authoritative even when incompatible. Never resurrect
+    // an older active workflow by skipping a malformed terminal or future version.
+    return isWorkflowState(entry.data) || isTerminalWorkflowState(entry.data) ? entry.data : undefined;
   }
   return undefined;
 }
@@ -168,10 +176,10 @@ Yield only when the remaining work genuinely depends on an external actor, on a 
 
 export function availableWorkflowsGuidance(): string {
   const workflows = workflowRoutes()
-    .map((route) => `- ${route.route}: ${route.description}`)
+    .map((route) => `- ${route.route}: ${route.description} Call: ${JSON.stringify({ mode: "workflow", route: route.route })}`)
     .join("\n");
   const capabilities = modelStandaloneCapabilities()
-    .map((capability) => `- ${capability.id}: ${capability.description}`)
+    .map((capability) => `- ${capability.id}: ${capability.description} Call: ${JSON.stringify({ mode: "capability", capability: capability.id })}`)
     .join("\n");
   return `## Available Matt Pocock Workflows and Capabilities
 
@@ -189,6 +197,8 @@ ${workflows}
 
 Model-reachable standalone capabilities:
 ${capabilities}
+
+For an explicitly requested capability, load its listed call before applying its method. A schema rejection means the capability was not loaded: correct mode and required fields using the exact call above; do not repeat the same rejected arguments or silently claim execution.
 
 Workflow state is deliberate and task-scoped. When relevant, start a workflow first with matt_pocock_workflow (mode: "workflow"); the started workflow carries its procedure and next-step guidance.`;
 }

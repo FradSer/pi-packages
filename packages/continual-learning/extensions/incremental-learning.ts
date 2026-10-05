@@ -1,8 +1,9 @@
+import { createJevJudge, type JevJudge, type JevTelemetry } from "./jev-learning";
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { runPiWorker, type PiWorkerUsage } from "@fradser/pi-kit";
-import { harnessOwnedEventSummary } from "./learning-efficiency";
+import { harnessOwnedEventSummary, manualIncrementalScreen } from "./learning-efficiency";
 import { isMemoryFilename } from "./memory-files";
 import { MAX_MEMORY_BYTES, MAX_MEMORY_FILES, sha256Digest, writeFileAtomic } from "./consolidation-run";
 import { resolveMemoryPaths } from "./memory-paths";
@@ -58,6 +59,8 @@ export interface LearningDossier {
   harnessEvents: string[];
   registeredSkills: string[];
   selection: MemorySelection;
+  /** An explicit command request is the primary evidence; older entries are context. */
+  memoryRequest?: { entryIndex: 0 };
 }
 
 export interface MemorySelectionResult {
@@ -68,6 +71,9 @@ export interface MemorySelectionResult {
   dossierDigest?: string;
   usage?: PiWorkerUsage;
   error?: string;
+  /** Parent-generated diagnostic, safe to persist without worker prose. */
+  diagnostic?: string;
+  jev?: JevTelemetry;
 }
 
 interface FileIdentity {
@@ -112,10 +118,39 @@ function isContinuationRequest(entry: unknown): boolean {
 
 /** Keep explicit continuation chains, without treating a new substantive request as the same task. */
 export function currentTaskSlice(entries: readonly unknown[]): TaskSlice {
+  return boundTaskSlice(projectLearningEvidence(currentTaskEntries(entries)));
+}
+
+/** Assistant reasoning is neither quote evidence nor verification. Keep indexes
+ * stable and all human/tool entries intact; retain only useful assistant context. */
+function projectLearningEvidence(entries: readonly unknown[]): unknown[] {
+  return entries.map(entry => {
+    if (entryRole(entry) !== "assistant" || !entry || typeof entry !== "object" || Array.isArray(entry)) return entry;
+    const record = entry as Record<string, unknown>;
+    const wrapped = record.message && typeof record.message === "object" && !Array.isArray(record.message)
+      ? record.message as Record<string, unknown> : undefined;
+    const message = wrapped ?? record;
+    if (!Array.isArray(message.content) && Object.keys(message).every(key => ["role", "content", "timestamp"].includes(key))) return entry;
+    const content = Array.isArray(message.content) ? message.content.flatMap<Record<string, unknown>>(block => {
+      if (!block || typeof block !== "object" || Array.isArray(block)) return [];
+      const value = block as Record<string, unknown>;
+      if (value.type === "text" && typeof value.text === "string") return [{ type: "text", text: value.text }];
+      if (value.type === "toolCall") return [{ type: "toolCall", id: value.id, name: value.name, arguments: value.arguments }];
+      return [];
+    }) : message.content;
+    const projected: Record<string, unknown> = { role: "assistant", content,
+      ...(message.timestamp !== undefined ? { timestamp: message.timestamp } : {}) };
+    if (wrapped) return { ...record, message: projected };
+    for (const key of ["type", "id", "parentId"]) if (record[key] !== undefined) projected[key] = record[key];
+    return projected;
+  });
+}
+
+function currentTaskEntries(entries: readonly unknown[]): readonly unknown[] {
   const userIndexes = entries
     .map((entry, index) => entryRole(entry) === "user" ? index : -1)
     .filter((index) => index >= 0);
-  if (userIndexes.length === 0) return { kind: "learning-task-slice", version: 1, entries: [] };
+  if (userIndexes.length === 0) return [];
 
   let userPosition = userIndexes.length - 1;
   if (userIndexes[userPosition] === entries.length - 1 && userPosition > 0) userPosition -= 1;
@@ -123,8 +158,19 @@ export function currentTaskSlice(entries: readonly unknown[]): TaskSlice {
   while (userPosition > 0 && isContinuationRequest(entries[userIndexes[userPosition]])) {
     userPosition -= 1;
   }
-  const taskEntries = entries.slice(userIndexes[userPosition], end);
-  const slice: TaskSlice = { kind: "learning-task-slice", version: 1, entries: taskEntries };
+  return entries.slice(userIndexes[userPosition], end);
+}
+
+/** Command arguments are human evidence even though Pi does not add slash commands to chat messages. */
+export function requestedMemoryTaskSlice(request: string, entries: readonly unknown[]): TaskSlice {
+  return boundTaskSlice([
+    { type: "message", message: { role: "user", content: request } },
+    ...projectLearningEvidence(currentTaskEntries(entries)),
+  ]);
+}
+
+function boundTaskSlice(taskEntries: readonly unknown[]): TaskSlice {
+  const slice: TaskSlice = { kind: "learning-task-slice", version: 1, entries: [...taskEntries] };
   if (taskEntries.length <= MAX_TASK_SLICE_ENTRIES && jsonBytes(slice) <= MAX_TASK_SLICE_BYTES) return slice;
 
   // Reserve the entire JSON envelope, including omission metadata. Preserve
@@ -425,6 +471,7 @@ async function buildDossier(
   selection: MemorySelection,
   indexed: readonly IndexedMemory[],
   registeredSkills: readonly string[],
+  memoryOnly = false,
 ): Promise<LearningDossier | undefined> {
   const byName = new Map(indexed.map((entry) => [entry.metadata.name.toLowerCase(), entry]));
   const selectedMemories: SelectedMemory[] = [];
@@ -446,6 +493,7 @@ async function buildDossier(
     harnessEvents: metadata.harnessEvents,
     registeredSkills: [...new Set(registeredSkills)].sort(),
     selection,
+    ...(memoryOnly ? { memoryRequest: { entryIndex: 0 as const } } : {}),
   };
 }
 
@@ -480,53 +528,92 @@ export async function selectIncrementalLearning(input: {
   model?: string;
   signal?: AbortSignal;
   registeredSkills?: readonly string[];
+  memoryOnly?: boolean;
+  /** Automatic explicit evidence and /memory can route an empty index locally. */
+  allowEmptyIndexRouting?: boolean;
+  jevJudge?: JevJudge;
 }): Promise<MemorySelectionResult> {
   const startedAt = Date.now();
   const indexed = await indexMemoryCorpus(input.cwd);
+  if (input.signal?.aborted) return { outcome: "cancelled", durationMs: Date.now() - startedAt, diagnostic: "selector cancelled" };
   const metadata = indexed.map((entry) => entry.metadata);
   const available = new Map(metadata.map((entry) => [entry.name.toLowerCase(), entry.name]));
-  const task = [
-    "Task: select the minimum sufficient scope for one small incremental learning run.",
-    `- Context digest: ${input.contextDigest}`,
-    "- Current task slice:",
-    JSON.stringify(input.taskSlice),
-    "- Memory metadata index (filename, classification, type, description only):",
-    JSON.stringify(metadata),
-    "- Do not use tools, read Memory bodies, inspect read paths, or perform repository discovery.",
-    "- Return delta-routing selection only; never propose or request full-corpus exploration.",
-  ].join("\n");
-  const prompt = buildMemorySelectorPrompt({ task, contextDigest: input.contextDigest });
-  const result = await runPiWorker({
-    prompt,
-    cwd: input.cwd,
-    tools: [],
-    model: input.model,
-    signal: input.signal,
-    minimal: true,
-    extraArgs: learningPlannerArgs(),
-  });
-  const durationMs = Date.now() - startedAt;
-  if (result.cancelled) return { outcome: "cancelled", durationMs, usage: result.usage, error: result.stderr };
-  if (result.exitCode !== 0) return { outcome: "failed", durationMs, usage: result.usage, error: result.stderr };
+  let selection: MemorySelection | undefined;
+  let jev: JevTelemetry | undefined;
+  let usage: PiWorkerUsage | undefined;
+  let diagnostic: string | undefined;
+  const evidence = manualIncrementalScreen(input.taskSlice.entries, { memory: false, harness: false, agents: false });
+  if (input.allowEmptyIndexRouting && indexed.length === 0 && (input.memoryOnly || evidence.memory)) {
+    // No existing bodies can be selected. Explicit human evidence already floors
+    // these phases; planners still decide whether there is anything worth writing.
+    selection = { kind: "incremental-memory-selection", version: 1, contextDigest: input.contextDigest,
+      selected: [], memory: true, harness: input.memoryOnly ? false : evidence.harness,
+      agents: input.memoryOnly ? false : evidence.agents, reason: "Empty index with explicit user evidence." };
+    diagnostic = "empty Memory index; parent-routed explicit evidence";
+  } else {
+    const judged = await (input.jevJudge ?? createJevJudge()).select(input.taskSlice, metadata, input.memoryOnly === true, input.signal);
+    jev = judged.telemetry.status === "disabled" ? undefined : judged.telemetry;
+    if (input.signal?.aborted) return { outcome: "cancelled", durationMs: Date.now() - startedAt, jev, diagnostic: "selector cancelled" };
+    if (judged.selection) {
+      selection = { kind: "incremental-memory-selection", version: 1, contextDigest: input.contextDigest,
+        ...judged.selection, agents: input.memoryOnly ? false : evidence.agents, reason: "Jev semantic selection." };
+      diagnostic = "Jev semantic selection";
+    }
+  }
+  if (!selection) {
+    const task = [
+      "Task: select the minimum sufficient scope for one small incremental learning run.",
+      ...(input.memoryOnly ? ["- The first user entry is an explicit /memory request. Select related Memory only; Memory review is required, and Harness and AGENTS.md are outside this request."] : []),
+      `- Context digest: ${input.contextDigest}`,
+      "- Current task slice:",
+      JSON.stringify(input.taskSlice),
+      "- Memory metadata index (filename, classification, type, description only):",
+      JSON.stringify(metadata),
+      "- Do not use tools, read Memory bodies, inspect read paths, or perform repository discovery.",
+      "- Return delta-routing selection only; never propose or request full-corpus exploration.",
+    ].join("\n");
+    const prompt = buildMemorySelectorPrompt({ task, contextDigest: input.contextDigest });
+    const result = await runPiWorker({
+      prompt,
+      cwd: input.cwd,
+      tools: [],
+      model: input.model,
+      signal: input.signal,
+      minimal: true,
+      extraArgs: learningPlannerArgs(),
+    });
+    const durationMs = Date.now() - startedAt;
+    if (result.cancelled) return { outcome: "cancelled", durationMs, usage: result.usage, error: result.stderr, diagnostic: "selector cancelled", jev };
+    if (result.exitCode !== 0) return { outcome: "failed", durationMs, usage: result.usage, error: result.stderr, diagnostic: "selector worker failed", jev };
 
-  const parsed = parseSelection(result.text, input.contextDigest, available);
-  if (!parsed.ok) {
+    const parsed = parseSelection(result.text, input.contextDigest, available);
+    if (!parsed.ok) {
+      return {
+        outcome: "failed",
+        durationMs,
+        usage: result.usage,
+        error: `selector rejected: ${parsed.error}`,
+        diagnostic: `selector rejected: ${parsed.error}`,
+        jev,
+      };
+    }
+    selection = input.memoryOnly
+      ? { ...parsed.selection, memory: true, harness: false, agents: false }
+      : parsed.selection;
+
+    usage = result.usage;
+    if (jev?.status === "fallback") diagnostic = `Jev fallback: ${jev.reason}; legacy selector`;
+  }
+
+  const dossier = await buildDossier(input.contextDigest, input.taskSlice, selection, indexed, input.registeredSkills ?? [], input.memoryOnly);
+  if (!dossier) {
     return {
       outcome: "failed",
-      durationMs,
-      usage: result.usage,
-      error: `selector rejected: ${parsed.error}`,
-    };
-  }
-  const selection = parsed.selection;
-
-  const dossier = await buildDossier(input.contextDigest, input.taskSlice, selection, indexed, input.registeredSkills ?? []);
-  if (!dossier) {
-      return {
-      outcome: "failed",
       durationMs: Date.now() - startedAt,
-      usage: result.usage,
+      usage,
       error: "selected Memory changed or exceeded the bounded body limit",
+      diagnostic: "selected Memory changed or exceeded the bounded body limit",
+      jev,
     };
   }
   const text = `${JSON.stringify(dossier, null, 2)}\n`;
@@ -539,6 +626,8 @@ export async function selectIncrementalLearning(input: {
     selection,
     dossierPath,
     dossierDigest: sha256Digest(text),
-    usage: result.usage,
+    usage,
+    ...(diagnostic ? { diagnostic } : {}),
+    ...(jev ? { jev } : {}),
   };
 }

@@ -86,15 +86,17 @@ class ControlConnection {
   readonly #transport: ControlTransport;
   readonly #pending = new Map<string, PendingRequest>();
   readonly #onUnsolicited: (record: Record<string, unknown>) => void;
+  readonly #onClosed: (error: Error) => void;
   #ready: Promise<void>;
   #readyResolve!: () => void;
   #readyReject!: (error: Error) => void;
   #closed = false;
   #transportClosed = false;
 
-  constructor(options: ConsoleClientOptions, onUnsolicited: (record: Record<string, unknown>) => void = () => {}) {
+  constructor(options: ConsoleClientOptions, onUnsolicited: (record: Record<string, unknown>) => void = () => {}, onClosed: (error: Error) => void = () => {}) {
     this.#options = options;
     this.#onUnsolicited = onUnsolicited;
+    this.#onClosed = onClosed;
     this.#ready = new Promise<void>((resolve, reject) => {
       this.#readyResolve = resolve;
       this.#readyReject = reject;
@@ -129,7 +131,16 @@ class ControlConnection {
       timer.unref?.();
       this.#pending.set(requestId, { resolve, reject, timer, mutationId, sessionId, project });
     });
-    this.#transport.send({ v: DESK_LINK_CONTROL_PROTOCOL, type, requestId, ...fields });
+    try {
+      this.#transport.send({ ...fields, v: DESK_LINK_CONTROL_PROTOCOL, type, requestId });
+    } catch (error) {
+      const pending = this.#pending.get(requestId);
+      if (pending) {
+        clearTimeout(pending.timer);
+        this.#pending.delete(requestId);
+        pending.reject(new ControlRequestError(error instanceof Error ? error.message : "control write failed", { requestId, mutationId, sessionId, project }));
+      }
+    }
     return response;
   }
 
@@ -138,6 +149,7 @@ class ControlConnection {
   }
 
   #receive(value: unknown): void {
+    if (this.#closed) return;
     const record = asRecord(value);
     if (!record) return;
     if (record.type === "version-mismatch" || (record.v !== undefined && record.v !== DESK_LINK_CONTROL_PROTOCOL)) {
@@ -196,6 +208,7 @@ class ControlConnection {
         pending.reject(new ControlRequestError(error.message, { requestId, mutationId: pending.mutationId, sessionId: pending.sessionId, project: pending.project }));
       }
       this.#pending.clear();
+      this.#onClosed(error);
     }
     if (closeTransport && !this.#transportClosed) {
       this.#transportClosed = true;
@@ -219,6 +232,7 @@ export interface ConsoleAttachment {
 export class DeskConsoleClient {
   readonly #options: ConsoleClientOptions;
   #attachment: ConsoleAttachment | null = null;
+  #attaching: ControlConnection | null = null;
 
   constructor(options: ConsoleClientOptions) {
     this.#options = options;
@@ -246,7 +260,7 @@ export class DeskConsoleClient {
   }
 
   async attach(options: AttachOptions): Promise<ConsoleAttachment> {
-    this.#attachment?.close();
+    this.closeAttachment();
     const attachmentId = randomUUID();
     let lastApplied = options.position ?? 0;
     let streamError: string | undefined;
@@ -314,12 +328,22 @@ export class DeskConsoleClient {
           ...(typeof record.response === "string" ? { response: record.response } : {}),
         });
       }
-    });
-    const attached = await connection.request("attach", {
-      sessionId: options.sessionId,
-      attachmentId,
-      after: options.position ?? null,
-    });
+    }, (error) => { streamError ??= error.message; });
+    this.#attaching = connection;
+    let attached: Record<string, unknown>;
+    try {
+      attached = await connection.request("attach", {
+        sessionId: options.sessionId,
+        attachmentId,
+        after: options.position ?? null,
+      });
+      if (this.#attaching !== connection) throw new Error("control link closed");
+    } catch (error) {
+      connection.close();
+      throw error;
+    } finally {
+      if (this.#attaching === connection) this.#attaching = null;
+    }
     acknowledged = true;
     drainQueued();
     const boundary = asPosition(attached.boundary);
@@ -363,6 +387,8 @@ export class DeskConsoleClient {
 
   closeAttachment(): void {
     this.#attachment?.close();
+    this.#attaching?.close();
+    this.#attaching = null;
   }
 
   async #oneShot(type: string, fields: Record<string, unknown> = {}): Promise<Record<string, unknown>> {

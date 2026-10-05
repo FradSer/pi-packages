@@ -124,6 +124,37 @@ export function validateProcedureCatalog(): string[] {
     }
   }
 
+  const aliases = new Map<string, string>();
+  for (const definition of procedureCatalog) {
+    for (const alias of definition.aliases ?? []) {
+      if (ids.has(alias) || aliases.has(alias)) errors.push(`${definition.id}: conflicting alias: ${alias}`);
+      aliases.set(alias, definition.id);
+    }
+    const placements = new Set<string>();
+    for (const placement of definition.workflows ?? []) {
+      if (placements.has(placement.route)) errors.push(`${definition.id}: duplicate placement for ${placement.route}`);
+      placements.add(placement.route);
+    }
+  }
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (definition: ProcedureDefinition): void => {
+    if (visiting.has(definition.id)) {
+      errors.push(`${definition.id}: required dependency cycle`);
+      return;
+    }
+    if (visited.has(definition.id)) return;
+    visiting.add(definition.id);
+    for (const id of definition.requires ?? []) {
+      const dependency = findProcedure(id);
+      if (dependency) visit(dependency);
+    }
+    visiting.delete(definition.id);
+    visited.add(definition.id);
+  };
+  for (const definition of procedureCatalog) visit(definition);
+
   const routes = new Map<string, WorkflowPlacement[]>();
   for (const definition of procedureCatalog) {
     for (const workflow of definition.workflows ?? []) {

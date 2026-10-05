@@ -13,7 +13,12 @@
 import { GoalStore } from "../src/store.ts";
 
 const [projectRoot, goalId, startAt] = process.argv.slice(2);
-const barrier = Date.parse(startAt);
+// Epoch milliseconds, not a date string. `Date.parse("1759584000000")` is `NaN`,
+// and `Date.now() < NaN` is false, so the barrier below never waited and the
+// writers overlapped only by accident. An unusable value now stops the worker
+// instead of quietly turning the barrier off.
+const barrier = Number(startAt);
+if (!Number.isFinite(barrier)) throw new Error(`The start barrier must be epoch milliseconds, received ${String(startAt)}.`);
 
 const store = new GoalStore({ projectRoot });
 // Read first, so every writer is competing for the same revision. Without the

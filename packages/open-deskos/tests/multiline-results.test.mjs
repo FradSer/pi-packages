@@ -23,17 +23,17 @@ function harness() {
     now: () => 9000,
     schedule(run) { timers.push(run); },
     createTransport() {
-      let open, close;
+      let open, close, record;
       const sent = [];
       const transport = {
         sent,
-        open() { open?.(); },
+        open() { open?.(); record?.({ v: 1, type: "ack", at: 9000 }); },
         drop() { close?.("fixture drop"); },
         send(record) { sent.push(JSON.parse(JSON.stringify(record))); },
         close() {},
         onOpen(handler) { open = handler; },
         onClose(handler) { close = handler; },
-        onRecord() {},
+        onRecord(handler) { record = handler; },
       };
       transports.push(transport);
       return transport;

@@ -22,7 +22,7 @@ def test_multiline_result_regressions() -> None:
         env.pop("ODK_DESK_LINK_ADDRESS", None)
         env.pop("ODK_DESK_LINK_TOKEN", None)
         result = subprocess.run(
-            ["node", *loader, "--test", str(PACKAGE / "tests/multiline-results.test.mjs")],
+            ["node", *loader, "--test", str(PACKAGE / "tests/multiline-results.test.mjs"), str(PACKAGE / "tests/telemetry-reliability.test.mjs")],
             cwd=REPO,
             env=env,
             text=True,

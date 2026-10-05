@@ -31,6 +31,16 @@ export const HARNESS_CONFIG_NOTE_PREFIX = "[harness-config-note]";
  * report incomplete rather than silently claiming "no match". */
 export const TEXT_SCAN_BUDGET = { maxSegments: 4000, maxChars: 2_000_000 } as const;
 
+/** Remove the Harness-owned suffix when an adapter flattens result blocks into
+ * one string. Keep any native text that preceded the suffix model-visible. */
+function stripHarnessNote(text: string): string | undefined {
+  const marker = /(?:^|\n)\[harness-(?:bash|config)-note\](?:\n|$)/;
+  const match = marker.exec(text);
+  if (!match) return text;
+  const native = text.slice(0, match.index).trimEnd();
+  return native || undefined;
+}
+
 export function isHarnessOwnedMessage(msg: unknown): boolean {
   if (!msg || typeof msg !== "object") return false;
   const customType = (msg as { customType?: unknown }).customType;
@@ -59,16 +69,21 @@ export function extractModelVisibleTexts(messages: unknown[]): string[] {
     if (isHarnessOwnedMessage(msg)) continue;
 
     const role = msg.role;
-    const pushBlocks = (content: unknown) => {
+    const pushBlocks = (content: unknown, stripHarnessNotes = false) => {
       if (typeof content === "string") {
-        texts.push(content);
+        // Pi normally represents tool results as content blocks, but adapters
+        // and older sessions may retain a plain string.  Tool-result callers
+        // opt into the Harness-note boundary so diagnostics cannot become
+        // fresh text-rule evidence while user/custom text remains literal.
+        const value = stripHarnessNotes ? stripHarnessNote(content) : content;
+        if (value) texts.push(value);
       } else if (Array.isArray(content)) {
         for (const block of content) {
           if (!block || typeof block !== "object") continue;
           const b = block as Record<string, unknown>;
           if (b.type === "text" && typeof b.text === "string") {
-            if (b.text.startsWith(HARNESS_BASH_NOTE_PREFIX) || b.text.startsWith(HARNESS_CONFIG_NOTE_PREFIX)) continue;
-            texts.push(b.text);
+            const value = stripHarnessNotes ? stripHarnessNote(b.text) : b.text;
+            if (value) texts.push(value);
           }
         }
       }
@@ -88,13 +103,16 @@ export function extractModelVisibleTexts(messages: unknown[]): string[] {
         }
       }
     } else if (role === "toolResult") {
-      pushBlocks(msg.content);
+      pushBlocks(msg.content, true);
     } else if (role === "compactionSummary" || role === "branchSummary") {
       if (typeof msg.summary === "string") texts.push(msg.summary);
     } else if (role === "bashExecution") {
       if (!msg.excludeFromContext) {
         if (typeof msg.command === "string") texts.push(msg.command);
-        if (typeof msg.output === "string" && !msg.output.startsWith(HARNESS_BASH_NOTE_PREFIX)) texts.push(msg.output);
+        if (typeof msg.output === "string") {
+          const native = stripHarnessNote(msg.output);
+          if (native) texts.push(native);
+        }
       }
     }
   }
@@ -120,6 +138,8 @@ export interface TextGuidanceEntry {
   status: GuidanceStatus;
   /** Model-visible text for this entry. */
   text: string;
+  /** Effective config layer that delivered this guidance. Optional for old sessions. */
+  source?: string;
 }
 
 export interface TextGuidancePlan {
@@ -134,6 +154,7 @@ export interface TextGuidancePlan {
 interface DeliveredState {
   revision?: string;
   status: GuidanceStatus;
+  source?: string;
 }
 
 function scopedTextGuidance(rule: TextRule): string {
@@ -146,11 +167,11 @@ function readDeliveredState(messages: unknown[]): Map<string, DeliveredState> {
     if (!raw || typeof raw !== "object") continue;
     const msg = raw as Record<string, unknown>;
     if (msg.customType !== HARNESS_GUIDANCE_CUSTOM_TYPE) continue;
-    const details = msg.details as { entries?: Array<{ id?: string; revision?: string; status?: GuidanceStatus }> } | undefined;
+    const details = msg.details as { entries?: Array<{ id?: string; revision?: string; status?: GuidanceStatus; source?: string }> } | undefined;
     for (const e of details?.entries ?? []) {
       if (typeof e?.id !== "string") continue;
       // Last delivered state per id wins (messages are in branch order).
-      state.set(e.id, { revision: e.revision, status: e.status ?? "active" });
+      state.set(e.id, { revision: e.revision, status: e.status ?? "active", source: e.source });
     }
   }
   return state;
@@ -181,7 +202,7 @@ export function planTextGuidance(
     const revision = hashRuleRevision(rule);
     const prior = delivered.get(rule.id);
     if (!prior) {
-      entries.push({ id: rule.id, revision, status: "active", text: scopedTextGuidance(rule) });
+      entries.push({ id: rule.id, revision, status: "active", text: scopedTextGuidance(rule), source: rule.source });
     } else if (prior.status === "retired" || prior.revision !== revision) {
       const reactivation = prior.status === "retired";
       entries.push({
@@ -189,6 +210,7 @@ export function planTextGuidance(
         revision,
         status: reactivation ? "active" : "update",
         text: scopedTextGuidance(rule),
+        source: rule.source,
       });
     }
     // Same revision, still active: already retained in place, no new copy.
@@ -214,6 +236,7 @@ export function planTextGuidance(
       id,
       status: "retired",
       text: `[harness:${id} retired] The earlier guidance for this rule no longer applies to this task or reflects the current delivery.`,
+      ...(prior.source === undefined ? {} : { source: prior.source }),
     });
   }
 

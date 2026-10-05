@@ -41,6 +41,7 @@ def verify_expanded(row: dict) -> None:
         assert lines[0].startswith("[learning]"), lines
         assert "1AGENTS.mdchangeapplied" in text, lines
         assert "agents" in text and "automatic" in text, lines
+        assert "jev-1.13.0" in text and "uncertain" in text and "test-command.md" in text, lines
         return
     # Every lifecycle row in this package is delivered by the Harness surface.
     assert lines[0].startswith("[harness]"), lines
@@ -115,17 +116,62 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
         def has_notice(message: str) -> bool:
             return any(row["kind"] == "notification" and message in row["message"] for row in snapshots(output))
 
-        for menu_count, (index, notice) in enumerate(((3, "memory: apply"), (4, "No learning history")), start=1):
+        def menu_count() -> int:
+            return sum(row["kind"] == "menu" for row in snapshots(output))
+
+        def latest_menu() -> dict:
+            menus = [row for row in snapshots(output) if row["kind"] == "menu"]
+            assert menus, "expected a captured native menu"
+            return menus[-1]
+
+        def open_memory_menu() -> dict:
+            before = menu_count()
             os.write(master, b"/memory\r")
-            wait_for(lambda: sum(row["kind"] == "menu" for row in snapshots(output)) == menu_count)
-            os.write(master, b"\x1b[B" * index + b"\r")
-            wait_for(lambda: has_notice(notice))
-        os.write(master, b"/memory policy harness propose\r")
-        wait_for(lambda: has_notice("Automatic harness: propose"))
-        settings = json.loads((Path(env["PI_CODING_AGENT_DIR"]) / "memory" / "settings.json").read_text())
-        assert settings["automaticPhases"] == {"harness": "propose"}, settings
-        os.write(master, b"/memory policy\r")
-        wait_for(lambda: has_notice("harness: propose"))
+            wait_for(lambda: menu_count() == before + 1)
+            return latest_menu()
+
+        root = open_memory_menu()
+        assert root["options"][:3] == ["Browse memories", "Learning settings", "Recent learning"], root
+        os.write(master, b"\x1b[B" * root["options"].index("Recent learning") + b"\r")
+        wait_for(lambda: has_notice("No recent learning changes"))
+
+        root = open_memory_menu()
+        assert root["options"][:3] == ["Browse memories", "Learning settings", "Recent learning"], root
+        settings_menu_before = menu_count()
+        os.write(master, b"\x1b[B" * root["options"].index("Learning settings") + b"\r")
+        wait_for(lambda: menu_count() == settings_menu_before + 1)
+        settings_menu = latest_menu()
+        assert settings_menu["options"][:3] == [
+            "Select learning model", "Toggle automatic learning", "Advanced phase policies"
+        ], settings_menu
+        phase_menu_before = menu_count()
+        os.write(master, b"\x1b[B" * settings_menu["options"].index("Advanced phase policies") + b"\r")
+        wait_for(lambda: menu_count() == phase_menu_before + 1)
+        assert "phase" in latest_menu()["title"].lower()
+        # Cancel the nested native selector before it can mutate any policy.
+        # Ctrl-C is the selector's explicit cancellation path and avoids
+        # sending the next command while a just-opened menu is still painting.
+        time.sleep(0.2)
+        os.write(master, b"\x03")
+        time.sleep(0.5)
+        assert process.poll() is None
+
+        # /harness with no request must open the real native rule picker. Closing
+        # it at a narrow width must not send a follow-up or create configuration.
+        resize(48)
+        process.send_signal(signal.SIGWINCH)
+        harness_menu_before = menu_count()
+        os.write(master, b"/harness\r")
+        wait_for(lambda: menu_count() == harness_menu_before + 1)
+        harness_menu = latest_menu()
+        assert "Create or update rule" in harness_menu["options"], harness_menu
+        assert "Close" in harness_menu["options"], harness_menu
+        os.write(master, b"\x1b[B" * harness_menu["options"].index("Close") + b"\r")
+        wait_for(lambda: process.poll() is None)
+        assert not any(row["kind"] == "follow-up" for row in snapshots(output))
+        assert not (cwd / ".pi" / "harness.json").exists()
+        resize(120)
+        process.send_signal(signal.SIGWINCH)
         os.write(master, b"/quit\r")
         wait_for(lambda: process.poll() is not None)
         assert process.returncode == 0
@@ -167,7 +213,7 @@ def main() -> None:
         verify_tui(command, env, cwd, tui_rows)
         print(json.dumps({"print": "passed", "tui": "passed", "keyboardExpand": "passed", "resize48": "passed",
                           "full65LinePrompt": "passed", "agentsSummary": "passed", "managementMenus": "passed",
-                          "phasePolicyPersistence": "passed", "remoteRequests": 0}))
+                          "phasePolicyPersistence": "passed", "jevReceiptDetails": "passed", "remoteRequests": 0}))
 
 
 if __name__ == "__main__":

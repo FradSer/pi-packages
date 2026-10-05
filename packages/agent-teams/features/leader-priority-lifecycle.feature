@@ -19,11 +19,11 @@ Feature: Leader priority and assignment-scoped resident lifecycle
     When a delayed terminal report names assignment old
     Then assignment new remains open
 
-  Scenario: Reclaiming the same board task creates a new holding identity
-    Given a worker releases a board task and reclaims it in the same spawn
+  Scenario: Reclaiming the same tasks task creates a new holding identity
+    Given a worker releases a task set task and reclaims it in the same spawn
     When a delayed terminal report names the previous holding
     Then the new holding remains reportable with a distinct assignment identity
-    And the board task id remains unchanged
+    And the tasks task id remains unchanged
 
   Scenario: A new assignment needs its own terminal report
     Given an older assignment has a terminal report

@@ -11,11 +11,10 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { GoalStore, newGoalId } from "../src/store.ts";
-import { readGoalHistoryPage, readGoalLedger, rebuildGoalFromLedger } from "../src/ledger.ts";
+import { appendGoalEvent, readGoalHistoryPage, readGoalLedger, rebuildGoalFromLedger } from "../src/ledger.ts";
 import { goalPromptPath, goalRecordPath } from "../src/paths.ts";
-import { normalizeGoalRecord, taskIndex } from "../src/record.ts";
 import { appendJsonlLine } from "@fradser/pi-kit";
 
 const repoRoot = resolve(import.meta.dirname, "..", "..", "..");
@@ -217,7 +216,17 @@ await scenario("a malformed record is consumed and reported, never blocking the 
   });
   const page = readGoalHistoryPage(root, id);
   assert.ok(page.events.length >= 3, `expected the good records, got ${page.events.length}`);
-  assert.ok(page.diagnostics.some((diagnostic) => /malformed/i.test(diagnostic)), `expected a diagnostic, got ${JSON.stringify(page.diagnostics)}`);
+  // The match used to be `/malformed/i`, which satisfied itself on the goal id
+  // this scenario is named for rather than on the diagnostic. It now asserts the
+  // diagnostic itself, and separately that no goal id is printed in it.
+  assert.ok(
+    page.diagnostics.some((diagnostic) => /unrecognized|malformed/i.test(diagnostic)),
+    `expected a diagnostic, got ${JSON.stringify(page.diagnostics)}`,
+  );
+  assert.ok(
+    page.diagnostics.every((diagnostic) => !/goal_[a-z0-9]/.test(diagnostic)),
+    `a diagnostic must not print the goal id: ${JSON.stringify(page.diagnostics)}`,
+  );
 });
 
 await scenario("history paging returns complete records exactly once", () => {
@@ -276,6 +285,48 @@ await scenario("prose written directly by a user is picked up without a record r
   assert.ok(outcome.ok);
   assert.equal(outcome.goal.revision, revision + 1);
   assert.equal(new GoalStore({ projectRoot: root }).readPrompt(id).trim(), "objective the user edited by hand");
+});
+
+await scenario("one malformed record does not hide the valid ones", () => {
+  const id = newGoalId();
+  assert.ok(store.create({ objective, owner: "session-a", id }).ok);
+  const broken = "goal_broken";
+  mkdirSync(dirname(goalRecordPath(root, broken)), { recursive: true });
+  // A record file that parses to `null` is unreadable, not fatal: the pool
+  // skips it and still offers every readable sibling.
+  writeFileSync(goalRecordPath(root, broken), "null\n");
+  const ids = new GoalStore({ projectRoot: root }).readPool().map((goal) => goal.id);
+  assert.ok(!ids.includes(broken), "the malformed record is not offered as work");
+  assert.ok(ids.includes(id), `the valid sibling must survive, saw ${ids.join(",")}`);
+});
+
+
+await scenario("filesystem errors never leak goal id or directory paths", () => {
+  const id = "goal_leak_test_path";
+  store.create({ objective, owner: "session-a", id });
+  const errorWithPaths = new Error("EXDEV: cross-device link not permitted, rename '/tmp/from/goal_leak_test_path' -> '/tmp/to/goal_leak_test_path'");
+  const outcome = store.apply({
+    expectedGoalId: id,
+    mutate: () => { throw errorWithPaths; },
+  });
+  assert.equal(outcome.ok, false);
+  if (!outcome.ok) {
+    assert.doesNotMatch(outcome.message, /goal_/);
+    assert.doesNotMatch(outcome.message, /->/);
+    assert.equal(outcome.message, "EXDEV: cross-device link not permitted");
+  }
+});
+
+
+await scenario("ledger append errorKind never leaks goal id or directory paths", () => {
+  const id = "goal_ledger_leak_path";
+  const badRoot = join(root, "ledger_error_file");
+  writeFileSync(badRoot, "not a directory");
+  const err = appendGoalEvent(badRoot, { type: "goal_resumed", goalId: id, reason: "r", at: new Date().toISOString() });
+  assert.ok(err, "expected an error");
+  assert.doesNotMatch(err, new RegExp(id));
+  assert.doesNotMatch(err, new RegExp(root));
+  assert.doesNotMatch(err, /->/);
 });
 
 rmSync(root, { recursive: true, force: true });

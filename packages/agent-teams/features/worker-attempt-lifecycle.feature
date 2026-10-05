@@ -24,7 +24,7 @@ Feature: Worker capabilities stay bound to the started Assignment Attempt
     Then work is disclosed and communication and submission use only that attempt
 
   Scenario Outline: Explicit outcomes close all worker side effects exactly once
-    Given a worker started a direct or board Assignment Attempt
+    Given a worker started a direct or tasks Assignment Attempt
     When it submits <outcome> and the harness consumes the intent
     Then repeated submission, release, claims, leader messages, and peer messages are rejected
     And neither repeated same-attempt markers nor lifecycle resets reopen the attempt
@@ -43,19 +43,19 @@ Feature: Worker capabilities stay bound to the started Assignment Attempt
     And a prior successful candidate does not prevent this cancellation acknowledgement
     And repeated cancellation acknowledgements and communication remain rejected
 
-  Scenario: Unassigned discussions and board notices remain usable
+  Scenario: Unassigned discussions and tasks notices remain usable
     Given the worker's matching live roster entry has no assignment
     When a fresh unassigned discussion starts
     Then leader and peer messages carry no Assignment Attempt
     And no automatic result is emitted and work stays hidden
-    When a board notice starts a fresh unassigned turn
+    When a task set notice starts a fresh unassigned turn
     Then work is disclosed and a claim intent can be queued without starting the Work
     And a completed prior attempt does not block this fresh unassigned turn
 
   Scenario: Recovery-held pending Work is not autonomous claim work
     Given pending Work has recoveryRequired set after failure
     When an unassigned worker lists or tries to claim that Work
-    Then the board describes it as pending recovery rather than claimable
+    Then the tasks describes it as pending recovery rather than claimable
     And neither explicit-ID nor automatic claiming queues an intent for it
 
   Scenario: Lifecycle reset discards evidence without adopting new roster authority

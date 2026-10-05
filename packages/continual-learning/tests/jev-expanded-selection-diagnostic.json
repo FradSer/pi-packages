@@ -1,0 +1,1021 @@
+{
+  "evidence": "real-jev-inference-public-numeric-diagnostic",
+  "rows": [
+    {
+      "id": "en-expanded-memory-0",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 1224,
+        "model": "jev-1.13.0",
+        "inputTokens": 542,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000022764000000000004
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 542,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.41
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.08
+          },
+          "related_0": {
+            "type": "score",
+            "score": 1.94,
+            "confidence": 0,
+            "probabilities": {
+              "0": 0.24,
+              "1": 0.13,
+              "2": 0.09,
+              "3": 0.54
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-1",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 662,
+        "model": "jev-1.13.0",
+        "inputTokens": 542,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000022764000000000004
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 542,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.83
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.19
+          },
+          "related_0": {
+            "type": "score",
+            "score": 1.49,
+            "confidence": 0,
+            "probabilities": {
+              "0": 0.27,
+              "1": 0.22,
+              "2": 0.25,
+              "3": 0.26
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-2",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 378,
+        "model": "jev-1.13.0",
+        "inputTokens": 534,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000022428
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 534,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.82
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.18
+          },
+          "related_0": {
+            "type": "score",
+            "score": 1.8,
+            "confidence": 0,
+            "probabilities": {
+              "0": 0.22,
+              "1": 0.19,
+              "2": 0.16,
+              "3": 0.43
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-3",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 360,
+        "model": "jev-1.13.0",
+        "inputTokens": 540,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.00002268
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 540,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.63
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.2
+          },
+          "related_0": {
+            "type": "score",
+            "score": 2.35,
+            "confidence": 0.35,
+            "probabilities": {
+              "0": 0.13,
+              "1": 0.08,
+              "2": 0.1,
+              "3": 0.69
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-4",
+      "selection": {
+        "memory": false,
+        "harness": false,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 355,
+        "model": "jev-1.13.0",
+        "inputTokens": 546,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000022932000000000003
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 546,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.03
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.05
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.49,
+            "confidence": 0.51,
+            "probabilities": {
+              "0": 0.61,
+              "1": 0.31,
+              "2": 0.05,
+              "3": 0.03
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-5",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 362,
+        "model": "jev-1.13.0",
+        "inputTokens": 546,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000022932000000000003
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 546,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.04
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.04
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.93,
+            "confidence": 0.07,
+            "probabilities": {
+              "0": 0.53,
+              "1": 0.17,
+              "2": 0.15,
+              "3": 0.15
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-6",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 345,
+        "model": "jev-1.13.0",
+        "inputTokens": 548,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023016
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 548,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.41
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.26
+          },
+          "related_0": {
+            "type": "score",
+            "score": 1.49,
+            "confidence": 0,
+            "probabilities": {
+              "0": 0.29,
+              "1": 0.21,
+              "2": 0.22,
+              "3": 0.28
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-memory-7",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 405,
+        "model": "jev-1.13.0",
+        "inputTokens": 560,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023520000000000002
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 560,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.64
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.59
+          },
+          "related_0": {
+            "type": "score",
+            "score": 2.56,
+            "confidence": 0.56,
+            "probabilities": {
+              "0": 0.08,
+              "1": 0.05,
+              "2": 0.09,
+              "3": 0.78
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-harness-0",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 359,
+        "model": "jev-1.13.0",
+        "inputTokens": 557,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023394000000000003
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 557,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.7
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.95
+          },
+          "related_0": {
+            "type": "score",
+            "score": 1.23,
+            "confidence": 0,
+            "probabilities": {
+              "0": 0.52,
+              "1": 0.08,
+              "2": 0.05,
+              "3": 0.35
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-harness-1",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 436,
+        "model": "jev-1.13.0",
+        "inputTokens": 564,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023688
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 564,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.63
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.94
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.68,
+            "confidence": 0.32,
+            "probabilities": {
+              "0": 0.71,
+              "1": 0.08,
+              "2": 0.04,
+              "3": 0.17
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-harness-2",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 374,
+        "model": "jev-1.13.0",
+        "inputTokens": 564,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023688
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 564,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.65
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.94
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.65,
+            "confidence": 0.35,
+            "probabilities": {
+              "0": 0.71,
+              "1": 0.08,
+              "2": 0.05,
+              "3": 0.16
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "en-expanded-harness-3",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "invalid-response",
+        "durationMs": 674,
+        "model": "jev-1.13.0",
+        "inputTokens": 551,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023142000000000003
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 551,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.1
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.4
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.92,
+            "confidence": 0.08,
+            "probabilities": {
+              "0": 0.64,
+              "1": 0.06,
+              "2": 0.06,
+              "3": 0.24
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-0",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 391,
+        "model": "jev-1.13.0",
+        "inputTokens": 544,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000022848000000000002
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 544,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.53
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.2
+          },
+          "related_0": {
+            "type": "score",
+            "score": 1.85,
+            "confidence": 0,
+            "probabilities": {
+              "0": 0.24,
+              "1": 0.16,
+              "2": 0.12,
+              "3": 0.48
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-1",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 392,
+        "model": "jev-1.13.0",
+        "inputTokens": 545,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.00002289
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 545,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.86
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.45
+          },
+          "related_0": {
+            "type": "score",
+            "score": 1.57,
+            "confidence": 0.09,
+            "probabilities": {
+              "0": 0.24,
+              "1": 0.19,
+              "2": 0.33,
+              "3": 0.24
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-2",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 401,
+        "model": "jev-1.13.0",
+        "inputTokens": 536,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000022512
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 536,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.85
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.45
+          },
+          "related_0": {
+            "type": "score",
+            "score": 1.87,
+            "confidence": 0,
+            "probabilities": {
+              "0": 0.21,
+              "1": 0.16,
+              "2": 0.18,
+              "3": 0.45
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-3",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 390,
+        "model": "jev-1.13.0",
+        "inputTokens": 545,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.00002289
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 545,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.67
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.17
+          },
+          "related_0": {
+            "type": "score",
+            "score": 1.95,
+            "confidence": 0,
+            "probabilities": {
+              "0": 0.22,
+              "1": 0.14,
+              "2": 0.12,
+              "3": 0.52
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-4",
+      "selection": {
+        "memory": false,
+        "harness": false,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 369,
+        "model": "jev-1.13.0",
+        "inputTokens": 553,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023226000000000004
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 553,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.03
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.05
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.43,
+            "confidence": 0.57,
+            "probabilities": {
+              "0": 0.66,
+              "1": 0.28,
+              "2": 0.04,
+              "3": 0.02
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-5",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 368,
+        "model": "jev-1.13.0",
+        "inputTokens": 560,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023520000000000002
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 560,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.04
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.05
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.59,
+            "confidence": 0.41,
+            "probabilities": {
+              "0": 0.65,
+              "1": 0.2,
+              "2": 0.07,
+              "3": 0.08
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-6",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "invalid-response",
+        "durationMs": 386,
+        "model": "jev-1.13.0",
+        "inputTokens": 551,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023142000000000003
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 551,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.31
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.16
+          },
+          "related_0": {
+            "type": "score",
+            "score": 1.06,
+            "confidence": 0,
+            "probabilities": {
+              "0": 0.36,
+              "1": 0.32,
+              "2": 0.2,
+              "3": 0.12
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-memory-7",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 449,
+        "model": "jev-1.13.0",
+        "inputTokens": 570,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.00002394
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 570,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.68
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.52
+          },
+          "related_0": {
+            "type": "score",
+            "score": 2.64,
+            "confidence": 0.64,
+            "probabilities": {
+              "0": 0.06,
+              "1": 0.04,
+              "2": 0.09,
+              "3": 0.81
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-harness-0",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "invalid-response",
+        "durationMs": 349,
+        "model": "jev-1.13.0",
+        "inputTokens": 566,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023772000000000002
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 566,
+          "output_tokens": 53
+        },
+        "answers": {
+          "harness": {
+            "type": "noul",
+            "noul": 0.94
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.99,
+            "confidence": 0.01,
+            "probabilities": {
+              "0": 0.57,
+              "1": 0.11,
+              "2": 0.06,
+              "3": 0.26
+            }
+          },
+          "memory": {
+            "type": "noul",
+            "noul": 0.8
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-harness-1",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 358,
+        "model": "jev-1.13.0",
+        "inputTokens": 571,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023982000000000002
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 571,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.79
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.93
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.61,
+            "confidence": 0.39,
+            "probabilities": {
+              "0": 0.71,
+              "1": 0.12,
+              "2": 0.04,
+              "3": 0.13
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-harness-2",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 519,
+        "model": "jev-1.13.0",
+        "inputTokens": 571,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023982000000000002
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 571,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.8
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.92
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.61,
+            "confidence": 0.39,
+            "probabilities": {
+              "0": 0.69,
+              "1": 0.13,
+              "2": 0.05,
+              "3": 0.13
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-expanded-harness-3",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "invalid-response",
+        "durationMs": 510,
+        "model": "jev-1.13.0",
+        "inputTokens": 557,
+        "outputTokens": 53,
+        "estimatedCostUsd": 0.000023394000000000003
+      },
+      "response": {
+        "model": "jev-1.13.0",
+        "usage": {
+          "input_tokens": 557,
+          "output_tokens": 53
+        },
+        "answers": {
+          "memory": {
+            "type": "noul",
+            "noul": 0.06
+          },
+          "harness": {
+            "type": "noul",
+            "noul": 0.12
+          },
+          "related_0": {
+            "type": "score",
+            "score": 0.64,
+            "confidence": 0.36,
+            "probabilities": {
+              "0": 0.74,
+              "1": 0.06,
+              "2": 0.04,
+              "3": 0.16
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -8,7 +8,15 @@
 2. **Harness** resolves identified flat rules for new authoring: skill/text guidance and Bash messages or execution gates. A read-only compatibility boundary preserves installed tool-call, output/artifact, and skill-prompt declarations without weakening their semantics or rewriting configuration.
 3. **AGENTS.md consolidation** maintains the small, always-loaded project instruction document and extracts narrower material into Memory or Harness.
 
-Automatic learning and default `/consolidate` operate on one completed **Task Slice**. A metadata-only **Memory Selector** chooses the minimum sufficient related existing Memory, and the parent builds one authoritative **Learning Dossier** containing that Task Slice plus selected bodies. Memory, Harness, and AGENTS.md planners consume the dossier and return only deltas. `/consolidate full` is the explicit exhaustive maintenance path.
+These surfaces are deliberately different: Memory is untrusted reference
+knowledge; Harness is parent-evaluated executable validation and execution
+conditions; AGENTS.md and `skill`/`text` rules are scoped guidance. Guidance
+delivery is not compliance evidence, and Memory never becomes an enforcement
+rule. Automatic learning may identify more than one candidate surface, but it
+must preserve manual, built-in, personal, disabled, invalid, and legacy Harness
+ownership and must not duplicate one statement simply to increase coverage.
+
+Automatic learning and default `/consolidate` operate on one completed **Task Slice**. A metadata-only **Memory Selector** chooses the minimum sufficient related existing Memory, and the parent builds one authoritative **Learning Dossier** containing that Task Slice plus selected bodies. Memory, Harness, and AGENTS.md planners consume the dossier and return only deltas. `/consolidate full` explicitly maintains the whole Memory corpus with bounded discovery from the current session.
 
 Every phase follows the same trust boundary: the parent freezes the task context before asynchronous work, a stateless one-shot planner runs from a package-owned Markdown prompt with discovery disabled and the minimum tools for its mode (none for selection, `read` for incremental Memory, and bounded read-only discovery only for explicit full maintenance), and only the parent validates and applies a bounded structured plan. Typed package-local builders perform literal nonrecursive binding and reject missing, unknown, or unresolved prompt placeholders before launch. Memory attempts capture their bound inputs; Harness and AGENTS.md planners share one later-phase immutable capture of the same frozen context. Completion requires parent-owned validation and pre/post receipts; planner prose is never proof of success. Locks, path containment, symlink checks, atomic writes, rollback, output bounds, and shutdown generation checks remain mandatory.
 
@@ -47,7 +55,7 @@ Direct authoring and automatic Harness consolidation default to `<project>/.pi/h
 
 ## Memory ownership: two synchronized roots
 
-Memory deliberately uses two physical roots rather than copying the three Harness configuration layers:
+Memory deliberately uses two physical roots rather than copying the four Harness configuration layers:
 
 1. **Harness/private Memory**: `~/.pi/agent/memory/<escaped-canonical-cwd>/`
 2. **Project shared Memory**: `<project>/.memory/`
@@ -107,14 +115,17 @@ The flat escaped canonical-path directory is the sole agent-private runtime root
 
 ## Commands and settings
 
-- `/memory` manages the consolidation model, auto-memory toggle, instructions, phase policies, history, and opens the Harness/private Memory directory.
-- `/consolidate` has exactly two modes and no others.
+- `/memory` opens three actions: browse Memory, learning settings, and recent learning. Model search and the automatic-learning toggle live in settings, with per-phase policies under its advanced entry; history inspection and validated undo live under recent learning.
+- `/memory <request>` learns only the explicitly requested Memory. The command arguments become the first entry of immutable evidence, with prior task entries as supporting context. The parent forces Memory review and disables Harness and AGENTS.md phases. Automatic learning may be off; the usual evidence, privacy, lock, validation, and receipt checks still apply.
+- `/consolidate` has two learning modes; only `full` is offered as a common argument.
   - `/consolidate` learns from **the current context only**: the metadata-only Memory Selector picks the minimum sufficient related existing Memory for the one completed Task Slice, and the planners consume that dossier.
-  - `/consolidate full` learns **across the whole codebase**: the Memory scope is the entire corpus rather than a selected subset, the Memory planner is given bounded read-only discovery (`read`, `grep`, `find`, `ls`) instead of `read` alone, and the frozen evidence is the whole current session rather than one Task Slice. It is the exhaustive maintenance path and is never reached implicitly.
-- Neither mode reads past sessions. Learning inputs are the current conversation and the Memory corpus; a task that settled while auto-learning was off, or that the zero-token screen judged valueless, is not revisited. `learning-history.ts` is the mutation audit trail for undo, not a learning input, despite the name.
-- There is no third mode. A former context-disabled variant is gone: every run freezes a snapshot before any planner starts, and an unrecognised argument is refused rather than silently downgraded.
-- The **learning backlog** is a queue of settled tasks that were not learned from, because auto-learning was off or the zero-token screen judged them valueless. It stores references — session file and entry indices — never conversation text, and an entry whose session file is gone is reported as unlearnable rather than dropped or reconstructed. `/consolidate backfill` reports its status; it never drains on its own, because a backlog that spent tokens at a moment the user did not choose is the reason the zero-token screen exists.
-- `/harness` displays resolved rules and creates rules in the selected Harness configuration layer. Unsupported or ambiguous requests do not create empty files or authorize edits elsewhere.
+  - `/consolidate full` maintains **the whole Memory corpus using the current session**: the Memory scope is the entire corpus rather than a selected subset, the Memory planner is given bounded read-only discovery (`read`, `grep`, `find`, `ls`) instead of `read` alone, and the frozen evidence is the current session rather than one Task Slice. Discovery remains bounded; this is not an exhaustive audit of the codebase or a replay of prior sessions. This maintenance path is never reached implicitly.
+- Neither mode reads past sessions. Learning inputs are the current conversation and the Memory corpus; a task that settled while auto-learning was off, or that the zero-token screen judged valueless, is recorded only as a bounded backlog reference for status. It is not replayed automatically, and `learning-history.ts` is the mutation audit trail for undo, not a learning input, despite the name.
+- There is no third learning mode. `backfill` remains a read-only compatibility diagnostic. A former context-disabled variant is gone: every run freezes a snapshot before any planner starts, and an unrecognised argument is refused rather than silently downgraded.
+- The **learning backlog** is a queue of settled tasks that were not learned from, because auto-learning was off or the zero-token screen judged them valueless. It stores references — session file and entry indices — never conversation text, and an entry whose session file is gone is reported as unlearnable rather than dropped or reconstructed. `/consolidate backfill` reports pointer status only; it does not drain or replay the queue, because a backlog that spends tokens at a moment the user did not choose would defeat the zero-token screen.
+- Backlog storage is a private regular JSONL file capped at 4 MiB; each reference is capped at 4 KiB and writes fail closed when the cap is reached (records are never silently rotated away). New records carry the project `scopeKey`, and cursors are scoped below that key. Legacy records are accepted only after their bounded session header proves the same scope; the historical global cursor applies only to those legacy records and cannot consume a scoped record. Unscoped records are reported separately. Symlinks, oversized files, malformed references, and changed files are diagnostics, not evidence to replay. Full state checks cover settings, backlog, scope, and cursor integrity before status is reported.
+- `memory/settings.json` is strictly bounded and schema-validated. A missing file means automatic learning is enabled; malformed, unknown, unsafe, or unreadable settings disable automatic learning and expose a repair diagnostic. The package never silently treats invalid settings as defaults. Memory retrieval remains independent of this learning switch.
+- `/harness` opens a rule list with details and a create/update entry. Its scope picker offers project shared (default), project personal, and user shared. `/harness <request>` directly prepares project-shared authoring; existing explicit scope aliases remain compatible. Unsupported or ambiguous requests do not create empty files or authorize edits elsewhere.
 
 Auto-memory enables learning after `agent_settled` for real user input. It coalesces pending completed tasks, ignores extension-generated continuations as independent triggers, and waits for the full pipeline in headless mode. Existing Memory remains available regardless of the toggle. The main model is not asked to write memories directly; the parent validates new-memory proposals even when the existing corpus is empty.
 
@@ -128,7 +139,7 @@ Memory injection carries bounded relevance descriptions, one declared body root 
 
 The strongest architectural property is the separation between reasoning and mutation: children plan; the parent validates and writes. The main ongoing complexity is `extensions/inject-memory.ts`, which still owns command registration, settings, model selection, injection, child orchestration, UI status, pipeline sequencing, and shutdown cleanup. Future behavior should prefer smaller modules rather than expanding that composition root further.
 
-The two Memory roots are intentionally asymmetric rather than ordinary override layers. The private root is the complete learned state; project `.memory/` is a synchronized, sanitized collaboration surface. Harness configuration remains a three-layer override system because its personal and shared JSON policies have different configuration semantics from Memory privacy mirroring.
+The two Memory roots are intentionally asymmetric rather than ordinary override layers. The private root is the complete learned state; project `.memory/` is a synchronized, sanitized collaboration surface. Harness configuration remains a four-layer user-owned override system because its personal and shared JSON policies have different configuration semantics from Memory privacy mirroring.
 
 ## Locked acceptance decisions
 
@@ -139,4 +150,14 @@ The two Memory roots are intentionally asymmetric rather than ordinary override 
 - Safe Memory synchronizes both ways and remains byte-identical after normalization/application.
 - Private Memory never appears in project `.memory/`.
 - The parent owns all mutation, validation, rollback, index rebuilding, and receipts. Automatic and manual consolidation may permanently delete Memory only with a stale verdict that permits removal plus a mechanically verifiable preservation target; receipt change counts are bound back to the validated plan. Generated shell commands cannot bulk-delete either project Memory directory or the private Pi Memory root.
-- Harness retains its three-layer flat-rule model plus read-only compatibility execution of installed declarations. Legacy files remain unchanged; additions preserve their protections. @docs/adr/0005-preserve-installed-harness-protections.md records why compatibility, not global lockout or silent retirement, is required.
+- Harness retains its four-layer flat-rule model plus read-only compatibility execution of installed declarations. Legacy files remain unchanged; additions preserve their protections. @docs/adr/0005-preserve-installed-harness-protections.md records why compatibility, not global lockout or silent retirement, is required.
+
+## Full maintenance input
+
+Full maintenance first extracts grounded new knowledge even with an empty Memory
+corpus. Only when the current frozen context lacks real user/tool content can
+it use one recent same-project session through the parent-owned bounded reader.
+Receipts identify the session and source digest. Pi projection governs retained
+evidence; malformed graphs and unsafe sources are refused. With no evidence or
+existing Memory, no workers run. Automatic and default manual learning retain
+the current Task Slice scope. Backlog inspection is not replay.

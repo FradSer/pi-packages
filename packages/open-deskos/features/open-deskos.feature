@@ -1,5 +1,15 @@
 Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
 
+  Scenario: Reporting status reflects authenticated acceptance
+    Given a TCP connection has opened to a configured desk
+    When the reporter sends its hello
+    Then its state remains connecting and it holds sessions and events locally
+    When a version 1 reporting acknowledgement arrives
+    Then its state becomes connected and it replays current sessions and retained events once
+    And acknowledgements of other versions do not establish a reporting link
+    When the desk never acknowledges or refuses authentication
+    Then the failed connection closes and capped retry continues without losing retained events
+
   Scenario: Local installation works from any checkout location
     Given the repository is checked out outside the user's home in a path containing spaces
     When the user follows either language's local installation command from the checkout root
@@ -189,3 +199,19 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     Then the surface consumes input through Pi's own custom UI seam
     And global terminal input is never intercepted
     And no footer status is added
+
+  Scenario: A declared current-session endpoint works without a reporting link
+    Given this machine declares a private current-session endpoint but no Desk Link credentials
+    When its Pi session starts and receives messages
+    Then the endpoint serves only that session and follows its lifecycle
+    And shutdown removes the endpoint without opening a reporting link
+
+  Scenario: Shutdown invalidates a pending session startup
+    Given a resumed session is reading its durable history before binding its endpoint
+    When the session shuts down before that read finishes
+    Then the pending startup cannot bind an endpoint after shutdown
+
+  Scenario: The published package carries its documented session-control launcher
+    Given the package is installed from its packed manifest
+    When a desk invokes the session-control launcher
+    Then the launcher and its source relay are present in the installed package

@@ -4,40 +4,67 @@ import { Type } from "typebox";
 export const MAX_TIMEOUT_MS = 2_147_483_647;
 
 export const MonitorStartParams = Type.Object({
-  command: Type.String({
-    description:
-      "Shell command to run in the background. The command must not require interactive input. Wrap controllable commands with a unique result sentinel when possible.",
-  }),
-  description: Type.Optional(Type.String({
-    description:
-      "Optional short human label describing the result being awaited. Omit it to derive a bounded label from the command. Never restate the command or the result pattern here.",
-  })),
+  command: Type.String(),
+  description: Type.Optional(Type.String()),
   result_pattern: Type.String({
     minLength: 1,
-    description:
-      "Required regular expression that identifies successful completion in either stdout or stderr. Named capture groups are returned as fields. A named group called 'json' is parsed as JSON when valid.",
   }),
   failure_pattern: Type.Optional(
     Type.String({
       minLength: 1,
-      description:
-        "Optional regular expression that identifies terminal failure in either stdout or stderr. Named capture groups are returned as fields.",
     }),
   ),
   timeout_ms: Type.Optional(
     Type.Integer({
       minimum: 1,
       maximum: MAX_TIMEOUT_MS,
-      description: "Maximum time to wait for a terminal result before the process group is stopped (up to 24 days).",
     }),
   ),
+  completion: Type.Optional(Type.Union([Type.Literal("match"), Type.Literal("exit")], {
+    description: "exit: wait for exit 0 and valid JSON; match: stop on match (default).",
+  })),
+  compact: Type.Optional(Type.Boolean({ description: "Compact text; full structured data." })),
 });
 
 /** Parameters for monitor_stop: end a monitor by id, or all active monitors. */
 export const MonitorStopParams = Type.Object({
   monitor_id: Type.Optional(
     Type.String({
-      description: "ID of the active monitor to stop. Omit to stop all active monitors.",
+      description: "Monitor ID; omit to stop all active monitors.",
     }),
   ),
 });
+
+const TerminalStatus = Type.Union([
+  Type.Literal("success"), Type.Literal("failure"), Type.Literal("result_missing"),
+  Type.Literal("timeout"), Type.Literal("stopped"),
+]);
+
+/** The terminal contract, including diagnostic metadata, for programmatic callers. */
+export const MonitorTerminalSchema = Type.Object({
+  status: TerminalStatus,
+  elapsedMs: Type.Number(),
+  completion: Type.Optional(Type.Union([Type.Literal("match"), Type.Literal("exit")])),
+  stoppedBy: Type.Optional(Type.Union([Type.Literal("match"), Type.Literal("failure_match")])),
+  output: Type.Optional(Type.Array(Type.String())),
+  outputTruncated: Type.Optional(Type.Boolean()),
+  matched: Type.Optional(Type.String()),
+  captures: Type.Optional(Type.Record(Type.String(), Type.String())),
+  capturesTruncated: Type.Optional(Type.Boolean()),
+  result: Type.Optional(Type.Unknown()),
+  resultParseError: Type.Optional(Type.String()),
+  expected: Type.Optional(Type.String()),
+  exitCode: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
+  signal: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  reason: Type.Optional(Type.String()),
+  timeoutMs: Type.Optional(Type.Number()),
+}, { additionalProperties: false });
+
+export const MonitorStartOutput = Type.Union([
+  Type.Object({ monitorId: Type.String(), description: Type.String(), status: Type.Literal("running") },
+    { additionalProperties: false }),
+  Type.Object({ monitorId: Type.String(), description: Type.String(), status: TerminalStatus, result: MonitorTerminalSchema },
+    { additionalProperties: false }),
+]);
+
+export const MonitorStopOutput = Type.Object({ stopped: Type.Integer({ minimum: 0 }) }, { additionalProperties: false });

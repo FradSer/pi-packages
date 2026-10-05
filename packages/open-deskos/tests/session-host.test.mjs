@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import net from "node:net";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -33,7 +33,8 @@ function exchange(socketPath, text, { end = false } = {}) {
   });
 }
 
-const ask = async (socketPath, request) => JSON.parse(await exchange(socketPath, `${JSON.stringify(request)}\n`));
+const projects = new Map();
+const ask = async (socketPath, request) => JSON.parse(await exchange(socketPath, `${JSON.stringify({ ...(['status', 'prompt', 'cancel'].includes(request.command) && request.project === undefined && projects.has(socketPath) ? { project: projects.get(socketPath) } : {}), ...request })}\n`));
 
 /** True when nothing is listening at the path, which is what a closed endpoint looks like. */
 function refused(socketPath) {
@@ -68,7 +69,15 @@ async function session(t, options = {}) {
   let idle = options.idle ?? true;
   let pending = options.pending ?? 0;
   let sessionId = options.sessionId ?? SESSION;
-  const pi = { sendUserMessage(content, opts) { sent.push({ content, options: opts === undefined ? undefined : { ...opts } }); } };
+  const pi = { sendUserMessage(content, opts) {
+    sent.push({ content, options: opts === undefined ? undefined : { ...opts } });
+    if (options.complete) {
+      host.markRunning();
+      host.observeMessage(user(content));
+      host.observeMessage(assistant("completed immediately", "stop"));
+      host.markSettled();
+    } else if (options.observe !== false) queueMicrotask(() => host.observeMessage(user(content)));
+  } };
   const ctx = {
     cwd,
     isIdle: () => idle,
@@ -82,6 +91,8 @@ async function session(t, options = {}) {
     requestTimeoutMs: options.requestTimeoutMs ?? 1000,
   });
   const started = await host.start(ctx);
+  projects.set(started.socketPath, cwd);
+  t.after(() => projects.delete(started.socketPath));
   t.after(() => host.close());
   return {
     root, runtimeDir, cwd, host, started, sent, aborts, ctx,
@@ -172,16 +183,16 @@ test("status answers for this session and refuses another", async (t) => {
   assert.equal(other.requestId, "r3", "a refusal is still correlated");
 });
 
-test("a project scope is this project or a directory inside it", async (t) => {
+test("a project scope is this project or an ancestor directory", async (t) => {
   const h = await session(t);
   const inside = await ask(h.socketPath, { version: 1, requestId: "p1", command: "list", project: h.cwd });
   assert.equal(inside.ok, true);
-  const nested = await ask(h.socketPath, { version: 1, requestId: "p2", command: "list", project: join(h.cwd, "src") });
+  const nested = await ask(h.socketPath, { version: 1, requestId: "p2", command: "list", project: h.root });
   assert.equal(nested.ok, true);
   for (const [requestId, project] of [
     ["p3", join(h.root, "other")],
     ["p4", "src"],
-    ["p5", join(h.cwd, "..", "..")],
+    ["p5", join(h.cwd, "src")],
     ["p6", "/opt/open-deskos"],
     ["p7", join(h.cwd, "missing")],
   ]) {
@@ -195,15 +206,16 @@ test("a prompt becomes a real user message with the requested delivery", async (
   const h = await session(t);
   const steer = await ask(h.socketPath, { version: 1, requestId: "m1", command: "prompt", taskId: SESSION, prompt: "run the tests", streamingBehavior: "steer" });
   assert.equal(steer.ok, true);
-  assert.equal(steer.accepted, true);
+  assert.equal(steer.accepted, false);
+  assert.equal(steer.submitted, true);
   assert.equal(steer.task.state, "settled", "the state right after delivery is the state that was observed");
-  assert.deepEqual(h.sent[0], { content: "run the tests", options: { deliverAs: "steer" } });
+  assert.deepEqual(h.sent[0], { content: "run the tests", options: { deliverAs: "steer", expandPromptTemplates: true } });
 
   await ask(h.socketPath, { version: 1, requestId: "m2", command: "prompt", taskId: SESSION, prompt: "then commit", streamingBehavior: "followUp" });
-  assert.deepEqual(h.sent[1], { content: "then commit", options: { deliverAs: "followUp" } });
+  assert.deepEqual(h.sent[1], { content: "then commit", options: { deliverAs: "followUp", expandPromptTemplates: true } });
 
   await ask(h.socketPath, { version: 1, requestId: "m3", command: "prompt", taskId: SESSION, prompt: "and report" });
-  assert.deepEqual(h.sent[2], { content: "and report", options: undefined }, "no stated behavior is not turned into one");
+  assert.deepEqual(h.sent[2], { content: "and report", options: { expandPromptTemplates: true, deliverAs: "steer" } }, "native Enter, commands and templates stay enabled");
 
   for (const [requestId, prompt] of [["m4", "   "], ["m5", '{"lone":"\ud800"}'], ["m6", 7]]) {
     const refusedPrompt = await ask(h.socketPath, { version: 1, requestId, command: "prompt", taskId: SESSION, prompt });
@@ -326,8 +338,8 @@ test("a reload replaces the previous bind instead of stacking one", async (t) =>
   assert.equal(restarted.bound, true);
   assert.notEqual(restarted.socketPath, previous, "a different session answers at its own endpoint");
   assert.equal(await refused(previous), true, "and the endpoint it replaced is withdrawn, not left answering");
-  assert.equal((await ask(restarted.socketPath, { version: 1, requestId: "l1", command: "status" })).task.taskId, "8a8b4c4d-5555-6666-7777-888888888888");
-  const interrupted = await ask(restarted.socketPath, { version: 1, requestId: "l2", command: "status" });
+  assert.equal((await ask(restarted.socketPath, { version: 1, requestId: "l1", command: "status", taskId: h.ctx.sessionManager.getSessionId(), project: h.cwd })).task.taskId, "8a8b4c4d-5555-6666-7777-888888888888");
+  const interrupted = await ask(restarted.socketPath, { version: 1, requestId: "l2", command: "status", taskId: h.ctx.sessionManager.getSessionId(), project: h.cwd });
   assert.equal(interrupted.task.turnOutcome, "interrupted", "a turn in flight when the session was replaced did not finish here");
   const descriptor = JSON.parse(await readFile(restarted.descriptorPath, "utf8"));
   assert.equal(descriptor.socketPath, restarted.socketPath);
@@ -350,7 +362,7 @@ test("a socket another process still owns is never taken over", async (t) => {
 
 test("the desk relays one frame over SSH with no build step", async (t) => {
   const h = await session(t);
-  const request = { version: 1, requestId: "cli-1", command: "status", taskId: SESSION };
+  const request = { version: 1, requestId: "cli-1", command: "status", taskId: SESSION, project: h.cwd };
   const relayed = await runClient(t, h.socketPath, `${JSON.stringify(request)}\n`);
   assert.equal(relayed.code, 0, relayed.stderr);
   assert.equal(relayed.stderr, "", "the client prints nothing but the reply frame");
@@ -361,10 +373,11 @@ test("the desk relays one frame over SSH with no build step", async (t) => {
   assert.equal(relayed.stdout.split("\n").filter(Boolean).length, 1, "exactly one frame is printed");
 
   h.host.markRunning();
-  const prompted = await runClient(t, h.socketPath, `${JSON.stringify({ version: 1, requestId: "cli-2", command: "prompt", taskId: SESSION, prompt: "ship it", streamingBehavior: "steer" })}\n`);
+  const prompted = await runClient(t, h.socketPath, `${JSON.stringify({ version: 1, requestId: "cli-2", command: "prompt", project: h.cwd, taskId: SESSION, prompt: "ship it", streamingBehavior: "steer" })}\n`);
   assert.equal(prompted.code, 0, prompted.stderr);
-  assert.equal(JSON.parse(prompted.stdout).accepted, true);
-  assert.deepEqual(h.sent[0], { content: "ship it", options: { deliverAs: "steer" } });
+  assert.equal(JSON.parse(prompted.stdout).accepted, false);
+  assert.equal(JSON.parse(prompted.stdout).submitted, true);
+  assert.deepEqual(h.sent[0], { content: "ship it", options: { deliverAs: "steer", expandPromptTemplates: true } });
 
   const missing = await runClient(t, join(h.root, "nothing.sock"), `${JSON.stringify(request)}\n`);
   assert.notEqual(missing.code, 0, "a transport failure exits non-zero");
@@ -455,7 +468,7 @@ test("the extension binds its own session and never a reported one twice", async
   await handlers.get("agent_start")({}, ctx);
   handlers.get("message_end")({ message: assistant("Working on it.", "stop") }, ctx);
   handlers.get("agent_settled")({}, ctx);
-  const driven = await ask(socketPath, { version: 1, requestId: "w2", command: "status", taskId: SESSION });
+  const driven = await ask(socketPath, { version: 1, requestId: "w2", command: "status", taskId: SESSION, project: cwd });
   assert.equal(driven.task.state, "settled");
   assert.equal(driven.task.response, "Working on it.");
   assert.equal(driven.task.turnOutcome, "finished");
@@ -578,34 +591,315 @@ test("the desk's launcher finds a node runtime without the login shell's PATH", 
 // the work was handed over. A keyword re-sent by a local extension while the agent
 // is streaming arrives without a delivery, so the host verifies the queue instead
 // of assuming it.
-test("an instruction a running session did not queue is refused, not reported as delivered", async (t) => {
-  const h = await session(t, { idle: false, pending: 0, requestTimeoutMs: 3000 });
+test("an unobserved offered instruction reports unknown without claiming delivery", async (t) => {
+  const h = await session(t, { idle: false, pending: 0, observe: false, requestTimeoutMs: 3000 });
   const refused = await h.ask({ version: 1, requestId: "q1", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" });
-  assert.equal(refused.ok, false, "a desk must not be told an instruction arrived when it did not");
-  assert.match(refused.error, /指令未送达/);
-  assert.deepEqual(h.sent, [{ content: "继续", options: { deliverAs: "followUp" } }], "it was offered to the session, which dropped it");
+  assert.equal(refused.ok, true);
+  assert.equal(refused.accepted, false);
+  assert.equal(refused.delivery, "unknown");
+  assert.deepEqual(h.sent, [{ content: "继续", options: { deliverAs: "followUp", expandPromptTemplates: true } }], "offered once, with no automatic retry");
 });
 
-test("an instruction a running session queued, and one an idle session runs, are both delivered", async (t) => {
+test("working and idle instructions are each submitted once through native Pi", async (t) => {
   const running = await session(t, { idle: false, pending: 1 });
   assert.equal((await running.ask({ version: 1, requestId: "q2", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" })).ok, true);
-  assert.deepEqual(running.sent, [{ content: "继续", options: { deliverAs: "followUp" } }]);
+  assert.deepEqual(running.sent, [{ content: "继续", options: { deliverAs: "followUp", expandPromptTemplates: true } }]);
 
   const idle = await session(t, { idle: true, pending: 0 });
   assert.equal((await idle.ask({ version: 1, requestId: "q3", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" })).ok, true);
-  assert.deepEqual(idle.sent, [{ content: "继续", options: { deliverAs: "followUp" } }]);
+  assert.deepEqual(idle.sent, [{ content: "继续", options: { deliverAs: "followUp", expandPromptTemplates: true } }]);
 });
 
 // A caller reporting on a session has to say whether the instruction ran or is
 // waiting its turn, so the answer carries that rather than leaving it to be
 // guessed from the session's state.
-test("a prompt answers whether it ran or is queued", async (t) => {
+test("a native prompt cannot claim admission from idle or working state", async (t) => {
   const idle = await session(t, { idle: true });
   const ran = await idle.ask({ version: 1, requestId: "d1", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" });
-  assert.equal(ran.delivery, "ran", "an idle session runs the instruction at once");
+  assert.equal(ran.delivery, "unknown", "an idle session is not an identity-aware acknowledgment");
 
-  const running = await session(t, { idle: false, pending: 1 });
+  const running = await session(t, { idle: false, pending: 1, observe: false });
   const queued = await running.ask({ version: 1, requestId: "d2", command: "prompt", taskId: SESSION, prompt: "继续", streamingBehavior: "followUp" });
-  assert.equal(queued.delivery, "queued", "a working session takes the instruction as its next turn");
+  assert.equal(queued.delivery, "unknown", "a public queue boolean cannot prove this instruction was queued");
   assert.equal(queued.task.state, "running", "and the answer still states what the session is doing");
+});
+
+test("find selects the requested task among sessions sharing one project", async (t) => {
+  const root = await fixtureRoot(t, "odk-id-");
+  const runtimeDir = join(root, "run");
+  const cwd = join(root, "project");
+  await session(t, { sessionId: "11111111-1111-4111-8111-111111111111", runtimeDir, cwd });
+  const second = await session(t, { sessionId: "22222222-2222-4222-8222-222222222222", runtimeDir, cwd });
+  const reply = await runClient(t, undefined, `${JSON.stringify({ version: 1, requestId: "task-find", command: "status", taskId: second.ctx.sessionManager.getSessionId(), project: cwd })}\n`, { env: { ...process.env, XDG_RUNTIME_DIR: runtimeDir } });
+  assert.equal(reply.code, 0, reply.stderr);
+  assert.equal(JSON.parse(reply.stdout).ok, true);
+  assert.equal(JSON.parse(reply.stdout).task.taskId, second.ctx.sessionManager.getSessionId());
+});
+
+test("Windows session hosting refuses before publishing an unprotected endpoint", async () => {
+  const host = new SessionHost({ pi: { sendUserMessage() {} }, platform: "win32", env: { LOCALAPPDATA: "C:\\Users\\me\\AppData\\Local" } });
+  const result = await host.start({ cwd: "/tmp", sessionManager: { getSessionId: () => SESSION }, isIdle: () => true });
+  assert.equal(result.bound, false);
+  assert.match(result.reason, /Windows/);
+  assert.equal(host.endpoint, null);
+  await host.close();
+});
+
+test("one connection dispatches a prompt only once despite another fragment", async (t) => {
+  const h = await session(t, { idle: false });
+  const wire = net.createConnection(h.socketPath);
+  t.after(() => wire.destroy());
+  await new Promise(resolve => wire.once("connect", resolve));
+  wire.write(`${JSON.stringify({ version: 1, requestId: "once", command: "prompt", taskId: SESSION, project: h.cwd, prompt: "one instruction", streamingBehavior: "steer" })}\n`);
+  while (h.sent.length === 0) await new Promise(resolve => setTimeout(resolve, 5));
+  wire.write(" ");
+  await new Promise(resolve => setTimeout(resolve, 40));
+  assert.equal(h.sent.length, 1);
+});
+
+test("relay lists every live native session below a configured root", async (t) => {
+  const root = await fixtureRoot(t, "odk-all-");
+  const runtimeDir = join(root, "run");
+  const first = await session(t, { cwd: join(root, "a"), runtimeDir, sessionId: "11111111-1111-4111-8111-111111111111" });
+  const second = await session(t, { cwd: join(root, "b"), runtimeDir, sessionId: "22222222-2222-4222-8222-222222222222" });
+  await writeFile(join(dirname(first.descriptorPath), "000-stale.json"), JSON.stringify({ version: 1, sessionId: "00000000-0000-4000-8000-000000000000", project: first.cwd, socketPath: join(root, "absent.sock") }));
+  const answer = await runClient(t, undefined, `${JSON.stringify({ version: 1, requestId: "all", command: "list", project: root })}\n`, { env: { ...process.env, XDG_RUNTIME_DIR: runtimeDir } });
+  assert.equal(answer.code, 0, answer.stderr);
+  const frame = JSON.parse(answer.stdout);
+  assert.equal(frame.ok, true);
+  assert.deepEqual(frame.tasks.map(task => task.taskId).sort(), [first.ctx.sessionManager.getSessionId(), second.ctx.sessionManager.getSessionId()].sort());
+});
+
+test("native identity rejects wrong project and omitted task ID before delivery", async (t) => {
+  const h = await session(t);
+  for (const fields of [{ project: h.root, taskId: SESSION }, { project: h.cwd }]) {
+    const frame = await h.ask({ version: 1, requestId: "identity", command: "prompt", prompt: "must not land", ...fields });
+    assert.equal(frame.ok, false);
+  }
+  assert.equal(h.sent.length, 0);
+});
+
+test("native mutation ID is replayed once and rejects changed payload", async (t) => {
+  const h = await session(t);
+  const request = { version: 1, command: "prompt", project: h.cwd, taskId: SESSION, mutationId: "11111111-1111-4111-8111-111111111111", prompt: "once" };
+  const first = await h.ask({ ...request, requestId: "first" });
+  const replay = await h.ask({ ...request, requestId: "again" });
+  assert.equal(replay.requestId, "again");
+  assert.equal(replay.delivery, first.delivery);
+  assert.equal(h.sent.length, 1);
+  const changed = await h.ask({ ...request, requestId: "changed", prompt: "different" });
+  assert.equal(changed.ok, false);
+  assert.equal(h.sent.length, 1);
+});
+
+test("an existing queue is not evidence that a newly offered prompt was admitted", async (t) => {
+  const h = await session(t, { idle: false, pending: 1, observe: false });
+  const request = { version: 1, requestId: "unknown", command: "prompt", taskId: SESSION, project: h.cwd, prompt: "new instruction", streamingBehavior: "followUp", mutationId: "11111111-1111-4111-8111-111111111111" };
+  const frame = await h.ask(request);
+  assert.equal(frame.accepted, false);
+  assert.equal(frame.delivery, "unknown");
+  assert.equal(frame.task.lastDelivery.state, "unknown");
+  h.host.observeMessage(user("new instruction"));
+  const status = await h.ask({ version: 1, requestId: "observed", command: "status", taskId: SESSION, project: h.cwd });
+  assert.equal(status.task.lastDelivery.state, "unknown");
+});
+
+test("an omitted streaming behavior follows native Enter with steer", async (t) => {
+  const h = await session(t, { idle: false, observe: false });
+  const answer = await h.ask({ version: 1, requestId: "native-enter", command: "prompt", taskId: SESSION, project: h.cwd, prompt: "continue" });
+  assert.equal(answer.ok, true);
+  assert.equal(answer.delivery, "unknown");
+  assert.equal(h.sent[0].options.deliverAs, "steer");
+});
+
+test("multiline prompts remain intact while their admission stays unknown", async (t) => {
+  const h = await session(t);
+  const prompt = `继续第一行\n${"完整输入".repeat(400)}\n最后一行`;
+  const answer = await h.ask({ version: 1, requestId: "multiline", command: "prompt", taskId: SESSION, project: h.cwd, prompt });
+  assert.equal(answer.accepted, false);
+  assert.equal(answer.submitted, true);
+  assert.equal(answer.delivery, "unknown");
+  assert.equal(h.sent[0].content, prompt);
+});
+
+test("status records each concurrent submission without certifying admission", async (t) => {
+  const h = await session(t, { observe: false });
+  const first = "11111111-1111-4111-8111-111111111111";
+  const second = "22222222-2222-4222-8222-222222222222";
+  await Promise.all([first, second].map((mutationId, index) => h.ask({ version: 1, requestId: `concurrent-${index}`, command: "prompt", taskId: SESSION, project: h.cwd, mutationId, prompt: `instruction ${index}` })));
+  h.host.observeMessage(user("instruction 0"));
+  const status = await h.ask({ version: 1, requestId: "reconcile", command: "status", taskId: SESSION, project: h.cwd });
+  assert.deepEqual(status.task.deliveries, [{ mutationId: first, state: "unknown", submitted: true }, { mutationId: second, state: "unknown", submitted: true }]);
+});
+
+test("a fast observed turn retains its response and terminal outcome", async (t) => {
+  const h = await session(t, { complete: true });
+  const answer = await h.ask({ version: 1, requestId: "fast", command: "prompt", taskId: SESSION, project: h.cwd, prompt: "finish immediately" });
+  assert.equal(answer.accepted, false);
+  assert.equal(answer.submitted, true);
+  assert.equal(answer.task.turnOutcome, "finished");
+  assert.equal(answer.task.response, "completed immediately");
+});
+
+test("concurrent duplicates and malformed mutation IDs never add another delivery", async (t) => {
+  const h = await session(t, { observe: false });
+  const request = { version: 1, command: "prompt", project: h.cwd, taskId: SESSION, mutationId: "11111111-1111-4111-8111-111111111111", prompt: "one concurrent instruction" };
+  const frames = await Promise.all(["one", "two"].map(requestId => h.ask({ ...request, requestId })));
+  assert.equal(frames.every(frame => frame.delivery === "unknown"), true);
+  assert.equal(h.sent.length, 1);
+  const invalid = await h.ask({ ...request, requestId: "invalid", mutationId: "not-uuid" });
+  assert.equal(invalid.ok, false);
+  assert.equal(h.sent.length, 1);
+});
+
+test("identical steer consumed before follow-up cannot certify either mutation", async (t) => {
+  const h = await session(t, { observe: false, idle: false });
+  const ids = ["11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"];
+  for (const [index, mutationId] of ids.entries()) await h.ask({ version: 1, requestId: `same-${index}`, command: "prompt", taskId: SESSION, project: h.cwd, mutationId, prompt: "identical", streamingBehavior: index === 0 ? "followUp" : "steer" });
+  h.host.observeMessage(user("identical"));
+  const status = await h.ask({ version: 1, requestId: "same-status", command: "status", taskId: SESSION, project: h.cwd });
+  assert.deepEqual(status.task.deliveries.map(delivery => delivery.state), ["unknown", "unknown"]);
+});
+
+test("manual input with identical text cannot certify remote mutation delivery", async (t) => {
+  const h = await session(t, { observe: false });
+  await h.ask({ version: 1, requestId: "remote", command: "prompt", taskId: SESSION, project: h.cwd, mutationId: "11111111-1111-4111-8111-111111111111", prompt: "same as manual" });
+  h.host.observeMessage(user("same as manual"));
+  const status = await h.ask({ version: 1, requestId: "manual-status", command: "status", taskId: SESSION, project: h.cwd });
+  assert.equal(status.task.lastDelivery.state, "unknown");
+  assert.equal(status.task.prompt, "same as manual", "actual session execution remains observable separately");
+});
+
+test("a live endpoint dropping its list reply yields an incomplete inventory", async (t) => {
+  const root = await fixtureRoot(t, "odk-part-");
+  const runtimeDir = join(root, "run");
+  const directory = join(runtimeDir, "open-deskos", "sessions");
+  const project = join(root, "project");
+  const socketPath = join(root, "live.sock");
+  await mkdir(directory, { recursive: true });
+  await mkdir(project);
+  const sockets = new Set();
+  const server = net.createServer(socket => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
+    socket.on("data", data => {
+      const request = JSON.parse(data.toString());
+      if (request.command === "list") return socket.destroy();
+      socket.end(`${JSON.stringify({ version: 1, requestId: request.requestId, ok: true, task: { taskId: SESSION, project, state: "settled" } })}\n`);
+    });
+  });
+  await new Promise(resolve => server.listen(socketPath, resolve));
+  t.after(async () => { for (const socket of sockets) socket.destroy(); await new Promise(resolve => server.close(resolve)); });
+  await writeFile(join(directory, `${SESSION}.json`), JSON.stringify({ version: 1, sessionId: SESSION, project, socketPath }));
+  const run = request => runClient(t, undefined, `${JSON.stringify({ version: 1, ...request })}\n`, { env: { ...process.env, XDG_RUNTIME_DIR: runtimeDir } });
+  const status = await run({ requestId: "status-live", command: "status", taskId: SESSION, project });
+  assert.equal(JSON.parse(status.stdout).task.taskId, SESSION);
+  const listed = await run({ requestId: "list-drop", command: "list", project: root });
+  assert.equal(listed.code, 0, listed.stderr);
+  const inventory = JSON.parse(listed.stdout);
+  assert.equal(inventory.ok, true);
+  assert.deepEqual(inventory.tasks, []);
+  assert.equal(inventory.incomplete, true);
+  assert.equal(inventory.unavailable, 1);
+});
+
+test("aggregate inventory budgets the longest boolean metadata and newline", async (t) => {
+  const root = await fixtureRoot(t, "odk-budget-");
+  const runtimeDir = join(root, "run");
+  const directory = join(runtimeDir, "open-deskos", "sessions");
+  const project = join(root, "project");
+  const socketPath = join(root, "budget.sock");
+  await mkdir(directory, { recursive: true });
+  await mkdir(project);
+  let task;
+  const server = net.createServer(socket => socket.once("data", data => {
+    const request = JSON.parse(data.toString());
+    socket.end(`${JSON.stringify({ version: 1, requestId: request.requestId, ok: true, tasks: [task], truncated: false })}\n`);
+  }));
+  await new Promise(resolve => server.listen(socketPath, resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  await writeFile(join(directory, `${SESSION}.json`), JSON.stringify({ version: 1, sessionId: SESSION, project, socketPath }));
+  const requestId = "budget";
+  const limit = 256 * 1024;
+  for (const surplus of [2, 0]) {
+    task = { taskId: SESSION, project, goal: "" };
+    const base = Buffer.byteLength(`${JSON.stringify({ version: 1, requestId, ok: true, tasks: [task], truncated: false, unavailable: 0, incomplete: false })}\n`);
+    task.goal = "x".repeat(limit - base + surplus);
+    const answer = await runClient(t, undefined, `${JSON.stringify({ version: 1, requestId, command: "list", project: root })}\n`, { env: { ...process.env, XDG_RUNTIME_DIR: runtimeDir } });
+    assert.equal(answer.code, 0, `surplus=${surplus}: ${answer.stderr}`);
+    assert.ok(Buffer.byteLength(answer.stdout) <= limit);
+    const inventory = JSON.parse(answer.stdout);
+    assert.equal(inventory.tasks.length, surplus === 0 ? 1 : 0);
+    assert.equal(inventory.truncated, surplus !== 0);
+    assert.equal(inventory.incomplete, surplus !== 0);
+  }
+});
+
+test("restricted relay refuses outside, broad, symlink and invalid requests before socket contact", async (t) => {
+  const root = await fixtureRoot(t, "odk-guard-");
+  const approved = join(root, "approved");
+  const inside = join(approved, "project");
+  const outside = join(root, "outside");
+  const runtimeDir = join(root, "run");
+  const directory = join(runtimeDir, "open-deskos", "sessions");
+  await mkdir(inside, { recursive: true });
+  await mkdir(outside);
+  await mkdir(directory, { recursive: true });
+  await symlink(outside, join(approved, "escape"));
+  await symlink(inside, join(approved, "alias"));
+  let contacts = 0;
+  let forwarded;
+  const socketPath = join(root, "guard.sock");
+  const server = net.createServer(socket => {
+    contacts += 1;
+    socket.once("data", data => {
+      const request = JSON.parse(data.toString());
+      forwarded = request.project;
+      socket.end(`${JSON.stringify({ version: 1, requestId: request.requestId, ok: true, task: { taskId: SESSION, project: request.project } })}\n`);
+    });
+  });
+  await new Promise(resolve => server.listen(socketPath, resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const publish = project => writeFile(join(directory, `${SESSION}.json`), JSON.stringify({ version: 1, sessionId: SESSION, project, socketPath }));
+  const invoke = (fields, args = ["--find", "--allow-root", approved]) => runClient(t, undefined, `${JSON.stringify({ version: 1, requestId: "guard", command: "status", taskId: SESSION, project: inside, ...fields })}\n`, { args, env: { ...process.env, XDG_RUNTIME_DIR: runtimeDir, SSH_ORIGINAL_COMMAND: "arbitrary command must be ignored" } });
+  for (const fields of [
+    { project: outside }, { project: root }, { project: join(approved, "escape") },
+    { command: "end" }, { command: "launch", prompt: "anything" },
+    { version: 2 }, { taskId: "invalid" }, { command: "prompt", prompt: "" }, { command: "status", unexpected: true },
+    { taskId: [SESSION] }, { command: "cancel", mutationId: [SESSION] },
+  ]) {
+    await publish(fields.project ?? inside);
+    const result = await invoke(fields);
+    assert.equal(result.code, 0, result.stderr);
+    const frame = JSON.parse(result.stdout);
+    assert.equal(frame.requestId, "guard");
+    assert.equal(frame.ok, false);
+    assert.equal(contacts, 0, JSON.stringify(fields));
+  }
+  for (const args of [["--find", "--allow-root"], ["--find", `--allow-root=${approved}`], ["--find", "--allow-root", join(root, "missing")], ["--find", ...Array.from({ length: 17 }, () => ["--allow-root", approved]).flat()]]) {
+    const result = await invoke({}, args);
+    assert.equal(JSON.parse(result.stdout).ok, false);
+    assert.equal(contacts, 0, "invalid operator root configuration fails closed");
+  }
+  const malformed = await runClient(t, undefined, "not JSON\n", { args: ["--find", "--allow-root", approved], env: { ...process.env, XDG_RUNTIME_DIR: runtimeDir } });
+  assert.equal(JSON.parse(malformed.stdout).ok, false);
+  assert.equal(contacts, 0, "malformed stdin cannot reach a socket");
+  for (const project of [inside, join(approved, "alias")]) {
+    await publish(project);
+    const result = await invoke({ project });
+    assert.equal(JSON.parse(result.stdout).ok, true);
+    assert.equal(forwarded, project, "identity string is never rewritten after canonical admission");
+  }
+  await publish(outside);
+  const unrestricted = await invoke({ project: outside }, ["--find"]);
+  assert.equal(JSON.parse(unrestricted.stdout).ok, true, "ordinary legacy CLI remains unrestricted");
+});
+
+test("an explicitly approved filesystem root admits a controlled descendant", async (t) => {
+  const h = await session(t);
+  const reply = await runClient(t, undefined, `${JSON.stringify({ version: 1, requestId: "filesystem-root", command: "status", taskId: SESSION, project: h.cwd })}\n`, {
+    args: ["--find", "--allow-root", "/"], env: { ...process.env, XDG_RUNTIME_DIR: h.runtimeDir },
+  });
+  assert.equal(reply.code, 0, reply.stderr);
+  assert.equal(JSON.parse(reply.stdout).ok, true);
 });

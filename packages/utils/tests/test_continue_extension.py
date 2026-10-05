@@ -1,198 +1,183 @@
+"""Exercise continuation commands, input routing, and history recovery."""
+
 import json
-import subprocess
 import tempfile
-import textwrap
-import unittest
 from pathlib import Path
 
-UTILS_PKG_DIR = Path(__file__).resolve().parents[1]
+from utils_helpers import run_typescript
+
+EXTENSION = Path(__file__).resolve().parents[1] / "extensions" / "continue.ts"
+PRELUDE = f"import ext, * as continuation from {json.dumps(EXTENSION.as_uri())};\n"
+HARNESS = PRELUDE + """
+const handlers = new Map();
+const commands = new Map();
+const messages = [];
+const notices = [];
+const pi = {
+  on: (name, handler) => handlers.set(name, handler),
+  registerCommand: (name, spec) => commands.set(name, spec),
+  sendMessage: (message, options) => messages.push({ kind: "custom", message, options }),
+  sendUserMessage: (text, options) => messages.push({ kind: "user", text, options }),
+};
+ext(pi);
+const ctx = {
+  isIdle: () => true,
+  waitForIdle: async () => {},
+  ui: { notify: (message, type) => notices.push({ message, type }) },
+  sessionManager: {
+    getSessionFile: () => undefined,
+    getBranch: () => [],
+  },
+};
+const run = (args = "") => commands.get("continue").handler(args, ctx);
+"""
 
 
-class TestContinueExtension(unittest.TestCase):
-    def ext_source(self) -> str:
-        return (UTILS_PKG_DIR / "extensions" / "continue.ts").read_text(encoding="utf-8")
-
-    def test_extension_file_exists_and_registers_command(self) -> None:
-        content = self.ext_source()
-        self.assertIn('registerCommand("continue"', content)
-        self.assertNotIn('registerCommand("继续"', content)
-        self.assertNotIn("CONTINUE_INTERNAL_COMMAND", content)
-        self.assertIn("sendMessage", content)
-
-    def test_strict_continue_input_interception(self) -> None:
-        content = self.ext_source()
-        self.assertIn('pi.on("input"', content)
-        self.assertIn("isContinuationKeyword", content)
-        self.assertIn('"continue"', content)
-        self.assertIn('"继续"', content)
-        self.assertIn('"繼續"', content)
-
-    def test_standalone_keyword_matching_only(self) -> None:
-        content = self.ext_source()
-        # Assert exact Set matching logic is present and no wildcards/substring matches exist
-        self.assertIn("CONTINUE_SET = new Set", content)
-        self.assertIn("CONTINUE_SET.has(normalized)", content)
-        self.assertNotIn("includes(", content)
-        self.assertNotIn("startsWith(", content)
-
-    def test_stale_failures_never_block_retry(self) -> None:
-        # Regression: classification-based gating turned stale persisted errors into a
-        # permanent refusal that ignored later model/config switches. Continuation must
-        # always retry directly with the current model and configuration.
-        content = self.ext_source()
-        self.assertNotIn("requiresUserAction", content)
-        self.assertNotIn("resolvePreflightFailure", content)
-        self.assertNotIn("hasConfiguredAuth", content)
-        self.assertNotIn("getProviderAuth", content)
-        self.assertNotIn("TRANSIENT_PROVIDER_ERROR_PATTERN", content)
-        self.assertNotIn("errorMessage", content)
-
-    def test_failed_and_incomplete_turns_continue_directly(self) -> None:
-        content = self.ext_source()
-        # Every non-stop trailing state retries silently from existing context.
-        self.assertIn('lastMessage.stopReason === "stop"', content)
-        self.assertIn("isDirectContinuation: true", content)
-        # A completed turn still continues with a visible user message.
-        self.assertIn(
-            "Please continue execution based on the suggestions, incomplete steps, or next actions from your previous response.",
-            content,
-        )
-
-    def test_empty_session_refuses_without_provider_request(self) -> None:
-        content = self.ext_source()
-        self.assertIn("there is no previous model request", content)
-        self.assertIn('notifyPi(ctx.ui', content)
-
-    def test_strip_removes_contiguous_trailing_failures_only(self) -> None:
-        content = self.ext_source()
-        self.assertIn('pi.on("context"', content)
-        self.assertIn("stripDirectContinuationMessages", content)
-        self.assertIn("CONTINUATION_MESSAGE_TYPE", content)
-        # Contiguous run of incomplete assistants is popped, never past a tool result pair.
-        self.assertIn("while (filtered.length > 0 && isIncompleteAssistant(filtered[filtered.length - 1]))", content)
-        self.assertIn('message.stopReason !== "stop"', content)
-
-    def test_continuation_reloads_only_for_unseen_disk_entries(self) -> None:
-        content = self.ext_source()
-        self.assertIn("readDiskTipEntryId", content)
-        self.assertIn('readFileSync(sessionFile, "utf8")', content)
-        self.assertIn("getSessionFile()", content)
-        self.assertIn("getEntry(diskTipEntryId)", content)
-        self.assertIn("needsSessionReload", content)
-        self.assertIn("switchSession(sessionFile", content)
-        self.assertIn("withSession", content)
-        self.assertIn("performContinuation", content)
-        self.assertNotIn("diskTipEntryId !== ctx.sessionManager.getLeafId()", content)
-
-    def test_selected_tree_node_is_not_rebased_to_disk_tip(self) -> None:
-        content = self.ext_source()
-        self.assertIn("selected leaf is", content)
-        self.assertIn("known disk tip", content)
-        self.assertIn("active session has never loaded", content)
-
-    def test_reload_decision_distinguishes_known_and_unseen_disk_tips(self) -> None:
-        module_path = (UTILS_PKG_DIR / "extensions" / "continue.ts").as_posix()
-        script = textwrap.dedent(
-            f"""
-            import {{ needsSessionReload }} from {json.dumps(module_path)};
-            const known = {{ getEntry: () => ({{ id: "known" }}) }};
-            const unseen = {{ getEntry: () => undefined }};
-            console.log(JSON.stringify({{
-              known: needsSessionReload(known, "known"),
-              unseen: needsSessionReload(unseen, "unseen"),
-              noTip: needsSessionReload(unseen, null),
-            }}));
-            """,
-        )
-        result = subprocess.run(
-            ["node", "--import", "tsx/esm", "--input-type=module", "--eval", script],
-            cwd=UTILS_PKG_DIR.parent.parent,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(json.loads(result.stdout), {"known": False, "unseen": True, "noTip": False})
-
-    def test_selected_leaf_runs_without_session_reload(self) -> None:
-        module_path = (UTILS_PKG_DIR / "extensions" / "continue.ts").as_posix()
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", encoding="utf-8") as session:
-            session.write('{"type":"session","id":"session"}\n{"type":"message","id":"failed-tip"}\n')
-            session.flush()
-            script = textwrap.dedent(
-                f"""
-                import {{ runContinuation }} from {json.dumps(module_path)};
-                const events = [];
-                const activeBranch = [{{ type: "message", message: {{ role: "assistant", stopReason: "error" }} }}];
-                const sessionManager = {{
-                  getSessionFile: () => {json.dumps(session.name)},
-                  getEntry: (id) => id === "failed-tip" ? {{ id }} : undefined,
-                  getBranch: () => activeBranch,
-                }};
-                const context = {{
-                  sessionManager,
-                  waitForIdle: async () => {{}},
-                  switchSession: async () => events.push("reloaded"),
-                  ui: {{ notify: () => events.push("notified") }},
-                }};
-                const host = {{
-                  sendMessage: () => events.push("continued"),
-                  sendUserMessage: () => events.push("visible"),
-                }};
-                await runContinuation("", context, host);
-                console.log(JSON.stringify(events));
-                """,
-            )
-            result = subprocess.run(
-                ["node", "--import", "tsx/esm", "--input-type=module", "--eval", script],
-                cwd=UTILS_PKG_DIR.parent.parent,
-                check=True,
-                capture_output=True,
-                text=True,
-            )
-            self.assertEqual(json.loads(result.stdout), ["continued"])
+def test_command_routes_by_active_branch_and_custom_focus() -> None:
+    report = run_typescript(HARNESS + """
+const cases = [
+  ["empty", [], ""],
+  ["completed", [{ role: "assistant", stopReason: "stop" }], ""],
+  ...["error", "aborted", "length", "pending", "toolUse"].map(stopReason =>
+    [stopReason, [{ role: "assistant", stopReason, errorMessage: "invalid API key" }], ""]),
+  ["tool error", [{ role: "toolResult", isError: true }], ""],
+  ["focus", [{ role: "assistant", stopReason: "error" }], "  Check tests  "],
+];
+const results = {};
+for (const [label, branch, args] of cases) {
+  messages.length = notices.length = 0;
+  ctx.sessionManager.getBranch = () => branch.map(message => ({ type: "message", message }));
+  await run(args);
+  results[label] = { messages: [...messages], notices: [...notices] };
+}
+console.log(JSON.stringify(results));
+""")
+    assert report["empty"]["messages"] == []
+    assert report["empty"]["notices"][0]["type"] == "error"
+    assert "no previous model request" in report["empty"]["notices"][0]["message"]
+    assert report["completed"]["messages"][0]["kind"] == "user"
+    for label in ("error", "aborted", "length", "pending", "toolUse", "tool error"):
+        assert report[label]["notices"] == []
+        assert report[label]["messages"] == [{
+            "kind": "custom",
+            "message": {"customType": "continue-extension", "content": "", "display": False},
+            "options": {"triggerTurn": True},
+        }]
+    assert report["focus"]["messages"] == [{"kind": "user", "text": "Check tests"}]
 
 
-    def test_a_keyword_during_work_queues_the_next_turn(self) -> None:
-        """Mid-work, a continuation belongs to the session's next turn.
-
-        A direct continuation means resuming a turn that has ended, so while a turn is
-        in flight it did nothing at all: the request disappeared, and a desk driving
-        this session reported it as handed over.
-        """
-        content = self.ext_source()
-        keyword_branch = content.split('pi.on("input"', 1)[1]
-        self.assertNotIn("sendDirectContinuation(pi);", keyword_branch)
-        self.assertIn('deliverAs: "followUp"', keyword_branch)
-        self.assertIn("COMPLETED_CONTINUATION_PROMPT", keyword_branch)
-
-    def test_a_continuation_during_work_says_how_it_is_queued(self) -> None:
-        """A user message that arrives mid-turn is only kept when the delivery says how.
-
-        Pi drops it otherwise, so the request disappears and whoever sent it believes
-        the work was handed over — which is exactly what a desk driving a remote
-        session reported.
-        """
-        content = self.ext_source()
-        self.assertIn("deliverAs", content)
-        self.assertIn('deliverAs: "followUp"', content)
-        self.assertIn("ctx.isIdle()", content)
-
-    def test_continuation_keyword_routes_through_public_command(self) -> None:
-        content = self.ext_source()
-        # No hidden internal command: the keyword path reuses the registered /continue
-        # command so it runs with a full command context (switchSession rebase support).
-        self.assertNotIn("__continue", content)
-        self.assertIn('sendUserMessage("/continue", expandOptions)', content)
-        self.assertIn("expandPromptTemplates: true", content)
-        self.assertIn("isIdle()", content)
+def test_direct_continuation_reports_async_delivery_failure() -> None:
+    report = run_typescript(HARNESS + """
+ctx.sessionManager.getBranch = () => [{ type: "message", message: { role: "assistant", stopReason: "error" } }];
+pi.sendMessage = async () => { throw new Error("Delivery failed"); };
+let error;
+try { await run(); } catch (failure) { error = failure.message; }
+console.log(JSON.stringify({ error }));
+""")
+    assert report == {"error": "Delivery failed"}
 
 
-    def test_package_json_registers_extensions(self) -> None:
-        manifest = json.loads((UTILS_PKG_DIR / "package.json").read_text(encoding="utf-8"))
-        self.assertIn("extensions", manifest["pi"])
-        self.assertEqual(manifest["pi"]["extensions"], ["./index.ts"])
-        self.assertTrue((UTILS_PKG_DIR / "index.ts").is_file())
+def test_keyword_routing_preserves_idle_and_busy_delivery() -> None:
+    report = run_typescript(HARNESS + """
+const results = {};
+for (const idle of [true, false]) {
+  ctx.isIdle = () => idle;
+  for (const text of ["continue", "Continue", "  continue.  ", "继续", "繼續", "", "cont", "continue work", "discontinue"]) {
+    messages.length = 0;
+    const outcome = await handlers.get("input")({ text }, ctx);
+    results[`${idle}:${text}`] = { outcome, messages: [...messages] };
+  }
+}
+console.log(JSON.stringify(results));
+""")
+    for idle in ("true", "false"):
+        for text in ("continue", "Continue", "  continue.  ", "继续", "繼續"):
+            result = report[f"{idle}:{text}"]
+            assert result["outcome"] == {"action": "handled"}
+            message = result["messages"][0]
+            assert message["kind"] == "user"
+            if idle == "true":
+                assert message["text"] == "/continue"
+                assert message["options"] == {"expandPromptTemplates": True}
+            else:
+                assert "continue execution" in message["text"]
+                assert message["options"] == {"deliverAs": "followUp"}
+        for text in ("", "cont", "continue work", "discontinue"):
+            assert report[f"{idle}:{text}"] == {"outcome": {"action": "continue"}, "messages": []}
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_context_removes_retry_attempts_without_breaking_tool_pairs() -> None:
+    report = run_typescript(HARNESS + """
+const user = { role: "user" };
+const ok = { role: "assistant", stopReason: "stop" };
+const failed = { role: "assistant", stopReason: "error" };
+const toolCall = { role: "assistant", stopReason: "toolUse" };
+const toolResult = { role: "toolResult" };
+const marker = { role: "custom", customType: "continue-extension" };
+const other = { role: "custom", customType: "other" };
+const results = [];
+for (const messages of [
+  [user, ok, failed, failed, marker],
+  [user, toolCall, toolResult, failed, marker],
+  [user, ok, marker],
+  [user, other, failed, marker],
+]) {
+  results.push((await handlers.get("context")({ messages })).messages);
+}
+console.log(JSON.stringify(results));
+""")
+    assert report == [
+        [{"role": "user"}, {"role": "assistant", "stopReason": "stop"}],
+        [{"role": "user"}, {"role": "assistant", "stopReason": "toolUse"}, {"role": "toolResult"}],
+        [{"role": "user"}, {"role": "assistant", "stopReason": "stop"}],
+        [{"role": "user"}, {"role": "custom", "customType": "other"}],
+    ]
+
+
+def test_disk_tip_handles_partial_lines_and_entries_larger_than_the_window() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        session = Path(directory) / "session.jsonl"
+        reports = []
+        for content in (
+            "".join(json.dumps({"type": "message", "id": f"entry-{i}", "payload": "x" * 200}) + "\n" for i in range(4000)),
+            json.dumps({"type": "message", "id": "large-tip", "payload": "x" * (600 * 1024)}) + "\n",
+        ):
+            session.write_text(content + '{"type":"message","id":"partial"', encoding="utf-8")
+            reports.append(run_typescript(PRELUDE + f"""
+console.log(JSON.stringify(continuation.readDiskTipEntryId({json.dumps(str(session))})));
+"""))
+        assert reports == ["entry-3999", "large-tip"]
+
+
+def test_session_reload_keeps_known_selected_leaves_and_loads_unseen_tips() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        session = Path(directory) / "session.jsonl"
+        session.write_text('{"type":"message","id":"disk-tip"}\n', encoding="utf-8")
+        report = run_typescript(HARNESS + f"""
+ctx.sessionManager.getSessionFile = () => {json.dumps(str(session))};
+const results = [];
+for (const mode of ["known", "unseen", "delivery failure"]) {{
+  const known = mode === "known";
+  messages.length = 0;
+  ctx.sessionManager.getEntry = () => known ? {{ id: "disk-tip" }} : undefined;
+  ctx.sessionManager.getBranch = () => [{{ type: "message", message: {{ role: "assistant", stopReason: "error" }} }}];
+  let reloaded = false;
+  ctx.switchSession = async (file, options) => {{
+    reloaded = file === ctx.sessionManager.getSessionFile();
+    await options.withSession({{
+      ...ctx, ...pi,
+      sendMessage: async () => {{ throw new Error("Replacement delivery failed"); }},
+      sessionManager: {{ getBranch: () => [{{ type: "message", message: {{ role: "assistant", stopReason: mode === "delivery failure" ? "error" : "stop" }} }}] }},
+    }});
+  }};
+  let error;
+  try {{ await run(); }} catch (failure) {{ error = failure.message; }}
+  results.push({{ reloaded, kind: messages[0]?.kind, error }});
+}}
+console.log(JSON.stringify(results));
+""")
+        assert report == [
+            {"reloaded": False, "kind": "custom"},
+            {"reloaded": True, "kind": "user"},
+            {"reloaded": True, "error": "Replacement delivery failed"},
+        ]

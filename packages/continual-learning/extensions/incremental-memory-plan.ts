@@ -7,6 +7,7 @@ import {
   MAX_MEMORY_BYTES,
   MAX_SNAPSHOT_BYTES,
   normalizeNewMemoryProposals,
+  parseMemoryIndexLine,
   sha256Digest,
   validatePlanIdentity,
   type ConsolidationRun,
@@ -15,7 +16,6 @@ import {
 import { isMemoryFilename } from "./memory-files";
 
 const PRIVATE_MARKER_RE = /\(\s*harness[\s_-]+only\s*\)/i;
-const INDEX_MEMORY_RE = /(?:\[[^\]]*\]\(([^)]+)\)|\b([A-Za-z0-9][A-Za-z0-9_-]*\.md)\b)/i;
 const MAX_GROUNDING_REASON_CHARS = 300;
 const DELETE_VERDICTS = new Set<IncrementalDeleteVerdict>(["CONTRADICTED", "SUPERSEDED", "SUBSUMED"]);
 const OBSERVATION_STATUSES = new Set<RepositoryObservationStatus>(["found", "missing", "updated"]);
@@ -118,12 +118,18 @@ async function readBoundedRegularFile(file: string, maxBytes: number, label: str
 
 async function readPrivateClassifications(root: string, selected: readonly string[]): Promise<Map<string, IncrementalMemoryClassification>> {
   if (selected.length === 0) return new Map();
+  const rootStat = await fs.lstat(root).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (!rootStat || rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    throw new Error(`Private Memory root is not a regular directory: ${root}`);
+  }
   const indexPath = path.join(root, "MEMORY.md");
   const index = (await readBoundedRegularFile(indexPath, MAX_MEMORY_BYTES, "Private Memory index")).toString("utf8");
   const indexed = new Map<string, { name: string; classification: IncrementalMemoryClassification }>();
   for (const line of index.split(/\r?\n/)) {
-    const match = INDEX_MEMORY_RE.exec(line);
-    const name = match?.[1] ?? match?.[2];
+    const name = parseMemoryIndexLine(line);
     if (!name || !isMemoryFilename(name)) continue;
     const key = name.toLowerCase();
     if (indexed.has(key)) throw new Error(`Private Memory index contains duplicate name: ${name}`);
@@ -160,7 +166,7 @@ function validateDeltaIdentity(run: ConsolidationRun, delta: unknown): Record<st
   return delta;
 }
 
-function repositoryCandidate(repoRoot: string, observationPath: string): string {
+async function repositoryCandidate(repoRoot: string, observationPath: string): Promise<string> {
   if (!observationPath || path.isAbsolute(observationPath) || observationPath.split(/[\\/]/).includes("..")) {
     throw new Error(`Repository observation path must be repository-relative: ${observationPath}`);
   }
@@ -169,6 +175,36 @@ function repositoryCandidate(repoRoot: string, observationPath: string): string 
   const relative = path.relative(root, candidate);
   if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
     throw new Error(`Repository observation path must be repository-relative: ${observationPath}`);
+  }
+  const rootCanonical = await fs.realpath(root).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return root;
+    throw error;
+  });
+  const contained = (candidatePath: string): boolean => {
+    const canonicalRelative = path.relative(rootCanonical, candidatePath);
+    return canonicalRelative === "" || (canonicalRelative !== ".." && !canonicalRelative.startsWith(`..${path.sep}`) && !path.isAbsolute(canonicalRelative));
+  };
+  let current = root;
+  let canonicalCurrent = rootCanonical;
+  const parts = relative.split(path.sep).filter(Boolean);
+  for (let index = 0; index < parts.length; index += 1) {
+    current = path.join(current, parts[index]);
+    let stat: Awaited<ReturnType<typeof fs.lstat>>;
+    try {
+      stat = await fs.lstat(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        const unresolved = path.resolve(canonicalCurrent, ...parts.slice(index));
+        if (!contained(unresolved)) throw new Error(`Repository observation path escapes its canonical root: ${observationPath}`);
+        break;
+      }
+      throw error;
+    }
+    canonicalCurrent = await fs.realpath(current);
+    if (!contained(canonicalCurrent)) throw new Error(`Repository observation path escapes its canonical root: ${observationPath}`);
+    if (index < parts.length - 1 && !stat.isDirectory() && !stat.isSymbolicLink()) {
+      throw new Error(`Repository observation path contains a non-directory parent: ${observationPath}`);
+    }
   }
   return candidate;
 }
@@ -186,7 +222,7 @@ async function normalizeObservations(value: unknown, repoRoot: string, label: st
     if (typeof item.status !== "string" || !OBSERVATION_STATUSES.has(item.status as RepositoryObservationStatus)) {
       throw new Error(`${label}[${index}].status must be found, missing, or updated`);
     }
-    const candidate = repositoryCandidate(repoRoot, item.path);
+    const candidate = await repositoryCandidate(repoRoot, item.path);
     const key = `${item.status}\u0000${item.path}`;
     if (seen.has(key)) throw new Error(`${label} contains a duplicate repository observation`);
     seen.add(key);
@@ -203,6 +239,12 @@ async function normalizeObservations(value: unknown, repoRoot: string, label: st
       if (stat.isSymbolicLink() || !stat.isFile()) {
         throw new Error(`${label}[${index}] must cite an existing regular file for ${item.status}: ${item.path}`);
       }
+    } else {
+      const exists = await fs.lstat(candidate).then(() => true, (error: unknown) => {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+        throw error;
+      });
+      if (exists) throw new Error(`${label}[${index}] must cite an absent path for missing: ${item.path}`);
     }
     observations.push({ path: item.path, status: item.status as RepositoryObservationStatus });
   }
@@ -231,7 +273,10 @@ async function normalizeOperations(
     if (selectedByKey.get(key) !== name) throw new Error(`Operation is outside selected scope: ${name}`);
     if (seen.has(key)) throw new Error(`Incremental Memory operation is duplicated: ${name}`);
     seen.add(key);
-    if (value.kind !== "create" && value.kind !== "rewrite" && value.kind !== "delete") {
+    if (value.kind === "create") {
+      throw new Error(`Incremental Memory cannot create an already selected file: ${name}; use newMemories for new knowledge`);
+    }
+    if (value.kind !== "rewrite" && value.kind !== "delete") {
       throw new Error(`Invalid operation kind for ${name}`);
     }
     if (value.classification !== "safe" && value.classification !== "private") {
@@ -289,7 +334,7 @@ async function validateDeletePreservation(operations: readonly IncrementalMemory
     if (operation.kind !== "delete") continue;
     for (const target of operation.preservedIn ?? []) {
       if (rewritten.has(target)) continue;
-      const candidate = repositoryCandidate(repoRoot, target);
+      const candidate = await repositoryCandidate(repoRoot, target);
       let stat: Awaited<ReturnType<typeof fs.lstat>>;
       try {
         stat = await fs.lstat(candidate);

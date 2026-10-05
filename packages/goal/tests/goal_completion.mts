@@ -1,12 +1,14 @@
 /** Completion transport and no-work-loop regressions at the lifecycle seam. */
+import type { GoalRecord } from "../src/record.ts";
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GoalCore, GOAL_FOCUS_ENTRY } from "../src/core.ts";
+import { GoalCore, type GoalCoreOptions, GOAL_FOCUS_ENTRY } from "../src/core.ts";
 import { registerGoalEvents } from "../src/events.ts";
 import { registerGoalTools } from "../src/tools.ts";
-import { collectGoalEvidence } from "../src/evidence.ts";
+import { goalPromptPath } from "../src/paths.ts";
+import { collectGoalEvidence, type GoalEvidence } from "../src/evidence.ts";
 import { buildCheckPrompt } from "../src/check.ts";
 
 const outcomes: string[] = [];
@@ -14,7 +16,8 @@ async function scenario(name: string, body: () => Promise<void>) {
   try { await body(); outcomes.push(`ok ${name}`); }
   catch (error) { outcomes.push(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`); process.exitCode = 1; }
 }
-function fixture(runCheck: ConstructorParameters<typeof GoalCore>[2]["runCheck"]) {
+function fixture(runCheck: GoalCoreOptions["runCheck"]) {
+  assert.ok(runCheck, "completion scenarios always inject a checker");
   const cwd = mkdtempSync(join(tmpdir(), "goal-completion-"));
   const events = new Map<string, Function>();
   const tools = new Map<string, { execute: Function }>();
@@ -38,7 +41,7 @@ function fixture(runCheck: ConstructorParameters<typeof GoalCore>[2]["runCheck"]
 }
 await scenario("completion receives recorded executions and review separately from the executor claim", async () => {
   let observed: unknown;
-  const f = fixture(async options => { observed = options; return { met: false, report: "Not yet." }; });
+  const f = fixture(async (options: { evidence?: GoalEvidence }) => { observed = options; return { met: false, report: "Not yet." }; });
   const at = new Date(Date.now() + 1).toISOString();
   f.branch.push(
     { id: "call", type: "message", timestamp: at, message: { role: "assistant", content: [{ type: "toolCall", id: "verify-1", name: "bash", arguments: { command: "pnpm test:e2e" } }] } },
@@ -126,6 +129,81 @@ await scenario("three valid final refusals pause with concrete advice and revisi
   assert.equal(f.core.goal?.completionFailures, 0);
   f.core.shutdown();
 });
+await scenario("three malformed checker answers never spend a valid refusal", async () => {
+  // A checker that crashed, timed out or answered without a verdict produces an
+  // error, not a decision. End to end, that error must leave the goal running and
+  // the refusal count at zero, so a broken checker cannot pause real work.
+  let calls = 0;
+  const f = fixture(async () => {
+    calls += 1;
+    return { met: false, report: "", error: "The check returned no verdict marker, so it decided nothing." };
+  });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await f.tools.get("update_goal")!.execute("close", { status: "complete" }, undefined, undefined, f.ctx);
+  }
+  assert.equal(calls, 3, "every request reached the checker");
+  assert.equal(f.core.goal?.completionFailures, 0, "a malformed answer is not a final refusal");
+  assert.equal(f.core.goal?.status, "active", "and three of them cannot pause the goal");
+  assert.equal(f.core.store.isArchived("completion-goal"), false, "nor close it");
+  f.core.shutdown();
+});
+await scenario("three refusals never pause a goal another session resumed", async () => {
+  const f = fixture(async () => ({ met: false, report: "Not done." }));
+  const close = () => f.tools.get("update_goal")!.execute("close", { status: "complete" }, undefined, undefined, f.ctx);
+  await close();
+  await close();
+  // Another session takes the goal over between refusals. The third refusal is
+  // this session's last attempt, so its stop write is the dangerous one: without
+  // an ownership guard it pauses a goal this session no longer owns.
+  const owner = f.core.goal?.scheduler?.owner ?? "";
+  const taken = f.core.store.apply({
+    expectedGoalId: "completion-goal",
+    mutate: (draft) => ({ ...draft, scheduler: draft.scheduler ? { ...draft.scheduler, owner: `${owner}-other` } : undefined }),
+  });
+  assert.ok(taken.ok, JSON.stringify(taken));
+  await close();
+  assert.equal(f.core.goal?.completionFailures, 2, "a refusal this session may not own is not recorded");
+  assert.equal(f.core.goal?.status, "active", "and the new owner's goal is never paused");
+  f.core.shutdown();
+});
+await scenario("a budget stop never stops a goal another session resumed", async () => {
+  // markBudgetLimited writes `status` directly rather than through pause(), so
+  // it must carry its own ownership guard. Ownership can rotate between the
+  // usage write that reaches the cap and the stop that follows it.
+  const f = fixture(async () => ({ met: true, report: "Met." }));
+  const store = f.core.store as unknown as { apply: (spec: unknown) => unknown };
+  const original = store.apply.bind(store);
+  const owner = f.core.goal?.scheduler?.owner ?? "";
+  let writes = 0;
+  store.apply = (spec: unknown) => {
+    writes += 1;
+    if (writes === 2) {
+      original({
+        expectedGoalId: "completion-goal",
+        mutate: (draft: GoalRecord) => ({ ...draft, scheduler: draft.scheduler ? { ...draft.scheduler, owner: `${owner}-other` } : undefined }),
+      });
+    }
+    return original(spec);
+  };
+  const goal = f.core.goal!;
+  // Capture what the user is actually told. A declined stop must not claim the
+  // goal stopped, because the new owner's work is still running.
+  const notifications: string[] = [];
+  const ui = f.ctx.ui as unknown as { notify: (line: string) => void };
+  const reported = ui.notify.bind(ui);
+  ui.notify = (line: string) => { notifications.push(line); reported(line); };
+  original({ expectedGoalId: "completion-goal", mutate: (draft: GoalRecord) => ({ ...draft, tokenBudget: 100 }) });
+  // The fixture supplies a minimal context double, so it is cast once at this
+  // seam rather than given a fake that pretends to be the whole interface.
+  f.core.chargeUsage(f.ctx as unknown as Parameters<typeof f.core.chargeUsage>[0], goal, 1, 100, 0);
+  assert.equal(f.core.goal?.status, "active", "the new owner's goal is never stopped");
+  assert.ok(
+    !notifications.some((line) => line.includes("reached its token cap and stopped")),
+    `a declined stop must not be reported as a stop: ${JSON.stringify(notifications)}`,
+  );
+  assert.notEqual(f.core.goal?.scheduler?.owner, owner, "ownership really rotated");
+  f.core.shutdown();
+});
 await scenario("cancelled checks do not count and explicit resume resets final failures", async () => {
   let release: ((value: { met: boolean; report: string }) => void) | undefined;
   let held = false;
@@ -201,6 +279,64 @@ await scenario("identical rewrites cannot reset final refusals or the observatio
   assert.equal(f.core.goal?.evidenceSince, original.evidenceSince);
   f.core.shutdown();
 });
+await scenario("a stopped goal refuses a late revision", async () => {
+  // `update_goal` is withdrawn for a budget-limited goal, but a call can still
+  // arrive one transition late. Revising it would rewrite the prose, move the
+  // evidence window and reset the refusal count of work that has stopped.
+  const f = fixture(async () => ({ met: false, report: "Missing independent review." }));
+  const before = f.core.goal!;
+  f.core.store.apply({
+    expectedGoalId: "completion-goal",
+    mutate: (draft) => ({
+      ...draft,
+      status: "budget_limited",
+      autoContinue: false,
+      completionFailures: 2,
+      evidenceSince: "2020-01-01T00:00:00.000Z",
+    }),
+  });
+  const outcome = await f.tools.get("update_goal")!.execute(
+    "late-revise",
+    { objective: "Export the reports as PDF instead." },
+    undefined,
+    undefined,
+    f.ctx,
+  );
+  assert.equal(outcome.isError, true, `a stopped goal must refuse the revision: ${JSON.stringify(outcome)}`);
+  const after = f.core.goal!;
+  assert.equal(after.objective, before.objective, "the objective is untouched");
+  assert.equal(after.evidenceSince, "2020-01-01T00:00:00.000Z", "the evidence window did not move");
+  assert.equal(after.completionFailures, 2, "the refusal count did not reset");
+  const prose = readFileSync(goalPromptPath(f.ctx.cwd, before.id), "utf-8");
+  assert.doesNotMatch(prose, /PDF/, "and the prose was not rewritten");
+  f.core.shutdown();
+});
+
+await scenario("a tool revision moves prose, evidence window and refusal count together", async () => {
+  // The command path pins these three. The tool path shares the writer, but a
+  // shared writer is a structure, not a test, so it is pinned here too.
+  const f = fixture(async () => ({ met: false, report: "Missing independent review." }));
+  const before = f.core.goal!;
+  f.core.store.apply({
+    expectedGoalId: "completion-goal",
+    mutate: (draft) => ({ ...draft, completionFailures: 2, evidenceSince: "2020-01-01T00:00:00.000Z" }),
+  });
+  await f.tools.get("update_goal")!.execute(
+    "revise",
+    { objective: "Export the reports as PDF instead." },
+    undefined,
+    undefined,
+    f.ctx,
+  );
+  const after = f.core.goal!;
+  const prose = readFileSync(goalPromptPath(f.ctx.cwd, before.id), "utf-8");
+  assert.match(after.objective, /PDF/, "the objective is revised");
+  assert.match(prose, /PDF/, `prompt.md must carry the new objective: ${prose.slice(0, 120)}`);
+  assert.notEqual(after.evidenceSince, "2020-01-01T00:00:00.000Z", "the evidence window must move with it");
+  assert.equal(after.completionFailures, 0, "the refusal count must reset with it");
+  f.core.shutdown();
+});
+
 await scenario("loop MET cannot archive a requirement boundary changed after validation", async () => {
   const f = fixture(async () => ({ met: true, report: "Old evidence accepted." }));
   let changed = false;
@@ -240,4 +376,32 @@ await scenario("legacy attributed review reports reach the check without promoti
   assert.equal(collectGoalEvidence([{ ...report, details: { ...report.details, origin: "harness" } }] as never, f.core.goal!, "completion-thread").observations.length, 0);
   f.core.shutdown();
 });
+
+await scenario("active subagents prevent no-work pause and defer premature loop checks", async () => {
+  const rosterKey = Symbol.for("fradser.pi-subagents.roster");
+  const carrier = globalThis as Record<symbol, Record<string, { status: string }>>;
+  carrier[rosterKey] = {
+    reviewer: { status: "working" },
+  };
+  let checkRan = false;
+  const f = fixture(async () => {
+    checkRan = true;
+    return { met: false, report: "premature check" };
+  });
+  try {
+    for (let run = 0; run < 5; run += 1) {
+      await f.events.get("agent_start")!({}, f.ctx);
+      await f.events.get("turn_start")!({}, f.ctx);
+      // Turn finishes with no tools called (waiting for subagent)
+      await f.events.get("agent_before_settle")!({ outcome: "completed" }, f.ctx);
+    }
+    assert.equal(checkRan, false, "loop check must not run while subagents are active");
+    assert.equal(f.core.goal?.status, "active", "goal must remain active while subagents are working");
+    assert.equal(f.core.goal?.scheduler?.idleRuns, 0, "idle runs must not accumulate while subagents are working");
+  } finally {
+    delete carrier[rosterKey];
+    f.core.shutdown();
+  }
+});
+
 console.log(JSON.stringify(outcomes));

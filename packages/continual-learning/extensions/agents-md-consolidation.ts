@@ -27,6 +27,7 @@ import {
 } from "@fradser/pi-kit";
 import {
   extractChildPlan,
+  containsSensitiveMemoryMaterial,
   sha256Digest,
   terminateConsolidationChild,
   writeFileAtomic,
@@ -35,6 +36,7 @@ import {
   MAX_PLAN_BYTES,
   MAX_SNAPSHOT_BYTES,
   MAX_STDOUT_BYTES,
+  parsePrivateIndexNames,
   type ConsolidationRun,
 } from "./consolidation-run";
 import { buildMemoryIndexContent, isMemoryFilename } from "./memory-files";
@@ -838,9 +840,6 @@ export async function recoverPendingAgentsMdConsolidations(cwd: string): Promise
   return recovered;
 }
 
-const PRIVATE_INDEX_MARKER_RE = /\(\s*harness[\s_-]+only\s*\)/i;
-const INDEX_MEMORY_NAME_RE = /[A-Za-z0-9][A-Za-z0-9_-]*\.md\b/i;
-
 async function readPrivateMemoryNames(root: string): Promise<Set<string>> {
   let index: string;
   try {
@@ -849,14 +848,7 @@ async function readPrivateMemoryNames(root: string): Promise<Set<string>> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Set();
     throw error;
   }
-  const privateNames = new Set<string>();
-  for (const line of index.split(/\r?\n/)) {
-    if (!PRIVATE_INDEX_MARKER_RE.test(line)) continue;
-    const name = INDEX_MEMORY_NAME_RE.exec(line)?.[0];
-    if (!name || !isMemoryFilename(name)) throw new Error(`Private memory marker has no canonical filename in ${root}`);
-    privateNames.add(name.toLowerCase());
-  }
-  return privateNames;
+  return parsePrivateIndexNames(index, root);
 }
 
 async function memoryNames(root: string): Promise<string[]> {
@@ -941,6 +933,34 @@ function extractedMemoryContent(op: AgentsOp): string {
   const extraction = op.extraction as ExtractionMemory;
   const frontmatter = ["---", `name: ${extraction.memoryName.replace(/\.md$/i, "")}`, `description: ${JSON.stringify(extraction.description)}`, `type: ${extraction.type}`, "---", ""].join("\n");
   return `${frontmatter}${(op.oldText ?? "").trim()}\n`;
+}
+
+/**
+ * Keep the exported apply boundary safe for callers that do not use the
+ * pipeline's history wrapper. Every text field that can reach AGENTS.md,
+ * Memory, or Harness is checked before the first receipt or artifact write.
+ */
+function sensitiveApplyField(operations: readonly AgentsOp[]): string | undefined {
+  for (const [index, operation] of operations.entries()) {
+    const fields: Array<[string, string | undefined]> = [
+      [`operations[${index}].oldText`, operation.oldText],
+      [`operations[${index}].newText`, operation.newText],
+      [`operations[${index}].text`, operation.text],
+      [`operations[${index}].replacementText`, operation.replacementText],
+    ];
+    if (operation.extraction?.target === "memory") {
+      fields.push([`operations[${index}].extraction.memoryName`, operation.extraction.memoryName]);
+      fields.push([`operations[${index}].extraction.description`, operation.extraction.description]);
+      fields.push([`operations[${index}].generatedMemory`, extractedMemoryContent(operation)]);
+    } else if (operation.extraction?.target === "skillRule") {
+      fields.push([`operations[${index}].extraction.ruleId`, operation.extraction.ruleId]);
+      fields.push([`operations[${index}].extraction.skillName`, operation.extraction.skillName]);
+      fields.push([`operations[${index}].extraction.instructions`, operation.extraction.instructions]);
+    }
+    const found = fields.find(([, value]) => value !== undefined && containsSensitiveMemoryMaterial(value));
+    if (found) return found[0];
+  }
+  return undefined;
 }
 
 async function assertProjectLocalTarget(cwd: string, target: string): Promise<void> {
@@ -1164,11 +1184,36 @@ export async function applyAgentsMdConsolidationPlan(
     return { outcome: "failed", applied: 0, extractions: [], detail: "AGENTS.md plan failed its apply evidence gates" };
   }
   const operations = quoteCheck.operations;
+  const sensitiveField = sensitiveApplyField(operations);
+  if (sensitiveField) {
+    return {
+      outcome: "failed",
+      applied: 0,
+      extractions: [],
+      detail: `AGENTS.md plan contains sensitive material in ${sensitiveField}`,
+    };
+  }
+  if (containsSensitiveMemoryMaterial(doc)) {
+    return {
+      outcome: "failed",
+      applied: 0,
+      extractions: [],
+      detail: "AGENTS.md plan refused because the current document contains sensitive material",
+    };
+  }
   const currentDocBytes = await readRegularFileIfExists(targetPath, MAX_AGENTS_MD_FILE_BYTES);
   if (!currentDocBytes || !currentDocBytes.equals(docBytes)) {
     const detail = "AGENTS.md changed after planning";
     notifyPi(ctx.ui, `${detail}; nothing was written.`, "warning");
     return { outcome: "failed", applied: 0, extractions: [], detail };
+  }
+  if (containsSensitiveMemoryMaterial(currentDocBytes.toString("utf8"))) {
+    return {
+      outcome: "failed",
+      applied: 0,
+      extractions: [],
+      detail: "AGENTS.md plan refused because the current document contains sensitive material",
+    };
   }
   const resimulated = simulateAgentsOps(doc, operations);
   if (!resimulated.ok || !budgetAllows(preBytes, Buffer.byteLength(resimulated.doc, "utf8"), opts.budgetBytes)) {
@@ -1228,6 +1273,9 @@ export async function applyAgentsMdConsolidationPlan(
       files.add(harnessConfig);
     }
     snapshots = await Promise.all([...files].map(captureTransactionFile));
+    if (snapshots.some((snapshot) => snapshot.content && containsSensitiveMemoryMaterial(snapshot.content.toString("utf8")))) {
+      throw new Error("AGENTS.md plan refused because a transaction predecessor contains sensitive material");
+    }
     if (memoryOps.length > 0) {
       stableRoots.push(await openStableMemoryRoot(privateRoot));
       if (publicRoot) stableRoots.push(await openStableMemoryRoot(publicRoot));

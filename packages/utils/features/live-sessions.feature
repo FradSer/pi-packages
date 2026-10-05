@@ -26,3 +26,22 @@ Feature: Control only live Pi sessions through private sockets
     When clients send malformed or oversized input or use an unsafe directory
     Then requests fail without delivering messages
     And stale entries are not advertised or removed by clients
+
+  Scenario: The live-sessions command is the capability entry point
+    Given a live session is reachable through its private socket
+    When the user runs /live-sessions
+    Then live instances are listed with their state, pid, and sanitized name
+    And live instance ids are offered as argument completions
+    And when no live session exists the user is told so
+
+  Scenario: Delivery through the command never claims completion
+    Given an idle live session and a busy live session
+    When the user runs /live-sessions <id> <text> for each
+    Then the idle delivery is reported as accepted and the busy one as queued
+    And the report states the text was delivered, not completed
+    And an optional steer prefix requests steering instead of a follow-up
+
+  Scenario: Command arguments are bounded before the transport
+    Given a delivery with no text, an over-long text, or an over-long session id
+    When the user runs /live-sessions with those arguments
+    Then the request is refused without reaching any socket

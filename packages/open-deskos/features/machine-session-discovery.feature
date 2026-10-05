@@ -1,5 +1,31 @@
 Feature: Discover this machine's existing session metadata without reading histories
 
+  Scenario: Endpoint configuration names the exact host and decimal port
+    Given a desks file or environment names a bracketed IPv6 endpoint
+    When configuration is loaded
+    Then the transport receives the unbracketed IPv6 host and decimal port
+    And ports with suffixes, fractions, or URL syntax are refused
+    And a console preference naming a host shared by multiple configured ports requires an exact endpoint
+
+  Scenario: Local transport failures do not disable future reporting
+    Given socket creation or a write fails synchronously
+    When the reporter starts or sends current state
+    Then the failure is contained and the failed transport is closed
+    And capped retries restore retained state on a later usable connection
+
+  Scenario: Windows process discovery preserves truthful session liveness
+    Given a Windows process snapshot contains Pi launched from a quoted path with spaces
+    And it contains another command merely mentioning Pi and malformed process identities
+    When discovery reads one bounded Windows snapshot
+    Then only verified Pi process IDs and their exact creation timestamps are eligible for live metadata
+    And the snapshot uses a static read-only Windows process query instead of the Unix ps command
+
+  Scenario: A stuck process query cannot block discovery forever
+    Given the operating system never completes a process query even after its timeout signal
+    When the bounded snapshot deadline expires
+    Then discovery treats process identities as unavailable
+    And query streams and child handles are released without waiting for a callback
+
   Scenario: One configured reporter discovers sessions across workspaces
     Given directory-sessions metadata contains working, idle, settled, and exited sessions
     And some records claiming to run have dead or invalid process IDs

@@ -22,6 +22,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from live_pty import base_env
+
 FIXTURE = Path(__file__).with_name("lifecycle-live-fixture.ts")
 EXPECTED = (
     "started · Reproducing & Diagnostics",
@@ -31,6 +33,8 @@ EXPECTED = (
     "event · Code Review completed",
     "started · Architecture Survey",
     "event · Implementation cancelled",
+    "started · Diagnosing Bugs",
+    "started · Writing For Agents · Skill Mechanics",
 )
 
 
@@ -40,9 +44,9 @@ def read_snapshots(path: Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.endswith("}")]
 
 
-def verify_results(rows: list[dict]) -> None:
+def verify_results(rows: list[dict], has_ui: bool = False) -> None:
     results = [row for row in rows if row["kind"] == "result"]
-    assert len(results) == 9, results
+    assert len(results) == 15, results
     assert all(not row["isError"] for row in results), results
     assert results[1]["details"]["subject"] == "Reproducing & Diagnostics completed"
     assert results[5]["details"]["subject"] == "Code Review completed"
@@ -51,6 +55,14 @@ def verify_results(rows: list[dict]) -> None:
     assert results[1]["details"]["state"]["phase"] == "feedback-loop"
     assert results[1]["details"]["state"]["status"] == "completed"
     assert results[8]["details"]["state"]["status"] == "cancelled"
+    questions = [row for row in results if row["tool"] == "matt_pocock_ask"]
+    assert questions[0]["details"] == ({
+        "answer": "A", "is_custom": False, "timed_out": True,
+        "pending": False, "source": "timeout_recommended",
+    } if has_ui else {"pending": True, "source": "no_ui"})
+    assert questions[1]["details"] == ({
+        "pending": True, "timed_out": False, "source": "cancelled",
+    } if has_ui else {"pending": True, "source": "no_ui"})
 
 
 def verify_tui(command: list[str], env: dict[str, str], cwd: Path, snapshots: Path) -> list[str]:
@@ -95,9 +107,11 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, snapshots: Pa
                    for row in read_snapshots(snapshots))
 
     try:
+        wait_for(lambda: b"Fixture cancel decision" in transcript)
+        os.write(master, b"\x1b")  # Escape cancels a real Pi selector with a recommendation.
         wait_for(lambda: b"MP_PHASE_LIVE_READY" in transcript and has_render(120, False))
         rows = read_snapshots(snapshots)
-        verify_results(rows)
+        verify_results(rows, has_ui=True)
         headers = [line.strip() for row in rows if row["kind"] == "render" and not row["expanded"]
                    for line in row["lines"] if "[matt pocock]" in line]
         for expected in EXPECTED:
@@ -105,7 +119,13 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, snapshots: Pa
         assert all("hard-bug" not in line and "Hard Bug Diagnosis" not in line and "Codebase Architecture" not in line
                    for line in headers), headers
         os.write(master, b"\x0f")  # Actual Ctrl+O through Pi's editor.
-        wait_for(lambda: has_render(120, True))
+        # Pi renders rows sequentially; one expanded row does not mean the entire
+        # transcript has been redrawn yet.
+        wait_for(lambda: all(expected in "\n".join(
+            line for row in read_snapshots(snapshots)
+            if row["kind"] == "render" and row["expanded"] for line in row["lines"]
+        ) for expected in ("route · Hard Bug Diagnosis", "route · Codebase Architecture",
+                           "reason · Offline fixture finished")))
         expanded = "\n".join(line for row in read_snapshots(snapshots)
                              if row["kind"] == "render" and row["expanded"] for line in row["lines"])
         assert "route · Hard Bug Diagnosis" in expanded
@@ -149,7 +169,7 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, snapshots: Pa
         assert procedure["details"]["phase"] == "feedback-loop", procedure
         assert procedure["details"]["status"] == "active", procedure
         assert procedure["details"]["request"] == "fix the login redirect", procedure
-        assert "48;2;52;53;65" in "\n".join(procedure["raw"]), "the block is not on pi's user-message band"
+        assert procedure["userMessageBg"] in "\n".join(procedure["raw"]), "the block is not on pi's user-message band"
         assert "to expand" not in "\n".join(procedure["lines"]), procedure
         assert "procedure/" not in "\n".join(procedure["lines"]), procedure
         assert all("\n" not in line and len(line) <= 120 for line in procedure["lines"]), procedure
@@ -180,7 +200,7 @@ def main() -> None:
         agent_dir = cwd / "agent"
         agent_dir.mkdir()
         (agent_dir / "settings.json").write_text(json.dumps({"theme": "dark", "quietStartup": True}))
-        env = {key: value for key, value in os.environ.items() if not key.startswith("PI_")}
+        env = base_env()
         env.update({
             "HOME": str(cwd), "PI_CODING_AGENT_DIR": str(agent_dir), "PI_OFFLINE": "1",
             "PI_PHASE_LIVE_AUTH": secrets.token_hex(16), "TERM": "xterm-256color",
@@ -198,7 +218,7 @@ def main() -> None:
         env["PI_PHASE_LIVE_SNAPSHOTS"] = str(tui_snapshots)
         headers = verify_tui(command, env, cwd, tui_snapshots)
         print("MP_PHASE_LIVE_DONE=" + json.dumps({
-            "print": "passed", "tui": "passed", "keyboardExpand": "passed", "resize48": "passed", "headers": headers,
+            "print": "passed", "tui": "passed", "questionTimeout": "passed", "questionEscape": "passed", "keyboardExpand": "passed", "resize48": "passed", "headers": headers,
         }))
 
 

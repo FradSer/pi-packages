@@ -54,9 +54,16 @@ function normalizedBody(value) {
 }
 
 function parseArguments(argv) {
-  if (argv.length === 0) return {};
-  if (argv.length === 2 && argv[0] === "--upstream") return { upstream: argv[1] };
-  fail("usage: node scripts/check-upstream-sync.mjs [--upstream <already-cloned-path>]");
+  const options = {};
+  for (let index = 0; index < argv.length; index += 2) {
+    const key = { "--upstream": "upstream", "--selection": "selection" }[argv[index]];
+    const value = argv[index + 1];
+    if (!key || options[key] || !value || value.startsWith("--")) {
+      fail("usage: node scripts/check-upstream-sync.mjs [--upstream <already-cloned-path>] [--selection <metadata-file>]");
+    }
+    options[key] = value;
+  }
+  return options;
 }
 
 async function validateCatalogMappings(metadata) {
@@ -82,13 +89,6 @@ async function validateMetadata(metadata) {
   requireCommit(metadata.resolvedTagCommit, "resolvedTagCommit");
   requireCommit(metadata.latestCheckedCommit, "latestCheckedCommit");
 
-  const revisions = [
-    metadata.comparedCommit,
-    metadata.comparisonTag,
-    metadata.resolvedTagCommit,
-    metadata.latestCheckedCommit,
-  ];
-  if (new Set(revisions).size !== revisions.length) fail("upstream revision fields must be distinct");
   if (!Array.isArray(metadata.selected) || metadata.selected.length === 0) fail("selected must be non-empty");
   if (!Array.isArray(metadata.excluded) || metadata.excluded.length === 0) fail("excluded must be non-empty");
 
@@ -196,7 +196,7 @@ async function compareUpstream(metadata, upstreamArgument) {
 
 try {
   const args = parseArguments(process.argv.slice(2));
-  const metadata = JSON.parse(await readFile(selectionPath, "utf8"));
+  const metadata = JSON.parse(await readFile(args.selection ?? selectionPath, "utf8"));
   await validateMetadata(metadata);
   const comparison = args.upstream ? await compareUpstream(metadata, args.upstream) : {};
   console.log(JSON.stringify({

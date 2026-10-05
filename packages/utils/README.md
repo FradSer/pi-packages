@@ -1,6 +1,6 @@
 # @fradser/pi-utils
 
-A pi-native package offering `/effort` for setting model thinking levels, `/继续` (`/continue`) for resuming interrupted tasks, `/init` for scoped `AGENTS.md` contributor guides, multi-session directory awareness (`/sessions`), private live-session control, and git worktree isolation.
+A pi-native package offering `/effort` for setting model thinking levels, `/autoname` for model-generated session names, `/继续` (`/continue`) for resuming interrupted tasks, `/init` for scoped `AGENTS.md` contributor guides, multi-session directory awareness (`/sessions`), private live-session control, npm publish guarding, and git worktree isolation.
 
 ## Structure
 
@@ -9,15 +9,19 @@ text
 utils/
 ├── index.ts              — Package-root extension entry point
 ├── extensions/
+│   ├── autoname.ts       — /autoname model-generated session name
 │   ├── continue.ts       — /continue and continuation keyword interception
 │   ├── effort.ts         — /effort thinking-level menu
 │   ├── init.ts           — /init repository guide generation
 │   ├── sessions.ts       — /sessions directory awareness + listing tool
-│   ├── live-sessions.ts  — Live-session socket lifecycle
+│   ├── live-sessions.ts  — /live-sessions command + live-session socket lifecycle
 │   ├── live-sessions/    — Protocol, client, server, and transport
+│   ├── npm-publish-guard.ts — publish/credential guard
 │   ├── worktree.ts       — git worktree add path redirect
 │   ├── worktree-completion.ts — worktree-aware @ filtering
-│   └── worktree-session.ts — EnterWorktree / ExitWorktree session switching
+│   ├── worktree-session.ts — EnterWorktree / ExitWorktree session switching
+│   └── git/worktrees.ts  — Shared git worktree plumbing (one porcelain parser,
+│                           one canonicalizer, one .pi/worktrees definition)
 ├── features/             — BDD contract
 ├── tests/                — Package E2E tests
 └── README.md
@@ -61,9 +65,9 @@ history. An optional argument adds focus:
 ```
 
 **Features**:
-1. **Cross-Session Awareness**: Multiple Pi sessions in the same project directory register their status, latest goal, and touched files in `~/.pi/agent/directory-sessions/`. Directory names use pi-kit's canonical hashed identity, so slash-versus-hyphen paths remain separate; existing paths use `realpath` and missing paths use their absolute spelling.
+1. **Cross-Session Awareness**: Multiple Pi sessions in the same project directory register their status, latest goal, and touched files in `~/.pi/agent/directory-sessions/`. Directory names use pi-kit's canonical hashed identity, so slash-versus-hyphen paths remain separate; existing paths use `realpath` and missing paths use their absolute spelling. A session that moves between directories (for example by entering a worktree) removes its record from every directory it registered under when it shuts down.
 2. **Automated Prompt Injection**: When multiple sessions run in the same directory, `before_agent_start` automatically injects a concise directory recap into the system prompt so each agent is aware of parallel work.
-3. **Dead PID Pruning**: Stale or dead process IDs are automatically detected (`process.kill(pid, 0)`) and cleaned up from the directory registry. Reads and cleanup verify the record's canonical `cwd`; foreign or malformed records remain untouched when ownership cannot be proven, and old directory names are not migrated.
+3. **Dead PID Pruning**: Stale or dead process IDs are automatically detected (`process.kill(pid, 0)`). A dead process whose record is still fresh is reported with status `exited` so recent work stays visible, and the record is deleted once it is stale. Reads and cleanup verify the record's canonical `cwd`; foreign or malformed records remain untouched when ownership cannot be proven, and old directory names are not migrated.
 4. **Agent Tool (`list_directory_sessions`)**: Exposes a tool for agents to inspect active sessions in the directory programmatically.
 
 ### `continue` — resume or continue execution
@@ -96,8 +100,71 @@ level directly:
 
 Valid levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
 Unknown values are rejected with a hint listing the valid levels. The level
-is clamped to the model's capabilities, and the menu is narrowed to what the
-model actually supports (a reasoning-off model only gets `off`).
+is clamped to the model's capabilities, and the menu is narrowed with the same
+rule pi itself applies (a model without reasoning only gets `off`; a `null`
+`thinkingLevelMap` entry hides a level; `xhigh`/`max` need explicit entries).
+Argument completions list the canonical levels and their aliases regardless of
+model support, because Pi offers completions without a command context.
+
+### `autoname` — model-generated session name
+
+`/autoname` asks the current model to name the session from what the
+conversation is actually about. An optional argument steers the name:
+
+```
+/autoname                        # name from the conversation
+/autoname release notes rewrite  # name, steered by the argument
+```
+
+Pi's own `/name` is compiled into the interactive mode: submitting it with no
+argument and no name set answers `Usage: /name <name>`. An extension cannot
+replace it, because that built-in branch runs before extension commands are
+consulted. `/autoname` is therefore the model-generated counterpart. Use
+`/name <name>` when you want to choose the name yourself.
+
+The name is built from the user's own requests only, so it describes the task
+rather than the assistant's wording. The request asks for the subject of the
+work as a noun phrase and shows one good name against one bad one, so a session
+is listed as `Worktree root selection` and not as `Fix the utils package`. A
+model answer is reduced to a plain
+display name: quoting, markdown, list markers, and any sentence after the first
+line are dropped, and a long name is cut at a word boundary.
+
+Generation always settles. A deadline of 20 seconds, an aborted session, a
+missing model, absent credentials, a provider rejection, and an unusable answer
+each report their own cause instead of hanging the command. A provider that
+ignores its abort signal cannot hold the command open, because the deadline
+races the request rather than only signalling it.
+
+The name request asks for no reasoning. A reasoning model shares one response
+budget between its thinking and its answer, so a small budget would be spent
+before any name exists.
+
+The request is a bounded one-shot: no tools, at most 64 output tokens, no
+caching, and the current session id is forwarded so conversation-routing
+gateways accept the nested call.
+
+## npm publish guard
+
+Bash calls that would publish a package or run an npm credential flow are
+blocked, because they cannot succeed from a non-interactive shell (2FA
+web-auth exits immediately with EOTP, and an invalid token surfaces as a masked
+404 PUT on unpublished packages):
+
+```
+npm publish            # blocked
+pnpm -r publish        # blocked
+pnpm publish --dry-run # allowed: the exemption is scoped to that exact flag
+npm login              # blocked
+npm token create       # blocked
+```
+
+The block reason carries the corrected procedure: verify credentials, ask the
+user to run the command in their own terminal, then verify the registry and
+let CI own future versions. Never ask for OTP codes in chat. In a pnpm
+workspace the reason redirects the command to `pnpm publish`, because `npm
+publish` does not rewrite `workspace:*` protocols; outside one the warning is
+conditional and the command is reported unchanged.
 
 ## Live session control
 
@@ -110,6 +177,17 @@ its internal versioned protocol. Text delivery returns `accepted` or `queued`;
 neither receipt means the task completed. Busy sessions default to `followUp`,
 while `steer` requests steering. Request IDs make retries replay-safe, and a
 live instance ID changes when Pi reloads, resumes, forks, or restarts.
+
+The `/live-sessions` command is the capability's only entry point:
+
+```
+/live-sessions                                  # list live instances
+/live-sessions <sessionId> please re-run the failing test
+/live-sessions steer <sessionId> stop and summarize
+```
+
+Session ids are offered as argument completions, the listing is capped at ten
+rows, and delivery arguments are length-checked before any socket call.
 
 Sockets live in `~/.pi/live-sessions`, overridable for integration hosts with
 `PI_UTILS_LIVE_SESSIONS_DIR`. The user-owned directory is mode 0700 and sockets
@@ -133,6 +211,13 @@ The redirect preserves Git's documented `worktree add` options, including
 `--lock` (a flag), `--reason <string>`, `--orphan <branch>`, `-b <branch>`,
 `-B <branch>`, and the optional `<commit-ish>`. It preserves quoted and escaped
 path arguments, and leaves an already redirected path untouched.
+
+The managed directory belongs to the repository, not to the shell's directory:
+a command issued from a subdirectory is rewritten to the absolute
+`<repo root>/.pi/worktrees/<name>`, so the worktree lands in the same place
+`/enter-worktree` and the isolation filters look. When the repository does not
+git-ignore `.pi/`, the redirect reports that the linked worktree would appear
+as untracked; the extension never edits a repository's `.gitignore`.
 
 For safety, it only rewrites the direct `git worktree add` form. Commands with
 shell operators, redirections, substitutions, expansions, malformed quoting,
@@ -169,13 +254,16 @@ are all rebound to the selected worktree:
 and records the parent session. The LLM-facing `enter_worktree` and
 `exit_worktree` tools defer these commands until the current agent run settles
 and report `queued` until session replacement is applied. Other tools in the
-same transition batch are blocked, regardless of their order. After entering,
-Pi resumes the pending task through the replacement context with an explicit
-active-cwd instruction. Relative file operations and shell commands then run
-in the selected worktree. This is not a shell sandbox: explicit shell paths
-must still target the active worktree. Their TUI uses the same pi-kit lifecycle style as
-`monitor_start`: an empty tool-call row followed by one compact event row,
-for example `[worktree] enter · feature-auth` or
+same transition batch are blocked, regardless of their order, and the block
+reason names the pending transition. Aborting the run drops the queued
+transition and says so instead of leaving the model believing one is coming; a
+worktree command issued while a transition is queued is refused rather than
+racing it. After entering, Pi resumes the pending task through the replacement
+context with an explicit active-cwd instruction. Relative file operations and
+shell commands then run in the selected worktree. This is not a shell sandbox:
+explicit shell paths must still target the active worktree. Their TUI uses the
+same pi-kit lifecycle style as `monitor_start`: an empty tool-call row followed
+by one compact event row, for example `[worktree] enter · feature-auth` or
 `[worktree] exit · current worktree`.
 
 `/exit-worktree` returns to the parent session. For worktrees created by Pi, it

@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import extension from "../index.ts";
 import { formatHistory } from "../src/console-extension.ts";
+import { DeskConsoleClient } from "../src/console-client.ts";
 
 function harness(env) {
   const previous = { ...process.env };
@@ -130,3 +131,78 @@ test("open-deskos no-argument fallback stays usable without TUI and names stable
     assert.match(notices[0], /Control Credential|ODK_DESK_LINK_CONTROL_TOKEN/);
   } finally { h.restore(); }
 });
+
+test("console session reload closes an old hosted attachment", async () => {
+  const { registerConsoleExtension } = await import("../src/console-extension.ts");
+  const hooks = new Map();
+  const tools = new Map();
+  const transports = [];
+  registerConsoleExtension({
+    pi: { on: (name, handler) => hooks.set(name, handler), registerTool: tool => tools.set(tool.name, tool), registerCommand() {}, registerMessageRenderer() {}, appendEntry() {}, sendMessage() {} },
+    config: { host: "127.0.0.1", port: 1, machine: "test", token: "report", controlToken: "control" },
+    reporterSnapshot: () => null,
+    createControlTransport() {
+      let onRecord;
+      const transport = {
+        closed: false,
+        send(record) {
+          const reply = record.type === "control-hello" ? { v: 2, type: "challenge", nonce: "fixture" } : record.type === "control-proof" ? { v: 2, type: "control-ack" } : { v: 2, type: "ack", requestId: record.requestId, result: { caughtUp: true } };
+          queueMicrotask(() => onRecord(reply));
+        },
+        close() { this.closed = true; },
+        onOpen(fn) { queueMicrotask(fn); }, onClose() {}, onRecord(fn) { onRecord = fn; },
+      };
+      transports.push(transport);
+      return transport;
+    },
+  });
+  const ctx = id => ({ sessionManager: { getSessionId: () => id, getBranch: () => [] } });
+  hooks.get("session_start")({}, ctx("first"));
+  await tools.get("desk_attach").execute("fixture", { session_id: "hosted" });
+  hooks.get("session_start")({}, ctx("second"));
+  assert.equal(transports[0].closed, true);
+  hooks.get("session_shutdown")({}, ctx("second"));
+});
+
+for (const verb of ["prompt", "cancel", "end"]) {
+  test(`a completed ${verb} continuation keeps its owner across console reload`, async (t) => {
+    const { registerConsoleExtension } = await import("../src/console-extension.ts");
+    const hooks = new Map(), tools = new Map(), messages = [];
+    let complete;
+    const acknowledged = new Promise((resolve) => { complete = resolve; });
+    const attachments = [];
+    t.mock.method(DeskConsoleClient.prototype, "attach", async ({ sessionId }) => {
+      const joined = {
+        sessionId, attachmentId: `attachment-${sessionId}`, closed: 0,
+        lastApplied: () => 0,
+        prompt: () => acknowledged, cancel: () => acknowledged, end: () => acknowledged,
+        close() { this.closed += 1; },
+      };
+      attachments.push(joined);
+      return joined;
+    });
+    registerConsoleExtension({
+      pi: {
+        on: (name, handler) => hooks.set(name, handler),
+        registerTool: (tool) => tools.set(tool.name, tool),
+        registerCommand() {}, registerMessageRenderer() {}, appendEntry() {},
+        sendMessage: (message) => messages.push(message),
+      },
+      config: { host: "127.0.0.1", port: 1, machine: "fixture", token: "report", controlToken: "control" },
+      reporterSnapshot: () => null,
+      createControlTransport() { throw new Error("isolated fixture must not create a transport"); },
+    });
+    const ctx = (id) => ({ sessionManager: { getSessionId: () => id, getBranch: () => [] } });
+    hooks.get("session_start")({}, ctx("console-old"));
+    await tools.get("desk_attach").execute("attach-old", { session_id: "hosted-old" });
+    const pending = tools.get(`desk_${verb}`).execute("mutation", { prompt: "fixture" });
+    hooks.get("session_start")({}, ctx("console-new"));
+    await tools.get("desk_attach").execute("attach-new", { session_id: "hosted-new" });
+    complete();
+    const result = await pending;
+    assert.match(result.content[0].text, /hosted-old/, "the acknowledgement belongs to the original target");
+    assert.equal(attachments[1].closed, 0, "an old completion must not close the replacement");
+    assert.deepEqual(messages, [], "an old completion must not inject context into the new console");
+    hooks.get("session_shutdown")({}, ctx("console-new"));
+  });
+}

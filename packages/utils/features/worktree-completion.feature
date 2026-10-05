@@ -80,6 +80,12 @@ Feature: git worktree-aware @ completions
     When fffind or ffgrep tool is called without exclude
     Then the foreign worktree pattern is added to exclude
 
+  Scenario: A search tool that does not declare exclude is never given one
+    Given a search tool owned by another package whose schema has no exclude parameter
+    When that tool is called without exclude
+    Then its input is left untouched
+    And its result text is still filtered of foreign worktree paths
+
   Scenario: A session opened in a bare repository filters its linked worktrees
     Given a bare repository acting as the shared store for linked worktrees
     And a pi session running at the bare repository path

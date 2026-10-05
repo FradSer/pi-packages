@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isIP } from "node:net";
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,8 +12,25 @@ export function defaultMachineName(hostname = os.hostname()): string {
 }
 
 function readPort(raw: string): number | null {
-  const port = Number.parseInt(raw, 10);
+  if (!/^\d+$/.test(raw)) return null;
+  const port = Number(raw);
   return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null;
+}
+
+function readEndpoint(address: string): { host: string; port: number } | null {
+  const separator = address.lastIndexOf(":");
+  if (separator <= 0) return null;
+  let host = address.slice(0, separator).trim();
+  const port = readPort(address.slice(separator + 1).trim());
+  if (host.startsWith("[")) {
+    if (!host.endsWith("]")) return null;
+    host = host.slice(1, -1);
+    if (isIP(host) !== 6) return null;
+  } else if (host.includes(":")) {
+    if (isIP(host) !== 6) return null;
+  }
+  if (!host || /[\s/\\[\]?#@]/.test(host) || port === null) return null;
+  return { host, port };
 }
 
 /**
@@ -23,16 +41,12 @@ export function readDeskLinkConfig(env: NodeJS.ProcessEnv = process.env): DeskLi
   const address = (env.ODK_DESK_LINK_ADDRESS ?? "").trim();
   const token = (env.ODK_DESK_LINK_TOKEN ?? "").trim();
   if (address.length === 0 || token.length === 0) return null;
-  const separator = address.lastIndexOf(":");
-  if (separator <= 0) return null;
-  const host = address.slice(0, separator).trim();
-  const port = readPort(address.slice(separator + 1).trim());
-  if (host.length === 0 || port === null) return null;
+  const endpoint = readEndpoint(address);
+  if (endpoint === null) return null;
   const controlToken = (env.ODK_DESK_LINK_CONTROL_TOKEN ?? "").trim();
   return {
     machine: (env.ODK_DESK_LINK_MACHINE ?? "").trim() || defaultMachineName(),
-    host,
-    port,
+    ...endpoint,
     token,
     ...(controlToken.length > 0 ? { controlToken } : {}),
   };
@@ -53,10 +67,6 @@ export interface DeskLinkConfigSet {
   source: "desks-file" | "environment" | "none";
 }
 
-function readPortOrNull(raw: string): number | null {
-  return readPort(raw);
-}
-
 /** One entry of a desks file, or the reason it is not usable. */
 function configFromEntry(entry: unknown, machine: string): DeskLinkConfig | string {
   if (entry === null || typeof entry !== "object") return "an entry is not an object";
@@ -65,16 +75,13 @@ function configFromEntry(entry: unknown, machine: string): DeskLinkConfig | stri
   const token = typeof record.token === "string" ? record.token.trim() : "";
   if (address.length === 0) return "an entry states no address";
   if (token.length === 0) return `the entry for ${address} states no token`;
-  const separator = address.lastIndexOf(":");
-  const host = separator > 0 ? address.slice(0, separator).trim() : "";
-  const port = separator > 0 ? readPortOrNull(address.slice(separator + 1).trim()) : null;
-  if (host.length === 0 || port === null) return `${address} is not host:port`;
+  const endpoint = readEndpoint(address);
+  if (endpoint === null) return `${address} is not host:port`;
   const controlToken = typeof record.controlToken === "string" ? record.controlToken.trim() : "";
   const entryMachine = typeof record.machine === "string" && record.machine.trim().length > 0 ? record.machine.trim() : machine;
   return {
     machine: entryMachine,
-    host,
-    port,
+    ...endpoint,
     token,
     ...(controlToken.length > 0 ? { controlToken } : {}),
   };

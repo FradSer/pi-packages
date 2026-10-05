@@ -12,7 +12,7 @@ export const DEFAULT_MAX_CHARS = 4_000;
 export interface BuildContextOptions {
   /** Maximum number of recent user/assistant messages to include. */
   maxMessages?: number;
-  /** Maximum total excerpt length (keeps the tail — the most recent context). */
+  /** Maximum excerpt length, including the truncation marker. Keeps recent text. */
   maxChars?: number;
 }
 
@@ -30,7 +30,7 @@ type BranchEntry = {
 };
 
 /**
- * Build a compact, most-recent-first conversation excerpt from the current
+ * Build a compact, chronological conversation excerpt from the current
  * session branch. Only user and assistant text messages are included.
  */
 export function buildConversationContext(
@@ -40,7 +40,9 @@ export function buildConversationContext(
   const maxMessages = options.maxMessages ?? DEFAULT_MAX_MESSAGES;
   const maxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
 
-  const entries = sessionManager.getBranch() as unknown as BranchEntry[];
+  if (maxMessages <= 0 || maxChars <= 0) return "";
+
+  const entries = sessionManager.getBranch() as BranchEntry[];
   const parts: string[] = [];
   for (let i = entries.length - 1; i >= 0 && parts.length < maxMessages; i--) {
     const entry = entries[i];
@@ -55,5 +57,5 @@ export function buildConversationContext(
 
   const joined = parts.join("\n\n");
   if (joined.length <= maxChars) return joined;
-  return `…${joined.slice(joined.length - maxChars)}`;
+  return `…${joined.slice(joined.length - maxChars + 1)}`;
 }

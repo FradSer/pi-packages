@@ -3,6 +3,12 @@ Feature: Human-readable coordination rows
   passes around. Model-facing tool content keeps exact session, Work, and
   assignment identifiers; rendered rows never print them.
 
+  Scenario: The team widget shows only coordinator-owned processes
+    Given hosted and standalone children share the execution roster
+    When the team activity widget renders
+    Then it shows hosted children only
+    And standalone children remain owned by the subagent widget
+
   Scenario: An Agent start row names the Agent and its task
     Given the Leader delegates Work to a new Agent with a kickoff prompt
     When the agent tool row renders
@@ -81,7 +87,7 @@ Feature: Human-readable coordination rows
     And every emitted row stays width-bounded even when the terminal cannot hold the padding
 
   Scenario: Worker Work rows do not print task identifiers
-    Given a Worker queues a claim or submission for a board task
+    Given a Worker queues a claim or submission for a task set task
     When the worker work row renders
     Then the row names the task subject
     And every body line is free of identifiers

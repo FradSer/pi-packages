@@ -160,11 +160,19 @@ def test_learning_file_rejects_fifo_without_blocking(tmp_path: Path) -> None:
     os.mkfifo(fifo)
     source = r"""
       import {readLearningFile} from './packages/continual-learning/extensions/learning-history.ts';
-      let refused=false;try{await readLearningFile(process.env.CONTROL_TEST_ROOT+'/suite.json')}catch{refused=true}
-      console.log(JSON.stringify({refused}));
+      // Measure the file operation after imports, independently of Bun startup.
+      let watchdog;
+      const result = await Promise.race([
+        readLearningFile(process.env.CONTROL_TEST_ROOT+'/suite.json').then(
+          () => ({refused:false}), () => ({refused:true})),
+        new Promise(resolve => {watchdog=setTimeout(() => resolve({blocked:true}),1000)}),
+      ]);
+      clearTimeout(watchdog);
+      console.log(JSON.stringify(result));
+      if (result.blocked) process.exit(1);
     """
     try:
-        result = _run_bun(source, {"CONTROL_TEST_ROOT": str(tmp_path)}, timeout=2, parse=False)
+        result = _run_bun(source, {"CONTROL_TEST_ROOT": str(tmp_path)}, timeout=10, parse=False)
     except subprocess.TimeoutExpired:
         pytest.fail("Opening a non-regular learning file blocked")
     assert result.returncode == 0, result.stderr
@@ -209,6 +217,21 @@ def test_management_requires_headless_approval_and_rechecks_tui_preview(tmp_path
     assert result == {"headlessPreserved": "after", "laterPreserved": "later edit", "restored": "before", "settings": {"autoMemory": True, "instructions": "preserved", "automaticPhases": {"harness": "propose"}}, "errors": 2}
 
 
+def test_policy_refuses_to_display_or_write_invalid_settings(tmp_path: Path) -> None:
+    result = run_bun(r"""
+      import {handleLearningManagement} from './packages/continual-learning/extensions/learning-management.ts';
+      const notices=[];let writes=0;
+      const ctx={cwd:process.env.CONTROL_TEST_ROOT,hasUI:false,ui:{notify:(text,level)=>notices.push({text,level})}};
+      const dependencies={readSettings:async()=>({autoMemory:false,invalid:'Repair settings first'}),writeSettings:async()=>{writes++},busy:()=>false};
+      await handleLearningManagement('policy',ctx,dependencies);
+      await handleLearningManagement('policy memory apply',ctx,dependencies);
+      console.log(JSON.stringify({writes,notices}));
+    """, tmp_path)
+    assert result["writes"] == 0, result
+    assert len(result["notices"]) == 2, result
+    assert all(notice["level"] == "error" and "Repair settings first" in notice["text"] for notice in result["notices"]), result
+
+
 def test_undo_cannot_restore_a_private_memory_leak(tmp_path: Path) -> None:
     result = run_bun(r"""
       import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
@@ -225,6 +248,62 @@ def test_undo_cannot_restore_a_private_memory_leak(tmp_path: Path) -> None:
       console.log(JSON.stringify({refused,leaked:fs.existsSync(target)}));
     """, tmp_path)
     assert result == {"refused": True, "leaked": False}
+
+
+def test_normalize_tracks_bare_private_mirror_deletion_and_refuses_unsafe_undo(tmp_path: Path) -> None:
+    result = run_bun(r"""
+      import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+      import {normalizeTrackedMemory,listLearningHistory,previewLearningUndo,undoLearningChange} from './packages/continual-learning/extensions/learning-history.ts';
+      import {resolveMemoryPaths} from './packages/continual-learning/extensions/memory-paths.ts';
+      const cwd=path.join(process.env.CONTROL_TEST_ROOT,'project');fs.mkdirSync(cwd);execFileSync('git',['init','-q',cwd]);
+      const paths=resolveMemoryPaths(cwd);fs.mkdirSync(paths.harnessDir,{recursive:true});fs.mkdirSync(paths.publicDir,{recursive:true});
+      fs.writeFileSync(path.join(paths.harnessDir,'MEMORY.md'),'Preference.md (harness only)\n');
+      fs.writeFileSync(path.join(paths.harnessDir,'Preference.md'),'private preference');
+      const publicSecret=path.join(paths.publicDir,'Preference.md');fs.writeFileSync(publicSecret,'private preference');
+      const normalized=await normalizeTrackedMemory(paths);
+      const [record]=await listLearningHistory(cwd);
+      const tracked=record?.changes.some(change=>change.target.root==='public'&&change.target.name==='Preference.md');
+      const preview=await previewLearningUndo(cwd,record.id);let refused=false;
+      try{await undoLearningChange(cwd,record.id,preview.digest)}catch{refused=true}
+      console.log(JSON.stringify({removed:normalized.removed,tracked,refused,leaked:fs.existsSync(publicSecret)}));
+    """, tmp_path)
+    assert result == {"removed": ["Preference.md"], "tracked": True, "refused": True, "leaked": False}
+
+
+def test_undo_rejects_a_bare_private_reference_in_the_shared_index(tmp_path: Path) -> None:
+    result = run_bun(r"""
+      import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+      import {recordLearningMutation,listLearningHistory,previewLearningUndo,undoLearningChange} from './packages/continual-learning/extensions/learning-history.ts';
+      import {resolveMemoryPaths} from './packages/continual-learning/extensions/memory-paths.ts';
+      const cwd=path.join(process.env.CONTROL_TEST_ROOT,'project');fs.mkdirSync(cwd);execFileSync('git',['init','-q',cwd]);
+      const paths=resolveMemoryPaths(cwd);fs.mkdirSync(paths.harnessDir,{recursive:true});fs.mkdirSync(paths.publicDir,{recursive:true});
+      fs.writeFileSync(path.join(paths.harnessDir,'MEMORY.md'),'secret.md (harness only)\n');
+      fs.writeFileSync(path.join(paths.harnessDir,'secret.md'),'private preference');
+      const publicIndex=path.join(paths.publicDir,'MEMORY.md');fs.writeFileSync(publicIndex,'secret.md\n');
+      await recordLearningMutation(cwd,'memory',[publicIndex],async()=>fs.writeFileSync(publicIndex,'# Memory\n'));
+      const [record]=await listLearningHistory(cwd),preview=await previewLearningUndo(cwd,record.id);let refused=false;
+      try{await undoLearningChange(cwd,record.id,preview.digest)}catch{refused=true}
+      console.log(JSON.stringify({refused,index:fs.readFileSync(publicIndex,'utf8')}));
+    """, tmp_path)
+    assert result == {"refused": True, "index": "# Memory\n"}
+
+
+def test_undo_allows_a_bare_private_body_update_without_public_mirror(tmp_path: Path) -> None:
+    result = run_bun(r"""
+      import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+      import {recordLearningMutation,listLearningHistory,previewLearningUndo,undoLearningChange} from './packages/continual-learning/extensions/learning-history.ts';
+      import {resolveMemoryPaths} from './packages/continual-learning/extensions/memory-paths.ts';
+      const cwd=path.join(process.env.CONTROL_TEST_ROOT,'project');fs.mkdirSync(cwd);execFileSync('git',['init','-q',cwd]);
+      const paths=resolveMemoryPaths(cwd);fs.mkdirSync(paths.harnessDir,{recursive:true});fs.mkdirSync(paths.publicDir,{recursive:true});
+      fs.writeFileSync(path.join(paths.harnessDir,'MEMORY.md'),'private.md (harness only)\n');
+      const privateFile=path.join(paths.harnessDir,'private.md');fs.writeFileSync(privateFile,'before\n');
+      fs.writeFileSync(path.join(paths.publicDir,'MEMORY.md'),'# Memory\n');
+      await recordLearningMutation(cwd,'memory',[privateFile],async()=>fs.writeFileSync(privateFile,'after\n'));
+      const [record]=await listLearningHistory(cwd),preview=await previewLearningUndo(cwd,record.id);
+      await undoLearningChange(cwd,record.id,preview.digest);
+      console.log(JSON.stringify({body:fs.readFileSync(privateFile,'utf8'),publicExists:fs.existsSync(path.join(paths.publicDir,'private.md'))}));
+    """, tmp_path)
+    assert result == {"body": "before\n", "publicExists": False}
 
 
 def test_undo_cannot_restore_private_metadata_to_the_shared_index(tmp_path: Path) -> None:
@@ -457,7 +536,7 @@ def test_automatic_phase_policy_controls_real_pipeline(scenario: str) -> None:
     if scenario == "all-off":
         assert value["selectors"] == 0 and value["planners"] == [], value
     else:
-        assert value["selectors"] == 1, value
+        assert value["selectors"] == (1 if scenario.startswith("agents-") else 0), value
         assert value["plannerSystemInstructions"] == [True], value
         assert value["planners"] == ["agents" if scenario.startswith("agents-") else "harness" if scenario == "harness-propose" else "memory"], value
     if scenario == "memory-apply":
@@ -469,3 +548,39 @@ def test_automatic_phase_policy_controls_real_pipeline(scenario: str) -> None:
         assert value["harnessExists"] is False, value
         assert value["agentsUnchanged"] is True, value
         assert [record["status"] for record in value["history"]] == ([] if scenario == "all-off" else ["proposed"]), value
+
+
+def test_consolidation_model_is_frozen_per_pipeline_and_refreshed_next_pipeline() -> None:
+    value = run_bun_script(POLICY_HARNESS, "model-freeze")
+    assert value["selectors"] == 2, value
+    assert value["modelCalls"] == [
+        "selector:old/one", "planner:old/one", "planner:old/one", "planner:old/one",
+        "selector:new/two", "planner:new/two", "planner:new/two", "planner:new/two",
+    ], value
+
+
+def test_session_model_fallback_is_frozen_across_all_learning_phases() -> None:
+    value = run_bun_script(POLICY_HARNESS, "session-model-freeze")
+    assert value["selectors"] == 2, value
+    assert value["modelCalls"] == [
+        "selector:session/active", "planner:session/active", "planner:session/active", "planner:session/active",
+        "selector:new/two", "planner:new/two", "planner:new/two", "planner:new/two",
+    ], value
+
+
+def test_harness_repair_receipt_counts_both_workers_and_one_retry() -> None:
+    value = run_bun_script(POLICY_HARNESS, "harness-repair-cost")
+    receipts = [run["receipt"] for run in value["runs"] if "receipt" in run]
+    assert len(receipts) == 1, value
+    receipt = receipts[0]
+    attempts = [attempt for attempt in receipt["attempts"] if attempt["phase"] == "harness"]
+    assert value["planners"] == ["harness", "harness"], value
+    assert [(attempt["attempt"], attempt["outcome"]) for attempt in attempts] == [(0, "rejected"), (1, "proposed")], receipt
+    assert [attempt["usage"]["totalTokens"] for attempt in attempts] == [15, 30], receipt
+    assert receipt["totals"]["input"] == 30, receipt
+    assert receipt["totals"]["output"] == 6, receipt
+    assert receipt["totals"]["cacheRead"] == 9, receipt
+    assert receipt["totals"]["totalTokens"] == 45, receipt
+    assert receipt["totals"]["cost"] == pytest.approx(0.03), receipt
+    assert receipt["retries"] == 1, receipt
+    assert receipt["operations"] == 0, receipt
