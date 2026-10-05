@@ -149,3 +149,45 @@ def test_legacy_low_level_override_and_error_evidence_remain_supported(rendered_
     assert rendered_cases["directFalse"] == ["[probe] done"]
     for rows in rendered_cases["errors"].values():
         assert rows == ["[probe] failed · failure reason", "additional evidence"]
+
+
+def test_pre_styled_detail_blocks_keep_their_host_colors_inside_the_band() -> None:
+    rendered = run_typescript(r"""
+        import { eventToolLifecycle, renderToolLifecycle } from './packages/kit/src/index.ts';
+        import { stripVTControlCharacters } from 'node:util';
+        import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui';
+        const colors = [];
+        const theme = {
+          fg: (color, text) => { colors.push(color); return `<FG:${color}>${text}</FG:${color}>`; },
+          bg: (color, text) => `<BG:${color}>${text}</BG:${color}>`,
+          bold: text => text,
+        };
+        const styled = ["\u001b[38;2;167;152;215mset\u001b[39m -e", "\u001b[38;2;167;152;215mecho\u001b[39m DONE"];
+        const spec = eventToolLifecycle("monitor", "Goal acceptance chain", {
+          details: ["Timeout: 7m", "Command:", styled, "Success condition: DONE"],
+        });
+        const rows = renderToolLifecycle(spec, {
+          width: 80, expanded: true, theme, fit: truncateToWidth, visibleWidth, wrapDetail: wrapTextWithAnsi,
+        });
+        console.log(JSON.stringify({
+          rows,
+          plain: rows.map(row => stripVTControlCharacters(row).replace(/<[^>]+>/g, "").trim()),
+        }));
+    """)
+    rows = rendered["rows"]
+    plain = rendered["plain"]
+    assert plain[1] == "[monitor] Goal acceptance chain"
+    assert plain[2] == "Timeout: 7m"
+    assert plain[3] == "Command:"
+    assert plain[4] == "set -e"
+    assert plain[5] == "echo DONE"
+    assert plain[6] == "Success condition: DONE"
+    # A pre-styled block keeps its escapes and receives no kit text color.
+    styled_rows = "\n".join(rows[4:6])
+    assert "\u001b[38;2;167;152;215mset\u001b[39m -e" in styled_rows
+    assert "<FG:" not in rows[4] and "<FG:" not in rows[5]
+    # Plain evidence still takes the band text color, in its own position.
+    assert "<FG:customMessageText>" in rows[2]
+    assert "<FG:customMessageText>" in rows[6]
+    # The band background survives the pre-styled resets.
+    assert all(row.startswith("<BG:toolSuccessBg>") for row in rows)

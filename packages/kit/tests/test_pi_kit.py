@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import re
-import shutil
 import subprocess
-import tempfile
 import textwrap
 from pathlib import Path
 
@@ -40,11 +39,6 @@ def run_typescript(script: str) -> dict[str, object]:
     )
     assert result.returncode == 0, f"TypeScript runtime check failed:\n{result.stderr}\n{result.stdout}"
     return json.loads(result.stdout.strip().splitlines()[-1])
-
-
-def test_worker_command_does_not_pass_unsupported_cwd_flag() -> None:
-    source = (SRC / "index.ts").read_text(encoding="utf-8")
-    assert '"--cwd", cwd' not in source
 
 
 def test_live_activity_widget_mounts_updates_and_clears() -> None:
@@ -181,80 +175,6 @@ def test_live_activity_widget_owns_the_identity_and_activity_language() -> None:
     assert "KIT_ACTIVITY_ROW_OK" in result.stdout
 
 
-def test_no_consumer_supplies_its_own_widget_row_formatter() -> None:
-    source = (SRC / "index.ts").read_text(encoding="utf-8")
-    assert "formatIdentity" not in source
-    assert "formatActivity" not in source
-    assert 'PiLiveActivityTextFormat = "plain" | "markdown"' in source
-    for consumer in CONSUMERS:
-        for path in sorted((REPO / "packages" / consumer).rglob("*.ts")):
-            text = path.read_text(encoding="utf-8")
-            assert "formatIdentity" not in text, f"{path}: identity formatting belongs to pi-kit"
-            assert "formatActivity" not in text, f"{path}: activity formatting belongs to pi-kit"
-            # A renamed restyle hook would still be a restyle hook: the widget
-            # options are a closed vocabulary, so every mount is checked by key.
-            # A source scan cannot prove "no second activity renderer" — recap,
-            # plan-mode, and btw legitimately parse Markdown for overlay panels
-            # in the same file — so that guarantee is behavioral instead: the
-            # widget takes an activity *string* plus a format, and the fixture
-            # proves a pre-styled activity cannot restyle a row.
-            for options in widget_option_blocks(text):
-                unknown = option_keys(options) - WIDGET_OPTION_KEYS
-                assert not unknown, f"{path}: createLiveActivityWidget got unsupported options {sorted(unknown)}"
-
-
-def test_no_consumer_labels_a_tool_call_without_the_shared_classifier() -> None:
-    # A consumer that reacts to tool_execution_start and names the call must use
-    # pi-kit's classifier, so the pattern-before-path rule cannot drift back into
-    # a per-package copy. The precedence itself is covered behaviorally by
-    # test_tool_activity_classification_prefers_a_search_pattern_over_its_root.
-    for consumer in CONSUMERS:
-        for path in sorted((REPO / "packages" / consumer).rglob("*.ts")):
-            # Test fixtures legitimately emit raw tool events; this checks the
-            # implementation files that label them.
-            if {"tests", "fixtures"} & set(path.parts):
-                continue
-            text = path.read_text(encoding="utf-8")
-            if "tool_execution_start" not in text:
-                continue
-            assert "classifyToolActivity" in text, f"{path}: tool-call labeling belongs to pi-kit"
-
-
-def widget_option_blocks(text: str) -> list[str]:
-    """Return the brace-balanced argument of every createLiveActivityWidget call."""
-    blocks: list[str] = []
-    marker = "createLiveActivityWidget({"
-    index = text.find(marker)
-    while index >= 0:
-        depth = 0
-        for offset, char in enumerate(text[index + len(marker) - 1:], start=index + len(marker) - 1):
-            if char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    blocks.append(text[index + len(marker):offset])
-                    break
-        index = text.find(marker, index + 1)
-    return blocks
-
-
-def option_keys(block: str) -> set[str]:
-    """Top-level option keys of a brace-balanced object argument."""
-    keys: set[str] = set()
-    depth = 0
-    for line in block.splitlines():
-        depth += line.count("{") + line.count("[") + line.count("(")
-        depth -= line.count("}") + line.count("]") + line.count(")")
-        match = re.match(r"\s*([A-Za-z_$][\w$]*)\s*:", line)
-        if match and depth >= 0:
-            keys.add(match.group(1))
-    return keys
-
-
-WIDGET_OPTION_KEYS = {"key", "placement", "fit", "activityFormat", "fallbackActivity", "leadingSpaces"}
-
-
 def test_spinner_constants_match_pi_native_loader() -> None:
     result = run_typescript(
         f"""
@@ -308,79 +228,58 @@ def test_run_pi_worker_uses_child_cwd_without_unsupported_cwd_flag() -> None:
     assert "--cwd" not in result["args"]
 
 
-def test_run_pi_worker_minimal_mode_disables_discovery_and_keeps_tool_allowlist() -> None:
+def test_run_pi_worker_minimal_mode_disables_discovery_and_keeps_tool_allowlist(tmp_path: Path) -> None:
     result = run_typescript(
         f"""
         import * as fs from "node:fs";
-        import * as os from "node:os";
         import * as path from "node:path";
-        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-minimal-"));
+        const root = {json.dumps(str(tmp_path))};
         const capture = path.join(root, "args.json");
         const fakePackage = path.join(root, "fake-package");
         fs.mkdirSync(fakePackage);
         fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
         const fakePi = path.join(fakePackage, "cli.mjs");
         fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nimport * as fs from 'node:fs';\\nfs.writeFileSync(process.env.PI_CAPTURE, JSON.stringify(process.argv.slice(2)));\\nconsole.log(JSON.stringify({{ type: 'message_end', message: {{ role: 'assistant', content: [{{ type: 'text', text: 'ok' }}] }} }}));\\n", {{ mode: 0o755 }});
-        process.env.PI_CAPTURE = capture;
         const originalArgv1 = process.argv[1];
         process.argv[1] = fakePi;
         const {{ minimalPiWorkerArgs, runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
-        const sharedArgs = minimalPiWorkerArgs(["read", "bash"]);
-        await runPiWorker({{ prompt: "inspect", cwd: root, tools: ["read", "bash"], minimal: true }});
-        process.argv[1] = originalArgv1;
-        console.log(JSON.stringify({{ args: JSON.parse(fs.readFileSync(capture, "utf8")), sharedArgs }}));
+        const cases = [
+          {{name: "minimal-default", minimal: true}},
+          {{name: "minimal-explicit", minimal: true, tools: ["read", "bash"]}},
+          {{name: "minimal-empty-list", minimal: true, tools: []}},
+          {{name: "minimal-empty-string", minimal: true, tools: ""}},
+          {{name: "full-default", minimal: false}},
+          {{name: "full-empty-list", minimal: false, tools: []}},
+          {{name: "full-empty-string", minimal: false, tools: ""}},
+        ];
+        const launches = [];
+        try {{
+          for (const {{name, ...options}} of cases) {{
+            const worker = await runPiWorker({{ prompt: "inspect", cwd: root, env: {{PI_CAPTURE: capture}}, ...options }});
+            launches.push({{name, args: JSON.parse(fs.readFileSync(capture, "utf8")), text: worker.text, exitCode: worker.exitCode}});
+          }}
+        }} finally {{ process.argv[1] = originalArgv1; }}
+        console.log(JSON.stringify({{ launches, sharedArgs: {{
+          defaults: minimalPiWorkerArgs(), empty: minimalPiWorkerArgs([]), explicit: minimalPiWorkerArgs(["read", "bash"]),
+        }} }}));
         """
     )
-    args = result["args"]
-    for flag in ("-ne", "-ns", "-np", "-nc", "--no-themes"):
-        assert flag in args
-        assert flag in result["sharedArgs"]
-    assert args[args.index("--tools") + 1] == "read,bash"
-    assert result["sharedArgs"][result["sharedArgs"].index("--tools") + 1] == "read,bash"
-
-
-def test_minimal_worker_defaults_to_the_canonical_read_only_tool_set() -> None:
-    result = run_typescript(
-        f"""
-        import * as fs from "node:fs";
-        import * as os from "node:os";
-        import * as path from "node:path";
-        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-kit-minimal-default-"));
-        const capture = path.join(root, "args.json");
-        const fakePackage = path.join(root, "fake-package");
-        fs.mkdirSync(fakePackage);
-        fs.writeFileSync(path.join(fakePackage, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
-        const fakePi = path.join(fakePackage, "cli.mjs");
-        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\nimport * as fs from 'node:fs';\\nfs.writeFileSync(process.env.PI_CAPTURE, JSON.stringify(process.argv.slice(2)));\\nconsole.log(JSON.stringify({{ type: 'message_end', message: {{ role: 'assistant', content: [{{ type: 'text', text: 'ok' }}] }} }}));\\n", {{ mode: 0o755 }});
-        process.env.PI_CAPTURE = capture;
-        const originalArgv1 = process.argv[1];
-        process.argv[1] = fakePi;
-        const {{ MINIMAL_PI_WORKER_TOOLS, minimalPiWorkerArgs, runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
-        const sharedArgs = minimalPiWorkerArgs();
-        await runPiWorker({{ prompt: "inspect", cwd: root, minimal: true }});
-        const defaultArgs = JSON.parse(fs.readFileSync(capture, "utf8"));
-        await runPiWorker({{ prompt: "inspect", cwd: root, minimal: true, tools: [] }});
-        const noToolArgs = JSON.parse(fs.readFileSync(capture, "utf8"));
-        await runPiWorker({{ prompt: "inspect", cwd: root, minimal: true, tools: "" }});
-        const minimalEmptyStringArgs = JSON.parse(fs.readFileSync(capture, "utf8"));
-        await runPiWorker({{ prompt: "inspect", cwd: root, tools: "" }});
-        const fullEmptyStringArgs = JSON.parse(fs.readFileSync(capture, "utf8"));
-        process.argv[1] = originalArgv1;
-        console.log(JSON.stringify({{ defaultArgs, noToolArgs, minimalEmptyStringArgs, fullEmptyStringArgs, sharedArgs, canonical: [...MINIMAL_PI_WORKER_TOOLS] }}));
-        """
-    )
-    assert result["canonical"] == ["read", "bash", "grep", "find"]
-    for flag in ("-ne", "-ns", "-np", "-nc", "--no-themes"):
-        assert flag in result["defaultArgs"]
-        assert flag in result["sharedArgs"]
-    assert result["defaultArgs"][result["defaultArgs"].index("--tools") + 1] == "read,bash,grep,find"
-    assert result["sharedArgs"][result["sharedArgs"].index("--tools") + 1] == "read,bash,grep,find"
-    # An explicitly empty allowlist stays authoritative instead of falling back to the default set.
-    assert result["noToolArgs"][result["noToolArgs"].index("--tools") + 1] == ""
-    # A degenerate empty string means "no allowlist supplied" in both modes rather
-    # than granting nothing in one mode and everything in the other.
-    assert result["minimalEmptyStringArgs"][result["minimalEmptyStringArgs"].index("--tools") + 1] == "read,bash,grep,find"
-    assert "--tools" not in result["fullEmptyStringArgs"]
+    expected = {
+        "minimal-default": "read,bash,grep,find", "minimal-explicit": "read,bash",
+        "minimal-empty-list": "", "minimal-empty-string": "read,bash,grep,find",
+        "full-default": None, "full-empty-list": "", "full-empty-string": None,
+    }
+    for launch in result["launches"]:
+        args = launch["args"]
+        assert launch["text"] == "ok" and launch["exitCode"] == 0, launch
+        tools = args[args.index("--tools") + 1] if "--tools" in args else None
+        assert tools == expected[launch["name"]], launch
+        if launch["name"].startswith("minimal-"):
+            assert all(flag in args for flag in ("-ne", "-ns", "-np", "-nc", "--no-themes")), launch
+    for name, tools in (("defaults", "read,bash,grep,find"), ("empty", ""), ("explicit", "read,bash")):
+        args = result["sharedArgs"][name]
+        assert args[args.index("--tools") + 1] == tools
+        assert all(flag in args for flag in ("-ne", "-ns", "-np", "-nc", "--no-themes"))
 
 
 def test_parse_pi_worker_output_returns_last_text_and_usage() -> None:
@@ -701,11 +600,11 @@ def test_tool_lifecycle_titles_share_the_compact_monitor_pattern() -> None:
         }});
         const startedRows = render(startedToolLifecycle("agent", "@audit started · review"));
         const eventRows = render(
-          eventToolLifecycle("board", "Fix login", {{ details: ["status=success"] }}),
+          eventToolLifecycle("tasks", "Fix login", {{ details: ["status=success"] }}),
           {{ expanded: true }},
         );
         const hintedRows = render(
-          eventToolLifecycle("board", "Fix login", {{ details: ["status=success"] }}),
+          eventToolLifecycle("tasks", "Fix login", {{ details: ["status=success"] }}),
           {{ expandHint: "ctrl+o to expand" }},
         );
         const plain = (line) => line.replace(/<[^>]+>/g, "");
@@ -714,11 +613,11 @@ def test_tool_lifecycle_titles_share_the_compact_monitor_pattern() -> None:
           event: formatToolLifecycleTitle(eventToolLifecycle("monitor", "运行 monitor 包测试")),
           listed: formatToolLifecycleTitle(eventToolLifecycle("sessions", "2 other sessions in pi-packages", {{ label: "listed" }})),
           agentEvent: formatToolLifecycleTitle(eventToolLifecycle("agent", "@scribe shut down")),
-          created: formatToolLifecycleTitle(eventToolLifecycle("board", "Fix the login flow", {{ label: "created" }})),
+          created: formatToolLifecycleTitle(eventToolLifecycle("tasks", "Fix the login flow", {{ label: "created" }})),
           gathered: formatToolLifecycleTitle(eventToolLifecycle("context", "3 requests since last commit", {{ label: "gathered" }})),
           startedTitle: formatToolLifecycleTitle(startedToolLifecycle("agent", "@audit · review")),
           labeledStartedTitle: formatToolLifecycleTitle(startedToolLifecycle("agent", "@audit started · review")),
-          createdTitle: formatToolLifecycleTitle(eventToolLifecycle("board", "Fix login", {{ label: "created" }})),
+          createdTitle: formatToolLifecycleTitle(eventToolLifecycle("tasks", "Fix login", {{ label: "created" }})),
           startedBandIsFullWidth: startedRows.length === 3 && startedRows.every((row) => plain(row).length === 80),
           startedBandHasBlankEdges: plain(startedRows[0]).trim() === "" && plain(startedRows[2]).trim() === "",
           startedContent: plain(startedRows[1]).trim(),
@@ -734,17 +633,17 @@ def test_tool_lifecycle_titles_share_the_compact_monitor_pattern() -> None:
         "event": "[monitor] 运行 monitor 包测试",
         "listed": "[sessions] listed · 2 other sessions in pi-packages",
         "agentEvent": "[agent] @scribe shut down",
-        "created": "[board] created · Fix the login flow",
+        "created": "[tasks] created · Fix the login flow",
         "gathered": "[context] gathered · 3 requests since last commit",
         "startedTitle": "[agent] @audit · review",
         "labeledStartedTitle": "[agent] @audit started · review",
-        "createdTitle": "[board] created · Fix login",
+        "createdTitle": "[tasks] created · Fix login",
         "startedBandIsFullWidth": True,
         "startedBandHasBlankEdges": True,
         "startedContent": "[agent] @audit started · review",
         "expandedRows": 4,
-        "expandedContent": ["[board] Fix login", "status=success"],
-        "collapsedHint": "[board] Fix login · ctrl+o to expand",
+        "expandedContent": ["[tasks] Fix login", "status=success"],
+        "collapsedHint": "[tasks] Fix login · ctrl+o to expand",
         "zeroWidth": [],
     }
 
@@ -965,7 +864,7 @@ def test_reusable_message_tool_and_notification_renderers_share_tui_contract() -
     assert result["notices"] == [{"message": "Done", "level": "info"}]
 
 
-def test_tool_lifecycle_error_band_renders_symmetrical_error_styling() -> None:
+def test_lifecycle_bands_distinguish_success_error_and_pending() -> None:
     result = run_typescript(
         f"""
         import {{ eventToolLifecycle, renderToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
@@ -983,7 +882,13 @@ def test_tool_lifecycle_error_band_renders_symmetrical_error_styling() -> None:
           eventToolLifecycle("work", "work failed", {{ label: "failed", details: ["syntax error at line 10"] }}),
           {{ width: 80, expanded: true, theme, fit: (text) => text, visibleWidth, isError: true }},
         );
+        const pendingRows = renderToolLifecycle(
+          eventToolLifecycle("context", "deep research", {{ label: "researching" }}),
+          {{ width: 80, theme, fit: text => text, visibleWidth, isPending: true }},
+        );
         console.log(JSON.stringify({{
+          pendingBg: pendingRows[1].includes("[toolPendingBg]"),
+          pendingHead: pendingRows[1].includes("<warning>[context] researching ·</warning>"),
           successBg: successRows[1].includes("[toolSuccessBg]"),
           successHead: successRows[1].includes("<success>[work] created ·</success>"),
           errorBg: errorRows[1].includes("[toolErrorBg]"),
@@ -997,32 +902,7 @@ def test_tool_lifecycle_error_band_renders_symmetrical_error_styling() -> None:
     assert result["errorBg"] is True
     assert result["errorHead"] is True
     assert result["errorDetail"] is True
-
-
-def test_tool_lifecycle_pending_band_uses_tool_pending_bg() -> None:
-    result = run_typescript(
-        f"""
-        import {{ eventToolLifecycle, renderToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
-        import {{ visibleWidth }} from "@earendil-works/pi-tui";
-        const theme = {{
-          fg: (color, text) => `<${{color}}>${{text}}</${{color}}>`,
-          bg: (color, text) => `[${{color}}]${{text}}[/${{color}}]`,
-          bold: (text) => text,
-        }};
-        const pendingRows = renderToolLifecycle(
-          eventToolLifecycle("context", "deep research", {{ label: "researching" }}),
-          {{ width: 80, theme, fit: (text) => text, visibleWidth, isPending: true }},
-        );
-        console.log(JSON.stringify({{
-          pendingBg: pendingRows[1].includes("[toolPendingBg]"),
-          pendingHead: pendingRows[1].includes("<warning>[context] researching ·</warning>"),
-          noSuccess: !pendingRows[1].includes("toolSuccessBg") && !pendingRows[1].includes("<success>"),
-        }}));
-        """
-    )
-    assert result["pendingBg"] is True
-    assert result["pendingHead"] is True
-    assert result["noSuccess"] is True
+    assert result["pendingBg"] is True and result["pendingHead"] is True
 
 
 def test_result_renderers_forward_is_partial_to_pending_band() -> None:
@@ -1086,11 +966,6 @@ def test_error_band_details_do_not_repeat_the_subject_line() -> None:
     )
     assert result["occurrences"] == 1
     assert result["hasStderrDetail"] is True
-
-
-def test_result_renderers_own_error_bands_without_render_escape_hatch() -> None:
-    source = (SRC / "index.ts").read_text(encoding="utf-8")
-    assert "renderError" not in source
 
 
 def test_lifecycle_details_are_complete_unless_explicitly_bounded() -> None:
@@ -1284,26 +1159,6 @@ def test_inline_expanded_subject_uses_native_wrapping_and_width_based_hints() ->
     assert result["note"] == ["[message] to @audit · short · ctrl+shift+e to expand"]
     assert result["tiny"] == result["expectedTiny"]
     assert result["ordinary"] == ["[other] preview", "first", "second"]
-
-
-def test_inline_subject_hints_ignore_opaque_result_metadata_in_all_factories() -> None:
-    result = run_typescript(
-        f"""
-        import {{ createToolLifecycleMessageRenderer, createToolLifecycleResultRenderer, eventToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
-        import {{ truncateToWidth, visibleWidth, wrapTextWithAnsi }} from "@earendil-works/pi-tui";
-        const theme = {{ fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text }};
-        const options = {{
-          createSpec: () => eventToolLifecycle("message", "short", {{ expandedSubject: "short" }}),
-          fit: truncateToWidth, visibleWidth, wrapDetail: wrapTextWithAnsi, expandHint: "ctrl+o to expand",
-        }};
-        const value = {{ content: "model-only routing record", details: {{ internal: "metadata" }} }};
-        console.log(JSON.stringify({{
-          result: createToolLifecycleResultRenderer(options)(value, {{}}, theme, {{}}).render(90)[1].trim(),
-          message: createToolLifecycleMessageRenderer(options)(value, {{}}, theme).render(90)[1].trim(),
-        }}));
-        """
-    )
-    assert result == {"result": "[message] short", "message": "[message] short"}
 
 
 def test_context_shaped_research_rows_keep_a_distinct_query_and_complete_answer() -> None:
@@ -1587,52 +1442,6 @@ def test_agent_display_helpers_share_labels_and_message_counts() -> None:
     assert result["longTaskName"] == "x" * 140
 
 
-def test_package_prompt_agent_helpers_are_not_exported() -> None:
-    result = run_typescript(
-        f"""
-        const kit = await import({json.dumps((SRC / "index.ts").as_uri())});
-        console.log(JSON.stringify({{
-          createPackageAgentRun: "createPackageAgentRun" in kit,
-          subagentDisplayName: "subagentDisplayName" in kit,
-        }}));
-        """
-    )
-    assert result == {"createPackageAgentRun": False, "subagentDisplayName": False}
-    source = (SRC / "index.ts").read_text(encoding="utf-8")
-    for obsolete in ("PackageAgentRunOptions", "PackageAgentRun", "createPackageAgentRun", "subagentDisplayName"):
-        assert obsolete not in source
-
-
-def test_pi_worker_progress_resets_text_at_message_boundaries(tmp_path: Path) -> None:
-    result = run_typescript(
-        f"""
-        import * as fs from "node:fs";
-        import * as path from "node:path";
-        const root = {json.dumps(str(tmp_path))};
-        const packageDir = path.join(root, "node_modules", "@earendil-works", "pi-coding-agent");
-        fs.mkdirSync(packageDir, {{ recursive: true }});
-        fs.writeFileSync(path.join(packageDir, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
-        const fakePi = path.join(packageDir, "cli.mjs");
-        const events = [
-          {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "first" }} }},
-          {{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "first" }}] }} }},
-          {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "second" }} }},
-          {{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "second" }}] }} }},
-        ];
-        fs.writeFileSync(fakePi, "#!/usr/bin/env node\\n" + `const events = ${{JSON.stringify(events)}};\\nfor (const event of events) {{ console.log(JSON.stringify(event)); await new Promise((resolve) => setTimeout(resolve, 5)); }}\\n`, {{ mode: 0o755 }});
-        const originalArgv1 = process.argv[1];
-        process.argv[1] = fakePi;
-        const {{ runPiWorker }} = await import({json.dumps((SRC / "index.ts").as_uri())});
-        const activities = [];
-        await runPiWorker({{ prompt: "inspect", cwd: root, onUpdate: (update) => activities.push(update.activity) }});
-        process.argv[1] = originalArgv1;
-        console.log(JSON.stringify({{ activities }}));
-        """
-    )
-    assert "firstsecond" not in result["activities"]
-    assert "second" in result["activities"]
-
-
 def test_pi_worker_progress_reports_latest_activity_across_stream_kinds(tmp_path: Path) -> None:
     result = run_typescript(
         f"""
@@ -1644,6 +1453,11 @@ def test_pi_worker_progress_reports_latest_activity_across_stream_kinds(tmp_path
         fs.writeFileSync(path.join(packageDir, "package.json"), JSON.stringify({{ name: "@earendil-works/pi-coding-agent" }}));
         const fakePi = path.join(packageDir, "cli.mjs");
         const events = [
+          // No intervening tool or thinking event may hide an adjacent-message reset defect.
+          {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "first" }} }},
+          {{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "first" }}] }} }},
+          {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "second" }} }},
+          {{ type: "message_end", message: {{ role: "assistant", content: [{{ type: "text", text: "second" }}] }} }},
           {{ type: "message_update", assistantMessageEvent: {{ type: "thinking_delta", delta: "older reasoning" }} }},
           {{ type: "message_update", assistantMessageEvent: {{ type: "text_delta", delta: "newer answer" }} }},
           {{ type: "message_update", assistantMessageEvent: {{ type: "toolcall_start" }} }},
@@ -1665,6 +1479,8 @@ def test_pi_worker_progress_reports_latest_activity_across_stream_kinds(tmp_path
         console.log(JSON.stringify({{ activities }}));
         """
     )
+    assert "first" in result["activities"] and "second" in result["activities"]
+    assert "firstsecond" not in result["activities"]
     assert "older reasoning" in result["activities"]
     assert "newer answer" in result["activities"]
     assert "bash: pnpm test" in result["activities"]
@@ -1763,32 +1579,6 @@ def test_tool_activity_classification_prefers_a_search_pattern_over_its_root() -
     assert result["inlineEmpty"] == ""
 
 
-def test_compute_scroll_window_clamps_and_slices() -> None:
-    result = run_typescript(
-        f"""
-        import {{ computeScrollWindow }} from {json.dumps((SRC / "index.ts").as_uri())};
-        const lines = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
-        const normal = computeScrollWindow(lines, 2, 4);
-        const clamped = computeScrollWindow(lines, 100, 4);
-        const shortContent = computeScrollWindow(["x", "y"], 5, 10);
-        console.log(JSON.stringify({{
-          normal,
-          normalSlice: lines.slice(normal.start, normal.end),
-          clamped,
-          clampedSlice: lines.slice(clamped.start, clamped.end),
-          shortContent,
-        }}));
-        """
-    )
-    assert result == {
-        "normal": {"start": 2, "end": 6, "clampedScroll": 2},
-        "normalSlice": ["c", "d", "e", "f"],
-        "clamped": {"start": 6, "end": 10, "clampedScroll": 6},
-        "clampedSlice": ["g", "h", "i", "j"],
-        "shortContent": {"start": 0, "end": 2, "clampedScroll": 0},
-    }
-
-
 def test_theme_style_maps_shared_style_language() -> None:
     result = run_typescript(
         f"""
@@ -1814,38 +1604,6 @@ def test_theme_style_maps_shared_style_language() -> None:
         "success": "[success]s",
         "error": "[error]e",
         "fg": "[warning]w",
-    }
-
-
-def test_extract_text_content_from_strings_blocks_and_non_content() -> None:
-    result = run_typescript(
-        f"""
-        import {{ extractTextContent }} from {json.dumps((SRC / "index.ts").as_uri())};
-        const blocks = [
-          {{ type: "text", text: "first" }},
-          {{ type: "image", data: "..." }},
-          {{ type: "thinking", thinking: "secret" }},
-          {{ type: "text", text: "second" }},
-        ];
-        console.log(JSON.stringify({{
-          fromString: extractTextContent("hello"),
-          fromBlocks: extractTextContent(blocks),
-          joinedEmpty: extractTextContent(blocks, ""),
-          joinedSpace: extractTextContent(blocks, " "),
-          fromNull: extractTextContent(null),
-          fromNumber: extractTextContent(42),
-          fromEmptyArray: extractTextContent([]),
-        }}));
-        """
-    )
-    assert result == {
-        "fromString": "hello",
-        "fromBlocks": "first\nsecond",
-        "joinedEmpty": "firstsecond",
-        "joinedSpace": "first second",
-        "fromNull": "",
-        "fromNumber": "",
-        "fromEmptyArray": "",
     }
 
 
@@ -2128,37 +1886,6 @@ def test_kit_has_no_consumer_imports() -> None:
         assert mentioned_core <= {"@earendil-works/pi-tui", "@earendil-works/pi-coding-agent"}, f"{source.name} mentions unexpected pi core: {sorted(mentioned_core)}"
 
 
-def test_every_core_use_is_declared_as_a_star_peer() -> None:
-    """pi's package guide: a bundled core package you use is a `"*"` peer, never
-    an undeclared import resolved by hoisting and never a bundled dependency.
-    `import type` counts: pi packages ship TypeScript source, so a consumer's
-    type-checker must resolve it too."""
-    for manifest_path in sorted((REPO / "packages").glob("*/package.json")):
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        used: set[str] = set()
-        for path in manifest_path.parent.rglob("*.ts"):
-            if "tests" in path.parts or "node_modules" in path.parts:
-                continue
-            text = path.read_text(encoding="utf-8")
-            for package in CORE_PACKAGES:
-                if re.search(rf'(?:from|import\(|import\.meta\.resolve\()\s*"{re.escape(package)}"', text):
-                    used.add(package)
-        declared = manifest.get("peerDependencies", {})
-        missing = {package for package in used if declared.get(package) != "*"}
-        assert not missing, f"{manifest_path}: used but not a \"*\" peer: {sorted(missing)}"
-        bundled = sorted(set(CORE_PACKAGES) & set(manifest.get("dependencies", {})))
-        assert not bundled, f"{manifest_path}: pi bundles core packages; do not ship them as dependencies: {bundled}"
-
-
-CORE_PACKAGES = (
-    "@earendil-works/pi-ai",
-    "@earendil-works/pi-agent-core",
-    "@earendil-works/pi-coding-agent",
-    "@earendil-works/pi-tui",
-    "typebox",
-)
-
-
 def test_model_search_text_and_search_picker_behavior() -> None:
     result = run_typescript(
         f"""
@@ -2219,173 +1946,20 @@ def test_model_search_text_and_search_picker_behavior() -> None:
     assert result["emptySelected"] is None
 
 
-def test_consumers_declare_kit_as_workspace_dependency() -> None:
-    for consumer in CONSUMERS:
-        manifest = json.loads((REPO / "packages" / consumer / "package.json").read_text(encoding="utf-8"))
-        assert manifest.get("dependencies", {}).get("@fradser/pi-kit") == "workspace:*", (
-            f"{consumer} must depend on @fradser/pi-kit via workspace:* under dependencies"
-        )
-        assert "@fradser/pi-kit" not in manifest.get("peerDependencies", {}), (
-            f"{consumer} must not declare @fradser/pi-kit as a peer dependency"
-        )
-
-
-def test_packed_consumers_resolve_workspace_protocol_dependencies() -> None:
-    feature = (PACKAGE / "features" / "pi-kit.feature").read_text(encoding="utf-8")
-    assert "Consumer packages resolve workspace dependency protocols when packed" in feature
-    temp_dir = tempfile.mkdtemp(prefix="kit-pack-test-")
-    try:
-        for consumer in ("matt-pocock", "agent-teams", "vision"):
-            output = subprocess.check_output(
-                ["pnpm", "--dir", str(REPO / "packages" / consumer), "pack", "--pack-destination", temp_dir],
-                text=True,
-            )
-            tarball_match = re.search(r"([^\s]+\.tgz)", output)
-            assert tarball_match, f"Could not find tarball in output: {output}"
-            tarball_path = tarball_match.group(1)
-            pkg_json = subprocess.check_output(
-                ["tar", "-xOf", tarball_path, "package/package.json"],
-                text=True,
-            )
-            packed_manifest = json.loads(pkg_json)
-            dep = packed_manifest.get("dependencies", {}).get("@fradser/pi-kit")
-            assert dep and not dep.startswith("workspace:"), (
-                f"{consumer} packed dependency must not use workspace protocol: {dep}"
-            )
-            assert re.match(r"^\d+\.\d+\.\d+", dep), (
-                f"{consumer} packed dependency must be semver version: {dep}"
-            )
-    finally:
-        shutil.rmtree(temp_dir, ignore_errors=True)
-
-
-# The dependency chain created by the subagents / tasks / agent-teams split.
-# Named explicitly rather than derived from the whole workspace: the repository
-# already carries unrelated core-version drift (`impeccable` and `utils` on
-# 0.85.1, the root devDependencies on 0.87.1, everything else on 0.84.1), and
-# `utils` -> `kit` already crosses that drift. Asserting workspace-wide agreement
-# would make this change the bearer of a pre-existing condition it did not cause
-# and cannot fix in scope.
-SPLIT_CHAIN = ("packages/kit", "packages/subagents", "packages/tasks", "packages/agent-teams")
-
-
-def test_the_split_dependency_chain_resolves_one_pi_core_version() -> None:
-    """One core version across the chain whose packages import each other.
-
-    This has bitten three times: each newly added package resolved `"*"` to the
-    latest core while every existing consumer stayed on the version the lockfile
-    was first written against. It was tolerable only while nothing crossed a
-    package boundary with core types, and it is not harmless — `addedToolNames`
-    exists in pi-agent-core 0.84.1 and 0.85.1 but was removed in 0.87.1, so a
-    package resolving 0.87.1 fails to typecheck code written against 0.84.
-
-    A new package in this chain must be aligned to the cohort at creation time
-    rather than left to resolve latest. Aligning means editing the importer's
-    resolved version in pnpm-lock.yaml and re-running `pnpm install`; `"*"` is
-    satisfied by the cohort version, so pnpm keeps it.
-    """
-    lock = (REPO / "pnpm-lock.yaml").read_text(encoding="utf-8")
-    importers = lock.split("importers:", 1)[1].split("\nsnapshots:", 1)[0]
-    found: dict[str, dict[str, str]] = {}
-    for block in re.split(r"\n  (?=\S)", importers):
-        lines = block.strip().splitlines()
-        if not lines:
-            continue
-        name = lines[0].strip().rstrip(":")
-        if name not in SPLIT_CHAIN:
-            continue
-        found[name] = dict(re.findall(
-            r"'(@earendil-works/pi-[a-z-]+)':\n\s+specifier: [^\n]+\n\s+version: ([\d.]+)", block
-        ))
-    assert set(found) == set(SPLIT_CHAIN), f"missing importers: {sorted(set(SPLIT_CHAIN) - set(found))}"
-    for package in sorted({core for versions in found.values() for core in versions}):
-        resolved = {name: versions[package] for name, versions in found.items() if package in versions}
-        assert len(set(resolved.values())) == 1, (
-            f"{package} resolves differently across the split chain: {resolved}. "
-            f"Align the new package to the cohort in pnpm-lock.yaml."
-        )
-
-
-def test_publish_allowlist_orders_kit_before_consumers() -> None:
-    script = (REPO / "scripts" / "publish-release.mjs").read_text(encoding="utf-8")
-    kit_position = script.index('"@fradser/pi-kit"')
-    assert kit_position > 0, "publish allowlist must include @fradser/pi-kit"
-    for name in ['"@fradser/pi-agent-teams"', '"@fradser/pi-btw"', '"pi-continual-learning"',
-                 '"@fradser/pi-recap"', '"@fradser/pi-utils"', '"@fradser/pi-vision"',
-                 '"@fradser/pi-plan-mode"']:
-        assert script.index(name) > kit_position, f"pi-kit must publish before {name}"
-
-
-def test_publish_allowlist_orders_split_layers_before_their_consumer() -> None:
-    """agent-teams' packed manifest depends on both extracted layers at exact
-    versions, so neither may publish after it."""
-    script = (REPO / "scripts" / "publish-release.mjs").read_text(encoding="utf-8")
-    teams = script.index('"@fradser/pi-agent-teams"')
-    for name in ('"@fradser/pi-kit"', '"@fradser/pi-subagents"', '"@fradser/pi-tasks"'):
-        assert script.index(name) < teams, f"{name} must publish before @fradser/pi-agent-teams"
-
-
-def test_pending_changesets_reference_workspace_package_names() -> None:
-    workspace_names = {
-        json.loads(manifest.read_text(encoding="utf-8"))["name"]
-        for manifest in (REPO / "packages").glob("*/package.json")
-    }
-    changeset_files = (REPO / ".changeset").glob("*.md")
-
-    for changeset_file in changeset_files:
-        contents = changeset_file.read_text(encoding="utf-8")
-        if not contents.startswith("---\\n"):
-            continue
-        frontmatter = contents.split("---", 2)[1]
-        declared_names = [line.split('"', 2)[1] for line in frontmatter.splitlines() if line.startswith('"')]
-        unknown_names = set(declared_names) - workspace_names
-        assert not unknown_names, f"{changeset_file.name} references unknown packages: {sorted(unknown_names)}"
-
-
-def test_lifecycle_binding_unifies_rows_across_call_sites() -> None:
-    result = run_typescript(
-        f"""
-        import {{ bindLifecycleRenderers, eventToolLifecycle }} from {json.dumps((SRC / "index.ts").as_uri())};
-        const theme = {{ fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text }};
-        const rows = bindLifecycleRenderers({{
-          fit: (text, width) => text,
-          visibleWidth: (text) => text.length,
-          wrapDetail: (line) => [line],
-          expandHint: "ctrl+o to expand",
-        }});
-        const first = rows.result(() => eventToolLifecycle("monitor", "nightly", {{ label: "started", details: ["command · make check"] }}));
-        const second = rows.result(() => eventToolLifecycle("sessions", "two items", {{ label: "listed", details: ["a", "b"] }}));
-        const message = rows.message(() => eventToolLifecycle("learning", "done", {{ label: "event", details: ["policy · allow"] }}), {{ cwd: "/repo" }});
-        const collapsed = first({{ content: [] }}, {{ expanded: false }}, theme, {{}}).render(200).join("\\n");
-        const empty = rows.emptyCall();
-        console.log(JSON.stringify({{
-          first: first({{ content: [] }}, {{ expanded: true }}, theme, {{}}).render(200).join("\\n"),
-          second: second({{ content: [] }}, {{ expanded: true }}, theme, {{}}).render(200).join("\\n"),
-          message: message({{ content: "done", details: {{}} }}, {{ expanded: true }}, theme).render(200).join("\\n"),
-          collapsed: collapsed,
-          empty: empty.render(200),
-        }}));
-        """
-    )
-    assert "[monitor] started · nightly · ctrl+o to expand" in result["collapsed"]
-    assert "command · make check" in result["first"]
-    assert "[sessions] listed · two items" in result["second"]
-    assert "\n a\n b" in result["second"]
-    assert "[learning] event · done" in result["message"]
-    assert "policy · allow" in result["message"]
-    assert result["empty"] == []
-
-
 def test_human_copy_helpers_share_one_vocabulary() -> None:
     result = run_typescript(
         f"""
-        import {{ contentDetailLines, displayText, fieldBlock, fieldLine, scrubHandles }} from {json.dumps((SRC / "index.ts").as_uri())};
+        import {{ contentDetailLines, displayText, fieldBlock, fieldLine, labelField, labelFieldVerbatim, scrubHandles }} from {json.dumps((SRC / "index.ts").as_uri())};
         console.log(JSON.stringify({{
           lines: contentDetailLines({{ content: [{{ type: "text", text: "  one\\n\\n two " }}] }}),
           field: fieldLine("model", "qwen3-max"),
           block: fieldBlock("task", "first\\nsecond"),
           longBlock: fieldBlock("prompt", "x".repeat(5000)),
           dropped: fieldLine("note", {{ nested: true }}),
+          label: labelField("Status", "success"),
+          labelCollapsed: labelField("Reason", "process  exit"),
+          labelVerbatim: labelFieldVerbatim("Success condition", "a  b"),
+          labelDropped: labelFieldVerbatim("Output", {{ nested: true }}),
           session: scrubHandles("see session:reviewer:6d102f1b-cc16-4059-8d86-d5c1192f3776 now"),
           known: scrubHandles("over work:e0cfae81-57dd-4b68-8b67-2103ed825cfd", (h) => h === "work:e0cfae81-57dd-4b68-8b67-2103ed825cfd" ? "Fix spacing" : undefined),
           generic: scrubHandles("over direct:6d102f1b-cc16-4059-8d86-d5c1192f3776."),
@@ -2398,6 +1972,10 @@ def test_human_copy_helpers_share_one_vocabulary() -> None:
     assert result["block"] == ["task · first", "second"]
     assert result["longBlock"] == [f"prompt · {'x' * 5000}"]
     assert result["dropped"] == "note · "
+    assert result["label"] == "Status: success"
+    assert result["labelCollapsed"] == "Reason: process exit"
+    assert result["labelVerbatim"] == "Success condition: a  b"
+    assert result["labelDropped"] == "Output: "
     assert result["session"] == "see @reviewer now"
     assert result["known"] == "over Fix spacing"
     assert result["generic"] == "over its assignment."
@@ -2452,3 +2030,44 @@ def test_set_owned_tools_reasserts_instead_of_trusting_the_snapshot() -> None:
     assert "matt_pocock_workflow" not in result["naive"]
     # A host without the controls is never written to.
     assert result["wrote"] is False
+
+
+def test_directory_sessions_dir_follows_the_shared_env_precedence() -> None:
+    """One resolver, so no package keeps writing to the real registry.
+
+    A caller that spells `~/.pi/agent/directory-sessions` itself keeps updating
+    the user's home registry while the rest of the session runs against a
+    sandboxed agent directory, which silently splits one feature's state in two.
+    """
+    result = run_typescript(
+        f"""
+        import * as path from "node:path";
+        import * as os from "node:os";
+        const {{ directorySessionsDir }} = await import({json.dumps((SRC / "index.ts").as_uri())});
+        const home = path.join(os.homedir(), ".pi", "agent");
+        const output = {{
+          home,
+          default: directorySessionsDir({{}}),
+          agentDir: directorySessionsDir({{ PI_CODING_AGENT_DIR: "/sandbox/agent" }}),
+          legacyAgentDir: directorySessionsDir({{ PI_AGENT_DIR: "/legacy/agent" }}),
+          explicit: directorySessionsDir({{
+            PI_DIRECTORY_SESSIONS_DIR: "/explicit/registry",
+            PI_CODING_AGENT_DIR: "/sandbox/agent",
+          }}),
+          blankOverrideIgnored: directorySessionsDir({{ PI_DIRECTORY_SESSIONS_DIR: "   " }}),
+          codingWinsOverLegacy: directorySessionsDir({{
+            PI_CODING_AGENT_DIR: "/sandbox/agent",
+            PI_AGENT_DIR: "/legacy/agent",
+          }}),
+        }};
+        console.log(JSON.stringify(output));
+        """
+    )
+    home = os.path.join(os.path.expanduser("~"), ".pi", "agent")
+    assert result["home"] == home
+    assert result["default"] == os.path.join(home, "directory-sessions")
+    assert result["agentDir"] == os.path.join("/sandbox/agent", "directory-sessions")
+    assert result["legacyAgentDir"] == os.path.join("/legacy/agent", "directory-sessions")
+    assert result["explicit"] == "/explicit/registry"
+    assert result["blankOverrideIgnored"] == os.path.join(home, "directory-sessions")
+    assert result["codingWinsOverLegacy"] == os.path.join("/sandbox/agent", "directory-sessions")

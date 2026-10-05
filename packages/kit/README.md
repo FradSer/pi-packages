@@ -8,7 +8,10 @@ peers — `@earendil-works/pi-tui`, the bundled core TUI library pi reifies for
 every extension module it loads and kit imports for shared live-activity
 markdown rendering, and `@earendil-works/pi-coding-agent`, which its worker CLI
 probe resolves at runtime — per pi's package guide for core imports. It has no
-`dependencies` at all.
+`dependencies` at all. Development-only Pi dependencies select the same 1.0.0
+cohort as the repository root and the subagents/tasks/agent-teams chain; they do
+not replace the published wildcard peer contract. See
+@../../features/pi-core-cohort.feature when changing that selection.
 
 ## API
 
@@ -47,6 +50,7 @@ probe resolves at runtime — per pi's package guide for core imports. It has no
 All four normal/static result/message factories use the same display-driven rule: an expand hint appears only when a bounded, nonempty `ToolLifecycleSpec.details` body is hidden, a full subject differs from its preview, or the current width hides title/summary text that expansion can reveal. Resizing recomputes the hint. Model-facing `content` and opaque `result.details` are not expansion signals; only their explicit projection into the display spec is.
 
 - Consumers put the outcome in `subject`/`label`, essential always-visible content in `summary`, and supplementary evidence in `details`. Do not repeat a title's action or identifier as a detail merely to make it expandable.
+- `summaryFormat: "markdown"` renders the summary as one native Markdown body. Collapse shows one rendered row; expansion reveals the full layout. Markdown styles use the injected theme and current width. Plain summaries remain the default.
 - A short row with no supplementary information has no hint. Long or multiline titles and summaries use the injected native wrapper on expansion; collapsed summaries stay compact. Supply `wrapDetail` to recover width-clipped text. Legacy hosts without a wrapper can still expand explicit line breaks and detail bodies; pi-kit does not reimplement Pi's Unicode/ANSI wrapping.
 - All-whitespace or control-only bounded detail bodies are empty. Within a nonempty body, paragraph spacing and repeated values are preserved. Pi-kit does not guess business semantics or deduplicate original reports.
 - Authored rows opt in with `verbatimSubject` and `bgToken`. A verbatim subject renders raw: no `@name` recoloring, one band row per authored line, wrapping instead of merging, and no hint for text that is already visible. `bgToken: "userMessageBg"` echoes user-authored text on Pi's native user-message band while hidden details keep their own hint row. `subjectBlock` keeps the head, one blank band row, and the authored lines apart instead of an inline `[tool] label · subject` row.
@@ -74,8 +78,8 @@ Read @features/pi-kit.feature when changing this contract and run `python3 -m py
 
 ## Rules
 
-- Zero runtime dependencies beyond Node built-ins; no imports of pi core or
-  consumer packages (the dependency graph stays one-way).
+- Keep runtime dependencies empty. The documented pi-tui static import and coding-agent CLI resolution are the permitted Pi integrations.
+  Do not import consumer packages; the dependency graph stays one-way.
 - Package-owned prompt resources and typed binding rules stay in their consumer
   packages; pi-kit owns the one-shot process runtime, not prompt semantics or
   generated Agent identities.

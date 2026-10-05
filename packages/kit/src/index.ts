@@ -8,6 +8,7 @@
  */
 
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
@@ -54,8 +55,14 @@ export interface ToolLifecycleSpec {
   label?: string;
   /** Always-visible secondary content: compact when collapsed, wrapped in full when expanded. */
   summary?: readonly string[];
-  /** Supplementary user-facing evidence, not raw result metadata or a title restatement. */
-  details?: readonly string[];
+  /** Plain by default. Markdown renders one body through native pi-tui Markdown. */
+  summaryFormat?: "plain" | "markdown";
+  /** Supplementary user-facing evidence, not raw result metadata or a title restatement.
+   * A string is plain evidence that kit sanitizes and colors. A string array is
+   * a block the caller already styled with the host theme, such as syntax
+   * highlighted code: kit keeps its escapes, colors nothing, and still wraps,
+   * fits and bands each row. */
+  details?: readonly (string | readonly string[])[];
   /** Bounds an expanded detail body. A row is collapsed by default, so
    * omitting this reveals every detail line; `0` suppresses the body entirely.
    * Any other number announces the lines it dropped on the band. */
@@ -110,7 +117,7 @@ export function startedToolLifecycle(
 export function eventToolLifecycle(
   tool: string,
   subject: string,
-  options: { label?: string; expandedSubject?: string; summary?: readonly string[]; details?: readonly string[]; detailLimit?: number } & ToolLifecycleFlags = {},
+  options: { label?: string; expandedSubject?: string; summary?: readonly string[]; details?: ToolLifecycleSpec["details"]; detailLimit?: number } & ToolLifecycleFlags = {},
 ): ToolLifecycleSpec {
   return {
     kind: "event",
@@ -127,24 +134,47 @@ export function eventToolLifecycle(
   };
 }
 
+/** One expanded detail row and whether the caller already styled it. */
+interface LifecycleDetailRow {
+  text: string;
+  styled: boolean;
+}
+
+/** Flatten detail entries into rows. Plain evidence is sanitized; a pre-styled
+ * block keeps its host escapes so a highlighted code block survives the band. */
+function lifecycleDetailRows(spec: ToolLifecycleSpec): LifecycleDetailRow[] {
+  return (spec.details ?? []).flatMap((entry): LifecycleDetailRow[] => typeof entry === "string"
+    ? [{ text: safeDisplayText(entry), styled: false }]
+    : entry.map((line) => ({ text: String(line), styled: true })));
+}
+
+/** Apply the caller's detail bound and announce every dropped row. */
+function boundDetailRows(rows: LifecycleDetailRow[], limit: number | undefined): LifecycleDetailRow[] {
+  const bound = limit === undefined ? undefined : Math.max(0, limit);
+  // `0` is an explicit request for no body at all. Every other bound keeps the
+  // body and names what it left out, so a bounded row never hides lines silently.
+  if (bound === 0) return [];
+  const visible = bound === undefined ? rows : rows.slice(0, bound);
+  const dropped = rows.length - visible.length;
+  return dropped > 0
+    ? [...visible, { text: `… ${dropped} more detail line${dropped === 1 ? "" : "s"}`, styled: false }]
+    : visible;
+}
+
+/** The expanded detail body a caller supplied, in row order. Paragraph spacing
+ * and repeated values inside a visible body are preserved as supplied. An empty
+ * body is not an expansion affordance. */
+function visibleDetailRows(spec: ToolLifecycleSpec): LifecycleDetailRow[] {
+  const rows = boundDetailRows(lifecycleDetailRows(spec), spec.detailLimit);
+  return rows.some((row) => row.text.trim()) ? rows : [];
+}
+
 /** Return lifecycle detail lines in full. Pi-kit never drops a line a caller
  * supplied for an expanded body: the row is collapsed by default, so the only
  * bound is an explicit numeric `detailLimit`, and a partial body always
  * announces the lines it left out. `detailLimit: 0` suppresses the body. */
 export function formatToolLifecycleDetails(spec: ToolLifecycleSpec): string[] {
-  const details = (spec.details ?? []).map((line) => safeDisplayText(line));
-  // An empty body is not an expansion affordance; paragraph spacing and
-  // repeated values inside a visible body are preserved as supplied.
-  if (!details.some((line) => line.trim())) return [];
-  const limit = spec.detailLimit === undefined ? undefined : Math.max(0, spec.detailLimit);
-  // `0` is an explicit request for no body at all. Every other bound keeps the
-  // body and names what it left out, so a bounded row never hides lines silently.
-  if (limit === 0) return [];
-  const visible = limit === undefined ? details : details.slice(0, limit);
-  const dropped = details.length - visible.length;
-  return dropped > 0
-    ? [...visible, `… ${dropped} more detail line${dropped === 1 ? "" : "s"}`]
-    : visible;
+  return visibleDetailRows(spec).map((row) => row.text);
 }
 
 /** Return the first safe non-empty line from a failed tool result. */
@@ -287,7 +317,7 @@ export function renderToolLifecycle(
     ? (text.trim() ? [fit(head, contentWidth), fit("", contentWidth), ...wrap(subjectBody(text))] : [fit(head, contentWidth)])
     : wrap(subjectLine(text));
   const summary = (spec.summary ?? []).map((line) => safeDisplayText(line));
-  const details = formatToolLifecycleDetails(spec);
+  const detailRows = visibleDetailRows(spec);
   const singleLine = (text: string) => text.replace(/\r\n|\r|\n/g, " ").trimEnd();
   const wrap = (text: string) => (options.wrapDetail?.(text, contentWidth) ?? text.split(/\r\n|\r|\n/))
     .map((line) => fit(line, contentWidth));
@@ -300,23 +330,29 @@ export function renderToolLifecycle(
   };
   const hiddenSubject = (expandedSubject !== undefined && expandedSubject.trimEnd() !== subjectText.trimEnd())
     || (authoredSubject ? false : isHidden(title));
-  const expandable = options.expandable ?? (details.length > 0 || hiddenSubject || summary.some(isHidden));
+  const textToken = options.isError ? "error" : "customMessageText";
+  const markdownRows = spec.summaryFormat === "markdown" && summary.length > 0
+    ? new Markdown(summary.join("\n"), 0, 0, liveActivityMarkdownTheme(theme), {
+        color: plain => theme.fg(textToken, plain),
+      }).render(contentWidth).map(line => fit(line, contentWidth))
+    : undefined;
+  const summaryHidden = markdownRows ? markdownRows.length > 1 : summary.some(isHidden);
+  const expandable = options.expandable ?? (detailRows.length > 0 || hiddenSubject || summaryHidden);
   const hint = expandable && !options.expanded
     ? theme.fg("dim", ` · ${options.expandHint ?? "to expand"}`)
     : "";
-  const textToken = options.isError ? "error" : "customMessageText";
   const rows = options.expanded
     ? [
         ...subjectRows(expandedSubject ?? subjectText),
-        ...summary.flatMap((line) => wrap(line).map((part) => theme.fg(textToken, part))),
-        ...details.flatMap((detail) => wrap(detail).map((line) => theme.fg(textToken, line))),
+        ...(markdownRows ?? summary.flatMap((line) => wrap(line).map((part) => theme.fg(textToken, part)))),
+        ...detailRows.flatMap((row) => wrap(row.text).map((line) => row.styled ? line : theme.fg(textToken, line))),
       ]
     : [
         ...(authoredSubject
           // Verbatim rows never merge written lines; hidden details keep their own hint row.
           ? [...subjectRows(subjectText), ...(hint ? [fit(hint, contentWidth)] : [])]
           : collapsedBandRows(singleLine(title), hint, contentWidth, options)),
-        ...summary.map((line) => fit(theme.fg(textToken, singleLine(line)), contentWidth)),
+        ...(markdownRows ? markdownRows.slice(0, 1) : summary.map((line) => fit(theme.fg(textToken, singleLine(line)), contentWidth))),
       ];
   return paintBand(rows, spec.bgToken === undefined ? options : { ...options, bgToken: spec.bgToken });
 }
@@ -783,6 +819,20 @@ export function displayText(value: unknown): string {
 /** One body line in the shared vocabulary: `label · value`, collapsed to a line. */
 export function fieldLine(label: string, value: unknown): string {
   return `${safeDisplayText(label)} · ${displayText(value).replace(/\s+/g, " ").trim()}`;
+}
+
+/** One body line in the field-name vocabulary: `Label: value`, collapsed to a
+ * line. A caller writes the label as a field name, so it starts with an
+ * uppercase letter. */
+export function labelField(label: string, value: unknown): string {
+  return `${safeDisplayText(label)}: ${displayText(value).replace(/\s+/g, " ").trim()}`;
+}
+
+/** One body line in the field-name vocabulary that keeps the value's own
+ * spacing, because repeated spaces are significant in a command, a regex or a
+ * payload. The caller supplies sanitized text. */
+export function labelFieldVerbatim(label: string, value: unknown): string {
+  return `${safeDisplayText(label)}: ${displayText(value)}`;
 }
 
 /** A multi-line field: the label heads the first line, the rest follow in full.
@@ -1287,7 +1337,10 @@ export function maxBodyHeight(rows: number, fraction = 0.4): number {
  * Build Markdown theme callbacks from the shared style language.
  * Returns an object matching pi-tui's MarkdownTheme shape.
  */
-export function buildMarkdownThemeCallbacks(style: PiThemeStyle): {
+export function buildMarkdownThemeCallbacks(
+  style: PiThemeStyle,
+  horizontalRule: (text: string) => string = () => "__OVERLAY_SEPARATOR__",
+): {
   heading: (t: string) => string;
   link: (t: string) => string;
   linkUrl: (t: string) => string;
@@ -1296,7 +1349,7 @@ export function buildMarkdownThemeCallbacks(style: PiThemeStyle): {
   codeBlockBorder: (t: string) => string;
   quote: (t: string) => string;
   quoteBorder: (t: string) => string;
-  hr: () => string;
+  hr: (text?: string) => string;
   listBullet: (t: string) => string;
   bold: (t: string) => string;
   italic: (t: string) => string;
@@ -1312,7 +1365,7 @@ export function buildMarkdownThemeCallbacks(style: PiThemeStyle): {
     codeBlockBorder: (t) => style.border(t),
     quote: (t) => style.muted(t),
     quoteBorder: (t) => style.border(t),
-    hr: () => "__OVERLAY_SEPARATOR__",
+    hr: (text = "") => horizontalRule(text),
     listBullet: (t) => style.accent(t),
     bold: (t) => style.accent(t),
     italic: (t) => style.muted(t),
@@ -1330,9 +1383,9 @@ export function computeScrollWindow(
   scroll: number,
   maxBody: number,
 ): { start: number; end: number; clampedScroll: number } {
-  const viewport = Math.min(lines.length, maxBody);
+  const viewport = Math.max(0, Math.min(lines.length, maxBody));
   const max = Math.max(0, lines.length - viewport);
-  const clampedScroll = Math.min(scroll, max);
+  const clampedScroll = Math.max(0, Math.min(scroll, max));
   return { start: clampedScroll, end: clampedScroll + viewport, clampedScroll };
 }
 
@@ -1359,6 +1412,27 @@ export function getDirectorySessionKey(cwd: string): string {
 /** Compare directory identity after resolving existing symlinks. */
 export function isSameDirectory(left: string, right: string): boolean {
   return canonicalDirectoryPath(left) === canonicalDirectoryPath(right);
+}
+
+/**
+ * Resolve the shared directory-sessions registry directory.
+ *
+ * `PI_DIRECTORY_SESSIONS_DIR` wins, then the agent directory overrides, then the
+ * default `~/.pi/agent`. Callers must share this instead of spelling the path
+ * themselves: a package that hardcodes the home directory keeps writing to the
+ * real registry while the rest of the session runs against a sandboxed agent
+ * directory.
+ */
+export function directorySessionsDir(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const explicit = nonEmpty(env.PI_DIRECTORY_SESSIONS_DIR);
+  if (explicit) return explicit;
+  const agentDir =
+    nonEmpty(env.PI_CODING_AGENT_DIR) ??
+    nonEmpty(env.PI_AGENT_DIR) ??
+    path.join(os.homedir(), ".pi", "agent");
+  return path.join(agentDir, "directory-sessions");
 }
 
 // ── Worker process helpers ──────────────────────────────────────────
@@ -2678,6 +2752,86 @@ export function setOwnedTools(host: PiToolDisclosure, disclosure: OwnedToolDiscl
   const always = disclosure.always ?? [];
   const toggled = disclosure.enabled ? disclosure.toggled ?? [] : [];
   host.setActiveTools([...foreign, ...always, ...toggled]);
+}
+
+// ── Participant registry ────────────────────────────────────────────────────
+//
+// The one shape a process layer publishes so a task set of Tasks can reason about
+// who holds what, without either package importing the other.
+//
+// It lives here rather than in either package because a contract both sides name
+// has to be owned by something neither side owns. Declared in the consuming
+// package instead, the two would have to spell the key and the field names
+// identically by convention, and a rename on one side would silently degrade the
+// other to a single-participant tasks rather than fail.
+//
+// `globalThis` + `Symbol.for` rather than the registry below: Pi loads each
+// installed package with its own module root, so module-level state is per
+// instance while this contract must be found across instances. `Symbol.for` is
+// keyed by string across the whole realm, so agreement is by intent.
+
+/** Where a published participant registry is found. */
+export const PARTICIPANT_REGISTRY_KEY: unique symbol = Symbol.for("pi.participant-registry");
+
+/**
+ * What one holder is holding. Mirrored field for field by both sides: a process
+ * roster has no business importing a task set's domain, and a task set has no
+ * business importing a process roster's entries. Declared once, here, so the
+ * mirror cannot drift.
+ */
+export interface ParticipantAssignment {
+  id: string;
+  kind: "direct" | "task";
+  resources: string[];
+  closed?: boolean;
+}
+
+/**
+ * One holder as a task set needs to see it: which participant, which incarnation,
+ * and what it currently holds. A projection, never the caller's own entry, so a
+ * consumer cannot mutate the publisher's state by writing to what it was given.
+ */
+export interface Participant {
+  name: string;
+  /** Per-spawn capability identity. One incarnation, permanently. */
+  spawnId: string;
+  status: string;
+  assignment?: ParticipantAssignment;
+  currentTaskId?: string;
+}
+
+/** What a task set may ask of the participants that exist. */
+export interface ParticipantRegistry {
+  /** The holder with this name, if the publisher has an entry for it. */
+  get(holder: string): Participant | undefined;
+  /**
+   * Every holder that can still hold something. Retired entries are excluded: a
+   * holder that is gone cannot hold a Task, and counting it would refuse work
+   * nobody is doing.
+   */
+  list(): Participant[];
+  /** Hand an assignment to a holder, or clear it. */
+  sync(holder: string, assignment: ParticipantAssignment | undefined, taskId: string | undefined): void;
+  /**
+   * Whether `holder` can hold work now, and whether `incarnation` is its current
+   * one. Omitting `incarnation` asks only about the holder.
+   *
+   * A question rather than a field the consumer reads: a holder that stopped and
+   * one that was replaced are the same fact, and only the publisher knows which.
+   * A consumer that compared identities itself would hold the publisher's
+   * vocabulary and re-derive a rule that has one owner.
+   */
+  current(holder: string, incarnation?: string): boolean;
+}
+
+/** Publish this registry. Idempotent, so a reload republishes rather than stacking. */
+export function publishParticipantRegistry(registry: ParticipantRegistry): void {
+  (globalThis as { [PARTICIPANT_REGISTRY_KEY]?: ParticipantRegistry })[PARTICIPANT_REGISTRY_KEY] = registry;
+}
+
+/** Resolve the published registry, or `undefined` when no publisher is loaded. */
+export function resolveParticipantRegistry(): ParticipantRegistry | undefined {
+  return (globalThis as { [PARTICIPANT_REGISTRY_KEY]?: ParticipantRegistry })[PARTICIPANT_REGISTRY_KEY];
 }
 
 // ── Runtime coordination registry ────────────────────────────────────────────

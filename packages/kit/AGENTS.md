@@ -37,7 +37,7 @@ package may be imported here as a static import or a dynamic `import()`.
 `features/pi-kit.feature` and `tests/test_pi_kit.py` exercise runtime helpers
 and consumer dependency hygiene. Test lifecycle width/expansion, sanitization,
 model selection, abort escalation, and CLI resolution. Keep the manifest free
-of `pi`, `pi-package`, dependencies, and peer dependencies; retain the root
+of `pi`, `pi-package`, and runtime dependencies. Preserve the documented Pi peers; retain the root
 TypeScript export.
 
 ## Shared Tool Lifecycle & UI Primitives

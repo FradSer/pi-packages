@@ -42,6 +42,14 @@ Feature: Shared pi-kit runtime helpers
     And a static result renderer keeps model-only result text out of the expandable user-facing row
     And a lifecycle row can show a compact multi-line summary while remaining expandable
 
+  Scenario: Lifecycle summaries can opt into native Markdown
+    Given a summary explicitly uses Markdown format
+    When the shared band renders
+    Then native Markdown supplies inline styles and block layout
+    And collapsed output previews the rendered body with an expansion hint only for hidden rows
+    And expanded output preserves the full body within the current width
+    And other summaries remain plain by default
+
   Scenario: Lifecycle rows support an inline expanded subject
     Given a lifecycle spec opts into a complete inline expanded subject
     When its collapsed title exceeds the terminal display width
@@ -143,6 +151,7 @@ Feature: Shared pi-kit runtime helpers
     When the consumer package is packed
     Then the packed manifest resolves @fradser/pi-kit to a concrete version
     And the tarball contains no workspace protocol dependencies
+    And an isolated HOME uses the already installed pnpm executable rather than downloading it
 
   Scenario: Passive console widgets use the shared row layout
     Given a package displays a one-line status widget
@@ -420,6 +429,13 @@ Feature: Shared pi-kit runtime helpers
     And a multi-line value keeps the label on its first line only
     And a multi-line field keeps the whole value unless the caller passes an explicit character limit
     And objects and nullish values never stringify into the transcript
+
+  Scenario: A band can also read a field name instead of a middle dot
+    Given an uppercase field label and any model-supplied value
+    When pi-kit formats the label field
+    Then the line reads `Label: value` on one line
+    And a value with significant repeated spaces keeps them when pi-kit formats it verbatim
+    And an object or nullish value never stringifies into the transcript
 
   Scenario: Runtime handles are scrubbed from human text
     Given human text containing a prefixed handle or session route
