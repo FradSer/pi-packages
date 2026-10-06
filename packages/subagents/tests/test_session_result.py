@@ -79,7 +79,7 @@ const ctx = {{ cwd: process.env.PI_TEST_CWD }};
 const intentTools=new Map(registered.filter(t=>t.name.startsWith("agent_")).map(t=>[t.name,t]));
 const start=(request)=>{{
   const {{operation,name,session,prompt,tools:grant,...rest}}=request;
-  const tool=operation==="input"||operation==="steer"?"agent_input":operation==="inspect"?"agent_inspect"
+  const tool=operation==="input"||operation==="steer"?"agent_input"
     :operation==="stop"?"agent_stop":operation==="list"?"agent_list":"agent_start";
   const params=tool==="agent_start"
     ?{{prompt:prompt??"Start the assigned work.",...(name===undefined?{{}}:{{label:name}}),...(grant===undefined?{{}}:{{tools:grant}}),...rest}}
@@ -211,8 +211,11 @@ def test_short_result_is_rendered_once_without_bookkeeping_or_expansion_hint() -
         for (const expanded of [false, true]) {
           const row = paint(message, expanded);
           const visible = row.split("\\n").map(line => line.trim()).filter(Boolean);
-          assert.deepEqual(visible, ["[agent] reported · @calculator", "2"], row);
-          assert.ok(!row.includes("to expand"), row);
+          // Collapsed, the row is the headline and the answer waits; expanded, the
+          // answer appears once, below it.
+          assert.deepEqual(visible, expanded
+            ? ["[agent] reported · @calculator", "2"]
+            : ["[agent] reported · @calculator · ctrl+o to expand"]);
           assert.ok(!row.includes("Session Result") && !/turn [0-9]/.test(row), row);
         }
         assert.equal(message.content, content, "rendering cannot change the model-facing answer");
@@ -255,11 +258,16 @@ def test_long_single_line_uses_terminal_width_and_retains_expanded_tail() -> Non
         const text = "word ".repeat(55) + "REQUIRED_RESULT_TAIL";settle(text);
         const [message] = results();
         const narrow = paint(message, false, 60);
+        // The answer is expansion detail now: the collapsed row is the headline
+        // plus the affordance, and the tail survives expansion whole.
+        assert.ok(!narrow.includes("REQUIRED_RESULT_TAIL"), narrow);
         assert.ok(narrow.includes("to expand"), narrow);
         const expanded = paint(message, true, 60);
         assert.equal(expanded.split("REQUIRED_RESULT_TAIL").length - 1, 1, expanded);
+        assert.ok(expanded.split("\\n").every(line => line.length <= 120), expanded);
         const wide = paint(message, false, 400);
-        assert.ok(wide.includes(text), wide);assert.ok(!wide.includes("to expand"), wide);
+        assert.ok(!wide.includes(text), wide);
+        assert.ok(wide.includes("to expand"), wide);
         assert.equal(message.details.text, text);
         console.log(JSON.stringify({ ok: true }));
         """
@@ -295,9 +303,15 @@ def test_short_markdown_answer_has_no_markup_or_false_expansion_hint() -> None:
         r'''
         await start({name:"markdown-short",prompt:"Return one bold word.",tools:[]});beginTurn();
         settle("**Done**");const [message]=results();
-        const rendered=paint(message,false,70);
+        // Collapsed, the row is only the headline and the reader is told to expand.
+        const collapsed=paint(message,false,70);
+        assert.ok(collapsed.includes("reported"),collapsed);
+        assert.ok(!collapsed.includes("Done"),collapsed);
+        assert.ok(/to expand|ctrl\+o to expand/.test(collapsed),collapsed);
+        // Expanded, the authored answer is complete and rendered as Markdown.
+        const rendered=paint(message,true,70);
         assert.ok(rendered.includes("Done"),rendered);
-        assert.ok(!rendered.includes("**") && !rendered.includes("to expand"),rendered);
+        assert.ok(!rendered.includes("**"),rendered);
         assert.equal(message.details.text,"**Done**");
         console.log(JSON.stringify({ok:true}));
         ''',
@@ -322,15 +336,14 @@ def test_a_child_that_ends_without_a_result_shows_one_visible_line_and_no_turn()
         assert.ok(!notice.content.includes("Work."), "the notice carries no result text");
         const painted = paint(notice, true);
         assert.match(painted, /@solo/, painted);
-        // resident-execution.feature now requires read-only inspection of known
-        // stopped facts, unlike process controls which still require liveness.
+        // The roster is where a person reads a retained child's exit detail, and
+        // it keeps the stopped state of the exact incarnation named earlier.
         const listed = await start({ operation: "list" });
-        assert.ok(listed.details.sessions[0].error, "the roster keeps the exit detail");
-        const inspected = await start({ operation: "inspect", session: started.details.session });
-        assert.equal(inspected.details.ok, true, inspected.content[0].text);
-        assert.notEqual(inspected.isError, true);
-        assert.deepEqual(inspected.details.sessions[0], listed.details.sessions[0]);
-        assert.equal(inspected.details.sessions[0].status, "stopped");
+        const retained = listed.details.sessions.find((entry) => entry.session === started.details.session);
+        assert.ok(retained, `the roster keeps the stopped incarnation:\n${JSON.stringify(listed.details.sessions)}`);
+        assert.ok(retained.error, "the roster keeps the exit detail");
+        assert.equal(retained.status, "stopped");
+        assert.ok(!listed.isError, listed.content[0].text);
         console.log(JSON.stringify({ ok: true }));
         """
     )
@@ -374,7 +387,7 @@ def test_a_shutdown_the_leader_asked_for_is_not_reported_as_a_death() -> None:
     )
 
 
-def test_an_answered_child_is_listed_as_idle_and_inspected_for_its_answer() -> None:
+def test_an_answered_child_is_listed_as_idle_without_its_output() -> None:
     run(
         """
         await start({ operation: "start", name: "solo", prompt: "Reply with the number 1+1.", tools: [] });
@@ -383,10 +396,10 @@ def test_an_answered_child_is_listed_as_idle_and_inspected_for_its_answer() -> N
         const listed = await start({ operation: "list" });
         const [entry] = listed.details.sessions;
         assert.equal(entry.status, "idle", "a child that answered is not working");
-        // Management lists now summarize status; exact inspect owns output.
+        // ADR-0008 left no inspection operation. A roster entry is a status
+        // summary, so the settled answer is not part of it: it arrives with the
+        // Session Result, not with a second read of the roster.
         assert.equal(entry.liveText, undefined);
-        const inspected = await start({ operation: "inspect", session: entry.session });
-        assert.equal(inspected.details.sessions[0].liveText, "2");
         console.log(JSON.stringify({ ok: true }));
         """
     )
@@ -480,10 +493,9 @@ import {{ sessionNoticeSpec }} from {json.dumps((PACKAGE / 'src' / 'session-resu
         // A settled frame with nowhere to go is not an error: the roster keeps it.
         frames({{ text: "the answer", turns: 1, finalResponse: true, modelOutputSeen: true }});
         const listed = await tool("agent_list").execute("t", {{}}, undefined, undefined, ctx);
+        assert.equal(listed.details.ok, true, listed.content[0].text);
+        assert.equal(listed.details.sessions.length, 1, listed.content[0].text);
         assert.equal(listed.details.sessions[0].liveText, undefined);
-        const inspected = await tool("agent_inspect").execute("t", {{ session: listed.details.sessions[0].session }},
-          undefined, undefined, ctx);
-        assert.equal(inspected.details.sessions[0].liveText, "the answer");
         exits({{ pid: 11, exitCode: 0, signal: null, stdout: "", stderr: "" }});
         console.log(JSON.stringify({{ ok: true }}));
         """,

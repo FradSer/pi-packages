@@ -15,7 +15,7 @@ export const AGENT_PREVIEW_MARKER = "[management preview truncated; raw record u
 export const AGENT_LIVE_PREVIEW_MARKER = "... [preview truncated; delivered Session Result is complete]";
 /** One entry per intent tool. `agent_input` carries its delivery, so the
  *  execution boundary has five operations rather than the legacy six verbs. */
-export const CHILD_OPERATIONS = ["start", "input", "inspect", "list", "stop"] as const;
+export const CHILD_OPERATIONS = ["start", "input", "list", "stop"] as const;
 export type ChildOperation = typeof CHILD_OPERATIONS[number];
 export type AgentOutputOperation = ChildOperation | "invalid";
 export type AgentOutputState = AgentStatus | "accepted" | "unknown" | "read-only";
@@ -99,7 +99,6 @@ export type AgentPromptedData = CommonData & {
   name: string; session: string; prompt: string; delivery: "next" | "steer"; prompted?: true; steering?: true;
 };
 export type AgentStoppedData = CommonData & { operation: "stop"; ok: true; outcome: "stopped"; name: string; session: string };
-export type AgentInspectedData = CommonData & { operation: "inspect"; ok: true; outcome: "inspected"; sessions: AgentSessionView[] };
 export type AgentListedData = CommonData & {
   operation: "list"; ok: true; outcome: "listed";
   /** Compatibility: all sessions on the supplied roster, not only this page. */
@@ -111,7 +110,7 @@ export type AgentFailureData = CommonData & {
   code: AgentErrorCode; message: string; error: string; limit?: AgentOutputLimit;
 };
 export type AgentToolData = AgentStartedData | AgentPromptedData | AgentStoppedData
-  | AgentInspectedData | AgentListedData | AgentFailureData;
+  | AgentListedData | AgentFailureData;
 export type AgentResult = Omit<AgentToolResult<AgentToolData>, "content" | "structuredContent"> & {
   content: Array<{ type: "text"; text: string }>;
   structuredContent: AgentToolData;
@@ -180,9 +179,10 @@ export const AGENT_TOOL_OUTPUT_SCHEMA = {
   type: "object", properties: {
     ...previewProperties, ...authorityProperties,
     operation: { type: "string", enum: [...CHILD_OPERATIONS, "invalid"] }, ok: booleanSchema,
-    outcome: { type: "string", enum: ["started", "prompted", "interrupted", "inspected", "listed", "stopped", "error", "cancelled"] },
+    outcome: { type: "string", enum: ["started", "prompted", "interrupted", "listed", "stopped", "error", "cancelled"] },
     state: { type: "string", enum: ["accepted", "idle", "starting", "working", "stopped", "unknown", "read-only"] },
-    agent: stringSchema, prompted: booleanSchema, steering: booleanSchema, standalone: booleanSchema, synthesisedRole: booleanSchema,
+    agent: stringSchema, prompt: stringSchema, delivery: { type: "string", enum: ["next", "steer"] },
+    prompted: booleanSchema, steering: booleanSchema, standalone: booleanSchema, synthesisedRole: booleanSchema,
     dispatched: booleanSchema, controlOutcome: { type: "string", enum: ["uncertain", "not-dispatched", "unconfirmed", "rejected", "accepted", "closed", "missing"] },
     pendingIntent: { type: "string", enum: [...CHILD_OPERATIONS, "next", "steer"] },
     nextActor: { type: "string", enum: ["runtime", "caller"] },
@@ -201,7 +201,6 @@ export const AGENT_TOOL_OUTPUT_SCHEMA = {
     successSchema("input", "prompted", ["name", "session", "prompt", "delivery", "prompted"]),
     successSchema("input", "interrupted", ["name", "session", "prompt", "delivery", "steering"]),
     successSchema("stop", "stopped", ["name", "session"]),
-    successSchema("inspect", "inspected", ["sessions"]),
     successSchema("list", "listed", ["count", "total", "agents", "sessions", "definitions", "page"]),
     { properties: { ok: { const: false }, outcome: { enum: ["error", "cancelled"] } }, required: ["code", "message", "error"] },
   ],
@@ -288,7 +287,7 @@ function trimPreviews(value: PreviewFields, summary = false): void {
     if (summary && field === "liveText") {
       delete value.liveText;
       truncation(value).fields.push({ field, truncated: true, reason: "summary", originalBytes: Buffer.byteLength(raw, "utf8"),
-        originalLines: lineCount(raw), outputBytes: 0, outputLines: 0, marker: "[status summary; inspect the exact session for output preview]" });
+        originalLines: lineCount(raw), outputBytes: 0, outputLines: 0, marker: "[status summary; the answer arrives with the Session Result]" });
       omitted(value, [field]);
       continue;
     }
@@ -361,7 +360,6 @@ export function createAgentFailure(operation: string, code: AgentErrorCode, mess
 export function createAgentResult(body: string, raw: AgentToolData): AgentResult {
   const data = selectKnown(raw, AGENT_TOOL_OUTPUT_SCHEMA.properties);
   trimPreviews(data);
-  if (data.operation === "inspect" && data.ok) data.sessions = data.sessions.map(view => sessionView(view));
   if (data.operation === "list" && data.ok) {
     data.sessions = data.sessions.map(view => sessionView(view, true));
     data.agents = data.agents.map(view => sessionView(view, true));
@@ -396,22 +394,9 @@ function readback(view: AgentSessionView): string[] {
   ];
 }
 /** One known record; preserves exact authority or explicitly refuses to represent it within the budgets. */
-export function limitAgentReadback(raw: AgentSessionView): AgentResult {
-  const view = sessionView(raw);
-  const data: AgentInspectedData = { operation: "inspect", ok: true, outcome: "inspected", state: view.status, nextActor: "caller",
-    name: view.name, agent: view.name, ...(view.session ? { session: view.session } : {}), status: view.status, sessions: [view] };
-  if (jsonBytes(data) > AGENT_JSON_MAX_BYTES) {
-    for (const field of displayFields) {
-      if (jsonBytes(data) <= AGENT_JSON_MAX_BYTES) break;
-      if (view[field] !== undefined) { delete view[field]; omitted(view, [field]); }
-    }
-  }
-  if (jsonBytes(data) > AGENT_JSON_MAX_BYTES) return limitFailure("inspect", { ...view, state: view.status, nextActor: "caller" });
-  return createAgentResult([`child · ${view.label ?? view.name} · ${view.status} · ${view.session ?? "(no incarnation)"}`, ...readback(view)].join("\n"), data);
-}
 
 export type AgentListOptions = { offset?: number; limit?: number };
-const LIST_NOTICE = "Status summary only; inspect an exact session for its bounded output preview. Delivered Session Results remain complete.";
+const LIST_NOTICE = "Status summary only; a running child's complete answer arrives with its Session Result.";
 function listData(sessions: AgentSessionView[], definitions: AgentDefinitionView[], totalSessions: number, totalDefinitions: number,
   offset: number, limit: number): AgentListedData {
   const total = totalSessions + totalDefinitions, returned = sessions.length + definitions.length;

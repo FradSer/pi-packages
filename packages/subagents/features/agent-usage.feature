@@ -18,10 +18,10 @@ Feature: A caller can use asynchronous delegation without managing its completio
     And it does not claim that the child is gone
 
     Examples:
-      | operation   |
-      | agent_inspect |
-      | agent_input  |
-      | agent_stop   |
+      | operation  |
+      | agent_list |
+      | agent_input |
+      | agent_stop  |
 
   Scenario: Listing is read-only and includes offline identities separately
     Given a disk identity with no live child and a stopped child session

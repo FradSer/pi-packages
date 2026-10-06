@@ -55,6 +55,12 @@ export interface ToolLifecycleSpec {
   label?: string;
   /** Always-visible secondary content: compact when collapsed, wrapped in full when expanded. */
   summary?: readonly string[];
+  /** Keep the summary out of the collapsed band and reveal it only on expansion.
+   *  For a payload that is the whole point of the row but is not the row's
+   *  identity — a child's answer, for one — so the collapsed line names what
+   *  happened and the reader opens the row for the content. The row stays
+   *  expandable, and its affordance is shown, whenever a summary exists. */
+  expandedSummary?: boolean;
   /** Plain by default. Markdown renders one body through native pi-tui Markdown. */
   summaryFormat?: "plain" | "markdown";
   /** Supplementary user-facing evidence, not raw result metadata or a title restatement.
@@ -336,7 +342,10 @@ export function renderToolLifecycle(
         color: plain => theme.fg(textToken, plain),
       }).render(contentWidth).map(line => fit(line, contentWidth))
     : undefined;
-  const summaryHidden = markdownRows ? markdownRows.length > 1 : summary.some(isHidden);
+  const hideCollapsedSummary = spec.expandedSummary === true && summary.length > 0;
+  const summaryHidden = markdownRows
+    ? markdownRows.length > 1 || hideCollapsedSummary
+    : summary.some(isHidden) || hideCollapsedSummary;
   const expandable = options.expandable ?? (detailRows.length > 0 || hiddenSubject || summaryHidden);
   const hint = expandable && !options.expanded
     ? theme.fg("dim", ` · ${options.expandHint ?? "to expand"}`)
@@ -352,7 +361,9 @@ export function renderToolLifecycle(
           // Verbatim rows never merge written lines; hidden details keep their own hint row.
           ? [...subjectRows(subjectText), ...(hint ? [fit(hint, contentWidth)] : [])]
           : collapsedBandRows(singleLine(title), hint, contentWidth, options)),
-        ...(markdownRows ? markdownRows.slice(0, 1) : summary.map((line) => fit(theme.fg(textToken, singleLine(line)), contentWidth))),
+        ...(hideCollapsedSummary
+          ? []
+          : markdownRows ? markdownRows.slice(0, 1) : summary.map((line) => fit(theme.fg(textToken, singleLine(line)), contentWidth))),
       ];
   return paintBand(rows, spec.bgToken === undefined ? options : { ...options, bgToken: spec.bgToken });
 }

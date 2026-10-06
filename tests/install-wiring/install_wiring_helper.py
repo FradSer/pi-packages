@@ -15,7 +15,7 @@ from typing import Mapping, Sequence
 REPO = Path(__file__).resolve().parents[2]
 SUPPORT = Path(__file__).resolve().parent
 PACKAGE_TOOLS: dict[str, tuple[str, ...]] = {
-    "subagents": ("agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list", "subagents_enable"),
+    "subagents": ("agent_start", "agent_input", "agent_stop", "agent_list", "subagents_enable"),
     "tasks": ("create_task", "get_task", "list_tasks", "update_task"),
     "agent-teams": ("message",),
 }

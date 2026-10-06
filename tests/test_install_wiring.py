@@ -369,8 +369,9 @@ def test_the_configured_install_runs_the_tools_end_to_end(smoke_install: tuple) 
     assert all(not call["isError"] for call in agents[1:]), agents
     assert agents[1]["details"]["disposition"] == "started" and agents[1]["details"]["prompted"] is True
     assert agents[1]["details"]["session"].startswith("session:")
-    assert agents[2]["details"]["disposition"] == "inspected"
-    assert agents[2]["details"]["sessions"][0]["session"] == agents[1]["details"]["session"]
+    # The per-child inspection is retired: the roster page is the surviving read.
+    assert agents[2]["details"]["disposition"] == "listed"
+    assert any(row["session"] == agents[1]["details"]["session"] for row in agents[2]["details"]["sessions"])
     assert agents[3]["details"]["disposition"] == "stopped" and agents[3]["details"]["state"] == "stopped"
     assert agents[4]["details"]["disposition"] == "started" and agents[4]["details"]["prompted"] is True
     assert "Input accepted" in agents[4]["text"]

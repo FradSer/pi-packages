@@ -41,7 +41,7 @@ def test_native_controls_keep_exact_owner_after_cancellation(
         tui = NativeTui(command, cwd=tmp_path, env=env, rows=35, columns=100, timeout=35)
         try:
             tui.wait_for(lambda: 'NATIVE_AUTHORITY_DONE' in tui.screen())
-            assert '[agent] inspected' in tui.screen(), tui.screen()
+            assert '[agent] listed' in tui.screen(), tui.screen()
             assert 'cancelled' in tui.screen(), tui.screen()
             tui.send(b'/quit\r')
             tui.wait_for(lambda: tui.process.poll() is not None)
@@ -80,16 +80,22 @@ def test_native_controls_keep_exact_owner_after_cancellation(
         assert len({entry['session'] for entry in shutdown['hostStops']}) == 2
     elif scenario == 'stop-pending':
         assert any(event['kind'] == 'late-confirmation-refused' for event in events)
+        readback, = [event for event in events if event['kind'] == 'roster-readback']
+        assert readback['status'] == 'stopped', events
+        assert readback['session'].startswith('session:'), events
     elif scenario == 'reentrant-successor':
         assert any(event['kind'] == 'synthetic-reentrant-start' for event in events)
         preserved, = [event for event in events if event['kind'] == 'reentrant-owner-preserved']
         assert shutdown['hostStops'][0]['session'] == preserved['session']
         assert any(event['kind'] == 'native-readiness' and event['owner'] == 'successor' and event['accepted'] for event in events)
+        assert any(event['kind'] == 'roster-readback' and event['session'] == preserved['session'] for event in events)
     else:
         assert any(event['kind'] == 'native-input-ack' and event['accepted'] for event in events)
         assert any(event['kind'] == 'late-failure-readback' for event in events)
-        inspected = next(event['details'] for event in receipts if event['details']['operation'] == 'agent_inspect')
-        assert 'LATE_NATIVE_CONTROL_FAILURE' in inspected['sessions'][0]['error']
+        # ADR-0008 left no inspection operation, so the roster is the surviving read.
+        listed = next(event['details'] for event in receipts if event['details']['operation'] == 'agent_list')
+        assert listed['disposition'] == 'listed', listed
+        assert 'LATE_NATIVE_CONTROL_FAILURE' in listed['sessions'][0]['error']
     assert len(requests) <= (1 if scenario == 'late-control-failure' else 0)
     assert not (tmp_path / 'agent' / 'agents').exists()
     assert not (tmp_path / 'agent' / 'subagent-sessions').exists()

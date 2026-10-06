@@ -86,16 +86,15 @@ def test_flat_output_schema_and_all_successful_outcomes() -> None:
       assert.equal(schema.type, "object");
       assert.deepEqual(schema.required, ["operation", "ok", "outcome", "state", "nextActor"]);
       assert.equal(schema.additionalProperties, false);
-      assert.ok(schema.oneOf.length>=7,"output schema validates discriminated branches");
+      assert.ok(schema.oneOf.length>=6,"output schema validates discriminated branches");
       const base = {nextActor:"caller",name:"worker",session:"session:worker:id",grant:["read"],model:"provider/model",
         scope:"project",source:"/project/.pi/agents/worker/agent.md",cwd:"/project"};
       const examples = [
         {operation:"start",ok:true,outcome:"started",state:"accepted",prompted:true,prompt:"Review",...base},
         {operation:"start",ok:true,outcome:"started",state:"idle",prompted:false,...base},
         {operation:"input",delivery:"next",ok:true,outcome:"prompted",state:"working",prompted:true,prompt:"Check",...base},
-        {operation:"input",ok:true,outcome:"interrupted",state:"working",steering:true,steering:true,prompt:"Steer",...base},
+        {operation:"input",delivery:"steer",ok:true,outcome:"interrupted",state:"working",steering:true,prompt:"Steer",...base},
         {operation:"stop",ok:true,outcome:"stopped",state:"stopped",evidence:"Process only",...base},
-        {operation:"inspect",ok:true,outcome:"inspected",state:"stopped",nextActor:"caller",agent:"worker-0",sessions:[session(0)]},
         {operation:"list",ok:true,outcome:"listed",state:"read-only",nextActor:"caller",agents:[],sessions:[],definitions:[],count:0,total:0,
           page:{offset:0,limit:20,returned:0,omitted:0,remaining:0,before:0,totalSessions:0,totalDefinitions:0}},
       ];
@@ -151,7 +150,7 @@ def test_text_exact_boundaries_and_one_line_preview() -> None:
     """)
 
 
-@pytest.mark.parametrize("operation", ["start", "input", "inspect", "list", "stop"])
+@pytest.mark.parametrize("operation", ["start", "input", "list", "stop"])
 def test_returned_failure_data_and_sanitized_bounded_diagnostics(operation: str) -> None:
     run_node(f"""
       const raw="\\u001b[31mPROVIDER_FAILURE\\u001b[0m\\u0007"+"界𠮷\\n".repeat(8000)+"TAIL";
@@ -182,7 +181,7 @@ def test_failure_action_is_bounded_without_guessing_a_start_or_ack_state() -> No
     """)
 
 
-def test_inspect_huge_previews_nested_metadata_and_exact_authority() -> None:
+def test_roster_previews_bound_nested_metadata_and_keep_exact_authority() -> None:
     run_node("""
       const record={...session(0),grant:["read","grep"],tools:["read","grep"],scope:"project",
         source:"/project/.pi/agents/worker-0/agent.md",currentTaskId:"task:exact",
@@ -192,13 +191,17 @@ def test_inspect_huge_previews_nested_metadata_and_exact_authority() -> None:
         finalDiagnostic:"PROVIDER_DIAGNOSTIC "+"𠮷".repeat(10000),
         metadata:{nested:{huge:Array(200).fill({text:"界".repeat(16000)})}}};
       const before=JSON.stringify(record);
-      const data=checked(output.limitAgentReadback(record));
-      assert.equal(data.ok,true);assert.equal(data.state,"stopped");assert.equal(data.nextActor,"caller");
-      assert.equal(data.outcome,"inspected");assert.equal(data.sessions.length,1);
+      const data=checked(output.createAgentListPage([record],[]));
+      assert.equal(data.ok,true);assert.equal(data.state,"read-only");assert.equal(data.nextActor,"caller");
+      assert.equal(data.outcome,"listed");assert.equal(data.sessions.length,1);
       const view=data.sessions[0];
       for(const key of ["name","session","status","grant","tools","scope","source","currentTaskId","assignment"])
         assert.deepEqual(view[key],record[key]);
-      assert.ok(view.liveText.includes("preview truncated"));assert.ok(view.liveText.isWellFormed());
+      // The roster is a status summary, so the child's output is omitted rather
+      // than bounded, and the omission is stated rather than silent.
+      assert.equal(view.liveText,undefined);
+      assert.ok(view.truncation.omittedFields.includes("liveText"));
+      assert.ok(view.truncation.fields.some(field=>field.field==="liveText"&&field.reason==="summary"));
       assert.ok(view.error.includes("diagnostic truncated"));assert.ok(view.finalDiagnostic.isWellFormed());
       assert.ok(view.activeTool.includes("truncated"));
       assert.equal(view.metadata,undefined);assert.ok(view.truncation.omittedFields.includes("metadata"));
@@ -210,16 +213,15 @@ def test_inspect_huge_previews_nested_metadata_and_exact_authority() -> None:
     """)
 
 
-def test_small_inspect_keeps_existing_readback_fields_and_unanswered_classification() -> None:
+def test_small_roster_record_keeps_exact_fields_and_unanswered_classification() -> None:
     run_node("""
-      const record={...session(0),liveText:"original partial answer",error:"short diagnostic",activeTool:"read",
+      const record={...session(0),error:"short diagnostic",activeTool:"read",
         resultKind:"unanswered",unansweredReason:"length",stopReason:"length",finalDiagnostic:"short provider detail"};
-      const result=output.limitAgentReadback(record);
+      const result=output.createAgentListPage([record],[]);
       const data=checked(result);
       for(const [key,value] of Object.entries(record)) assert.deepEqual(data.sessions[0][key],value);
       const text=result.content[0].text;
       assert.ok(text.includes("unanswered · No usable final answer"));
-      assert.ok(text.includes("output · original partial answer"));
       assert.ok(text.includes("error · short diagnostic"));
       assert.equal(data.sessions[0].truncation,undefined);
     """)
@@ -230,8 +232,8 @@ def test_unrepresentable_exact_grant_is_an_explicit_limit_error() -> None:
       const record={...session(0),tools:["exact-tool:"+"x".repeat(40000)],grant:["read"],scope:"project",
         source:"/project/.pi/agents/worker-0/agent.md"};
       const before=JSON.stringify(record);
-      const data=checked(output.limitAgentReadback(record));
-      assert.equal(data.ok,false);assert.equal(data.code,"output-limit");assert.equal(data.operation,"inspect");
+      const data=checked(output.createAgentListPage([record],[]));
+      assert.equal(data.ok,false);assert.equal(data.code,"output-limit");assert.equal(data.operation,"list");
       assert.equal(data.session,record.session);assert.equal(data.name,record.name);assert.equal(data.status,"stopped");
       assert.deepEqual(data.grant,["read"]);assert.equal(data.scope,"project");
       assert.equal(data.tools,undefined);assert.ok(data.limit.omittedFields.includes("tools"));
@@ -243,7 +245,7 @@ def test_unrepresentable_exact_grant_is_an_explicit_limit_error() -> None:
 def test_huge_exact_identity_is_never_presented_as_a_shortened_handle() -> None:
     run_node("""
       const record={...session(0),session:"session:worker-0:"+"x".repeat(100000)};
-      const data=checked(output.limitAgentReadback(record));
+      const data=checked(output.createAgentListPage([record],[]));
       assert.equal(data.ok,false);assert.equal(data.code,"output-limit");assert.equal(data.session,undefined);
       assert.equal(data.name,record.name);assert.ok(data.limit.omittedFields.includes("session"));
       assert.ok(!JSON.stringify(data).includes("session:worker-0:xxx"));
@@ -260,7 +262,7 @@ def test_list_twenty_long_results_is_a_summary_not_twenty_full_readbacks() -> No
       assert.equal(data.page.limit,20);assert.equal(data.page.returned,20);assert.equal(data.page.omitted,0);
       assert.equal(data.page.nextOffset,undefined);
       assert.deepEqual(data.agents,data.sessions);
-      assert.ok(data.previewNotice.includes("inspect"));assert.ok(result.content[0].text.includes("summary"));
+      assert.ok(data.previewNotice.includes("Session Result"));assert.ok(result.content[0].text.includes("summary"));
       for(const view of data.sessions) {
         assert.equal(view.liveText,undefined);assert.ok(view.truncation.omittedFields.includes("liveText"));
         assert.ok(view.truncation.fields.some(field=>field.field==="liveText"&&field.reason==="summary"));
@@ -385,7 +387,7 @@ def test_diagnostic_compatibility_is_identical_in_text_and_details(raw: str) -> 
       const safe=raw.includes("\\u001b")?"界".repeat(1001):raw;
       const expected=safe.length>1000?safe.slice(0,1000)+"… [diagnostic truncated]":safe;
       const record={{...session(0),error:raw,finalDiagnostic:raw}};
-      for(const result of [output.limitAgentReadback(record),output.createAgentListPage([record],[])]) {{
+      for(const result of [output.createAgentListPage([record],[])]) {{
         const data=checked(result),view=data.sessions[0];
         assert.equal(view.error,expected);assert.equal(view.finalDiagnostic,expected);
         assert.ok(result.content[0].text.includes("error · "+expected));
@@ -397,17 +399,21 @@ def test_diagnostic_compatibility_is_identical_in_text_and_details(raw: str) -> 
 def test_normalization_is_idempotent_and_cancellation_facts_survive() -> None:
     run_node("""
       const raw="\\u001b[31mFAILURE\\u001b[0m\\u0007"+"𠮷".repeat(10000);
-      const cancelled=output.createAgentFailure("send","cancelled",raw,{state:"starting",outcome:"cancelled",
+      const cancelled=output.createAgentFailure("input","cancelled",raw,{state:"starting",outcome:"cancelled",
         nextActor:"runtime",pendingIntent:"input",dispatched:true,controlOutcome:"uncertain",session:"session:worker:id"});
       const data=checked(cancelled);
+      assert.equal(data.operation,"input");
       assert.equal(data.outcome,"cancelled");assert.equal(data.code,"cancelled");assert.equal(data.state,"starting");
       assert.equal(data.nextActor,"runtime");assert.equal(data.pendingIntent,"input");assert.equal(data.dispatched,true);
       assert.equal(data.controlOutcome,"uncertain");assert.equal(data.session,"session:worker:id");
       assert.deepEqual(output.createAgentResult(cancelled.content[0].text,cancelled.details),cancelled);
-      const inspect=output.limitAgentReadback({...session(0),error:raw,liveText:"界𠮷".repeat(10000)});
-      checked(inspect);
-      assert.deepEqual(output.createAgentResult(inspect.content[0].text,inspect.details),inspect);
-      assert.equal(inspect.details.sessions[0].error.split("diagnostic truncated").length-1,1);
+      const listed=output.createAgentListPage([{...session(0),error:raw,liveText:"界𠮷".repeat(10000)}],[]);
+      checked(listed);
+      // The roster bounds a diagnostic once and states the omission instead of
+      // carrying the child's output.
+      assert.equal(listed.details.sessions[0].error.split("diagnostic truncated").length-1,1);
+      assert.equal(listed.details.sessions[0].liveText,undefined);
+      assert.ok(listed.details.sessions[0].truncation.omittedFields.includes("liveText"));
       const prompt=output.createAgentResult("receipt",{operation:"input",delivery:"next",ok:true,outcome:"prompted",state:"accepted",
         nextActor:"runtime",name:"worker",session:"session:worker:id",prompted:true,prompt:"界".repeat(30000)});
       const promptData=checked(prompt);
@@ -422,7 +428,7 @@ def test_native_types_accept_schema_and_discriminated_output_without_any() -> No
     source = f"""
       import {{ defineTool, type AgentToolResult, type ToolDefinition }} from "@earendil-works/pi-coding-agent";
       import {{ Type }} from "typebox";
-      import {{ AGENT_TOOL_OUTPUT_SCHEMA, createAgentResult, createAgentFailure, limitAgentReadback,
+      import {{ AGENT_TOOL_OUTPUT_SCHEMA, createAgentResult, createAgentFailure,
         createAgentListPage, type AgentToolData, type AgentSessionView, type AgentDefinitionView,
         type AgentResult }} from {json.dumps(str(MODULE))};
       const view: AgentSessionView = {{name:"worker",session:"session:worker:id",status:"idle",sequenceEnded:true,
@@ -435,12 +441,11 @@ def test_native_types_accept_schema_and_discriminated_output_without_any() -> No
       const tool = defineTool({{name:"offline",label:"Offline",description:"Compile-only",
         parameters:Type.Object({{}}),outputSchema:schema,async execute(){{return native;}}}});
       const failures: AgentToolResult<AgentToolData>[] = [createAgentFailure("stop","stop-unconfirmed","Not confirmed",{{
-        session:view.session,state:"working",controlOutcome:"unconfirmed"}}),limitAgentReadback(view),
+        session:view.session,state:"working",controlOutcome:"unconfirmed"}}),
         createAgentListPage([view],[definition],{{offset:0,limit:20}})];
       function narrow(data: AgentToolData): string {{
         if(!data.ok) return data.code + data.error;
         if(data.operation==="list") return String(data.count + data.total + data.page.returned);
-        if(data.operation==="inspect") return data.sessions[0].status;
         if(data.operation==="start") return data.session;
         return data.outcome;
       }}

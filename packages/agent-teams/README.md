@@ -7,7 +7,6 @@ The five intent tools are the only child tool surface:
 agent_start({ identity: "reviewer", prompt: "Audit authentication" });
 agent_input({ session: "session:reviewer:<incarnation>", prompt: "Review the correction", delivery: "next" });
 agent_input({ session: "session:reviewer:<incarnation>", prompt: "Keep this read-only", delivery: "steer" });
-agent_inspect({ session: "session:reviewer:<incarnation>" });
 agent_list({});
 agent_stop({ session: "session:reviewer:<incarnation>" });
 ```
@@ -124,7 +123,8 @@ The close check changes no inbox bytes, offsets, or delivery records. Stale or a
 Process failures, interrupted assignments, and unresolved results still reach the leader. Accepted results remain available after closure.
 
 After delegation, continue independent work or end the turn: results resume the
-session automatically. Use `agent_inspect` for deliberate diagnosis, not repeated
+session automatically. `agent_list` is a status summary, not a way to wait, and a
+child's complete answer arrives with its Session Result rather than on request.
 polling or sleep loops. `message` never creates or retries Work; messaging a
 completed assignment returns its recorded result without waking the worker.
 Worker communication and submissions are bound to the Assignment Attempt that

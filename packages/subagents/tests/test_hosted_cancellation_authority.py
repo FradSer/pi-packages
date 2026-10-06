@@ -161,9 +161,13 @@ def test_cancelled_returned_or_thrown_control_failure_is_readable(
       const status=roster.getAgent('diagnostic').status;const beforeNotices=notices.length;
       const diagnostic='LATE_ACK_ERROR';
       settle(KIND==='throw'?diagnostic:OWNERSHIP==='hosted'?{ok:false,error:diagnostic}:ACTION==='stop'?{outcome:'unconfirmed'}:false);
-      await flush();const inspected=await call({operation:'inspect',session:start.details.session});
-      assert.equal(inspected.details.ok,true);assert.ok(inspected.details.sessions[0].error,'cancelled operation failure must remain inspectable');
-      if(KIND==='throw'||OWNERSHIP==='hosted')assert.ok(inspected.details.sessions[0].error.includes(diagnostic));
+      await flush();const listed=await call({operation:'list'});
+      // ADR-0008 left no inspection operation: the roster is the one read that
+      // survives, and it keeps the exact incarnation a cancelled wait owned.
+      const retained=listed.details.sessions.find(row=>row.session===start.details.session);
+      assert.ok(retained,'the roster keeps the exact incarnation the cancelled wait dispatched');
+      assert.ok(retained.error,'a cancelled operation failure must remain readable on the roster');
+      if(KIND==='throw'||OWNERSHIP==='hosted')assert.ok(retained.error.includes(diagnostic));
       // A definitive native false reply may restore idle by the existing
       // send contract. Only uncertain/rejected promise errors retain busy state;
       // the diagnostic recorder itself never guesses a status transition.

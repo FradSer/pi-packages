@@ -21,13 +21,16 @@ const pi={{registerTool:tool=>registered.push(tool),registerMessageRenderer(){{}
 extension(pi);
 const sessionManager=SessionManager.inMemory();const ctx={{sessionManager,model:{{api:'unknown'}}}};
 const emit=async()=>{{for(const handler of handlers.get('session_start')??[])await handler({{}},ctx);}};
-const family=['agent_start','agent_input','agent_stop','agent_inspect','agent_list'];
+const family=['agent_start','agent_input','agent_stop','agent_list'];
 """
 
-@pytest.mark.parametrize("selected", ["agent_list", "agent", "agent_list,agent_inspect", "read",
-    "agent_list,subagents_enable", "agent_start,agent_input,agent_stop,agent_inspect,agent_list",
-    "agent_start,agent_input,agent_stop,agent_inspect,agent_list,subagents_enable"])
+@pytest.mark.parametrize("selected", ["agent_list", "agent", "agent_inspect", "read",
+    "agent_list,subagents_enable", "agent_start,agent_input,agent_stop,agent_inspect",
+    "agent_start,agent_input,agent_stop,agent_inspect,subagents_enable"])
 def test_native_explicit_intent_selection_is_not_widened(tmp_path: Path, selected: str) -> None:
+    # Each case pairs one host selection with what the contract must leave active.
+    # A selection that names a retired tool is scrubbed, not widened into a family
+    # and not left on the wire, exactly like the retired `agent` selection.
     env = {
         "PATH": os.environ.get("PATH", ""),
         "HOME": str(tmp_path),
@@ -52,10 +55,10 @@ def test_fresh_selection_and_explicit_exclusion() -> None:
       pi.getAllTools=()=>registered.filter(tool=>tool.name!=='agent_input');await emit();
       console.log(JSON.stringify({fresh,excluded:active,required:registered.filter(tool=>family.includes(tool.name)).map(tool=>[tool.name,tool.parameters.required])}));
     """)
-    assert result["fresh"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+    assert result["fresh"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_list"]
     assert result["excluded"] == ["read"], "a partial family is not offered"
     assert result["required"] == [["agent_start", ["prompt"]], ["agent_input", ["session", "prompt", "delivery"]],
-                                   ["agent_stop", ["session"]], ["agent_inspect", ["session"]], ["agent_list", []]]
+                                   ["agent_stop", ["session"]], ["agent_list", []]]
 
 
 def test_partial_host_selection_keeps_recorded_branch_removals() -> None:
@@ -83,8 +86,9 @@ def test_legacy_and_new_branch_restore_cannot_mix() -> None:
       sessionManager.appendMessage({role:'system',timestamp:2,content:'',toolsAdded:family.map(definition),toolsRemoved:[definition('agent')]});
       await emit();console.log(JSON.stringify({legacy,next:active}));
     """)
-    assert result["legacy"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
-    assert result["next"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+    assert result["legacy"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_list"]
+    assert result["next"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_list"]
+    assert "agent" not in result["legacy"] + result["next"], "the retired tool is scrubbed from both branches"
 
 
 def test_new_refusal_has_typed_structured_output() -> None:
@@ -100,19 +104,19 @@ def test_new_refusal_has_typed_structured_output() -> None:
       }
       console.log(JSON.stringify({results,enabled:enabled.structuredContent.enabled,active}));
     """)
-    assert result["enabled"] == ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
-    assert "agent" not in result["active"]
+    assert result["enabled"] == ["agent_start", "agent_input", "agent_stop", "agent_list"]
+    assert not {"agent", "agent_inspect"} & set(result["active"]), "a retired tool is never selected"
     assert all(entry["valid"] and entry["error"] for entry in result["results"])
 
 
 def test_old_transcript_without_selection_keeps_one_family_without_loader() -> None:
     result = run_node(PREAMBLE + """
       sessionManager.appendMessage({role:'user',content:'Existing history',timestamp:1});
-      active=['read','agent',...family,'subagents_enable'];
+      active=['read','agent','agent_inspect',...family,'subagents_enable'];
       await emit();const restored=[...active];
       // Excluding one family member withdraws the whole family rather than half of it.
       pi.getAllTools=()=>registered.filter(tool=>tool.name!=='agent_input');
       await emit();console.log(JSON.stringify({restored,excluded:active}));
     """)
-    assert result["restored"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+    assert result["restored"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_list"]
     assert result["excluded"] == ["read"], "a partial family is not offered"

@@ -18,6 +18,18 @@ The README promised support for the legacy surface through the 0.1 release line 
 4. **One collapsed row per result.** A single-child row reads `[tool] label · @name · status`. The name appears once, the state word is not repeated when the label already carries it, and the authored prompt or steer headline stays on the row because it is the work itself. Every other fact is expansion detail, and a moved line is dropped when the detail list already carries it.
 5. **A roster subject has no state.** `agent_list` reads `[agent] listed · @children · N of M`. The count stays collapsed because a page that shows a subset must say so, and one child's status never becomes the subject's status.
 
+## Lifecycle update (2026-10-05)
+
+`agent_inspect` is retired too. The per-child read existed to answer "what is this
+child doing, and what did it say"; after the row contract landed, the roster says
+the first and a delivered Session Result carries the second, so the tool only
+offered a way to poll. Its removal changes three things: `CHILD_OPERATIONS` has four
+entries, the `agent` input operation carries its own delivery rather than a
+separate steer verb, and `RETIRED_TOOLS` in the selection machinery now scrubs
+`agent_inspect` as well as `agent`, because a name recorded before its removal
+would otherwise stay active on a transport that never registered it. The list
+receipt says a status summary only; the answer arrives with the Session Result.
+
 ## Consequences
 
 - Calling `agent` is a breaking change for any recorded script. The announced migration is the changeset, the README and the five tool descriptions; no user data moves and no migration runs on discovery or start.

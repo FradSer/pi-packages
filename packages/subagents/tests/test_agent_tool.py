@@ -3,13 +3,14 @@
 Contract: features/tool-surface.feature,
 packages/subagents/features/child-role-delivery.feature
 
-`executeChildIntent` is the one implementation the five `agent_*` intent tools
-share, so these scenarios drive it directly with the spawn and terminate
-functions injected: they assert the layer's *decisions* — routing, validation,
-handle addressing, and what it reports — without starting a real child process.
+`executeChildIntent` is the one implementation the four surviving `agent_*`
+intent tools share, so these scenarios drive it directly with the spawn and
+terminate functions injected: they assert the layer's *decisions* — routing,
+validation, handle addressing, and what it reports — without starting a real
+child process.
 Everything a real spawn would prove is about the spawner, which has its own
-suite. The combined `agent` tool is retired (ADR-0008);
-`test_it_registers_only_the_five_intent_tools` owns that claim at the
+suite. The combined `agent` tool and `agent_inspect` are retired (ADR-0008);
+`test_it_registers_only_the_surviving_intent_tools` owns that claim at the
 registered-surface seam.
 """
 
@@ -105,18 +106,20 @@ def test_the_manifest_declares_a_loadable_extension_entry() -> None:
     assert "export { default }" in (PACKAGE / "index.ts").read_text(encoding="utf-8")
 
 
-def test_it_registers_only_the_five_intent_tools() -> None:
+def test_it_registers_only_the_surviving_intent_tools() -> None:
     result = run(
         """
         const names = [...tools.keys()];
         console.log(JSON.stringify({ names, count: tools.size }));
         """
     )
-    # ADR-0008 retired the combined `agent` tool, and its selection is still
-    # scrubbed, so a selection recorded before the retirement cannot revive it.
-    assert result["count"] == 5
-    assert result["names"] == ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+    # ADR-0008 retired the combined `agent` tool and `agent_inspect`, and their
+    # selections are still scrubbed, so a selection recorded before the
+    # retirement cannot revive either name.
+    assert result["count"] == 4
+    assert result["names"] == ["agent_start", "agent_input", "agent_stop", "agent_list"]
     assert "agent" not in result["names"]
+    assert "agent_inspect" not in result["names"]
 
 
 # ── Resident input completes the process lifecycle without coordination ──
@@ -158,18 +161,20 @@ def test_a_retired_handle_never_resolves_to_its_replacement() -> None:
         // Retire the incumbent, then reuse the name.
         const stopped = await call({ operation: "stop", session: stale });
         const second = await call({ operation: "start", name: "alpha" });
-        const staleInspect = await call({ operation: "inspect", session: stale });
-        const liveInspect = await call({ operation: "inspect", session: second.details.session });
+        const staleStop = await call({ operation: "stop", session: stale });
+        const liveList = await call({ operation: "list" });
         console.log(JSON.stringify({
           duplicateRefused: duplicate.details.ok === false,
-          guides: duplicate.text.includes("action=inspect") && duplicate.text.includes("action=stop"),
+          guides: duplicate.text.includes("agent_list") && duplicate.text.includes("agent_stop"),
           noProcessLeaked: duplicateSpawned === 1,
           stopped: stopped.details.outcome,
           reused: second.details.ok === true,
           distinct: second.details.session !== stale,
-          staleResolved: staleInspect.details.ok === true,
-          stalePointsForward: staleInspect.text.includes(second.details.session),
-          liveOk: liveInspect.details.ok === true,
+          staleRefused: staleStop.details.ok === false,
+          staleCode: staleStop.details.code,
+          rosterNamesAlpha: liveList.details.sessions.filter((entry) => entry.name === "alpha").length,
+          rosterPointsAtSuccessor: liveList.details.sessions.some((entry) => entry.session === second.details.session),
+          rosterForgetsPredecessor: !liveList.details.sessions.some((entry) => entry.session === stale),
         }));
         """
     )
@@ -181,11 +186,13 @@ def test_a_retired_handle_never_resolves_to_its_replacement() -> None:
     assert result["stopped"] == "stopped"
     assert result["reused"] is True
     assert result["distinct"] is True
-    # The predecessor was replaced on the roster, not merely stopped: it must
-    # not resolve to the successor, and the diagnostic points at the live one.
-    assert result["staleResolved"] is False
-    assert result["stalePointsForward"] is True
-    assert result["liveOk"] is True
+    # The predecessor was replaced on the roster, not merely stopped: the stale
+    # handle addresses no incarnation, and the roster holds only the successor.
+    assert result["staleRefused"] is True
+    assert result["staleCode"] == "not-found"
+    assert result["rosterNamesAlpha"] == 1
+    assert result["rosterPointsAtSuccessor"] is True
+    assert result["rosterForgetsPredecessor"] is True
 
 
 def test_list_enumerates_every_child_with_its_handle() -> None:
@@ -735,7 +742,7 @@ def test_a_failed_spawn_is_reported_not_swallowed() -> None:
           // is the worst outcome, because it looks taken and nothing is running.
           retryOk: retry.details.ok === true,
           retryNotDuplicate: retry.details.ok === true
-            ? (await call({ operation: "inspect", session: retry.details.session })).details.ok === true
+            ? (await call({ operation: "list" })).details.sessions.some((entry) => entry.session === retry.details.session)
             : false,
         }));
         """

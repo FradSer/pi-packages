@@ -41,7 +41,7 @@ await event('session_start');
 const intentTools=new Map(tools.filter(t=>t.name.startsWith("agent_")).map(t=>[t.name,t]));
 const call=(request)=>{{
   const {{operation,name,session,prompt,tools:grant,...rest}}=request;
-  const tool=operation==="input"||operation==="steer"?"agent_input":operation==="inspect"?"agent_inspect"
+  const tool=operation==="input"||operation==="steer"?"agent_input":operation==="inspect"?"agent_list"
     :operation==="stop"?"agent_stop":operation==="list"?"agent_list":"agent_start";
   const params=tool==="agent_start"
     ?{{prompt:prompt??"Start the assigned work.",...(name===undefined?{{}}:{{label:name}}),...(grant===undefined?{{}}:{{tools:grant}}),...rest}}
@@ -95,23 +95,27 @@ def test_widget_streams_sanitized_activity_and_drops_settled_children(tmp_path: 
     # pi-tui may add its own Markdown styling; the foreign red escape is stripped.
     assert all('\x1b[31m' not in line for line in result['tool'])
     assert result['bounded'] is True
-    # Both children settled, so the activity area holds nothing: a settled child
-    # leaves it while it stays addressable through the roster.
-    assert result['remaining'] == []
-    assert result['widgets'] == 1
+    # The settled child left the area; the one still working keeps its row, and the
+    # failed startup never gets one.
+    assert len(result['remaining']) == 1
+    assert any('second' in line for line in result['remaining'])
+    assert not any('first' in line for line in result['remaining'])
+    # Once the working child fails too, the area is empty and the widget unmounts.
+    assert result['widgets'] == 0
     assert result['results'] == 2
 
 
 def test_settled_standalone_child_leaves_the_activity_area(tmp_path: Path) -> None:
     result = run("""
-      const pending=call({name:'resident',prompt:'1+1'});acknowledge(true);await pending;
+      const pending=call({name:'resident',prompt:'1+1'});acknowledge(true);const started=await pending;
       spawns[0].onUpdate({text:'2',liveThinking:'old thinking',activeTool:'old tool',turns:1,finalResponse:true,answerComplete:true});
       const settled=lines();
       // Settling leaves the activity area; the child is still addressable, so it is
       // found through the roster rather than by a stale row.
-      const inspected=await call({operation:'inspect',session:first.details.session});
-      console.log(JSON.stringify({settled,ok:inspected.details.ok,status:inspected.details.sessions[0].status,
-        label:inspected.details.sessions[0].label,results:sent.length}));
+      const page=await call({ operation:'list' });
+      const child=page.details.sessions.find((row)=>row.session===started.details.session);
+      console.log(JSON.stringify({settled,ok:page.details.ok,status:child?.status,
+        label:child?.label,results:sent.length}));
     """, tmp_path)
     assert result['settled'] == []
     assert result['ok'] is True
@@ -120,23 +124,20 @@ def test_settled_standalone_child_leaves_the_activity_area(tmp_path: Path) -> No
     assert result['results'] == 1
 
 
-def test_unanswered_settlement_also_remains_visible_without_stale_activity(tmp_path: Path) -> None:
+def test_unanswered_settlement_also_leaves_the_activity_area(tmp_path: Path) -> None:
     result = run("""
       const pending=call({name:'resident',prompt:'finish safely'});acknowledge(true);await pending;
       spawns[0].onUpdate({text:'',liveThinking:'stale thinking',activeTool:'stale tool',turns:1,finalResponse:true,answerComplete:false,missingFinal:true});
-      const idle=lines();
-      console.log(JSON.stringify({idle,results:sent.length}));
+      const settled=lines();
+      console.log(JSON.stringify({settled,results:sent.length}));
     """, tmp_path)
-    assert len(result['idle']) == 1
-    assert 'resident' in result['idle'][0]
-    assert 'Idle · ready for input' in result['idle'][0]
-    assert '○' in result['idle'][0]
-    assert 'stale thinking' not in result['idle'][0]
-    assert 'stale tool' not in result['idle'][0]
+    # An unanswered turn settles the child like any other, so the row goes with it
+    # and its stale stream text never reaches the activity area.
+    assert result['settled'] == []
     assert result['results'] == 1
 
 
-def test_stopped_resident_is_removed_while_idle_sibling_remains(tmp_path: Path) -> None:
+def test_settled_residents_leave_the_area_while_confirmed_closure_clears_the_rest(tmp_path: Path) -> None:
     result = run("""
       const pendingFirst=call({name:'stopped',prompt:'one'});acknowledge(true);const first=await pendingFirst;
       const pendingSecond=call({name:'idle',prompt:'two'});acknowledge(true);const second=await pendingSecond;
@@ -148,17 +149,17 @@ def test_stopped_resident_is_removed_while_idle_sibling_remains(tmp_path: Path) 
       console.log(JSON.stringify({rows,widgets:widgets.size,labels:[first.details.label,second.details.label]}));
     """, tmp_path)
     assert result['labels'] == ['stopped', 'idle']
-    assert len(result['rows']) == 1
-    assert 'idle' in result['rows'][0]
-    assert 'stopped' not in result['rows'][0]
-    assert '○' in result['rows'][0]
-    assert result['widgets'] == 1
+    # Both children settled, so neither occupies the area; both stay addressable.
+    assert result['rows'] == []
+    assert result['widgets'] == 0, "an empty activity area mounts no widget at all"
 
 
 def test_unconfirmed_stop_stays_visible_as_stopping_until_close(tmp_path: Path) -> None:
     result = run("""
       const pending=call({name:'resident',prompt:'one'});acknowledge(true);const started=await pending;
-      spawns[0].onUpdate({text:'done',liveThinking:'stale',turns:1,finalResponse:true,answerComplete:true});
+      // The child is still working when the leader asks it to stop, which is the
+      // only state in which a stopping row exists: a settled child has left the area.
+      spawns[0].onUpdate({text:'done',liveThinking:'stale',turns:1,finalResponse:false});
       const name=started.details.name;
       assert.notEqual(name,'resident','the roster address is the generated name');
       updateAgent(name,{leaderRequestedEnd:true});

@@ -129,8 +129,7 @@ export interface Agent {
  * its own module root, so the team runtime's roster and the agent tool's roster can
  * be two module instances — and then a spawn writes a child the leader cannot
  * list, which is how a real child ended up invisible one call after it started.
- * Sharing the object is what makes `list` and `inspect` able to see what `start`
- * just wrote.
+ * Sharing the object is what lets `list` see what `start` just wrote.
  */
 const ROSTER_KEY = Symbol.for("fradser.pi-subagents.roster");
 /** Revisions live beside the map, on the same `globalThis` carrier, for the same
@@ -219,10 +218,10 @@ export function registerAgent(entry: Agent): { ok: true } | { ok: false; error: 
   if (livingAgents().some((t) => t.name === entry.name)) {
     // Named as a precondition because the obvious next move is to spawn again
     // with the same name and get this same refusal forever. The caller has to
-    // inspect or stop the living incarnation first.
+    // address or stop the living incarnation first.
     return {
       ok: false,
-      error: `A living agent named "${entry.name}" already exists. Inspect it with agent action=inspect, or stop that incarnation with agent action=stop, then start again.`,
+      error: `A living agent named "${entry.name}" already exists. List the current handles with agent_list, or stop that incarnation with agent_stop, then start again.`,
     };
   }
   agents[entry.name] = entry;

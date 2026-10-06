@@ -112,7 +112,7 @@ def test_native_next_input_keeps_history_and_result_ids(tmp_path: Path, interfac
                 tui.wait_for(lambda: tui.process.poll() is not None)
                 assert tui.process.returncode == 0, tui.screen()[-5000:]
         report = json.loads(evidence.read_text())
-        family = {"agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"}
+        family = {"agent_start", "agent_input", "agent_stop", "agent_list"}
         assert set(report["activeTools"]) & (family | {"agent"}) == family
         assert len(report["receipts"]) == 2
         assert all(receipt["ok"] and not receipt["isError"] for receipt in report["receipts"]), report
@@ -139,8 +139,9 @@ def test_native_next_input_keeps_history_and_result_ids(tmp_path: Path, interfac
             assert len(report["notices"]) == 1, report
             assert report["notices"][0]["kind"] == "input-cancelled"
             assert report["notices"][0]["inputId"] == report["receipts"][1]["inputId"]
-            assert [entry["details"]["disposition"] for entry in report["controls"]] == ["stopped", "inspected", "listed"]
-            assert report["controls"][1]["details"]["sessions"][0]["status"] == "stopped"
+            assert [entry["details"]["disposition"] for entry in report["controls"]] == ["stopped", "listed"]
+            stopped_rows, = [row for row in report["controls"][1]["details"]["sessions"] if row["status"] == "stopped"]
+            assert stopped_rows["inputId"], "the roster page keeps the stopped incarnation's input"
             assert len(requests) <= 1
             assert all("SECOND INPUT" not in json.dumps(request) for request in requests)
         else:

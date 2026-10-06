@@ -22,7 +22,7 @@ def test_bundle_kickoff_has_native_ack_and_all_session_controls(tmp_path: Path) 
     assert started["details"]["grant"] == ["message", "task"]
     # The surfaces are the tool names this install registered: the intent family,
     # the mail tool, and the four task tools; there is no tool named `task`.
-    assert set(run.surfaces()) >= {"agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list",
+    assert set(run.surfaces()) >= {"agent_start", "agent_input", "agent_stop", "agent_list",
                                    "message", "create_task", "get_task", "list_tasks", "update_task"}
     assert run.live_children == [], "parent shutdown must close its child"
     spawn, = [event for event in run.rpc_events if event["type"] == "spawn"]

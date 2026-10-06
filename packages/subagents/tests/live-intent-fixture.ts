@@ -39,7 +39,7 @@ export default function (pi: ExtensionAPI): void {
       const data = event.details as IntentToolData;
       if (typeof data.session === "string") handle = data.session;
       receipts.push({ ...data, isError: event.isError === true });
-    } else if (event.toolName === "agent_stop" || event.toolName === "agent_inspect" || event.toolName === "agent_list") {
+    } else if (event.toolName === "agent_stop" || event.toolName === "agent_list" || event.toolName === "agent_list") {
       // Pi catches handler assertions. Always retain the real control outcome;
       // the outer test, not this extension callback, owns pass/fail.
       controls.push({ tool: event.toolName, isError: event.isError === true, details: event.details as IntentToolData });
@@ -64,7 +64,7 @@ export default function (pi: ExtensionAPI): void {
         : index === 1 ? { type: "toolCall", id: "next", name: "agent_input", arguments: {
             session: handle, prompt: steering ? "STEER_INPUT" : "SECOND INPUT", delivery: steering ? "steer" : "next" } }
           : index === 2 ? { type: "toolCall", id: "stop", name: "agent_stop", arguments: { session: rejectStop ? `${handle}-not-current` : handle } }
-            : stopPending && index === 3 ? { type: "toolCall", id: "inspect", name: "agent_inspect", arguments: { session: handle } }
+            : stopPending && index === 3 ? { type: "toolCall", id: "inspect", name: "agent_list", arguments: { session: handle } }
               : stopPending && index === 4 ? { type: "toolCall", id: "list", name: "agent_list", arguments: {} } : undefined;
       void (async () => {
         if (index === 2 && !stopPending) await results;

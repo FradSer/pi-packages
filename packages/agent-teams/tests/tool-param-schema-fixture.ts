@@ -85,21 +85,21 @@ if (Value.Check(INTENT_TOOL_SCHEMAS.agent_start, { ...started, bogus: 1 })) {
 if (Value.Check(INTENT_TOOL_SCHEMAS.agent_start, { prompt: "Run", definition: { description: "d" } })) {
   throw new Error("agent_start payload with a nested definition accepted");
 }
-// Inspect and stop address one incarnation, so the schema itself requires the
-// copied handle; the handler refuses the same call when the handle is absent or
-// malformed.
-assert.deepEqual([...((INTENT_TOOL_SCHEMAS.agent_inspect as SchemaLike).required as string[])], ["session"]);
-if (Value.Check(INTENT_TOOL_SCHEMAS.agent_inspect, { name: "reviewer" })) {
-  throw new Error("agent_inspect accepts a name-only payload; the exact handle is required");
+// Stop and input address one incarnation, so their schemas require the copied
+// handle and the handler refuses the same call when the handle is malformed.
+for (const tool of ["agent_stop", "agent_input"] as const) {
+  const schema = INTENT_TOOL_SCHEMAS[tool] as SchemaLike;
+  assert.ok((schema.required as string[]).includes("session"), `${tool} must require the exact handle`);
+  if (Value.Check(schema, { name: "reviewer" })) {
+    throw new Error(`${tool} accepts a name-only payload; the exact handle is required`);
+  }
 }
-const missingSession = await executeChildIntent({ operation: "inspect", name: "reviewer" });
+const missingSession = await executeChildIntent({ operation: "stop", name: "reviewer" });
 if (missingSession.details.ok !== false) {
-  throw new Error("inspect without a session handle must be refused by the handler");
+  throw new Error("a control without a session handle must be refused by the handler");
 }
-// Strict action-field validation may refuse name before checking a missing
-// session, but must still explain the exact copied-handle shape.
 if (!/session:<name>:<incarnation>/.test(missingSession.content[0].text)) {
-  throw new Error(`inspect refusal must name what is missing: ${missingSession.content[0].text}`);
+  throw new Error(`the refusal must name what is missing: ${missingSession.content[0].text}`);
 }
 const unknownAction = await executeChildIntent({ operation: "teleport", name: "reviewer" });
 // Read the valid set from the package rather than repeating it here: a hardcoded

@@ -17,7 +17,7 @@ def run_node(script: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-INTENT_TOOLS = ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+INTENT_TOOLS = ["agent_start", "agent_input", "agent_stop", "agent_list"]
 
 
 def test_intent_tool_schemas_are_strict_flat_objects():
@@ -58,7 +58,7 @@ def test_intent_tool_schemas_are_strict_flat_objects():
     assert payload["agent_start"]["required"] == ["prompt"]
     assert payload["agent_input"]["required"] == ["session", "prompt", "delivery"]
     assert payload["agent_stop"]["required"] == ["session"]
-    assert payload["agent_inspect"]["required"] == ["session"]
+    assert payload["agent_list"]["required"] == [], "the roster reads a page, so it requires nothing"
 
 
 def test_strict_agent_action_dispatcher_contracts():

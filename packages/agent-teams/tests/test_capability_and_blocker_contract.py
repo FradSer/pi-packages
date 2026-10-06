@@ -29,7 +29,9 @@ def test_public_lifecycle_content_discloses_recorded_grant(tmp_path: Path, reque
       registerComposedTools({{ registerTool: t => tools.set(t.name, t) }}, runtime);
       publishTeamHost(runtime);
       const start = p => tools.get("agent_start").execute("test", p, undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
-      const inspect = p => tools.get("agent_inspect").execute("test", p, undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
+      // ADR-0008 left no inspection operation: the roster read is the one that
+      // survives, and it takes no session handle.
+      const roster = () => tools.get("agent_list").execute("test", {{}}, undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
       // The roster name is minted by the start and only the label is authored, so
       // every later lookup resolves the handle the receipt returned.
       {{ 
@@ -43,12 +45,14 @@ def test_public_lifecycle_content_discloses_recorded_grant(tmp_path: Path, reque
         assert.equal(result.details.label, "capability-test");
         assert.ok(!result.details.session.includes("capability-test"),
           `label leaked into the roster handle ${{result.details.session}}`);
-        const inspected = await inspect({{ session: result.details.session }});
-        assert.equal(inspected.details.operation, "agent_inspect");
-        assert.equal(inspected.details.disposition, "inspected");
+        const listed = await roster();
+        assert.equal(listed.details.operation, "agent_list");
+        assert.equal(listed.details.disposition, "listed");
         // The effective grant is the one thing a caller routinely gets wrong by
         // assumption, so it is reported on the roster entry rather than inferred.
-        assert.deepEqual(inspected.details.sessions[0].tools, grant);
+        const entry = listed.details.sessions.find((row) => row.session === result.details.session);
+        assert.ok(entry, `the roster must hold the minted incarnation:\n${{JSON.stringify(listed.details.sessions)}}`);
+        assert.deepEqual(entry.tools, grant);
         if (grant.length === 2) {{
           assert.deepEqual(grant, ["message", "task"],
             "an empty request is coordination-only: the two coordination tools and nothing else");
@@ -87,7 +91,7 @@ def test_public_lifecycle_content_discloses_recorded_grant(tmp_path: Path, reque
 
 
 @pytest.mark.parametrize("recorded", ["undefined", '["read", "task", "message"]'])
-def test_inspect_uses_recorded_grant_not_current_definition(tmp_path: Path, recorded: str) -> None:
+def test_roster_read_uses_recorded_grant_not_current_definition(tmp_path: Path, recorded: str) -> None:
     run_node(f'''
       import assert from "node:assert/strict";
       import {{ publishTeamHost, registerComposedTools }} from "./tests/composed-tools.ts";
@@ -99,12 +103,14 @@ def test_inspect_uses_recorded_grant_not_current_definition(tmp_path: Path, reco
       registerComposedTools({{ registerTool: t => tools.set(t.name, t) }});
       registerAgent({{ name: "historical", role: "historical", spawnId: "s1", status: "idle",
         tools: {recorded}, pid: 0, isolation: "none", createdAt: 1, updatedAt: 1 }});
-      // Strict intent inputs address inspection only by its exact handle.
-      const result = await tools.get("agent_inspect").execute("test", {{ session: "session:historical:s1" }},
+      // Strict intent inputs take no session: the roster read is the surviving
+      // way to look a recorded incarnation up, and it takes no handle.
+      const result = await tools.get("agent_list").execute("test", {{}},
         undefined, undefined, {{ cwd: {str(tmp_path)!r} }});
-      assert.equal(result.details.operation, "agent_inspect");
-      assert.equal(result.details.disposition, "inspected");
+      assert.equal(result.details.operation, "agent_list");
+      assert.equal(result.details.disposition, "listed");
       const session = result.details.sessions[0];
+      assert.equal(session.session, "session:historical:s1");
       assert.deepEqual(session.tools, {recorded});
       console.log(JSON.stringify({{ ok: true }}));
     ''', env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path / "agent")})

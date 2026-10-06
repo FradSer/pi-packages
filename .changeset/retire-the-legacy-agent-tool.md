@@ -4,8 +4,11 @@
 ---
 
 Remove the `agent` tool, its six-action API, its selection branches and its
-uppercase receipt. The five intent tools `agent_start`, `agent_input`,
-`agent_stop`, `agent_inspect` and `agent_list` are the only child tool surface.
+uppercase receipt. The four intent tools `agent_start`, `agent_input`,
+`agent_stop` and `agent_list` are the only child tool surface: `agent_inspect` is
+retired with it, because a roster read plus the delivered Session Result already
+answers every question the per-child inspection existed for, and a tool the model
+can call repeatedly is a tool it will call repeatedly instead of waiting.
 A recorded branch whose selection named `agent` receives the intent family on its
 next session start. No user data moves, no migration runs on discovery or start,
 and no compatibility adapter remains.

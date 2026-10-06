@@ -27,7 +27,7 @@ Feature: Management tool outputs are typed and bounded independently of final an
 
     Scenario: One preview obeys Unicode-safe text and JSON budgets
       Given large multibyte output, long diagnostics or many lines on a known roster entry
-      When agent_inspect reads its exact handle
+      When agent_list reads the roster
       Then text is at most 16 KiB UTF-8 and 200 lines
       And each details or structuredContent serialization is at most 32 KiB
       And shortened fields have explicit markers and original/output size metadata
@@ -78,4 +78,4 @@ Feature: Management tool outputs are typed and bounded independently of final an
       Given a started exact child with a complete answer beyond management budgets
       When its turn settles
       Then the asynchronous Session Result retains all authored bytes
-      And only a later agent_inspect or agent_list has management preview limits
+      And only a later agent_list read has management preview limits

@@ -122,7 +122,7 @@ def test_schema_refusals_steer_and_queue_limits(tmp_path: Path) -> None:
       const invalid=await call('agent_start',{label:'only-name'});
       const start=await call('agent_start',{prompt:'FIRST'});
       const wrong=await call('agent_input',{session:start.structuredContent.session,prompt:'NO',delivery:'auto'});
-      const extra=await call('agent_inspect',{session:start.structuredContent.session,prompt:'NO'});
+      const extra=await call('agent_list',{prompt:'NO'});
       const steer=await call('agent_input',{session:start.structuredContent.session,prompt:'ADJUST',delivery:'steer'});
       for(let index=0;index<8;index++)await call('agent_input',{session:start.structuredContent.session,prompt:String(index),delivery:'next'});
       const full=await call('agent_input',{session:start.structuredContent.session,prompt:'overflow',delivery:'next'});
@@ -130,7 +130,7 @@ def test_schema_refusals_steer_and_queue_limits(tmp_path: Path) -> None:
       const idle=await call('agent_start',{prompt:'FINISH'});spawns[1].onUpdate({text:'done',turns:1,finalResponse:true,answerComplete:true,stopReason:'stop'});await tick();
       const idleSteer=await call('agent_input',{session:idle.structuredContent.session,prompt:'NO',delivery:'steer'});
       const bytes=await call('agent_input',{session:idle.structuredContent.session,prompt:'x'.repeat(256*1024+1),delivery:'next'});
-      const inspected=await call('agent_inspect',{session:idle.structuredContent.session});
+      const inspected=await call('agent_list',{});
       console.log(JSON.stringify({invalid:invalid.structuredContent.ok,wrong:wrong.structuredContent.ok,
         extra:extra.structuredContent.ok,steer:steer.structuredContent.ok,steers,full:full.structuredContent,
         idleSteer:idleSteer.structuredContent.ok,bytes:bytes.structuredContent.code,inspect:inspected.structuredContent,
@@ -145,7 +145,7 @@ def test_schema_refusals_steer_and_queue_limits(tmp_path: Path) -> None:
     assert result["bytes"] == "queue-full"
     assert result["inspect"]["sessions"][0]["inputId"]
     assert result["inspect"]["sessions"][0]["pendingInputs"] == 0
-    assert result["tools"] == ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+    assert result["tools"] == ["agent_start", "agent_input", "agent_stop", "agent_list"]
 
 
 def test_start_requires_a_prompt_even_when_an_identity_is_named(tmp_path: Path) -> None:

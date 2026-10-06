@@ -59,7 +59,7 @@ def test_the_roster_works_with_no_coordinator_configured() -> None:
     assert result["valid"] is True
     # The refusal has to name the way out, or the caller retries the same spawn
     # forever.
-    assert "inspect" in result["duplicateGuides"]
+    assert "agent_list" in result["duplicateGuides"]
     assert "stop" in result["duplicateGuides"]
 
 

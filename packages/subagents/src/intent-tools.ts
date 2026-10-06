@@ -12,9 +12,9 @@ import { currentInputId, hasActiveInput, pendingInputCount, reserveNextInput } f
 import { snapshotWorkContext } from "./work-context.ts";
 import { unansweredSummary, type UnansweredReason } from "./session-result.ts";
 
-export const INTENT_TOOL_NAMES = ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"] as const;
+export const INTENT_TOOL_NAMES = ["agent_start", "agent_input", "agent_stop", "agent_list"] as const;
 export type IntentToolName = typeof INTENT_TOOL_NAMES[number];
-export type InputDisposition = "started" | "queued" | "steered" | "stopped" | "inspected" | "listed" | "rejected" | "uncertain";
+export type InputDisposition = "started" | "queued" | "steered" | "stopped" | "listed" | "rejected" | "uncertain";
 export type IntentToolData = {
   version: 1; operation: IntentToolName; ok: boolean; disposition: InputDisposition;
   state: AgentOutputState; nextActor: "runtime" | "caller"; session?: string; inputId?: string;
@@ -37,7 +37,6 @@ export const INTENT_TOOL_SCHEMAS = {
     delivery: { type: "string", enum: ["next", "steer"], description: "next starts a later input after current work; steer guides active work without abort or a new sequence." },
   }, required: ["session", "prompt", "delivery"], additionalProperties: false },
   agent_stop: { type: "object", properties: { session }, required: ["session"], additionalProperties: false },
-  agent_inspect: { type: "object", properties: { session }, required: ["session"], additionalProperties: false },
   agent_list: { type: "object", properties: {
     offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 50 },
   }, required: [], additionalProperties: false },
@@ -46,7 +45,7 @@ export const INTENT_OUTPUT_SCHEMA = {
   type: "object", properties: {
     ...AGENT_TOOL_OUTPUT_SCHEMA.properties,
     version: { const: 1 }, operation: { type: "string", enum: INTENT_TOOL_NAMES },
-    disposition: { type: "string", enum: ["started", "queued", "steered", "stopped", "inspected", "listed", "rejected", "uncertain"] },
+    disposition: { type: "string", enum: ["started", "queued", "steered", "stopped", "listed", "rejected", "uncertain"] },
     inputId: text, identity: text, label: text, pendingInputs: { type: "integer", minimum: 0 }, code: { type: "string" },
   }, required: ["version", "operation", "ok", "disposition", "state", "nextActor"], additionalProperties: false,
 } as const;
@@ -90,8 +89,6 @@ function rowName(row: IntentSessionRow): string {
 function subjectFor(operation: IntentToolName, details: IntentRenderDetails): string {
   const direct = displayText(details.label) ?? displayText(details.identity);
   if (direct) return displayName(direct);
-  const rows = sessionRows(details);
-  if (operation === "agent_inspect" && rows.length === 1) return rowName(rows[0]);
   const current = details.session ? observed(details.session) : undefined;
   if (current) return displayName(current.label ?? current.identity ?? current.name);
   const name = displayText(details.name) ?? displayText(details.agent);
@@ -159,7 +156,7 @@ function intentSummary(operation: IntentToolName, details: IntentRenderDetails, 
   }
   // Identity and state already sit on the collapsed row. A body line here would
   // either repeat the child's name or restate a receipt the model already read.
-  if (operation === "agent_inspect" || operation === "agent_list" || operation === "agent_stop") {
+  if (operation === "agent_list" || operation === "agent_stop") {
     const retained = sessionRows(details).length + (details.definitions ?? []).length;
     if (retained > 0 || operation === "agent_stop") return [];
     const page = details.page;
@@ -196,7 +193,7 @@ function intentDetails(operation: IntentToolName, details: IntentRenderDetails):
     ...(details.body ? [`detail · ${details.body}`] : []),
     ...(details.error ? [`error · ${details.error}`] : []),
   ];
-  if (operation === "agent_inspect" || operation === "agent_list") {
+  if (operation === "agent_list") {
     // One naming header per child, then only the facts the common block and that
     // header do not already carry. The expanded row must not print a fact twice.
     const block = (row: IntentSessionRow, offline = false): string[] => {
@@ -229,7 +226,7 @@ function project(operation: IntentToolName, result: ReturnType<typeof createAgen
   const disposition: InputDisposition = raw.ok
     ? operation === "agent_input" ? outcome === "interrupted" ? "steered" : "started"
       : operation === "agent_start" ? "started" : operation === "agent_stop" ? "stopped"
-        : operation === "agent_inspect" ? "inspected" : "listed"
+        : "listed"
     : raw.controlOutcome === "uncertain" || raw.controlOutcome === "unconfirmed" ? "uncertain" : "rejected";
   const data: IntentToolData = { ...fields, version: 1, operation, disposition, ...extras };
   const content = raw.ok && operation === "agent_start" ? [{ type: "text" as const, text: [
@@ -378,7 +375,6 @@ const DESCRIPTIONS: Record<IntentToolName, string> = {
   agent_start: "Start one child with work. identity selects an existing disk role; label only names the display. Temporary instructions cannot replace a saved role. The receipt confirms accepted input only: the child's answer arrives automatically and asynchronously in a later turn, so continue independent work or end the turn for automatic resumption. Never poll this child with agent_inspect or agent_list to wait for its answer, never sleep, and never start a duplicate child for the same work.",
   agent_input: "Continue or guide the same exact child. delivery next starts after current work and can queue bounded input. delivery steer changes active work without abort or a new sequence. A receipt is not a final answer: the child's answer arrives automatically and asynchronously in a later turn, so do not poll with agent_inspect or agent_list to wait for it, and never repeat uncertain input.",
   agent_stop: "Close one exact child. Pending inputs receive cancellation notices. Confirmed closure does not undo file changes or establish task completion. Caller cancellation ends waiting, not the close operation. A closed child's answer is still delivered when it settles, so a stop is not a way to skip a result.",
-  agent_inspect: "Read one retained exact incarnation, including stopped records, when a person or a decision needs its state or a bounded output preview. Output is a bounded preview; final result delivery stays complete. Inspection cannot revive or control a replacement. Do not use it to wait for a running child: its answer is delivered to you without being asked.",
   agent_list: "List bounded session summaries and offline saved identities when you need the roster or an exact handle. Follow page.nextOffset for more entries. Discovery creates no identity, storage, or process. Use returned exact session handles for controls, and do not re-list a child whose answer is on its way.",
 };
 export function registerIntentTools(pi: ExtensionAPI, options: ChildExecutionOptions = {}): void {
@@ -406,9 +402,9 @@ export function registerIntentTools(pi: ExtensionAPI, options: ChildExecutionOpt
     pi.registerTool<typeof INTENT_TOOL_SCHEMAS[typeof name], IntentToolData>({
       name, label: name.replaceAll("_", " "), parameters: INTENT_TOOL_SCHEMAS[name], outputSchema: INTENT_OUTPUT_SCHEMA,
       namespace: { name: "subagents", description: "Create children, continue exact sessions, close them, and read their state.",
-        instructions: "Delegate only under an explicit user request or the instructions that apply. Reuse a child for dependent follow-ups. Results arrive automatically and asynchronously: continue independent work, or end the turn for automatic resumption. Never confirm a result without polling, sleeping, or inferring acceptance from a receipt, and never spend duplicate starts on a child you already hold; `agent_inspect` and `agent_list` are how you ask for state." },
+        instructions: "Delegate only under an explicit user request or the instructions that apply. Reuse a child for dependent follow-ups. Results arrive automatically and asynchronously: continue independent work, or end the turn for automatic resumption. Never confirm a result without polling, sleeping, or inferring acceptance from a receipt, and never spend duplicate starts on a child you already hold; `agent_list` is how you ask what exists, and a running child is answered by its own Session Result." },
       description: DESCRIPTIONS[name], exposure: "direct", renderShell: "self", renderCall: emptyToolCall,
-      annotations: name === "agent_inspect" || name === "agent_list"
+      annotations: name === "agent_list"
         ? { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
         : { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
       ...(renderResult ? { renderResult } : {}),

@@ -43,7 +43,9 @@ def test_start_failure_keeps_its_exact_stopped_record_in_machine_data(tmp_path: 
       assert.equal(result.isError,true);assert.equal(result.structuredContent.code,"spawn-failed");
       assert.equal(result.structuredContent.operation,"start");assert.equal(result.structuredContent.state,"stopped");
       assert.equal(result.structuredContent.controlOutcome,"rejected");
-      const parsed=await call({operation:"inspect",session:result.structuredContent.session});
-      assert.equal(parsed.details.ok,true);assert.equal(parsed.details.sessions[0].error,"LOCAL_SPAWN_FAILURE");
+      const page=await call({ operation:"list" });
+      const stopped=page.details.sessions.find((row)=>row.session===result.structuredContent.session);
+      assert.equal(page.details.ok,true);assert.ok(stopped,"the failed start keeps its exact stopped record");
+      assert.equal(stopped.error,"LOCAL_SPAWN_FAILURE");
       console.log(JSON.stringify({ok:true}));
     """,tmp_path)

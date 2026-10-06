@@ -30,7 +30,7 @@ const pi = { registerTool: (tool: typeof tools[number]) => tools.push(tool), reg
 extension(pi as never);
 const call = async (request: { operation?: string; name?: string; session?: string; prompt?: string; tools?: string[] }) => {
   const { operation, name, session, prompt, tools: grant } = request;
-  const tool = operation === "input" || operation === "steer" ? "agent_input" : operation === "inspect" ? "agent_inspect"
+  const tool = operation === "input" || operation === "steer" ? "agent_input" : operation === "inspect" ? "agent_list"
     : operation === "stop" ? "agent_stop" : operation === "list" ? "agent_list" : "agent_start";
   const params = tool === "agent_start"
     ? { prompt: prompt ?? "Start the assigned work.", ...(name === undefined ? {} : { label: name }), ...(grant === undefined ? {} : { tools: grant }) }

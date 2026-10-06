@@ -121,8 +121,11 @@ try {
   if (idle.readiness) { const failure = await idle.readiness; assert.equal(failure, undefined, failure); }
   const session = exactSessionRoute(idle.agent.name, idle.agent.spawnId);
   assert.match(session, /^session:/, "the coordinator returns an exact handle");
-  const inspected = await tools.get("agent_inspect").execute("inspect", { session }, undefined, undefined, ctx);
-  assert.equal(inspected.details.sessions[0].status, "idle", "awaited public start must resolve native readiness");
+  const page = await tools.get("agent_list").execute("list", {}, undefined, undefined, ctx);
+  const child = page.details.sessions.find((row) => row.session === session);
+  assert.ok(child, "the roster page carries the spawned resident");
+  const inspected = { details: { sessions: [child] } };
+  assert.equal(child.status, "idle", "awaited public start must resolve native readiness");
   // An unassigned resident must not acquire a task by being started: the tasks
   // states what must be done, and a participant takes it.
   assert.equal(inspected.details.sessions[0].currentTaskId, undefined, "unassigned start must not fabricate Work identity");

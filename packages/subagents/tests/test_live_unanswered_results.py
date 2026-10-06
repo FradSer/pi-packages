@@ -99,11 +99,16 @@ def test_native_blank_or_truncated_review_is_not_a_successful_result(
             assert result.returncode == 0, result.stdout + result.stderr
             assert "UNANSWERED_REPRO_DONE" in result.stdout, result.stdout + result.stderr
         else:
-            tui = NativeTui(command, cwd=tmp_path, env=env, rows=35, columns=100, timeout=60)
+            # A tall terminal keeps the whole native transcript on screen, so the
+            # expanded unanswered row stays visible next to the rows below it.
+            tui = NativeTui(command, cwd=tmp_path, env=env, rows=60, columns=100, timeout=60)
             try:
                 tui.wait_for(lambda: "UNANSWERED_REPRO_DONE" in tui.screen())
-                assert "[agent] unanswered" in tui.screen(), tui.screen()
-                assert "No usable final answer" in tui.screen(), tui.screen()
+                # The collapsed row names the child and the verdict only; the reason
+                # is expansion detail, so the reader opens the row to read it.
+                assert "[agent] unanswered · @reviewer" in tui.screen(), tui.screen()
+                tui.send(b"\x0f")
+                tui.wait_for(lambda: "No usable final answer" in tui.screen())
                 tui.send(b"/quit\r")
                 tui.wait_for(lambda: tui.process.poll() is not None)
                 assert tui.process.returncode == 0

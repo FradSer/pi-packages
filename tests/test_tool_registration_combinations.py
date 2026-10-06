@@ -108,7 +108,7 @@ for package in LEADER_BODIES:
 TASK_TOOLS = {"create_task", "get_task", "list_tasks", "update_task"}
 EXPECTED_OWNERS = {
     "agent_start": "subagents", "agent_input": "subagents", "agent_stop": "subagents",
-    "agent_inspect": "subagents", "agent_list": "subagents", "subagents_enable": "subagents",
+    "agent_list": "subagents", "agent_list": "subagents", "subagents_enable": "subagents",
     **{tool: "tasks" for tool in TASK_TOOLS},
     "message": "agent-teams",
 }
@@ -121,7 +121,7 @@ OWN_EXTENSION: dict[str, set[str]] = {
     "agent-teams": {"@fradser/pi-subagents", "@fradser/pi-tasks"},
 }
 
-LEADER_ONLY = {"agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list", "subagents_enable"}
+LEADER_ONLY = {"agent_start", "agent_input", "agent_stop", "agent_list", "subagents_enable"}
 
 
 def local_name(scoped: str) -> str:

@@ -10,7 +10,7 @@ def test_exported_handler_refuses_invalid_types_and_misplaced_fields_before_effe
     run("""
       const invalid=[null,[],{operation:true,name:"must-not-start"},{operation:""},{name:"bad-tools",tools:["read",7]},
         {name:"bad-fork",fork:"true"},{operation:"list",prompt:"ignored"},{operation:"list",tools:["bash"]},
-        {operation:"inspect",session:"session:none:exact",prompt:"ignored"},
+        { operation:"list", session:"session:none:exact",prompt:"ignored"},
         {operation:"stop",session:"session:none:exact",tools:["bash"]},
         {operation:"input",delivery:"next",session:"session:none:exact",prompt:"Run",model:"fake/model"}];
       for(const input of invalid){
@@ -69,14 +69,13 @@ def test_all_operation_results_are_machine_readable_and_schema_valid(tmp_path: P
       const tool=name=>{const found=tools.find(candidate=>candidate.name===name);assert.ok(found,`the intent family registers ${name}`);return found;};
       const ctx={cwd};const run=(name,params)=>tool(name).execute(name,params,undefined,undefined,ctx);
       const start=await run("agent_start",{label:"machine",prompt:"First",tools:[]});final(0,"2");
-      const inspected=await run("agent_inspect",{session:start.details.session});
       const listed=await run("agent_list",{});
       const sent=await run("agent_input",{session:start.details.session,prompt:"Second",delivery:"next"});
       const steered=await run("agent_input",{session:start.details.session,prompt:"Only number",delivery:"steer"});
       final(0,"3");const stopped=await run("agent_stop",{session:start.details.session});
-      const failed=await run("agent_inspect",{session:"session:missing:exact"});
-      for(const [name,result] of [["agent_start",start],["agent_inspect",inspected],["agent_list",listed],
-        ["agent_input",sent],["agent_input",steered],["agent_stop",stopped],["agent_inspect",failed]]){
+      const failed=await run("agent_input",{session:"session:missing:exact",prompt:"None",delivery:"next"});
+      for(const [name,result] of [["agent_start",start],["agent_list",listed],
+        ["agent_input",sent],["agent_input",steered],["agent_stop",stopped],["agent_input",failed]]){
         const definition=tool(name);assert.ok(definition.outputSchema,"data-returning tools must declare outputSchema");
         assert.ok(result.structuredContent,"structured data must reach programmatic callers");
         assert.ok(Value.Check(definition.outputSchema,result.structuredContent),JSON.stringify([...Value.Errors(definition.outputSchema,result.structuredContent)]));
@@ -88,7 +87,6 @@ def test_all_operation_results_are_machine_readable_and_schema_valid(tmp_path: P
       }
       assert.equal(start.structuredContent.nextActor,"runtime");
       assert.equal(start.structuredContent.disposition,"started");
-      assert.equal(inspected.structuredContent.disposition,"inspected");
       assert.equal(listed.structuredContent.disposition,"listed");
       assert.equal(sent.structuredContent.disposition,"started");
       assert.equal(steered.structuredContent.disposition,"steered");

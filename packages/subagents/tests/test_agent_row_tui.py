@@ -34,7 +34,7 @@ const calls = [];
 const messageRenderers = new Map();
 const pi = {{ registerTool: (tool) => calls.push(tool), registerMessageRenderer: (name, renderer) => messageRenderers.set(name, renderer), on() {{}}, events: {{ emit() {{}} }} }};
 piSubagentsExtension(pi);
-const intentNames = ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"];
+const intentNames = ["agent_start", "agent_input", "agent_stop", "agent_list"];
 const intentTools = new Map(calls.filter((tool) => intentNames.includes(tool.name)).map((tool) => [tool.name, tool]));
 assert.equal(intentTools.size, intentNames.length, "the extension entry registers the intent family");
 assert.equal(calls.some((tool) => tool.name === "agent"), false, "the retired tool is not registered");
@@ -69,7 +69,7 @@ const options = {{
 const run = async (request) => {{
   const {{ operation, label, session, prompt, delivery, tools, ...rest }} = request;
   const toolName = operation === "input" || operation === "steer" ? "agent_input"
-    : operation === "inspect" ? "agent_inspect" : operation === "stop" ? "agent_stop"
+    : operation === "stop" ? "agent_stop"
     : operation === "list" ? "agent_list" : "agent_start";
   const params = toolName === "agent_start"
     ? {{ ...(prompt === undefined ? {{}} : {{ prompt }}), ...(label === undefined ? {{}} : {{ label }}), ...(tools === undefined ? {{}} : {{ tools }}), ...rest }}

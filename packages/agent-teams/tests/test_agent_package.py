@@ -20,7 +20,7 @@ LEADER_TOOLS = {
     "agent_start",
     "agent_input",
     "agent_stop",
-    "agent_inspect",
+    "agent_list",
     "agent_list",
     "message",
     "task",

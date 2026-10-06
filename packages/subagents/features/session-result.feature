@@ -57,19 +57,22 @@ Feature: A standalone child returns its Session Result to the Leader session
 
   Rule: The delivered message is a lifecycle row, not a transcript dump
 
-    Scenario: The row names the child and its result
+    Scenario: The row names the child and leaves the answer to expansion
       Given a delivered Session Result
-      When the message is rendered
-      Then one row states that the child reported a result
-      And the row shows a width-bounded preview of the complete answer
+      When the message is rendered collapsed
+      Then the row is one line naming the child and that it reported
+      And the answer does not appear on the collapsed row
+      And the row advertises expansion
       And no session handle appears in the row
+      When the same message is expanded
+      Then the complete answer appears exactly once, in full
+      And the answer is not repeated anywhere else in the row
 
     Scenario: A short result contains no duplicated answer or bookkeeping
       Given the child's complete answer is 2
-      When the message is rendered collapsed or expanded
+      When the message is rendered expanded
       Then the answer appears exactly once below the Agent headline
       And no Session Result or turn label repeats the delivery metadata
-      And no expansion hint is shown when all visible content fits
       And the model-facing envelope and original details retain the exact answer, turn and session
 
     Scenario: Only hidden result text makes a successful result expandable

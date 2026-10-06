@@ -259,7 +259,7 @@ try {
       assert.equal(getAgent(agent.name)?.status, "idle");
       assert.equal(getAgent(agent.name)?.spawnId, agent.spawnId);
       assert.ok(!existsSync(path.join(config, "agents", "temporary")), "temporary execution creates no durable data");
-      const sending = subagents.executeChildIntent({ operation: "input", session: `session:${agent.name}:${agent.spawnId}`, prompt: "Next evidence" });
+      const sending = subagents.executeChildIntent({ operation: "input", delivery: "next", session: `session:${agent.name}:${agent.spawnId}`, prompt: "Next evidence" });
       await next();
       respond(commands.at(-1)!);
       const sent = await sending;

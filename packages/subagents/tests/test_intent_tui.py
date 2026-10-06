@@ -27,7 +27,7 @@ const calls = [];
 const pi = {{ registerTool: (tool) => calls.push(tool), registerMessageRenderer() {{}}, on() {{}}, events: {{ emit() {{}} }} }};
 piSubagentsExtension(pi);
 const tools = Object.fromEntries(calls.filter((tool) => tool.name.startsWith("agent_")).map((tool) => [tool.name, tool]));
-assert.deepEqual(Object.keys(tools).sort(), ["agent_input", "agent_inspect", "agent_list", "agent_start", "agent_stop"]);
+assert.deepEqual(Object.keys(tools).sort(), ["agent_input", "agent_list", "agent_start", "agent_stop"]);
 
 const render = (operation, result, expanded, width = 100, isError = false) => {{
   const component = tools[operation].renderResult(
@@ -55,14 +55,11 @@ def test_intent_rows_use_readable_subjects_and_hide_handles_until_expanded() -> 
         """
         const input = base("agent_input", { disposition: "queued", prompt: "Check the ledger." });
         const stop = base("agent_stop", { disposition: "stopped", state: "stopped", evidence: "Process terminated. Its work is complete where its own result or a completed task says so." });
-        const inspect = base("agent_inspect", { disposition: "inspected", sessions: [
-          { name: "review-child", label: "reviewer", session: handle, status: "working", activeTool: "read", pendingInputs: 2 },
-        ] });
         const listed = base("agent_list", { disposition: "listed", sessions: [
           { name: "review-child", label: "reviewer", session: handle, status: "working", activeTool: "read", pendingInputs: 2 },
         ], agents: [], definitions: [] });
         const rows = {};
-        for (const [operation, value] of Object.entries({ agent_input: input, agent_stop: stop, agent_inspect: inspect })) {
+        for (const [operation, value] of Object.entries({ agent_input: input, agent_stop: stop })) {
           rows[operation] = { collapsed: render(operation, value, false), expanded: render(operation, value, true) };
           assert.ok(rows[operation].collapsed.includes("reviewer"), rows[operation].collapsed);
           assert.ok(!rows[operation].collapsed.includes(handle), rows[operation].collapsed);
@@ -74,14 +71,11 @@ def test_intent_rows_use_readable_subjects_and_hide_handles_until_expanded() -> 
         assert.ok(rows.agent_list.collapsed.includes("@children"), rows.agent_list.collapsed);
         assert.ok(!rows.agent_list.collapsed.includes("reviewer"), rows.agent_list.collapsed);
         assert.ok(rows.agent_list.expanded.includes("reviewer") && rows.agent_list.expanded.includes(handle), rows.agent_list.expanded);
-        // One collapsed line carries the child and its state; the rest is expansion,
-        // and no fact is printed twice in the expanded row.
-        assert.match(rows.agent_inspect.collapsed, /\\[agent\\] inspected · @reviewer · working/, rows.agent_inspect.collapsed);
-        assert.ok(!rows.agent_inspect.collapsed.includes("read") && !rows.agent_inspect.collapsed.includes("queued"), rows.agent_inspect.collapsed);
-        assert.ok(rows.agent_inspect.expanded.includes("active tool · read") && rows.agent_inspect.expanded.includes("queued · 2"), rows.agent_inspect.expanded);
-        for (const key of ["session ·", "state ·", "active tool ·", "queued ·"]) {
-          const times = rows.agent_inspect.expanded.split(key).length - 1;
-          assert.equal(times, 1, `${key} appeared ${times} times:\\n${rows.agent_inspect.expanded}`);
+        // The roster carries each child's live facts, printed once, after expansion.
+        assert.ok(rows.agent_list.expanded.includes("active tool · read") && rows.agent_list.expanded.includes("queued · 2"), rows.agent_list.expanded);
+        for (const key of ["session ·", "active tool ·", "queued ·"]) {
+          const times = rows.agent_list.expanded.split(key).length - 1;
+          assert.equal(times, 1, `${key} appeared ${times} times:\\n${rows.agent_list.expanded}`);
         }
         console.log(JSON.stringify(rows));
         """
@@ -125,10 +119,9 @@ def test_actual_intent_results_retain_friendly_label_for_controls() -> None:
         const name = started.structuredContent.name;
         roster.updateAgent(name, { activeTool: "read", liveText: "bounded live output", error: "diagnostic", model: "provider/model", tools: ["read"], resultKind: "unanswered" });
         const steered = await executeIntentTool("agent_input", { session, prompt: "ADJUST", delivery: "steer" }, options);
-        const inspected = await executeIntentTool("agent_inspect", { session }, options);
         const stopped = await executeIntentTool("agent_stop", { session }, options);
         const listed = await executeIntentTool("agent_list", {}, options);
-        for (const [operation, value] of Object.entries({ agent_input: steered, agent_inspect: inspected, agent_stop: stopped })) {
+        for (const [operation, value] of Object.entries({ agent_input: steered, agent_stop: stopped })) {
           const collapsed = render(operation, value, false);
           assert.ok(collapsed.includes("@friendly reviewer"), `${operation}: ${collapsed}`);
           assert.ok(!collapsed.includes(session), `${operation} leaked exact handle: ${collapsed}`);
@@ -137,16 +130,17 @@ def test_actual_intent_results_retain_friendly_label_for_controls() -> None:
         const listCollapsed = render("agent_list", listed, false);
         assert.ok(listCollapsed.includes("@children") && !listCollapsed.includes(session), listCollapsed);
         assert.ok(render("agent_list", listed, true).includes("@friendly reviewer"), render("agent_list", listed, true));
-        const expandedInspect = render("agent_inspect", inspected, true);
-        for (const fact of ["active tool · read", "output · bounded live output", "error · diagnostic", "model · provider/model", "tools · read", "result · unanswered"]) {
-          assert.ok(expandedInspect.includes(fact), `inspect expansion dropped ${fact}: ${expandedInspect}`);
+        const expandedRoster = render("agent_list", listed, true);
+        for (const fact of ["active tool · read", "error · diagnostic", "model · provider/model", "tools · read", "result · unanswered"]) {
+          assert.ok(expandedRoster.includes(fact), `roster expansion dropped ${fact}: ${expandedRoster}`);
         }
-        const missing = await executeIntentTool("agent_inspect", { session: "session:missing:incarnation" }, options);
-        const missingCollapsed = render("agent_inspect", missing, false, 100, true);
-        const missingExpanded = render("agent_inspect", missing, true, 100, true);
+        // A handle that no longer exists is refused by the controls that need one.
+        const missing = await executeIntentTool("agent_stop", { session: "session:missing:incarnation" }, options);
+        const missingCollapsed = render("agent_stop", missing, false, 100, true);
+        const missingExpanded = render("agent_stop", missing, true, 100, true);
         assert.ok(!missingCollapsed.includes("session:missing:incarnation"), missingCollapsed);
         assert.ok(missingExpanded.includes("session:missing:incarnation"), missingExpanded);
-        console.log(JSON.stringify({ session, inspect: inspected.structuredContent, stop: stopped.structuredContent }));
+        console.log(JSON.stringify({ session, list: listed.structuredContent, stop: stopped.structuredContent }));
         """
     )
     assert result["session"].startswith("session:")
@@ -204,15 +198,13 @@ def test_unanswered_diagnostic_and_preview_notice_survive_expansion() -> None:
       const started = await executeIntentTool('agent_start', { label: 'reader', prompt: 'Read.' }, options);
       roster.updateAgent(started.details.name, { status: 'idle', resultKind: 'unanswered',
         unansweredReason: 'error', stopReason: 'error', finalDiagnostic: 'PROVIDER_DIAGNOSTIC', liveText: 'Partial evidence.' });
-      for (const operation of ['agent_inspect', 'agent_list']) {
-        const value = await executeIntentTool(operation, operation === 'agent_inspect' ? { session: started.details.session } : {}, options);
-        const before = JSON.stringify(value);
-        const expanded = render(operation, value, true, 200);
-        assert.ok(expanded.includes('provider failed before producing a complete final answer'), expanded);
-        assert.ok(expanded.includes('PROVIDER_DIAGNOSTIC'), expanded);
-        if (operation === 'agent_list') assert.ok(expanded.includes('Status summary only'), expanded);
-        assert.equal(JSON.stringify(value), before);
-      }
+      const value = await executeIntentTool('agent_list', {}, options);
+      const before = JSON.stringify(value);
+      const expanded = render('agent_list', value, true, 200);
+      assert.ok(expanded.includes('provider failed before producing a complete final answer'), expanded);
+      assert.ok(expanded.includes('PROVIDER_DIAGNOSTIC'), expanded);
+      assert.ok(expanded.includes('Status summary only'), expanded);
+      assert.equal(JSON.stringify(value), before);
       console.log(JSON.stringify({ ok: true }));
     """)
     assert result['ok'] is True
@@ -283,7 +275,7 @@ def test_list_page_discloses_remaining_entries_and_empty_page() -> None:
     assert result['ok'] is True
 
 
-@pytest.mark.parametrize('operation', ['agent_input', 'agent_stop', 'agent_inspect'])
+@pytest.mark.parametrize('operation', ['agent_input', 'agent_stop'])
 def test_historical_operation_label_survives_roster_replacement(operation: str) -> None:
     result = run(f"""
       const options = {{ cwd: process.env.PI_TEST_CWD, spawn: () => ({{ pid: 7 }}),

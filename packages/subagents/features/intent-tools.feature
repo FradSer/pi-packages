@@ -70,7 +70,7 @@ Feature: Intent-based child controls
     Scenario: A fresh session loads the intent family
       Given no recorded selection and no explicit tool exclusion
       When the extension starts
-      Then only agent_start, agent_input, agent_stop, agent_inspect and agent_list are selected
+      Then only agent_start, agent_input, agent_stop and agent_list are selected
       And no second child tool family exists to select
 
     Scenario: A recorded branch naming the retired tool receives the intent family

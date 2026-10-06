@@ -23,9 +23,10 @@ def test_intent_schemas_are_closed_flat_and_keep_handler_validation() -> None:
       }}
       assert.deepEqual(schemas.agent_input.required,['session','prompt','delivery']);
       assert.equal(Check(schemas.agent_input,{{session:'session:r:1',prompt:'Go',delivery:'later'}}),false);
-      assert.equal(Check(schemas.agent_inspect,{{name:'reviewer'}}),false);
+      assert.deepEqual(schemas.agent_stop.required,['session']);
+      assert.equal(Check(schemas.agent_stop,{{name:'reviewer'}}),false);
       // The schema stays flat; exact-handle requirements stay deterministic handler checks.
-      const refused=await executeChildIntent({{operation:'inspect',name:'reviewer'}});
+      const refused=await executeChildIntent({{operation:'stop',name:'reviewer'}});
       assert.equal(refused.structuredContent.ok,false);assert.match(refused.content[0].text,/session:/);
       console.log(JSON.stringify({{ok:true}}));
     ''')

@@ -118,11 +118,12 @@ export default function (pi: ExtensionAPI): void {
         },
         renderResult(result, state, theme, context) {
           const component = renderResult(result, state, theme, context);
+          const resultToolName = (result.details as { operation?: string } | undefined)?.operation;
           return {
             invalidate: () => component.invalidate(),
             render(width) {
               const lines = component.render(width);
-              const action = (result.details as { operation?: string } | undefined)?.operation;
+              const action = resultToolName;
               record({ kind: "agent-row", action, width, expanded: state.expanded, partial: state.isPartial,
                 lines: lines.map(stripVTControlCharacters),
                 bounded: lines.every(line => !line.includes("\n") && visibleWidth(line) <= width) });
@@ -166,7 +167,7 @@ export default function (pi: ExtensionAPI): void {
       if (injectedDiagnostic) updateAgent(childName(), { error: injectedDiagnostic });
       stoppedSnapshot = JSON.stringify(getAgent(childName()));
     }
-    if (inspectStopped && details.operation === "agent_inspect") {
+    if (inspectStopped && details.operation === "agent_list") {
       // Recorded, never asserted: an assertion here would throw inside a Pi event
       // handler and swallow this receipt with it, leaving the suite to read a
       // missing result instead of a failed one.
@@ -209,11 +210,16 @@ export default function (pi: ExtensionAPI): void {
         content = [{ type: "toolCall", id: "cancelled-list", name: "agent_list", arguments: {} }];
       } else if (inspectStopped && !cancelStartupWait && (index === 2 || index === 3)) {
         assert.ok(handle, "The original exact handle is required");
-        const control = index === 2 ? "agent_stop" : "agent_inspect";
-        const argumentsForControl = { session: handle };
+        // ADR-0008 left no inspection operation: the roster read is the surviving
+        // way to look a stopped child up, and it takes no session.
+        const control = index === 2 ? "agent_stop" : "agent_list";
+        const argumentsForControl = control === "agent_stop" ? { session: handle } : {};
+        const stoppedFact = control === "agent_stop"
+          ? 'receipt.state !== "stopped"'
+          : `!receipt.sessions.some((entry) => entry.session === ${JSON.stringify(handle)} && entry.status === "stopped")`;
         content = codemodeLifecycle
           ? [{ type: "toolCall", id: `after-result-code-${index}`, name: "codemode", arguments: { code:
-            `const receipt = await tools.${control}(${JSON.stringify(argumentsForControl)}); if (typeof receipt !== "object" || receipt.ok !== true || receipt.state !== "stopped") throw new Error("Structured stopped facts are required"); text(receipt);` } }]
+            `const receipt = await tools.${control}(${JSON.stringify(argumentsForControl)}); if (typeof receipt !== "object" || receipt.ok !== true || ${stoppedFact}) throw new Error("Structured stopped facts are required"); text(receipt);` } }]
           : [{ type: "toolCall", id: `after-result-${index}`, name: control, arguments: argumentsForControl }];
       } else {
         content = [{ type: "text", text: interruptExpansion && index === 2 ? "NATIVE_INTERRUPT_READY"

@@ -42,7 +42,7 @@ def test_team_guidance_names_only_the_intent_tool_family() -> None:
     ''')
     for text in payload.values():
         # The adopted fresh-session contract replaces six model actions with five intent tools.
-        for tool in ("agent_start", "agent_input", "agent_inspect", "agent_list", "agent_stop"):
+        for tool in ("agent_start", "agent_input", "agent_list", "agent_stop"):
             assert f"`{tool}`" in text
         assert "Legacy branches" not in text, "The retired legacy branch has no selectable surface"
         assert "`agent`" not in text, "The retired agent tool must not appear as a surface"

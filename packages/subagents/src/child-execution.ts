@@ -1,10 +1,10 @@
 /**
- * The `agent` tool: child process lifecycle, and nothing else.
+ * Child process lifecycle behind the intent tools, and nothing else.
  *
- * Temporary delegation is the default. `start` accepts a prompt, `send`
- * continues an idle incarnation and `interrupt` steers a working one; `inspect`
- * and `stop` address one incarnation by its exact handle; `list` enumerates. No
- * action is named `prompt`: that word is the payload a caller hands over, and a
+ * Temporary delegation is the default. `start` accepts a prompt, `input`
+ * continues an idle incarnation and delivers a steer to a working one; `stop`
+ * addresses one incarnation by its exact handle, and `list` enumerates. No
+ * operation is named `prompt`: that word is the payload a caller hands over, and a
  * call that spells the verb and the field the same way reads as one thing.
  * There is no
  * action that records work, and none that talks to a peer — a task belongs to
@@ -33,10 +33,10 @@
 import { randomUUID } from "node:crypto";
 import { discoverAgents, inlineDefinitionApplies, MODEL_INHERIT_ALIAS, registerSessionAgent, resolveAgent, type AgentDefinition, type AgentScope } from "./agents.ts";
 import type { createStaticToolLifecycleResultRenderer } from "@fradser/pi-kit";
-import { getAgent, listAgents, livingAgents, registerAgent, updateAgent, updateAgentProgress, type Agent } from "./roster.ts";
+import { getAgent, listAgents, registerAgent, updateAgent, updateAgentProgress, type Agent } from "./roster.ts";
 import { exactSessionRoute, parseExactSessionRoute, resolveExactSession } from "./session-route.ts";
 import { validateAgentInput, type AgentInput } from "./agent-input.ts";
-import { createAgentFailure, createAgentListPage, createAgentResult, limitAgentReadback,
+import { createAgentFailure, createAgentListPage, createAgentResult,
   type AgentControlOutcome, type AgentErrorCode, type AgentFailureContext, type AgentResult, type AgentSessionView, type AgentToolData } from "./agent-output.ts";
 import { boundedFinalDiagnostic, normalizeFinalStopReason, unansweredReason, type SessionNotice, type SessionNoticeSender, type SessionResultNotice, type SessionUnansweredNotice } from "./session-result.ts";
 import { spawnResident, terminateAgent, resolveAgentTools, unknownAgentTools, unknownAgentToolsError } from "./spawner.ts";
@@ -341,17 +341,10 @@ export async function executeChildIntent(
 ): Promise<AgentToolResult> {
   const validated = validateAgentInput(params);
   if (!validated.ok) {
-    // Strict refusal can still point a mistaken name-only inspection at the
-    // known exact handle; this is guidance, not fallback name resolution.
-    const named = typeof params === "object" && params !== null && "name" in params && typeof params.name === "string"
-      ? params.name.trim() : undefined;
-    const inspect = typeof params === "object" && params !== null && "operation" in params && params.operation === "inspect";
-    const known = inspect && named ? getAgent(named) : undefined;
     const operation = typeof params === "object" && params !== null && !Array.isArray(params)
       ? !Object.hasOwn(params, "operation") ? "start" : "operation" in params && typeof params.operation === "string" ? params.operation : "invalid"
       : "invalid";
-    return createAgentFailure(operation, "invalid-parameters",
-      validated.error + (known ? ` @${known.name} is ${exactSessionRoute(known.name, known.spawnId)}.` : ""),
+    return createAgentFailure(operation, "invalid-parameters", validated.error,
       { nextActor: "caller", dispatched: false, controlOutcome: "not-dispatched" });
   }
   const input = validated.value;
@@ -947,7 +940,7 @@ async function executeAgentOperation(
           // A shutdown the Leader asked for is not news: it already has a receipt
           // from `action=stop`, and painting it on the failure band would report a
           // planned stop as a death. Decided before the entry is written, because
-          // the error is what `list` and `inspect` read as a failure — a stopped
+          // the error is what `list` reads as a failure — a stopped
           // child the Leader asked to stop is not one.
           const requestedEnd = Boolean(getAgent(name)?.leaderRequestedEnd);
           const planned = requestedEnd || (turnAnswered && !result.signal && result.exitCode === 0);
@@ -1168,7 +1161,7 @@ async function executeAgentOperation(
       }
     } catch (error) {
       // A missing acknowledgement may still have started execution. Retain busy
-      // authority until inspect/stop or authoritative progress resolves it.
+      // authority until stop or authoritative progress resolves it.
       return fail(`Prompt delivery failed: ${error instanceof Error ? error.message : String(error)}`, "delivery-failed");
     }
     return ok(`child · ${matched.name} · prompted · ${session}\nworking · ${firstLine(message)}\n${RESULT_NOTICE}`, {
@@ -1180,35 +1173,6 @@ async function executeAgentOperation(
   // Leader most often needs: the child is on the wrong path, and re-explaining
   // after the turn is a turn wasted. Steering is not stopping — the turn keeps
   // running, and its settled answer still returns exactly once.
-
-  if (operation === "inspect") {
-    const session = str("session");
-    if (!session) {
-      const named = str("name");
-      const live = named ? livingAgents().find((t) => t.name === named) : undefined;
-      const living = livingAgents();
-      return fail(
-        "Inspecting an agent requires its exact session handle, so a retired incarnation cannot be "
-        + `mistaken for its replacement.${live ? ` @${live.name} is ${exactSessionRoute(live.name, live.spawnId!)}.` : ""}`
-        + (living.length > 0 ? ` Run agent operation=list to see the current handles.` : ""),
-      );
-    }
-    const parsed = parseExactSessionRoute(session);
-    if (!parsed) return fail(INVALID_SESSION_NOTICE);
-    // Inspection reads retained facts, not process authority. A stopped entry
-    // is still known; controls keep the living-only resolveExactSession path.
-    const matched = listAgents().find(agent => agent.name === parsed.name && agent.spawnId === parsed.spawnId);
-    if (!matched) {
-      const replacement = livingAgents().find((t) => t.name === parsed.name);
-      return fail(
-        replacement
-          ? `No known session "${session}". @${replacement.name} is now ${exactSessionRoute(replacement.name, replacement.spawnId!)}.`
-          : `No known session "${session}".`,
-        "not-found",
-      );
-    }
-    return limitAgentReadback(project(matched));
-  }
 
   if (operation === "list") {
     const all = listAgents().map(project);
@@ -1281,7 +1245,7 @@ async function executeAgentOperation(
     );
   }
 
-  return fail(`Unknown agent operation "${operation}". Use start, input, steer, inspect, list, or stop.`);
+  return fail(`Unknown agent operation "${operation}". Use start, input, list, or stop.`);
 }
 
 /** The single registrant of `agent`. */

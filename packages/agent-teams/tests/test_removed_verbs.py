@@ -132,18 +132,17 @@ def test_the_task_surface_is_exactly_four_tools() -> None:
     assert result == ["create_task", "get_task", "list_tasks", "update_task"]
 
 
-def test_the_child_operation_enum_is_exactly_six() -> None:
-    """The set the executor implements, no more and no less. This read
-    `["start", "inspect", "list", "stop"]` while the enum also carried resident
-    input, so it asserted a set that never existed: the vocabulary is checked
-    against the registration rather than against a remembered list."""
+def test_the_child_operation_enum_is_exactly_four() -> None:
+    """The set the executor implements, no more and no less: one operation per
+    intent tool, with `agent_input` carrying its own delivery. The vocabulary is
+    checked against the registration rather than against a remembered list."""
     result = run_node(
         f"""
         import {{ CHILD_OPERATIONS }} from {json.dumps(SUBAGENT_TOOL.as_uri())};
         console.log(JSON.stringify(CHILD_OPERATIONS));
         """
     )
-    assert result == ["start", "input", "inspect", "list", "stop"]
+    assert result == ["start", "input", "list", "stop"]
 
 
 # ── And a caller passing one anyway is told, not ignored ──

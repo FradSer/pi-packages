@@ -72,7 +72,8 @@ const { SessionManager } = await import("@earendil-works/pi-coding-agent");
 const context = { cwd: process.cwd(), sessionManager: SessionManager.inMemory(process.cwd()), model: undefined };
 interface FixtureResult {
   text: string;
-  details: { ok?: boolean; outcome?: string; session?: string; work?: unknown; sessions?: Array<{ session: string; status: string }> };
+  details: { ok?: boolean; outcome?: string; disposition?: string; session?: string; work?: unknown;
+    sessions?: Array<{ session: string; status: string }> };
 }
 try {
   resetState();
@@ -90,7 +91,7 @@ try {
   /** The intent tool each child operation belongs to; the retired single tool is gone. */
   const childTool = (operation: string): ToolDefinition => {
     const name = operation === "input" || operation === "steer" ? "agent_input"
-      : operation === "inspect" ? "agent_inspect" : operation === "stop" ? "agent_stop"
+      : operation === "stop" ? "agent_stop"
       : operation === "list" ? "agent_list" : "agent_start";
     const tool = tools.get(name);
     assert.ok(tool, `the fixture registers ${name}`);
@@ -99,7 +100,7 @@ try {
   const call = async (params: Record<string, unknown>): Promise<FixtureResult> => {
     const { operation, name, session, prompt, tools: grant, ...rest } = params;
     const toolName = operation === "input" || operation === "steer" ? "agent_input"
-      : operation === "inspect" ? "agent_inspect" : operation === "stop" ? "agent_stop"
+      : operation === "stop" ? "agent_stop"
       : operation === "list" ? "agent_list" : "agent_start";
     const args = toolName === "agent_start"
       ? { prompt, ...(name === undefined ? {} : { label: name }), ...(grant === undefined ? {} : { tools: grant }), ...rest }
@@ -135,13 +136,14 @@ try {
     assert.equal(children[0].commands[0].type, "prompt");
     if (probe === "readiness") {
       assert.equal(result.details.disposition, "started", result.text);
-      const inspected = await call({ operation: "inspect", session: result.details.session });
-      assert.equal(inspected.details.disposition, "inspected", inspected.text);
+      const listed = await call({ operation: "list" });
+      assert.equal(listed.details.disposition, "listed", listed.text);
+      assert.ok(listed.details.sessions!.some((entry) => entry.session === result.details.session), listed.text);
       const stopped = await call({ operation: "stop", session: result.details.session });
       assert.equal(stopped.details.disposition, "stopped", stopped.text);
     } else {
       assert.equal(result.details.ok, false, "an unacknowledged start cannot become started");
-      // A failed start retains known stopped facts for exact inspection, not a claim
+      // A failed start retains known stopped facts on the roster, not a claim
       // that the acknowledgement succeeded or the process remains alive.
       assert.match(result.details.session, /^session:/);
       assert.equal(result.details.state, "stopped");
@@ -174,15 +176,19 @@ try {
     assert.match(children[1].commands[0].message ?? "", /Audit authorization/);
     assert.match(children[2].commands[0].message ?? "", /Audit authorization/);
 
-    // `inspect` addresses one incarnation by its exact handle, and reports the
-    // handle rather than an id, so the two can be compared directly.
-    const inspected = await call({ operation: "inspect", session: first.details.session });
-    assert.equal(inspected.details.disposition, "inspected", inspected.text);
-    assert.deepEqual(inspected.details.sessions!.map(entry => entry.session), [first.details.session]);
-    const missing = await call({ operation: "inspect", session: "session:missing:old" });
-    assert.equal(missing.details.ok, false);
-    // Unknown inspection is absence of recorded facts, not a liveness check.
-    assert.match(missing.text, /No known session/);
+    // `list` reports every incarnation by its exact handle, so the three handles
+    // can be compared directly and no two of them share one identity.
+    const listed = await call({ operation: "list" });
+    assert.equal(listed.details.disposition, "listed", listed.text);
+    const handles = listed.details.sessions!.map((entry) => entry.session);
+    for (const expected of [first.details.session, second.details.session]) {
+      assert.ok(handles.includes(expected as string), `${expected} is absent from ${JSON.stringify(handles)}`);
+    }
+    assert.equal(new Set(handles).size, handles.length, "each roster row carries its own exact handle");
+    // The roster holds no entry for a handle it never recorded: an unknown
+    // incarnation is absence of recorded facts, not a liveness claim.
+    assert.ok(!handles.includes("session:missing:old"), JSON.stringify(handles));
+    assert.ok(listed.details.sessions!.every((entry) => entry.status !== undefined));
     for (const session of [first.details.session, second.details.session]) {
       const stopped = await call({ operation: "stop", session });
       assert.equal(stopped.details.disposition, "stopped", stopped.text);

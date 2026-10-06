@@ -41,7 +41,7 @@ const AGENT_LIFECYCLE: ScriptedTurn[] = [
   { tool: PROBE, args: {} },
   { tool: "agent_start", args: { label: "scout", prompt: "Read the evidence you are given and report what it shows.", tools: [] } },
   { tool: "agent_list", args: {} },
-  { tool: "agent_inspect", args: { session: "$prev.session" } },
+  { tool: "agent_list", args: {} },
   { tool: "agent_stop", args: { session: "$prev.session" } },
 ];
 
@@ -56,7 +56,7 @@ const SAVED_AGENT_LIFECYCLE: ScriptedTurn[] = [
   { tool: "agent_stop", args: { session: "$prev.session" } },
   { tool: "agent_list", args: {} },
   { tool: "agent_start", args: { identity: "saved-scout", prompt: "Read the supplied evidence again." } },
-  { tool: "agent_inspect", args: { session: "$prev.session" } },
+  { tool: "agent_list", args: {} },
   { tool: "agent_stop", args: { session: "$prev.session" } },
   { tool: "agent_list", args: {} },
 ];

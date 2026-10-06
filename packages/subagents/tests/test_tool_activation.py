@@ -5,13 +5,16 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
+
+import pytest
+
 from subagents_helpers import PACKAGE, run_node
 ENTRY = (PACKAGE / "index.ts").as_uri()
 PREAMBLE = f"""
 import assert from "node:assert/strict";
 import {{ SessionManager }} from "@earendil-works/pi-coding-agent";
 import extension from {json.dumps(ENTRY)};
-const family=['agent_start','agent_input','agent_stop','agent_inspect','agent_list'];
+const family=['agent_start','agent_input','agent_stop','agent_list'];
 const registered = [], handlers = new Map();
 let active = ["read",...family,"subagents_enable"];
 const pi = {{
@@ -81,7 +84,7 @@ def test_provider_addition_flags_are_transport_specific() -> None:
       for(const [api,compat] of cases){ctx.model={api,compat};active=["read",...family,"subagents_enable"];await emit("session_start");outcomes.push([...active]);}
       console.log(JSON.stringify({outcomes}));
     """)
-    assert result["outcomes"] == [["read","subagents_enable"]]*3 + [["read","agent_start","agent_input","agent_stop","agent_inspect","agent_list"]]*2
+    assert result["outcomes"] == [["read","subagents_enable"]]*3 + [["read","agent_start","agent_input","agent_stop","agent_list"]]*2
 
 
 def test_restoring_lazy_session_without_native_system_records_keeps_loader() -> None:
@@ -113,8 +116,8 @@ def test_loader_enables_agent_without_launching() -> None:
       const result=loader?await loader.execute("call",{},undefined,undefined,ctx):null;
       console.log(JSON.stringify({active,enabled:result?.details.enabled??null}));
     """)
-    assert "agent" not in result["active"], "the retired tool is never selected"
-    assert result["enabled"] == ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+    assert not {"agent", "agent_inspect"} & set(result["active"]), "a retired tool is never selected"
+    assert result["enabled"] == ["agent_start", "agent_input", "agent_stop", "agent_list"]
 
 
 def test_incompatible_or_unknown_provider_stays_eager() -> None:
@@ -123,21 +126,25 @@ def test_incompatible_or_unknown_provider_stays_eager() -> None:
       await emit("session_start");
       console.log(JSON.stringify({active}));
     """)
-    assert result["active"] == ["read","agent_start","agent_input","agent_stop","agent_inspect","agent_list"]
+    assert result["active"] == ["read","agent_start","agent_input","agent_stop","agent_list"]
 
 
-def test_native_branch_tool_selection_restores_without_model_churn() -> None:
-    result=run("""
-      sessionManager.appendMessage({role:"system",timestamp:1,content:"",toolsAdded:[{name:"agent",description:"x",parameters:{type:"object",properties:{}}}],toolsRemoved:[]});
+@pytest.mark.parametrize("recorded_name", ["agent", "agent_inspect"])
+def test_native_branch_tool_selection_restores_without_model_churn(recorded_name: str) -> None:
+    # Every retired name a host may still have recorded keeps its branch's work and
+    # receives the whole intent family, so the removal moves delegation instead of
+    # taking it away.
+    result=run(f"""
+      sessionManager.appendMessage({{role:"system",timestamp:1,content:"",toolsAdded:[{{name:{json.dumps(recorded_name)},description:"x",parameters:{{type:"object",properties:{{}}}}}}],toolsRemoved:[]}});
       await emit("session_start");
       const before=[...active];
-      ctx.model={api:"unknown"};
+      ctx.model={{api:"unknown"}};
       await emit("model_select");
-      console.log(JSON.stringify({active,before}));
+      console.log(JSON.stringify({{active,before,recorded:{json.dumps(recorded_name)}}}));
     """)
-    # A branch that recorded the retired tool keeps its work and receives the intent family.
-    assert result["active"] == ["read","agent_start","agent_input","agent_stop","agent_inspect","agent_list"]
-    assert result["before"] == result["active"]
+    assert result["active"] == ["read","agent_start","agent_input","agent_stop","agent_list"], "a recorded retired name moves to the intent family"
+    assert result["recorded"] not in result["active"], "the retired name is scrubbed, not restored"
+    assert result["before"] == result["active"], "model_select never churns the selection"
 
 
 def test_loader_has_short_selection_only_help_annotations_and_typed_schema() -> None:
@@ -186,12 +193,12 @@ def test_loader_success_and_returned_errors_match_output_schema_and_keep_details
         assert data == receipt["details"]
         assert data["childStarted"] is False
         if index < 2:
-            assert data == {"outcome": "enabled", "enabled": ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"], "childStarted": False}
+            assert data == {"outcome": "enabled", "enabled": ["agent_start", "agent_input", "agent_stop", "agent_list"], "childStarted": False}
             assert receipt.get("isError", False) is False
         else:
             assert receipt["isError"] is True and data["outcome"] == "refused"
             assert data["code"] == ("unavailable" if index == 2 else "activation-failed")
-            assert data["unavailable" if index == 2 else "missing"] == ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+            assert data["unavailable" if index == 2 else "missing"] == ["agent_start", "agent_input", "agent_stop", "agent_list"]
             assert data["error"]
 
 
@@ -215,7 +222,7 @@ def test_loader_bounds_native_failure_without_mutating_original_diagnostic() -> 
         assert receipt["isError"] is True
         data = receipt["structuredContent"]
         assert data == receipt["details"] and data["code"] == "activation-failed"
-        assert data["childStarted"] is False and data["missing"] == ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+        assert data["childStarted"] is False and data["missing"] == ["agent_start", "agent_input", "agent_stop", "agent_list"]
         assert len(data["error"]) <= 1024 and data["error"].endswith("… [diagnostic truncated]")
         assert receipt["content"][0]["text"] == data["error"]
         for text in (data["error"], receipt["content"][0]["text"]):
@@ -230,7 +237,7 @@ def test_native_branch_selection_removals_do_not_leak_between_branches() -> None
         toolsAdded: [definition("subagents_enable"), definition("read")], toolsRemoved: [] });
       const base = sessionManager.getLeafId();
       sessionManager.appendMessage({ role: "system", timestamp: 2, content: "",
-        toolsAdded: [definition("agent_start"), definition("agent_input"), definition("agent_stop"), definition("agent_inspect"), definition("agent_list")], toolsRemoved: [definition("subagents_enable")] });
+        toolsAdded: [definition("agent_start"), definition("agent_input"), definition("agent_stop"), definition("agent_list")], toolsRemoved: [definition("subagents_enable")] });
       const enabledBranch = sessionManager.getLeafId();
       await emit("session_tree");
       const enabled = [...active];
@@ -248,9 +255,9 @@ def test_native_branch_selection_removals_do_not_leak_between_branches() -> None
       console.log(JSON.stringify({ enabled, removed, lazy, restored: active }));
     ''')
     assert result == {
-        "enabled": ["read", "agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"],
+        "enabled": ["read", "agent_start", "agent_input", "agent_stop", "agent_list"],
         "removed": ["read"],
-        "lazy": ["read", "subagents_enable"], "restored": ["read", "agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"],
+        "lazy": ["read", "subagents_enable"], "restored": ["read", "agent_start", "agent_input", "agent_stop", "agent_list"],
     }
 
 
@@ -263,11 +270,29 @@ def test_activation_respects_excluded_entrypoints_on_restore_and_call() -> None:
       const refusal = await loader.execute("excluded", {}, undefined, undefined, ctx);
       const afterRefusal = [...active];
       pi.getAllTools = () => registered.filter(tool => tool.name !== "subagents_enable");
-      active = ["read", "agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list", "subagents_enable"];
+      active = ["read", "agent_start", "agent_input", "agent_stop", "agent_list", "subagents_enable"];
       await emit("session_tree");
       console.log(JSON.stringify({ noAgent, afterRefusal, noLoader: active, refusal }));
     ''')
     assert result["noAgent"] == result["afterRefusal"] == ["read"]
-    assert result["noLoader"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+    assert result["noLoader"] == ["read", "agent_start", "agent_input", "agent_stop", "agent_list"]
     assert result["refusal"]["isError"] is True
-    assert result["refusal"]["details"]["unavailable"] == ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"]
+    assert result["refusal"]["details"]["unavailable"] == ["agent_start", "agent_input", "agent_stop", "agent_list"]
+
+
+def test_retired_names_are_scrubbed_from_a_host_selection() -> None:
+    """A host that still carries a retired name must not keep it on the wire. Such a
+    name is outside the family filter, so only the retired-tool scrub removes it, and
+    the family still activates on a transport that cannot add tools mid-conversation."""
+    result=run("""
+      const retired=["agent","agent_inspect"];
+      active=["read",...retired,"subagents_enable"];
+      await emit("session_start");
+      const lazy=[...active];
+      ctx.model={api:"unknown"};
+      active=["read",...retired,"subagents_enable"];
+      await emit("session_start");
+      console.log(JSON.stringify({lazy,eager:active}));
+    """)
+    assert result["lazy"] == ["read","subagents_enable"], "an anchored transport keeps the family behind the loader"
+    assert result["eager"] == ["read","agent_start","agent_input","agent_stop","agent_list"], "an eager transport serves the family with no retired name"

@@ -144,7 +144,7 @@ function renderComponent(
  *  same registration a caller would use. */
 const childTool = (operation: string): ToolDefinition => {
   const name = operation === "input" || operation === "steer" ? "agent_input"
-    : operation === "inspect" ? "agent_inspect" : operation === "stop" ? "agent_stop"
+    : operation === "stop" ? "agent_stop"
     : operation === "list" ? "agent_list" : "agent_start";
   const tool = tools.get(`leader:${name}`);
   assert.ok(tool, `the leader registers ${name}`);
@@ -153,12 +153,13 @@ const childTool = (operation: string): ToolDefinition => {
 const callChild = (request: { operation?: string; name?: string; identity?: string; session?: string; prompt?: string; tools?: string[] }, ctx: unknown) => {
   const { operation, name, identity, session, prompt, tools: grant } = request;
   const name2 = operation === "input" || operation === "steer" ? "agent_input"
-    : operation === "inspect" ? "agent_inspect" : operation === "stop" ? "agent_stop"
+    : operation === "stop" ? "agent_stop"
     : operation === "list" ? "agent_list" : "agent_start";
+  // A roster read is a page of the whole roster, so it takes no session handle.
   const params = name2 === "agent_start"
     ? { prompt: prompt ?? "Start the assigned work.", ...(identity === undefined ? {} : { identity }), ...(name === undefined ? {} : { label: name }), ...(grant === undefined ? {} : { tools: grant }) }
     : name2 === "agent_input" ? { session: session!, prompt: prompt!, delivery: operation === "steer" ? "steer" : "next" }
-    : session === undefined ? {} : { session };
+    : name2 === "agent_list" ? {} : { session };
   return childTool(operation ?? "start").execute("row", params, undefined, undefined, ctx);
 };
 
@@ -183,7 +184,7 @@ function expectReadable(row: string, label: string, expanded = false): void {
   assert.ok(!(expanded ? COORDINATION_ID : HANDLE).test(row), `${label} leaked an identifier:\n${row}`);
 }
 
-// ── child control: start, inspect, stop, failure ───────────────
+// ── child control: start, roster, stop, failure ───────────────
 
 // The intent family mints the roster name and shows a label. The two are
 // different facts, so every roster lookup below resolves the generated name and
@@ -242,25 +243,35 @@ const handle = exactSessionRoute(longRosterName, getAgent(longRosterName)!.spawn
 // updating the roster afterwards would leave the row describing the previous
 // state.
 updateAgent(longRosterName, { status: "working", activeTool: "file: overlay.ts" });
-const inspected = await callChild({ operation: "inspect", session: handle }, toolCtx);
-const inspectedRow = render("leader:agent_inspect", { session: handle }, { details: inspected.details, text: inspected.content[0].text, expanded: true });
-expectReadable(inspectedRow, "inspect row", true);
-assert.match(inspectedRow, /\[agent\] inspected · @ui-auditor · working/);
-assert.ok(inspectedRow.includes("active tool · file: overlay.ts"), `inspect row missing live activity:\n${inspectedRow}`);
+// ADR-0008 left no inspect row. The roster row reads `@children · N of M`: a
+// page has no state of its own, and one child's state never becomes the
+// subject's. Per-child facts appear only after expansion.
+const working = await callChild({ operation: "list" }, toolCtx);
+assert.equal(working.details.operation, "agent_list");
+assert.equal(working.details.disposition, "listed", working.content[0].text);
+const rosterCollapsed = render("leader:agent_list", {}, { details: working.details, text: working.content[0].text });
+expectReadable(rosterCollapsed, "roster row");
+assert.match(rosterCollapsed, /\[agent\] listed · @children · \d+ of \d+/, rosterCollapsed);
+assert.ok(!/@ui-auditor · working/.test(rosterCollapsed),
+  `a roster subject carries no child's state:\n${rosterCollapsed}`);
+const rosterRow = render("leader:agent_list", {}, { details: working.details, text: working.content[0].text, expanded: true });
+expectReadable(rosterRow, "roster row", true);
+assert.ok(rosterRow.includes("active tool · file: overlay.ts"), `roster row missing live activity:\n${rosterRow}`);
+assert.ok(rosterRow.includes("@ui-auditor · working"), `roster row missing the per-child header:\n${rosterRow}`);
 
 updateAgent(longRosterName, { status: "idle", activeTool: undefined });
-const idleInspected = await callChild({ operation: "inspect", session: handle }, toolCtx);
-const idleRow = render("leader:agent_inspect", { session: handle }, { details: idleInspected.details, text: idleInspected.content[0].text, expanded: true });
-assert.ok(!idleRow.includes("active tool ·"), `idle inspect row must not display a live activity:\n${idleRow}`);
-assert.ok(!idleRow.includes("work ·"), `idle inspect row must not dump old work:\n${idleRow}`);
+const idleListing = await callChild({ operation: "list" }, toolCtx);
+const idleRow = render("leader:agent_list", {}, { details: idleListing.details, text: idleListing.content[0].text, expanded: true });
+assert.ok(!idleRow.includes("active tool ·"), `idle roster row must not display a live activity:\n${idleRow}`);
+assert.ok(!idleRow.includes("work ·"), `idle roster row must not dump old work:\n${idleRow}`);
 // The per-child header carries the state word, so the block below it must not
 // add a second one for the same row.
 const idleLines = idleRow.split("\n").map((line) => line.trim());
 assert.equal(idleLines.filter((line) => line === "@ui-auditor · idle").length, 1,
-  `inspect row must carry the child's state in its per-child header exactly once:\n${idleRow}`);
-assert.ok(!idleRow.includes("status · idle"), `inspect row repeated the state word under its header:\n${idleRow}`);
-assert.equal(idleRow.match(/@ui-auditor · idle/g)?.length, 2,
-  `the collapsed subject and the per-child header each name the state once:\n${idleRow}`);
+  `roster row must carry the child's state in its per-child header exactly once:\n${idleRow}`);
+assert.ok(!idleRow.includes("status · idle"), `roster row repeated the state word under its header:\n${idleRow}`);
+assert.equal(idleRow.match(/@ui-auditor · idle/g)?.length, 1,
+  `the collapsed subject is the page, so the state is named only in the header:\n${idleRow}`);
 
 // A coordination-only spawn states its narrow grant on the row that created it.
 const narrowStarted = await callChild({ operation: "start", name: "row-check-narrow", prompt: "Answer with one word.", tools: [] }, toolCtx);

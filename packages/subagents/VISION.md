@@ -70,9 +70,9 @@ project files means changing the original working tree directly. There is no
 branch, merge, rollback snapshot, automatic commit or privilege confinement.
 
 `agent_list` distinguishes saved definitions with no current process from live and
-stopped incarnations. Read-only discovery creates no directories. `agent_inspect`,
+stopped incarnations. Read-only discovery creates no directories. `agent_list`,
 `agent_input` and `agent_stop` require complete exact incarnation handles and
-cannot resolve a predecessor to its replacement. Read-only `agent_inspect` also accepts
+cannot resolve a predecessor to its replacement. The read-only roster also accepts
 a known stopped incarnation still retained on the roster, exposing its recorded
 status, bounded output and errors without reviving or controlling it. This is not
 a history archive: a replaced entry or a lost parent roster cannot be recovered
@@ -81,7 +81,7 @@ by inspection. Process controls still require a living exact incarnation.
 ## Tool boundary
 
 Model sessions use five closed input objects: `agent_start`, `agent_input`,
-`agent_stop`, `agent_inspect`, and `agent_list`. The intent family is the only
+`agent_stop`, and `agent_list`. The intent family is the only
 child tool surface. A recorded branch that named the retired `agent` tool receives
 the intent family on its next session start; no compatibility adapter and no
 in-transcript notice remain. Startup requires a prompt.
@@ -114,7 +114,7 @@ stay unchanged. Only `agent_list` accepts pagination controls.
 Management receipts and readbacks have aggregate budgets: at most 16 KiB UTF-8
 and 200 lines for text, and 32 KiB for either details or structuredContent.
 `agent_list` pages are deterministic for an unchanged roster and report totals,
-omissions and nextOffset. `agent_inspect` reads one retained exact incarnation with
+omissions and nextOffset. The roster reads each retained exact incarnation with
 explicitly marked preview shortening; truncation never changes raw roster state or
 final-result delivery. Successful and returned failed calls share a declared
 structured output contract, with operation, disposition, observed state and next

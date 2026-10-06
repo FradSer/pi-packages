@@ -162,10 +162,10 @@ def test_native_parent_message_is_isolated_fifo_and_explicit(tmp_path: Path, int
                 assert "NATIVE_PARENT_MESSAGE_OK" in result.stdout + result.stderr
         else:
             with NativeTui(command, cwd=tmp_path, env=env, rows=28, columns=70, timeout=60) as tui:
-                tui.wait_for(lambda: "NATIVE_PARENT_MESSAGE_OK" in tui.screen() and "Idle" in tui.screen())
+                tui.wait_for(lambda: "NATIVE_PARENT_MESSAGE_OK" in tui.screen())
                 collapsed = tui.screen()
                 assert "[agent] queued · @native-parent-message" in collapsed, collapsed[-5000:]
-                assert "native-parent-message · Idle" in collapsed, collapsed[-5000:]
+                assert "native-parent-message · Idle" not in collapsed, collapsed[-5000:]
                 assert "session:subagent-" not in collapsed, collapsed[-5000:]
                 tui.send(b"\x0f")
                 tui.resize(45)

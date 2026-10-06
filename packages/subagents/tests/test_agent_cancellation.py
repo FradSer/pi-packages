@@ -8,15 +8,16 @@ import pytest
 from resident_support import run
 
 
-@pytest.mark.parametrize("operation", ["start", "input", "inspect", "list", "stop"])
+# ADR-0008 retired `inspect`, so the surviving executor operations are the four
+# below and nothing addresses a single child any more.
+@pytest.mark.parametrize("operation", ["start", "input", "list", "stop"])
 def test_aborted_signal_refuses_before_any_effect(tmp_path: Path, operation: str) -> None:
     run("""
       const controller=new AbortController();controller.abort();
       const result=await call(ACTION==="start"?{operation:"start",name:"cancelled",prompt:"Run"}
         :ACTION==="list"?{operation:"list"}
-        :ACTION==="inspect"?{operation:"inspect",session:"session:missing:exact"}
         :ACTION==="stop"?{operation:"stop",session:"session:missing:exact"}
-        :{operation:"input",delivery:ACTION,session:"session:missing:exact",prompt:"Run"},
+        :{operation:"input",delivery:"next",session:"session:missing:exact",prompt:"Run"},
         {signal:controller.signal});
       assert.equal(result.details.ok,false);assert.equal(result.details.outcome,"cancelled");
       assert.equal(result.details.dispatched,false);assert.equal(result.details.controlOutcome,"not-dispatched");
@@ -65,15 +66,18 @@ def test_cancelled_control_wait_preserves_late_outcome(tmp_path: Path, operation
       // A steer addresses a working child, which the runtime reaches on the child's
       // first frame; the other deliveries address the child a settled turn leaves idle.
       if(ACTION==="steer")roster.updateAgent(started.details.name,{status:"working"});else final(0,"first");
-      const pending=call({operation:ACTION==="steer"?"input":ACTION,delivery:ACTION==="steer"?"steer":"next",session:started.details.session,
-        ...(ACTION!=="stop"?{prompt:"  exact input\\n"}:{})},{...seam,signal:controller.signal});
+      // One `input` operation carries both deliveries, so the pending intent a
+      // cancelled wait reports is the operation, never the delivery.
+      const pending=call({operation:ACTION==="stop"?"stop":"input",session:started.details.session,
+        ...(ACTION==="stop"?{}:{delivery:ACTION==="steer"?"steer":"next",prompt:"  exact input\\n"})},{...seam,signal:controller.signal});
       controller.abort();
       // The race only proves the caller was not left waiting: the runtime work on this
       // path is longer than a hundred milliseconds under load, so the budget is a
       // hang detector rather than a timing assumption.
       const cancelled=await Promise.race([pending,new Promise(resolve=>setTimeout(()=>resolve({timedOut:true}),2000))]);
       assert.ok(!cancelled.timedOut);assert.equal(cancelled.details.outcome,"cancelled");
-      assert.equal(cancelled.details.pendingIntent,ACTION);assert.equal(cancelled.details.session,started.details.session);
+      assert.equal(cancelled.details.pendingIntent,ACTION==="stop"?"stop":"input");
+      assert.equal(cancelled.details.session,started.details.session);
       assert.equal(controls,1);assert.equal(spawns.length,1);
       if(ACTION==="stop")assert.equal(roster.getAgent(started.details.name).leaderRequestedEnd,true);
       else assert.notEqual(roster.getAgent(started.details.name).status,"idle");

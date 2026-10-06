@@ -44,7 +44,7 @@ def test_unicode_bytes_and_lines_include_visible_marker(tmp_path: Path) -> None:
 def test_schema_rejects_missing_handles_and_mismatched_outcomes(tmp_path: Path) -> None:
     run("""
       const base={ok:true,operation:'start',outcome:'started',state:'working',nextActor:'runtime',prompted:true};
-      assert.deepEqual(output.CHILD_OPERATIONS,['start','input','inspect','list','stop']);
+      assert.deepEqual(output.CHILD_OPERATIONS,['start','input','list','stop']);
       assert.equal(Value.Check(output.AGENT_TOOL_OUTPUT_SCHEMA,base),false);
       assert.equal(Value.Check(output.AGENT_TOOL_OUTPUT_SCHEMA,{...base,name:'r',session:'session:r:s'}),true);
       assert.equal(Value.Check(output.AGENT_TOOL_OUTPUT_SCHEMA,{...base,operation:'list',outcome:'stopped'}),false);
@@ -55,17 +55,20 @@ def test_schema_rejects_missing_handles_and_mismatched_outcomes(tmp_path: Path) 
     """,tmp_path)
 
 
-def test_large_inspection_retains_raw_state_and_idempotent_diagnostic(tmp_path: Path) -> None:
+def test_large_roster_record_retains_raw_state_and_idempotent_diagnostic(tmp_path: Path) -> None:
     run("""
       const raw={...view(),liveText:'证据\\n'.repeat(10000),error:'\\u001b[31m'+ 'e'.repeat(20000)};
-      const before=JSON.stringify(raw);const result=output.limitAgentReadback(raw);bounded(result);
-      assert.equal(result.structuredContent.state,'stopped');assert.equal(result.structuredContent.nextActor,'caller');
-      const inspected=result.details.sessions[0];assert.ok(inspected.truncation.fields.length>=2);
-      assert.ok(result.content[0].text.includes(inspected.error));assert.ok(result.content[0].text.includes(inspected.liveText));
+      const before=JSON.stringify(raw);const result=output.createAgentListPage([raw],[]);bounded(result);
+      assert.equal(result.structuredContent.state,'read-only');assert.equal(result.structuredContent.nextActor,'caller');
+      const listed=result.details.sessions[0];assert.ok(listed.truncation.fields.length>=1);
+      // A roster entry is a status summary, so it never carries the child's
+      // output; the diagnostic beside it is bounded rather than dropped with it.
+      assert.equal(listed.liveText,undefined);
+      assert.ok(result.content[0].text.includes(listed.error));
       assert.equal(JSON.stringify(raw),before);
       const repeated=output.createAgentResult(result.content[0].text,result.structuredContent);bounded(repeated);
       assert.deepEqual(repeated.structuredContent,result.structuredContent);
-      assert.equal(inspected.error,'e'.repeat(1000)+'… [diagnostic truncated]');
+      assert.equal(listed.error,'e'.repeat(1000)+'… [diagnostic truncated]');
       console.log(JSON.stringify({ok:true}));
     """,tmp_path)
 
@@ -94,9 +97,14 @@ def test_untrusted_truncation_metadata_cannot_disable_the_preview_budget(tmp_pat
       const raw={...view(),liveText:'x'.repeat(12000),error:'e'.repeat(2000),truncation:{omittedFields:[],fields:[
         {field:'liveText',truncated:true,reason:'bytes',originalBytes:12000,originalLines:1,outputBytes:1,outputLines:1,marker:'already bounded'},
         {field:'error',truncated:true,reason:'diagnostic',originalBytes:2000,originalLines:1,outputBytes:1,outputLines:1,marker:'already bounded'}]}};
-      const before=JSON.stringify(raw);const result=output.limitAgentReadback(raw);bounded(result);
-      assert.ok(Buffer.byteLength(result.details.sessions[0].liveText)<=8192);
-      assert.ok(result.details.sessions[0].error.length<=1024);
+      const before=JSON.stringify(raw);const result=output.createAgentListPage([raw],[]);bounded(result);
+      const listed=result.details.sessions[0];
+      // A forged "already bounded" claim restores neither field: the roster omits
+      // output outright, and the diagnostic is bounded by the real budget.
+      assert.equal(listed.liveText,undefined);
+      assert.ok(listed.truncation.omittedFields.includes('liveText'));
+      assert.ok(listed.truncation.fields.some(field=>field.field==='liveText'&&field.reason==='summary'));
+      assert.ok(listed.error.length<=1024);assert.ok(listed.error.includes('diagnostic truncated'));
       assert.equal(JSON.stringify(raw),before);console.log(JSON.stringify({ok:true}));
     """,tmp_path)
 
@@ -119,7 +127,7 @@ def test_failure_and_exact_authority_limit_are_not_process_outcomes(tmp_path: Pa
       assert.equal(error.structuredContent.operation,'input');
       assert.equal(error.structuredContent.pendingIntent,'input');assert.ok(!error.content[0].text.includes('\\u001b'));
       const raw={...view(),assignment:{id:'task','kind':'task',resources:['x'.repeat(50000)]}};
-      const before=JSON.stringify(raw);const limit=output.limitAgentReadback(raw);bounded(limit);
+      const before=JSON.stringify(raw);const limit=output.createAgentListPage([raw],[]);bounded(limit);
       assert.equal(limit.structuredContent.code,'output-limit');assert.equal(limit.structuredContent.session,raw.session);
       assert.ok(limit.structuredContent.limit.omittedFields.includes('assignment'));assert.equal(JSON.stringify(raw),before);
       console.log(JSON.stringify({ok:true}));

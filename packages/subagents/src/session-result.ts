@@ -229,9 +229,14 @@ export function sessionNoticeMessageType(notice: SessionNotice): string {
  * failure a person must be able to spot while scrolling.
  */
 export function sessionNoticeSpec(notice: SessionNotice): ToolLifecycleSpec {
+  // One rule for every child notice: the collapsed row says who reported and what
+  // happened, and the payload waits for expansion. A result row that prints its
+  // own answer spends the reader's line on text they did not ask for, and the
+  // rest of the surface would then look inconsistent beside it.
   if (notice.kind === "input-cancelled") return {
     kind: "event", tool: "agent", subject: `@${notice.name}`, label: "input cancelled",
-    summary: [notice.reason], details: [`input · ${notice.inputId}`], bgToken: "toolErrorBg",
+    summary: [],
+    details: [notice.reason, `input · ${notice.inputId}`], bgToken: "toolErrorBg",
   };
   if (notice.kind === "ended") {
     return {
@@ -239,18 +244,18 @@ export function sessionNoticeSpec(notice: SessionNotice): ToolLifecycleSpec {
       tool: "agent",
       subject: `@${notice.name}`,
       label: "ended",
-      summary: [notice.reason],
-      details: ["note · no Session Result was produced; list the children for the exit detail"],
+      summary: [],
+      details: [notice.reason, "note · no Session Result was produced; list the children for the exit detail"],
       bgToken: "toolErrorBg",
     };
   }
   if (notice.kind === "unanswered") {
     return {
       kind: "event", tool: "agent", subject: `@${notice.name}`, label: "unanswered",
-      summary: [unansweredSummary(notice)],
-      details: [`Unanswered execution · turn ${notice.turn}`,
+      summary: [],
+      details: [unansweredSummary(notice), `unanswered execution · turn ${notice.turn}`,
         ...(notice.errorMessage ? [`diagnostic · ${boundedFinalDiagnostic(notice.errorMessage)}`] : []),
-        "No review verdict or acceptance was produced.", ...notice.text.split("\n")],
+        "no review verdict or acceptance was produced.", ...notice.text.split("\n")],
       bgToken: "toolErrorBg",
     };
   }
@@ -259,11 +264,12 @@ export function sessionNoticeSpec(notice: SessionNotice): ToolLifecycleSpec {
     tool: "agent",
     subject: `@${notice.name}`,
     label: "reported",
-    // One authored answer, not a preview plus a repeated detail body. pi-kit
-    // fits the collapsed summary to width and wraps it fully on expansion;
-    // only genuinely hidden text earns a hint. Turn/session remain metadata.
+    // The authored answer is the payload and stays Markdown, but the collapsed row
+    // is the headline alone: the head identifies the child, and the reader who
+    // wants the verdict opens the row. Turn and session stay machine metadata.
     summary: [notice.text],
     summaryFormat: "markdown",
+    expandedSummary: true,
     details: [],
   };
 }

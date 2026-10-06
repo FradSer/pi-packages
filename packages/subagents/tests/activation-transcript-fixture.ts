@@ -7,15 +7,18 @@ import { registerSubagentToolActivation } from "../src/tool-activation.ts";
 
 const requests: unknown[][] = [];
 const selected = process.env.PI_ACTIVATION_EXCLUDED?.split(",").filter(Boolean);
-const FAMILY = ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"];
+const FAMILY = ["agent_start", "agent_input", "agent_stop", "agent_list"];
+/** Model-facing names this package no longer registers. A host selection still
+ *  carrying one is scrubbed like any other retired tool, never left on the wire. */
+const RETIRED = new Set(["agent", "agent_inspect"]);
 /** What the selection contract leaves active for one host selection: the family is
- *  all five members or nothing, the retired name is never active, a host tool this
+ *  all four members or nothing, no retired name is active, a host tool this
  *  package does not own is untouched, and a whole family waits for the loader on a
  *  transport that can add tools mid-conversation. */
 const expectedSelection = () => {
   if (!selected) return ["subagents_enable"];
   const members = selected.filter((name) => FAMILY.includes(name));
-  const untouched = selected.filter((name) => !FAMILY.includes(name) && name !== "subagents_enable" && name !== "agent");
+  const untouched = selected.filter((name) => !FAMILY.includes(name) && name !== "subagents_enable" && !RETIRED.has(name));
   if (members.length !== FAMILY.length) return untouched;
   // A whole family waits for the loader when one is registered; with no loader
   // nothing could ever activate it, so it is served eagerly.
@@ -53,7 +56,7 @@ const resourceLoader = new DefaultResourceLoader({ cwd: process.cwd(), agentDir:
 await resourceLoader.reload();
 const model = modelRuntime.getModel("activation-probe", "activation");
 assert.ok(model);
-const family = ["agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"];
+const family = ["agent_start", "agent_input", "agent_stop", "agent_list"];
 const { session } = await createAgentSession({ cwd: process.cwd(), agentDir: process.env.PI_CODING_AGENT_DIR,
   resourceLoader, modelRuntime, model, settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
   sessionManager: SessionManager.inMemory(), tools: selected
@@ -62,11 +65,10 @@ const { session } = await createAgentSession({ cwd: process.cwd(), agentDir: pro
 try {
   await session.bindExtensions({});
   if (selected) {
-    // The family is all five members or nothing, the retired name is never
+    // The family is all four members or nothing, no retired name is
     // selectable, and an anchored transport keeps a whole family off the wire
     // until the loader runs. So the expected active set follows from the
     // selection rather than repeating it.
-    const legacy = selected.filter((name) => name === "agent");
     const members = selected.filter((name) => family.includes(name));
     const complete = members.length === family.length;
     const loaderSelected = selected.includes("subagents_enable");
@@ -75,7 +77,10 @@ try {
     const expected = expectedSelection();
     assert.deepEqual(new Set(session.getActiveToolNames()), new Set(expected),
       `A partial or unrecorded family stays off the wire: ${JSON.stringify({ selected, expected })}`);
-    assert.equal(session.getActiveToolNames().includes("agent"), false, "the retired tool is never selectable");
+    for (const retired of RETIRED) {
+      assert.equal(session.getActiveToolNames().includes(retired), false,
+        `the retired tool ${retired} is never selectable`);
+    }
     const loader = session.getToolDefinition("subagents_enable");
     if (loader && loaderSelected) {
       const enabled = await loader.execute("limited-enable", {}, undefined, undefined, session.createReplacedSessionContext());
@@ -105,10 +110,10 @@ try {
   let restored: string[] = [];
   const handlers = new Map();
   registerSubagentToolActivation({ registerTool() {}, on: (name, handler) => handlers.set(name, handler),
-    getAllTools: () => ["agent", "subagents_enable", "agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list"].map(name=>({name})), getActiveTools: () => restored,
+    getAllTools: () => ["agent", "agent_inspect", "subagents_enable", ...family].map(name=>({name})), getActiveTools: () => restored,
     setActiveTools: names => {restored=names;} } as never);
   handlers.get("session_start")({}, {sessionManager:manager,model});
-  assert.deepEqual(new Set(restored), new Set(["agent_start","agent_input","agent_stop","agent_inspect","agent_list","subagents_enable"]), "native restore retains unchanged loader and newly added agent");
+  assert.deepEqual(new Set(restored), new Set([...family, "subagents_enable"]), "native restore retains unchanged loader and newly added agent");
   assert.equal(session.getLastAssistantText(), "ACTIVATION_OK");
   console.log(JSON.stringify({ ok: true, requests: requests.length, prefixPreserved: true, noChild: true }));
   }

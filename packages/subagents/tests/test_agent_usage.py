@@ -14,7 +14,7 @@ def test_malformed_handle_never_dispatches_control(tmp_path: Path) -> None:
       let effects=0;
       const options={{cwd:process.env.PI_TEST_CWD,spawn:()=>{{effects++;return {{pid:7}};}},
         prompt:async()=>{{effects++;return true;}},terminate:async()=>{{effects++;return {{outcome:'closed'}};}}}};
-      for(const [operation,request] of [['inspect',{{}}],['stop',{{}}],
+      for(const [operation,request] of [['stop',{{}}],
         ['input',{{delivery:'next',prompt:'Next'}}],['input',{{delivery:'steer',prompt:'Next'}}]]){{
         const result=await executeChildIntent({{operation,session:'reviewer:opaque',...request}},options);
         assert.equal(result.structuredContent.ok,false);assert.match(result.content[0].text,/Invalid session handle/);

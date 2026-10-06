@@ -5,9 +5,11 @@ import { boundedFinalDiagnostic } from "./session-result.ts";
 import { INTENT_TOOL_NAMES } from "./intent-tools.ts";
 
 const LOADER = "subagents_enable";
-/** The retired model-facing tool. Kept as a constant only to scrub it from a
- *  selection recorded before ADR-0008 removed it. */
-const RETIRED = "agent";
+/** Model-facing tools that no longer exist. Kept only to scrub them from a
+ *  selection recorded before they were removed: a tool outside the family is not
+ *  caught by the family filter, so without this list a stale recorded name would
+ *  stay active on a transport that never registered it (ADR-0008). */
+const RETIRED_TOOLS = new Set(["agent", "agent_inspect"]);
 const LOADER_PARAMS = { type: "object", properties: {}, additionalProperties: false } as const;
 
 /** Activation changes tool selection only, never delegation authority. */
@@ -88,7 +90,7 @@ export function registerSubagentToolActivation(pi: ExtensionAPI, options: Pick<C
     active = activate && chosen.length > 0;
     // The retired `agent` name is scrubbed as well: a selection recorded before its
     // removal would otherwise keep advertising a tool that no longer exists.
-    const next = pi.getActiveTools().filter(name => !family.has(name) && name !== LOADER && name !== RETIRED);
+    const next = pi.getActiveTools().filter(name => !family.has(name) && name !== LOADER && !RETIRED_TOOLS.has(name));
     if (active) next.push(...chosen);
     if (loader && typeof pi.getAllTools().some(tool => tool.name === LOADER)) next.push(LOADER);
     pi.setActiveTools(next);
@@ -151,7 +153,7 @@ export function registerSubagentToolActivation(pi: ExtensionAPI, options: Pick<C
     for (const message of messages) {
       if (message.role !== "system") continue;
       if ([...(message.toolsAdded ?? []), ...(message.toolsRemoved ?? [])]
-        .some(tool => family.has(tool.name) || tool.name === LOADER || tool.name === RETIRED)) hasSelection = true;
+        .some(tool => family.has(tool.name) || tool.name === LOADER || RETIRED_TOOLS.has(tool.name))) hasSelection = true;
       for (const tool of message.toolsRemoved ?? []) recorded.delete(tool.name);
       for (const tool of message.toolsAdded ?? []) recorded.add(tool.name);
     }
@@ -172,7 +174,7 @@ export function registerSubagentToolActivation(pi: ExtensionAPI, options: Pick<C
     const recordedFamily = selectable.filter(name => recorded.has(name));
     // A branch that recorded the retired tool keeps its delegation: the family takes
     // its place. A branch that recorded nothing active stays inactive.
-    const moved = recordedFamily.length > 0 || recorded.has(RETIRED);
+    const moved = recordedFamily.length > 0 || [...RETIRED_TOOLS].some((name) => recorded.has(name));
     chosen = recordedFamily.length > 0 ? recordedFamily : selectable;
     select(moved, recorded.has(LOADER) && available.has(LOADER));
   };

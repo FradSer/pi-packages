@@ -29,7 +29,7 @@ extension({{registerTool:tool=>registered.push(tool),registerMessageRenderer:(ty
 const intentTools=new Map(registered.filter(t=>t.name.startsWith("agent_")).map(t=>[t.name,t]));
 const call=(request)=>{{
   const {{operation,name,session,prompt,tools,...rest}}=request;
-  const tool=operation==="input"||operation==="steer"?"agent_input":operation==="inspect"?"agent_inspect"
+  const tool=operation==="input"||operation==="steer"?"agent_input":operation==="inspect"?"agent_list"
     :operation==="stop"?"agent_stop":operation==="list"?"agent_list":"agent_start";
   const params=tool==="agent_start"
     ?{{prompt:prompt??"Start the assigned work.",...(name===undefined?{{}}:{{label:name}}),...(tools===undefined?{{}}:{{tools}}),...rest}}

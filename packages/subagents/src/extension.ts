@@ -106,7 +106,7 @@ export default function piSubagents(pi: Parameters<typeof registerIntentTools>[0
   }
 
   // Likewise a host with no session API still gets working intent tools: it
-  // spawns, records, and inspects, and delivers nothing. That is the library's
+  // spawns, records, and answers status questions, and delivers nothing. That is the library's
   // documented behaviour, not a degraded mode worth failing over.
   //
   // This is the only place a delivery can fail, so nothing is swallowed here: a

@@ -38,7 +38,7 @@ export default function installWiringProvider(pi: ExtensionAPI): void {
     { tool: "agent_start", args: { identity: "../escape", prompt: "Escape attempt" } },
     { tool: "agent_start", args: { label: "install-idle", prompt: "Wait for explicit input.",
       instructions: "Wait for explicit input.", tools: [], model: "install-wiring-child/deterministic" } },
-    { tool: "agent_inspect", args: { session: "$prev.session" } },
+    { tool: "agent_list", args: {} },
     { tool: "agent_stop", args: { session: "$prev.session" } },
     { tool: "agent_start", args: { label: "install-input", prompt: "Confirm the isolated input.",
       instructions: "Answer only the supplied input.", tools: [], model: "install-wiring-child/deterministic" } },

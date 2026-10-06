@@ -18,7 +18,7 @@ agent_input({ session: "session:reviewer:<incarnation>", prompt: "Check the edge
 ## Intent tools
 
 The five intent tools are the only child tool surface: `agent_start`, `agent_input`,
-`agent_stop`, `agent_inspect`, and `agent_list`. An explicit intent host selection
+`agent_stop`, and `agent_list`. An explicit intent host selection
 remains selected, whether partial or complete. The loader cannot add excluded
 tools. Startup requires a prompt. `identity` selects an existing disk definition;
 `label` changes display only. Missing identities
@@ -138,7 +138,7 @@ Report only received results, tied to their prompt and session.
 | `agent_start` | Start a child and deliver its kickoff prompt; report effective configuration. |
 | `agent_input` | Deliver nonempty input to one exact incarnation, queued with `next` or delivered with `steer`. |
 | `agent_stop` | Record intent and close the exact child; release authority only after confirmed closure. |
-| `agent_inspect` | Read a known live or stopped incarnation's facts, bounded output preview and errors without controlling it. |
+| `agent_list` | Read the roster: known live or stopped incarnations and their bounded status summaries without controlling it. |
 | `agent_list` | Page summaries of saved-but-offline definitions, live children and stopped incarnations. |
 
 Each tool declares one closed input object, and the executor validates direct
@@ -151,7 +151,7 @@ For example, `agent_list` cannot carry a `prompt` or tool grant.
 `page.nextOffset` for a stable roster; a smaller page may be needed to meet the
 aggregate budget. Readbacks/receipts have at most 16 KiB UTF-8 and 200 text lines,
 and 32 KiB for either `details` or `structuredContent`, with explicit shortening
-metadata. Totals count the complete roster, not only the page. Use `agent_inspect` for
+metadata. Totals count the complete roster, not only the page. Read one exact handle only through
 one answer/error preview; the full final result is still delivered separately.
 
 All model tools declare `outputSchema` and return matching `structuredContent`.
@@ -195,7 +195,7 @@ this reads recorded facts, not a living process or a completion verdict. Unknown
 or replaced handles report `No known session` and never read a successor. There
 is no historical archive or recovery of a lost parent roster. `agent_input` and
 `agent_stop` continue to require a living exact incarnation. Recorded error
-readbacks in both `agent_inspect` and `agent_list` are sanitized and limited to 1000 preview
+readbacks in `agent_list` are sanitized and limited to 1000 preview
 characters with an explicit truncation marker; the raw roster error is unchanged.
 
 Each settled turn delivers one Session Result: final UTF-8 text verbatim inside an

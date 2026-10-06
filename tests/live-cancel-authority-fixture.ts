@@ -123,8 +123,10 @@ export default function (pi: ExtensionAPI): void {
   } };
   /** The intent family mapped to the executor operation it performs. */
   const INTENT_OPERATIONS: Record<string, string> = {
-    agent_start: "start", agent_input: "input", agent_stop: "stop", agent_inspect: "inspect", agent_list: "list",
+    agent_start: "start", agent_input: "input", agent_stop: "stop", agent_list: "list",
   };
+  /** A roster read is a page of the whole roster, so it takes no session. */
+  const ROSTER_READ: { callTool: string; args: Record<string, never> } = { callTool: "agent_list", args: {} };
 
 const observedPi: ExtensionAPI = {
     ...pi,
@@ -175,9 +177,12 @@ const observedPi: ExtensionAPI = {
   });
   pi.on("tool_result", async event => {
     if (!INTENT_OPERATIONS[event.toolName]) return;
-    const data = event.details as { operation: string; disposition?: string; ok?: boolean; session?: string; sessions?: Array<{ error?: string }> };
+    const data = event.details as { operation: string; disposition?: string; ok?: boolean; session?: string; sessions?: Array<{ session?: string; error?: string; status?: string }> };
     const operation = data.operation;
     record({ kind: "receipt", details: data, isError: event.isError, structuredContent: event.structuredContent });
+    // ADR-0008 left no inspection operation: the roster is the surviving read,
+    // so every ownership claim below is read back from its page.
+    const rosterEntry = (session: string) => data.sessions?.find((entry) => entry.session === session);
     if (operation === "agent_start" && !originalHandle) originalHandle = data.session;
     else if (operation === "agent_start" && scenario === "forged-successor") {
       successorHandle = data.session;assert.ok(successorHandle);
@@ -194,9 +199,24 @@ const observedPi: ExtensionAPI = {
     }
     if (operation === "agent_stop" && scenario === "forged-successor" && !successorHandle) setAgentHost(successor);
     if (operation === "agent_input" && scenario === "late-control-failure") releaseFailure();
-    if (operation === "agent_inspect" && scenario === "late-control-failure") {
-      assert.ok(data.sessions?.[0].error?.includes("LATE_NATIVE_CONTROL_FAILURE"));
-      record({ kind: "late-failure-readback", status: getAgent(rosterName(data.session!))?.status });
+    if (operation === "agent_list") {
+      if (scenario === "late-control-failure") {
+        assert.ok(originalHandle);
+        const retained = rosterEntry(originalHandle);
+        assert.ok(retained?.error?.includes("LATE_NATIVE_CONTROL_FAILURE"), JSON.stringify(data.sessions));
+        record({ kind: "late-failure-readback", status: getAgent(rosterName(originalHandle))?.status });
+      } else if (scenario === "stop-pending") {
+        assert.ok(originalHandle);
+        const retained = rosterEntry(originalHandle);
+        assert.ok(retained, JSON.stringify(data.sessions));
+        assert.equal(retained.status, "stopped", "the roster shows the closed incarnation as stopped");
+        record({ kind: "roster-readback", session: originalHandle, status: retained.status });
+      } else if (successorHandle) {
+        const retained = rosterEntry(successorHandle);
+        assert.ok(retained, JSON.stringify(data.sessions));
+        assert.equal(retained.session, successorHandle, "the roster still addresses the successor's exact handle");
+        record({ kind: "roster-readback", session: successorHandle, status: retained.status });
+      }
     }
   });
   pi.on("session_shutdown", () => {
@@ -230,7 +250,7 @@ const observedPi: ExtensionAPI = {
             releaseOriginal(successorHandle);await flush();
             assert.equal(JSON.stringify(getAgent(rosterName(successorHandle))), before);
             record({ kind: "reentrant-owner-preserved", session: successorHandle });
-            args = { session: successorHandle }; callTool = "agent_inspect";
+            args = ROSTER_READ.args; callTool = ROSTER_READ.callTool;
           }
           if (index === 2) { args = { session: successorHandle }; callTool = "agent_stop"; }
           const message: AssistantMessage = { role: "assistant", api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(),
@@ -256,17 +276,17 @@ const observedPi: ExtensionAPI = {
       if (index === 0) args = authorityStart;
       else if (scenario === "stop-pending") {
         if (index === 1) { args = { session: originalHandle }; callTool = "agent_stop"; }
-        if (index === 2) { args = { session: originalHandle }; callTool = "agent_inspect"; }
+        if (index === 2) { args = ROSTER_READ.args; callTool = ROSTER_READ.callTool; }
       } else if (scenario === "forged-successor") {
         // The original exact handle closes first, so the second start is a real
         // successor and the late original confirmation can only forge its route.
         if (index === 1) { args = { session: originalHandle }; callTool = "agent_stop"; }
         if (index === 2) args = authorityStart;
         if (index === 3) { args = { session: successorHandle }; callTool = "agent_stop"; }
-        if (index === 4) { args = { session: successorHandle }; callTool = "agent_inspect"; }
+        if (index === 4) { args = ROSTER_READ.args; callTool = ROSTER_READ.callTool; }
       } else {
         if (index === 1) { args = { session: originalHandle, prompt: "Hold the native model until explicitly stopped", delivery: "next" }; callTool = "agent_input"; }
-        if (index === 2) { args = { session: originalHandle }; callTool = "agent_inspect"; }
+        if (index === 2) { args = ROSTER_READ.args; callTool = ROSTER_READ.callTool; }
         if (index === 3) { args = { session: originalHandle }; callTool = "agent_stop"; }
       }
       const message: AssistantMessage = { role: "assistant", api: model.api, provider: model.provider, model: model.id, timestamp: Date.now(),

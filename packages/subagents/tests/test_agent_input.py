@@ -18,10 +18,10 @@ PREAMBLE = """
 import assert from 'node:assert/strict';
 const session='session:Reviewer-1:opaque-incarnation';
 const bases={start:{operation:'start',name:'reviewer'},input:{operation:'input',delivery:'next',session,prompt:'Continue'},
-  steer:{operation:'input',delivery:'steer',session,prompt:'Steer'},inspect:{operation:'inspect',session},
+  steer:{operation:'input',delivery:'steer',session,prompt:'Steer'},
   stop:{operation:'stop',session},list:{operation:'list'}};
 const allowed={start:['operation','name','prompt','description','role_prompt','tools','model','fork'],
-  input:['operation','session','prompt','delivery'],inspect:['operation','session'],
+  input:['operation','session','prompt','delivery'],steer:['operation','session','prompt','delivery'],
   stop:['operation','session'],list:['operation','offset','limit']};
 const refused=(input,field)=>{
   const result=validate(input);
@@ -113,7 +113,7 @@ def test_tool_grants_boolean_choice_and_input_immutability(tmp_path: Path) -> No
 
 def test_exact_handles_and_input_requirements(tmp_path: Path) -> None:
     run(r"""
-      for(const operation of ['input','steer','inspect','stop']){
+      for(const operation of ['input','steer','stop']){
         const base=bases[operation];
         for(const handle of [session,'session:a:1','session:'+'A'.repeat(64)+':not-a-uuid'])
           assert.deepEqual(validate({...base,session:' '+handle+'\t'}),{ok:true,value:{...base,session:handle}});

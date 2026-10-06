@@ -17,15 +17,13 @@ export type AgentInput =
     fork?: boolean;
   }
   | { operation: "input"; session: string; prompt: string; delivery: "next" | "steer" }
-  | { operation: "inspect"; session: string }
   | { operation: "list"; offset: number; limit: number }
   | { operation: "stop"; session: string };
 
-const OPERATIONS = ["start", "input", "inspect", "list", "stop"] as const;
+const OPERATIONS = ["start", "input", "list", "stop"] as const;
 const OPERATION_FIELDS: Record<AgentInput["operation"], readonly string[]> = {
   start: ["operation", "name", "prompt", "description", "role_prompt", "tools", "model", "fork"],
   input: ["operation", "session", "prompt", "delivery"],
-  inspect: ["operation", "session"],
   list: ["operation", "offset", "limit"],
   stop: ["operation", "session"],
 };

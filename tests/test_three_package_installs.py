@@ -42,7 +42,7 @@ def seed_definition(tmp_path: Path, scope: str) -> Path:
     return definition
 
 # The tools each package owns, and the harness's own probe, which is not one of them.
-INTENT = ("agent_start", "agent_input", "agent_stop", "agent_inspect", "agent_list")
+INTENT = ("agent_start", "agent_input", "agent_stop", "agent_list")
 SUBAGENT_TOOLS = INTENT + ("subagents_enable",)
 TASK_TOOLS = ("create_task", "get_task", "list_tasks", "update_task")
 COORDINATION = SUBAGENT_TOOLS + TASK_TOOLS + ("message",)
@@ -105,12 +105,13 @@ def test_subagents_alone_runs_a_child_lifecycle(tmp_path: Path) -> None:
     run = run_install(tmp_path, ["subagents"], scenario="agent-lifecycle")
     assert run.completed.returncode == 0, run.text
 
+    # The scenario is start, roster read, roster read-back, stop: the retired
+    # per-child inspection is the second roster read now.
     starts = run.calls_named("agent_start")
-    lists = run.calls_named("agent_list")
-    inspections = run.calls_named("agent_inspect")
+    rosters = run.calls_named("agent_list")
     stops = run.calls_named("agent_stop")
-    assert [len(starts), len(lists), len(inspections), len(stops)] == [1, 1, 1, 1], run.calls()
-    assert all(call["isError"] is False for call in starts + lists + inspections + stops)
+    assert [len(starts), len(rosters), len(stops)] == [1, 2, 1], run.calls()
+    assert all(call["isError"] is False for call in starts + rosters + stops)
 
     started = starts[0]["details"]
     assert run.live_children == [], "the detached RPC child must not outlive the install"
@@ -131,17 +132,18 @@ def test_subagents_alone_runs_a_child_lifecycle(tmp_path: Path) -> None:
     handle = started["session"]
     assert isinstance(handle, str) and handle.startswith("session:"), handle
 
-    listed = lists[0]["details"]
+    listed = rosters[0]["details"]
     assert listed["count"] == 1
     assert listed["sessions"][0]["session"] == handle, "list must report the handle start returned"
     assert listed["sessions"][0]["label"] == "scout"
     assert listed["definitions"] == []
     assert not (tmp_path / "agent" / "agents").exists(), "temporary discovery/start must create no durable data"
 
-    inspected = inspections[0]["details"]
-    assert inspected["disposition"] == "inspected"
-    assert inspected["sessions"][0]["session"] == handle
-    assert inspected["sessions"][0]["label"] == "scout"
+    # The second roster read is the read-back that replaced the per-child inspection.
+    readback = rosters[1]["details"]
+    assert readback["disposition"] == "listed"
+    assert readback["sessions"][0]["session"] == handle
+    assert readback["sessions"][0]["label"] == "scout"
 
     stopped = stops[0]["details"]
     assert stopped["disposition"] == "stopped"
@@ -180,7 +182,7 @@ def test_subagents_alone_reuses_saved_sessions_without_changing_cwd(tmp_path: Pa
     calls = [call for call in run.calls() if call["name"] != PROBE]
     assert [call["name"] for call in calls] == [
         "agent_list", "agent_start", "agent_list", "agent_stop", "agent_list",
-        "agent_start", "agent_inspect", "agent_stop", "agent_list",
+        "agent_start", "agent_list", "agent_stop", "agent_list",
     ], [call["name"] for call in calls]
     assert all(not call["isError"] for call in calls), calls
     offline, first, live, stopped, stopped_list, reused, inspected, last_stop, final = (
