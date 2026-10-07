@@ -23,6 +23,15 @@ Feature: Resident activity visibility
       When the child remains alive for a later input
       Then its row stays visible as idle and ready for input
 
+  Rule: The activity area survives an extension loaded into a running session
+
+    Scenario: A child started without a session start still paints its row
+      Given an extension loaded into a session that never fired a session start
+      When a child starts and works
+      Then the above-editor activity row appears while it works
+      And the roster is observed for the life of the runtime, not of one session
+      And its settlement still reaches the participant registry
+
     Scenario: Activity and lifecycle rows preserve ownership boundaries
       Given starting or working standalone children and an idle sibling
       When one child streams and another settles

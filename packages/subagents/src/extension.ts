@@ -154,13 +154,16 @@ export default function piSubagents(pi: Parameters<typeof registerIntentTools>[0
 
   registerIntentTools(pi, { renderResult: createAgentResultRenderer, deliverSessionResult: sender, deliverParentMessage: parentMessageSender });
   registerSubagentToolActivation(pi, { renderResult: createAgentResultRenderer });
-  pi.on("model_select", async (_event, ctx) => { if (ctx) host = ctx; });
-  pi.on("thinking_level_select", async (_event, ctx) => { if (ctx) host = ctx; });
-  pi.on("session_start", async (_event, ctx) => {
-    if (ctx) host = ctx;
-    activityWidget.clear(activityContext);
-    activityContext = ctx;
-    stopObserving?.();
+  /** Observe the roster for the life of this runtime, not of one session.
+   *
+   *  The observer used to be installed by `session_start`, and that is not a
+   *  guarantee an extension loaded into a running session can rely on: with no
+   *  session start nobody observed the roster at all, so a child that started,
+   *  settled or closed never refreshed the activity area and never reached the
+   *  participant registry. Armed once here, and re-armed idempotently by whatever
+   *  session start does arrive. */
+  const armObserver = (): void => {
+    if (stopObserving) return;
     stopObserving = observeAgentRoster(() => {
       // Every roster change republishes: the installed task store reads this
       // roster as its participant registry, and a child that started, settled or
@@ -168,6 +171,37 @@ export default function piSubagents(pi: Parameters<typeof registerIntentTools>[0
       publishParticipantRegistryFromRoster();
       refreshActivity();
     });
+  };
+  armObserver();
+
+  // A live context is adopted wherever one appears. `session_start` is not the
+  // only place it exists, and it is not even the common one: an extension loaded
+  // or reloaded into a running session never sees a session start, so adopting
+  // the context only there left the activity area with nothing to paint on and a
+  // child working above the editor stayed invisible for the rest of the session.
+  //
+  // Every tool call carries the live context, and the host fires `tool_call`
+  // before it executes the tool — so the context is adopted before the child that
+  // a tool call starts is registered in the roster, and the widget mounts on the
+  // same turn the child appears rather than one event later.
+  pi.on("tool_call", async (_event, ctx) => {
+    if (!ctx) return;
+    host = ctx;
+    if (ctx.ui && activityContext !== ctx) {
+      activityContext = ctx;
+      refreshActivity();
+    }
+  });
+  pi.on("model_select", async (_event, ctx) => { if (ctx) host = ctx; });
+  pi.on("thinking_level_select", async (_event, ctx) => { if (ctx) host = ctx; });
+  pi.on("session_start", async (_event, ctx) => {
+    if (ctx) host = ctx;
+    activityWidget.clear(activityContext);
+    activityContext = ctx;
+    armObserver();
+    // Every session start republishes, whether or not it was the one that armed
+    // the observer.
+    publishParticipantRegistryFromRoster();
     refreshActivity();
     // Shutdown retires actual incarnations; startup never forgets uncertain
     // closure authority merely to make the roster look empty.

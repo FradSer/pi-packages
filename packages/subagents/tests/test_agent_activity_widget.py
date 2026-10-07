@@ -37,7 +37,9 @@ const pi={{registerTool:t=>tools.push(t),registerMessageRenderer(){{}},events:{{
 extension(pi);
 const ctx={{cwd:process.env.PI_TEST_CWD,mode:process.env.PI_TEST_MODE??'tui',ui}};
 const event=async name=>{{for(const handler of handlers.get(name)??[])await handler({{}},ctx);}};
-await event('session_start');
+// The reload case: an extension loaded into a running session never sees a
+// session start, so a test can ask for the surface without one.
+if(!process.env.PI_TEST_SKIP_SESSION_START) await event('session_start');
 const intentTools=new Map(tools.filter(t=>t.name.startsWith("agent_")).map(t=>[t.name,t]));
 const call=(request)=>{{
   const {{operation,name,session,prompt,tools:grant,...rest}}=request;
@@ -53,12 +55,41 @@ const entry=(name,spawnId)=>({{name,role:name,spawnId,pid:8,status:'working',sco
 """
 
 
-def run(script: str, tmp_path: Path, mode: str = 'tui') -> dict[str, object]:
-    return run_node(PREAMBLE + script, module_mocks=True, env_overrides={
+def run(script: str, tmp_path: Path, mode: str = 'tui', *, skip_session_start: bool = False) -> dict[str, object]:
+    env = {
         'PI_TEST_CWD': str(tmp_path), 'PI_TEST_MODE': mode,
         'HOME': str(tmp_path), 'PI_CODING_AGENT_DIR': str(tmp_path / 'agent'),
         'XDG_CONFIG_HOME': str(tmp_path / 'config'), 'XDG_CACHE_HOME': str(tmp_path / 'cache'),
-    })
+    }
+    if skip_session_start:
+        env['PI_TEST_SKIP_SESSION_START'] = '1'
+    return run_node(PREAMBLE + script, module_mocks=True, env_overrides=env)
+
+
+def test_a_child_started_without_a_session_start_still_mounts_activity(tmp_path: Path) -> None:
+    """The reload case: no session start, so nothing may depend on having seen one.
+
+    `session_start` used to be the only place the extension adopted its activity
+    context. An extension reloaded into a running session never sees one, so the
+    roster callback still ran, the widget update received no context, and the child
+    working above the editor was invisible for the rest of the session. The live
+    context is available on every tool call, which is exactly when a child starts.
+    """
+    result = run("""
+      // The host fires `tool_call` before it executes the tool, which is where the
+      // live context reaches the extension when no session start has.
+      await event('tool_call');
+      const pending=call({name:'reloaded',prompt:'1+1'});
+      const mountedWhileStarting=mounts.length;
+      acknowledge(true);
+      await pending;
+      console.log(JSON.stringify({
+        mountedWhileStarting,
+        rows:lines().filter(line=>line.includes('reloaded')).length,
+      }));
+    """, tmp_path, skip_session_start=True)
+    assert result['mountedWhileStarting'] > 0, 'a child starting without a session start still paints the widget'
+    assert result['rows'] > 0
 
 
 def test_widget_mounts_while_start_acknowledgement_is_pending(tmp_path: Path) -> None:
