@@ -100,6 +100,15 @@ importers:
         specifier: 0.6.0
         version: 0.6.0
 
+  packages/e2e:
+    dependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: '*'
+        version: 1.0.0(@aws-sdk/credential-provider-node@3.972.83)(@smithy/signature-v4@5.6.12)(ws@8.21.3)(zod@4.4.3)
+      '@fradser/pi-kit':
+        specifier: workspace:*
+        version: link:../kit
+
   packages/goal:
     dependencies:
       '@earendil-works/pi-ai':

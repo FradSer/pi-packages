@@ -72,7 +72,7 @@ Memory、Harness 和 AGENTS.md 默认仍自动应用通过验证的变更。即�
 
 学习在异步处理前冻结任务，关闭会话后停止。学习设置损坏时关闭自动学习并报告原因；`/memory status` 查看实际策略、存储、学习状态和队列诊断。跳过的任务只保存私有、按项目隔离的引用，`/consolidate backfill` 查看其状态，不回放历史或调用模型。关闭自动学习后，已有知识仍可读取。
 
-在用户级 `continual-learning.json` 中配置 `jev`，或提供 `TYPESAFE_API_KEY` 环境变量，即可启用可选的 Jev 判断：选择学习方向并审查已通过代码校验的候选；证据、隐私、写入权限和 Harness 执行仍由父进程控制。不确定或不可用时沿用现有选择器或保存提案，不新增命令。详见[配置与评估说明](packages/continual-learning/README.md#optional-jev-judgments)。 [改善验收报告](packages/continual-learning/tests/jev-improvement-evaluation.md)分别记录真实中英文判断、插件实际效果和剩余误拦，不把模拟测试算作效果提升。 [严格全流程审计](packages/continual-learning/tests/jev-workflow-strict-evaluation.md)要求真实配对效果提升；此前四场公开样本的真实同版本对照为 36/50 → 50/50 效果，十四项改善、零退步；费用增加，不能推广为所有项目都更好。 [扩大的中英文与 Docker 评估](packages/continual-learning/tests/jev-expanded-evaluation.md)保留新的真实项目失败和修复；短候选的安全性改善不能证明大型仓库轨迹的自动学习产出提高。
+在用户级 `continual-learning.json` 中配置 `jev`，或提供 `TYPESAFE_API_KEY` 环境变量，即可启用可选的 Jev 判断：选择学习方向并审查已通过代码校验的候选；证据、隐私、写入权限和 Harness 执行仍由父进程控制。不确定或不可用时沿用现有选择器或保存提案，不新增命令。详见[配置与评估说明](packages/continual-learning/README.md#optional-jev-judgments)。 [改善验收报告](packages/continual-learning/tests/jev-improvement-evaluation.md)分别记录真实中英文判断、插件实际效果和剩余误拦，不把模拟测试算作效果提升。 [严格全流程审计](packages/continual-learning/tests/jev-workflow-strict-evaluation.md)要求真实配对效果提升；此前四场公开样本的真实同版本对照为 36/50 → 50/50 效果，十四项改善、零退步；费用增加，不能推广为所有项目都更好。 [扩大的中英文与 Docker 评估](packages/continual-learning/tests/jev-expanded-evaluation.md)保留新的真实项目失败和修复；短候选的安全性改善不能证明大型仓库轨迹的自动学习产出提高。 [最新冻结复测](packages/continual-learning/tests/jev-cited-followup-evaluation.md)保留失败轮次与独立 Git 选项探针：误拦减少仍未证明漏拦或完整流程改善。完整候选停止信号现在帮助已有的有界修复，不授予部分写入权限。
 
 完整维护也会从空 Memory 中提取新知识。当前会话没有有效证据时，可冻结同一项目最近的一份有界会话，并在回执中记录来源摘要；没有证据也没有已有 Memory 时，零模型调用，报告 `no learning input`。
 
