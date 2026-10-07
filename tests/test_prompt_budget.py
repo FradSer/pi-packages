@@ -27,7 +27,11 @@ CEILINGS = {
     # Raised for the standalone capabilities the procedure catalog gained (`pr`,
     # `retro`, glossary). Each one adds a listed entry the Leader must be able to
     # route to, so the catalog grows by their names and one-line descriptions.
-    "mpInactiveCatalog": 3_900,
+    # Raised again to 4_700 for the eight user-invoked capabilities the catalog
+    # already carried but the prompt never named (grill-me among them). A user who
+    # says "grill me" had no route to the package at all. The section stays terse:
+    # one id and one short subject per entry, with a single call shape.
+    "mpInactiveCatalog": 4_700,
     "utilPeerRecap": 1_550,
     "monitorSection": 800,
     "contextSection": 250,
@@ -40,7 +44,10 @@ CEILINGS = {
 # instruction bytes to the active Leader and Worker sections.
 # Raised to 16_800 for the same catalog growth: the total moved from 15.9K to a
 # measured 16.3K, and the ceiling stays a governance line above it.
-TOTAL_CEILING = 16_800
+# Raised to 17_250 for the user-invoked capability list: naming those eight ids in
+# the inactive catalog moved the worst case by 754 chars, and the ceiling stays a
+# governance line above it.
+TOTAL_CEILING = 17_250
 
 
 def measure() -> dict[str, int]:
