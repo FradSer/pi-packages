@@ -1,0 +1,224 @@
+{
+  "evidence": "network-disabled-docker-preflight",
+  "current": {
+    "arms": [
+      {
+        "caseId": "nanoid-stable-default-en",
+        "arm": "before",
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 1.951,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": true
+      },
+      {
+        "caseId": "nanoid-stable-default-en",
+        "arm": "after",
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.058,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": true
+      },
+      {
+        "caseId": "nanoid-stable-default-zh",
+        "arm": "after",
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.111,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": true
+      },
+      {
+        "caseId": "nanoid-stable-default-zh",
+        "arm": "before",
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.24,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": true
+      },
+      {
+        "caseId": "tinypool-stable-runtime-en",
+        "arm": "before",
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.085,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": true
+      },
+      {
+        "caseId": "tinypool-stable-runtime-en",
+        "arm": "after",
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.115,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": true
+      },
+      {
+        "caseId": "tinypool-stable-runtime-zh",
+        "arm": "after",
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.016,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": true
+      },
+      {
+        "caseId": "tinypool-stable-runtime-zh",
+        "arm": "before",
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.104,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": true
+      }
+    ],
+    "productionWrites": 0
+  },
+  "initial": {
+    "arms": [
+      {
+        "caseId": "nanoid-stable-default-en",
+        "arm": "before",
+        "process": {
+          "exitCode": 1,
+          "outcome": "completed",
+          "seconds": 2.305,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": false
+      },
+      {
+        "caseId": "nanoid-stable-default-en",
+        "arm": "after",
+        "process": {
+          "exitCode": 1,
+          "outcome": "completed",
+          "seconds": 1.975,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": false
+      },
+      {
+        "caseId": "nanoid-stable-default-zh",
+        "arm": "after",
+        "process": {
+          "exitCode": 1,
+          "outcome": "completed",
+          "seconds": 1.879,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": false
+      },
+      {
+        "caseId": "nanoid-stable-default-zh",
+        "arm": "before",
+        "process": {
+          "exitCode": 1,
+          "outcome": "completed",
+          "seconds": 1.81,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": false
+      },
+      {
+        "caseId": "tinypool-stable-runtime-en",
+        "arm": "before",
+        "process": {
+          "exitCode": 1,
+          "outcome": "completed",
+          "seconds": 1.815,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": false
+      },
+      {
+        "caseId": "tinypool-stable-runtime-en",
+        "arm": "after",
+        "process": {
+          "exitCode": 1,
+          "outcome": "completed",
+          "seconds": 1.782,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": false
+      },
+      {
+        "caseId": "tinypool-stable-runtime-zh",
+        "arm": "after",
+        "process": {
+          "exitCode": 1,
+          "outcome": "completed",
+          "seconds": 1.829,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": false
+      },
+      {
+        "caseId": "tinypool-stable-runtime-zh",
+        "arm": "before",
+        "process": {
+          "exitCode": 1,
+          "outcome": "completed",
+          "seconds": 1.836,
+          "processGroupStopConfirmed": true
+        },
+        "ownedContainerAbsent": true,
+        "providerRequests": 0,
+        "resultAvailable": false
+      }
+    ],
+    "productionWrites": 0
+  },
+  "initialFailure": "Preparation artifactHash did not equal snapshotDigest alias; corrected before inference. All original failure artifacts retained.",
+  "externalRequests": 0,
+  "manifestSha256": "b266c6531db2469eca3a06aaecef454e183ee235dc30516cb43de9e9ae2f8ee2"
+}

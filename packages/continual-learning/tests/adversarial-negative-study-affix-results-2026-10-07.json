@@ -1,0 +1,125 @@
+{
+  "kind": "adversarial-negative-study-after-fix",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "corpus": {
+    "file": "cases.json",
+    "sha256": "5f1011e5f696fd711b10887e45b87805443157aec6c2f57928014b6ee95623e8"
+  },
+  "before": {
+    "rawRoot": "~/.cache/pi-continual-learning/research/adversarial-negative-2026-10-07/diagnostic-baseline-14",
+    "matched": 12,
+    "falseAllows": 0,
+    "falseHolds": 2,
+    "requests": 14
+  },
+  "after": {
+    "rawRoot": "~/.cache/pi-continual-learning/research/adversarial-negative-2026-10-07/gate-fix-after-14",
+    "matched": 14,
+    "falseAllows": 0,
+    "falseHolds": 0,
+    "requests": 14
+  },
+  "changesInEffect": [
+    "Support question and grounded criterion now state that a successful tool result that ran the command grounds the claim and that a failed, interrupted, or erroring run is transient (extensions/jev-learning.ts).",
+    "The assigned-credential guard now treats documentation-style placeholders as non-sensitive while keeping realistic assigned values sensitive (extensions/consolidation-run.ts).",
+    "Telemetry records the controlled choice, probability, and confidence on a held candidate (extensions/jev-learning.ts)."
+  ],
+  "perCase": [
+    {
+      "id": "speculation-en",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "speculative",
+      "probability": 1
+    },
+    {
+      "id": "speculation-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "speculative",
+      "probability": 1
+    },
+    {
+      "id": "transient-failure-en",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "transient",
+      "probability": 0.99
+    },
+    {
+      "id": "transient-failure-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "transient",
+      "probability": 1
+    },
+    {
+      "id": "revocation-en",
+      "expected": "allow",
+      "decision": "allow"
+    },
+    {
+      "id": "revocation-zh",
+      "expected": "allow",
+      "decision": "allow"
+    },
+    {
+      "id": "duplicate-en",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "duplicate",
+      "probability": 1
+    },
+    {
+      "id": "duplicate-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "duplicate",
+      "probability": 1
+    },
+    {
+      "id": "supplement-en",
+      "expected": "allow",
+      "decision": "allow"
+    },
+    {
+      "id": "supplement-zh",
+      "expected": "allow",
+      "decision": "allow"
+    },
+    {
+      "id": "conflict-en",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "unsupported",
+      "probability": 0.89
+    },
+    {
+      "id": "conflict-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "unsupported",
+      "probability": 0.95
+    },
+    {
+      "id": "harness-scope-expansion-en",
+      "expected": "hold",
+      "decision": "propose",
+      "probability": 0.22
+    },
+    {
+      "id": "harness-scope-expansion-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "probability": 0.19
+    }
+  ],
+  "reading": "Both directions improved. The two legitimate supplement cases are now allowed, and the negative transient class is now classified transient at 0.99 to 1.0 instead of grounded at 0.68 to 0.73, so the hold no longer depends on the probability gate. Zero false allows is preserved and the false-hold defect is closed on this corpus.",
+  "limits": [
+    "Fixed author-labelled samples, one pass after the change, 14 cases: not a rate and not net-benefit proof on its own.",
+    "The conflict English case moved from unsupported at 0.94 to uncertain at 0.89; the decision is still a hold, and the label is a near-miss on the same gate.",
+    "A real untuned project pair on the changed code is still required."
+  ],
+  "writeAuthorized": false
+}

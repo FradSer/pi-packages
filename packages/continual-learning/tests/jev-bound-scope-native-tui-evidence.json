@@ -1,0 +1,23 @@
+{
+  "evidence": "manual-real-native-pty",
+  "piVersion": "1.0.3",
+  "isolatedAgent": true,
+  "temporaryConfig": {
+    "autoMemory": false,
+    "jev": false
+  },
+  "commands": [
+    "/memory status",
+    "/harness",
+    "Escape",
+    "Ctrl-D"
+  ],
+  "observed": [
+    "memory status rendered explicit Jev disabled and pipeline idle",
+    "Harness rule selector opened and cancelled",
+    "normal terminal restoration and zero exit"
+  ],
+  "exitCode": 0,
+  "learningInferenceVerified": false,
+  "scope": "command/menu compatibility only"
+}

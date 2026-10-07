@@ -1,0 +1,1221 @@
+{
+  "evidence": "real-jev-focused-versus-nested-requirement-data",
+  "manifestSha256": "c4e3ffccec847411a0f6e585fca12e74647bbaf88994bd1c15610c45ad42d512",
+  "requests": 20,
+  "modelVersions": [
+    "jev-1.13.0"
+  ],
+  "aggregate": {
+    "all": {
+      "before": {
+        "definiteMissingDetected": 4,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 5,
+        "completeCorrectlyRecognized": 9,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 2,
+        "requirementFalseAccepts": 0,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 9
+      },
+      "after": {
+        "definiteMissingDetected": 4,
+        "incompleteJudgedComplete": 1,
+        "incompleteUncertainOrUnavailable": 4,
+        "completeCorrectlyRecognized": 11,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 0,
+        "requirementFalseAccepts": 1,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 6
+      }
+    },
+    "en": {
+      "before": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 2,
+        "completeCorrectlyRecognized": 6,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 0,
+        "requirementFalseAccepts": 0,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 3
+      },
+      "after": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 2,
+        "completeCorrectlyRecognized": 6,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 0,
+        "requirementFalseAccepts": 0,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 3
+      }
+    },
+    "zh": {
+      "before": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 3,
+        "completeCorrectlyRecognized": 3,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 2,
+        "requirementFalseAccepts": 0,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 6
+      },
+      "after": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 1,
+        "incompleteUncertainOrUnavailable": 2,
+        "completeCorrectlyRecognized": 5,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 0,
+        "requirementFalseAccepts": 1,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 3
+      }
+    }
+  },
+  "regressionCases": [
+    "explicit-long-term-observed-result-zh-after"
+  ],
+  "requirementRegressions": [
+    {
+      "id": "explicit-long-term-observed-result-zh-after",
+      "index": 0,
+      "kind": "new-false-accept"
+    }
+  ],
+  "gainCases": [
+    "requested-release-complete-zh",
+    "marker-complete-zh"
+  ],
+  "knownInputTokens": 36840,
+  "knownOutputTokens": 2096,
+  "knownEstimatedCostUsd": 0.0015472800000000003,
+  "usageResponses": 20,
+  "totalUsageKnown": true,
+  "billingVerified": false,
+  "durationMs": {
+    "sum": 21980,
+    "p50": 1058,
+    "p95": 1286
+  },
+  "productionWrites": 0,
+  "mainCalls": 0,
+  "heldout": false,
+  "humanGold": false,
+  "limits": [
+    "Both variants use the same manually anchored spans; no automatic extraction or durable relevance proof.",
+    "Both variants share a batch, complete frozen state and resulting bodies; per-arm latency and cost are not separable.",
+    "No candidate generation, Memory writes, recall or Harness effects.",
+    "Complete covers supplied requirements only; no authorization or privacy classification proof."
+  ],
+  "rows": [
+    {
+      "id": "explicit-long-term-observed-result-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "expectedPreserved": [
+        true,
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.9
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "before_preserved_2": {
+            "type": "noul",
+            "noul": 0.96
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.96
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_2": {
+            "type": "noul",
+            "noul": 0.97
+          }
+        },
+        "inputTokens": 2247,
+        "outputTokens": 130,
+        "estimatedCostUsd": 9.437400000000001e-05,
+        "durationMs": 1286
+      }
+    },
+    {
+      "id": "explicit-long-term-observed-result-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "expectedPreserved": [
+        true,
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.9
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "before_preserved_2": {
+            "type": "noul",
+            "noul": 0.95
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.93
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "after_preserved_2": {
+            "type": "noul",
+            "noul": 0.95
+          }
+        },
+        "inputTokens": 2241,
+        "outputTokens": 130,
+        "estimatedCostUsd": 9.4122e-05,
+        "durationMs": 1122
+      }
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "expectedPreserved": [
+        false,
+        true,
+        true
+      ],
+      "expectedOmission": true,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            0
+          ],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.8
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "before_preserved_2": {
+            "type": "noul",
+            "noul": 0.96
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.92
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "after_preserved_2": {
+            "type": "noul",
+            "noul": 0.96
+          }
+        },
+        "inputTokens": 2481,
+        "outputTokens": 130,
+        "estimatedCostUsd": 0.00010420200000000002,
+        "durationMs": 1091
+      }
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "expectedPreserved": [
+        true,
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.94
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "before_preserved_2": {
+            "type": "noul",
+            "noul": 0.96
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.95
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_2": {
+            "type": "noul",
+            "noul": 0.96
+          }
+        },
+        "inputTokens": 2553,
+        "outputTokens": 130,
+        "estimatedCostUsd": 0.00010722600000000002,
+        "durationMs": 1046
+      }
+    },
+    {
+      "id": "requested-release-complete-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-complete",
+      "language": "en",
+      "expectedPreserved": [
+        true,
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.9
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "before_preserved_2": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_2": {
+            "type": "noul",
+            "noul": 0.98
+          }
+        },
+        "inputTokens": 2134,
+        "outputTokens": 130,
+        "estimatedCostUsd": 8.9628e-05,
+        "durationMs": 1059
+      }
+    },
+    {
+      "id": "requested-release-complete-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-complete",
+      "language": "zh",
+      "expectedPreserved": [
+        true,
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            0
+          ],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.75
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "before_preserved_2": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.9
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "after_preserved_2": {
+            "type": "noul",
+            "noul": 0.98
+          }
+        },
+        "inputTokens": 2352,
+        "outputTokens": 130,
+        "estimatedCostUsd": 9.878400000000001e-05,
+        "durationMs": 1051
+      }
+    },
+    {
+      "id": "requested-release-incomplete-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-incomplete",
+      "language": "en",
+      "expectedPreserved": [
+        false,
+        true,
+        true
+      ],
+      "expectedOmission": true,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            0
+          ],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            0
+          ],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.39
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.96
+          },
+          "before_preserved_2": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.65
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "after_preserved_2": {
+            "type": "noul",
+            "noul": 0.98
+          }
+        },
+        "inputTokens": 2117,
+        "outputTokens": 130,
+        "estimatedCostUsd": 8.8914e-05,
+        "durationMs": 1058
+      }
+    },
+    {
+      "id": "requested-release-incomplete-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-incomplete",
+      "language": "zh",
+      "expectedPreserved": [
+        false,
+        true,
+        true
+      ],
+      "expectedOmission": true,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            0
+          ],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            0
+          ],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.21
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "before_preserved_2": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.49
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "after_preserved_2": {
+            "type": "noul",
+            "noul": 0.98
+          }
+        },
+        "inputTokens": 2317,
+        "outputTokens": 130,
+        "estimatedCostUsd": 9.731400000000001e-05,
+        "durationMs": 1073
+      }
+    },
+    {
+      "id": "requested-split-existing-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-split-existing",
+      "language": "en",
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.99
+          }
+        },
+        "inputTokens": 1521,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.388200000000001e-05,
+        "durationMs": 1204
+      }
+    },
+    {
+      "id": "requested-split-existing-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-split-existing",
+      "language": "zh",
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          }
+        },
+        "inputTokens": 1650,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.930000000000002e-05,
+        "durationMs": 1425
+      }
+    },
+    {
+      "id": "requested-report-placement-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-report-placement",
+      "language": "en",
+      "expectedPreserved": [
+        false,
+        true
+      ],
+      "expectedOmission": true,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            0
+          ],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            0
+          ],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.79
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.95
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.55
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.96
+          }
+        },
+        "inputTokens": 1494,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.2748e-05,
+        "durationMs": 1143
+      }
+    },
+    {
+      "id": "requested-report-placement-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-report-placement",
+      "language": "zh",
+      "expectedPreserved": [
+        false,
+        true
+      ],
+      "expectedOmission": true,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            0
+          ],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            0
+          ],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.53
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.91
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.57
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.9
+          }
+        },
+        "inputTokens": 1587,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.665400000000002e-05,
+        "durationMs": 1116
+      }
+    },
+    {
+      "id": "marker-complete-en",
+      "origin": "fresh-authored-development-control",
+      "scenario": "marker-complete",
+      "language": "en",
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.95
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.96
+          }
+        },
+        "inputTokens": 1497,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.287400000000001e-05,
+        "durationMs": 1033
+      }
+    },
+    {
+      "id": "marker-complete-zh",
+      "origin": "fresh-authored-development-control",
+      "scenario": "marker-complete",
+      "language": "zh",
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "uncertain",
+          "missing": [],
+          "uncertain": [
+            1
+          ],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.95
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.85
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.96
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.92
+          }
+        },
+        "inputTokens": 1610,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.762e-05,
+        "durationMs": 1029
+      }
+    },
+    {
+      "id": "condition-complete-en",
+      "origin": "fresh-authored-development-control",
+      "scenario": "condition-complete",
+      "language": "en",
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          }
+        },
+        "inputTokens": 1464,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.1488e-05,
+        "durationMs": 1048
+      }
+    },
+    {
+      "id": "condition-complete-zh",
+      "origin": "fresh-authored-development-control",
+      "scenario": "condition-complete",
+      "language": "zh",
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "expectedOmission": false,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "complete",
+          "missing": [],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.97
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.98
+          }
+        },
+        "inputTokens": 1538,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.4596e-05,
+        "durationMs": 1024
+      }
+    },
+    {
+      "id": "condition-missing-en",
+      "origin": "fresh-authored-development-control",
+      "scenario": "condition-missing",
+      "language": "en",
+      "expectedPreserved": [
+        false,
+        true
+      ],
+      "expectedOmission": true,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "incomplete",
+          "missing": [
+            0
+          ],
+          "uncertain": [
+            1
+          ],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "incomplete",
+          "missing": [
+            0
+          ],
+          "uncertain": [
+            1
+          ],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.06
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.57
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.05
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.51
+          }
+        },
+        "inputTokens": 1437,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.0354000000000005e-05,
+        "durationMs": 1035
+      }
+    },
+    {
+      "id": "condition-missing-zh",
+      "origin": "fresh-authored-development-control",
+      "scenario": "condition-missing",
+      "language": "zh",
+      "expectedPreserved": [
+        false,
+        true
+      ],
+      "expectedOmission": true,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "incomplete",
+          "missing": [
+            0
+          ],
+          "uncertain": [
+            1
+          ],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "incomplete",
+          "missing": [
+            0
+          ],
+          "uncertain": [
+            1
+          ],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.07
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.52
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.07
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.39
+          }
+        },
+        "inputTokens": 1491,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.262200000000001e-05,
+        "durationMs": 1055
+      }
+    },
+    {
+      "id": "marker-reversed-en",
+      "origin": "fresh-authored-development-control",
+      "scenario": "marker-reversed",
+      "language": "en",
+      "expectedPreserved": [
+        false,
+        false
+      ],
+      "expectedOmission": true,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "incomplete",
+          "missing": [
+            0,
+            1
+          ],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "incomplete",
+          "missing": [
+            0,
+            1
+          ],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.02
+          }
+        },
+        "inputTokens": 1498,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.2916e-05,
+        "durationMs": 1046
+      }
+    },
+    {
+      "id": "marker-reversed-zh",
+      "origin": "fresh-authored-development-control",
+      "scenario": "marker-reversed",
+      "language": "zh",
+      "expectedPreserved": [
+        false,
+        false
+      ],
+      "expectedOmission": true,
+      "result": {
+        "model": "jev-1.13.0",
+        "writeAuthorized": false,
+        "before": {
+          "status": "incomplete",
+          "missing": [
+            0,
+            1
+          ],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "after": {
+          "status": "incomplete",
+          "missing": [
+            0,
+            1
+          ],
+          "uncertain": [],
+          "writeAuthorized": false
+        },
+        "answers": {
+          "before_preserved_0": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "before_preserved_1": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "after_preserved_0": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "after_preserved_1": {
+            "type": "noul",
+            "noul": 0.02
+          }
+        },
+        "inputTokens": 1611,
+        "outputTokens": 88,
+        "estimatedCostUsd": 6.7662e-05,
+        "durationMs": 1036
+      }
+    }
+  ]
+}

@@ -1,0 +1,1491 @@
+{
+  "evidence": "prospective-manually-anchored-request-completeness-development-study",
+  "heldout": false,
+  "humanGold": false,
+  "rows": [
+    {
+      "id": "explicit-long-term-observed-result-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember this release qualification result permanently: on Node 22.23.2, all 17 compatibility tests passed; preserve the exact version and count."
+          },
+          {
+            "role": "toolResult",
+            "content": "Verified release qualification on Node 22.23.2: 17 passed."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "snapshotDigest": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Node 22.23.2: all 17 compatibility tests passed; release qualification verified.\ntype: project\n---\nNode 22.23.2: all 17 compatibility tests passed; release qualification verified.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember this release qualification result permanently: on Node 22.23.2, all 17 compatibility tests passed; preserve the exact version and count."
+              },
+              {
+                "index": 1,
+                "quote": "Verified release qualification on Node 22.23.2: 17 passed."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Node 22.23.2: all 17 compatibility tests passed; release qualification verified.\ntype: project\n---\nNode 22.23.2: all 17 compatibility tests passed; release qualification verified.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "f8b2477fd5be00004e6606873753b367d57202c14ebc93be6ea413b43e6aa106",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-before/result.json"
+      },
+      "requirements": [
+        {
+          "index": 0,
+          "start": 14,
+          "end": 42,
+          "quote": "release qualification result"
+        },
+        {
+          "index": 0,
+          "start": 59,
+          "end": 71,
+          "quote": "Node 22.23.2"
+        },
+        {
+          "index": 0,
+          "start": 73,
+          "end": 106,
+          "quote": "all 17 compatibility tests passed"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "explicit-long-term-observed-result-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember this release qualification result permanently: on Node 22.23.2, all 17 compatibility tests passed; preserve the exact version and count."
+          },
+          {
+            "role": "toolResult",
+            "content": "Verified release qualification on Node 22.23.2: 17 passed."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "snapshotDigest": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: \"Verified release qualification: Node 22.23.2, 17 compatibility tests passed.\"\ntype: project\n---\nVerified release qualification: Node 22.23.2, 17 compatibility tests passed.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember this release qualification result permanently: on Node 22.23.2, all 17 compatibility tests passed; preserve the exact version and count."
+              },
+              {
+                "index": 1,
+                "quote": "Verified release qualification on Node 22.23.2: 17 passed."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: \"Verified release qualification: Node 22.23.2, 17 compatibility tests passed.\"\ntype: project\n---\nVerified release qualification: Node 22.23.2, 17 compatibility tests passed.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "c5b75176e303fc44fb4f3e38fb5973a8e26d57965cd4b3c4aeb952a7329e3c4e",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-after/result.json"
+      },
+      "requirements": [
+        {
+          "index": 0,
+          "start": 14,
+          "end": 42,
+          "quote": "release qualification result"
+        },
+        {
+          "index": 0,
+          "start": 59,
+          "end": 71,
+          "quote": "Node 22.23.2"
+        },
+        {
+          "index": 0,
+          "start": 73,
+          "end": 106,
+          "quote": "all 17 compatibility tests passed"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "请长期记住这个版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过；保留准确版本和数量。"
+          },
+          {
+            "role": "toolResult",
+            "content": "已验证此版本在 Node 22.23.2 上的验收结果：17 passed。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "snapshotDigest": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: 此版本在 Node 22.23.2 上全部 17 项兼容性测试通过\ntype: project\n---\n此版本在 Node 22.23.2 上全部 17 项兼容性测试通过。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "请长期记住这个版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过；保留准确版本和数量。"
+              },
+              {
+                "index": 1,
+                "quote": "已验证此版本在 Node 22.23.2 上的验收结果：17 passed。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: 此版本在 Node 22.23.2 上全部 17 项兼容性测试通过\ntype: project\n---\n此版本在 Node 22.23.2 上全部 17 项兼容性测试通过。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "41753ab5abed8a371568d08e1934ac9a087bc4aaac027d3d29843a9fbcb303a7",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-after/result.json"
+      },
+      "requirements": [
+        {
+          "index": 0,
+          "start": 10,
+          "end": 14,
+          "quote": "验收结果"
+        },
+        {
+          "index": 0,
+          "start": 17,
+          "end": 29,
+          "quote": "Node 22.23.2"
+        },
+        {
+          "index": 0,
+          "start": 32,
+          "end": 46,
+          "quote": "全部 17 项兼容性测试通过"
+        }
+      ],
+      "expectedPreserved": [
+        false,
+        true,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "请长期记住这个版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过；保留准确版本和数量。"
+          },
+          {
+            "role": "toolResult",
+            "content": "已验证此版本在 Node 22.23.2 上的验收结果：17 passed。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "snapshotDigest": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: 此版本在 Node 22.23.2 上的验收结果：17 项兼容性测试通过（已验证）。\ntype: project\n---\n此版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过（已验证）。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "请长期记住这个版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过；保留准确版本和数量。"
+              },
+              {
+                "index": 1,
+                "quote": "已验证此版本在 Node 22.23.2 上的验收结果：17 passed。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: 此版本在 Node 22.23.2 上的验收结果：17 项兼容性测试通过（已验证）。\ntype: project\n---\n此版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过（已验证）。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "8490cde2a1b2f2f0c2eaed3baa88b0e11fda502efa10a73745a1f5a8d7aefde9",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-before/result.json"
+      },
+      "requirements": [
+        {
+          "index": 0,
+          "start": 10,
+          "end": 14,
+          "quote": "验收结果"
+        },
+        {
+          "index": 0,
+          "start": 17,
+          "end": 29,
+          "quote": "Node 22.23.2"
+        },
+        {
+          "index": 0,
+          "start": 32,
+          "end": 46,
+          "quote": "全部 17 项兼容性测试通过"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "requested-release-complete-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-complete",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-release-complete-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember the release acceptance result: Node 22.23.2 completed all 23 compatibility checks."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nRelease acceptance: Node 22.23.2 completed all 23 compatibility checks.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember the release acceptance result: Node 22.23.2 completed all 23 compatibility checks."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nRelease acceptance: Node 22.23.2 completed all 23 compatibility checks.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": null,
+      "requirements": [
+        {
+          "index": 0,
+          "start": 13,
+          "end": 38,
+          "quote": "release acceptance result"
+        },
+        {
+          "index": 0,
+          "start": 40,
+          "end": 52,
+          "quote": "Node 22.23.2"
+        },
+        {
+          "index": 0,
+          "start": 53,
+          "end": 90,
+          "quote": "completed all 23 compatibility checks"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "requested-release-complete-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-complete",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-release-complete-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住发布验收结果：Node 22.23.2 完成了全部 23 项兼容性检查。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n发布验收：Node 22.23.2 完成了全部 23 项兼容性检查。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住发布验收结果：Node 22.23.2 完成了全部 23 项兼容性检查。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n发布验收：Node 22.23.2 完成了全部 23 项兼容性检查。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": null,
+      "requirements": [
+        {
+          "index": 0,
+          "start": 2,
+          "end": 8,
+          "quote": "发布验收结果"
+        },
+        {
+          "index": 0,
+          "start": 9,
+          "end": 21,
+          "quote": "Node 22.23.2"
+        },
+        {
+          "index": 0,
+          "start": 22,
+          "end": 37,
+          "quote": "完成了全部 23 项兼容性检查"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "requested-release-incomplete-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-incomplete",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-release-incomplete-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember the release acceptance result: Node 22.23.2 completed all 23 compatibility checks."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNode 22.23.2 completed all 23 compatibility checks.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember the release acceptance result: Node 22.23.2 completed all 23 compatibility checks."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNode 22.23.2 completed all 23 compatibility checks.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "projectSource": null,
+      "requirements": [
+        {
+          "index": 0,
+          "start": 13,
+          "end": 38,
+          "quote": "release acceptance result"
+        },
+        {
+          "index": 0,
+          "start": 40,
+          "end": 52,
+          "quote": "Node 22.23.2"
+        },
+        {
+          "index": 0,
+          "start": 53,
+          "end": 90,
+          "quote": "completed all 23 compatibility checks"
+        }
+      ],
+      "expectedPreserved": [
+        false,
+        true,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "requested-release-incomplete-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-incomplete",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-release-incomplete-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住发布验收结果：Node 22.23.2 完成了全部 23 项兼容性检查。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNode 22.23.2 完成了全部 23 项兼容性检查。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住发布验收结果：Node 22.23.2 完成了全部 23 项兼容性检查。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNode 22.23.2 完成了全部 23 项兼容性检查。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "projectSource": null,
+      "requirements": [
+        {
+          "index": 0,
+          "start": 2,
+          "end": 8,
+          "quote": "发布验收结果"
+        },
+        {
+          "index": 0,
+          "start": 9,
+          "end": 21,
+          "quote": "Node 22.23.2"
+        },
+        {
+          "index": 0,
+          "start": 22,
+          "end": 37,
+          "quote": "完成了全部 23 项兼容性检查"
+        }
+      ],
+      "expectedPreserved": [
+        false,
+        true,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "requested-split-existing-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-split-existing",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-split-existing-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember both project settings: cache TTL is 60 seconds and pool limit is 16 connections."
+          }
+        ]
+      },
+      "existing": [
+        {
+          "name": "pool.md",
+          "classification": "safe",
+          "type": "project",
+          "description": "Connection pool limit",
+          "content": "Pool limit is 16 connections."
+        }
+      ],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nCache TTL is 60 seconds.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember both project settings: cache TTL is 60 seconds and pool limit is 16 connections."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nCache TTL is 60 seconds.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": null,
+      "requirements": [
+        {
+          "index": 0,
+          "start": 32,
+          "end": 55,
+          "quote": "cache TTL is 60 seconds"
+        },
+        {
+          "index": 0,
+          "start": 60,
+          "end": 88,
+          "quote": "pool limit is 16 connections"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "requested-split-existing-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-split-existing",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-split-existing-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住两项项目配置：缓存 TTL 为 60 秒，连接池上限为 16 个连接。"
+          }
+        ]
+      },
+      "existing": [
+        {
+          "name": "pool.md",
+          "classification": "safe",
+          "type": "project",
+          "description": "Connection pool limit",
+          "content": "连接池上限为 16 个连接。"
+        }
+      ],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n缓存 TTL 为 60 秒。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住两项项目配置：缓存 TTL 为 60 秒，连接池上限为 16 个连接。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n缓存 TTL 为 60 秒。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": null,
+      "requirements": [
+        {
+          "index": 0,
+          "start": 9,
+          "end": 22,
+          "quote": "缓存 TTL 为 60 秒"
+        },
+        {
+          "index": 0,
+          "start": 23,
+          "end": 36,
+          "quote": "连接池上限为 16 个连接"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "requested-report-placement-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-report-placement",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-report-placement-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember: successful reports must begin with READY_FOR_REVIEW; error reports must never use that marker."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nSuccessful reports use READY_FOR_REVIEW; error reports never use it.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember: successful reports must begin with READY_FOR_REVIEW; error reports must never use that marker."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nSuccessful reports use READY_FOR_REVIEW; error reports never use it.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "projectSource": null,
+      "requirements": [
+        {
+          "index": 0,
+          "start": 34,
+          "end": 61,
+          "quote": "begin with READY_FOR_REVIEW"
+        },
+        {
+          "index": 0,
+          "start": 63,
+          "end": 103,
+          "quote": "error reports must never use that marker"
+        }
+      ],
+      "expectedPreserved": [
+        false,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "requested-report-placement-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-report-placement",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-report-placement-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住：成功报告必须以 READY_FOR_REVIEW 开头；错误报告绝不使用该标记。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n成功报告使用 READY_FOR_REVIEW；错误报告不使用。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住：成功报告必须以 READY_FOR_REVIEW 开头；错误报告绝不使用该标记。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n成功报告使用 READY_FOR_REVIEW；错误报告不使用。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "projectSource": null,
+      "requirements": [
+        {
+          "index": 0,
+          "start": 9,
+          "end": 30,
+          "quote": "以 READY_FOR_REVIEW 开头"
+        },
+        {
+          "index": 0,
+          "start": 31,
+          "end": 42,
+          "quote": "错误报告绝不使用该标记"
+        }
+      ],
+      "expectedPreserved": [
+        false,
+        true
+      ],
+      "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b"
+    },
+    {
+      "id": "marker-complete-en",
+      "scenario": "marker-complete",
+      "language": "en",
+      "origin": "fresh-authored-development-control",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "request-marker-complete-en",
+        "scopeKey": "request-completeness-development",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember: successful reports must begin with READY_FOR_REVIEW; error reports must never use that marker."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "requirement_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: requirement_fact\ndescription: Successful reports begin with READY_FOR_REVIEW; error reports never use it.\ntype: project\n---\nSuccessful reports begin with READY_FOR_REVIEW; error reports never use it.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember: successful reports must begin with READY_FOR_REVIEW; error reports must never use that marker."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "op": "create",
+          "name": "requirement_fact.md",
+          "content": "---\nname: requirement_fact\ndescription: Successful reports begin with READY_FOR_REVIEW; error reports never use it.\ntype: project\n---\nSuccessful reports begin with READY_FOR_REVIEW; error reports never use it.\n"
+        }
+      ],
+      "requirements": [
+        {
+          "index": 0,
+          "start": 34,
+          "end": 61,
+          "quote": "begin with READY_FOR_REVIEW"
+        },
+        {
+          "index": 0,
+          "start": 63,
+          "end": 103,
+          "quote": "error reports must never use that marker"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "expected": {
+        "omission": false
+      }
+    },
+    {
+      "id": "marker-complete-zh",
+      "scenario": "marker-complete",
+      "language": "zh",
+      "origin": "fresh-authored-development-control",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "request-marker-complete-zh",
+        "scopeKey": "request-completeness-development",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住：成功报告必须以 READY_FOR_REVIEW 开头；错误报告绝不使用该标记。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "requirement_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: requirement_fact\ndescription: 成功报告以 READY_FOR_REVIEW 开头；错误报告不使用该标记。\ntype: project\n---\n成功报告以 READY_FOR_REVIEW 开头；错误报告不使用该标记。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住：成功报告必须以 READY_FOR_REVIEW 开头；错误报告绝不使用该标记。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "op": "create",
+          "name": "requirement_fact.md",
+          "content": "---\nname: requirement_fact\ndescription: 成功报告以 READY_FOR_REVIEW 开头；错误报告不使用该标记。\ntype: project\n---\n成功报告以 READY_FOR_REVIEW 开头；错误报告不使用该标记。\n"
+        }
+      ],
+      "requirements": [
+        {
+          "index": 0,
+          "start": 9,
+          "end": 30,
+          "quote": "以 READY_FOR_REVIEW 开头"
+        },
+        {
+          "index": 0,
+          "start": 31,
+          "end": 42,
+          "quote": "错误报告绝不使用该标记"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "expected": {
+        "omission": false
+      }
+    },
+    {
+      "id": "condition-complete-en",
+      "scenario": "condition-complete",
+      "language": "en",
+      "origin": "fresh-authored-development-control",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "request-condition-complete-en",
+        "scopeKey": "request-completeness-development",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember: until IPv6 provisioning is complete, use IPv4 for this project."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "requirement_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: requirement_fact\ndescription: until IPv6 provisioning is complete, use IPv4 for this project.\ntype: project\n---\nuntil IPv6 provisioning is complete, use IPv4 for this project.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember: until IPv6 provisioning is complete, use IPv4 for this project."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "op": "create",
+          "name": "requirement_fact.md",
+          "content": "---\nname: requirement_fact\ndescription: until IPv6 provisioning is complete, use IPv4 for this project.\ntype: project\n---\nuntil IPv6 provisioning is complete, use IPv4 for this project.\n"
+        }
+      ],
+      "requirements": [
+        {
+          "index": 0,
+          "start": 10,
+          "end": 45,
+          "quote": "until IPv6 provisioning is complete"
+        },
+        {
+          "index": 0,
+          "start": 47,
+          "end": 55,
+          "quote": "use IPv4"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "expected": {
+        "omission": false
+      }
+    },
+    {
+      "id": "condition-complete-zh",
+      "scenario": "condition-complete",
+      "language": "zh",
+      "origin": "fresh-authored-development-control",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "request-condition-complete-zh",
+        "scopeKey": "request-completeness-development",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住：在 IPv6 配置完成之前，此项目使用 IPv4。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "requirement_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: requirement_fact\ndescription: 在 IPv6 配置完成之前，此项目使用 IPv4。\ntype: project\n---\n在 IPv6 配置完成之前，此项目使用 IPv4。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住：在 IPv6 配置完成之前，此项目使用 IPv4。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "op": "create",
+          "name": "requirement_fact.md",
+          "content": "---\nname: requirement_fact\ndescription: 在 IPv6 配置完成之前，此项目使用 IPv4。\ntype: project\n---\n在 IPv6 配置完成之前，此项目使用 IPv4。\n"
+        }
+      ],
+      "requirements": [
+        {
+          "index": 0,
+          "start": 3,
+          "end": 16,
+          "quote": "在 IPv6 配置完成之前"
+        },
+        {
+          "index": 0,
+          "start": 20,
+          "end": 27,
+          "quote": "使用 IPv4"
+        }
+      ],
+      "expectedPreserved": [
+        true,
+        true
+      ],
+      "expected": {
+        "omission": false
+      }
+    },
+    {
+      "id": "condition-missing-en",
+      "scenario": "condition-missing",
+      "language": "en",
+      "origin": "fresh-authored-development-control",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "request-condition-missing-en",
+        "scopeKey": "request-completeness-development",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember: until IPv6 provisioning is complete, use IPv4 for this project."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "requirement_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: requirement_fact\ndescription: Use IPv4 for this project.\ntype: project\n---\nUse IPv4 for this project.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember: until IPv6 provisioning is complete, use IPv4 for this project."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "op": "create",
+          "name": "requirement_fact.md",
+          "content": "---\nname: requirement_fact\ndescription: Use IPv4 for this project.\ntype: project\n---\nUse IPv4 for this project.\n"
+        }
+      ],
+      "requirements": [
+        {
+          "index": 0,
+          "start": 10,
+          "end": 45,
+          "quote": "until IPv6 provisioning is complete"
+        },
+        {
+          "index": 0,
+          "start": 47,
+          "end": 55,
+          "quote": "use IPv4"
+        }
+      ],
+      "expectedPreserved": [
+        false,
+        true
+      ],
+      "expected": {
+        "omission": true
+      }
+    },
+    {
+      "id": "condition-missing-zh",
+      "scenario": "condition-missing",
+      "language": "zh",
+      "origin": "fresh-authored-development-control",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "request-condition-missing-zh",
+        "scopeKey": "request-completeness-development",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住：在 IPv6 配置完成之前，此项目使用 IPv4。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "requirement_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: requirement_fact\ndescription: 此项目使用 IPv4。\ntype: project\n---\n此项目使用 IPv4。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住：在 IPv6 配置完成之前，此项目使用 IPv4。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "op": "create",
+          "name": "requirement_fact.md",
+          "content": "---\nname: requirement_fact\ndescription: 此项目使用 IPv4。\ntype: project\n---\n此项目使用 IPv4。\n"
+        }
+      ],
+      "requirements": [
+        {
+          "index": 0,
+          "start": 3,
+          "end": 16,
+          "quote": "在 IPv6 配置完成之前"
+        },
+        {
+          "index": 0,
+          "start": 20,
+          "end": 27,
+          "quote": "使用 IPv4"
+        }
+      ],
+      "expectedPreserved": [
+        false,
+        true
+      ],
+      "expected": {
+        "omission": true
+      }
+    },
+    {
+      "id": "marker-reversed-en",
+      "scenario": "marker-reversed",
+      "language": "en",
+      "origin": "fresh-authored-development-control",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "request-marker-reversed-en",
+        "scopeKey": "request-completeness-development",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember: successful reports must begin with READY_FOR_REVIEW; error reports must never use that marker."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "requirement_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: requirement_fact\ndescription: Error reports begin with READY_FOR_REVIEW; successful reports never use it.\ntype: project\n---\nError reports begin with READY_FOR_REVIEW; successful reports never use it.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember: successful reports must begin with READY_FOR_REVIEW; error reports must never use that marker."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "op": "create",
+          "name": "requirement_fact.md",
+          "content": "---\nname: requirement_fact\ndescription: Error reports begin with READY_FOR_REVIEW; successful reports never use it.\ntype: project\n---\nError reports begin with READY_FOR_REVIEW; successful reports never use it.\n"
+        }
+      ],
+      "requirements": [
+        {
+          "index": 0,
+          "start": 34,
+          "end": 61,
+          "quote": "begin with READY_FOR_REVIEW"
+        },
+        {
+          "index": 0,
+          "start": 63,
+          "end": 103,
+          "quote": "error reports must never use that marker"
+        }
+      ],
+      "expectedPreserved": [
+        false,
+        false
+      ],
+      "expected": {
+        "omission": true
+      }
+    },
+    {
+      "id": "marker-reversed-zh",
+      "scenario": "marker-reversed",
+      "language": "zh",
+      "origin": "fresh-authored-development-control",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "request-marker-reversed-zh",
+        "scopeKey": "request-completeness-development",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住：成功报告必须以 READY_FOR_REVIEW 开头；错误报告绝不使用该标记。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "requirement_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: requirement_fact\ndescription: 错误报告以 READY_FOR_REVIEW 开头；成功报告不使用该标记。\ntype: project\n---\n错误报告以 READY_FOR_REVIEW 开头；成功报告不使用该标记。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住：成功报告必须以 READY_FOR_REVIEW 开头；错误报告绝不使用该标记。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "op": "create",
+          "name": "requirement_fact.md",
+          "content": "---\nname: requirement_fact\ndescription: 错误报告以 READY_FOR_REVIEW 开头；成功报告不使用该标记。\ntype: project\n---\n错误报告以 READY_FOR_REVIEW 开头；成功报告不使用该标记。\n"
+        }
+      ],
+      "requirements": [
+        {
+          "index": 0,
+          "start": 9,
+          "end": 30,
+          "quote": "以 READY_FOR_REVIEW 开头"
+        },
+        {
+          "index": 0,
+          "start": 31,
+          "end": 42,
+          "quote": "错误报告绝不使用该标记"
+        }
+      ],
+      "expectedPreserved": [
+        false,
+        false
+      ],
+      "expected": {
+        "omission": true
+      }
+    }
+  ],
+  "sourceCorpusSha256": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b",
+  "limits": [
+    "Requirements are manually selected and model reviewed, not automatic extraction or human gold.",
+    "Requirements cover body knowledge only, not persisted privacy classification or sharing authorization.",
+    "All existing and resulting frontmatter is removed in both compared questions.",
+    "Twelve known development outputs and eight new authored controls; paired language and before/after rows are not independent scenarios."
+  ],
+  "origins": {
+    "realGeneratorOutputs": 4,
+    "previousAuthoredSamples": 8,
+    "newAuthoredControls": 8
+  }
+}

@@ -1,0 +1,1186 @@
+[
+  {
+    "id": "en-claim-fresh-01",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Run pnpm test to reproduce the parser bug."
+        },
+        {
+          "role": "toolResult",
+          "content": "pnpm test reproduced the parser bug and exited 1."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "Run pnpm test to reproduce the parser bug.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Run pnpm test to reproduce the parser bug.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-02",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The frontend uses pnpm. Do not push to the remote."
+        },
+        {
+          "role": "user",
+          "content": "Continue fixing the frontend locally."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "The frontend uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "The frontend uses pnpm. Do not push to the remote.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-03",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Use SAMPLE_SIGNOFF in my reports."
+        },
+        {
+          "role": "assistant",
+          "content": "I accidentally omitted the signoff from this draft."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "Use SAMPLE_SIGNOFF in my reports.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Use SAMPLE_SIGNOFF in my reports.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-04",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The frontend uses pnpm."
+        },
+        {
+          "role": "assistant",
+          "content": "Maybe npm is used instead; this is only a guess."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "The frontend uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "The frontend uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-05",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Run pnpm test for the frontend tests."
+        },
+        {
+          "role": "toolResult",
+          "content": "Registry lookup timed out once, then succeeded. No project configuration changed."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "Run pnpm test for the frontend tests.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Run pnpm test for the frontend tests.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-06",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Use SAMPLE_SIGNOFF in my reports."
+        },
+        {
+          "role": "user",
+          "content": "Next, explain the parser code."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "Use SAMPLE_SIGNOFF in my reports.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Use SAMPLE_SIGNOFF in my reports.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-07",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The frontend uses pnpm; the backend uses uv."
+        },
+        {
+          "role": "toolResult",
+          "content": "Verified backend pyproject.toml uses uv."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "The frontend uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "The frontend uses pnpm; the backend uses uv.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-08",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Answer my project questions in Chinese."
+        },
+        {
+          "role": "assistant",
+          "content": "Here is an English example response; I did not receive a preference change."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "Answer my project questions in Chinese.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Answer my project questions in Chinese.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-09",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The frontend uses pnpm."
+        },
+        {
+          "role": "user",
+          "content": "Correction: the frontend now uses npm instead."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "The frontend uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "The frontend uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-10",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The frontend uses pnpm."
+        },
+        {
+          "role": "toolResult",
+          "content": "Verified frontend package.json now has packageManager: npm@10."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "The frontend uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "The frontend uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-11",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Use SAMPLE_SIGNOFF in my reports."
+        },
+        {
+          "role": "user",
+          "content": "Stop using SAMPLE_SIGNOFF in my reports."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "Use SAMPLE_SIGNOFF in my reports.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Use SAMPLE_SIGNOFF in my reports.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-12",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Only the legacy frontend uses pnpm; the new frontend uses npm."
+        },
+        {
+          "role": "user",
+          "content": "Keep these two frontend environments separate."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "Every frontend uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Only the legacy frontend uses pnpm; the new frontend uses npm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-13",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "I suspect the parser requires UTF-16, but have not verified it."
+        },
+        {
+          "role": "assistant",
+          "content": "This remains an untested hypothesis."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "The parser requires UTF-16.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "I suspect the parser requires UTF-16, but have not verified it.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-14",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The registry request failed once with a timeout."
+        },
+        {
+          "role": "toolResult",
+          "content": "A retry successfully reached the registry."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "This project can never reach its registry.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "The registry request failed once with a timeout.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-15",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Run pnpm test for the frontend tests."
+        },
+        {
+          "role": "toolResult",
+          "content": "Verified pnpm test failed three frontend tests."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "All frontend tests always pass.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Run pnpm test for the frontend tests.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-claim-fresh-16",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Answer my project questions in Chinese."
+        },
+        {
+          "role": "user",
+          "content": "From now on answer my project questions in English."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "Answer my project questions in Chinese.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Answer my project questions in Chinese.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-01",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "用 pnpm test 复现解析器错误。"
+        },
+        {
+          "role": "toolResult",
+          "content": "pnpm test 复现了解析器错误，退出码为 1。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "用 pnpm test 复现解析器错误。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "用 pnpm test 复现解析器错误。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-02",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "前端使用 pnpm。不要推送到远端。"
+        },
+        {
+          "role": "user",
+          "content": "继续在本地修复前端。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "前端使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "前端使用 pnpm。不要推送到远端。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-03",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "我的报告使用 SAMPLE_SIGNOFF 署名。"
+        },
+        {
+          "role": "assistant",
+          "content": "这份草稿里我忘记加署名了。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "我的报告使用 SAMPLE_SIGNOFF 署名。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "我的报告使用 SAMPLE_SIGNOFF 署名。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-04",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "前端使用 pnpm。"
+        },
+        {
+          "role": "assistant",
+          "content": "也许实际使用 npm；这只是猜测。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "前端使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "前端使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-05",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "前端测试运行 pnpm test。"
+        },
+        {
+          "role": "toolResult",
+          "content": "查询注册表时暂时超时，重试成功。项目配置没有改变。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "前端测试运行 pnpm test。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "前端测试运行 pnpm test。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-06",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "我的报告使用 SAMPLE_SIGNOFF 署名。"
+        },
+        {
+          "role": "user",
+          "content": "接下来解释解析器代码。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "我的报告使用 SAMPLE_SIGNOFF 署名。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "我的报告使用 SAMPLE_SIGNOFF 署名。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-07",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "前端使用 pnpm，后端使用 uv。"
+        },
+        {
+          "role": "toolResult",
+          "content": "检查后端 pyproject.toml 确认使用 uv。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "前端使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "前端使用 pnpm，后端使用 uv。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-08",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "回答我的项目问题时使用中文。"
+        },
+        {
+          "role": "assistant",
+          "content": "下面是一个英文回答示例，没有收到用户改变偏好的要求。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "回答我的项目问题时使用中文。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "回答我的项目问题时使用中文。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-09",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "前端使用 pnpm。"
+        },
+        {
+          "role": "user",
+          "content": "更正：前端现在改用 npm。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "前端使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "前端使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-10",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "前端使用 pnpm。"
+        },
+        {
+          "role": "toolResult",
+          "content": "实际检查前端 package.json，packageManager 现在是 npm@10。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "前端使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "前端使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-11",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "我的报告使用 SAMPLE_SIGNOFF 署名。"
+        },
+        {
+          "role": "user",
+          "content": "以后我的报告不要使用 SAMPLE_SIGNOFF 署名。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "我的报告使用 SAMPLE_SIGNOFF 署名。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "我的报告使用 SAMPLE_SIGNOFF 署名。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-12",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "只有旧前端使用 pnpm，新前端使用 npm。"
+        },
+        {
+          "role": "user",
+          "content": "保留这两种前端环境的区别。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "所有前端都使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "只有旧前端使用 pnpm，新前端使用 npm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-13",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "我怀疑解析器需要 UTF-16，但尚未验证。"
+        },
+        {
+          "role": "assistant",
+          "content": "这仍是尚未测试的假设。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "解析器需要 UTF-16。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "我怀疑解析器需要 UTF-16，但尚未验证。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-14",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "注册表请求出现了一次超时。"
+        },
+        {
+          "role": "toolResult",
+          "content": "重试成功访问了注册表。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "这个项目永远无法访问注册表。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "注册表请求出现了一次超时。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-15",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "前端测试运行 pnpm test。"
+        },
+        {
+          "role": "toolResult",
+          "content": "实际运行 pnpm test，三个前端测试失败。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "前端的所有测试始终通过。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "前端测试运行 pnpm test。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-claim-fresh-16",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "回答我的项目问题时使用中文。"
+        },
+        {
+          "role": "user",
+          "content": "以后回答我的项目问题时改用英文。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "回答我的项目问题时使用中文。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "回答我的项目问题时使用中文。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

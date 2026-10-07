@@ -26,10 +26,19 @@ const session = { ...text, description: "Copy the complete returned session hand
 export const INTENT_TOOL_SCHEMAS = {
   agent_start: { type: "object", properties: {
     prompt: { ...text, description: "The work for this child's first input. Accepted input is not a completed result." },
-    identity: { ...text, pattern: "^[A-Za-z][A-Za-z0-9._-]{0,63}$", description: "Existing disk agent.md identity. Missing identities fail; they never become temporary roles." },
+    // Declared without `minLength` or a pattern, because this field is optional and
+    // a caller choosing the temporary path has to express absence somehow. The
+    // extension reads an empty value as no identity (`fields.identity.trim()`),
+    // so a schema that refused it contradicted the code: the one legal
+    // alternative to a saved identity was reachable only by omitting the key, and
+    // nothing said so.
+    identity: { type: "string", description: "Existing disk agent.md identity. Omit this field for a temporary role; an empty value is read as absent. A name that is not a saved identity is refused by name. Missing identities never become temporary roles." },
     label: { ...text, maxLength: 120, description: "Display label only. It never selects or creates an identity." },
     instructions: { ...text, description: "Temporary standing instructions. Do not combine with a saved identity." },
-    tools: { type: "array", items: text, description: "Minimal tools. Defaults to none or the identity grant. Explicit lists only narrow saved grants; agent_message is standalone-only and must be explicitly granted for intermediate progress." },
+    // The grantable ids are a fixed set, and a project-extension tool is not in it.
+    // Both facts used to appear only in the refusal of a real call, so a caller
+    // learned the contract by spending one.
+    tools: { type: "array", items: text, description: "Minimal tools. Grantable ids: read, bash, edit, write, grep, find, ls, powershell, agent_memory. Defaults to none or the identity grant. Explicit lists only narrow saved grants; agent_message is standalone-only and must be explicitly granted for intermediate progress. A child runs a bare pi process, so a project-extension or MCP tool never reaches it: perform that work in the leader session." },
     model: { ...text, description: "Optional provider/model override. Omit to inherit." },
     fork: { type: "boolean", description: "Copy safe parent context without parent tool authority. Omit for no parent history." },
   }, required: ["prompt"], additionalProperties: false },
@@ -166,6 +175,12 @@ function intentSummary(operation: IntentToolName, details: IntentRenderDetails, 
     const retained = sessionRows(details).length + (details.definitions ?? []).length;
     if (retained > 0 || operation === "agent_stop") return [];
     const page = details.page;
+    if (operation === "agent_list" && page && page.totalSessions + page.totalDefinitions === 0) {
+      // An empty definition list is a state the caller has to act on, and the
+      // reachable path was the user scope under the agent home. Name the project
+      // path and the path that needs no file at all.
+      return ["No saved identity on disk. A temporary role needs none: omit identity and pass instructions. A saved identity lives at .pi/agents/<name>/agent.md in this repository."];
+    }
     return [operation === "agent_list" && page
       ? `No entries on this page (${page.totalSessions + page.totalDefinitions} total).`
       : "No retained child record."];
@@ -254,16 +269,25 @@ function refuse(operation: IntentToolName, error: string, code = "invalid-parame
 }
 function validate(operation: IntentToolName, value: unknown): { ok: true; fields: Record<string, unknown> } | { ok: false; error: string } {
   if (!value || typeof value !== "object" || Array.isArray(value)) return { ok: false, error: "Tool input must be an object." };
-  const fields = value as Record<string, unknown>;
+  // Copied, because the normalization below removes keys, and a caller's own
+  // params object is not this function's to edit.
+  const fields = { ...(value as Record<string, unknown>) };
   const allowed = INTENT_TOOL_SCHEMAS[operation].properties;
   for (const key of Reflect.ownKeys(fields)) {
     if (typeof key !== "string" || !Object.hasOwn(allowed, key)) return { ok: false, error: `Unknown parameter ${String(key)} for ${operation}.` };
   }
   if (operation === "agent_start") {
+    // A blank optional string is absence, not a value. The extension reads an
+    // empty identity as no identity, so `identity: ""` is the temporary path
+    // spelled out; refusing it here contradicted that read, and refused the one
+    // shape a caller reaches for when it has no saved identity to name.
+    for (const key of ["identity", "label", "instructions", "model"]) {
+      if (typeof fields[key] === "string" && !fields[key].trim()) delete fields[key];
+    }
     if (typeof fields.prompt !== "string" || !fields.prompt.trim()) return { ok: false, error: "prompt must be a nonempty string for agent_start." };
     for (const key of ["prompt", "identity", "label", "instructions", "model"]) {
       if (key !== "prompt" && !Object.hasOwn(fields, key)) continue;
-      if (typeof fields[key] !== "string" || !fields[key].trim()) return { ok: false, error: `${key} must be a nonempty string.` };
+      if (typeof fields[key] !== "string") return { ok: false, error: `${key} must be a string.` };
     }
     if (typeof fields.label === "string" && (fields.label.length > 120 || /[\x00-\x1f\x7f]/.test(fields.label))) return { ok: false, error: "A display label must be one safe line of at most 120 characters." };
     if (fields.identity !== undefined && fields.instructions !== undefined) return { ok: false, error: "Saved identity and temporary instructions cannot be combined." };
@@ -292,7 +316,10 @@ export async function executeIntentTool(operation: IntentToolName, params: unkno
   if (options.signal?.aborted) return refuse(operation, "Cancelled before dispatch; no child control was sent.", "cancelled", session, display);
   const prompt = typeof fields.prompt === "string" ? fields.prompt : undefined;
   if (operation === "agent_start") {
-    const identity = typeof fields.identity === "string" ? fields.identity.trim() : undefined;
+    // Trimmed to absence, not to an empty string: the fallback name below is
+    // reached with `??`, which an empty string would satisfy, and the child would
+    // then carry no name at all.
+    const identity = typeof fields.identity === "string" ? (fields.identity.trim() || undefined) : undefined;
     const definition = identity ? discoverAgents(options.cwd).get(identity) : undefined;
     if (identity && (!definition || definition.scope === "session")) return refuse(operation, `No saved identity named ${identity}.`, "identity-not-found");
     if (definition && fields.tools !== undefined) {

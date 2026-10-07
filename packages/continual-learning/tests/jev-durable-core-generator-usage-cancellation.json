@@ -1,0 +1,13 @@
+{
+  "evidence": "actual-hostrunner-sigterm-offline-cancellation-probe",
+  "runnerSha256": "eed19be904b966b9c0565b7a2d479fdfafd96af27e690e4866296f98c2b6f12f",
+  "parentExitCode": -2,
+  "signal": "SIGTERM",
+  "parentFinallyExecuted": true,
+  "ownedContainerAbsent": true,
+  "externalRequests": 0,
+  "realModelCalls": 0,
+  "limitations": [
+    "No paid inference or remote cloud cancellation tested."
+  ]
+}

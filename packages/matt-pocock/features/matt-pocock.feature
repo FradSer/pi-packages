@@ -14,6 +14,14 @@ Feature: Matt Pocock workflow harness
     Then only the reference body is returned without invoking the capability or changing workflow state
     And a direct model request to invoke the capability remains rejected
 
+  Scenario: A user-invoked capability is reachable on an explicit user request
+    Given grill-me is a user-invocation standalone capability
+    When the user asks for grill me and the model calls matt_pocock_workflow in user-capability mode
+    Then the gateway injects the grill-me procedure with its required dependency closure
+    And the injected guidance names grill-me and every other user-invocation capability with its exact call
+    And the model still cannot start a user-invocation capability in capability mode
+    And running it does not create persistent workflow state
+
   Scenario: Delayed menus cannot mutate a replacement workflow
     Given a menu is waiting on a workflow choice for work item A
     When A is completed or cancelled and work item B starts before the old choice arrives

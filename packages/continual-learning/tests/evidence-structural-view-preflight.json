@@ -1,0 +1,28 @@
+{
+  "root": "/Users/FradSer/.cache/pi-continual-learning/research/structural-view-20261007T024511Z",
+  "manifestSha256": "a72791f9c828730d239c1d151db7599bab848e516bc514e79034fecdb4bf0c4b",
+  "samplesPrepared": 13,
+  "requestBudget": 26,
+  "maxPreparedBytes": 54398,
+  "originalQuestionsUnchanged": true,
+  "originalStatePreserved": true,
+  "externalRequests": 0,
+  "productionWrites": 0,
+  "effectivenessVerified": false,
+  "manifestFile": "manifest-v2.json",
+  "focusedTests": "24 passed in 0.12s; structural 14, prior decomposition 10",
+  "freshReview": "completed: helper, 14 structural tests, frozen corpus labels, unchanged questions/evidence, v2 hashes and byte limits independently verified; no external calls",
+  "labelBoundary": "Binary description compatibility only; missing context may be conflict or unclear. Not support sufficiency, execution-success or full learning quality.",
+  "rawEvidencePrivacy": "Raw corpus remains local; no private text included in public diagnostics.",
+  "verification": {
+    "fullPackageSuite": {
+      "state": "completed",
+      "result": "1065 passed in 437.35s; subsequent seven added cases passed in focused27 run"
+    },
+    "typecheck": "passed",
+    "packCheck": "19 workspace manifests passed",
+    "targetDryPack": "passed",
+    "diffCheck": "passed",
+    "focused": "24 passed in 0.12s"
+  }
+}

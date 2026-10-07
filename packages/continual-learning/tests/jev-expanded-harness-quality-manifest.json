@@ -1,0 +1,184 @@
+{
+  "engineHash": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+  "rows": [
+    {
+      "round": "20261005-content-only-r4",
+      "project": "click",
+      "mode": "off",
+      "sourceDigest": "9ce6461ae9a4be35dbf7ce7572161ae3933648444302873fc0b550e88ac5811f",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/click-off/report.json",
+      "reportHash": "321667476739d7451566fd4db98635a48c53d108d4ead41387d8de595936e65a",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/click-off/project/.pi/harness.json",
+      "harnessHash": "8418795c4f0d7f88ec27ea46c09a57e59615836aa439de1d7c436f378f09fbcf"
+    },
+    {
+      "round": "20261005-content-only-r4",
+      "project": "click",
+      "mode": "on",
+      "sourceDigest": "9ce6461ae9a4be35dbf7ce7572161ae3933648444302873fc0b550e88ac5811f",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/click-on/report.json",
+      "reportHash": "4177eadff933e6dc9c05665967b8c39dbebaa4c2b88970542f66b25229e6de58",
+      "harness": null,
+      "harnessHash": null
+    },
+    {
+      "round": "20261005-content-only-r4",
+      "project": "mitt",
+      "mode": "off",
+      "sourceDigest": "9ce6461ae9a4be35dbf7ce7572161ae3933648444302873fc0b550e88ac5811f",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/mitt-off/report.json",
+      "reportHash": "35a95e8c04b3cebb68b1385b26449c0e6f28fad3b6557544503931c2f7aea31d",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/mitt-off/project/.pi/harness.json",
+      "harnessHash": "71ae184359e31f509c3d993015ad2d1f0fa0fd399c0fe580da72ebee58e09052"
+    },
+    {
+      "round": "20261005-content-only-r4",
+      "project": "mitt",
+      "mode": "on",
+      "sourceDigest": "9ce6461ae9a4be35dbf7ce7572161ae3933648444302873fc0b550e88ac5811f",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/mitt-on/report.json",
+      "reportHash": "26fcea04e3b4e7d54a6bb928b9226cc4a563aaf58a669045970882f79d07c5de",
+      "harness": null,
+      "harnessHash": null
+    },
+    {
+      "round": "20261005-content-only-r4",
+      "project": "p-limit",
+      "mode": "off",
+      "sourceDigest": "9ce6461ae9a4be35dbf7ce7572161ae3933648444302873fc0b550e88ac5811f",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/p-limit-off/report.json",
+      "reportHash": "5db5e9cce68ecbf6755da51d9e3a79d80707f9372d1dbd881993f632ac3f2f07",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/p-limit-off/project/.pi/harness.json",
+      "harnessHash": "dd4b972b33476c87a35ec421192fa9783740f16545828daa6fb52cadd3ac42e8"
+    },
+    {
+      "round": "20261005-content-only-r4",
+      "project": "p-limit",
+      "mode": "on",
+      "sourceDigest": "9ce6461ae9a4be35dbf7ce7572161ae3933648444302873fc0b550e88ac5811f",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-content-only-r4/p-limit-on/report.json",
+      "reportHash": "0d0ac0c052f9d224bc18b89bb12d2fa25f8e636d3e29f925a0b969eac077a4de",
+      "harness": null,
+      "harnessHash": null
+    },
+    {
+      "round": "20261005-proved-meaning-r5-final",
+      "project": "click",
+      "mode": "on",
+      "sourceDigest": "11b7bcb8d51b27dcf2de8da9836cf505e1c3e0bc2ee9f842710a48a60424d3a9",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/click-on/report.json",
+      "reportHash": "0bf05169f838ed694822035ad464c142c6462449b7c7404e0fde473fec62119b",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/click-on/project/.pi/harness.json",
+      "harnessHash": "5f1a5b9ea35909e843acaddbf1589aa56bdcb0f0e8a7ca100e54c7cc014c8a5d"
+    },
+    {
+      "round": "20261005-proved-meaning-r5-final",
+      "project": "mitt",
+      "mode": "on",
+      "sourceDigest": "11b7bcb8d51b27dcf2de8da9836cf505e1c3e0bc2ee9f842710a48a60424d3a9",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/mitt-on/report.json",
+      "reportHash": "7ebb59ce2866c03d98305ed087f93f4813ad8aab5b280a768b8b00c0240c8c45",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/mitt-on/project/.pi/harness.json",
+      "harnessHash": "5f89eb4559fcdf883fc96d696e2ba89b78ca3b89e1bb892d6f9d9316d27d8f95"
+    },
+    {
+      "round": "20261005-proved-meaning-r5-final",
+      "project": "p-limit",
+      "mode": "off",
+      "sourceDigest": "11b7bcb8d51b27dcf2de8da9836cf505e1c3e0bc2ee9f842710a48a60424d3a9",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/p-limit-off/report.json",
+      "reportHash": "df58c0a8372817534cdefd94309d202dee74decb1c25230ad415aaab01e9ad7d",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/p-limit-off/project/.pi/harness.json",
+      "harnessHash": "d7b2ee261971d12fe47bc22cf5bd4c78033504c2bb2973d93b4f4f7e8108a129"
+    },
+    {
+      "round": "20261005-proved-meaning-r5-final",
+      "project": "p-limit",
+      "mode": "on",
+      "sourceDigest": "11b7bcb8d51b27dcf2de8da9836cf505e1c3e0bc2ee9f842710a48a60424d3a9",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/p-limit-on/report.json",
+      "reportHash": "23733be93d82022a215115288c9305778c86d7825bea087a4a042421e0fa7f81",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-proved-meaning-r5-final/p-limit-on/project/.pi/harness.json",
+      "harnessHash": "5f1a5b9ea35909e843acaddbf1589aa56bdcb0f0e8a7ca100e54c7cc014c8a5d"
+    },
+    {
+      "round": "20261005-support-body-r6-final",
+      "project": "click",
+      "mode": "on",
+      "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/click-on/report.json",
+      "reportHash": "e624b1cdad72f7a168bd2321d6c1f8bbe97aaafb1d9e4e41d3e4db8d5ed695bc",
+      "harness": null,
+      "harnessHash": null
+    },
+    {
+      "round": "20261005-support-body-r6-final",
+      "project": "p-limit",
+      "mode": "off",
+      "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/p-limit-off/report.json",
+      "reportHash": "43e641d2496dd4d8ae0e9e39b8515d185534b750c0d596008a116ae25e10a8e7",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/p-limit-off/project/.pi/harness.json",
+      "harnessHash": "0ea7349408f3e8d74b8ea7267f835d252984fd1fcc4cca394d37d9a009255708"
+    },
+    {
+      "round": "20261005-support-body-r6-final",
+      "project": "p-limit",
+      "mode": "on",
+      "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/p-limit-on/report.json",
+      "reportHash": "8d7d4564cf98f0e9eb91fee09cad18f8d2c416d92adea156ad28f10c6cc05bb2",
+      "harness": null,
+      "harnessHash": null
+    },
+    {
+      "round": "r7",
+      "project": "p-limit",
+      "mode": "off",
+      "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-quote-scope-r7-final/p-limit-off/report.json",
+      "reportHash": "dfc41ea498dbd0033850d78bd6baf2a9544ae169ab49ba423aedad783eab6c14",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-quote-scope-r7-final/p-limit-off/project/.pi/harness.json",
+      "harnessHash": "5f1a5b9ea35909e843acaddbf1589aa56bdcb0f0e8a7ca100e54c7cc014c8a5d"
+    },
+    {
+      "round": "r7",
+      "project": "mitt",
+      "mode": "off",
+      "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-quote-scope-r7-final/mitt-off/report.json",
+      "reportHash": "e6c98f71343bc0b6d249cf13835fbb12ed12b924d97d366b8ab62659a33ffe92",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-quote-scope-r7-final/mitt-off/project/.pi/harness.json",
+      "harnessHash": "6fe04dd5d766660b5ba1cfea2503496a4d25cf9087a0f481be4d416d6b6d938d"
+    },
+    {
+      "round": "r7",
+      "project": "click",
+      "mode": "on",
+      "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-quote-scope-r7-final/click-on/report.json",
+      "reportHash": "f1fca12ade32110f944f19d06f0e177f8044a1af8fd52aaecb6a26699609a369",
+      "harness": null,
+      "harnessHash": null
+    },
+    {
+      "round": "r7",
+      "project": "mitt",
+      "mode": "on",
+      "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-quote-scope-r7-final/mitt-on/report.json",
+      "reportHash": "aafd9f62e4e426fece4a08d83cb8519a07c494f7e40d590db8b43faaeebbf53a",
+      "harness": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-quote-scope-r7-final/mitt-on/project/.pi/harness.json",
+      "harnessHash": "22ddf940eb8ce8ab43566696af69635164eff0dacfba7d288bb7c19e5f259aa4"
+    }
+  ],
+  "codeHashes": {
+    "../extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "../extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "./jev-harness-quality.ts": "440e3315492a3e43e76e315f98ff6f23afd87b5d856e96c40026b561ca9f0e53",
+    "./evaluate_jev_expanded_harness_quality.ts": "6718ca8346469c24af007d8ffb638196e1b7463f56b8150ec8181b3e4a33f9b2"
+  },
+  "evidence": "expanded-fixed-probes-after-r7-global-option-failure",
+  "officialGitReference": "https://git-scm.com/docs/git",
+  "originalAudit": "jev-durable-harness-quality-audit.json"
+}

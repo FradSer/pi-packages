@@ -1,0 +1,34 @@
+{
+  "evidence": "structural-repair-context-local-final-verification",
+  "fullTargetTests": {
+    "passed": 879,
+    "seconds": 278.06,
+    "exitCode": 0
+  },
+  "initialRed": {
+    "failed": 2,
+    "seconds": 0.81
+  },
+  "postWorkerTamperRedFailed": 1,
+  "focusedFinalPassed": 39,
+  "rootTypecheck": "passed",
+  "installation": "17packages18settings passed",
+  "targetPackDryRun": "passed",
+  "rootPackCheck": "18packages passed",
+  "scopedDiffCheck": "passed",
+  "freshIndependentReview": "structural_context_review:39passed,no residual blocker",
+  "nativePiPrint": "isolated1.0.0 offlinefixture passed,noexternalrequests;notrealquality",
+  "sourceDigest": "bacf936aaefbb9d601f32d9d07c14b29739af14f2c056e30566d40ed2f5d1afd",
+  "jevThresholdsChanged": false,
+  "repairQuotaChanged": false,
+  "writeAuthorityChanged": false,
+  "realNewInferenceVerified": false,
+  "goalComplete": false,
+  "fileSha256": {
+    "../extensions/inject-memory.ts": "d25ac54a23a581672f1b9b5e3377b39121acdc7aa74677c6135e4db92ff1aa62",
+    "test_jev_structural_repair_context.py": "286813edacb4bc04ea938e92f7776c90eead262aa44dd9febedc9b45f4c8412d",
+    "learning-policy-harness.ts": "339285534e7bca4ae82a94c2f2bec0411575d3fb8859248c33c07b641a5fb055",
+    "jev-structural-context-native-print-evidence.json": "f0b703baa176b7ac353f376ab149e7068741258544142b1fc8ec629b3ccefc77",
+    "jev-structural-context-r15-docker-manifest.json": "b745d835d07f664b5352f235f6a5d432103528e4dbb343c908f8becd58117330"
+  }
+}

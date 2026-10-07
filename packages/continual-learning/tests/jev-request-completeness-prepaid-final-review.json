@@ -1,0 +1,51 @@
+{
+  "evidence": "independent-final-prepaid-review-not-human-gold",
+  "remainingBlockers": [],
+  "actualProxyConfigPathsVerified": true,
+  "configPathRegression": {
+    "evidence": "offline-before-after-verify-function-regression",
+    "rows": [
+      {
+        "arm": "before",
+        "staleActualProxyRootRejected": false,
+        "externalRequests": 0
+      },
+      {
+        "arm": "after",
+        "staleActualProxyRootRejected": true,
+        "externalRequests": 0
+      }
+    ]
+  },
+  "preflight": {
+    "process": {
+      "exitCode": 0,
+      "outcome": "completed",
+      "seconds": 1.629,
+      "processGroupStopConfirmed": true
+    },
+    "providerRequests": 0,
+    "jevRequests": 0,
+    "jevUsage": [],
+    "providerErrors": 0,
+    "usageUnknown": false,
+    "billingVerified": false
+  },
+  "cleanup": {
+    "ownedContainerAbsent": true
+  },
+  "failedPreparation": {
+    "process": null,
+    "providerRequests": 0,
+    "jevRequests": 0,
+    "jevUsage": [],
+    "providerErrors": 0,
+    "usageUnknown": false,
+    "billingVerified": false
+  },
+  "failedPreparationCleanup": {
+    "ownedContainerAbsent": true
+  },
+  "requestBudget": 20,
+  "productionWrites": 0
+}

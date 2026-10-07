@@ -1,0 +1,101 @@
+{
+  "evidence": "controlled-development-adoption-decision",
+  "adopted": false,
+  "productionRuntimeChanged": false,
+  "jevDefaultChanged": false,
+  "goalComplete": false,
+  "reason": "Reject: at least one previously correct complete output becomes held or a new incomplete output becomes complete.",
+  "aggregate": {
+    "all": {
+      "before": {
+        "definiteMissingDetected": 4,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 5,
+        "completeCorrectlyRecognized": 9,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 2,
+        "requirementFalseAccepts": 0,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 9
+      },
+      "after": {
+        "definiteMissingDetected": 4,
+        "incompleteJudgedComplete": 1,
+        "incompleteUncertainOrUnavailable": 4,
+        "completeCorrectlyRecognized": 11,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 0,
+        "requirementFalseAccepts": 1,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 6
+      }
+    },
+    "en": {
+      "before": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 2,
+        "completeCorrectlyRecognized": 6,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 0,
+        "requirementFalseAccepts": 0,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 3
+      },
+      "after": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 2,
+        "completeCorrectlyRecognized": 6,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 0,
+        "requirementFalseAccepts": 0,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 3
+      }
+    },
+    "zh": {
+      "before": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 3,
+        "completeCorrectlyRecognized": 3,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 2,
+        "requirementFalseAccepts": 0,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 6
+      },
+      "after": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 1,
+        "incompleteUncertainOrUnavailable": 2,
+        "completeCorrectlyRecognized": 5,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 0,
+        "requirementFalseAccepts": 1,
+        "requirementFalseHolds": 0,
+        "requirementUncertainOrUnavailable": 3
+      }
+    }
+  },
+  "regressionCases": [
+    "explicit-long-term-observed-result-zh-after"
+  ],
+  "requirementRegressions": [
+    {
+      "id": "explicit-long-term-observed-result-zh-after",
+      "index": 0,
+      "kind": "new-false-accept"
+    }
+  ],
+  "gainCases": [
+    "requested-release-complete-zh",
+    "marker-complete-zh"
+  ],
+  "resultSha256": "d1fe277c85acfbbae74ee55a8aeb065e0229664ed3523c8d2884e5cc3765f3d7",
+  "nextEvidence": [
+    "Do not infer plugin net benefit from this manual requirement study.",
+    "Resume validated automatic requirement generation and untouched project learning/application/recall/Harness comparisons after the selected main provider cooldown clears."
+  ]
+}

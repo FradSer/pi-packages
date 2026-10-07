@@ -109,9 +109,17 @@ also need grounding, with an explicit non-repository status when appropriate.
 
 Propose only necessary operations on selected names. Rewrite content is a
 complete replacement, with the parent-owned `safe` or `private` classification.
-For new or rewritten Memory, front-load a single-line `description` with its
-relevance trigger in at most 120 characters. Put supporting detail in the body;
-preserve established frontmatter fields rather than inventing a new schema.
+For new or rewritten Memory, front-load a single-line `description` in at most
+120 characters with a concise evidence-backed fact or preference, not a bare relevance trigger.
+Name its subject and applicable project/context so the index remains useful for retrieval.
+Preserve material conditions, duration and permission exceptions in the summarized claim.
+Do not invent a guarantee, broaden the original scope, or turn a private preference into
+shareable knowledge. If the full claim cannot fit, summarize a narrower supported fact
+and keep the complete original constraint in the body. Every description claim must be
+supported by the same original evidence as the body; the proposed body is not new evidence.
+For example, prefer `This project verifies changes with pnpm test` to `When verifying changes`.
+Put supporting detail in the body; preserve established frontmatter fields rather than
+inventing a new schema.
 
 Deletion is exceptional: only `CONTRADICTED`, `SUPERSEDED`, or `SUBSUMED` authorizes
 a delete, and `preservedIn` must be a non-empty array of existing repository

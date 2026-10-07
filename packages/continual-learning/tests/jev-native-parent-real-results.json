@@ -1,0 +1,164 @@
+{
+  "kind": "native-parent-real-jev-fixed-generation",
+  "requestedMainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "actualMainInference": false,
+  "labelAuthority": "author-defined public synthetic candidates; not independent or unseen",
+  "ordinaryProgrammaticGateEnabled": false,
+  "rows": [
+    {
+      "language": "en",
+      "arm": "jev-whole",
+      "exitCode": 0,
+      "applied": [],
+      "eligibleApplied": 0,
+      "ineligibleApplied": 0,
+      "eligibleHeld": 2,
+      "operations": 0,
+      "pipelineContextInjectionVerified": true
+    },
+    {
+      "language": "en",
+      "arm": "jev-subset",
+      "exitCode": 0,
+      "applied": [
+        "license.md"
+      ],
+      "eligibleApplied": 1,
+      "ineligibleApplied": 0,
+      "eligibleHeld": 1,
+      "operations": 1,
+      "pipelineContextInjectionVerified": true
+    },
+    {
+      "language": "zh",
+      "arm": "jev-whole",
+      "exitCode": 0,
+      "applied": [],
+      "eligibleApplied": 0,
+      "ineligibleApplied": 0,
+      "eligibleHeld": 2,
+      "operations": 0,
+      "pipelineContextInjectionVerified": true
+    },
+    {
+      "language": "zh",
+      "arm": "jev-subset",
+      "exitCode": 0,
+      "applied": [],
+      "eligibleApplied": 0,
+      "ineligibleApplied": 0,
+      "eligibleHeld": 2,
+      "operations": 0,
+      "pipelineContextInjectionVerified": true
+    }
+  ],
+  "calls": {
+    "manifestSha256": "75c9330af996cfef10d042db5865e6e57bfa650c5ee4e6e5de32496f33d22efd",
+    "proxyRequests": 20,
+    "realJev": true,
+    "mainInference": false,
+    "fullPluginQualityImprovementProven": false,
+    "inputTokensKnown": 35638,
+    "usageComplete": true,
+    "realInferenceResponses": 20,
+    "actualModels": [
+      "jev-1.13.0"
+    ],
+    "durationMs": 18634,
+    "capRejected": 0,
+    "remoteCompletionUnknown": false,
+    "estimatedKnownInputCostUsd": 0.001496796
+  },
+  "requestLatencyMs": {
+    "min": 811,
+    "median": 934.0,
+    "max": 1148
+  },
+  "mockControl": {
+    "casesPassed": 4,
+    "requests": 18,
+    "realInferenceResponses": 0
+  },
+  "independentReview": "native_live_jev_review; safety reviewed before inference; final raw evidence, artifact hashes, source hashes, environment timing, cleanup and conclusions independently reviewed afterward",
+  "limitations": [
+    "fixed main generation; native command handler invoked programmatically, not TUI",
+    "candidate quality labels authored and previously used in fixtures",
+    "context injection verified; answering/recall correctness not measured",
+    "Jev-off comparison is fixture workflow control, not paired real-inference arm",
+    "programmatic independent subset path remains disabled in ordinary construction",
+    "no claim of complete plugin net quality improvement"
+  ],
+  "preservedFailures": [
+    {
+      "study": "gateway-mock-20261006T203957Z",
+      "failure": "Chinese context recorder escaped Unicode; original assertion failure preserved; recorder corrected"
+    },
+    {
+      "study": "gateway-owned-cleanup-20261006T204934Z",
+      "failure": "Docker missing-object lowercase response not recognized; owned container absent, runner failed; regression added"
+    }
+  ],
+  "evidenceRoots": {
+    "real-jev-native-parent-20261006T205113Z": "/Users/FradSer/.cache/pi-continual-learning/docker/real-jev-native-parent-20261006T205113Z",
+    "gateway-owned-cleanup-corrected-20261006T205019Z": "/Users/FradSer/.cache/pi-continual-learning/docker/gateway-owned-cleanup-corrected-20261006T205019Z"
+  },
+  "artifactHashes": {
+    "real-jev-native-parent-20261006T205113Z": {
+      "en-jev-subset/jev-subset/cleanup.json": "9d8c9ef834bc9e649f4ad12d533dd22363b506a92d7fd19df689cb1270489247",
+      "en-jev-subset/jev-subset/launch-inspect.json": "6e9589c270e2e703e5542b80af1e9ff238e6e024a029d36c52c319c41eaf5758",
+      "en-jev-subset/study-manifest.json": "bf311c9937eaf5f592b82155c3502c3ca1eae7ce5fff1ada12a7c8ea6487a866",
+      "en-jev-subset/study-result.json": "c853dff9961ca61b35e3d68dae5e6a5a3c33b137845fc3d9bad2c4d2b1935be6",
+      "en-jev-subset-parent-cleanup.json": "6c7d38413e4c238c3e7ab6883966bff085f724773edcaec09e3d01364d7ba39c",
+      "en-jev-whole/jev-whole/cleanup.json": "9d8c9ef834bc9e649f4ad12d533dd22363b506a92d7fd19df689cb1270489247",
+      "en-jev-whole/jev-whole/launch-inspect.json": "42fdedb11597806f5d205e0aa3f1a4fe5f0653ffdcf3771303fe8b70c6b78448",
+      "en-jev-whole/study-manifest.json": "1d3dc103a567646984794d1a8da933c9c47890709504ee5a5e5551fb148734c9",
+      "en-jev-whole/study-result.json": "2bde9a3600d1fd355ebaac1a3f2df764fdfef27e42a4eb12770501e2537a81d8",
+      "en-jev-whole-parent-cleanup.json": "0e0c3fbc6e855595775232e79d486d644db13de90a86fbbd593802d0547ab484",
+      "proxy-result.json": "4ee93339059b17a0e33a87d5f96e9a8691d73cdc33b69ec9695f38cba6f60d02",
+      "real-study-manifest.json": "75c9330af996cfef10d042db5865e6e57bfa650c5ee4e6e5de32496f33d22efd",
+      "real-study-result.json": "bea9eaebcad25191260d325d812f2410b7d0f203f55071aa2e209dfdeb720855",
+      "zh-jev-subset/jev-subset/cleanup.json": "9d8c9ef834bc9e649f4ad12d533dd22363b506a92d7fd19df689cb1270489247",
+      "zh-jev-subset/jev-subset/launch-inspect.json": "35ade1c48ccfdb1058c310d2158a344c71a12e6b37aa16eafa78e71789750a19",
+      "zh-jev-subset/study-manifest.json": "1d8585a76fd3957be33095126ca664f7c829e12e36f31aab347e3951785b8289",
+      "zh-jev-subset/study-result.json": "9440f213fe846428851cd582f6241cac34381985d2a53f48a4f6b3a6a1fd468b",
+      "zh-jev-subset-parent-cleanup.json": "e57ef602848041ff67e3a1497abd2610f024725a9aef70ce0c2393bce41b83b4",
+      "zh-jev-whole/jev-whole/cleanup.json": "9d8c9ef834bc9e649f4ad12d533dd22363b506a92d7fd19df689cb1270489247",
+      "zh-jev-whole/jev-whole/launch-inspect.json": "dae01a543121d15a565c4c49bf131f5da434a439439077701b045832bcfa5003",
+      "zh-jev-whole/study-manifest.json": "2234fcf48fe4b18c7ec96db444b66dcb9f002c827d82381f9e2ac8c4c589517d",
+      "zh-jev-whole/study-result.json": "317bee4dfb695fd9a3f44931f99df0cc3995bd4ac77727eca6a82511f038cad4",
+      "zh-jev-whole-parent-cleanup.json": "d886d93da0c1fdb2ed6f27750de0e5380c522e36a3faa280863aaab150166d8b"
+    },
+    "gateway-owned-cleanup-corrected-20261006T205019Z": {
+      "en-jev-subset/jev-subset/cleanup.json": "9d8c9ef834bc9e649f4ad12d533dd22363b506a92d7fd19df689cb1270489247",
+      "en-jev-subset/jev-subset/launch-inspect.json": "0eb5f07019e7d3289116e6d216b4579c6050384b8a4ec769d05a01b6dd9d20f9",
+      "en-jev-subset/study-manifest.json": "d02237d53731b38a9d2654b4c472b48a68e6d5812d93ffed29228c4c5a6f1301",
+      "en-jev-subset/study-result.json": "6f569d26dc302677dfdc07ceef7b2eac59d8fe0a8f804d4497d3b7959b0392ea",
+      "en-jev-subset-parent-cleanup.json": "cdccc2196bbdeed9fa2b37828c8106f5652e82d405331f9e1c039cba809fa493",
+      "en-jev-whole/jev-whole/cleanup.json": "9d8c9ef834bc9e649f4ad12d533dd22363b506a92d7fd19df689cb1270489247",
+      "en-jev-whole/jev-whole/launch-inspect.json": "ba91ee1e2dceec2c14a3f6c2da752129ce7f0aa51fdda93c2f970fa2735517c9",
+      "en-jev-whole/study-manifest.json": "c3d49bf7201d4b58aaaaffb376d8b94382e97e60f64f5dab60ee272385643740",
+      "en-jev-whole/study-result.json": "a974229d013909bd1796adf0ba93e84ac23a58f851f3ae05c6994203569d0d97",
+      "en-jev-whole-parent-cleanup.json": "3b1a4cb87a18538dcf16518700678be8355c00e77e5ad164ea2e4873573b6d29",
+      "proxy-result.json": "313002c329db6f9f796cc3dec962754ba4270105a428f8b83df8d52aa34d9f4e",
+      "real-study-manifest.json": "e70b9fa4f3538aa9328a3c4528a632426fd71b845eec85a23afe52f24086df1b",
+      "real-study-result.json": "e1c70e4b75824e84ed617c333cd98c1a6f785422bf38fc18003ac56a76bc143b",
+      "zh-jev-subset/jev-subset/cleanup.json": "9d8c9ef834bc9e649f4ad12d533dd22363b506a92d7fd19df689cb1270489247",
+      "zh-jev-subset/jev-subset/launch-inspect.json": "f96cc30408caeb4060aa8b4b01b3ba5a061e2d37014bb01dbbedcb669ba60868",
+      "zh-jev-subset/study-manifest.json": "d4254e639d3bf5322f75f5addf6f84a9ee227951701bb7bc11aadad66c02637e",
+      "zh-jev-subset/study-result.json": "922861080b3eb5b08e010192a88ac0bc89b0de18a725df179c8e16baebbe885e",
+      "zh-jev-subset-parent-cleanup.json": "f50e53503e092416e890ac89cdd465010d1df6fd5a5e51bc5001af9576cd5e41",
+      "zh-jev-whole/jev-whole/cleanup.json": "9d8c9ef834bc9e649f4ad12d533dd22363b506a92d7fd19df689cb1270489247",
+      "zh-jev-whole/jev-whole/launch-inspect.json": "4a6284ab343fb58e5b33c23ecbcace9742b067bb2690a10f1ed92f34c1847e06",
+      "zh-jev-whole/study-manifest.json": "0b70539be560568c0cddba44e36996fc6ba15040aa812cab2ebd40e0a7d94f32",
+      "zh-jev-whole/study-result.json": "bd1d68010d7a28cd5dd48c3a855ec49f040a603376bf85331cc5b46e37f3614b",
+      "zh-jev-whole-parent-cleanup.json": "63b66ff2240b03a7912ddb145e00cfa69f4706f909d8141420afb8366cea1d1e"
+    }
+  },
+  "stoppingReasons": {
+    "wholePlan": "unsupported temporary-fault candidate holds entire batch",
+    "subset": "uncertain candidate-pair independence holds affected records"
+  }
+}

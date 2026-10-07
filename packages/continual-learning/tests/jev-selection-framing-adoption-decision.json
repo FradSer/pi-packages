@@ -1,0 +1,47 @@
+{
+  "evidence": "selection-framing-development-adoption-decision",
+  "adopted": false,
+  "decision": "reject-development-regression",
+  "reportSha256": "7fa379154d85364a04e42c3ba91fb1d50b1fc5413d3c4eaa36db54d193250acf",
+  "manifestSha256": "cd068494bda25ab3458b67c8b09da7680884c590d2da2403122f19d370ba55e5",
+  "externalRequests": 28,
+  "fixtureRequests": 0,
+  "metrics": {
+    "before": {
+      "correct": 6,
+      "wrong": 2,
+      "fallback": 6,
+      "falseLearningDirections": 2,
+      "missedLearningDirections": 0,
+      "knownInputTokens": 6061,
+      "knownEstimatedCostUsd": 0.000254562
+    },
+    "after": {
+      "correct": 7,
+      "wrong": 4,
+      "fallback": 3,
+      "falseLearningDirections": 4,
+      "missedLearningDirections": 0,
+      "knownInputTokens": 7923,
+      "knownEstimatedCostUsd": 0.00033276599999999996
+    }
+  },
+  "newWrongRoutes": [
+    "fact-en:harness",
+    "preference-en:harness"
+  ],
+  "medianDurationMs": {
+    "before": 319.5,
+    "after": 329.5
+  },
+  "knownInputTokens": 13984,
+  "knownEstimatedCostUsd": 0.000587328,
+  "heldoutRequests": 0,
+  "productionWrites": 0,
+  "limitations": [
+    "False learning directions are routing errors, not evidence of unauthorized durable writes.",
+    "Development corpus only; no positive quality adoption and no heldout claim.",
+    "Empty Memory index directly routes in production, so selector changes alone cannot fix original R12 workflow failures.",
+    "Ordinary preference does not by itself authorize executable Harness enforcement."
+  ]
+}

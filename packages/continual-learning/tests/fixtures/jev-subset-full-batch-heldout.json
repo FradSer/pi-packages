@@ -1,0 +1,968 @@
+[
+  {
+    "id": "all-valid-en",
+    "language": "en",
+    "archetype": "all-valid",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-00",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Documentation lives in docs/."
+        },
+        {
+          "role": "user",
+          "content": "The test locale is C.UTF-8."
+        },
+        {
+          "role": "user",
+          "content": "Public examples use the Apache-2.0 license."
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: Documentation lives in docs/.\ntype: project\n---\nDocumentation lives in docs/.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "Documentation lives in docs/."
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: The test locale is C.UTF-8.\ntype: project\n---\nThe test locale is C.UTF-8.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "The test locale is C.UTF-8."
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: Public examples use the Apache-2.0 license.\ntype: project\n---\nPublic examples use the Apache-2.0 license.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "user",
+            "quote": "Public examples use the Apache-2.0 license."
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      true,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "existing-supplement-en",
+    "language": "en",
+    "archetype": "existing-supplement",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-01",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "The required Python version is at least 3.12."
+        },
+        {
+          "role": "user",
+          "content": "The cache-server outage happened once and cleared on retry."
+        },
+        {
+          "role": "user",
+          "content": "Documentation is written in reStructuredText."
+        }
+      ]
+    },
+    "existing": [
+      {
+        "name": "runtime.md",
+        "classification": "safe",
+        "type": "project",
+        "description": "The project is written in Python.",
+        "content": "---\nname: runtime\ndescription: The project is written in Python.\ntype: project\n---\nThe project is written in Python.\n"
+      }
+    ],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: The required Python version is at least 3.12.\ntype: project\n---\nThe required Python version is at least 3.12.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "The required Python version is at least 3.12."
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: The cache server is permanently unavailable.\ntype: project\n---\nThe cache server is permanently unavailable.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "The cache-server outage happened once and cleared on retry."
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: Documentation is written in reStructuredText.\ntype: project\n---\nDocumentation is written in reStructuredText.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "user",
+            "quote": "Documentation is written in reStructuredText."
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "existing-duplicate-en",
+    "language": "en",
+    "archetype": "existing-duplicate",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-02",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Build artifacts are stored under .cache/build/."
+        },
+        {
+          "role": "user",
+          "content": "The public API accepts Unicode identifiers."
+        },
+        {
+          "role": "user",
+          "content": "The source distribution includes a COPYING file."
+        }
+      ]
+    },
+    "existing": [
+      {
+        "name": "unicode.md",
+        "classification": "safe",
+        "type": "project",
+        "description": "The public API accepts Unicode identifiers.",
+        "content": "---\nname: unicode\ndescription: The public API accepts Unicode identifiers.\ntype: project\n---\nThe public API accepts Unicode identifiers.\n"
+      }
+    ],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: Build artifacts are stored under .cache/build/.\ntype: project\n---\nBuild artifacts are stored under .cache/build/.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "Build artifacts are stored under .cache/build/."
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: The public API accepts Unicode identifiers.\ntype: project\n---\nThe public API accepts Unicode identifiers.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "The public API accepts Unicode identifiers."
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: The source distribution includes a COPYING file.\ntype: project\n---\nThe source distribution includes a COPYING file.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "user",
+            "quote": "The source distribution includes a COPYING file."
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "existing-conflict-en",
+    "language": "en",
+    "archetype": "existing-conflict",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-03",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Generated API documents belong in site/api/."
+        },
+        {
+          "role": "user",
+          "content": "We still use just; the suggestion to use make is untested."
+        },
+        {
+          "role": "user",
+          "content": "The source code license is BSD-3-Clause."
+        }
+      ]
+    },
+    "existing": [
+      {
+        "name": "runner.md",
+        "classification": "safe",
+        "type": "project",
+        "description": "The accepted task runner is just.",
+        "content": "---\nname: runner\ndescription: The accepted task runner is just.\ntype: project\n---\nThe accepted task runner is just.\n"
+      }
+    ],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: Generated API documents belong in site/api/.\ntype: project\n---\nGenerated API documents belong in site/api/.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "Generated API documents belong in site/api/."
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: The accepted task runner is make.\ntype: project\n---\nThe accepted task runner is make.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "We still use just; the suggestion to use make is untested."
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: The source code license is BSD-3-Clause.\ntype: project\n---\nThe source code license is BSD-3-Clause.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "user",
+            "quote": "The source code license is BSD-3-Clause."
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "manual-memory-en",
+    "language": "en",
+    "archetype": "manual-memory",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-04",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "/memory Remember that the routine syntax check is cargo check."
+        },
+        {
+          "role": "user",
+          "content": "Maybe the external upload host requires JPEG, but this is unverified."
+        },
+        {
+          "role": "user",
+          "content": "Documentation examples use Rust."
+        }
+      ],
+      "trigger": "manual-memory"
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: The routine syntax check is cargo check.\ntype: project\n---\nThe routine syntax check is cargo check.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "/memory Remember that the routine syntax check is cargo check."
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: The external upload host requires JPEG.\ntype: project\n---\nThe external upload host requires JPEG.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "Maybe the external upload host requires JPEG, but this is unverified."
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: Documentation examples use Rust.\ntype: project\n---\nDocumentation examples use Rust.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "user",
+            "quote": "Documentation examples use Rust."
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "conditional-en",
+    "language": "en",
+    "archetype": "conditional",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-05",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "On Linux run bash scripts/check.sh; on other systems skip that check."
+        },
+        {
+          "role": "user",
+          "content": "Build archives use gzip compression."
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: On Linux run bash scripts/check.sh; on other systems skip that check.\ntype: project\n---\nOn Linux run bash scripts/check.sh; on other systems skip that check.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "On Linux run bash scripts/check.sh; on other systems skip that check."
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: Run bash scripts/check.sh on every operating system.\ntype: project\n---\nRun bash scripts/check.sh on every operating system.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "On Linux run bash scripts/check.sh; on other systems skip that check."
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: Build archives use gzip compression.\ntype: project\n---\nBuild archives use gzip compression.\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "Build archives use gzip compression."
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "conflict",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "all-valid-zh",
+    "language": "zh",
+    "archetype": "all-valid",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-06",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "文档放在 docs/ 目录。"
+        },
+        {
+          "role": "user",
+          "content": "测试使用 C.UTF-8 区域设置。"
+        },
+        {
+          "role": "user",
+          "content": "公开示例使用 Apache-2.0 许可证。"
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: 文档放在 docs/ 目录。\ntype: project\n---\n文档放在 docs/ 目录。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "文档放在 docs/ 目录。"
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: 测试使用 C.UTF-8 区域设置。\ntype: project\n---\n测试使用 C.UTF-8 区域设置。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "测试使用 C.UTF-8 区域设置。"
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: 公开示例使用 Apache-2.0 许可证。\ntype: project\n---\n公开示例使用 Apache-2.0 许可证。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "user",
+            "quote": "公开示例使用 Apache-2.0 许可证。"
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      true,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "existing-supplement-zh",
+    "language": "zh",
+    "archetype": "existing-supplement",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-07",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "要求 Python 版本至少为 3.12。"
+        },
+        {
+          "role": "user",
+          "content": "缓存服务器故障只发生一次，重试后恢复。"
+        },
+        {
+          "role": "user",
+          "content": "文档使用 reStructuredText 编写。"
+        }
+      ]
+    },
+    "existing": [
+      {
+        "name": "runtime.md",
+        "classification": "safe",
+        "type": "project",
+        "description": "项目使用 Python。",
+        "content": "---\nname: runtime\ndescription: 项目使用 Python。\ntype: project\n---\n项目使用 Python。\n"
+      }
+    ],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: 要求 Python 版本至少为 3.12。\ntype: project\n---\n要求 Python 版本至少为 3.12。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "要求 Python 版本至少为 3.12。"
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: 缓存服务器永久不可用。\ntype: project\n---\n缓存服务器永久不可用。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "缓存服务器故障只发生一次，重试后恢复。"
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: 文档使用 reStructuredText 编写。\ntype: project\n---\n文档使用 reStructuredText 编写。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "user",
+            "quote": "文档使用 reStructuredText 编写。"
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "existing-duplicate-zh",
+    "language": "zh",
+    "archetype": "existing-duplicate",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-08",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "构建产物放在 .cache/build/ 下。"
+        },
+        {
+          "role": "user",
+          "content": "公开 API 接受 Unicode 标识符。"
+        },
+        {
+          "role": "user",
+          "content": "源码发行包包含 COPYING 文件。"
+        }
+      ]
+    },
+    "existing": [
+      {
+        "name": "unicode.md",
+        "classification": "safe",
+        "type": "project",
+        "description": "公开 API 接受 Unicode 标识符。",
+        "content": "---\nname: unicode\ndescription: 公开 API 接受 Unicode 标识符。\ntype: project\n---\n公开 API 接受 Unicode 标识符。\n"
+      }
+    ],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: 构建产物放在 .cache/build/ 下。\ntype: project\n---\n构建产物放在 .cache/build/ 下。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "构建产物放在 .cache/build/ 下。"
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: 公开 API 接受 Unicode 标识符。\ntype: project\n---\n公开 API 接受 Unicode 标识符。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "公开 API 接受 Unicode 标识符。"
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: 源码发行包包含 COPYING 文件。\ntype: project\n---\n源码发行包包含 COPYING 文件。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "user",
+            "quote": "源码发行包包含 COPYING 文件。"
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "existing-conflict-zh",
+    "language": "zh",
+    "archetype": "existing-conflict",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-09",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "生成的 API 文档放在 site/api/。"
+        },
+        {
+          "role": "user",
+          "content": "我们仍使用 just；改用 make 的建议尚未测试。"
+        },
+        {
+          "role": "user",
+          "content": "源码许可证是 BSD-3-Clause。"
+        }
+      ]
+    },
+    "existing": [
+      {
+        "name": "runner.md",
+        "classification": "safe",
+        "type": "project",
+        "description": "项目采用的任务运行器是 just。",
+        "content": "---\nname: runner\ndescription: 项目采用的任务运行器是 just。\ntype: project\n---\n项目采用的任务运行器是 just。\n"
+      }
+    ],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: 生成的 API 文档放在 site/api/。\ntype: project\n---\n生成的 API 文档放在 site/api/。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "生成的 API 文档放在 site/api/。"
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: 项目采用的任务运行器是 make。\ntype: project\n---\n项目采用的任务运行器是 make。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "我们仍使用 just；改用 make 的建议尚未测试。"
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: 源码许可证是 BSD-3-Clause。\ntype: project\n---\n源码许可证是 BSD-3-Clause。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "user",
+            "quote": "源码许可证是 BSD-3-Clause。"
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "manual-memory-zh",
+    "language": "zh",
+    "archetype": "manual-memory",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-10",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "/memory 记住：日常语法检查命令是 cargo check。"
+        },
+        {
+          "role": "user",
+          "content": "外部上传主机可能要求 JPEG，但这尚未验证。"
+        },
+        {
+          "role": "user",
+          "content": "文档示例使用 Rust。"
+        }
+      ],
+      "trigger": "manual-memory"
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: 日常语法检查命令是 cargo check。\ntype: project\n---\n日常语法检查命令是 cargo check。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "/memory 记住：日常语法检查命令是 cargo check。"
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: 外部上传主机要求 JPEG。\ntype: project\n---\n外部上传主机要求 JPEG。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "外部上传主机可能要求 JPEG，但这尚未验证。"
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: 文档示例使用 Rust。\ntype: project\n---\n文档示例使用 Rust。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "user",
+            "quote": "文档示例使用 Rust。"
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  },
+  {
+    "id": "conditional-zh",
+    "language": "zh",
+    "archetype": "conditional",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "held-fixture-11",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Linux 上运行 bash scripts/check.sh；其他系统跳过该检查。"
+        },
+        {
+          "role": "user",
+          "content": "构建归档使用 gzip 压缩。"
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "primary.md",
+        "classification": "safe",
+        "content": "---\nname: primary\ndescription: Linux 上运行 bash scripts/check.sh；其他系统跳过该检查。\ntype: project\n---\nLinux 上运行 bash scripts/check.sh；其他系统跳过该检查。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "Linux 上运行 bash scripts/check.sh；其他系统跳过该检查。"
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: 所有操作系统都运行 bash scripts/check.sh。\ntype: project\n---\n所有操作系统都运行 bash scripts/check.sh。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "user",
+            "quote": "Linux 上运行 bash scripts/check.sh；其他系统跳过该检查。"
+          }
+        ]
+      },
+      {
+        "name": "third.md",
+        "classification": "safe",
+        "content": "---\nname: third\ndescription: 构建归档使用 gzip 压缩。\ntype: project\n---\n构建归档使用 gzip 压缩。\n",
+        "kind": "project",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "构建归档使用 gzip 压缩。"
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "expectedPairs": {
+      "0:1": "conflict",
+      "0:2": "independent",
+      "1:2": "independent"
+    },
+    "goldRationale": "A/C are explicit lasting facts or self-contained conditional knowledge; B is ineligible for speculation, transient generalization, existing duplication/conflict or removed condition. All-valid controls have three eligible facts. These are authored synthetic labels, not human gold."
+  }
+]

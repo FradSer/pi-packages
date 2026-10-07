@@ -1,0 +1,17 @@
+{
+  "evidence": "independent-terminal-recomputation",
+  "resultSha256": "f5c6e80770a9bd784d9b1924f884db6235cfea3b469f30f67c0dfda0637cd218",
+  "rawAndManifestHashesMatched": true,
+  "originalLabelsUnchanged": true,
+  "answersRecomputedByQuestionKeys": true,
+  "usageReconciledWithoutDoubleCounting": true,
+  "processGroupStopConfirmed": true,
+  "ownedContainerAbsent": true,
+  "recommendation": "do-not-adopt",
+  "remainingBlockers": [],
+  "limits": [
+    "Development corpus only; automatic spans do not establish semantic extraction.",
+    "Same-batch methods do not establish separate costs or latency.",
+    "No end-to-end Memory or Harness behavior verification."
+  ]
+}

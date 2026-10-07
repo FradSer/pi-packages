@@ -1,0 +1,106 @@
+{
+  "evidence": "actual-r15-p-limit-on-interim",
+  "status": "failed",
+  "stage": "real-regression-task",
+  "independentCheckExitCode": 0,
+  "learningSeconds": 277.8,
+  "attempts": [
+    {
+      "phase": "memory",
+      "attempt": 0,
+      "outcome": "proposed",
+      "operations": 0,
+      "durationMs": 80345,
+      "structuralMemoryRepair": false,
+      "jev": {
+        "reason": "uncertain",
+        "status": "propose",
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "reason": "uncertain"
+          }
+        ],
+        "model": "jev-1.13.0",
+        "requestCount": 3,
+        "completedRequests": 3,
+        "evidenceEntries": 17,
+        "coveredEntries": 17,
+        "inputTokens": 21491,
+        "estimatedCostUsd": 0.0009026220000000001
+      }
+    },
+    {
+      "phase": "memory",
+      "attempt": 1,
+      "outcome": "applied",
+      "operations": 2,
+      "durationMs": 48041,
+      "structuralMemoryRepair": false,
+      "jev": {
+        "reason": "supported",
+        "status": "decided",
+        "model": "jev-1.13.0",
+        "requestCount": 3,
+        "completedRequests": 3,
+        "evidenceEntries": 17,
+        "coveredEntries": 17,
+        "inputTokens": 19817,
+        "estimatedCostUsd": 0.0008323140000000001
+      }
+    },
+    {
+      "phase": "harness",
+      "attempt": 0,
+      "outcome": "proposed",
+      "operations": 0,
+      "durationMs": 41080,
+      "structuralMemoryRepair": false,
+      "jev": {
+        "reason": "uncertain",
+        "status": "propose",
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "scope",
+            "reason": "uncertain"
+          }
+        ],
+        "model": "jev-1.13.0",
+        "requestCount": 3,
+        "completedRequests": 3,
+        "evidenceEntries": 17,
+        "coveredEntries": 17,
+        "inputTokens": 19338,
+        "estimatedCostUsd": 0.0008121960000000001
+      }
+    },
+    {
+      "phase": "harness",
+      "attempt": 1,
+      "outcome": "rejected",
+      "operations": 0,
+      "durationMs": 47992,
+      "structuralMemoryRepair": false,
+      "jev": {}
+    }
+  ],
+  "wholeBatchTerminal": false,
+  "qualityUpliftProved": false,
+  "independentReview": {
+    "snapshotHashesVerified": 3,
+    "snapshotEntries": 17,
+    "MemoryApplied": 2,
+    "privacyAndMirrors": "verified",
+    "repairedPlanDigest": "verified",
+    "allQuotesMatch": "verified",
+    "factualEntailmentFullyVerified": false,
+    "firstStructuralMemoryRepairTriggered": false,
+    "HarnessApplied": 0,
+    "HarnessRepairRejectionCategory": "retained identity/original citation mismatch",
+    "narrowerRejectionCategoryVerified": false,
+    "repairedHarnessPlanAvailable": false,
+    "nativeEnforcementProven": false
+  }
+}

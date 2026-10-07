@@ -139,6 +139,55 @@
         "printsOnlyButMatcherMatches": true
       },
       "outboundRequests": 0
+    },
+    {
+      "id": "unanchored-command-words-overmatch",
+      "proposal": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/p-limit-on/memory/history/--work-p-limit--/change_muvgny0y_8e5d6b22038b4a61.json",
+      "proposalHash": "17af9ed73601a2825f48b84ec2076df7d9b6b1fb3f3d8c4e449f8d514973d8a4",
+      "snapshot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/p-limit-on/memory/runs/--work-p-limit--/run_muvgm172_d6e797eabbaa8fdb/snapshot.json",
+      "snapshotHash": "b11c898591890713c12328c175023616837259cd09480a793af51ce9a4d33b98",
+      "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/p-limit-on/report.json",
+      "reportHash": "8d7d4564cf98f0e9eb91fee09cad18f8d2c416d92adea156ad28f10c6cc05bb2",
+      "structuralErrors": [],
+      "withoutSemanticGate": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "harness",
+          "status": "disabled",
+          "reason": "disabled",
+          "durationMs": 0,
+          "requestCount": 0,
+          "completedRequests": 0
+        }
+      },
+      "actualOutcome": "failed",
+      "actualStage": "real-regression-task",
+      "actualHarnessJudgments": [
+        {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2093,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 17,
+          "coveredEntries": 17,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17883,
+          "outputTokens": 160,
+          "estimatedCostUsd": 0.0007510860000000001,
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      ],
+      "observedRisks": {
+        "printsOnlyButMatcherMatches": true,
+        "harmlessEchoAlsoMatched": true
+      },
+      "outboundRequests": 0
     }
   ]
 }

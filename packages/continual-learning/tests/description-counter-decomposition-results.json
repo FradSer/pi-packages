@@ -1,0 +1,428 @@
+{
+  "evidence": "real-Jev-description-counter-component-study",
+  "manifestSha256": "92872fe6ac490970174cc39f35eca22f14e346990b33b9e9a18ba22a950e030e",
+  "actualModel": "jev-1.13.0",
+  "metrics": {
+    "original": {
+      "complete": 13,
+      "incomplete": 0,
+      "falseCompatible": 0,
+      "falseHolds": 1
+    },
+    "decomposed": {
+      "complete": 13,
+      "incomplete": 0,
+      "falseCompatible": 0,
+      "falseHolds": 7
+    }
+  },
+  "rows": [
+    {
+      "id": "verified-en",
+      "expectedCompatible": true,
+      "status": 200,
+      "original": "compatible",
+      "decomposed": "uncertain",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "compatible",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.05,
+        "limitation": 0.37
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1037,
+        "output_tokens": 88
+      },
+      "durationMs": 1547
+    },
+    {
+      "id": "irrelevant-en",
+      "expectedCompatible": true,
+      "status": 200,
+      "original": "compatible",
+      "decomposed": "uncertain",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "compatible",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.05,
+        "limitation": 0.28
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1042,
+        "output_tokens": 88
+      },
+      "durationMs": 983
+    },
+    {
+      "id": "resolved-failure-en",
+      "expectedCompatible": true,
+      "status": 200,
+      "original": "compatible",
+      "decomposed": "uncertain",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "compatible",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.07,
+        "limitation": 0.39
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1100,
+        "output_tokens": 88
+      },
+      "durationMs": 953
+    },
+    {
+      "id": "revoked-en",
+      "expectedCompatible": false,
+      "status": 200,
+      "original": "conflict",
+      "decomposed": "uncertain",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "contradicts",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 0.0,
+          "contradicts": 1.0,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.68,
+        "limitation": 0.85
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1044,
+        "output_tokens": 90
+      },
+      "durationMs": 881
+    },
+    {
+      "id": "condition-en",
+      "expectedCompatible": false,
+      "status": 200,
+      "original": "conflict",
+      "decomposed": "limitation",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.98,
+        "probabilities": {
+          "compatible": 0.01,
+          "contradicts": 0.99,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.71,
+        "limitation": 0.97
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1041,
+        "output_tokens": 90
+      },
+      "durationMs": 2470
+    },
+    {
+      "id": "missing-context-en",
+      "expectedCompatible": false,
+      "status": 200,
+      "original": "conflict",
+      "decomposed": "limitation",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.95,
+        "probabilities": {
+          "compatible": 0.03,
+          "contradicts": 0.97,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.7,
+        "limitation": 0.97
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1037,
+        "output_tokens": 90
+      },
+      "durationMs": 1218
+    },
+    {
+      "id": "verified-zh",
+      "expectedCompatible": true,
+      "status": 200,
+      "original": "compatible",
+      "decomposed": "uncertain",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "compatible",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.04,
+        "limitation": 0.35
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1078,
+        "output_tokens": 88
+      },
+      "durationMs": 1084
+    },
+    {
+      "id": "irrelevant-zh",
+      "expectedCompatible": true,
+      "status": 200,
+      "original": "compatible",
+      "decomposed": "uncertain",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "compatible",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.05,
+        "limitation": 0.29
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1086,
+        "output_tokens": 88
+      },
+      "durationMs": 1683
+    },
+    {
+      "id": "resolved-failure-zh",
+      "expectedCompatible": true,
+      "status": 200,
+      "original": "compatible",
+      "decomposed": "uncertain",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "compatible",
+        "confidence": 0.98,
+        "probabilities": {
+          "compatible": 0.99,
+          "contradicts": 0.01,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.08,
+        "limitation": 0.41
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1150,
+        "output_tokens": 88
+      },
+      "durationMs": 882
+    },
+    {
+      "id": "revoked-zh",
+      "expectedCompatible": false,
+      "status": 200,
+      "original": "conflict",
+      "decomposed": "uncertain",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "contradicts",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 0.0,
+          "contradicts": 1.0,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.73,
+        "limitation": 0.85
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1086,
+        "output_tokens": 90
+      },
+      "durationMs": 1738
+    },
+    {
+      "id": "condition-zh",
+      "expectedCompatible": false,
+      "status": 200,
+      "original": "conflict",
+      "decomposed": "limitation",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 0.0,
+          "contradicts": 1.0,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.82,
+        "limitation": 0.95
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1077,
+        "output_tokens": 90
+      },
+      "durationMs": 1047
+    },
+    {
+      "id": "missing-context-zh",
+      "expectedCompatible": false,
+      "status": 200,
+      "original": "conflict",
+      "decomposed": "limitation",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 0.01,
+          "contradicts": 0.99,
+          "unclear": 0.0
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.64,
+        "limitation": 0.96
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1097,
+        "output_tokens": 90
+      },
+      "durationMs": 1048
+    },
+    {
+      "id": "actual-yocto-description",
+      "expectedCompatible": true,
+      "status": 200,
+      "original": "uncertain",
+      "decomposed": "uncertain",
+      "writeAuthorized": false,
+      "originalDiagnostic": {
+        "choice": "compatible",
+        "confidence": 0.59,
+        "probabilities": {
+          "compatible": 0.73,
+          "contradicts": 0.26,
+          "unclear": 0.01
+        }
+      },
+      "decomposedDiagnostic": {
+        "conflict": 0.07,
+        "limitation": 0.51
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 9301,
+        "output_tokens": 215
+      },
+      "durationMs": 1902
+    }
+  ],
+  "externalRequests": 13,
+  "usageResponses": 13,
+  "knownInputTokens": 22176,
+  "productionWrites": 0,
+  "writeAuthorized": false,
+  "adopted": false,
+  "billingVerified": false,
+  "completeGoalEvidence": false,
+  "knownEstimatedCostUsd": 0.0009313920000000001,
+  "limitations": [
+    "Component judgment only: not a full learning decision or real Memory application.",
+    "Authored bilingual development cases and one reused real failure are not blind heldout evidence.",
+    "Questions share a state but are independent; no per-arm latency/cost isolation.",
+    "Uncertainty is retained as a hold and failed/missing responses are incomplete, never successes.",
+    "A positive component result would still require full-path validation with unchanged parent permissions."
+  ],
+  "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/research/description-counter-20261007T023201Z",
+  "rawResultSha256": "ecd7edd1dfe0f6b555a730fccfe0cf09f372e39eaafb6986aff22d23fb7f2484",
+  "requestManifestSha256": "92872fe6ac490970174cc39f35eca22f14e346990b33b9e9a18ba22a950e030e",
+  "actualSDKLiveInference": false,
+  "liveTransport": "official HTTP API",
+  "preSendCapture": "production judgment source with offline SDK fixture; reconstructed request, not archived original on-wire bytes",
+  "usageComplete": true,
+  "knownOutputTokens": 1283,
+  "medianRequestDurationMs": 1084,
+  "sumRequestDurationMs": 17436,
+  "adoptionDecision": {
+    "decision": "reject",
+    "reason": "Positive holds increased from 1 to 7; original real description remains uncertain; no relaxation or favorable retry.",
+    "productionRuntimeChanged": false
+  },
+  "freshReview": {
+    "prepaid": "description_counter_prepaid_review",
+    "labelsAndRequestBoundaryReviewedBeforeInference": true,
+    "postpaid": "completed: frozen hashes, 13 request pairs, usage, diagnostics, negative decision and privacy boundary verified; no additional inference"
+  },
+  "nextSignal": {
+    "actualDescriptionChoice": "compatible",
+    "confidence": 0.59,
+    "compatibleProbability": 0.73,
+    "contradictionProbability": 0.26,
+    "decomposedConflictProbability": 0.07,
+    "decomposedLimitationProbability": 0.51,
+    "causeEstablished": false,
+    "nextHypothesis": "Structural indirection in nested raw session entries may obscure source roles/tool observation references; validate a lossless structural view before any production change."
+  },
+  "verification": {
+    "red": "Regression collection failed before helper implementation",
+    "focused": "10 passed in 0.06s",
+    "package": "1055 passed in 406.77s",
+    "typecheck": "passed",
+    "packedWorkspaceManifests": "19 passed",
+    "targetDryPack": "passed",
+    "packageDiffCheck": "passed",
+    "runtimeChanged": false
+  }
+}

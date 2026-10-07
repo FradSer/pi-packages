@@ -2,6 +2,8 @@
 
 Use this procedure when writing a pull request body. Keep the prose brief and use the user's domain language from `GLOSSARY.md`.
 
+The body is a file, not a chat message. Write it to the path the task names, and do not end the turn until that file exists.
+
 Use the smallest view that makes the change clear: a diagram, diff sketch, shallow file tree, pseudocode call tree, or Mermaid sequence. Then show evidence as a before/after pair and name the merge risk.
 
 ```markdown

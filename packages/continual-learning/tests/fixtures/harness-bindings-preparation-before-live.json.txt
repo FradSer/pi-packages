@@ -1,0 +1,52 @@
+{
+  "evidence": "prospective-same-original-r15-harness-repair-prompt-comparison",
+  "paidExecutionAllowedNow": false,
+  "blockedUntil": "R16 terminal and actual input/tool-boundary preflight",
+  "originalRunDirectory": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-structural-context-r15/p-limit-on/memory/runs/--work-p-limit--/run_muw2prfy_5027299b90f312f6",
+  "originalTaskSha256": "c7700323d0006fb38d49db75c47a1d934eaca8f79aa63c36408680299617abfa",
+  "snapshotSha256": "7da9861460df8608df37f0712adb5e05c13c2af6cdb77fccd080a031bf2a0425",
+  "originalManifestSha256": "93a56de7304494b9ea7c1ce19664cd5e3d49400d50312ec9b72ecdd780f3c6ca",
+  "tasks": {
+    "before": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/repair-binding-research/r15-p-limit-frozen/before.md",
+      "sha256": "c7700323d0006fb38d49db75c47a1d934eaca8f79aa63c36408680299617abfa"
+    },
+    "after": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/repair-binding-research/r15-p-limit-frozen/after.md",
+      "sha256": "4cd2f9dd99f963ed2d34fa4bf1824b133d6cfe613afa458ff4cfe8b182ba8bfd"
+    }
+  },
+  "cases": 1,
+  "plannedArms": 2,
+  "plannedDockerExecutions": 2,
+  "plannedAggregateProviderRequestBudget": 120,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "bailian/qwen3.8-flash"
+  },
+  "jevModel": "jev-1.13.0",
+  "scope": "Native read-only repair on identical historical input; parent structure/identity/citation checks and real Jev, no apply.",
+  "preflightChecks": [
+    "Restore exact historical container paths and same read-only tools.",
+    "Hash-check all original files before and after.",
+    "Original repaired field failure unknown; only synthetic Docker data.",
+    "Report controlled categories, hashes, counts and usage only.",
+    "Only new binding table and instructions differ."
+  ],
+  "successRule": "Complete calls, fewer binding rejections without additional unsupported acceptance; bounded semantic gold cannot be assumed.",
+  "limits": [
+    "One known input, not heldout or whole-workflow superiority.",
+    "No favorable retries or selecting output.",
+    "Exported project surfaces are restored and frozen; complete original repository source was not exported, and supplied repair forbids independent exploration."
+  ],
+  "externalRequests": 0,
+  "productionWrites": 0,
+  "goalComplete": false,
+  "productionInstructionAndTablePositionMatched": true,
+  "r16TerminalVerified": true,
+  "r16TerminalReportSha256": "dafea760df2e3e3799c8a4c0607025037ff8099a5cf29a1eea4463502a7181cb",
+  "remainingPrepaidRequirement": "Native container historical path/tool-boundary runner preflight; no real calls authorized by preparation flag alone",
+  "independentPreparationReview": "Original bytes recoverable exactly, instructions/table/positions match production, evidence and permissions unchanged",
+  "originalProjectTreeSha256": "d6ce948da3f4542b4a8023449f23afd38e6afaa594bcd8d7f55399bd0f7b76b5",
+  "originalProjectEntryCount": 4
+}

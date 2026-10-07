@@ -1,0 +1,1058 @@
+[
+  {
+    "id": "en-description-new-01",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses uv."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: Project Python dependency manager: uv.\ntype: project\n---\nThis project uses uv.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses uv.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-02",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Run uv run pytest for this project regression."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: Regression command: uv run pytest.\ntype: project\n---\nRun uv run pytest for this project regression.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Run uv run pytest for this project regression.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-03",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Project documentation is Markdown."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: Documentation format: Markdown.\ntype: project\n---\nProject documentation is Markdown.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Project documentation is Markdown.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-04",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "CI pins Node.js 20."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: CI Node.js version is 20.\ntype: project\n---\nCI pins Node.js 20.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "CI pins Node.js 20.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-05",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project is licensed under MIT."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: Project license: MIT.\ntype: project\n---\nThis project is licensed under MIT.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project is licensed under MIT.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-06",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This repository hosts the public API documentation."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: The repository contains public API documentation.\ntype: project\n---\nThis repository hosts the public API documentation.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This repository hosts the public API documentation.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-07",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Answer my engineering questions in Chinese."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "---\nname: fact\ndescription: My engineering replies use Chinese.\ntype: preference\n---\nAnswer my engineering questions in Chinese.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Answer my engineering questions in Chinese.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-08",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "End my status reports with SYNTHETIC_STATUS_END."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "---\nname: fact\ndescription: My report ending is SYNTHETIC_STATUS_END.\ntype: preference\n---\nEnd my status reports with SYNTHETIC_STATUS_END.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "End my status reports with SYNTHETIC_STATUS_END.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-09",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses uv."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: All project packages use npm.\ntype: project\n---\nThis project uses uv.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses uv.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-10",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Run uv run pytest for this project regression."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: The verified regression command is uv run unittest.\ntype: project\n---\nRun uv run pytest for this project regression.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Run uv run pytest for this project regression.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-11",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Project documentation is Markdown."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: Documentation generation has been verified with a mandatory paid service.\ntype: project\n---\nProject documentation is Markdown.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Project documentation is Markdown.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-12",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "CI pins Node.js 20."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: CI always succeeds, regardless of changes.\ntype: project\n---\nCI pins Node.js 20.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "CI pins Node.js 20.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-13",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project is licensed under MIT."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: Project license: GPL-3.0.\ntype: project\n---\nThis project is licensed under MIT.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project is licensed under MIT.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-14",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This repository hosts the public API documentation."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: This repository also owns all deployment approval rights.\ntype: project\n---\nThis repository hosts the public API documentation.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This repository hosts the public API documentation.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-15",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Answer my engineering questions in Chinese."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "---\nname: fact\ndescription: My engineering replies use English.\ntype: preference\n---\nAnswer my engineering questions in Chinese.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Answer my engineering questions in Chinese.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-description-new-16",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "End my status reports with SYNTHETIC_STATUS_END."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "---\nname: fact\ndescription: My report ending is SYNTHETIC_OTHER_END.\ntype: preference\n---\nEnd my status reports with SYNTHETIC_STATUS_END.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "End my status reports with SYNTHETIC_STATUS_END.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-01",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 uv。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 项目 Python 依赖管理器：uv。\ntype: project\n---\n本项目使用 uv。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 uv。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-02",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目回归测试运行 uv run pytest。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 回归命令：uv run pytest。\ntype: project\n---\n本项目回归测试运行 uv run pytest。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目回归测试运行 uv run pytest。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-03",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "项目文档使用 Markdown。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 文档格式：Markdown。\ntype: project\n---\n项目文档使用 Markdown。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "项目文档使用 Markdown。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-04",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "CI 固定使用 Node.js 20。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: CI 的 Node.js 版本是20。\ntype: project\n---\nCI 固定使用 Node.js 20。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "CI 固定使用 Node.js 20。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-05",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 MIT 许可。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 项目许可：MIT。\ntype: project\n---\n本项目使用 MIT 许可。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 MIT 许可。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-06",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库存放公开 API 文档。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 仓库包含公开 API 文档。\ntype: project\n---\n本仓库存放公开 API 文档。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本仓库存放公开 API 文档。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-07",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "回答我的工程问题时使用中文。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "---\nname: fact\ndescription: 我的工程问题回复使用中文。\ntype: preference\n---\n回答我的工程问题时使用中文。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "回答我的工程问题时使用中文。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-08",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "我的状态报告以 SYNTHETIC_STATUS_END 结尾。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "---\nname: fact\ndescription: 我的报告结尾是 SYNTHETIC_STATUS_END。\ntype: preference\n---\n我的状态报告以 SYNTHETIC_STATUS_END 结尾。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "我的状态报告以 SYNTHETIC_STATUS_END 结尾。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-09",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 uv。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 项目所有包都使用 npm。\ntype: project\n---\n本项目使用 uv。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 uv。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-10",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目回归测试运行 uv run pytest。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 已验证的回归命令是 uv run unittest。\ntype: project\n---\n本项目回归测试运行 uv run pytest。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目回归测试运行 uv run pytest。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-11",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "项目文档使用 Markdown。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 文档生成已经通过一项强制付费服务验证。\ntype: project\n---\n项目文档使用 Markdown。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "项目文档使用 Markdown。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-12",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "CI 固定使用 Node.js 20。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 无论如何改代码，CI 总是成功。\ntype: project\n---\nCI 固定使用 Node.js 20。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "CI 固定使用 Node.js 20。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-13",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 MIT 许可。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 项目许可：GPL-3.0。\ntype: project\n---\n本项目使用 MIT 许可。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 MIT 许可。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-14",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库存放公开 API 文档。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: fact\ndescription: 本仓库还拥有所有部署审批权。\ntype: project\n---\n本仓库存放公开 API 文档。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本仓库存放公开 API 文档。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-15",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "回答我的工程问题时使用中文。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "---\nname: fact\ndescription: 我的工程问题回复使用英文。\ntype: preference\n---\n回答我的工程问题时使用中文。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "回答我的工程问题时使用中文。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-description-new-16",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "我的状态报告以 SYNTHETIC_STATUS_END 结尾。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "preference",
+          "classification": "private",
+          "content": "---\nname: fact\ndescription: 我的报告结尾是 SYNTHETIC_OTHER_END。\ntype: preference\n---\n我的状态报告以 SYNTHETIC_STATUS_END 结尾。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "我的状态报告以 SYNTHETIC_STATUS_END 结尾。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

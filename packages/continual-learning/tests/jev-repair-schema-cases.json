@@ -1,0 +1,231 @@
+{
+  "evidence": "authored-repair-scenarios-on-pinned-project-facts",
+  "heldout": false,
+  "humanGold": false,
+  "cases": [
+    {
+      "id": "nanoid-stable-default-en",
+      "scenario": "nanoid-stable-default",
+      "language": "en",
+      "identity": {
+        "runId": "quality-nanoid-stable-default-en",
+        "scopeKey": "new-quality-synthetic",
+        "scopeDigest": "6c88bde8fc229112bae46214420643fc33fb10794a263235cd81777cb5badb32",
+        "artifactHash": "cf3ff4e3baaa67f3a532fe37d50bdd2d40824bc7932ac57fd825b6d5ff373b2c",
+        "snapshotDigest": "cf3ff4e3baaa67f3a532fe37d50bdd2d40824bc7932ac57fd825b6d5ff373b2c"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-nanoid-stable-default-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "Verified pinned Nano ID README: default IDs have 21 symbols."
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "quality-nanoid-stable-default-en",
+        "scopeKey": "new-quality-synthetic",
+        "scopeDigest": "6c88bde8fc229112bae46214420643fc33fb10794a263235cd81777cb5badb32",
+        "artifactHash": "cf3ff4e3baaa67f3a532fe37d50bdd2d40824bc7932ac57fd825b6d5ff373b2c",
+        "snapshotDigest": "cf3ff4e3baaa67f3a532fe37d50bdd2d40824bc7932ac57fd825b6d5ff373b2c",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNano ID default IDs have 21 symbols.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Verified pinned Nano ID README: default IDs have 21 symbols."
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain in candidate 0 support.description. Keep each body and index description to the smallest fact directly stated by its original cited evidence. Preserve names, privacy classifications and citations."
+      ],
+      "expectedRequirements": [
+        "Nano ID default IDs have 21 symbols."
+      ]
+    },
+    {
+      "id": "nanoid-stable-default-zh",
+      "scenario": "nanoid-stable-default",
+      "language": "zh",
+      "identity": {
+        "runId": "quality-nanoid-stable-default-zh",
+        "scopeKey": "new-quality-synthetic",
+        "scopeDigest": "6c88bde8fc229112bae46214420643fc33fb10794a263235cd81777cb5badb32",
+        "artifactHash": "4d776efeebb4c91bb46f3e480d921b2af5571427a2f465caaaaa0efdeb91da67",
+        "snapshotDigest": "4d776efeebb4c91bb46f3e480d921b2af5571427a2f465caaaaa0efdeb91da67"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-nanoid-stable-default-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "已核对固定版本 Nano ID README：默认 ID 为 21 个字符。"
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "quality-nanoid-stable-default-zh",
+        "scopeKey": "new-quality-synthetic",
+        "scopeDigest": "6c88bde8fc229112bae46214420643fc33fb10794a263235cd81777cb5badb32",
+        "artifactHash": "4d776efeebb4c91bb46f3e480d921b2af5571427a2f465caaaaa0efdeb91da67",
+        "snapshotDigest": "4d776efeebb4c91bb46f3e480d921b2af5571427a2f465caaaaa0efdeb91da67",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNano ID 默认 ID 为 21 个字符。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "已核对固定版本 Nano ID README：默认 ID 为 21 个字符。"
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain in candidate 0 support.description. Keep each body and index description to the smallest fact directly stated by its original cited evidence. Preserve names, privacy classifications and citations."
+      ],
+      "expectedRequirements": [
+        "Nano ID 默认 ID 为 21 个字符。"
+      ]
+    },
+    {
+      "id": "tinypool-stable-runtime-en",
+      "scenario": "tinypool-stable-runtime",
+      "language": "en",
+      "identity": {
+        "runId": "quality-tinypool-stable-runtime-en",
+        "scopeKey": "new-quality-synthetic",
+        "scopeDigest": "6c88bde8fc229112bae46214420643fc33fb10794a263235cd81777cb5badb32",
+        "artifactHash": "23a9dad86a38b11cdd85ec90e9b661bc72e8711adcdba5a1df723b1ae693b079",
+        "snapshotDigest": "23a9dad86a38b11cdd85ec90e9b661bc72e8711adcdba5a1df723b1ae693b079"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-tinypool-stable-runtime-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "Verified pinned Tinypool README: supports worker_threads and child_process."
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "quality-tinypool-stable-runtime-en",
+        "scopeKey": "new-quality-synthetic",
+        "scopeDigest": "6c88bde8fc229112bae46214420643fc33fb10794a263235cd81777cb5badb32",
+        "artifactHash": "23a9dad86a38b11cdd85ec90e9b661bc72e8711adcdba5a1df723b1ae693b079",
+        "snapshotDigest": "23a9dad86a38b11cdd85ec90e9b661bc72e8711adcdba5a1df723b1ae693b079",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nTinypool supports worker_threads and child_process.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Verified pinned Tinypool README: supports worker_threads and child_process."
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain in candidate 0 support.description. Keep each body and index description to the smallest fact directly stated by its original cited evidence. Preserve names, privacy classifications and citations."
+      ],
+      "expectedRequirements": [
+        "Tinypool supports worker_threads and child_process."
+      ]
+    },
+    {
+      "id": "tinypool-stable-runtime-zh",
+      "scenario": "tinypool-stable-runtime",
+      "language": "zh",
+      "identity": {
+        "runId": "quality-tinypool-stable-runtime-zh",
+        "scopeKey": "new-quality-synthetic",
+        "scopeDigest": "6c88bde8fc229112bae46214420643fc33fb10794a263235cd81777cb5badb32",
+        "artifactHash": "c87c621d5b18fc6cc2d1e84754ece6e8f1c1ae0737c9878973b3eaa74fb63d67",
+        "snapshotDigest": "c87c621d5b18fc6cc2d1e84754ece6e8f1c1ae0737c9878973b3eaa74fb63d67"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-tinypool-stable-runtime-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "已核对固定版本 Tinypool README：支持 worker_threads 和 child_process。"
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "quality-tinypool-stable-runtime-zh",
+        "scopeKey": "new-quality-synthetic",
+        "scopeDigest": "6c88bde8fc229112bae46214420643fc33fb10794a263235cd81777cb5badb32",
+        "artifactHash": "c87c621d5b18fc6cc2d1e84754ece6e8f1c1ae0737c9878973b3eaa74fb63d67",
+        "snapshotDigest": "c87c621d5b18fc6cc2d1e84754ece6e8f1c1ae0737c9878973b3eaa74fb63d67",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nTinypool 支持 worker_threads 和 child_process。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "已核对固定版本 Tinypool README：支持 worker_threads 和 child_process。"
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain in candidate 0 support.description. Keep each body and index description to the smallest fact directly stated by its original cited evidence. Preserve names, privacy classifications and citations."
+      ],
+      "expectedRequirements": [
+        "Tinypool 支持 worker_threads 和 child_process。"
+      ]
+    }
+  ],
+  "limits": [
+    "Four new runs reuse known development evidence; not independent heldout project workflows.",
+    "Forced repair cannot measure selection, actual storage authorization or native Harness."
+  ]
+}

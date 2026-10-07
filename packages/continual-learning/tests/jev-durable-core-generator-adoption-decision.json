@@ -1,0 +1,26 @@
+{
+  "evidence": "bounded-generator-development-adoption-decision",
+  "adoptClarificationInProduction": false,
+  "productionChangedByPilot": false,
+  "goalAchieved": false,
+  "jevOptionalDefaultUnchanged": true,
+  "source": "jev-durable-core-generator-real-results.json",
+  "sourceSha256": "71668b75faeb450ab0343b55f34732272d7e73e05b7db6ce52c595cc2340e6d8",
+  "qualityReview": "jev-durable-core-generator-independent-quality-review.json",
+  "qualityReviewSha256": "7b4a65d1f95b64d2c9023689cc671bddc2157fcefef763bb05cc3b839fffe946",
+  "reason": [
+    "Noise reduced in observed development outputs, but complete knowledge case count remained 14/16.",
+    "New ZH requested-history output omitted qualification context; aggregate gains do not erase this preservation regression.",
+    "Both arms still retained two temporary task candidates without durable value; Jev support approval did not establish future usefulness.",
+    "Single stochastic generations in eight authored scenarios cannot establish causal or generalization benefit."
+  ],
+  "nextResearchSignals": [
+    "Evaluate lasting usefulness separately from source support, while preserving explicit memory requests and useful verified project history.",
+    "Evaluate requested knowledge completeness across the whole plan and already-read existing memory, preserving conditions and placement semantics.",
+    "Keep before/after outputs immutable; any new prompt or semantic question requires a new fixed corpus/manifest and unseen-project validation."
+  ],
+  "limits": [
+    "No production writes, fresh recall or native Harness execution in this pilot.",
+    "No thresholds, permissions, repair slots or simple slash commands changed."
+  ]
+}

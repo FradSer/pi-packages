@@ -1,0 +1,263 @@
+{
+  "evidence": "prospective-fixed-bilingual-selection-framing",
+  "split": "development",
+  "model": "jev-1.13.0",
+  "requestBudget": 28,
+  "jobs": 1,
+  "paidRuns": 1,
+  "retryLimit": 0,
+  "timeoutMs": 5000,
+  "estimatedInputCostCeilingUsd": 0.01,
+  "codeHashes": {
+    "evaluate_jev_selection_framing.ts": "71b35a186019a95b391ac2874bfde4378b00639235dc3fb4e689d3f194ca4b67",
+    "jev-selection-framing-shadow.ts": "4f5206bf23915d10191b56c9f1a748c69bf4ce166e20653eaa033012d413602d",
+    "fixtures/jev-learning-before-selection-framing.ts.txt": "12166999a9a26edb4bfa700bedcacb8dfb0dcba180522a1a3690a2d7bf04cc6b",
+    "../extensions/jev-learning.ts": "12166999a9a26edb4bfa700bedcacb8dfb0dcba180522a1a3690a2d7bf04cc6b"
+  },
+  "samples": [
+    {
+      "id": "fact-en",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "This project's package manager is pnpm, for future reference."
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": true,
+        "harness": false
+      }
+    },
+    {
+      "id": "fact-zh",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "本项目长期使用 pnpm 作为包管理器，请以后参考这一事实。"
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": true,
+        "harness": false
+      }
+    },
+    {
+      "id": "preference-en",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "I prefer concise Chinese explanations in future sessions."
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": true,
+        "harness": false
+      }
+    },
+    {
+      "id": "preference-zh",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后的会话中，我偏好简洁的中文解释。"
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": true,
+        "harness": false
+      }
+    },
+    {
+      "id": "both-en",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "For future work, remember this project uses pnpm test. Never push this project without my explicit permission."
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": true,
+        "harness": true
+      }
+    },
+    {
+      "id": "both-zh",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后请记住本项目使用 pnpm test。没有我的明确授权，始终不得推送本项目。"
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": true,
+        "harness": true
+      }
+    },
+    {
+      "id": "guess-en",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "Perhaps this repository uses npm; I have not checked."
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": false,
+        "harness": false
+      }
+    },
+    {
+      "id": "guess-zh",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "这个仓库也许使用 npm，但我没有检查。"
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": false,
+        "harness": false
+      }
+    },
+    {
+      "id": "fault-en",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "The network request timed out once just now."
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": false,
+        "harness": false
+      }
+    },
+    {
+      "id": "fault-zh",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "刚才网络请求超时了一次。"
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": false,
+        "harness": false
+      }
+    },
+    {
+      "id": "task-en",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "For this task only, run the test once and do not change other files."
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": false,
+        "harness": false
+      }
+    },
+    {
+      "id": "task-zh",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "仅限本次任务，运行一次测试，不要修改其他文件。"
+          }
+        ]
+      },
+      "memoryOnly": false,
+      "expected": {
+        "memory": false,
+        "harness": false
+      }
+    },
+    {
+      "id": "manual-en",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember this: the network request timed out once just now."
+          }
+        ]
+      },
+      "memoryOnly": true,
+      "expected": {
+        "memory": true,
+        "harness": false
+      }
+    },
+    {
+      "id": "manual-zh",
+      "evidence": {
+        "contextEnabled": true,
+        "entries": [
+          {
+            "role": "user",
+            "content": "请记住：刚才网络请求超时了一次。"
+          }
+        ]
+      },
+      "memoryOnly": true,
+      "expected": {
+        "memory": true,
+        "harness": false
+      }
+    }
+  ],
+  "adoptionRule": "Require no new wrong accepted direction and fewer fallbacks, fresh heldout confirmation then full workflow; never adopt from development alone.",
+  "sources": [
+    "https://docs.typesafe.ai/primitives/noul",
+    "https://docs.typesafe.ai/concepts/state"
+  ],
+  "authorization": "Existing user real paid test authorization; environment credential only, no logs."
+}

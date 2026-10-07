@@ -9,10 +9,9 @@
  */
 
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import { nonEmpty, parseModelRef, writeJsonAtomic } from "@fradser/pi-kit";
-import { GOALS_DIR } from "./paths.ts";
+import { GOALS_DIR, agentDir, goalsPlacementRefusal } from "./paths.ts";
 
 export interface GoalSettings {
   /** Whole autonomous runs allowed per creation or resume period. Undefined is
@@ -40,16 +39,6 @@ export function projectSettingsPath(projectRoot: string): string {
 /** Global defaults, under the agent directory so they apply everywhere. */
 export function globalSettingsPath(): string {
   return path.join(agentDir(), "goal.json");
-}
-
-export function agentDir(): string {
-  const configured = nonEmpty(process.env.PI_CODING_AGENT_DIR);
-  if (configured) {
-    return configured === "~" || configured.startsWith("~/")
-      ? path.join(process.env.HOME ?? os.homedir(), configured.slice(1))
-      : configured;
-  }
-  return path.join(process.env.HOME ?? os.homedir(), ".pi", "agent");
 }
 
 function readSettingsFile(file: string): Partial<GoalSettings> {
@@ -102,8 +91,19 @@ export function loadGoalSettings(projectRoot: string): GoalSettings {
   return resolved;
 }
 
-export function writeProjectSettings(projectRoot: string, settings: GoalSettings): void {
+/**
+ * Write the project override.
+ *
+ * The refusal is returned rather than thrown: this writes into the goals
+ * directory, so it refuses exactly when goal creation refuses, and a settings
+ * save must not be the one path that recreates a directory goal creation
+ * rejected.
+ */
+export function writeProjectSettings(projectRoot: string, settings: GoalSettings): { ok: true } | { ok: false; message: string } {
+  const refusal = goalsPlacementRefusal(projectRoot);
+  if (refusal) return { ok: false, message: refusal };
   const file = projectSettingsPath(projectRoot);
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   writeJsonAtomic(file, settings);
+  return { ok: true };
 }

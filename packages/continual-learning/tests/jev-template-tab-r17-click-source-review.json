@@ -1,0 +1,67 @@
+{
+  "evidence": "independent-source-grounded-r17-click-review-not-semantic-gold",
+  "reportSha256": "f0468d693dfeadde431429b12d2b97bc5de799d38121a86cfd4aeafdc745d9c4",
+  "onInitialMemory0": {
+    "core": "supported durable command",
+    "originalCitationEntries": [
+      0
+    ],
+    "additionalClaims": "test-range overstatement and unproven necessity inference",
+    "supportingObservationEntries": [
+      24,
+      26,
+      28
+    ],
+    "automaticFalseHoldLabel": false
+  },
+  "onRepairedMemory0": {
+    "core": "supported after added claims removed",
+    "originalCitationEntries": [
+      0
+    ],
+    "semanticServiceResult": "unavailable; no semantic conclusion"
+  },
+  "onMemory1": {
+    "core": "supported durable private preference",
+    "originalCitationEntries": [
+      0
+    ],
+    "classification": "private",
+    "application": false
+  },
+  "onHarness0": {
+    "originalCitationEntries": [
+      0
+    ],
+    "authority": "supported lasting current-project command family, no permission exception",
+    "canonicalBytesEqual": true,
+    "literalTabs": 0,
+    "escapedTabSlots": 8,
+    "positiveCasesMatched": 10,
+    "negativeCasesNotMatched": 9,
+    "semanticServiceResult": "timeout; incomplete total requests"
+  },
+  "offAppliedMemory0": {
+    "originalCitationEntries": [
+      0,
+      17
+    ],
+    "coreAndObservedCounts": "supported; no same added-claim issue"
+  },
+  "offAppliedMemory1": {
+    "originalCitationEntries": [
+      0
+    ],
+    "classification": "private",
+    "privateOnlyHistoryVerified": true
+  },
+  "fullSnapshotEntries": 30,
+  "externalCallsByReviewer": 0,
+  "productionWritesByReviewer": 0,
+  "limits": [
+    "Source-grounded independent model review, not human gold or real Jev re-evaluation.",
+    "No overall workflow superiority.",
+    "Matching proof covers only finite template spellings."
+  ],
+  "goalComplete": false
+}

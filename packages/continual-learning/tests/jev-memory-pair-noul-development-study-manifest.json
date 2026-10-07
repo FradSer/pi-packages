@@ -1,0 +1,27 @@
+{
+  "evidence": "prospective-pair-noul-v3-known-development",
+  "corpus": "fixtures/jev-new-memory-pair-structured-heldout-corpus.json",
+  "corpusSha256": "506120d06c45ead9213f679f3c300ac8eedf3f11fbf1457ee0fef258f313c068",
+  "model": "jev-1.13.0",
+  "requestBudget": 20,
+  "paidRuns": 1,
+  "jobs": 1,
+  "timeoutMs": 5000,
+  "retryLimit": 0,
+  "estimatedInputCostCeilingUsd": 0.08,
+  "costBasis": "20x64000 byte cap plus overhead, tariff .042/M; not billing hard cap",
+  "codeHashes": {
+    "evaluate_jev_memory_pairs_noul.ts": "541314a451184b01855cb96678a4bd971917bccb65b579acc765e9367ea732fd",
+    "jev-memory-pair-noul.ts": "ed9f376c26ebe3a0a6e934e52b7e0e45757c2d4f7b0584022c7b07d5fd5f27be",
+    "jev-memory-pair-structured.ts": "f1d87bfe67f0b24842ff4bc64bb07cb6c0928b4a4196480701f168ebfd1c7599",
+    "jev-memory-pair-judgment.ts": "ae105d296f4fcb6af6c3f4fddb0a9af30d635e2fffcbc1a5c53b08bab020ec15",
+    "frozen-research-manifest.ts": "dabd48c021dff53a2684d1436238b2bfcbacbaf2e33ff558bdd5fd4950724b28",
+    "../extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675",
+    "../extensions/jev-learning.ts": "965220940e50cf2bdfac3c283874615304907a296814b75025368b98d3d37d4c",
+    "../extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044"
+  },
+  "primitive": "4 independent Noul judgments batched per pair; YES .9/NO .1 unchanged; Noul has no Choice confidence",
+  "developmentRule": "zero wrong decisive relation/unsafe independence, all8 independent recognized. Otherwise stop, no fresh heldout or adoption.",
+  "comparison": "Old V2 heldout is known V3 development. Historical baseline only; no fresh or randomized claim.",
+  "authorization": "Existing paidtest authority, public synthetic complete originals plus production offline privacy preflight."
+}

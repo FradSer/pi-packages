@@ -1,0 +1,88 @@
+{
+  "evidence": "real-public-synthetic-jev-transport-diagnostic",
+  "externalRequests": 3,
+  "fixtureRequests": 0,
+  "requestBudget": 3,
+  "knownInputTokens": 5743,
+  "knownEstimatedCostUsd": 0.00024120600000000002,
+  "wire": [
+    {
+      "sample": "english-small",
+      "bytes": 892,
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 424
+    },
+    {
+      "sample": "chinese-small",
+      "bytes": 873,
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 438
+    },
+    {
+      "sample": "public-long",
+      "bytes": 24449,
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 4881
+    }
+  ],
+  "results": [
+    {
+      "id": "english-small",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 965,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 424,
+        "outputTokens": 38,
+        "estimatedCostUsd": 0.000017808
+      }
+    },
+    {
+      "id": "chinese-small",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 360,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 438,
+        "outputTokens": 38,
+        "estimatedCostUsd": 0.000018396
+      }
+    },
+    {
+      "id": "public-long",
+      "selection": null,
+      "telemetry": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "uncertain",
+        "durationMs": 425,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 4881,
+        "outputTokens": 38,
+        "estimatedCostUsd": 0.000205002
+      }
+    }
+  ],
+  "productionWrites": 0,
+  "limitations": [
+    "Transport diagnostic only; no causal learning-quality comparison.",
+    "A current success cannot determine the cause of old R12 failures.",
+    "Synthetic public text; not replayed private project evidence.",
+    "Cancelled or failed responses may have unreported billable usage."
+  ]
+}

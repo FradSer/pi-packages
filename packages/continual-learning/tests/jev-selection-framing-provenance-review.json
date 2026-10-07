@@ -1,0 +1,21 @@
+{
+  "evidence": "post-run-source-and-result-provenance-supplement",
+  "prospective": false,
+  "manifestSha256": "cd068494bda25ab3458b67c8b09da7680884c590d2da2403122f19d370ba55e5",
+  "reportSha256": "7fa379154d85364a04e42c3ba91fb1d50b1fc5413d3c4eaa36db54d193250acf",
+  "baselineSha256": "12166999a9a26edb4bfa700bedcacb8dfb0dcba180522a1a3690a2d7bf04cc6b",
+  "patchedSha256": "8add0286569092f75f25e5ed399e45d7bcf219352ac907c1904376e511e567ad",
+  "prospectiveCodeHashes": {
+    "evaluate_jev_selection_framing.ts": "71b35a186019a95b391ac2874bfde4378b00639235dc3fb4e689d3f194ca4b67",
+    "jev-selection-framing-shadow.ts": "4f5206bf23915d10191b56c9f1a748c69bf4ce166e20653eaa033012d413602d",
+    "fixtures/jev-learning-before-selection-framing.ts.txt": "12166999a9a26edb4bfa700bedcacb8dfb0dcba180522a1a3690a2d7bf04cc6b",
+    "../extensions/jev-learning.ts": "12166999a9a26edb4bfa700bedcacb8dfb0dcba180522a1a3690a2d7bf04cc6b"
+  },
+  "independentReview": "source_provenance_research_review",
+  "reviewOutcome": "Reject semantic adoption; no current-run implementation blocker.",
+  "auditCaveats": [
+    "Final result originally did not embed manifest/baseline/patched hashes. This explicitly post-run supplement links frozen prospective sources; it does not claim prospective patched-hash registration.",
+    "Checkpoint directly overwritten; interruption could damage last checkpoint. Preserve reservation and never restart paid run. Current final report is complete.",
+    "Ordinary descriptive preference is labeled Memory, not an executable restriction; explicit required behavior can validly imply Harness."
+  ]
+}

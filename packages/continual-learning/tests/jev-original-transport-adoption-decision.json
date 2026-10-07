@@ -1,0 +1,9 @@
+{
+  "evidence": "deadline-transport-decision",
+  "reportSha256": "78ed7d4ba6508f02f3bfa11d1265dd21cf7376598661ac9c4eb3281db9fa7ead",
+  "extendProductionDeadline": false,
+  "changeProductionTransport": false,
+  "reason": "All four current arms complete without timeout and remain semantically uncertain; no improvement evidence.",
+  "nextSignal": "Literal tab spelling in exact bounded template prevents existing parent-bound route; verify equivalence without authorizing a restriction.",
+  "goalComplete": false
+}

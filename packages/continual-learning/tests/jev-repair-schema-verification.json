@@ -1,0 +1,40 @@
+{
+  "tests": {
+    "passed": 933,
+    "seconds": 452.09
+  },
+  "focusedRegression": {
+    "redFailed": 1,
+    "redPassed": 2,
+    "greenRelatedPassed": 12
+  },
+  "independentPromptReviewPassed": true,
+  "strictTargetWorkerTypecheck": "passed",
+  "rootTypecheck": {
+    "status": "failed-unrelated",
+    "error": "packages/tasks/src/tool.ts(603,4) TS2366"
+  },
+  "installationCheck": {
+    "status": "failed-unrelated-config",
+    "missingPackages": [
+      "agent-teams",
+      "bdd-jev",
+      "btw",
+      "context",
+      "keyboard",
+      "monitor",
+      "plan-mode",
+      "recap",
+      "skill-router",
+      "utils",
+      "vision"
+    ],
+    "hostConfigChanged": false
+  },
+  "targetPackDryRun": "passed",
+  "workspacePackManifests": 19,
+  "realMainModelAttempts": 8,
+  "realLearningJudgments": 0,
+  "diagnosticCalls": 2,
+  "goalComplete": false
+}

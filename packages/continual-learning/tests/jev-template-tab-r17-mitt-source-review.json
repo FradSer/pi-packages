@@ -1,0 +1,62 @@
+{
+  "evidence": "independent-source-grounded-r17-mitt-review-not-semantic-gold",
+  "sourceDigest": "df60a6123748956bdd39e0b23ca70113aeb68e3be59b9dc56cfd51bf9f317acf",
+  "reportSha256": "612f56ad35137cfd337671418e75f7a1b3d0ab90074c191d70a0d3ef078d71ce",
+  "planSha256": "119780d2e8a7ebad198ffacb21d6e5083aa9d6df31cf5c35cab49aaf3b7718b4",
+  "snapshotSha256": "ef8696c7cd85941217570193b7c47aa14e1dab0f2cacf0ea42abcd01c32a8d7d",
+  "chronology": [
+    "Original expansion failed; structural repair consumed the one shared repair slot.",
+    "Successful structural repair replaced rawPlan and plan.",
+    "Saved plan received the only complete Memory Jev review: 48 entries, 3 windows, 4 requests.",
+    "Candidate 0 counterevidence uncertainty held the whole Memory plan.",
+    "No additional semantic repair or review because the shared slot was already consumed.",
+    "Harness independently supported and applied."
+  ],
+  "receiptPlacement": "Memory Jev is recorded on attempt 0; attempt 1 identifies structural repair and inherited final proposed outcome. Receipt field placement is not execution chronology.",
+  "memory0": {
+    "lastingCore": "supported project verification command",
+    "coreCitationEntries": [
+      0
+    ],
+    "additionalHistoryCitationEntries": [
+      16,
+      28
+    ],
+    "additionalObservationEntries": [
+      18,
+      26
+    ],
+    "historyDurability": "not established"
+  },
+  "counterWindow1": {
+    "entries": [
+      16,
+      46
+    ],
+    "observations": {
+      "20": "test-writing failure",
+      "36": "deliberate negative validation after changing an artifact",
+      "38": "restore failure",
+      "40/42": "subsequent rebuild and recovery"
+    },
+    "explicitContradictionToCoreFound": false,
+    "automaticFalseHoldLabel": false
+  },
+  "memory1": {
+    "citationEntries": [
+      0
+    ],
+    "privatePreference": "supported",
+    "learningProtocolScope": "room for interpretation as future requirement",
+    "reportedFailureLocation": false
+  },
+  "savedPlanEqualsProposedHistory": true,
+  "limits": [
+    "Original pre-repair plan and exact structural failure were not separately saved; cannot reconstruct or compare them.",
+    "Independent source review is not semantic gold.",
+    "No second Memory judgment and no fresh-session/native-Harness effect coverage."
+  ],
+  "externalCallsByReviewer": 0,
+  "productionWritesByReviewer": 0,
+  "goalComplete": false
+}

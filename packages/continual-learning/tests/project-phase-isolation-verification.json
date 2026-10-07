@@ -1,0 +1,74 @@
+{
+  "scope": "Independent real-project phase observation and pristine unseen-project environments",
+  "sourceHashes": {
+    "tests/live_docker_projects.py": "882365df202d658ff6cd952002437c364c386d36ab113ce925d0b357ff6194d9",
+    "tests/test_independent_effect_observation.py": "b5731df597d8bf33e173f840dfdc1df3933c8def40ee17af9b171a180cff5f86",
+    "features/project-phase-isolation.feature": "e899550aa169b5421bce70e94bfcd9c68ca49fa68a3fffe8854cb19cc0f7cc67"
+  },
+  "behavior": [
+    "Memory participation/application checks use only Memory evidence",
+    "Harness participates in its own phase; hook behavior is observed before application/participation checks",
+    "Successful Memory can enter recall when Harness is held",
+    "Memory failure still prevents recall",
+    "Any failed observation or any failed/cancelled receipt stage remains an overall failure"
+  ],
+  "red": {
+    "heldHarnessHidAppliedMemoryRecall": true,
+    "selectorFailedMisreportedPassed": true,
+    "agentsCancelledMisreportedPassed": true
+  },
+  "focused": {
+    "passed": 28,
+    "seconds": 2.82,
+    "evidence": "Offline wiring fixtures; no inference or native hook quality conclusion"
+  },
+  "packageSuite": {
+    "passed": 1034,
+    "seconds": 405.45,
+    "exitCode": 0,
+    "command": "uv run --no-project --python /opt/homebrew/bin/python3 python -m pytest packages/continual-learning/tests -q"
+  },
+  "interruptedEarlierSuite": {
+    "passedBeforeIntentionalInterrupt": 41,
+    "seconds": 48.68,
+    "exitCode": 2,
+    "reason": "Independent reviewer found the all-stage acceptance regression; process was deliberately interrupted before fixing and rerunning the final full suite"
+  },
+  "rootTypecheck": "passed",
+  "workspacePackedManifestsPassed": 19,
+  "targetPackDryRun": "passed",
+  "packageDiffCheck": "passed",
+  "freshReview": {
+    "agent": "project_phase_isolation_review",
+    "initialBlockingFindings": 1,
+    "finalBlockingFindings": 0,
+    "independentlyPassed": 10
+  },
+  "projectEnvironments": "heldout-project-baselines.json",
+  "newDockerExecutions": 8,
+  "newActualInferenceRequests": 0,
+  "providerModelPreflight": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free",
+    "providerConfigured": true,
+    "modelConfigured": true,
+    "api": "openai-completions",
+    "maxTokens": 524288,
+    "inferenceDispatched": false
+  },
+  "priorRealJevStudyFrozenSourcesStillMatch": 61,
+  "globalSettingsChanged": false,
+  "productionDefaultActivated": false,
+  "completeGoalEvidence": false,
+  "remaining": [
+    "Actual specified main-model candidate generation, application and knowledge use on the three frozen new projects once the earlier provider cooldown has elapsed",
+    "Compare Jev disabled and enabled without treating allow rate or write count as quality, preserving mistakes, misses, constraint behavior, cost and latency",
+    "Retain all historical negative project evidence and differentiate genuine inference, offline fixtures and upstream environment tests"
+  ],
+  "limitations": [
+    "This phase improves observation correctness and test readiness, not evidence of increased semantic learning quality",
+    "The three pristine project baselines ran without Pi/model inference",
+    "Humanize retains 112 skips; referencing retains 132 expected failures and reports 406 subtests separately",
+    "Upstream lint/build/type-check gates were not run; only the specified original test targets were validated"
+  ]
+}

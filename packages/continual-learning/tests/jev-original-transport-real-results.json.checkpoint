@@ -1,0 +1,614 @@
+{
+  "rows": [
+    {
+      "arm": "direct-5s",
+      "process": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 3.073,
+        "processGroupStopConfirmed": true
+      },
+      "result": {
+        "evidence": "real-original-large-transport-arm",
+        "arm": "direct-5s",
+        "route": "direct",
+        "timeoutMs": 5000,
+        "runtimeVersion": "v24.16.0",
+        "manifestSha256": "e4531220d947868bc25c9d105be29e0b057b2617f546e23e74a6e604a0aa912c",
+        "candidateSha256": "4144edf4141365c6bdf9dfbc7cd46d00f8832f26a4636538adcb632f902f3308",
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1810,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 17,
+          "coveredEntries": 17,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 19570,
+          "outputTokens": 160,
+          "estimatedCostUsd": 0.0008219400000000002,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        },
+        "complete": true,
+        "identicalWireRequests": true,
+        "preSendFixtureRequests": 3,
+        "externalRequests": 3,
+        "fixtureRequests": 0,
+        "actualModelVerified": true,
+        "knownInputTokens": 19570,
+        "knownEstimatedCostUsd": 0.0008219400000000001,
+        "usageResponses": 3,
+        "missingUsageRequests": 0,
+        "observations": [
+          {
+            "index": 0,
+            "wireRequestSha256": "855687df29c3c9a0c9c314235a7db1c2301c689731d568844e890ec7ad0a0149",
+            "wireBytes": 6594,
+            "durationMs": 1513,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "supported_0",
+                "noul": 0.93
+              },
+              {
+                "key": "expands_0",
+                "choice": "same",
+                "confidence": 0.54,
+                "probabilities": {
+                  "same": 0.65,
+                  "narrower": 0.18,
+                  "broader": 0.16,
+                  "unclear": 0.01
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 2480,
+            "outputTokens": 70
+          },
+          {
+            "index": 1,
+            "wireRequestSha256": "d33945df5ce0fd417ed7aa94907bc85a4edb449c2edae3ff0dd6133c2a04c18c",
+            "wireBytes": 29978,
+            "durationMs": 1519,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "counter_0_0",
+                "choice": "compatible",
+                "confidence": 0.94,
+                "probabilities": {
+                  "compatible": 0.96,
+                  "contradicts": 0.02,
+                  "unclear": 0.02
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 10164,
+            "outputTokens": 45
+          },
+          {
+            "index": 2,
+            "wireRequestSha256": "d37aa018f3fd616c361d58dda171fb78c0ef6a94c50bf403e9b3597729a29fd7",
+            "wireBytes": 20684,
+            "durationMs": 1800,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "counter_0_1",
+                "choice": "compatible",
+                "confidence": 0.94,
+                "probabilities": {
+                  "compatible": 0.95,
+                  "contradicts": 0.02,
+                  "unclear": 0.03
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 6926,
+            "outputTokens": 45
+          }
+        ],
+        "productionWrites": 0,
+        "semanticGoldEstablished": false,
+        "adopted": false
+      },
+      "attemptJournalSha256": "9eeacbc1423a216ea3d2fc4e6d584015b4d8ef17db072c5e7a89056370d1f5c5"
+    },
+    {
+      "arm": "proxy-15s",
+      "process": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 3.117,
+        "processGroupStopConfirmed": true
+      },
+      "result": {
+        "evidence": "real-original-large-transport-arm",
+        "arm": "proxy-15s",
+        "route": "proxy",
+        "timeoutMs": 15000,
+        "runtimeVersion": "v24.16.0",
+        "manifestSha256": "e4531220d947868bc25c9d105be29e0b057b2617f546e23e74a6e604a0aa912c",
+        "candidateSha256": "4144edf4141365c6bdf9dfbc7cd46d00f8832f26a4636538adcb632f902f3308",
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1777,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 17,
+          "coveredEntries": 17,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 19570,
+          "outputTokens": 160,
+          "estimatedCostUsd": 0.0008219400000000002,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        },
+        "complete": true,
+        "identicalWireRequests": true,
+        "preSendFixtureRequests": 3,
+        "externalRequests": 3,
+        "fixtureRequests": 0,
+        "actualModelVerified": true,
+        "knownInputTokens": 19570,
+        "knownEstimatedCostUsd": 0.0008219400000000001,
+        "usageResponses": 3,
+        "missingUsageRequests": 0,
+        "observations": [
+          {
+            "index": 0,
+            "wireRequestSha256": "855687df29c3c9a0c9c314235a7db1c2301c689731d568844e890ec7ad0a0149",
+            "wireBytes": 6594,
+            "durationMs": 1426,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "supported_0",
+                "noul": 0.92
+              },
+              {
+                "key": "expands_0",
+                "choice": "same",
+                "confidence": 0.62,
+                "probabilities": {
+                  "same": 0.72,
+                  "narrower": 0.12,
+                  "broader": 0.15,
+                  "unclear": 0.01
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 2480,
+            "outputTokens": 70
+          },
+          {
+            "index": 1,
+            "wireRequestSha256": "d33945df5ce0fd417ed7aa94907bc85a4edb449c2edae3ff0dd6133c2a04c18c",
+            "wireBytes": 29978,
+            "durationMs": 1769,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "counter_0_0",
+                "choice": "compatible",
+                "confidence": 0.93,
+                "probabilities": {
+                  "compatible": 0.96,
+                  "contradicts": 0.02,
+                  "unclear": 0.02
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 10164,
+            "outputTokens": 45
+          },
+          {
+            "index": 2,
+            "wireRequestSha256": "d37aa018f3fd616c361d58dda171fb78c0ef6a94c50bf403e9b3597729a29fd7",
+            "wireBytes": 20684,
+            "durationMs": 1378,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "counter_0_1",
+                "choice": "compatible",
+                "confidence": 0.93,
+                "probabilities": {
+                  "compatible": 0.96,
+                  "contradicts": 0.01,
+                  "unclear": 0.03
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 6926,
+            "outputTokens": 45
+          }
+        ],
+        "productionWrites": 0,
+        "semanticGoldEstablished": false,
+        "adopted": false
+      },
+      "proxyProcess": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 0.207,
+        "processGroupStopConfirmed": true
+      },
+      "proxySnapshot": {
+        "jevRequests": 3,
+        "totalRequests": 3,
+        "providerErrors": 0,
+        "knownProxyUsage": [
+          {
+            "model": "jev-1.13.0",
+            "input_tokens": 6926,
+            "output_tokens": 45
+          },
+          {
+            "model": "jev-1.13.0",
+            "input_tokens": 2480,
+            "output_tokens": 70
+          },
+          {
+            "model": "jev-1.13.0",
+            "input_tokens": 10164,
+            "output_tokens": 45
+          }
+        ],
+        "activeHandlersAtSnapshot": 0,
+        "upstreamSocketsClosedYet": false,
+        "remoteProviderWorkStoppedVerified": false,
+        "unknownLateUsagePossible": false,
+        "accountBillingVerified": false
+      },
+      "ownedProxyUpstreamsClosedConfirmed": true,
+      "remoteProviderWorkStoppedVerified": false,
+      "attemptJournalSha256": "44be303edb937a2040c344d6ac9e4aaef5879e9f3bc1b27ab59e4f398ad1008d"
+    },
+    {
+      "arm": "proxy-5s",
+      "process": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 2.883,
+        "processGroupStopConfirmed": true
+      },
+      "result": {
+        "evidence": "real-original-large-transport-arm",
+        "arm": "proxy-5s",
+        "route": "proxy",
+        "timeoutMs": 5000,
+        "runtimeVersion": "v24.16.0",
+        "manifestSha256": "e4531220d947868bc25c9d105be29e0b057b2617f546e23e74a6e604a0aa912c",
+        "candidateSha256": "4144edf4141365c6bdf9dfbc7cd46d00f8832f26a4636538adcb632f902f3308",
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1592,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 17,
+          "coveredEntries": 17,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 19570,
+          "outputTokens": 160,
+          "estimatedCostUsd": 0.0008219400000000002,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        },
+        "complete": true,
+        "identicalWireRequests": true,
+        "preSendFixtureRequests": 3,
+        "externalRequests": 3,
+        "fixtureRequests": 0,
+        "actualModelVerified": true,
+        "knownInputTokens": 19570,
+        "knownEstimatedCostUsd": 0.0008219400000000001,
+        "usageResponses": 3,
+        "missingUsageRequests": 0,
+        "observations": [
+          {
+            "index": 0,
+            "wireRequestSha256": "855687df29c3c9a0c9c314235a7db1c2301c689731d568844e890ec7ad0a0149",
+            "wireBytes": 6594,
+            "durationMs": 1195,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "supported_0",
+                "noul": 0.91
+              },
+              {
+                "key": "expands_0",
+                "choice": "same",
+                "confidence": 0.59,
+                "probabilities": {
+                  "same": 0.69,
+                  "narrower": 0.15,
+                  "broader": 0.15,
+                  "unclear": 0.01
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 2480,
+            "outputTokens": 70
+          },
+          {
+            "index": 1,
+            "wireRequestSha256": "d33945df5ce0fd417ed7aa94907bc85a4edb449c2edae3ff0dd6133c2a04c18c",
+            "wireBytes": 29978,
+            "durationMs": 1515,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "counter_0_0",
+                "choice": "compatible",
+                "confidence": 0.94,
+                "probabilities": {
+                  "compatible": 0.96,
+                  "contradicts": 0.02,
+                  "unclear": 0.02
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 10164,
+            "outputTokens": 45
+          },
+          {
+            "index": 2,
+            "wireRequestSha256": "d37aa018f3fd616c361d58dda171fb78c0ef6a94c50bf403e9b3597729a29fd7",
+            "wireBytes": 20684,
+            "durationMs": 1582,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "counter_0_1",
+                "choice": "compatible",
+                "confidence": 0.93,
+                "probabilities": {
+                  "compatible": 0.95,
+                  "contradicts": 0.02,
+                  "unclear": 0.03
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 6926,
+            "outputTokens": 45
+          }
+        ],
+        "productionWrites": 0,
+        "semanticGoldEstablished": false,
+        "adopted": false
+      },
+      "proxyProcess": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 0.395,
+        "processGroupStopConfirmed": true
+      },
+      "proxySnapshot": {
+        "jevRequests": 3,
+        "totalRequests": 3,
+        "providerErrors": 0,
+        "knownProxyUsage": [
+          {
+            "model": "jev-1.13.0",
+            "input_tokens": 2480,
+            "output_tokens": 70
+          },
+          {
+            "model": "jev-1.13.0",
+            "input_tokens": 10164,
+            "output_tokens": 45
+          },
+          {
+            "model": "jev-1.13.0",
+            "input_tokens": 6926,
+            "output_tokens": 45
+          }
+        ],
+        "activeHandlersAtSnapshot": 0,
+        "upstreamSocketsClosedYet": false,
+        "remoteProviderWorkStoppedVerified": false,
+        "unknownLateUsagePossible": false,
+        "accountBillingVerified": false
+      },
+      "ownedProxyUpstreamsClosedConfirmed": true,
+      "remoteProviderWorkStoppedVerified": false,
+      "attemptJournalSha256": "4c7a00ce6440224039aa70836bc6de05917fba47498be1d1daf350a252d088d4"
+    },
+    {
+      "arm": "direct-15s",
+      "process": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 3.281,
+        "processGroupStopConfirmed": true
+      },
+      "result": {
+        "evidence": "real-original-large-transport-arm",
+        "arm": "direct-15s",
+        "route": "direct",
+        "timeoutMs": 15000,
+        "runtimeVersion": "v24.16.0",
+        "manifestSha256": "e4531220d947868bc25c9d105be29e0b057b2617f546e23e74a6e604a0aa912c",
+        "candidateSha256": "4144edf4141365c6bdf9dfbc7cd46d00f8832f26a4636538adcb632f902f3308",
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1975,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 17,
+          "coveredEntries": 17,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 19570,
+          "outputTokens": 160,
+          "estimatedCostUsd": 0.0008219400000000002,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        },
+        "complete": true,
+        "identicalWireRequests": true,
+        "preSendFixtureRequests": 3,
+        "externalRequests": 3,
+        "fixtureRequests": 0,
+        "actualModelVerified": true,
+        "knownInputTokens": 19570,
+        "knownEstimatedCostUsd": 0.0008219400000000001,
+        "usageResponses": 3,
+        "missingUsageRequests": 0,
+        "observations": [
+          {
+            "index": 0,
+            "wireRequestSha256": "855687df29c3c9a0c9c314235a7db1c2301c689731d568844e890ec7ad0a0149",
+            "wireBytes": 6594,
+            "durationMs": 1197,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "supported_0",
+                "noul": 0.89
+              },
+              {
+                "key": "expands_0",
+                "choice": "same",
+                "confidence": 0.56,
+                "probabilities": {
+                  "same": 0.67,
+                  "narrower": 0.15,
+                  "broader": 0.17,
+                  "unclear": 0.01
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 2480,
+            "outputTokens": 70
+          },
+          {
+            "index": 1,
+            "wireRequestSha256": "d33945df5ce0fd417ed7aa94907bc85a4edb449c2edae3ff0dd6133c2a04c18c",
+            "wireBytes": 29978,
+            "durationMs": 1367,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "counter_0_0",
+                "choice": "compatible",
+                "confidence": 0.96,
+                "probabilities": {
+                  "compatible": 0.97,
+                  "contradicts": 0.01,
+                  "unclear": 0.02
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 10164,
+            "outputTokens": 45
+          },
+          {
+            "index": 2,
+            "wireRequestSha256": "d37aa018f3fd616c361d58dda171fb78c0ef6a94c50bf403e9b3597729a29fd7",
+            "wireBytes": 20684,
+            "durationMs": 1965,
+            "valid": true,
+            "modelVerified": true,
+            "judgments": [
+              {
+                "key": "counter_0_1",
+                "choice": "compatible",
+                "confidence": 0.93,
+                "probabilities": {
+                  "compatible": 0.95,
+                  "contradicts": 0.02,
+                  "unclear": 0.03
+                }
+              }
+            ],
+            "status": 200,
+            "inputTokens": 6926,
+            "outputTokens": 45
+          }
+        ],
+        "productionWrites": 0,
+        "semanticGoldEstablished": false,
+        "adopted": false
+      },
+      "attemptJournalSha256": "820d27b76ab672b847617710813ca2610259d87746d186bd827ed7c3ac6e4dd7"
+    }
+  ]
+}

@@ -1,0 +1,265 @@
+{
+  "evidence": "real-pi-native-hooks-replaying-r17-rules-with-fixed-provider",
+  "rows": [
+    {
+      "evidence": "real-pi-native-hook-with-fixture-provider",
+      "fixtureProvider": true,
+      "externalRequests": 0,
+      "networkIsolation": "docker-network-none",
+      "fixtureForwardedRequests": 0,
+      "piVersion": "1.0.2",
+      "fixtureRequests": 11,
+      "realInference": false,
+      "harnessSha256": "f615e6463b8ab8cc152284bede8de1b73f849d959bc83cbf613b603ba99c249d",
+      "nativeToolResults": 10,
+      "blockedCases": 5,
+      "allowedCases": 5,
+      "forbiddenSideEffects": 0,
+      "allPassed": true,
+      "cases": [
+        {
+          "id": "push-with-remote",
+          "expected": "block",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "push-dry-run",
+          "expected": "block",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "quoted-operator-print",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "plain-command-words-echo",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "unrelated-status",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "same-project-cwd-push",
+          "expected": "block",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "global-config-push",
+          "expected": "block",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "global-pager-push",
+          "expected": "block",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "global-option-print",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "global-option-echo",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        }
+      ],
+      "project": "p-limit"
+    },
+    {
+      "evidence": "real-pi-native-hook-with-fixture-provider",
+      "fixtureProvider": true,
+      "externalRequests": 0,
+      "networkIsolation": "docker-network-none",
+      "fixtureForwardedRequests": 0,
+      "piVersion": "1.0.2",
+      "fixtureRequests": 11,
+      "realInference": false,
+      "harnessSha256": "2a0ada24127843289a3efd8c7f88e1089e2cf04cf478b472b87ae32985313277",
+      "nativeToolResults": 10,
+      "blockedCases": 5,
+      "allowedCases": 5,
+      "forbiddenSideEffects": 0,
+      "allPassed": true,
+      "cases": [
+        {
+          "id": "push-with-remote",
+          "expected": "block",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "push-dry-run",
+          "expected": "block",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "quoted-operator-print",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "plain-command-words-echo",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "unrelated-status",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "same-project-cwd-push",
+          "expected": "block",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "global-config-push",
+          "expected": "block",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "global-pager-push",
+          "expected": "block",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "global-option-print",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "global-option-echo",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        }
+      ],
+      "project": "mitt"
+    },
+    {
+      "evidence": "real-pi-native-hook-with-fixture-provider",
+      "fixtureProvider": true,
+      "externalRequests": 0,
+      "networkIsolation": "docker-network-none",
+      "fixtureForwardedRequests": 0,
+      "piVersion": "1.0.2",
+      "fixtureRequests": 11,
+      "realInference": false,
+      "harnessSha256": "af4fc1e3a66777e55c55972accbc027937a8a5cdb88591254bec551bd74b8ac7",
+      "nativeToolResults": 10,
+      "blockedCases": 0,
+      "allowedCases": 5,
+      "forbiddenSideEffects": 5,
+      "allPassed": false,
+      "cases": [
+        {
+          "id": "push-with-remote",
+          "expected": "block",
+          "observed": true,
+          "passed": false
+        },
+        {
+          "id": "push-dry-run",
+          "expected": "block",
+          "observed": true,
+          "passed": false
+        },
+        {
+          "id": "quoted-operator-print",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "plain-command-words-echo",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "unrelated-status",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "same-project-cwd-push",
+          "expected": "block",
+          "observed": true,
+          "passed": false
+        },
+        {
+          "id": "global-config-push",
+          "expected": "block",
+          "observed": true,
+          "passed": false
+        },
+        {
+          "id": "global-pager-push",
+          "expected": "block",
+          "observed": true,
+          "passed": false
+        },
+        {
+          "id": "global-option-print",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        },
+        {
+          "id": "global-option-echo",
+          "expected": "execute",
+          "observed": true,
+          "passed": true
+        }
+      ],
+      "project": "missing-rule-control"
+    }
+  ],
+  "realInference": false,
+  "learningQualityBenefitProven": false,
+  "manifestSha256": "2ce60e40d045f427e771be2bc95348d67f65b08437ad01ca516b1bad1dcc6963",
+  "originalRuleByteHashes": {
+    "p-limit": "cddbaffaddcb3f95c594c542044296509586f3252c2fdca461d3797b5155c996",
+    "mitt": "0f7a9424ebce6f9119f9f643cea9c8d8a44c56f42998fafeba1963e20a463cd7"
+  },
+  "stdoutSha256": "4ac7adff0664766da7c0d1affcd0b3b28d4d719b733ea25ba4ebf7e6a381c350",
+  "cleanup": {
+    "name": "cl-r17-native-7e44ca934027",
+    "absent": true,
+    "network": "none"
+  },
+  "fixtureRequests": 33,
+  "realMainCalls": 0,
+  "jevCalls": 0,
+  "historicalOverallResultsUnchanged": true,
+  "limits": [
+    "Historical rules replayed unchanged in a disposable project.",
+    "Fixed provider requests are not real model inference.",
+    "Original Memory and overall failures remain failures.",
+    "No claim of Jev quality improvement from execution alone."
+  ]
+}

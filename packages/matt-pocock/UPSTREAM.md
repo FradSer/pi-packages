@@ -63,6 +63,17 @@ skills, and the package contains no `SKILL.md` file.
 7. Preserve the local BDD/TDD split and Pi-specific interaction,
    collaboration, instruction-file, and git-agent guidance. An adapted content
    result is expected when these local contracts differ from upstream.
+   Four procedures carry such local lines today, all following one policy: an
+   explicit task path wins, otherwise the procedure's own default applies.
+   `procedures/pr.md`, `procedures/to-questionnaire.md`, and
+   `procedures/improve-codebase-architecture.md` each state that the deliverable
+   is a written file which must exist before the turn ends, and
+   `procedures/improve-codebase-architecture.md` also states that its survey step
+   writes the report and nothing else. `procedures/implement.md` forbids a
+   defensive default for a value the trusted path cannot miss. A real-upstream
+   comparison that reports `adapted` above zero for these files is therefore
+   expected, not drift. The isolated sync test compares against a fixture
+   generated from the local files, so it stays exact either way.
 8. Classify every new or removed upstream skill in
    `upstream-selection.json`, then update the four revision fields together.
    Promoted `pr` and `retro` are adapted to the Pi catalog. `implement-spec`

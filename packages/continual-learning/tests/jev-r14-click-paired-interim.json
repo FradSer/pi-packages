@@ -1,0 +1,96 @@
+{
+  "evidence": "actual-r14-click-paired-interim",
+  "sourceDigest": "beedbeebea1f64794d21d8339fb151fa3974ed3a4ad4735bc1dfe4b6cbe274df",
+  "status": {
+    "off": "passed",
+    "on": "passed"
+  },
+  "commonEffects": "all11originalchecks pass in botharms; extra realJevParticipation on is eligibility not effectgain",
+  "observedWholeWorkflowGain": false,
+  "promptCausalEffectVerified": false,
+  "r14Complete": false,
+  "goalComplete": false,
+  "learningSeconds": {
+    "off": 157.64,
+    "on": 257.21
+  },
+  "jev": {
+    "actualModel": "jev-1.13.0",
+    "requests": 12,
+    "knownInputTokens": 72030,
+    "durationMs": 4081,
+    "knownEstimatedCostUsd": 0.00302526,
+    "actualBillingVerified": false
+  },
+  "attempts": {
+    "off": [
+      {
+        "phase": "selector",
+        "outcome": "applied",
+        "operations": 0,
+        "jevReason": null
+      },
+      {
+        "phase": "memory",
+        "outcome": "applied",
+        "operations": 2,
+        "jevReason": null
+      },
+      {
+        "phase": "harness",
+        "outcome": "applied",
+        "operations": 1,
+        "jevReason": null
+      }
+    ],
+    "on": [
+      {
+        "phase": "selector",
+        "outcome": "applied",
+        "operations": 0,
+        "jevReason": null
+      },
+      {
+        "phase": "memory",
+        "outcome": "proposed",
+        "operations": 0,
+        "jevReason": "uncertain"
+      },
+      {
+        "phase": "memory",
+        "outcome": "applied",
+        "operations": 2,
+        "jevReason": "supported"
+      },
+      {
+        "phase": "harness",
+        "outcome": "applied",
+        "operations": 1,
+        "jevReason": "supported"
+      }
+    ]
+  },
+  "reportSha256": {
+    "off": "448b47d89a6f239965e8667afc39779b88379549df5eab630f71987e8f7ee28e",
+    "on": "853b0692cd23c9934ce8a56897be765cf6bc840b93175e7b6998f98f80d643eb"
+  },
+  "limits": [
+    "On first Memory hold is candidate1 support uncertain; one existing repair corrected fullplan and original Jev allowed.",
+    "Repair changes candidatebody/content and citations; cannot attribute pass specifically to citationaddition. Project3citations became2usercitations; no claim newguidance guarantees toolcitations in everyrepair.",
+    "Observed99.57sec learningtime difference includes stochasticmain generation/planning/repair, not pure Jevlatency.",
+    "Two of6terminalreports; originalpaid process61811 continues p-limitoff. Allfailed arms must be retained."
+  ],
+  "independentArtifactReview": {
+    "reviewer": "citation_generation_review",
+    "blockingFindings": 0,
+    "frozenSnapshotAndAppliedPlanDigests": "verified",
+    "finalExactQuotes": "verified",
+    "storedPublicFactsAndDescriptions": "supported by user original; off executionclaim also real successful toolresult",
+    "privateScopeAndExports": "retained, no privatevalue projectexport",
+    "harnessScopeAndNativeEffects": "same anchored projectpushmatcher and actual block/nosideeffect/unrelatedallow evidence",
+    "attributionLimits": [
+      "On repair changes both content and citations, not citationaddition causalproof.",
+      "Baseline shares filesystem and explicitly allows manualdiscovery; actual baseline found privatevalue by read. No recallgain inference."
+    ]
+  }
+}

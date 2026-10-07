@@ -1,0 +1,63 @@
+{
+  "evidence": "real-linux-pi-session-start-current-writer-rollback-fixture-model",
+  "piVersion": "1.0.2",
+  "piExitCode": 0,
+  "fixtureRequests": 1,
+  "externalRequests": 0,
+  "mainModelInference": false,
+  "jevRequests": 0,
+  "writer": {
+    "checks": 3,
+    "observedFirstWrite": true,
+    "error": "Memory consolidation was cancelled before apply completed.",
+    "harnessRootExists": false,
+    "publicRootExists": false
+  },
+  "learningQualityEvidence": false,
+  "runtimeSourceSha256AfterRun": "53e5d5e638a1673c09264b86ea6bf95b7179aefe57d4641520cc17d2da3eff5e",
+  "sourceHashTiming": "post-run verification; no prospective inference manifest claim",
+  "container": {
+    "id": "80a0f8fa944312aafa72547617673bcbbffde04f49fb04f703daff6a6494ed8b",
+    "name": "cl-subset-parent-rollback-20261006t193606z",
+    "absent": true,
+    "network": "none",
+    "readOnlyRoot": true,
+    "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e"
+  },
+  "scope": "Current extension loaded by native Pi; deterministic session_start probe invokes parent writer directly. No learning pipeline or semantic inference claim.",
+  "beforeControl": {
+    "evidence": "real-linux-pi-session-start-before-rmdir-control-fixture-model",
+    "piVersion": "1.0.2",
+    "piExitCode": 0,
+    "fixtureRequests": 1,
+    "externalRequests": 0,
+    "mainModelInference": false,
+    "jevRequests": 0,
+    "writer": {
+      "checks": 3,
+      "observedFirstWrite": true,
+      "error": "Memory consolidation was cancelled before apply completed.; memory rollback failed: Path is a directory: rm returned EISDIR (is a directory) /tmp/rollback-probe/public",
+      "harnessRootExists": true,
+      "publicRootExists": true
+    },
+    "learningQualityEvidence": false,
+    "runtimeSourceSha256": "e0c92db6efb266453d493fbf2514624844051bf6e43235abb38f8fae89f5eaae",
+    "container": {
+      "id": "f2608c92aef1c25eb0b0265d49ef4bb2e5af46fa309282181b80caa9b3bde518",
+      "absent": true,
+      "network": "none",
+      "readOnlyRoot": true
+    },
+    "derivation": "Only rmdir call reverted to prior rm(directory, force:true) in a task-owned runtime copy; no repository source reverted."
+  },
+  "sameNativeProbeSha256BothArms": "6dd8f530638faaf72ce277cdfdcf173800893d46d99053958755bbaea59b3f48",
+  "comparison": {
+    "firstWriteObservedBoth": true,
+    "beforeRollbackFailure": "EISDIR; both new roots remain",
+    "afterRollbackFailure": false,
+    "afterBothNewRootsRemoved": true,
+    "totalLocalFixtureResponses": 2,
+    "externalRequests": 0,
+    "qualityInference": false
+  }
+}

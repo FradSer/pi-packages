@@ -35,6 +35,7 @@
     "kind": "workflow",
     "invocation": "user",
     "label": "Grill Me",
+    "description": "Interview the user relentlessly, one decision at a time, until you share one understanding. Use when the user says grill me.",
     "standalone": true,
     "requires": [
       "grilling"
@@ -324,6 +325,7 @@
     "kind": "workflow",
     "invocation": "user",
     "label": "Handoff",
+    "description": "Write a handoff document that another agent or person can pick up cold.",
     "standalone": true,
     "discloses": [
       "phase-boundaries"
@@ -456,6 +458,7 @@
     "kind": "workflow",
     "invocation": "user",
     "label": "Improve Codebase Architecture",
+    "description": "Find and rank architecture deepening opportunities, then improve the strongest one.",
     "standalone": true,
     "requires": [
       "codebase-design"

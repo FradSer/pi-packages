@@ -225,6 +225,61 @@ def test_model_error_guard_requires_no_timeout_on_both_exit_paths() -> None:
     assert content.count('failure.kind === "model-error" && !timedOut') == 2
 
 
+def test_memory_attempt_diagnostic_only_attaches_a_stop_reason_to_a_failed_outcome() -> None:
+    # Given a recorded attempt outcome, When the parent builds the receipt
+    # diagnostic, Then a controlled stop reason attaches only to "failed".
+    # A rejected, applied, proposed, noop, or cancelled attempt stays free of
+    # it, and a Jev judgment keeps its own reason.
+    result = run_bun(
+        """
+        import { memoryAttemptDiagnostic } from './packages/continual-learning/extensions/inject-memory.ts';
+        console.log(JSON.stringify([
+          memoryAttemptDiagnostic({ outcome: "failed", stopReason: "memory planner model error" }),
+          memoryAttemptDiagnostic({ outcome: "rejected", stopReason: "memory planner model error" }),
+          memoryAttemptDiagnostic({ outcome: "cancelled", stopReason: "memory planner timed out" }),
+          memoryAttemptDiagnostic({ outcome: "applied", stopReason: "memory planner timed out" }),
+          memoryAttemptDiagnostic({ outcome: "proposed", stopReason: "memory planner timed out" }),
+          memoryAttemptDiagnostic({ outcome: "failed", stopReason: "memory planner model error", jev: { status: "failed", reason: "unavailable" } }),
+          memoryAttemptDiagnostic({ outcome: "applied", stopReason: "ignored", jev: { status: "decided", reason: "supported" } }),
+        ]));
+        """
+    )
+    assert result == [
+        "memory planner model error",
+        None,
+        None,
+        None,
+        None,
+        "Jev failed: unavailable",
+        "Jev decided: supported",
+    ]
+
+
+def test_memory_stop_reason_is_a_fixed_vocabulary_without_worker_text() -> None:
+    # Given a Memory phase that stopped before any Jev judgment, When the parent
+    # reports the stopped attempt, Then the reason is a fixed phrase. Worker
+    # stderr and model output never become a receipt reason.
+    result = run_bun(
+        """
+        import { memoryStopReason } from './packages/continual-learning/extensions/inject-memory.ts';
+        console.log(JSON.stringify([
+          memoryStopReason({ timedOut: true, outputLimit: false, modelError: false, verificationFailed: false }),
+          memoryStopReason({ timedOut: false, outputLimit: true, modelError: false, verificationFailed: false }),
+          memoryStopReason({ timedOut: false, outputLimit: false, modelError: true, verificationFailed: false }),
+          memoryStopReason({ timedOut: false, outputLimit: false, modelError: false, verificationFailed: false }),
+          memoryStopReason({ timedOut: true, outputLimit: false, modelError: false, verificationFailed: true }),
+        ]));
+        """
+    )
+    assert result == [
+        "memory planner timed out",
+        "memory planner exceeded the output limit",
+        "memory planner model error",
+        "memory planner produced no usable plan",
+        "memory consolidation verification failed",
+    ]
+
+
 def test_rejection_reason_is_head_clipped_at_a_word_agnostic_budget() -> None:
     result = run_bun(
         """
@@ -739,7 +794,7 @@ def test_shutdown_waits_for_and_invalidates_async_completion() -> None:
     assert "state.completion = completion" in content
     assert "if (completion) await completion" in content
     assert "const ownsCurrentRun = (): boolean" in content
-    assert "applyConsolidationPlan(run, plan, ownsCurrentRun)" in content
+    assert "applyConsolidationPlan(run, plan, ownsCurrentRun," in content
     assert "if (!ownsCurrentRun()) return" in content
 
 

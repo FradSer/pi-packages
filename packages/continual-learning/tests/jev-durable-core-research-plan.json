@@ -1,0 +1,78 @@
+{
+  "evidence": "prospective-research-plan-not-executed",
+  "trigger": "R17 p-limit candidate 2 remained uncertain after factually grounded repair; cause unproven",
+  "productionAdoption": false,
+  "paidExecutionAllowedNow": false,
+  "requiredTerminalPrerequisite": "jev-template-tab-r17-final-results.json with verified source, owned cleanup and original gates",
+  "hypothesis": "Keeping stable configuration and omitting incidental single-run narrative in the same original candidate may improve support judgment without knowledge loss",
+  "arms": [
+    "current repair prompt",
+    "bounded durable-core clarification appended to same repair prompt"
+  ],
+  "invariants": [
+    "Same frozen evidence, existing Memory, original rejected plan and model configuration for each pair",
+    "Preserve every candidate name, original rewrite/delete action, explicit user-requested facts, privacy, duration and exceptions",
+    "No candidate omission, partial writes, lower threshold, extra production repair slot or favorable retry",
+    "Exact citation and full evidence-window validation before any acceptance",
+    "Experimental outputs never applied to host or used as permission",
+    "This bounded generator pilot freezes every original quote/index and frontmatter identity; it does not add this stricter citation rule to production."
+  ],
+  "development": [
+    "R17 p-limit original plan; known sample, no semantic gold",
+    "R17 Click original plan; mixed task-result overclaim, known sample"
+  ],
+  "freshBilingualScenarioPairs": [
+    {
+      "id": "stable-config-plus-run-history",
+      "expected": "Retain stable verified configuration; omit incidental passing count if not explicitly requested"
+    },
+    {
+      "id": "explicit-long-term-observed-result",
+      "expected": "Retain user explicitly requested verified result including required counts or version context"
+    },
+    {
+      "id": "lasting-compatibility-exception",
+      "expected": "Retain verified ongoing compatibility condition and exception even if discovered during one fix"
+    },
+    {
+      "id": "only-transient-failure",
+      "expected": "No invented stable configuration or lasting prohibition; unresolved plan stays proposed"
+    },
+    {
+      "id": "later-config-revocation",
+      "expected": "Preserve later correction; never recover superseded fact"
+    },
+    {
+      "id": "private-conditional-preference",
+      "expected": "Retain private isolation, scope, duration and conditional permission"
+    },
+    {
+      "id": "negative-verification-and-recovery",
+      "expected": "Preserve stable configuration and explicit durable command; deliberate failing probes followed by restoration do not revoke that fact. Unresolved real incompatibility must remain material."
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history",
+      "expected": "Preserve verified useful ongoing diagnostic knowledge even without explicit request, including future relevance boundary; no permanent prohibition."
+    }
+  ],
+  "requiredMeasurements": [
+    "Generation completion and structural validity",
+    "Claim retention/loss and description retrieval meaning, independently source-reviewed",
+    "Explicit Memory, private isolation and exceptions preserved",
+    "All Jev questions and evidence windows complete, actual model and duration",
+    "Allow, correct hold, uncertain, service missing; no unlabelled sample accuracy",
+    "Known main/Jev usage separately; missing usage unknown; proxy usage not double counted"
+  ],
+  "adoptionRule": "Allow rate alone never justifies adoption. Require independent source review, no new mistaken writes or loss of required facts/conditions/privacy, prospective useful-learning gains and unchanged permission checks. Keep Jev optional; no positive conclusion is required. Whole-plugin superiority requires unseen-project and separate phase-effect evidence.",
+  "goalComplete": false,
+  "objective": "Improve reliable retention of useful knowledge and correct constraints while reducing mistaken and missed learning; Jev allow rate is not the objective.",
+  "qualityCharter": "jev-learning-quality-charter.md",
+  "wholeWorkflowEvaluation": {
+    "originalReports": "immutable; do not re-label or rerun failures for a favorable result",
+    "futureObservation": "Collect Memory, fresh-session recall and Harness execution separately. Record blocked prerequisites as missing coverage and aggregate final acceptance afterward.",
+    "correctHold": "A correctly held unsupported candidate is a quality success, not a failure merely because it did not write.",
+    "unseenProjects": "Include projects beyond Click, p-limit and mitt before any generalization; choose and freeze pins/tasks before calls.",
+    "independentLabels": "Freeze source-grounded expected behavior before inference and obtain independent review; model review must never be presented as human gold.",
+    "netBenefit": "Report useful knowledge retained, required knowledge lost, unsafe writes, false holds, proper constraint execution, latency and cost separately. Do not hide a safety regression in a weighted aggregate."
+  }
+}

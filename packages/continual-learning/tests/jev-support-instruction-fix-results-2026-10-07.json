@@ -1,0 +1,118 @@
+{
+  "kind": "jev-support-instruction-fix",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "change": "extensions/jev-learning.ts support question and grounded criterion now state that a successful tool result that ran the command grounds the claim, and that a failed, interrupted, or erroring run is transient and does not ground a lasting claim.",
+  "whyNotATreshold": "The diagnostic showed no usable threshold: legitimate supplement probabilities (0.64 to 0.87) overlap the negative transient probability (0.68 to 0.73), and the English transient case was misclassified as grounded. Lowering the gate would admit a transient failure as durable knowledge.",
+  "gate": {
+    "unchanged": true,
+    "YES": 0.9,
+    "CONFIDENCE": 0.8
+  },
+  "preRegisteredCriteria": "supplement allows >= 4 of 6 and transient held 6 of 6",
+  "before": {
+    "rawRoot": "~/.cache/pi-continual-learning/research/adversarial-negative-2026-10-07/stability-before",
+    "passes": 3,
+    "supplementAllows": "0 of 6",
+    "transientHeld": "6 of 6",
+    "detail": [
+      {
+        "id": "stability-supplement-pure-en",
+        "decision": "propose",
+        "choice": "grounded",
+        "probability": 0.86
+      },
+      {
+        "id": "stability-supplement-pure-en",
+        "decision": "propose",
+        "choice": "grounded",
+        "probability": 0.84
+      },
+      {
+        "id": "stability-supplement-pure-en",
+        "decision": "propose",
+        "choice": "grounded",
+        "probability": 0.83
+      },
+      {
+        "id": "stability-supplement-pure-zh",
+        "decision": "propose",
+        "choice": "grounded",
+        "probability": 0.77
+      },
+      {
+        "id": "stability-supplement-pure-zh",
+        "decision": "propose",
+        "choice": "grounded",
+        "probability": 0.74
+      },
+      {
+        "id": "stability-supplement-pure-zh",
+        "decision": "propose",
+        "choice": "grounded",
+        "probability": 0.73
+      },
+      {
+        "id": "stability-transient-en",
+        "decision": "propose",
+        "choice": "grounded",
+        "probability": 0.73
+      },
+      {
+        "id": "stability-transient-en",
+        "decision": "propose",
+        "choice": "grounded",
+        "probability": 0.69
+      },
+      {
+        "id": "stability-transient-en",
+        "decision": "propose",
+        "choice": "grounded",
+        "probability": 0.68
+      },
+      {
+        "id": "stability-transient-zh",
+        "decision": "propose",
+        "choice": "transient",
+        "probability": 0.89
+      }
+    ]
+  },
+  "after": {
+    "rawRoot": "~/.cache/pi-continual-learning/research/adversarial-negative-2026-10-07/stability-after",
+    "passes": 3,
+    "supplementAllows": "6 of 6",
+    "transientHeld": "6 of 6",
+    "detail": [
+      {
+        "id": "stability-supplement-pure-en",
+        "decision": "allow"
+      },
+      {
+        "id": "stability-supplement-pure-zh",
+        "decision": "allow"
+      },
+      {
+        "id": "stability-transient-en",
+        "decision": "propose",
+        "choice": "transient",
+        "probability": 0.99
+      },
+      {
+        "id": "stability-transient-zh",
+        "decision": "propose",
+        "choice": "transient",
+        "probability": 1
+      }
+    ]
+  },
+  "outcome": "The pre-registered criteria are met. The legitimate supplement class recovers in both languages in all three passes, and the negative transient class stays held in all three passes with a stronger classification than before: transient at 0.99 to 1.0 instead of grounded at 0.68 to 0.73. Zero false allows.",
+  "verification": "RED then GREEN on tests/test_jev_learning.py::test_support_definitions_ground_a_successful_run_and_reject_a_transient_one; 44 focused tests pass; pnpm typecheck exit 0.",
+  "stillOpen": [
+    "Full 14-case corpus re-measurement after the change.",
+    "The privacy preflight false positive.",
+    "One untuned project pair on the changed code.",
+    "The full verification set."
+  ],
+  "writeAuthorized": false
+}

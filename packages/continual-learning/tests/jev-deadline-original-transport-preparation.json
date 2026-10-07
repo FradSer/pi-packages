@@ -1,0 +1,44 @@
+{
+  "evidence": "prospective-large-original-deadline-and-transport-diagnostic-preparation",
+  "originalWireProfileSha256": "69d6f77d3acd79b993b413d9f6c8f64420180e99669246085eda45365edebf30",
+  "profileScriptSha256": "e8e6f3de472169b00cb97dc0e93da81b72492cd097f89d3021e771195faeb2c6",
+  "priorOriginalRealReportSha256": "5b4b73ff65409217bf07e94c91a7bf81a3e6f88999980ece8c004518365341ec",
+  "smallCorpusWireByteRange": [
+    1921,
+    2125
+  ],
+  "originalWireBytes": [
+    6594,
+    29978,
+    20684
+  ],
+  "evidenceEntries": 17,
+  "evidenceWindows": 2,
+  "plannedDeadlinesMs": [
+    5000,
+    15000
+  ],
+  "plannedRoutes": [
+    "direct official SDK",
+    "existing transparent Python forwarding proxy on the same host runtime"
+  ],
+  "plannedArms": 4,
+  "plannedProviderRequestBudget": 12,
+  "paidExecutionAllowedNow": false,
+  "productionWrites": 0,
+  "goalComplete": false,
+  "remainingPrepaidRequirements": [
+    "Behavior scenarios and RED/GREEN sending/credential/cancellation/usage regression tests for the matrix runner.",
+    "Same runtime/SDK/source/candidate and exact preflight wire multiset in every arm.",
+    "Fresh independent runner review and zero-call transport preflight before paid execution."
+  ],
+  "limits": [
+    "Known synthetic original candidate; semantic gold is not fully established.",
+    "Historical wire bodies were not retained; profile reconstructs current frozen-source requests, literal identity to historical wires is unverified.",
+    "Same-host route comparison cannot isolate Docker VM networking or prove whole-workflow learning improvement.",
+    "No automatic deadline expansion or retry; prior paid failures remain immutable.",
+    "Transient offline profiling script failures retained privately; all zero external calls, not production regressions."
+  ],
+  "sourceManifestSha256": "6a4294b06ba77d926586cdc674bf98bc0141418768dabb74aca8a7ecfa342bc9",
+  "sourceManifest": "jev-deadline-study-manifest.json"
+}

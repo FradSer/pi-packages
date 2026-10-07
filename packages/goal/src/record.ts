@@ -21,6 +21,11 @@ export type GoalStatus = "active" | "paused" | "blocked" | "budget_limited" | "c
  * gave up" from "the user stopped it". */
 export type StopReason = "user" | "agent";
 
+/** Who asked for a resume. `user` is the management verb, where the user is
+ * present. `revision` is a landing revision under an accepted `/goal <text>`
+ * request, where the runtime — not the user — lifted the pause. */
+export type ResumeReason = "user" | "revision";
+
 /**
  * Persisted scheduling state.
  *
@@ -100,8 +105,6 @@ export interface GoalRecord {
  * ones would have. */
 export const GOAL_RECORD_VERSION = 1;
 
-export const MAX_OBJECTIVE_CHARS = 4000;
-
 export function nowIso(): string {
   return new Date().toISOString();
 }
@@ -137,7 +140,7 @@ export function normalizeGoalRecord(raw: unknown): GoalRecord | undefined {
   if (!id || !objective) return undefined;
   const goal: GoalRecord = {
     id,
-    objective: objective.slice(0, MAX_OBJECTIVE_CHARS),
+    objective,
     status: oneOf(record.status, ["active", "paused", "blocked", "budget_limited", "complete"] as const) ?? "paused",
     autoContinue: record.autoContinue === true,
     usage: {

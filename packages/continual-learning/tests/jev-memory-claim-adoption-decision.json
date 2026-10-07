@@ -1,0 +1,120 @@
+{
+  "decision": "do-not-adopt",
+  "experimentalSemanticPathAdopted": false,
+  "reason": "Reused development unchanged; new paired scenarios improve one hold, but original full-workflow failures remain held. Insufficient evidence for whole-plugin quality gain.",
+  "development": {
+    "complete": true,
+    "samples": 48,
+    "metrics": {
+      "before": {
+        "evaluatedPlans": 46,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 8
+      },
+      "after": {
+        "evaluatedPlans": 46,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 8
+      }
+    },
+    "perStage": {
+      "memory": {
+        "before": {
+          "evaluatedPlans": 42,
+          "falseHolds": 6,
+          "falseAccepts": 0
+        },
+        "after": {
+          "evaluatedPlans": 42,
+          "falseHolds": 6,
+          "falseAccepts": 0
+        }
+      },
+      "harness": {
+        "before": {
+          "evaluatedPlans": 4,
+          "falseHolds": 2,
+          "falseAccepts": 0
+        },
+        "after": {
+          "evaluatedPlans": 4,
+          "falseHolds": 2,
+          "falseAccepts": 0
+        }
+      }
+    },
+    "decisionChanges": [],
+    "durationsMedianMs": {
+      "before": 336.0,
+      "after": 338.5
+    }
+  },
+  "heldout": {
+    "complete": true,
+    "samples": 32,
+    "metrics": {
+      "before": {
+        "evaluatedPlans": 32,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 6
+      },
+      "after": {
+        "evaluatedPlans": 32,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 5
+      }
+    },
+    "perStage": {
+      "memory": {
+        "before": {
+          "evaluatedPlans": 32,
+          "falseHolds": 6,
+          "falseAccepts": 0
+        },
+        "after": {
+          "evaluatedPlans": 32,
+          "falseHolds": 5,
+          "falseAccepts": 0
+        }
+      },
+      "harness": {
+        "before": {
+          "evaluatedPlans": 0,
+          "falseHolds": 0,
+          "falseAccepts": 0
+        },
+        "after": {
+          "evaluatedPlans": 0,
+          "falseHolds": 0,
+          "falseAccepts": 0
+        }
+      }
+    },
+    "decisionChanges": [
+      {
+        "id": "en-claim-fresh-03",
+        "expectedAllow": true,
+        "before": "propose",
+        "after": "allow"
+      }
+    ],
+    "durationsMedianMs": {
+      "before": 339.0,
+      "after": 341.5
+    }
+  },
+  "outboundRequests": 334,
+  "knownInputTokens": 364904,
+  "estimatedInputCostUsd": 0.015325968000000002,
+  "limitations": [
+    "Candidate validation only; does not measure incremental selection or end-to-end durable application",
+    "New heldout contains 16 semantic scenarios paired in two languages, not 32 independent scenarios",
+    "Two original R9 failure artifacts have no quality labels and are excluded from accuracy",
+    "Synthetic private opt-in; no host private input or production permission changes",
+    "Same thresholds, full evidence, timeout and zero retries preserved"
+  ]
+}

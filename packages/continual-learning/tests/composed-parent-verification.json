@@ -1,0 +1,243 @@
+{
+  "kind": "programmatically gated composed Memory collector and parent verification",
+  "productionDefaultActivated": false,
+  "newRealInferenceRequests": 0,
+  "native": [
+    {
+      "language": "en",
+      "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/composed-parent-final-en-20261006T215600Z",
+      "manifestSha256": "cf34a6f4a4a206af868ab62981d7b980d2948e9e0cd1f228fccb4b0c1f61935b",
+      "resultSha256": "9301792ec2bc58d8b40c676ae14c2485ddbf4b99873222e2194447caad5267c0",
+      "rows": [
+        {
+          "arm": "jev-composed-original",
+          "exitCode": 0,
+          "resultPresent": true,
+          "operations": 0,
+          "parentAssertionsPassed": true,
+          "matchesPredictedOperations": true
+        },
+        {
+          "arm": "jev-composed",
+          "exitCode": 0,
+          "resultPresent": true,
+          "operations": 2,
+          "parentAssertionsPassed": true,
+          "matchesPredictedOperations": true
+        }
+      ],
+      "ownedContainersAbsent": true,
+      "sourceHashes": {
+        "index.ts": "1ab8302e9b46799be439f84a3c0d49a113d96261084c3d2e96478313d09b061e",
+        "extensions/agents-md-consolidation.ts": "d3a8541e169a760b37526597411bdb923534e9412ec5c60e84f501a9b47440dc",
+        "extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+        "extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+        "extensions/consolidation-run.ts": "1f121be40c5d93dc7679325e18a8c71366e46827dc83ca8970356b83f3912b6e",
+        "extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+        "extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+        "extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+        "extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+        "extensions/harness-command-coverage.ts": "122b26c79364e4c82b41d96e819f0ecb916b4a7a01738b6b3f0002bfcce2de8c",
+        "extensions/harness-consolidation.ts": "a35441ddfbf3c8c3be27dbcfee3dd89dc0daaadf2f9e1e7e5b42ce247ef49c47",
+        "extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+        "extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+        "extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+        "extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+        "extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+        "extensions/independent-memory-partition.ts": "ac2a74f53654a5e90b68ec0fe12b7738ed50f47f68da5412eecea6104fc1356d",
+        "extensions/inject-memory.ts": "bbbd5588968f93c9d1a64b2d0ee9288ad141d4afd82c17e9fed3a42a5be41a01",
+        "extensions/jev-learning.ts": "51d9a38579280811b69512dc6df3fb15c6715b8c5f9eda592c397f287f0c8382",
+        "extensions/jev-memory-readiness.ts": "433a7d233df90d5edaf7d268ed37f4df456d5eda7332216bbe26e6951872e747",
+        "extensions/jev-memory-relations.ts": "bfb4030799a2d254174524887e4241d69223a7c355d7e06b6dc0fd568cbc5529",
+        "extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+        "extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+        "extensions/learning-efficiency.ts": "de2c8179d4941f200610da7bfab18fa610f8fbc1123722d3a3eb520bef08fa82",
+        "extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+        "extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+        "extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+        "extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+        "extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+        "extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+        "extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+        "extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+        "extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+        "extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+        "extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899"
+      },
+      "fixtureHashes": {
+        "independent-memory-probe.ts": "94fe46e8d811d14f08fc81fd9c4b8ee18ff5c6644bf580b7e6f231ae24766592",
+        "independent-memory-container.py": "a8681af9a5a03cd10a347960b1dbd12b6b10cc917a3e4a82e409ab91909e4613",
+        "run-independent-memory.py": "b119f90239078b0add1ea1332847ecd285bda14417d0988512b2777dcc491ca2"
+      },
+      "externalModelRequests": 0,
+      "mainResponses": "fixed local fixtures",
+      "jevResponses": "fixed local fixtures"
+    },
+    {
+      "language": "zh",
+      "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/composed-parent-final-zh-20261006T215600Z",
+      "manifestSha256": "e8896fdeadfd55efddcbaf841b010c85c10a1e82b5936f1ebe4a242cc5be67d6",
+      "resultSha256": "4abe0f4d9a6b7b18ef230f88205ecc4edecafce07ce88c14d935b0d5f712919e",
+      "rows": [
+        {
+          "arm": "jev-composed-original",
+          "exitCode": 0,
+          "resultPresent": true,
+          "operations": 0,
+          "parentAssertionsPassed": true,
+          "matchesPredictedOperations": true
+        },
+        {
+          "arm": "jev-composed",
+          "exitCode": 0,
+          "resultPresent": true,
+          "operations": 2,
+          "parentAssertionsPassed": true,
+          "matchesPredictedOperations": true
+        }
+      ],
+      "ownedContainersAbsent": true,
+      "sourceHashes": {
+        "index.ts": "1ab8302e9b46799be439f84a3c0d49a113d96261084c3d2e96478313d09b061e",
+        "extensions/agents-md-consolidation.ts": "d3a8541e169a760b37526597411bdb923534e9412ec5c60e84f501a9b47440dc",
+        "extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+        "extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+        "extensions/consolidation-run.ts": "1f121be40c5d93dc7679325e18a8c71366e46827dc83ca8970356b83f3912b6e",
+        "extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+        "extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+        "extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+        "extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+        "extensions/harness-command-coverage.ts": "122b26c79364e4c82b41d96e819f0ecb916b4a7a01738b6b3f0002bfcce2de8c",
+        "extensions/harness-consolidation.ts": "a35441ddfbf3c8c3be27dbcfee3dd89dc0daaadf2f9e1e7e5b42ce247ef49c47",
+        "extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+        "extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+        "extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+        "extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+        "extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+        "extensions/independent-memory-partition.ts": "ac2a74f53654a5e90b68ec0fe12b7738ed50f47f68da5412eecea6104fc1356d",
+        "extensions/inject-memory.ts": "bbbd5588968f93c9d1a64b2d0ee9288ad141d4afd82c17e9fed3a42a5be41a01",
+        "extensions/jev-learning.ts": "51d9a38579280811b69512dc6df3fb15c6715b8c5f9eda592c397f287f0c8382",
+        "extensions/jev-memory-readiness.ts": "433a7d233df90d5edaf7d268ed37f4df456d5eda7332216bbe26e6951872e747",
+        "extensions/jev-memory-relations.ts": "bfb4030799a2d254174524887e4241d69223a7c355d7e06b6dc0fd568cbc5529",
+        "extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+        "extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+        "extensions/learning-efficiency.ts": "de2c8179d4941f200610da7bfab18fa610f8fbc1123722d3a3eb520bef08fa82",
+        "extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+        "extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+        "extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+        "extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+        "extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+        "extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+        "extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+        "extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+        "extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+        "extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+        "extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899"
+      },
+      "fixtureHashes": {
+        "independent-memory-probe.ts": "94fe46e8d811d14f08fc81fd9c4b8ee18ff5c6644bf580b7e6f231ae24766592",
+        "independent-memory-container.py": "a8681af9a5a03cd10a347960b1dbd12b6b10cc917a3e4a82e409ab91909e4613",
+        "run-independent-memory.py": "b119f90239078b0add1ea1332847ecd285bda14417d0988512b2777dcc491ca2"
+      },
+      "externalModelRequests": 0,
+      "mainResponses": "fixed local fixtures",
+      "jevResponses": "fixed local fixtures"
+    }
+  ],
+  "fullPackageTest": {
+    "passed": 1025,
+    "failed": 0,
+    "seconds": 400.23,
+    "exitCode": 0,
+    "note": "Final run began after all code and regression changes; tested sources remained unchanged."
+  },
+  "affectedTestRuns": [
+    {
+      "passed": 37,
+      "seconds": 19.64,
+      "note": "Before two additional collector bounds cases and two later regressions."
+    },
+    {
+      "passed": 34,
+      "seconds": 16.12,
+      "note": "Receipt/research compatibility and first five collection cases."
+    },
+    {
+      "passed": 6,
+      "seconds": 3.41,
+      "note": "All current collection cases including per-call timeout."
+    }
+  ],
+  "typecheckExitCode": 0,
+  "strictModuleTypecheckExitCode": 0,
+  "packCheck": {
+    "exitCode": 0,
+    "packages": 19
+  },
+  "targetDryPackExitCode": 0,
+  "installationCheck": {
+    "exitCode": 1,
+    "sameUnrelatedMissingPackages": 11
+  },
+  "redEvidence": [
+    "Missing collector: 2 failed, 1 passed before implementation.",
+    "Old preserved parent: 0 writes instead of expected 2; targeted regression failed before restored new parent.",
+    "Receipt mislabeled undefined windows before fix.",
+    "Actual SDK per-call options lacked timeout before cap fix."
+  ],
+  "independentReview": "composed_parent_collection_review: passed original security/state review (21 tests), plus timeout/receipt follow-up (27 tests)",
+  "limitations": [
+    "Docker proves actual Pi/SDK/parent/writer/context behavior with fixed local model responses, not learning-quality effect.",
+    "No new real Jev calls in this increment.",
+    "Actual cli-proxy / opencode/space-bunny-free project generation/application/recall and independent quality comparison remain required.",
+    "Default composed gate stays disabled and full goal remains active."
+  ],
+  "earlierFullPackageRun": {
+    "passed": 1021,
+    "failed": 2,
+    "seconds": 401.58,
+    "note": "Started before receipt compatibility changes and loaded the earlier historical-source mappings; both failures were frozen-source checks. Current focused regressions passed and final full run is in progress."
+  },
+  "currentSourceHashes": {
+    "extensions/agents-md-consolidation.ts": "d3a8541e169a760b37526597411bdb923534e9412ec5c60e84f501a9b47440dc",
+    "extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+    "extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+    "extensions/consolidation-run.ts": "1f121be40c5d93dc7679325e18a8c71366e46827dc83ca8970356b83f3912b6e",
+    "extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+    "extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+    "extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+    "extensions/harness-command-coverage.ts": "122b26c79364e4c82b41d96e819f0ecb916b4a7a01738b6b3f0002bfcce2de8c",
+    "extensions/harness-consolidation.ts": "a35441ddfbf3c8c3be27dbcfee3dd89dc0daaadf2f9e1e7e5b42ce247ef49c47",
+    "extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+    "extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+    "extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+    "extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+    "extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+    "extensions/independent-memory-partition.ts": "ac2a74f53654a5e90b68ec0fe12b7738ed50f47f68da5412eecea6104fc1356d",
+    "extensions/inject-memory.ts": "bbbd5588968f93c9d1a64b2d0ee9288ad141d4afd82c17e9fed3a42a5be41a01",
+    "extensions/jev-learning.ts": "51d9a38579280811b69512dc6df3fb15c6715b8c5f9eda592c397f287f0c8382",
+    "extensions/jev-memory-readiness.ts": "433a7d233df90d5edaf7d268ed37f4df456d5eda7332216bbe26e6951872e747",
+    "extensions/jev-memory-relations.ts": "bfb4030799a2d254174524887e4241d69223a7c355d7e06b6dc0fd568cbc5529",
+    "extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+    "extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+    "extensions/learning-efficiency.ts": "de2c8179d4941f200610da7bfab18fa610f8fbc1123722d3a3eb520bef08fa82",
+    "extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+    "extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+    "extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+    "extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+    "extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+    "extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+    "extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+    "extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+    "extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+    "extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899",
+    "tests/test_jev_composed_collection.py": "4bba9cc94885a57214f072f48331cb28da4fd0c131ba86031d282a9c09ec6d23",
+    "tests/test_independent_memory_parent_pipeline.py": "7ac38aced5d9c80739fc3ead02c4c8fa0cfaee83d72ea901517eef6f6eb86bec",
+    "tests/learning-policy-harness.ts": "61713143e8187b672f242c97bee5ba72d33c8b0a6fb97da75fdb82122d60c598",
+    "tests/test_learning_efficiency.py": "2bce2995c709ce9f5e2ef079cff61acc02a76c20fc8de66aaf5195b941b5f109",
+    "tests/test_jev_composed_readiness_research.py": "d25bf5d880421ebe43305cafe03081bb33f295c70a2672ac0096d0f897e2a7b5",
+    "tests/test_jev_standalone_memory_research.py": "6b87a3f68197e2a0435036f616f7e6aa588f1ade91cd10b4cc5ce07dba7a9e5b"
+  }
+}

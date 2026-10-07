@@ -97,6 +97,13 @@ export function modelStandaloneCapabilities(): ProcedureDefinition[] {
   return standaloneCapabilities().filter((definition) => definition.invocation === "model");
 }
 
+/** Standalone capabilities the user starts by name. They stay out of capability mode
+ *  so the model never picks one on its own, but the gateway still exposes them so an
+ *  explicit request ("grill me") reaches the package instead of an improvised method. */
+export function userStandaloneCapabilities(): ProcedureDefinition[] {
+  return standaloneCapabilities().filter((definition) => definition.invocation === "user");
+}
+
 export function validateProcedureCatalog(): string[] {
   const errors: string[] = [];
   const ids = new Set<string>();

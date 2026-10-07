@@ -1,0 +1,45 @@
+{
+  "evidence": "fresh-read-only-terminal-development-audit",
+  "reviewer": "subset_batch_prepaid_review",
+  "manifestSha256": "d63592c05043e4111758115f02daa02c356c8146755a0f93b0d083c7138591e3",
+  "rawRequestsRecomputed": 40,
+  "actualModels": [
+    "jev-1.13.0"
+  ],
+  "inputTokensRecomputed": 64314,
+  "outputTokensRecomputed": 6422,
+  "metricsRecomputed": {
+    "whole": {
+      "validAccepted": 4,
+      "erroneousAccepted": 2,
+      "validHeld": 12
+    },
+    "subset": {
+      "validAccepted": 11,
+      "erroneousAccepted": 2,
+      "validHeld": 5
+    },
+    "newErroneousAccepted": 0,
+    "newValidHolds": 0,
+    "recoveredValid": 7
+  },
+  "sourceHashCount": 44,
+  "sourceAndCorpusHashesMatch": true,
+  "candidateReviewsAndPairAnswersReplayed": true,
+  "publicPrivateCoreMatches": true,
+  "knownUsageNotDoubleCounted": true,
+  "publicRawSourcesOrErrorsPresent": false,
+  "privateFileMode": "0600",
+  "currentEvaluatorInventory": "absent",
+  "terminalExitCode": 0,
+  "historicalProcessGroupStopReported": true,
+  "exactHistoricalPidOwnershipIndependentlyReconstructed": false,
+  "developmentGatePasses": true,
+  "productionAdopted": false,
+  "limits": [
+    "Historical process record has no PID/PGID; exact historical process ownership cannot be independently reconstructed.",
+    "Host SDK real inference, not Docker/Pi acceptance.",
+    "Authored synthetic development labels, not independent human gold.",
+    "Two incomplete-dependent original whole-gate acceptances remain unchanged."
+  ]
+}

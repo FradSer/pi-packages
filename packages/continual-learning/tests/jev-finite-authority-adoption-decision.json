@@ -1,0 +1,50 @@
+{
+  "decision": "do-not-adopt",
+  "reason": "New-sample experiment worsened false holds and has one invalid response; real Click failure unchanged.",
+  "development": {
+    "samples": 36,
+    "metrics": {
+      "before": {
+        "evaluatedPlans": 36,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 9
+      },
+      "after": {
+        "evaluatedPlans": 36,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 7
+      }
+    },
+    "complete": true
+  },
+  "newSamples": {
+    "samples": 24,
+    "metrics": {
+      "before": {
+        "evaluatedPlans": 24,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 4
+      },
+      "after": {
+        "evaluatedPlans": 23,
+        "skippedIncompletePlans": 1,
+        "falseAccepts": 0,
+        "falseHolds": 6
+      }
+    },
+    "complete": false
+  },
+  "outboundRequests": 248,
+  "estimatedInputCostUsd": 0.011989362000000003,
+  "limitations": [
+    "Development labels reused, not blind.",
+    "One invalid semantic response retains usage but supplies no quality verdict.",
+    "Candidate comparisons do not prove full-workflow quality.",
+    "No decision threshold, timeout, retry or privacy boundary lowered."
+  ],
+  "nextResearchSignal": "Inspect lasting-authorization and full-window counterevidence ambiguity independently; do not infer correctness from high family-category probabilities.",
+  "experimentalSemanticPathAdopted": false
+}

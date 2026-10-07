@@ -381,6 +381,13 @@ def test_planner_prompts_require_concise_front_loaded_relevance_descriptions(pro
     assert "120 characters" in content
     assert "front-load" in content.lower()
     assert "description" in content and "single-line" in content
+    # Given either planner, When generating an index entry, Then it asks for
+    # an evidence-backed fact and preserves the original applicable boundary.
+    assert "evidence-backed fact or preference" in content
+    assert "not a bare relevance trigger" in content
+    assert "conditions, duration and permission exceptions" in content
+    assert "Do not invent a guarantee" in content
+    assert "description: How this project works" not in content
     assert "preservedIn" in content and "private" in content
     assert "read-only" in content
     assert '"schemaVersion": 1' in content and "{{SCOPE_DIGEST}}" in content

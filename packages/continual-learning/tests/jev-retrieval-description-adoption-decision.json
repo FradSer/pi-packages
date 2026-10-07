@@ -1,0 +1,133 @@
+{
+  "evidence": "real-jev-retrieval-description-adoption-decision",
+  "adopted": false,
+  "productionChanged": false,
+  "reason": "Aggregate development and fresh heldout false holds improve with no false accepts, but a previously allowed valid heldout private preference becomes uncertain and original unlabeled Click remains held with more description-support failures. Aggregate gain alone is insufficient to adopt this task-question replacement.",
+  "reports": {
+    "development": {
+      "path": "jev-retrieval-description-development-real-results.json",
+      "sha256": "dd85ed8cd2b13949ad8504decafc8ec142ac4e172c724faeaf9fd294ed132aec",
+      "complete": true,
+      "metrics": {
+        "before": {
+          "evaluatedPlans": 48,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 14
+        },
+        "after": {
+          "evaluatedPlans": 48,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 10
+        }
+      },
+      "outboundRequests": 198,
+      "knownInputTokens": 224042,
+      "knownEstimatedCostUsd": 0.009409764000000001,
+      "medianDurationMs": {
+        "before": 378,
+        "after": 392
+      },
+      "inputTokensByArm": {
+        "before": 106490,
+        "after": 117552
+      },
+      "decisionChanges": [
+        {
+          "id": "development-en-test-cue",
+          "expectedAllow": true,
+          "before": "propose",
+          "after": "allow"
+        },
+        {
+          "id": "development-zh-private-cue",
+          "expectedAllow": true,
+          "before": "propose",
+          "after": "allow"
+        },
+        {
+          "id": "development-en-policy-cue",
+          "expectedAllow": true,
+          "before": "propose",
+          "after": "allow"
+        },
+        {
+          "id": "development-en-supplement",
+          "expectedAllow": true,
+          "before": "propose",
+          "after": "allow"
+        }
+      ]
+    },
+    "heldout": {
+      "path": "jev-retrieval-description-heldout-real-results.json",
+      "sha256": "5c6d0b6b50309dde1cb527c22e09f851ba19e4281ed7832815102fec7e7681a2",
+      "complete": true,
+      "metrics": {
+        "before": {
+          "evaluatedPlans": 40,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 6
+        },
+        "after": {
+          "evaluatedPlans": 40,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 4
+        }
+      },
+      "outboundRequests": 160,
+      "knownInputTokens": 154011,
+      "knownEstimatedCostUsd": 0.006468462000000001,
+      "medianDurationMs": {
+        "before": 381.5,
+        "after": 370.0
+      },
+      "inputTokensByArm": {
+        "before": 73054,
+        "after": 80957
+      },
+      "decisionChanges": [
+        {
+          "id": "en-checkout-test",
+          "expectedAllow": true,
+          "before": "propose",
+          "after": "allow"
+        },
+        {
+          "id": "en-personal-note",
+          "expectedAllow": true,
+          "before": "allow",
+          "after": "propose"
+        },
+        {
+          "id": "en-persistent-policy",
+          "expectedAllow": true,
+          "before": "propose",
+          "after": "allow"
+        },
+        {
+          "id": "en-supplement-format",
+          "expectedAllow": true,
+          "before": "propose",
+          "after": "allow"
+        }
+      ]
+    }
+  },
+  "combined": {
+    "requests": 358,
+    "inputTokens": 378053,
+    "estimatedInputTariffUsd": 0.015878226000000002
+  },
+  "limitations": [
+    "Development reuses 48 queried labels; not unseen evaluation.",
+    "Heldout 40 labels are 20 bilingual expression pairs, not 40 independent scenarios.",
+    "Single real paired query per arm; no significance or reliability claim.",
+    "Click is original hash-bound read-only unlabeled proposal, not a new Docker execution.",
+    "Costs are response usage times known input tariff, not actual billed fees."
+  ],
+  "nextSignal": "Candidate generation currently requests a retrieval cue; compare concise original-evidence-backed factual descriptions without automatic rewriting or confidence relaxation."
+}

@@ -1,0 +1,104 @@
+{
+  "evidence": "interim-real-docker-arm-terminal",
+  "arm": "click-on",
+  "roundComplete": false,
+  "originalReportSha256": "85e186a4d272b136cc0f4cbd84f3a9c14f9cd9fb9e2f0e42a7ce7a64d0d4dd6e",
+  "sourceDigest": "39848586e489d75df2ae4cac140594ee36a361f07e4f9433547534518a16adcc",
+  "status": "failed",
+  "stage": "real-regression-task",
+  "checks": {
+    "regressionChanged": true
+  },
+  "phaseAttempts": [
+    {
+      "phase": "selector",
+      "outcome": "applied",
+      "operations": 0,
+      "jev": null
+    },
+    {
+      "phase": "memory",
+      "outcome": "proposed",
+      "operations": 0,
+      "jev": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "timeout",
+        "durationMs": 5019,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 26,
+        "coveredEntries": 12,
+        "evidenceWindows": 2,
+        "completedWindows": 1,
+        "requestCount": 3,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "knownInputTokens": 11459,
+        "knownEstimatedCostUsd": 0.0004812780000000001
+      }
+    },
+    {
+      "phase": "harness",
+      "outcome": "proposed",
+      "operations": 0,
+      "jev": {
+        "stage": "harness",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1043,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 26,
+        "coveredEntries": 26,
+        "evidenceWindows": 2,
+        "completedWindows": 2,
+        "requestCount": 3,
+        "completedRequests": 3,
+        "model": "jev-1.13.0",
+        "inputTokens": 17609,
+        "outputTokens": 160,
+        "estimatedCostUsd": 0.0007395780000000001,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support"
+      }
+    },
+    {
+      "phase": "harness",
+      "outcome": "proposed",
+      "operations": 0,
+      "jev": {
+        "stage": "harness",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1307,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 26,
+        "coveredEntries": 26,
+        "evidenceWindows": 2,
+        "completedWindows": 2,
+        "requestCount": 3,
+        "completedRequests": 3,
+        "model": "jev-1.13.0",
+        "inputTokens": 17885,
+        "outputTokens": 160,
+        "estimatedCostUsd": 0.00075117,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "scope",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "scope"
+      }
+    }
+  ],
+  "interpretation": "Memory incomplete due real Jev timeout with only partial evidence coverage; Harness two semantic uncertain proposals. No successful Memory write or full recall/native acceptance. Measurement correction to Click-off does not change this original failure."
+}

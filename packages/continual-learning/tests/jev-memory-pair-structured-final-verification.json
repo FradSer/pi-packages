@@ -1,0 +1,51 @@
+{
+  "evidence": "structured-memory-pair-v2-final-verification",
+  "files": {
+    "jev-memory-pair-structured-adoption-decision.json": "2ca63af4300b2aac38749747c2befe508e6092c70a34ff94b1b99452654aaa3e",
+    "jev-memory-pair-structured-development-real-results.json": "77f5f4ce95d92c6925102a0edfb99f4c34e7317090472fcd1b42a017ac61a905",
+    "jev-memory-pair-structured-heldout-real-results.json": "8bf01cb0276d6d8c521d30dd7bab300558cde2a781a9fb52fc7418fc1869a625",
+    "jev-memory-pair-structured-development-study-manifest.json": "304d03dc8fb200f7b25f047aeea9579b9f0714968b92ac539e67a69a96de177d",
+    "jev-memory-pair-structured-heldout-study-manifest.json": "dd5a29168b0cda464eaed67f8bcb8035f38a489ce1e8f6c9338652497ce8d50a",
+    "jev-memory-pair-structured.ts": "f1d87bfe67f0b24842ff4bc64bb07cb6c0928b4a4196480701f168ebfd1c7599",
+    "evaluate_jev_memory_pairs_structured.ts": "f56a41072cbefed77d1d7500e1dcf116be94eaee647b5aa51f1a504121cdf9d5",
+    "test_jev_memory_pair_structured.py": "1be21603a452f489942255ded734bac085794c2dd2b29a99a7ad5a0c09a02a12"
+  },
+  "fullPackageTests": {
+    "passed": 862,
+    "durationSeconds": 257.77,
+    "exitCode": 0
+  },
+  "rootTypecheck": {
+    "exitCode": 0
+  },
+  "strictStandaloneResearchTypes": {
+    "exitCode": 0,
+    "allowImportingTsExtensions": true,
+    "initialInvocationError": "TS5097 flag omitted; corrected invocation passed"
+  },
+  "targetPackDryRun": {
+    "exitCode": 0
+  },
+  "scopedDiffCheck": {
+    "exitCode": 0
+  },
+  "independentReview": "cited_memory_security_review: prospective development/heldout and final reports/source, no blocking findings",
+  "externalRequests": 36,
+  "actualModel": "jev-1.13.0",
+  "knownInputTokens": 36347,
+  "estimatedInputCostUsd": 0.001526574,
+  "actualBillingVerified": false,
+  "paidProcessIds": [
+    52157,
+    80217
+  ],
+  "paidProcessesTerminalExitCodes": [
+    0,
+    0
+  ],
+  "productionCodeChangesThisIncrement": false,
+  "newProductionWrites": 0,
+  "newDockerExecutions": 0,
+  "wholeWorkflowImprovementProven": false,
+  "adopted": false
+}

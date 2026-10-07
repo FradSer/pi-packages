@@ -1,0 +1,78 @@
+{
+  "evidence": "real-pi-native-hook-with-fixture-provider",
+  "fixtureProvider": true,
+  "externalRequests": 0,
+  "piVersion": "1.0.2",
+  "fixtureRequests": 11,
+  "realInference": false,
+  "harnessSha256": "15159ecad00bc08cc7bb7072ff683bf24a2d92caaef4b11c63afdc037d736138",
+  "nativeToolResults": 10,
+  "blockedCases": 5,
+  "allowedCases": 5,
+  "forbiddenSideEffects": 0,
+  "allPassed": true,
+  "cases": [
+    {
+      "id": "push-with-remote",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "push-dry-run",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "quoted-operator-print",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "plain-command-words-echo",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "unrelated-status",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "same-project-cwd-push",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-config-push",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-pager-push",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-option-print",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-option-echo",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    }
+  ],
+  "sourceDigest": "708467513e1939691dff48cb423d87cd45899ab512ce5cf012ed5975180ea45b",
+  "scope": "separate network-disabled Docker on original image; fixture model, original R8 workflow unchanged"
+}

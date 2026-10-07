@@ -1,5 +1,6 @@
 /** One slash command for the current thread's goal. */
 import { notifyPi } from "@fradser/pi-kit";
+import { deliverGoalProcedure } from "./procedure.ts";
 import type { GoalCore } from "./core.ts";
 import { clearDashboard, refreshDashboard } from "./dashboard.ts";
 import { goalRequest, statusLabel } from "./prompt.ts";
@@ -38,7 +39,7 @@ export function registerGoalCommands(core: GoalCore): void {
             notifyPi(ctx.ui, "Goal paused. Use /goal resume to continue.", "info");
           }
         } else if (action === "resume") {
-          if (core.scheduler.resume(goal, core.settings(ctx))) {
+          if (core.scheduler.resume(goal, core.settings(ctx), "user")) {
             notifyPi(ctx.ui, "Goal resumed; one continuation is authorized.", "info");
           }
         } else {
@@ -83,13 +84,22 @@ export function registerGoalCommands(core: GoalCore): void {
         const revised = applyRevision(core.store, active.id, input);
         if (!revised.ok) { notifyPi(ctx.ui, revised.message, "error"); return; }
         refreshDashboard(core, ctx);
+        // One lifecycle row for a revision under way. The model already runs,
+        // so this row is display plus a follow-up turn, not a new prompt.
+        try {
+          const revisionRequest = goalRequest(input);
+          core.requestGoalActivation(revisionRequest);
+          deliverGoalProcedure(core.pi, revisionRequest, { request: input });
+        } catch {
+          core.cancelGoalActivation();
+        }
         notifyPi(ctx.ui, "Goal updated. The work continues on it.", "info");
         return;
       }
       const request = goalRequest(input);
       core.requestGoalActivation(request);
       try {
-        core.pi.sendUserMessage(request);
+        deliverGoalProcedure(core.pi, request, { request: input });
       } catch (error) {
         core.cancelGoalActivation();
         notifyPi(ctx.ui, `The goal request was not sent: ${error instanceof Error ? error.message : String(error)}`, "error");

@@ -1,0 +1,616 @@
+{
+  "evidence": "real-Jev-structural-view-component-study",
+  "manifestSha256": "2f7256192f67fd87594e7bfa0556d0daed1128d9782c493f37d54edfa610981f",
+  "metrics": {
+    "completePairs": 12,
+    "incompletePairs": 1,
+    "writeAuthorized": false,
+    "completeGoalEvidence": false,
+    "original": {
+      "falseCompatible": 0,
+      "falseHolds": 1
+    },
+    "structural": {
+      "falseCompatible": 0,
+      "falseHolds": 1
+    },
+    "lostOriginalValid": 0,
+    "meetsComponentCriterion": false
+  },
+  "rows": [
+    {
+      "id": "verified-en",
+      "arm": "original",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 657,
+        "output_tokens": 46
+      },
+      "durationMs": 1075
+    },
+    {
+      "id": "verified-en",
+      "arm": "structural",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 0.93,
+        "probabilities": {
+          "compatible": 0.96,
+          "contradicts": 0.01,
+          "unclear": 0.03
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 869,
+        "output_tokens": 46
+      },
+      "durationMs": 1059
+    },
+    {
+      "id": "irrelevant-en",
+      "arm": "structural",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 863,
+        "output_tokens": 46
+      },
+      "durationMs": 1053
+    },
+    {
+      "id": "irrelevant-en",
+      "arm": "original",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 662,
+        "output_tokens": 46
+      },
+      "durationMs": 1049
+    },
+    {
+      "id": "resolved-failure-en",
+      "arm": "original",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 720,
+        "output_tokens": 46
+      },
+      "durationMs": 1037
+    },
+    {
+      "id": "resolved-failure-en",
+      "arm": "structural",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1061,
+        "output_tokens": 46
+      },
+      "durationMs": 1344
+    },
+    {
+      "id": "revoked-en",
+      "arm": "structural",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 0.0,
+          "contradicts": 1.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 867,
+        "output_tokens": 48
+      },
+      "durationMs": 1151
+    },
+    {
+      "id": "revoked-en",
+      "arm": "original",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 0.0,
+          "contradicts": 1.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 664,
+        "output_tokens": 48
+      },
+      "durationMs": 1031
+    },
+    {
+      "id": "condition-en",
+      "arm": "original",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.98,
+        "probabilities": {
+          "compatible": 0.01,
+          "contradicts": 0.99,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 657,
+        "output_tokens": 48
+      },
+      "durationMs": 1073
+    },
+    {
+      "id": "condition-en",
+      "arm": "structural",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 0.01,
+          "contradicts": 0.99,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 825,
+        "output_tokens": 48
+      },
+      "durationMs": 1536
+    },
+    {
+      "id": "missing-context-en",
+      "arm": "structural",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.96,
+        "probabilities": {
+          "compatible": 0.02,
+          "contradicts": 0.97,
+          "unclear": 0.01
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 817,
+        "output_tokens": 48
+      },
+      "durationMs": 1536
+    },
+    {
+      "id": "missing-context-en",
+      "arm": "original",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.02,
+          "contradicts": 0.98,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 653,
+        "output_tokens": 48
+      },
+      "durationMs": 1042
+    },
+    {
+      "id": "verified-zh",
+      "arm": "original",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 684,
+        "output_tokens": 46
+      },
+      "durationMs": 2055
+    },
+    {
+      "id": "verified-zh",
+      "arm": "structural",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 0.99,
+          "contradicts": 0.0,
+          "unclear": 0.01
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 917,
+        "output_tokens": 46
+      },
+      "durationMs": 1078
+    },
+    {
+      "id": "irrelevant-zh",
+      "arm": "structural",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 917,
+        "output_tokens": 46
+      },
+      "durationMs": 1122
+    },
+    {
+      "id": "irrelevant-zh",
+      "arm": "original",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 1.0,
+          "contradicts": 0.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 692,
+        "output_tokens": 46
+      },
+      "durationMs": 1054
+    },
+    {
+      "id": "resolved-failure-zh",
+      "arm": "original",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.99,
+          "contradicts": 0.01,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 756,
+        "output_tokens": 46
+      },
+      "durationMs": 1096
+    },
+    {
+      "id": "resolved-failure-zh",
+      "arm": "structural",
+      "judgment": "compatible",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 0.97,
+        "probabilities": {
+          "compatible": 0.98,
+          "contradicts": 0.02,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 1125,
+        "output_tokens": 46
+      },
+      "durationMs": 1085
+    },
+    {
+      "id": "revoked-zh",
+      "arm": "structural",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 1.0,
+        "probabilities": {
+          "compatible": 0.0,
+          "contradicts": 1.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 917,
+        "output_tokens": 48
+      },
+      "durationMs": 1369
+    },
+    {
+      "id": "revoked-zh",
+      "arm": "original",
+      "judgment": "invalid",
+      "writeAuthorized": false,
+      "errorType": "URLError",
+      "durationMs": 3143
+    },
+    {
+      "id": "condition-zh",
+      "arm": "original",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 0.0,
+          "contradicts": 1.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 677,
+        "output_tokens": 48
+      },
+      "durationMs": 1047
+    },
+    {
+      "id": "condition-zh",
+      "arm": "structural",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 0.0,
+          "contradicts": 1.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 859,
+        "output_tokens": 48
+      },
+      "durationMs": 1053
+    },
+    {
+      "id": "missing-context-zh",
+      "arm": "structural",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 0.0,
+          "contradicts": 1.0,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 899,
+        "output_tokens": 48
+      },
+      "durationMs": 1059
+    },
+    {
+      "id": "missing-context-zh",
+      "arm": "original",
+      "judgment": "conflict",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "contradicts",
+        "confidence": 0.99,
+        "probabilities": {
+          "compatible": 0.01,
+          "contradicts": 0.99,
+          "unclear": 0.0
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 697,
+        "output_tokens": 48
+      },
+      "durationMs": 1051
+    },
+    {
+      "id": "actual-yocto-description",
+      "arm": "original",
+      "judgment": "uncertain",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 0.62,
+        "probabilities": {
+          "compatible": 0.74,
+          "contradicts": 0.24,
+          "unclear": 0.02
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 8911,
+        "output_tokens": 173
+      },
+      "durationMs": 1232
+    },
+    {
+      "id": "actual-yocto-description",
+      "arm": "structural",
+      "judgment": "uncertain",
+      "writeAuthorized": false,
+      "status": 200,
+      "diagnostic": {
+        "choice": "compatible",
+        "confidence": 0.83,
+        "probabilities": {
+          "compatible": 0.88,
+          "contradicts": 0.11,
+          "unclear": 0.01
+        }
+      },
+      "modelVerified": true,
+      "usage": {
+        "input_tokens": 17078,
+        "output_tokens": 173
+      },
+      "durationMs": 1370
+    }
+  ],
+  "externalRequests": 26,
+  "usageResponses": 25,
+  "knownInputTokens": 44444,
+  "knownOutputTokens": 1426,
+  "productionWrites": 0,
+  "adopted": false,
+  "billingVerified": false,
+  "blindHeldout": false,
+  "actualSDKLiveInference": false,
+  "knownEstimatedInputFeeUsd": 0.001866648,
+  "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/research/structural-view-20261007T024511Z",
+  "rawResultSha256": "1abf563148234b7014d047a329a08491591a700fdb1f24521e027a5508b68c72",
+  "adoptionDecision": "Do not adopt: no measured improvement and one incomplete pair; preserve uncertainty without retry.",
+  "medianRequestDurationMs": 1076.5,
+  "sumRequestDurationMs": 32800,
+  "failedAttemptCosts": "Unknown; usage unavailable for one invalid request. Known input-fee estimate is not a complete bill.",
+  "freshReview": {
+    "prepaid": "passed: structural_view_review",
+    "postpaid": "passed: 26 single attempts, unchanged hashes and request bytes, 25 fixed-model responses, incomplete-pair metrics, safe logs and unknown failed-call costs independently verified"
+  },
+  "limits": [
+    "Development samples and reused failure, not blind heldout.",
+    "Component description compatibility only, not support sufficiency or native full learning.",
+    "Real official HTTP inference; reconstructed production request via offline SDK fixture, not original wire replay.",
+    "Socket-operation timeout20s is not an end-to-end deadline.",
+    "Only marked description question enters metrics; extra original question responses discarded."
+  ],
+  "verification": {
+    "red": "Missing study module caused collection error before implementation",
+    "focused": "27 passed in 0.18s",
+    "fullPackageSuite": "1065 passed in 437.35s; collected before seven final added cases, all covered by focused27 passed",
+    "typecheck": "passed",
+    "packCheck": "19 workspace manifests passed",
+    "targetDryPack": "passed",
+    "diffCheck": "passed"
+  }
+}

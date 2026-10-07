@@ -1,0 +1,60 @@
+{
+  "evidence": "prospective-r14-relevant-citation-guidance-current-workflow-paired",
+  "sourceDigest": "beedbeebea1f64794d21d8339fb151fa3974ed3a4ad4735bc1dfe4b6cbe274df",
+  "projects": [
+    {
+      "name": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309"
+    },
+    {
+      "name": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb"
+    },
+    {
+      "name": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3"
+    }
+  ],
+  "modes": [
+    "off",
+    "on"
+  ],
+  "executions": 6,
+  "jobs": 1,
+  "aggregateProviderRequestBudget": 360,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "bailian/qwen3.8-flash"
+  },
+  "mainCostPerMillion": {
+    "input": 0.15,
+    "output": 0.47,
+    "cacheRead": 0.016,
+    "cacheWrite": 0.2
+  },
+  "jevModel": "jev-1.13.0",
+  "jevTimeoutMs": 5000,
+  "jevRetryLimit": 0,
+  "output": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-citation-guidance-r14",
+  "command": [
+    "uv",
+    "run",
+    "--no-project",
+    "python",
+    "packages/continual-learning/tests/live_docker_projects.py",
+    "--jev",
+    "paired",
+    "--jobs",
+    "1",
+    "--output",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-citation-guidance-r14"
+  ],
+  "purpose": "Actual current candidate generation/repair and full-task proof with optional Jev on/off, preserve original verifier. Not a prompt-before/after causal study.",
+  "rule": "Count original whole-workflow success/failure and grounded correct learning; retain failed arms, no rerun or weakened gates. No overall uplift claim from synthetic citation research or isolated pass.",
+  "authorization": "Existing user isolated Docker/paid model authorization. No hostconfig writes/credentials in container; ephemeral proxy token.",
+  "costBoundary": "360 shared provider request hardcap, configured tariff metadata and Jev .042/M input; not a dollarhardcap; actualbilling unverified.",
+  "productionPromptEffectVerified": false
+}

@@ -1,0 +1,193 @@
+{
+  "evidence": "Actual packaged Python dependency helper and pristine upstream tests in Docker; no model inference",
+  "attempts": [
+    {
+      "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/cohort-runtime-475983d1c512",
+      "sourceDigest": "1f58810cf18d89f6d6536bff4ecb8eae2996f04cf625d215d79ab72c55026638",
+      "imageId": "sha256:a64c61d2fdb2aadfc212db9e3e75d29fc1d22ca1148118fec268e6e773b329b3",
+      "manifestSha256": "2ac6e6558cef6b48ab93d09ecd3a42c5b16a30972eca060b3927a62ca1af76b6",
+      "resultSha256": "feb39babd4dacd3cf58a8dd2ba9b49a05e6a29dad1501be999b92c23a31ece81",
+      "ownedContainerInventoryEmpty": true,
+      "rows": [
+        {
+          "name": "yocto-queue",
+          "project": {
+            "name": "yocto-queue",
+            "repository": "https://github.com/sindresorhus/yocto-queue.git",
+            "commit": "72a8fa96a9d389765cdf2bb9c6daba8302fc375d",
+            "cohort": "heldout"
+          },
+          "status": "passed",
+          "sourceDigest": "1f58810cf18d89f6d6536bff4ecb8eae2996f04cf625d215d79ab72c55026638",
+          "testCommand": [
+            "pnpm",
+            "test"
+          ],
+          "testExitCode": 0,
+          "testSeconds": 2.52,
+          "summary": "7 tests passed",
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "containerExitCode": 0,
+          "resultSha256": "53c775368ffc50aaaab75e182aa7422345e9efd383c439e0adccecae3b9a6ad4"
+        },
+        {
+          "name": "humanize",
+          "project": {
+            "name": "humanize",
+            "repository": "https://github.com/python-humanize/humanize.git",
+            "commit": "785e5dcc0d0308ad0dff3f6cc0faa7085ad0375b",
+            "cohort": "heldout"
+          },
+          "status": "passed",
+          "sourceDigest": "1f58810cf18d89f6d6536bff4ecb8eae2996f04cf625d215d79ab72c55026638",
+          "testCommand": [
+            "uv",
+            "run",
+            "--no-sync",
+            "pytest",
+            "-q"
+          ],
+          "testExitCode": 0,
+          "testSeconds": 7.06,
+          "summary": "744 passed, 112 skipped in 6.26s",
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "containerExitCode": 0,
+          "resultSha256": "9a7f3eb32d8431fdaca9789145ccc8277219e634b64a4f398a5225c6438a748d"
+        },
+        {
+          "name": "referencing",
+          "project": {
+            "name": "referencing",
+            "repository": "https://github.com/python-jsonschema/referencing.git",
+            "commit": "f6adc7b74af8347e2c59c45256be7b8a8030a3f5",
+            "cohort": "heldout"
+          },
+          "status": "passed",
+          "sourceDigest": "1f58810cf18d89f6d6536bff4ecb8eae2996f04cf625d215d79ab72c55026638",
+          "testCommand": [
+            "uv",
+            "run",
+            "--no-sync",
+            "pytest",
+            "-q",
+            "referencing"
+          ],
+          "testExitCode": 0,
+          "testSeconds": 1.21,
+          "summary": "503 passed, 132 xfailed, 406 subtests passed in 0.70s",
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "containerExitCode": 0,
+          "resultSha256": "06f55bb3c5b3bb11d2cdf8dc808f822a5e2b48db6f6619d695943860b8234815"
+        }
+      ]
+    },
+    {
+      "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/cohort-runtime-da08c7cae4eb",
+      "sourceDigest": "7b98c3a6ace108ab808a2593c73be19f80696e68a5a886b21d8c0e0a7a5e0154",
+      "imageId": "sha256:9f779a46991529af1c90b3a062cc09c8a608f6c92d8a40e11da6b5b3c088b3ac",
+      "manifestSha256": "3223ef943c878d04dbfef0b9433a8c04a9c9384bf7facadc276f281027758e3b",
+      "resultSha256": "b27884c29503fc5c309e2f792f151636dd07ac95c4b0cf8a45cad2e2da4241c0",
+      "ownedContainerInventoryEmpty": true,
+      "rows": [
+        {
+          "name": "yocto-queue",
+          "project": {
+            "name": "yocto-queue",
+            "repository": "https://github.com/sindresorhus/yocto-queue.git",
+            "commit": "72a8fa96a9d389765cdf2bb9c6daba8302fc375d",
+            "cohort": "heldout"
+          },
+          "status": "passed",
+          "sourceDigest": "7b98c3a6ace108ab808a2593c73be19f80696e68a5a886b21d8c0e0a7a5e0154",
+          "testCommand": [
+            "pnpm",
+            "test"
+          ],
+          "testExitCode": 0,
+          "testSeconds": 2.51,
+          "summary": "7 tests passed",
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "containerExitCode": 0,
+          "resultSha256": "6632978047b598030ab5ff54e518e1338f77781bc2874080b18d0d721b1fa403"
+        },
+        {
+          "name": "humanize",
+          "project": {
+            "name": "humanize",
+            "repository": "https://github.com/python-humanize/humanize.git",
+            "commit": "785e5dcc0d0308ad0dff3f6cc0faa7085ad0375b",
+            "cohort": "heldout"
+          },
+          "status": "passed",
+          "sourceDigest": "7b98c3a6ace108ab808a2593c73be19f80696e68a5a886b21d8c0e0a7a5e0154",
+          "testCommand": [
+            "uv",
+            "run",
+            "--no-sync",
+            "pytest",
+            "-q"
+          ],
+          "testExitCode": 0,
+          "testSeconds": 7.21,
+          "summary": "744 passed, 112 skipped in 6.43s",
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "containerExitCode": 0,
+          "resultSha256": "e85ccc262505cbd09f6c5258f56357e0feef11376f568c2add035ec851c5aa69"
+        },
+        {
+          "name": "referencing",
+          "project": {
+            "name": "referencing",
+            "repository": "https://github.com/python-jsonschema/referencing.git",
+            "commit": "f6adc7b74af8347e2c59c45256be7b8a8030a3f5",
+            "cohort": "heldout"
+          },
+          "status": "passed",
+          "sourceDigest": "7b98c3a6ace108ab808a2593c73be19f80696e68a5a886b21d8c0e0a7a5e0154",
+          "testCommand": [
+            "uv",
+            "run",
+            "--no-sync",
+            "pytest",
+            "-q",
+            "referencing"
+          ],
+          "testExitCode": 0,
+          "testSeconds": 1.07,
+          "summary": "503 passed, 132 xfailed, 406 subtests passed in 0.58s",
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "containerExitCode": 0,
+          "resultSha256": "70cd76bbf5db0b891a82391e907a9f5335d26d29fc1a4e8d08b8bcd30aa60249"
+        }
+      ]
+    }
+  ],
+  "finalSourceDigest": "7b98c3a6ace108ab808a2593c73be19f80696e68a5a886b21d8c0e0a7a5e0154",
+  "previousAttemptClassification": "Pre-explicit-main-selection image; preserved as historical environment evidence",
+  "actualMainSelectionPreflight": {
+    "selection": {
+      "provider": "cli-proxy",
+      "model": "opencode/space-bunny-free"
+    },
+    "temporarySelectionVerified": true,
+    "hostCredentialNotCopied": true,
+    "requests": 0,
+    "configuredMaxTokens": 524288,
+    "hostConfigUnchanged": true
+  },
+  "realMainInference": false,
+  "realJevInference": false,
+  "defaultActivated": false,
+  "completeGoalEvidence": false,
+  "limitations": [
+    "No candidate generation, durable learning, semantic recall or constraint enforcement was dispatched",
+    "Humanize retains upstream skips and referencing retains expected failures and subtests",
+    "This does not establish Jev quality or main service availability"
+  ]
+}

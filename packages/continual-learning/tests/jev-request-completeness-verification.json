@@ -1,0 +1,31 @@
+{
+  "evidence": "local-verification-and-real-semantic-study-separated",
+  "tests": {
+    "command": "python3 -m pytest packages/continual-learning/tests/ -q",
+    "passed": 937,
+    "seconds": 377.64
+  },
+  "focusedRegression": {
+    "initialRedFailed": 3,
+    "goldFieldRedFailed": 1,
+    "goldFieldRedPassed": 2,
+    "greenPassed": 4
+  },
+  "strictResearchWorkerTypecheck": "passed",
+  "rootTypecheck": "passed",
+  "workspacePackedManifests": 19,
+  "targetPackDryRun": "passed",
+  "paidJevRequests": 20,
+  "apiReportedModel": "jev-1.13.0",
+  "productionWrites": 0,
+  "ownedContainerAbsent": true,
+  "processGroupStopConfirmed": true,
+  "initialPreparationExternalRequests": 0,
+  "configPathRegressionBeforeRejected": false,
+  "configPathRegressionAfterRejected": true,
+  "goalComplete": false,
+  "limits": [
+    "Research only; no new production gate, automatic requirement extraction or full project workflow verification.",
+    "No new host installation check this phase; prior missing-package configuration is not changed by these research files."
+  ]
+}

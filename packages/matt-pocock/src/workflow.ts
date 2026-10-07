@@ -2,6 +2,7 @@ import {
   allowedTransitions,
   modelStandaloneCapabilities,
   normalizeProcedureId,
+  userStandaloneCapabilities,
   workflowEntry,
   workflowPlacement,
   workflowRoutes as catalogWorkflowRoutes,
@@ -174,12 +175,37 @@ Use matt_pocock_active to transition only to: ${next.join(", ") || "none"}; load
 Yield only when the remaining work genuinely depends on an external actor, on a teammate result you cannot produce yourself, or on context you no longer have — and when you yield, state plainly what is unfinished rather than implying completion. Never announce completion early: call matt_pocock_active with action complete only once the integrated candidate has applicable verification and all blocking reviews have returned with their findings resolved; a completed review assignment is not itself a PASS verdict, and evidence must match that candidate.`;
 }
 
+/** One terse line per user-invoked capability. The prompt budget governs this
+ *  section, so it names the id and its subject rather than repeating the full
+ *  catalog description the menu and the tool schema already carry. */
+function userCapabilitySummary(definition: { id: string; label: string }): string {
+  return userCapabilitySummaries[definition.id] ?? definition.label;
+}
+
+const userCapabilitySummaries: Record<string, string> = {
+  "grill-me": "relentless one-decision-at-a-time interview; \"grill me\" names it",
+  handoff: "handoff document another agent can pick up cold",
+  retro: "review recent work and record what to change",
+  "improve-codebase-architecture": "rank and improve architecture deepening opportunities",
+  "setup-matt-pocock-skills": "configure the repository tracker and document layout",
+  teach: "teach a concept step by step",
+  "to-questionnaire": "turn a decision blocked on someone else into a questionnaire",
+  "wait-what": "re-pitch the last message with the missing context",
+};
+
 export function availableWorkflowsGuidance(): string {
   const workflows = workflowRoutes()
     .map((route) => `- ${route.route}: ${route.description} Call: ${JSON.stringify({ mode: "workflow", route: route.route })}`)
     .join("\n");
   const capabilities = modelStandaloneCapabilities()
     .map((capability) => `- ${capability.id}: ${capability.description} Call: ${JSON.stringify({ mode: "capability", capability: capability.id })}`)
+    .join("\n");
+  // Without this list the user-invoked capabilities are invisible here, so a request
+  // like "grill me" has no route and the package is silently skipped. The entries stay
+  // terse on purpose: the gateway schema carries the authoritative ids, so the prompt
+  // only has to name them and give one call shape.
+  const userCapabilities = userStandaloneCapabilities()
+    .map((capability) => `- ${capability.id}: ${userCapabilitySummary(capability)}`)
     .join("\n");
   return `## Available Matt Pocock Workflows and Capabilities
 
@@ -197,6 +223,9 @@ ${workflows}
 
 Model-reachable standalone capabilities:
 ${capabilities}
+
+User-invoked capabilities: the user starts these by name, so run one only when the user explicitly asked for it, and never substitute a different capability. Call: {"mode":"user-capability","capability":"<id>"}.
+${userCapabilities}
 
 For an explicitly requested capability, load its listed call before applying its method. A schema rejection means the capability was not loaded: correct mode and required fields using the exact call above; do not repeat the same rejected arguments or silently claim execution.
 

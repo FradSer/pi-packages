@@ -17,8 +17,8 @@ for (const input of inputs) {
   const disabled = createJevJudge({ enabled: false, fetch: async () => { outboundRequests++; throw new Error("Offline audit must not transport"); } });
   const baseline = await disabled.validate("harness", snapshot, proposal.operations, [], undefined, proposal.evidence);
   const quoteOnly = "printf '%s' 'x;git push --dry-run'";
-  const observedRisks = input.id === "quoted-compound-overmatch"
-    ? { printsOnlyButMatcherMatches: new RegExp(proposal.operations[0].rule.bash).test(quoteOnly) }
+  const observedRisks = ["quoted-compound-overmatch", "unanchored-command-words-overmatch"].includes(input.id)
+    ? { printsOnlyButMatcherMatches: new RegExp(proposal.operations[0].rule.bash).test(quoteOnly), ...(input.id === "unanchored-command-words-overmatch" ? { harmlessEchoAlsoMatched: new RegExp(proposal.operations[0].rule.bash).test("echo git push --dry-run") } : {}) }
     : { python3ActuallyPresent: typeof report.runtime?.python === "string" && report.runtime.python.startsWith("Python 3."), python3CoveredByClaimedMissingInterpreterRule: new RegExp(proposal.operations[1].rule.bash).test("python3 -m pytest -q") };
   rows.push({ ...input, structuralErrors: errors, withoutSemanticGate: baseline,
     actualOutcome: report.status, actualStage: report.stage, actualHarnessJudgments: report.jevJudgments.filter((item: { stage: string }) => item.stage === "harness"), observedRisks, outboundRequests });

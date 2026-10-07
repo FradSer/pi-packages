@@ -1,0 +1,382 @@
+{
+  "sourceDigest": "5888582df6c2fffbd88f7dc3354cbff37d3013c61e11e8b4b793f983bb708122",
+  "image": "continual-learning-projects:5888582df6c2fffb",
+  "imageId": "sha256:a1c877238bc15d883437dc04837721fab0af538ebcd818de16d1667bae2cb914",
+  "providerRequests": 206,
+  "providerErrors": 0,
+  "jevRequests": 31,
+  "jevResponsesWithUsage": 31,
+  "evidence": "six-independent-docker-real-pi-workflows",
+  "complete": true,
+  "artifactRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final",
+  "mainModelRequests": 175,
+  "knownInputTokens": 236113,
+  "estimatedJevInputCostUsd": 0.009916746,
+  "usageComplete": true,
+  "models": [
+    "jev-1.13.0"
+  ],
+  "rawAcceptance": {
+    "off": 2,
+    "on": 1
+  },
+  "offlineCorrectedAcceptance": {
+    "off": 3,
+    "on": 1
+  },
+  "correction": "mitt-off only; hash-bound offline revalidation, no additional execution",
+  "results": [
+    {
+      "project": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+      "jevMode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "error": null,
+      "jevJudgments": []
+    },
+    {
+      "project": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+      "jevMode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "error": "No successful real Jev memory judgment",
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1047,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 22,
+          "coveredEntries": 22,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17836,
+          "outputTokens": 892,
+          "estimatedCostUsd": 0.000749112,
+          "candidateFailures": [
+            {
+              "candidateIndex": 1,
+              "dimension": "support",
+              "field": "description",
+              "reason": "uncertain"
+            },
+            {
+              "candidateIndex": 2,
+              "dimension": "counterevidence",
+              "field": "description",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 1,
+          "dimension": "support",
+          "field": "description"
+        },
+        {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 998,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 22,
+          "coveredEntries": 22,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 14068,
+          "outputTokens": 238,
+          "estimatedCostUsd": 0.0005908560000000001
+        }
+      ]
+    },
+    {
+      "project": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+      "jevMode": "off",
+      "status": "failed",
+      "stage": "native-harness-enforcement",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": false,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true
+      },
+      "error": "Observed native Bash attempt was not blocked before its side effect",
+      "jevJudgments": []
+    },
+    {
+      "project": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+      "jevMode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "error": "No successful real Jev memory judgment",
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1128,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 44,
+          "coveredEntries": 44,
+          "evidenceWindows": 3,
+          "completedWindows": 3,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0",
+          "inputTokens": 46159,
+          "outputTokens": 1146,
+          "estimatedCostUsd": 0.001938678,
+          "candidateFailures": [
+            {
+              "candidateIndex": 2,
+              "dimension": "support",
+              "reason": "uncertain"
+            },
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "field": "description",
+              "reason": "uncertain"
+            },
+            {
+              "candidateIndex": 1,
+              "dimension": "counterevidence",
+              "field": "description",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 2,
+          "dimension": "support"
+        },
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1182,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 44,
+          "coveredEntries": 44,
+          "evidenceWindows": 3,
+          "completedWindows": 3,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0",
+          "inputTokens": 42859,
+          "outputTokens": 1145,
+          "estimatedCostUsd": 0.001800078,
+          "candidateFailures": [
+            {
+              "candidateIndex": 2,
+              "dimension": "support",
+              "reason": "uncertain"
+            },
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 2,
+          "dimension": "support"
+        },
+        {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1704,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 44,
+          "coveredEntries": 44,
+          "evidenceWindows": 3,
+          "completedWindows": 3,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0",
+          "inputTokens": 26121,
+          "outputTokens": 205,
+          "estimatedCostUsd": 0.0010970819999999999,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        },
+        {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1070,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 44,
+          "coveredEntries": 44,
+          "evidenceWindows": 3,
+          "completedWindows": 3,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0",
+          "inputTokens": 26101,
+          "outputTokens": 205,
+          "estimatedCostUsd": 0.001096242,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      ]
+    },
+    {
+      "project": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+      "jevMode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "error": null,
+      "jevJudgments": []
+    },
+    {
+      "project": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+      "jevMode": "on",
+      "status": "passed",
+      "stage": "complete",
+      "checks": {
+        "regressionChanged": true,
+        "realJevParticipation": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "error": null,
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1095,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 25,
+          "coveredEntries": 25,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 22265,
+          "outputTokens": 595,
+          "estimatedCostUsd": 0.00093513,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        },
+        {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 1174,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 25,
+          "coveredEntries": 25,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 21545,
+          "outputTokens": 595,
+          "estimatedCostUsd": 0.0009048900000000001
+        },
+        {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 1077,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 25,
+          "coveredEntries": 25,
+          "verbatimExplanations": 1,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 19159,
+          "outputTokens": 185,
+          "estimatedCostUsd": 0.0008046780000000001
+        }
+      ]
+    }
+  ]
+}

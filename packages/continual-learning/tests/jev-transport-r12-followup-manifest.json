@@ -1,0 +1,518 @@
+{
+  "evidence": "prospective-public-synthetic-transport-diagnostic",
+  "model": "jev-1.13.0",
+  "requestBudget": 3,
+  "paidRuns": 1,
+  "retryLimit": 0,
+  "productionTimeoutMs": 5000,
+  "estimatedInputCostCeilingUsd": 0.01,
+  "ceilingBasis": "Three requests capped at 64000 UTF-8 bytes each; conservative byte-based input estimate at published 0.042 USD per million; actual billing unavailable.",
+  "codeHashes": {
+    "diagnose_jev_transport.ts": "ba36fa03ee0662cec20d4e04947ff009e29cb31466897827eeec43de5e4b38d8",
+    "../extensions/jev-learning.ts": "12166999a9a26edb4bfa700bedcacb8dfb0dcba180522a1a3690a2d7bf04cc6b"
+  },
+  "samples": [
+    {
+      "id": "english-small",
+      "evidence": {
+        "user": "For this project, remember that pnpm test is the verification command. Never push this project without my explicit permission."
+      }
+    },
+    {
+      "id": "chinese-small",
+      "evidence": {
+        "user": "请记住，本项目使用 pnpm test 验证修改。没有我的明确授权，不允许推送本项目。"
+      }
+    },
+    {
+      "id": "public-long",
+      "evidence": {
+        "user": "For this project, remember that pnpm test is the verification command. Never push this project without my explicit permission.",
+        "verifiedObservations": [
+          {
+            "file": "public-fixture-0.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-1.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-2.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-3.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-4.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-5.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-6.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-7.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-8.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-9.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-10.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-11.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-12.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-13.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-14.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-15.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-16.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-17.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-18.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-19.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-20.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-21.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-22.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-23.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-24.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-25.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-26.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-27.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-28.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-29.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-30.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-31.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-32.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-33.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-34.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-35.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-36.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-37.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-38.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-39.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-40.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-41.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-42.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-43.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-44.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-45.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-46.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-47.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-48.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-49.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-50.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-51.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-52.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-53.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-54.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-55.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-56.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-57.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-58.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-59.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-60.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-61.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-62.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-63.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-64.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-65.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-66.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-67.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-68.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-69.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-70.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-71.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-72.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-73.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-74.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-75.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-76.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-77.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-78.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-79.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-80.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-81.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-82.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-83.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-84.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-85.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-86.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-87.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-88.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-89.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-90.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-91.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-92.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-93.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-94.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-95.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-96.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-97.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-98.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-99.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-100.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-101.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-102.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-103.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-104.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-105.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-106.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-107.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-108.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-109.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-110.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-111.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-112.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-113.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-114.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-115.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-116.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-117.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-118.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          },
+          {
+            "file": "public-fixture-119.ts",
+            "observation": "Public synthetic fixture: the deterministic test completed successfully; no new durable preference is established by this tool observation."
+          }
+        ]
+      }
+    }
+  ],
+  "authorization": "Existing user authorization for real paid Jev tests; environment key presence checked without disclosure.",
+  "expectedOutcome": "No prescribed verdict or success; retain failures, do not rerun."
+}

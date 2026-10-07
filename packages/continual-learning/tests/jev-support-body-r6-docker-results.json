@@ -1,0 +1,688 @@
+{
+  "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+  "image": "continual-learning-projects:d70610bbf869bb0d",
+  "providerRequests": 151,
+  "providerErrors": 0,
+  "jevRequests": 33,
+  "jevResponsesWithUsage": 33,
+  "evidence": "real-pi-independent-docker-projects",
+  "knownInputTokens": 193539,
+  "models": [
+    "jev-1.13.0"
+  ],
+  "mainModelCostAggregated": false,
+  "usageComplete": true,
+  "knownEstimatedCostUsd": 0.008128638,
+  "results": [
+    {
+      "project": "click",
+      "jevMode": "off",
+      "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+      "status": "failed",
+      "stage": "setup",
+      "checks": {},
+      "learningSeconds": null,
+      "receipts": null
+    },
+    {
+      "project": "click",
+      "jevMode": "on",
+      "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "learningSeconds": 240.68,
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "durable-user-evidence",
+              "constraint-evidence",
+              "no-agents-evidence",
+              "Jev semantic review"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 6,
+              "operations": 0,
+              "diagnostic": "empty Memory index; parent-routed explicit evidence",
+              "selectedMemory": []
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 38404,
+              "operations": 2,
+              "usage": {
+                "input": 25508,
+                "output": 1990,
+                "cacheRead": 15616,
+                "cacheWrite": 0,
+                "totalTokens": 43114,
+                "cost": 0.005011356
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "decided",
+                "reason": "supported",
+                "durationMs": 3787,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 18,
+                "coveredEntries": 18,
+                "evidenceWindows": 4,
+                "completedWindows": 4,
+                "requestCount": 5,
+                "completedRequests": 5,
+                "model": "jev-1.13.0",
+                "inputTokens": 26668,
+                "outputTokens": 473,
+                "estimatedCostUsd": 0.0011200560000000001
+              },
+              "diagnostic": "Jev decided: supported"
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "proposed",
+              "durationMs": 96414,
+              "operations": 0,
+              "usage": {
+                "input": 4339,
+                "output": 5373,
+                "cacheRead": 31744,
+                "cacheWrite": 0,
+                "totalTokens": 41456,
+                "cost": 0.003684064
+              },
+              "jev": {
+                "stage": "harness",
+                "status": "propose",
+                "reason": "uncertain",
+                "durationMs": 4812,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 18,
+                "coveredEntries": 18,
+                "evidenceWindows": 4,
+                "completedWindows": 4,
+                "requestCount": 5,
+                "completedRequests": 5,
+                "model": "jev-1.13.0",
+                "inputTokens": 27714,
+                "outputTokens": 250,
+                "estimatedCostUsd": 0.0011639880000000001,
+                "candidateIndex": 0,
+                "dimension": "scope"
+              },
+              "diagnostic": "Jev propose: uncertain"
+            },
+            {
+              "phase": "harness",
+              "attempt": 1,
+              "outcome": "proposed",
+              "durationMs": 27852,
+              "operations": 0,
+              "usage": {
+                "input": 5005,
+                "output": 1541,
+                "cacheRead": 2048,
+                "cacheWrite": 0,
+                "totalTokens": 8594,
+                "cost": 0.0015077880000000001
+              },
+              "jev": {
+                "stage": "harness",
+                "status": "propose",
+                "reason": "uncertain",
+                "durationMs": 2842,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 18,
+                "coveredEntries": 18,
+                "evidenceWindows": 4,
+                "completedWindows": 4,
+                "requestCount": 5,
+                "completedRequests": 5,
+                "model": "jev-1.13.0",
+                "inputTokens": 27834,
+                "outputTokens": 250,
+                "estimatedCostUsd": 0.0011690280000000001,
+                "candidateIndex": 0,
+                "dimension": "scope"
+              },
+              "diagnostic": "Jev propose: uncertain"
+            }
+          ],
+          "totals": {
+            "input": 34852,
+            "output": 8904,
+            "cacheRead": 49408,
+            "cacheWrite": 0,
+            "totalTokens": 93164,
+            "cost": 0.010203207999999998
+          },
+          "costAvailable": true,
+          "operations": 2,
+          "retries": 1
+        }
+      ]
+    },
+    {
+      "project": "p-limit",
+      "jevMode": "off",
+      "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+      "status": "passed",
+      "stage": "complete",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "learningSeconds": 295.24,
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "durable-user-evidence",
+              "constraint-evidence",
+              "no-agents-evidence"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 7,
+              "operations": 0,
+              "diagnostic": "empty Memory index; parent-routed explicit evidence",
+              "selectedMemory": []
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 27899,
+              "operations": 2,
+              "usage": {
+                "input": 25967,
+                "output": 1642,
+                "cacheRead": 24064,
+                "cacheWrite": 0,
+                "totalTokens": 51673,
+                "cost": 0.005051814
+              }
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 54482,
+              "operations": 1,
+              "usage": {
+                "input": 8946,
+                "output": 2509,
+                "cacheRead": 39936,
+                "cacheWrite": 0,
+                "totalTokens": 51391,
+                "cost": 0.003160106
+              }
+            }
+          ],
+          "totals": {
+            "input": 34913,
+            "output": 4151,
+            "cacheRead": 64000,
+            "cacheWrite": 0,
+            "totalTokens": 103064,
+            "cost": 0.008211920000000001
+          },
+          "costAvailable": true,
+          "operations": 3,
+          "retries": 0
+        }
+      ]
+    },
+    {
+      "project": "p-limit",
+      "jevMode": "on",
+      "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "learningSeconds": 228.04,
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "durable-user-evidence",
+              "constraint-evidence",
+              "no-agents-evidence",
+              "Jev semantic review"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 10,
+              "operations": 0,
+              "diagnostic": "empty Memory index; parent-routed explicit evidence",
+              "selectedMemory": []
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 35175,
+              "operations": 2,
+              "usage": {
+                "input": 18383,
+                "output": 1778,
+                "cacheRead": 3584,
+                "cacheWrite": 0,
+                "totalTokens": 23745,
+                "cost": 0.003650454
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "decided",
+                "reason": "supported",
+                "durationMs": 1761,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 17,
+                "coveredEntries": 17,
+                "evidenceWindows": 2,
+                "completedWindows": 2,
+                "requestCount": 3,
+                "completedRequests": 3,
+                "model": "jev-1.13.0",
+                "inputTokens": 19393,
+                "outputTokens": 299,
+                "estimatedCostUsd": 0.0008145060000000001
+              },
+              "diagnostic": "Jev decided: supported"
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "proposed",
+              "durationMs": 59640,
+              "operations": 0,
+              "usage": {
+                "input": 28545,
+                "output": 3296,
+                "cacheRead": 6144,
+                "cacheWrite": 0,
+                "totalTokens": 37985,
+                "cost": 0.005929174000000001
+              },
+              "jev": {
+                "stage": "harness",
+                "status": "propose",
+                "reason": "uncertain",
+                "durationMs": 2093,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 17,
+                "coveredEntries": 17,
+                "evidenceWindows": 2,
+                "completedWindows": 2,
+                "requestCount": 3,
+                "completedRequests": 3,
+                "model": "jev-1.13.0",
+                "inputTokens": 17883,
+                "outputTokens": 160,
+                "estimatedCostUsd": 0.0007510860000000001,
+                "candidateIndex": 0,
+                "dimension": "support"
+              },
+              "diagnostic": "Jev propose: uncertain"
+            },
+            {
+              "phase": "harness",
+              "attempt": 1,
+              "outcome": "rejected",
+              "durationMs": 27399,
+              "operations": 0,
+              "usage": {
+                "input": 4879,
+                "output": 1382,
+                "cacheRead": 2048,
+                "cacheWrite": 0,
+                "totalTokens": 8309,
+                "cost": 0.0014141579999999998
+              },
+              "diagnostic": "Semantic repair failed parent validation; original proposal retained"
+            }
+          ],
+          "totals": {
+            "input": 51807,
+            "output": 6456,
+            "cacheRead": 11776,
+            "cacheWrite": 0,
+            "totalTokens": 70039,
+            "cost": 0.010993786
+          },
+          "costAvailable": true,
+          "operations": 2,
+          "retries": 1
+        }
+      ]
+    },
+    {
+      "project": "mitt",
+      "jevMode": "off",
+      "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+      "status": "passed",
+      "stage": "complete",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "learningSeconds": 402.22,
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "durable-user-evidence",
+              "constraint-evidence",
+              "no-agents-evidence"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 6,
+              "operations": 0,
+              "diagnostic": "empty Memory index; parent-routed explicit evidence",
+              "selectedMemory": []
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 57188,
+              "operations": 3,
+              "usage": {
+                "input": 29737,
+                "output": 3436,
+                "cacheRead": 24064,
+                "cacheWrite": 0,
+                "totalTokens": 57237,
+                "cost": 0.006460494
+              }
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 71794,
+              "operations": 1,
+              "usage": {
+                "input": 4592,
+                "output": 779,
+                "cacheRead": 47104,
+                "cacheWrite": 0,
+                "totalTokens": 52475,
+                "cost": 0.001808594
+              }
+            }
+          ],
+          "totals": {
+            "input": 34329,
+            "output": 4215,
+            "cacheRead": 71168,
+            "cacheWrite": 0,
+            "totalTokens": 109712,
+            "cost": 0.008269087999999999
+          },
+          "costAvailable": true,
+          "operations": 4,
+          "retries": 0
+        }
+      ]
+    },
+    {
+      "project": "mitt",
+      "jevMode": "on",
+      "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "learningSeconds": 363.71,
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "durable-user-evidence",
+              "constraint-evidence",
+              "no-agents-evidence",
+              "Jev semantic review"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 5,
+              "operations": 0,
+              "diagnostic": "empty Memory index; parent-routed explicit evidence",
+              "selectedMemory": []
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "proposed",
+              "durationMs": 90428,
+              "operations": 0,
+              "usage": {
+                "input": 18028,
+                "output": 2469,
+                "cacheRead": 3584,
+                "cacheWrite": 0,
+                "totalTokens": 24081,
+                "cost": 0.003921973999999999
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "propose",
+                "reason": "uncertain",
+                "durationMs": 2266,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 23,
+                "coveredEntries": 23,
+                "evidenceWindows": 2,
+                "completedWindows": 2,
+                "requestCount": 3,
+                "completedRequests": 3,
+                "model": "jev-1.13.0",
+                "inputTokens": 20235,
+                "outputTokens": 444,
+                "estimatedCostUsd": 0.00084987,
+                "candidateIndex": 0,
+                "dimension": "support"
+              },
+              "diagnostic": "Jev propose: uncertain"
+            },
+            {
+              "phase": "memory",
+              "attempt": 1,
+              "outcome": "proposed",
+              "durationMs": 43916,
+              "operations": 0,
+              "usage": {
+                "input": 14961,
+                "output": 3003,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "totalTokens": 17964,
+                "cost": 0.0036555599999999995
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "propose",
+                "reason": "uncertain",
+                "durationMs": 2435,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 23,
+                "coveredEntries": 23,
+                "evidenceWindows": 2,
+                "completedWindows": 2,
+                "requestCount": 3,
+                "completedRequests": 3,
+                "model": "jev-1.13.0",
+                "inputTokens": 20124,
+                "outputTokens": 444,
+                "estimatedCostUsd": 0.0008452080000000001,
+                "candidateIndex": 1,
+                "dimension": "counterevidence"
+              },
+              "diagnostic": "Jev propose: uncertain"
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "proposed",
+              "durationMs": 41583,
+              "operations": 0,
+              "usage": {
+                "input": 27808,
+                "output": 2574,
+                "cacheRead": 6144,
+                "cacheWrite": 0,
+                "totalTokens": 36526,
+                "cost": 0.005479283999999999
+              },
+              "jev": {
+                "stage": "harness",
+                "status": "propose",
+                "reason": "uncertain",
+                "durationMs": 2667,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 23,
+                "coveredEntries": 23,
+                "evidenceWindows": 2,
+                "completedWindows": 2,
+                "requestCount": 3,
+                "completedRequests": 3,
+                "model": "jev-1.13.0",
+                "inputTokens": 16958,
+                "outputTokens": 162,
+                "estimatedCostUsd": 0.0007122360000000001,
+                "candidateIndex": 0,
+                "dimension": "scope"
+              },
+              "diagnostic": "Jev propose: uncertain"
+            },
+            {
+              "phase": "harness",
+              "attempt": 1,
+              "outcome": "proposed",
+              "durationMs": 42209,
+              "operations": 0,
+              "usage": {
+                "input": 4925,
+                "output": 1931,
+                "cacheRead": 2048,
+                "cacheWrite": 0,
+                "totalTokens": 8904,
+                "cost": 0.0016790879999999998
+              },
+              "jev": {
+                "stage": "harness",
+                "status": "propose",
+                "reason": "uncertain",
+                "durationMs": 2053,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 23,
+                "coveredEntries": 23,
+                "evidenceWindows": 2,
+                "completedWindows": 2,
+                "requestCount": 3,
+                "completedRequests": 3,
+                "model": "jev-1.13.0",
+                "inputTokens": 16730,
+                "outputTokens": 162,
+                "estimatedCostUsd": 0.00070266,
+                "candidateIndex": 0,
+                "dimension": "support"
+              },
+              "diagnostic": "Jev propose: uncertain"
+            }
+          ],
+          "totals": {
+            "input": 65722,
+            "output": 9977,
+            "cacheRead": 11776,
+            "cacheWrite": 0,
+            "totalTokens": 87475,
+            "cost": 0.014735905999999998
+          },
+          "costAvailable": true,
+          "operations": 0,
+          "retries": 2
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "manifestSha256": "044c4efdf18a4ad2fb5e4656c3e3d9f847916f00eccfdbb0073206fc68cb67f3",
+  "sourceDigest": "5818b1f6be33de6acce0cd035e331d631ccf08c4178883466429a7df655e2967",
+  "fullTargetTests": {
+    "passed": 885,
+    "seconds": 310.31,
+    "exitCode": 0
+  },
+  "executions": 2,
+  "requestBudget": 360
+}

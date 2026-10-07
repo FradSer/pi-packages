@@ -1,0 +1,35 @@
+{
+  "evidence": "real-jev-Harness-citation-anchor-development-decision",
+  "adopted": false,
+  "decision": "reject-no-improvement-added-valid-hold-and-incomplete-coverage",
+  "externalRequests": 96,
+  "metrics": {
+    "before": {
+      "complete": 23,
+      "incomplete": 1,
+      "falseAccepts": 0,
+      "falseHolds": 1,
+      "correct": 22
+    },
+    "after": {
+      "complete": 23,
+      "incomplete": 1,
+      "falseAccepts": 0,
+      "falseHolds": 2,
+      "correct": 21
+    }
+  },
+  "newlyHeldValid": 1,
+  "knownInputTokens": 69318,
+  "knownEstimatedCostUsd": 0.002911356,
+  "actualTotalBillingVerified": false,
+  "productionChanged": false,
+  "heldoutCalled": false,
+  "goalComplete": false,
+  "limits": [
+    "Both arms timeout on general-en; missing usage notfree and not an accuracy miss.",
+    "The newly held mixed-task-zh counter request has identical wire SHA in both arms but different judgments. Response variation is observed; quote anchoring cannot be credited or blamed for this difference.",
+    "No favorable retry, threshold relaxation or replacement gold label."
+  ],
+  "identicalCounterRequestVariationVerified": true
+}

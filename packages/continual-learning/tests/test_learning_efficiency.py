@@ -366,3 +366,68 @@ def test_harness_owned_event_summaries_name_the_decision_and_ignore_repository_t
     assert "Use pnpm for installs." in result["guidance"]
     assert result["repositoryText"] is None
     assert result["assistantText"] is None
+
+
+def test_receipt_identifies_a_description_hold_without_printing_arbitrary_fields() -> None:
+    result = run_bun(r"""
+      import { buildLearningReceipt, learningSummaryDetails } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const outputs=[];
+      for(const field of [undefined,'description','UNTRUSTED_FIELD']){
+        const jev={stage:'memory',status:'propose',reason:'unsupported',durationMs:1,model:'jev-1.13.0',candidateIndex:0,dimension:'support',field};
+        const receipt=buildLearningReceipt('manual',{memory:true,harness:false,agents:false,reasons:[]},[{phase:'memory',attempt:0,outcome:'proposed',durationMs:1,operations:0,jev}]);
+        outputs.push(learningSummaryDetails(receipt).join('\n'));
+      }
+      console.log(JSON.stringify(outputs));
+    """)
+    assert 'candidate 0 support.description' in result[1]
+    assert 'candidate 0 support.description' not in result[0]
+    assert 'UNTRUSTED_FIELD' not in result[2]
+
+
+def test_receipt_displays_only_valid_http_error_statuses() -> None:
+    value = run_bun(r'''
+      import {buildLearningReceipt,learningSummaryDetails} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const rows=[];
+      for(const status of [400,429,503,599,399,600,'PRIVATE_DIAGNOSTIC_DO_NOT_LOG']){
+        const receipt=buildLearningReceipt('manual',{memory:true,harness:false,agents:false,reasons:[]},[
+          {phase:'memory',attempt:0,outcome:'proposed',durationMs:1,operations:0,jev:{stage:'memory',status:'propose',reason:'unavailable',durationMs:1,httpStatus:status}}]);
+        rows.push({status,lines:learningSummaryDetails(receipt)});
+      }console.log(JSON.stringify(rows));
+    ''')
+    for row in value:
+        text = '\n'.join(row['lines'])
+        if isinstance(row['status'], int) and 400 <= row['status'] <= 599:
+            assert f"HTTP {row['status']}" in text
+        else:
+            assert 'HTTP ' not in text
+        assert 'PRIVATE_DIAGNOSTIC' not in text
+
+
+def test_partial_application_receipt_separates_applied_and_pending_records() -> None:
+    result = run_bun("""
+      import {buildLearningReceipt, learningSummarySubject, isLearningPipelineReceipt} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const receipt = buildLearningReceipt('manual', {memory:true,harness:false,agents:false,reasons:[]}, [
+        {phase:'memory',attempt:0,outcome:'proposed',durationMs:1,operations:0},
+        {phase:'memory',attempt:1,outcome:'applied',durationMs:1,operations:2,pendingOperations:1},
+      ]);
+      const valid = value => isLearningPipelineReceipt({...receipt, attempts:[{...receipt.attempts[1],pendingOperations:value}]});
+      console.log(JSON.stringify({subject:learningSummarySubject(receipt),operations:receipt.operations,
+        original:isLearningPipelineReceipt(receipt),negative:valid(-1),fraction:valid(.5),text:valid('1')}));
+    """)
+    assert result['subject'] == '2 memories applied; 1 pending review'
+    assert result['operations'] == 2 and result['original'] is True
+    assert result['negative'] is False and result['fraction'] is False and result['text'] is False
+
+
+def test_semantic_receipt_labels_do_not_invent_evidence_window_counts() -> None:
+    value = run_bun("""
+      import {buildLearningReceipt,learningSummaryDetails} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const rows=['same-batch-relations','standalone-memory'].map(strategy=>learningSummaryDetails(
+        buildLearningReceipt('manual',{memory:true,harness:false,agents:false,reasons:[]},[
+          {phase:'memory',attempt:0,outcome:'noop',durationMs:5,operations:0,
+            jev:{stage:'memory',status:'propose',reason:'uncertain',strategy,durationMs:5,model:'jev-1.13.0'}}])).join('\\n'));
+      console.log(JSON.stringify(rows));
+    """)
+    assert all('undefined' not in row and 'full review' not in row for row in value)
+    assert 'same-batch relations' in value[0]
+    assert 'standalone meaning' in value[1]

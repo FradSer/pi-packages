@@ -1,0 +1,18 @@
+{
+  "evidence": "frozen-generation-prompt-source",
+  "adoptedPendingRealWorkflow": false,
+  "prompts": {
+    "memory-consolidator": {
+      "baseline": "packages/continual-learning/tests/fixtures/memory-consolidator-before-factual-descriptions.md.txt",
+      "baselineSha256": "e2beff6512fb7d7a2b2dea50f2ef71e7a644b12ce5676af57608b9c644971025",
+      "changedSha256": "ed4952aea941c2ca1c639ebc7b929bd49fd6b66e4f5aa2d29c6817a90422fd52"
+    },
+    "incremental-memory-consolidator": {
+      "baseline": "packages/continual-learning/tests/fixtures/incremental-memory-consolidator-before-factual-descriptions.md.txt",
+      "baselineSha256": "3370d11448edd7672a29024cd00bcff26940cdabaf2dac6818662c52ca6df7c1",
+      "changedSha256": "6b53319bd780b6f95ffdc4184b6587132817c38fa47a124d1b20af43957bbe8e",
+      "initialChangedSha256": "d7a00f4d9165a8e517967d0ac80158199f6961a931bf2ac854cef93f6a0b6435",
+      "preInferenceRevision": "Independent review found a bare-cue example contradicting the new description contract; example now states its existing evidence-backed body fact."
+    }
+  }
+}

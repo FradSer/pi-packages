@@ -1,0 +1,342 @@
+{
+  "productionPreflightMockRequests": 32,
+  "evidence": "offline-mock-new-memory-pair-preflight",
+  "split": "heldout",
+  "manifestSha256": "d341bc0b11fd16380322dd7931472db2f4198fb26e08c2c7f9d87ca07a48ca77",
+  "codeHashes": {
+    "evaluate_jev_memory_pairs.ts": "a288ea1994321655697d9d183f739a359e422f34d02a4db623130f655d45d4db",
+    "jev-memory-pair-judgment.ts": "ae105d296f4fcb6af6c3f4fddb0a9af30d635e2fffcbc1a5c53b08bab020ec15",
+    "frozen-research-manifest.ts": "dabd48c021dff53a2684d1436238b2bfcbacbaf2e33ff558bdd5fd4950724b28",
+    "../extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675",
+    "../extensions/jev-learning.ts": "965220940e50cf2bdfac3c283874615304907a296814b75025368b98d3d37d4c",
+    "../extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044"
+  },
+  "corpusSha256": "5046012616a5a84f2d4325f4dc1cfd732a0442afe028c62ff8535643aff142a7",
+  "externalRequests": 0,
+  "fixtureRequests": 16,
+  "requestBudget": 16,
+  "metrics": {
+    "correct": 4,
+    "wrong": 12,
+    "held": 0,
+    "unsafeIndependence": 12,
+    "missedIndependence": 0
+  },
+  "knownInputTokens": 0,
+  "knownEstimatedCostUsd": 0,
+  "unpricedInputTokens": 0,
+  "usageComplete": true,
+  "results": [
+    {
+      "id": "same-topic-independent-en",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 5,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "same-topic-independent-zh",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 1,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "self-contained-condition-en",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "self-contained-condition-zh",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "paraphrase-duplicate-en",
+      "expected": "duplicate",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "paraphrase-duplicate-zh",
+      "expected": "duplicate",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "scope-conflict-en",
+      "expected": "conflict",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "scope-conflict-zh",
+      "expected": "conflict",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "named-reference-en",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "named-reference-zh",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 1,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "condition-reference-en",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "condition-reference-zh",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 1,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "missing-context-en",
+      "expected": "unclear",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "missing-context-zh",
+      "expected": "unclear",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "description-conflict-en",
+      "expected": "conflict",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "id": "description-conflict-zh",
+      "expected": "conflict",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    }
+  ],
+  "productionWrites": 0,
+  "adopted": false,
+  "limitations": [
+    "Pair relations only; no proof of original candidate support, full counterevidence or parent permission.",
+    "No partial plan applies, no end-to-end quality claim.",
+    "Original complete candidate review and bound dossier still required."
+  ]
+}

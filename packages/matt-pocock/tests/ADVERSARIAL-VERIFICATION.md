@@ -146,7 +146,18 @@ python3 packages/matt-pocock/tests/real_model_live.py --all --output /tmp/matt-p
 收尾在当前最终候选上再运行 `python3 packages/matt-pocock/tests/live_smoke.py`：真实 Pi print、TUI、问答超时、Escape、Ctrl+O 展开和 48 列窗口均通过。这轮 smoke 使用独立 HOME 与本地确定性 provider；上述 28 项则使用实际外部模型。
 
 真实模型只覆盖 receipt 临时项目中的规定任务；研究仅使用本地主来源，wizard 验证生成脚本的语法并遵照用例不执行交互向导。外部 publication、部署、远端 Git 写入和真实用户对待回答问题的答案不属于这轮验收。
-
 ## 开发者完整任务补充（2026-10-04）
 
 随后新增并真实运行三个多轮开发任务：折扣功能到交接、异步缓存事故、配置清理及纠正复审。最终 3/3 通过，当前包 206 tests passed；详见 [DEVELOPER-JOURNEYS.md](DEVELOPER-JOURNEYS.md) 和 [developer-journey-results.json](developer-journey-results.json)。此补充保留历史结果，不把此前入口矩阵计作本轮重跑。
+
+## 能力路由补充（2026-10-07）
+
+本轮修复了一个可发现性缺陷：8 个 `invocation: "user"` 的独立能力从未出现在 `matt_pocock_workflow` 的 schema 或注入的 guidance 中，因此用户说 "grill me" 时模型没有任何入口可路由。修复新增 `mode: "user-capability"`（enum 恰为这 8 个 id）与 guidance 中的 user-invoked 小节，并保持两个能力集合互斥：`capability` 仍拒绝 user id，`user-capability` 仍拒绝 model id。
+
+真实模型证据使用本机 `cli-proxy / opencode/deepseek-v4.1-flash`。同一个用例 `user-grill-me-model-routed` 在两种源码下结果相反：有修复时记录 `{"mode":"user-capability","capability":"grill-me"}` 且 `errors` 为空；无修复时记录 `{"mode":"capability","capability":"grilling"}` 并因 `missing model context sources: grill-me` 失败。也就是说，缺陷形态是模型静默替换为兄弟能力，而不是报错。
+
+全量扫描 **29 项**用时 **1,153.40 秒**，结果 **20 项产物验收通过、9 项按预期待回答、0 项失败**，总体 `awaiting_user`。当前候选指纹为 `8b1e6c770eccec3851a90ae9e84ac1e31e5e5f1b38ded77b2eb3ef4819bfa6d2`，按记录中已有的 `hashMethod` 计算；被取代的指纹与上一轮运行说明保留在 `previousFullRunCandidateSha256`、`previousFullRuns`、`previousRechecks` 中。
+
+本轮首次扫描曾出现 3 项失败（`cap-pr`、`cap-wizard`、`route-hard-bug`），看起来像本变更引入的回归。对照实验否定了这一点：同一模型、同一用例，仅源码不同，有变更臂 6 轮 18 次用例运行失败 3 次，无变更臂 5 轮 15 次失败 1 次，Fisher 精确检验双尾 **p = 0.6074**，且 `route-hard-bug` 在无变更臂同样失败。结论是该套件本身存在逐用例的随机失败率，首次扫描的 3 项失败属偶发聚集；这一统计已写入 `real-model-results.json` 的 `flakiness` 字段，供后续读者区分真回归与随机失败。
+
+本轮验证：包测试 **250 passed**；`pnpm typecheck`、包 `pack --dry-run` 通过；真实 Pi 运行矩阵 **280 次工具执行、4 项预期拒绝**；`tests/e2e/matt_pocock_grill_me.py` 的两个入口（菜单与模型网关）均 `completed`。仓库级测试 139 passed、2 failed，两项失败均由未跟踪的 `packages/bdd-jev/` 引起（不在 PUBLISH_SCOPE、无 git-agent scope），与本变更无关。

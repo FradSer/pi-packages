@@ -248,7 +248,7 @@ def route_entry(route: str) -> str:
 
 
 def matrix_calls() -> list[dict[str, object]]:
-    routes, model_capabilities, _user_capabilities, (reference_capability, references) = catalog_inventory()
+    routes, model_capabilities, user_capabilities, (reference_capability, references) = catalog_inventory()
     calls: list[dict[str, object]] = []
     for route, (entry, edges) in routes.items():
         calls.extend([call("matt_pocock_workflow", mode="workflow", route=route),
@@ -285,6 +285,11 @@ def matrix_calls() -> list[dict[str, object]]:
     ])
     for capability in model_capabilities:
         calls.append(call("matt_pocock_workflow", mode="capability", capability=capability))
+    # Every user-invoked capability gets a real Pi call too. Without these the
+    # matrix proved nothing about the path that answers "grill me".
+    for capability in user_capabilities:
+        calls.append(call("matt_pocock_workflow", mode="user-capability", capability=capability))
+    calls.append(call("matt_pocock_workflow", mode="capability", capability=user_capabilities[0]))
     calls.extend(call("matt_pocock_workflow", mode="capability", capability=capability)
                  for capability, _references in model_disclosures()
                  if capability not in model_capabilities)
@@ -331,6 +336,7 @@ def read_rows(path: Path) -> list[dict[str, object]]:
 
 
 def run_matrix(pi: str, root: Path) -> None:
+    _routes, _model_capabilities, user_capabilities, _disclosures = catalog_inventory()
     evidence = root / "matrix.jsonl"
     expected = matrix_calls()
     env = isolated_env(root, evidence, expected)
@@ -351,14 +357,18 @@ def run_matrix(pi: str, root: Path) -> None:
             assert ((request["name"] == "matt_pocock_active"
                      and request["arguments"].get("action") in ("transition", "load"))
                     or (request["name"] == "matt_pocock_workflow"
-                        and request["arguments"].get("mode") == "reference")), (index, request, result_row)
+                        and request["arguments"].get("mode") == "reference")
+                    or (request["name"] == "matt_pocock_workflow"
+                        and request["arguments"].get("mode") == "capability"
+                        and request["arguments"].get("capability") == user_capabilities[0])), (index, request, result_row)
             continue
         if request["name"] == "matt_pocock_workflow":
             assert details.get("mode") == arguments["mode"], (index, request, result_row)
             if arguments["mode"] == "workflow":
                 assert details.get("route") == arguments["route"] and details.get("status") == "active", (index, request, result_row)
                 assert details.get("phase") == phases[(arguments["route"], details["procedure"])], (index, request, result_row)
-            elif arguments["mode"] == "capability":
+            elif arguments["mode"] in ("capability", "user-capability"):
+                assert details.get("mode") == arguments["mode"], (index, request, result_row)
                 assert details.get("capability") == arguments["capability"], (index, request, result_row)
             else:
                 assert details.get("capability") == arguments["capability"]
@@ -376,7 +386,7 @@ def run_matrix(pi: str, root: Path) -> None:
             assert state.get("status") == ("completed" if arguments["action"] == "complete" else "cancelled"), (index, request, result_row)
             assert "matt_pocock_active" not in result_row["activeTools"] and "matt_pocock_ask" not in result_row["activeTools"], (index, request, result_row)
     errors = [row for row in results if row["isError"]]
-    assert len(errors) == 3, errors
+    assert len(errors) == 4, errors
     assert {row["tool"] for row in errors} == {"matt_pocock_active", "matt_pocock_workflow"}, errors
     registered = next(row for row in rows if row["kind"] == "session_start")
     assert set(["matt_pocock_workflow", "matt_pocock_active", "matt_pocock_ask"]).issubset(registered["tools"])

@@ -1,0 +1,3365 @@
+{
+  "evidence": "real-jev-separate-quality-semantic-study",
+  "manifestSha256": "7120b9ad567a78ba54c913d7820206f273b14461507a99c645b0377d70a88744",
+  "resultSha256": "c592d5ab3498e6d53896669d235fd353fd05b03a97399c623cbfc491ab39dbc6",
+  "heldout": false,
+  "humanGold": false,
+  "productionWrites": 0,
+  "adopted": false,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free",
+    "usedForCandidateGenerationInThisStudy": false
+  },
+  "aggregate": {
+    "samples": 48,
+    "expectedEligible": 35,
+    "baseline": {
+      "propose": 24,
+      "allow": 24
+    },
+    "quality": {
+      "propose": 31,
+      "allow": 17
+    },
+    "combined": {
+      "propose": 37,
+      "allow": 11
+    },
+    "baselineUnsuitableAllows": 4,
+    "combinedUnsuitableAllows": 1,
+    "eligibleBaselineAllows": 20,
+    "eligibleCombinedAllows": 10,
+    "newEligibleHolds": 10,
+    "preventedUnsuitableAllows": 3
+  },
+  "groups": {
+    "fresh-authored-development-scenario": {
+      "samples": 16,
+      "expectedEligible": 10,
+      "baseline": {
+        "propose": 16
+      },
+      "quality": {
+        "propose": 12,
+        "allow": 4
+      },
+      "combined": {
+        "propose": 16
+      },
+      "baselineUnsuitableAllows": 0,
+      "combinedUnsuitableAllows": 0,
+      "eligibleBaselineAllows": 0,
+      "eligibleCombinedAllows": 0,
+      "newEligibleHolds": 0,
+      "preventedUnsuitableAllows": 0
+    },
+    "known-generator-development-output": {
+      "samples": 32,
+      "expectedEligible": 25,
+      "baseline": {
+        "propose": 8,
+        "allow": 24
+      },
+      "quality": {
+        "propose": 19,
+        "allow": 13
+      },
+      "combined": {
+        "propose": 21,
+        "allow": 11
+      },
+      "baselineUnsuitableAllows": 4,
+      "combinedUnsuitableAllows": 1,
+      "eligibleBaselineAllows": 20,
+      "eligibleCombinedAllows": 10,
+      "newEligibleHolds": 10,
+      "preventedUnsuitableAllows": 3
+    }
+  },
+  "byLanguage": {
+    "en": {
+      "samples": 24,
+      "expectedEligible": 17,
+      "baseline": {
+        "propose": 16,
+        "allow": 8
+      },
+      "quality": {
+        "propose": 16,
+        "allow": 8
+      },
+      "combined": {
+        "propose": 20,
+        "allow": 4
+      },
+      "baselineUnsuitableAllows": 1,
+      "combinedUnsuitableAllows": 0,
+      "eligibleBaselineAllows": 7,
+      "eligibleCombinedAllows": 4,
+      "newEligibleHolds": 3,
+      "preventedUnsuitableAllows": 1
+    },
+    "zh": {
+      "samples": 24,
+      "expectedEligible": 18,
+      "baseline": {
+        "allow": 16,
+        "propose": 8
+      },
+      "quality": {
+        "propose": 15,
+        "allow": 9
+      },
+      "combined": {
+        "propose": 17,
+        "allow": 7
+      },
+      "baselineUnsuitableAllows": 3,
+      "combinedUnsuitableAllows": 1,
+      "eligibleBaselineAllows": 13,
+      "eligibleCombinedAllows": 6,
+      "newEligibleHolds": 7,
+      "preventedUnsuitableAllows": 2
+    }
+  },
+  "judgments": {
+    "value": {
+      "uncertain-or-unavailable": 22,
+      "correct": 26
+    },
+    "omission": {
+      "uncertain-or-unavailable": 28,
+      "correct": 18,
+      "false-negative": 2
+    }
+  },
+  "latency": {
+    "qualityTotalMs": 67866,
+    "qualityMedianMs": 1255.5,
+    "qualityMaxMs": 5012,
+    "wholeProcessSeconds": 99.654
+  },
+  "billing": {
+    "knownJevResponses": 79,
+    "requests": 80,
+    "knownInputTokens": 70554,
+    "knownOutputTokens": 5519,
+    "knownEstimatedCostUsd": 0.0029632680000000002,
+    "totalEstimatedCostUsd": null,
+    "billingVerified": false,
+    "usageSource": "proxy upstream response usage counted once; client estimates overlap and are not added"
+  },
+  "freshBaselineHoldReasons": {
+    "uncertain": 16
+  },
+  "actualQualityModels": [
+    "jev-1.13.0"
+  ],
+  "transport": {
+    "process": {
+      "exitCode": 0,
+      "outcome": "completed",
+      "seconds": 99.654,
+      "processGroupStopConfirmed": true
+    },
+    "providerRequests": 80,
+    "jevRequests": 80,
+    "jevUsage": [
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 804,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 857,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 891,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 833,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 831,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 897,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 930,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 893,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 944,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 966,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1039,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 816,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 843,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 862,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 910,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 826,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 811,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 834,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 852,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 915,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 863,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 933,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 947,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 858,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 792,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 875,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 828,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 879,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 884,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 961,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 972,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 951,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 868,
+        "output_tokens": 123
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 744,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 887,
+        "output_tokens": 123
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 981,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 772,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 955,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 870,
+        "output_tokens": 126
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 746,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 979,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 885,
+        "output_tokens": 126
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 768,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 879,
+        "output_tokens": 124
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 971,
+        "output_tokens": 90
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 757,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1004,
+        "output_tokens": 90
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 899,
+        "output_tokens": 124
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 785,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 977,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 886,
+        "output_tokens": 126
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 772,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1024,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 917,
+        "output_tokens": 126
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 819,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 976,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 884,
+        "output_tokens": 126
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 767,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 912,
+        "output_tokens": 126
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1020,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 808,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 961,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1233,
+        "output_tokens": 241
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 757,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1262,
+        "output_tokens": 241
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 995,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 787,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 876,
+        "output_tokens": 123
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 963,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 756,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 894,
+        "output_tokens": 126
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 993,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 781,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 900,
+        "output_tokens": 123
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 997,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 794,
+        "output_tokens": 40
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1037,
+        "output_tokens": 88
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 926,
+        "output_tokens": 123
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 833,
+        "output_tokens": 40
+      }
+    ],
+    "providerErrors": 1,
+    "usageUnknown": true,
+    "billingVerified": false
+  },
+  "cleanup": {
+    "ownedContainerAbsent": true
+  },
+  "rows": [
+    {
+      "id": "stable-config-plus-run-history-en-before",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "stable-config-plus-run-history",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1750,
+      "model": "jev-1.13.0",
+      "inputTokens": 804,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.3768e-05,
+      "questions": [
+        {
+          "sampleId": "stable-config-plus-run-history-en-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.89,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "stable-config-plus-run-history-en-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.43,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "stable-config-plus-run-history-en-after",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "stable-config-plus-run-history",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "timeout"
+        }
+      ],
+      "durationMs": 5012,
+      "model": null,
+      "inputTokens": null,
+      "outputTokens": null,
+      "estimatedCostUsd": null,
+      "questions": [
+        {
+          "sampleId": "stable-config-plus-run-history-en-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": null,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "stable-config-plus-run-history-en-after",
+          "question": "omission",
+          "expected": false,
+          "probability": null,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "stable-config-plus-run-history-zh-after",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "stable-config-plus-run-history",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1535,
+      "model": "jev-1.13.0",
+      "inputTokens": 857,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.5994e-05,
+      "questions": [
+        {
+          "sampleId": "stable-config-plus-run-history-zh-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.87,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "stable-config-plus-run-history-zh-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.3,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "stable-config-plus-run-history-zh-before",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "stable-config-plus-run-history",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1273,
+      "model": "jev-1.13.0",
+      "inputTokens": 891,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.7422e-05,
+      "questions": [
+        {
+          "sampleId": "stable-config-plus-run-history-zh-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.87,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "stable-config-plus-run-history-zh-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.26,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "explicit-long-term-observed-result-en-before",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "explicit-long-term-observed-result",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1705,
+      "model": "jev-1.13.0",
+      "inputTokens": 833,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.498600000000001e-05,
+      "questions": [
+        {
+          "sampleId": "explicit-long-term-observed-result-en-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.95,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "explicit-long-term-observed-result-en-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.09,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "explicit-long-term-observed-result-en-after",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "explicit-long-term-observed-result",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1086,
+      "model": "jev-1.13.0",
+      "inputTokens": 831,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.4902e-05,
+      "questions": [
+        {
+          "sampleId": "explicit-long-term-observed-result-en-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.95,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "explicit-long-term-observed-result-en-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.08,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh-after",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "explicit-long-term-observed-result",
+      "expectedQualityEligible": false,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1071,
+      "model": "jev-1.13.0",
+      "inputTokens": 897,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.7674e-05,
+      "questions": [
+        {
+          "sampleId": "explicit-long-term-observed-result-zh-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.94,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "explicit-long-term-observed-result-zh-after",
+          "question": "omission",
+          "expected": true,
+          "probability": 0.09,
+          "prediction": false,
+          "outcome": "false-negative"
+        }
+      ]
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh-before",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "explicit-long-term-observed-result",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1784,
+      "model": "jev-1.13.0",
+      "inputTokens": 930,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.906e-05,
+      "questions": [
+        {
+          "sampleId": "explicit-long-term-observed-result-zh-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.94,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "explicit-long-term-observed-result-zh-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.09,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "lasting-compatibility-exception-en-before",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "lasting-compatibility-exception",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "propose",
+      "qualityFailures": [],
+      "durationMs": 1234,
+      "model": "jev-1.13.0",
+      "inputTokens": 893,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.7506e-05,
+      "questions": [
+        {
+          "sampleId": "lasting-compatibility-exception-en-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.93,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "lasting-compatibility-exception-en-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.09,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "lasting-compatibility-exception-en-after",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "lasting-compatibility-exception",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "propose",
+      "qualityFailures": [],
+      "durationMs": 1353,
+      "model": "jev-1.13.0",
+      "inputTokens": 944,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.9648000000000004e-05,
+      "questions": [
+        {
+          "sampleId": "lasting-compatibility-exception-en-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.94,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "lasting-compatibility-exception-en-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.1,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "lasting-compatibility-exception-zh-after",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "lasting-compatibility-exception",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1215,
+      "model": "jev-1.13.0",
+      "inputTokens": 966,
+      "outputTokens": 40,
+      "estimatedCostUsd": 4.0572000000000004e-05,
+      "questions": [
+        {
+          "sampleId": "lasting-compatibility-exception-zh-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.93,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "lasting-compatibility-exception-zh-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.08,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "lasting-compatibility-exception-zh-before",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "lasting-compatibility-exception",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1049,
+      "model": "jev-1.13.0",
+      "inputTokens": 1039,
+      "outputTokens": 40,
+      "estimatedCostUsd": 4.3638000000000005e-05,
+      "questions": [
+        {
+          "sampleId": "lasting-compatibility-exception-zh-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.93,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "lasting-compatibility-exception-zh-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.09,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "only-transient-failure-en-before",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "only-transient-failure",
+      "expectedQualityEligible": false,
+      "baselineDecision": "propose",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1072,
+      "model": "jev-1.13.0",
+      "inputTokens": 816,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.427200000000001e-05,
+      "questions": [
+        {
+          "sampleId": "only-transient-failure-en-before",
+          "question": "value_0",
+          "expected": false,
+          "probability": 0.18,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "only-transient-failure-en-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.24,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "only-transient-failure-en-after",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "only-transient-failure",
+      "expectedQualityEligible": false,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1041,
+      "model": "jev-1.13.0",
+      "inputTokens": 843,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.5406e-05,
+      "questions": [
+        {
+          "sampleId": "only-transient-failure-en-after",
+          "question": "value_0",
+          "expected": false,
+          "probability": 0.16,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "only-transient-failure-en-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.14,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "only-transient-failure-zh-after",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "only-transient-failure",
+      "expectedQualityEligible": false,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1266,
+      "model": "jev-1.13.0",
+      "inputTokens": 862,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.6204e-05,
+      "questions": [
+        {
+          "sampleId": "only-transient-failure-zh-after",
+          "question": "value_0",
+          "expected": false,
+          "probability": 0.13,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "only-transient-failure-zh-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.25,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "only-transient-failure-zh-before",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "only-transient-failure",
+      "expectedQualityEligible": false,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1124,
+      "model": "jev-1.13.0",
+      "inputTokens": 910,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.8219999999999997e-05,
+      "questions": [
+        {
+          "sampleId": "only-transient-failure-zh-before",
+          "question": "value_0",
+          "expected": false,
+          "probability": 0.19,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "only-transient-failure-zh-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.19,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "later-config-revocation-en-before",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "later-config-revocation",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1056,
+      "model": "jev-1.13.0",
+      "inputTokens": 826,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.4692e-05,
+      "questions": [
+        {
+          "sampleId": "later-config-revocation-en-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.92,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "later-config-revocation-en-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.11,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "later-config-revocation-en-after",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "later-config-revocation",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1619,
+      "model": "jev-1.13.0",
+      "inputTokens": 811,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.406200000000001e-05,
+      "questions": [
+        {
+          "sampleId": "later-config-revocation-en-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.94,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "later-config-revocation-en-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.13,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "later-config-revocation-zh-after",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "later-config-revocation",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1509,
+      "model": "jev-1.13.0",
+      "inputTokens": 834,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.5028e-05,
+      "questions": [
+        {
+          "sampleId": "later-config-revocation-zh-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.9,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "later-config-revocation-zh-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.08,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "later-config-revocation-zh-before",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "later-config-revocation",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 2956,
+      "model": "jev-1.13.0",
+      "inputTokens": 852,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.5784e-05,
+      "questions": [
+        {
+          "sampleId": "later-config-revocation-zh-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.9,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "later-config-revocation-zh-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.67,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "private-conditional-preference-en-before",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "private-conditional-preference",
+      "expectedQualityEligible": false,
+      "baselineDecision": "propose",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1022,
+      "model": "jev-1.13.0",
+      "inputTokens": 915,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.843e-05,
+      "questions": [
+        {
+          "sampleId": "private-conditional-preference-en-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.74,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "private-conditional-preference-en-before",
+          "question": "omission",
+          "expected": true,
+          "probability": 0.18,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "private-conditional-preference-en-after",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "private-conditional-preference",
+      "expectedQualityEligible": false,
+      "baselineDecision": "propose",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1120,
+      "model": "jev-1.13.0",
+      "inputTokens": 863,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.6246000000000005e-05,
+      "questions": [
+        {
+          "sampleId": "private-conditional-preference-en-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.88,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "private-conditional-preference-en-after",
+          "question": "omission",
+          "expected": true,
+          "probability": 0.15,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "private-conditional-preference-zh-after",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "private-conditional-preference",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        }
+      ],
+      "durationMs": 1449,
+      "model": "jev-1.13.0",
+      "inputTokens": 933,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.9186e-05,
+      "questions": [
+        {
+          "sampleId": "private-conditional-preference-zh-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.81,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "private-conditional-preference-zh-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.07,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "private-conditional-preference-zh-before",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "private-conditional-preference",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        }
+      ],
+      "durationMs": 1275,
+      "model": "jev-1.13.0",
+      "inputTokens": 947,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.9774e-05,
+      "questions": [
+        {
+          "sampleId": "private-conditional-preference-zh-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.82,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "private-conditional-preference-zh-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.09,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "negative-verification-and-recovery-en-before",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "negative-verification-and-recovery",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1027,
+      "model": "jev-1.13.0",
+      "inputTokens": 858,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.6036e-05,
+      "questions": [
+        {
+          "sampleId": "negative-verification-and-recovery-en-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.91,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "negative-verification-and-recovery-en-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.1,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "negative-verification-and-recovery-en-after",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "negative-verification-and-recovery",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1181,
+      "model": "jev-1.13.0",
+      "inputTokens": 792,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.3264000000000005e-05,
+      "questions": [
+        {
+          "sampleId": "negative-verification-and-recovery-en-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.92,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "negative-verification-and-recovery-en-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.07,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "negative-verification-and-recovery-zh-after",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "negative-verification-and-recovery",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1367,
+      "model": "jev-1.13.0",
+      "inputTokens": 875,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.675e-05,
+      "questions": [
+        {
+          "sampleId": "negative-verification-and-recovery-zh-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.9,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "negative-verification-and-recovery-zh-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.1,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "negative-verification-and-recovery-zh-before",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "negative-verification-and-recovery",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "allow",
+      "combinedDecision": "allow",
+      "qualityFailures": [],
+      "durationMs": 1334,
+      "model": "jev-1.13.0",
+      "inputTokens": 828,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.4776e-05,
+      "questions": [
+        {
+          "sampleId": "negative-verification-and-recovery-zh-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.92,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "negative-verification-and-recovery-zh-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.08,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history-en-before",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 909,
+      "model": "jev-1.13.0",
+      "inputTokens": 879,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.6918e-05,
+      "questions": [
+        {
+          "sampleId": "unrequested-durable-diagnostic-history-en-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.91,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "unrequested-durable-diagnostic-history-en-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.14,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history-en-after",
+      "origin": "known-generator-development-output",
+      "language": "en",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1137,
+      "model": "jev-1.13.0",
+      "inputTokens": 884,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.7128e-05,
+      "questions": [
+        {
+          "sampleId": "unrequested-durable-diagnostic-history-en-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.93,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "unrequested-durable-diagnostic-history-en-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.15,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history-zh-after",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1651,
+      "model": "jev-1.13.0",
+      "inputTokens": 961,
+      "outputTokens": 40,
+      "estimatedCostUsd": 4.0362000000000004e-05,
+      "questions": [
+        {
+          "sampleId": "unrequested-durable-diagnostic-history-zh-after",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.89,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "unrequested-durable-diagnostic-history-zh-after",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.32,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history-zh-before",
+      "origin": "known-generator-development-output",
+      "language": "zh",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "expectedQualityEligible": true,
+      "baselineDecision": "allow",
+      "baselineTelemetry": null,
+      "baselineCandidateReview": null,
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1053,
+      "model": "jev-1.13.0",
+      "inputTokens": 972,
+      "outputTokens": 40,
+      "estimatedCostUsd": 4.082400000000001e-05,
+      "questions": [
+        {
+          "sampleId": "unrequested-durable-diagnostic-history-zh-before",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.89,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "unrequested-durable-diagnostic-history-zh-before",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.23,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "nanoid-stable-default-en",
+      "origin": "fresh-authored-development-scenario",
+      "language": "en",
+      "scenario": "nanoid-stable-default",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1531,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1819,
+        "outputTokens": 211,
+        "estimatedCostUsd": 7.639800000000001e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "cf3ff4e3baaa67f3a532fe37d50bdd2d40824bc7932ac57fd825b6d5ff373b2c",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "ce588e820a927ed7199b3b1847204905d316955d1b32c9ba18901363bea6f8c3",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "4e4f9cf448cb32ffc9b60badd780beb2ee587db4f0fee03e96c3740f59de300f",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1357,
+      "model": "jev-1.13.0",
+      "inputTokens": 744,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.1248e-05,
+      "questions": [
+        {
+          "sampleId": "nanoid-stable-default-en",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.86,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "nanoid-stable-default-en",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.12,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "nanoid-stable-default-zh",
+      "origin": "fresh-authored-development-scenario",
+      "language": "zh",
+      "scenario": "nanoid-stable-default",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1914,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1868,
+        "outputTokens": 211,
+        "estimatedCostUsd": 7.845600000000001e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "4d776efeebb4c91bb46f3e480d921b2af5571427a2f465caaaaa0efdeb91da67",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "de21c7729e1cae93b051eb7360ff22a291c3522dae1f1a702b796ec07a3780bf",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "71d35dd4e2f5732ac805cc68e531c8ddee6738136c2d56e6b3d8caf78c0de5f7",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1190,
+      "model": "jev-1.13.0",
+      "inputTokens": 772,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.2424e-05,
+      "questions": [
+        {
+          "sampleId": "nanoid-stable-default-zh",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.83,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "nanoid-stable-default-zh",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.18,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "tinypool-stable-runtime-en",
+      "origin": "fresh-authored-development-scenario",
+      "language": "en",
+      "scenario": "tinypool-stable-runtime",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1478,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1825,
+        "outputTokens": 214,
+        "estimatedCostUsd": 7.664999999999999e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "23a9dad86a38b11cdd85ec90e9b661bc72e8711adcdba5a1df723b1ae693b079",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "101b8a8a1be89351b7a64a5281a8d9d145f1e6ed8a7ecd83b9d24ea5abea67e6",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "c7f208f78185b233187d55cf53e611b6a050acc5ca7cd7c37b3f08fd42a1295f",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1089,
+      "model": "jev-1.13.0",
+      "inputTokens": 746,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.1332e-05,
+      "questions": [
+        {
+          "sampleId": "tinypool-stable-runtime-en",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.83,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "tinypool-stable-runtime-en",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.17,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "tinypool-stable-runtime-zh",
+      "origin": "fresh-authored-development-scenario",
+      "language": "zh",
+      "scenario": "tinypool-stable-runtime",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1212,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1864,
+        "outputTokens": 214,
+        "estimatedCostUsd": 7.8288e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "c87c621d5b18fc6cc2d1e84754ece6e8f1c1ae0737c9878973b3eaa74fb63d67",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "2dbd1351efb422fd5728fdf727be057bd665b23c399eae3011d36e5b40dc427a",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "9eac109f44ede7d2ccf36ae8c4bbef563a6b8a1538b414642203a3b7f1510d8b",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 928,
+      "model": "jev-1.13.0",
+      "inputTokens": 768,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.2256e-05,
+      "questions": [
+        {
+          "sampleId": "tinypool-stable-runtime-zh",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.84,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "tinypool-stable-runtime-zh",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.31,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "transient-download-en",
+      "origin": "fresh-authored-development-scenario",
+      "language": "en",
+      "scenario": "transient-download",
+      "expectedQualityEligible": false,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1798,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1850,
+        "outputTokens": 214,
+        "estimatedCostUsd": 7.77e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "197cec8cd55f44d5219382a3c545d58029223cb1f95e75115cbd64ef6b0d7b5c",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "bf10b8b43716978e57339ca42811886352e93a933acd9e15ce28945173acba64",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "cb336a3f487404effdb7a605d67e904fec5c3aebcc2e6ee30bf8f238002fd5ad",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0",
+              "counter_description_0_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "no-lasting-value",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1834,
+      "model": "jev-1.13.0",
+      "inputTokens": 757,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.1794e-05,
+      "questions": [
+        {
+          "sampleId": "transient-download-en",
+          "question": "value_0",
+          "expected": false,
+          "probability": 0.1,
+          "prediction": false,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "transient-download-en",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.39,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "transient-download-zh",
+      "origin": "fresh-authored-development-scenario",
+      "language": "zh",
+      "scenario": "transient-download",
+      "expectedQualityEligible": false,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1259,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1903,
+        "outputTokens": 214,
+        "estimatedCostUsd": 7.9926e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "7db156d28d440f87ac31be03c08482f7f9b859744bcb129f9e9b137616cd2f49",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "0ba947291333bde58791cfaff9c900fa58fdcceeba2467c150b2e407397f6caa",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "d2fff9555171aa627e5fbb2431d394bd39d13e30e1bcf51b3c35dcf9715f591e",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0"
+            ],
+            "heldChecks": [
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "no-lasting-value",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1724,
+      "model": "jev-1.13.0",
+      "inputTokens": 785,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.297e-05,
+      "questions": [
+        {
+          "sampleId": "transient-download-zh",
+          "question": "value_0",
+          "expected": false,
+          "probability": 0.1,
+          "prediction": false,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "transient-download-zh",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.49,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "requested-release-complete-en",
+      "origin": "fresh-authored-development-scenario",
+      "language": "en",
+      "scenario": "requested-release-complete",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1786,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1863,
+        "outputTokens": 214,
+        "estimatedCostUsd": 7.824600000000001e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "c98497afb49844cbf396d363286afb946c24f27d308770ea27f8dc4630381820",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "3ebd3ab65a1bf891e7ae4acfdd91257cf668a6a0c068427e824e875c800c3c22",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "1db559bb355e8a5e4d94c886513f8110f777eb406fc7d1707838dca2162bd767",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "allow",
+      "combinedDecision": "propose",
+      "qualityFailures": [],
+      "durationMs": 1050,
+      "model": "jev-1.13.0",
+      "inputTokens": 772,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.2424e-05,
+      "questions": [
+        {
+          "sampleId": "requested-release-complete-en",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.93,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "requested-release-complete-en",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.05,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "requested-release-complete-zh",
+      "origin": "fresh-authored-development-scenario",
+      "language": "zh",
+      "scenario": "requested-release-complete",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1054,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1941,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.152200000000001e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "93a9798c197218220588e4733841446e7717c90799f333dc107eb71bfc36502d",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "97c4cd4932426d4e822099c969fa62c0dabc6aacd79b93b607db03c7c51277f9",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "86835b1d613a52165dcd6e7ba05d9a5fd6fa441855ea129776bc50c2dd2694af",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "allow",
+      "combinedDecision": "propose",
+      "qualityFailures": [],
+      "durationMs": 1235,
+      "model": "jev-1.13.0",
+      "inputTokens": 819,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.4398000000000005e-05,
+      "questions": [
+        {
+          "sampleId": "requested-release-complete-zh",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.92,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "requested-release-complete-zh",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.06,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "requested-release-incomplete-en",
+      "origin": "fresh-authored-development-scenario",
+      "language": "en",
+      "scenario": "requested-release-incomplete",
+      "expectedQualityEligible": false,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1335,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1860,
+        "outputTokens": 214,
+        "estimatedCostUsd": 7.812e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "5170af40cfc61ef449724dc51f9da3b2125bfab6962b159ef102f79dbd03ade1",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "3d50dcfa7a4bda024e7cd901bf6accf959108735d1e8fbcd7622c549c1d111a8",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "2f47f89513189de633a9f72227600e76753f50b5dcbc503c61e287ef08916c29",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1048,
+      "model": "jev-1.13.0",
+      "inputTokens": 767,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.2214e-05,
+      "questions": [
+        {
+          "sampleId": "requested-release-incomplete-en",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.92,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "requested-release-incomplete-en",
+          "question": "omission",
+          "expected": true,
+          "probability": 0.15,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "requested-release-incomplete-zh",
+      "origin": "fresh-authored-development-scenario",
+      "language": "zh",
+      "scenario": "requested-release-incomplete",
+      "expectedQualityEligible": false,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 2801,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1932,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.114400000000001e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "b96a12d160aba2b6cb6ffbe3e042b871f75c946a51d7da295d2e1312b6f320b9",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "c73894a640bec5afaf412284892542b6b57c8896849c05affeb81bb01ca8c1a9",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "5c054343d031d5156bd943134b8e7908d3156acc0a4744a172563009cdd4b88e",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1042,
+      "model": "jev-1.13.0",
+      "inputTokens": 808,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.3936e-05,
+      "questions": [
+        {
+          "sampleId": "requested-release-incomplete-zh",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.91,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "requested-release-incomplete-zh",
+          "question": "omission",
+          "expected": true,
+          "probability": 0.15,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "requested-split-existing-en",
+      "origin": "fresh-authored-development-scenario",
+      "language": "en",
+      "scenario": "requested-split-existing",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 2241,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2194,
+        "outputTokens": 329,
+        "estimatedCostUsd": 9.214800000000001e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "a66d42cc678cfdbd08fc9bc6bd3320e9f33601478192e1898182f7c7bfcee550",
+        "existingDigest": "ace9fcd28bf087c3135584c3674fbd613073184e970c664b305fab24b8cc6f7a",
+        "candidatesDigest": "85b72affaf963f432b66d97e27b76f4c455b24ebf926c7cf162b20daeb7b2b7b",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "b4b545bea07f8284c9f55dec30cdeb7efea6c1bfad6ee9f87a8f92f87839f95f",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "relation_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0",
+              "relation_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "allow",
+      "combinedDecision": "propose",
+      "qualityFailures": [],
+      "durationMs": 1961,
+      "model": "jev-1.13.0",
+      "inputTokens": 757,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.1794e-05,
+      "questions": [
+        {
+          "sampleId": "requested-split-existing-en",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.93,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "requested-split-existing-en",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.05,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "requested-split-existing-zh",
+      "origin": "fresh-authored-development-scenario",
+      "language": "zh",
+      "scenario": "requested-split-existing",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1855,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2257,
+        "outputTokens": 329,
+        "estimatedCostUsd": 9.4794e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "5c2fd5f0fc509df58d927ad82803c9b9c6732f9036b295c68e227b7cff41bfd6",
+        "existingDigest": "616c29b88ca85f5e97f0e2e93016fd9b82480e18de8916ffadda8ce95845b2b1",
+        "candidatesDigest": "6966e6bf66fa5cbbba9f18a879c9cb9fa779f75638ee7ae2e435007fb54bcc5b",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "34b6058b5f7b597f5598ea9957733fcd27eaa6f6a228054904eec03175162f66",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "relation_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0",
+              "relation_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "allow",
+      "combinedDecision": "propose",
+      "qualityFailures": [],
+      "durationMs": 1245,
+      "model": "jev-1.13.0",
+      "inputTokens": 787,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.3054e-05,
+      "questions": [
+        {
+          "sampleId": "requested-split-existing-zh",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.92,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "sampleId": "requested-split-existing-zh",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.05,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ]
+    },
+    {
+      "id": "requested-report-placement-en",
+      "origin": "fresh-authored-development-scenario",
+      "language": "en",
+      "scenario": "requested-report-placement",
+      "expectedQualityEligible": false,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1099,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1839,
+        "outputTokens": 211,
+        "estimatedCostUsd": 7.723800000000001e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "1f632b28c6dc463da46c7437607c1cde4c9b86dc43616846760059ca3ac4942e",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "4b0fcd04783e3e7dcb2a58da934898e15f6f11ce5e8efe4d0c44ee240274a776",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "35f4caf987ef5f3f2b404540cec8f4d17d9a44de3e69c9d6b9c823ba9b7a3289",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        }
+      ],
+      "durationMs": 1634,
+      "model": "jev-1.13.0",
+      "inputTokens": 756,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.1752000000000004e-05,
+      "questions": [
+        {
+          "sampleId": "requested-report-placement-en",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.53,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "requested-report-placement-en",
+          "question": "omission",
+          "expected": true,
+          "probability": 0.09,
+          "prediction": false,
+          "outcome": "false-negative"
+        }
+      ]
+    },
+    {
+      "id": "requested-report-placement-zh",
+      "origin": "fresh-authored-development-scenario",
+      "language": "zh",
+      "scenario": "requested-report-placement",
+      "expectedQualityEligible": false,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1807,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1887,
+        "outputTokens": 214,
+        "estimatedCostUsd": 7.925400000000001e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "90c269377b151e4276100defde1f164d3612c8c20cc57e7139213d05a91e481b",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "61121e5560ede940493396509ad871d5f7e80d26b378feb87d4c394070f424ac",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "84d51e8d7f90303c0083fa51f72574430f747bff29a3f910912ca2efd8aa9dcd",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1297,
+      "model": "jev-1.13.0",
+      "inputTokens": 781,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.2802e-05,
+      "questions": [
+        {
+          "sampleId": "requested-report-placement-zh",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.52,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "requested-report-placement-zh",
+          "question": "omission",
+          "expected": true,
+          "probability": 0.15,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "ongoing-diagnostic-en",
+      "origin": "fresh-authored-development-scenario",
+      "language": "en",
+      "scenario": "ongoing-diagnostic",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 2710,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1897,
+        "outputTokens": 211,
+        "estimatedCostUsd": 7.967400000000001e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "field": "description",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support",
+        "field": "description"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "ca8f96d6ca81788b2ace0c5a0ad0b4a658a09198b2d4821518d69159847c8b7e",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "e4bdd6ddaf21e7450be413062b9d9722e8a1c5e9ca674d93e880902392ed40c7",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "e56f785e7de582f378ebe04fb6d5ea1c44282e0cf63a644ece087b3287f7b891",
+            "outcome": "held",
+            "passedChecks": [
+              "supported_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_description_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1685,
+      "model": "jev-1.13.0",
+      "inputTokens": 794,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.3348e-05,
+      "questions": [
+        {
+          "sampleId": "ongoing-diagnostic-en",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.86,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "ongoing-diagnostic-en",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.16,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    },
+    {
+      "id": "ongoing-diagnostic-zh",
+      "origin": "fresh-authored-development-scenario",
+      "language": "zh",
+      "scenario": "ongoing-diagnostic",
+      "expectedQualityEligible": true,
+      "baselineDecision": "propose",
+      "baselineTelemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 3388,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1963,
+        "outputTokens": 211,
+        "estimatedCostUsd": 8.2446e-05,
+        "candidateFailures": [
+          {
+            "candidateIndex": 0,
+            "dimension": "support",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 0,
+        "dimension": "support"
+      },
+      "baselineCandidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "ffc46110f7ea6c8464b4b288ff2fadcaf2c1222c290ad4eb78b03bd61b1ba9f0",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "397cbbf0b4dab446501e75c9f964d5e19dac3d9f483dfd71490e7b06280df8bd",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "00f4ca0611469343c6088ebfdd951226e547b226c67031ad9fb5c46b3637dde1",
+            "outcome": "held",
+            "passedChecks": [
+              "counter_description_0_0"
+            ],
+            "heldChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0"
+            ]
+          }
+        ]
+      },
+      "qualityDecision": "propose",
+      "combinedDecision": "propose",
+      "qualityFailures": [
+        {
+          "reason": "uncertain",
+          "candidateIndex": 0
+        },
+        {
+          "reason": "uncertain"
+        }
+      ],
+      "durationMs": 1312,
+      "model": "jev-1.13.0",
+      "inputTokens": 833,
+      "outputTokens": 40,
+      "estimatedCostUsd": 3.498600000000001e-05,
+      "questions": [
+        {
+          "sampleId": "ongoing-diagnostic-zh",
+          "question": "value_0",
+          "expected": true,
+          "probability": 0.74,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "sampleId": "ongoing-diagnostic-zh",
+          "question": "omission",
+          "expected": false,
+          "probability": 0.21,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ]
+    }
+  ],
+  "limits": [
+    "Authored development labels, not human gold or heldout.",
+    "Known baseline results are preserved observations, not concurrent reruns.",
+    "Fresh baselines have no full parent apply or real storage authorization.",
+    "Quality allow never grants write permission.",
+    "No Pi candidate generation, actual Memory writes, recall or Harness effects in this semantic study.",
+    "Label-agreement errors are against authored, independently model-reviewed expectations; they are not measured human-gold misremembering rates.",
+    "Whole-plan holds remain atomic; useful individual candidates are not independently applied.",
+    "Value=true can coexist with incidental noise.",
+    "All fresh candidates used generic metadata descriptions; baseline description support holds limit fresh workflow comparison and must not be removed or rerun to improve this result.",
+    "Omission covers explicit storage requests and body knowledge only, not all useful facts, privacy classification or sharing authorization."
+  ],
+  "judgmentsByExpected": {
+    "value": {
+      "true": {
+        "uncertain-or-unavailable": 18,
+        "correct": 24
+      },
+      "false": {
+        "uncertain-or-unavailable": 4,
+        "correct": 2
+      }
+    },
+    "omission": {
+      "true": {
+        "false-negative": 2,
+        "uncertain-or-unavailable": 5
+      },
+      "false": {
+        "uncertain-or-unavailable": 23,
+        "correct": 18
+      }
+    }
+  },
+  "newEligibleHoldCauses": {
+    "timeout": 1,
+    "uncertain": 9
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "scope": "offline historical Harness replay; no production behavior changed",
+  "tests": {
+    "command": "uv run --no-project --with pytest python -m pytest packages/continual-learning/tests/test_native_harness_probe.py packages/continual-learning/tests/test_independent_effect_observation.py -q",
+    "passed": 8,
+    "seconds": 10.11
+  },
+  "frozenProductionSourcesMatchCurrent": true,
+  "nativeDockerProbeExitCode": 0,
+  "manifestHashMatches": true,
+  "documentReferencesValid": true,
+  "artifactHashCheckAttempts": [
+    {
+      "passed": false,
+      "cause": "published manifest had added trailing newline; private frozen manifest unchanged"
+    },
+    {
+      "passed": true,
+      "fix": "published exact frozen bytes"
+    }
+  ],
+  "ownedContainerAbsent": true,
+  "productionCodeChanges": 0,
+  "fullSuiteRerun": false,
+  "limits": [
+    "No new inference or end-to-end learning comparison.",
+    "No runtime implementation changes, so previous full verification was not rerun.",
+    "This turn verifies only execution evidence and its relevant observer/native-probe tests."
+  ]
+}

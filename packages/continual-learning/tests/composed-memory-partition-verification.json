@@ -1,0 +1,150 @@
+{
+  "kind": "runtime-composed-partition-boundary-verification",
+  "productionDefaultActivated": false,
+  "parentUsesAdditionalReadiness": false,
+  "newInferenceRequests": 0,
+  "focusedRegression": {
+    "passed": 18,
+    "seconds": 7.32
+  },
+  "initialFullPackageRun": {
+    "passed": 1015,
+    "failed": 1,
+    "seconds": 392.87,
+    "failure": "Historical standalone policy regression hit modified-source hash before its intended forged-policy check; fixed by isolated read of exact preserved source bytes."
+  },
+  "finalFullPackageRun": {
+    "passed": 1016,
+    "failed": 0,
+    "seconds": 389.81,
+    "exitCode": 0
+  },
+  "typecheckExitCode": 0,
+  "strictModuleTypecheckExitCode": 0,
+  "packCheck": {
+    "exitCode": 0,
+    "packages": 19
+  },
+  "targetDryPackExitCode": 0,
+  "installationCheck": {
+    "exitCode": 1,
+    "unrelatedMissingPackages": [
+      "agent-teams",
+      "bdd-jev",
+      "btw",
+      "context",
+      "keyboard",
+      "monitor",
+      "plan-mode",
+      "recap",
+      "skill-router",
+      "utils",
+      "vision"
+    ]
+  },
+  "independentReview": "composed_partition_runtime_review: passed initial security/state review and historical-test correction; independent 15 + 3 focused tests passed",
+  "offlineReplay": {
+    "preservedRealAnswers": 36,
+    "interpreterDifferences": 0,
+    "newInference": false
+  },
+  "nativePiDocker": {
+    "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/composed-partition-default-regression-20261006T213700Z",
+    "manifestSha256": "fc67a1c879ee575a8426ccb183427adb415590951b20bbbd91fb6d02c167c537",
+    "resultSha256": "853963856dcd9c3dfd3689be9c3f297d2f92062a7a678c015481aaa66149cf49",
+    "sourceHashes": {
+      "index.ts": "1ab8302e9b46799be439f84a3c0d49a113d96261084c3d2e96478313d09b061e",
+      "extensions/agents-md-consolidation.ts": "d3a8541e169a760b37526597411bdb923534e9412ec5c60e84f501a9b47440dc",
+      "extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+      "extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+      "extensions/consolidation-run.ts": "1f121be40c5d93dc7679325e18a8c71366e46827dc83ca8970356b83f3912b6e",
+      "extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+      "extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+      "extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+      "extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+      "extensions/harness-command-coverage.ts": "122b26c79364e4c82b41d96e819f0ecb916b4a7a01738b6b3f0002bfcce2de8c",
+      "extensions/harness-consolidation.ts": "a35441ddfbf3c8c3be27dbcfee3dd89dc0daaadf2f9e1e7e5b42ce247ef49c47",
+      "extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+      "extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+      "extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+      "extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+      "extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+      "extensions/independent-memory-partition.ts": "ac2a74f53654a5e90b68ec0fe12b7738ed50f47f68da5412eecea6104fc1356d",
+      "extensions/inject-memory.ts": "6ccbb5172543894e1247c1107c03d3fb9a5e758b56ecf3d4b0829f7b4f57de6b",
+      "extensions/jev-learning.ts": "348ca3a03ce3c303368595b1c8e8040002545970ac53927e9ee7533e98c6b948",
+      "extensions/jev-memory-readiness.ts": "0ff9d22cf7c46c540d2cfb4cd8f1299f096510de292c4193fe1e5df14ad16e1e",
+      "extensions/jev-memory-relations.ts": "bfb4030799a2d254174524887e4241d69223a7c355d7e06b6dc0fd568cbc5529",
+      "extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+      "extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+      "extensions/learning-efficiency.ts": "419b791f40d94d2c94fe7b3aae7a8a8be3c3e1f6b46d81122f479fe4333daab7",
+      "extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+      "extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+      "extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+      "extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+      "extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+      "extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+      "extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+      "extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+      "extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+      "extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+      "extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899"
+    },
+    "kitSourceHashes": {
+      "index.ts": "8950f261c03b03d1474eb7a092ca892fd7b11f84d8e1d9ff6facb7844d685779",
+      "package.json": "47f30bad436aa88ddcc5ddefe611055d6af3c3fd271806025d0259a4c1fd043d",
+      "src/index.ts": "f55c52433a1e86c7fef4df4385935be72111af456dc596d344fe86e350800a18"
+    },
+    "rows": [
+      {
+        "arm": "jev-off",
+        "exitCode": 0,
+        "resultPresent": true,
+        "operations": 3,
+        "parentAssertionsPassed": true,
+        "matchesPredictedOperations": true
+      },
+      {
+        "arm": "jev-whole",
+        "exitCode": 0,
+        "resultPresent": true,
+        "operations": 0,
+        "parentAssertionsPassed": true,
+        "matchesPredictedOperations": true
+      },
+      {
+        "arm": "jev-subset",
+        "exitCode": 0,
+        "resultPresent": true,
+        "operations": 2,
+        "parentAssertionsPassed": true,
+        "matchesPredictedOperations": true
+      },
+      {
+        "arm": "jev-unavailable",
+        "exitCode": 0,
+        "resultPresent": true,
+        "operations": 0,
+        "parentAssertionsPassed": true,
+        "matchesPredictedOperations": true
+      }
+    ],
+    "ownedContainersAbsent": true,
+    "externalInference": false,
+    "mainResponses": "fixed local fixtures",
+    "jevResponses": "fixed local fixtures",
+    "learningQualityEvidence": false
+  },
+  "limitations": [
+    "Standalone collection and parent binding are not implemented in this increment.",
+    "Current runtime behavior remains unchanged unless a caller explicitly supplies complete additional diagnostic observations.",
+    "New real Jev inference and real cli-proxy / opencode/space-bunny-free project generation, write, recall and quality comparison remain required.",
+    "Full goal remains active."
+  ],
+  "verifiedCurrentSourceHashes": {
+    "extensions/independent-memory-partition.ts": "ac2a74f53654a5e90b68ec0fe12b7738ed50f47f68da5412eecea6104fc1356d",
+    "extensions/jev-memory-readiness.ts": "0ff9d22cf7c46c540d2cfb4cd8f1299f096510de292c4193fe1e5df14ad16e1e",
+    "tests/test_composed_memory_partition.py": "0f28aa9abab7ff09913f458c616c18dd47045b2a02dfa139f84a074baf126a10",
+    "tests/test_jev_composed_readiness_research.py": "f9bc5caaeb7e4ec64bbaeb9320b5c9ffc9aacdc25755b987ac9a3d81b7d882f3",
+    "tests/test_jev_standalone_memory_research.py": "bedb67b7678a54a520cd73a6a69563ceb7e94e99a79d2d6d07f7ddea334cc279"
+  }
+}

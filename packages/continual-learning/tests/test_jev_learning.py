@@ -149,7 +149,10 @@ def test_unified_config_or_environment_key_enables_jev_with_explicit_disable() -
       const disabled=await createJevJudge({fetch}).select('evidence',[],false);
       console.log(JSON.stringify({absent,environment,selection,memory,privateMemory,invalid,disabled,calls}));
     ''')
-    assert value['calls'] == 1
+    # Justification: the environment-key case is the only reachable request, and
+    # its connection-level failure is now retried once, so one reachable failure
+    # costs two attempts. Every other case still makes zero requests.
+    assert value['calls'] == 2
     assert value['absent']['telemetry']['reason'] == 'missing-config'
     assert value['environment']['telemetry']['reason'] == 'unavailable'
     assert value['disabled']['telemetry']['reason'] == 'disabled'
@@ -412,8 +415,8 @@ def test_equivalent_metadata_format_repair_retains_grounding_and_privacy_checks(
     ''')
     assert value['format']['decision'] == 'allow'
     assert value['body']['decision'] == value['metadata']['decision'] == value['privacy']['decision'] == 'propose'
-    assert value['questions'][0] == ['supported_0']
-    assert value['questions'][1] == value['questions'][2] == ['supported_0', 'relation_0']
+    assert value['questions'][0] == ['supported_0', 'supported_description_0']
+    assert value['questions'][1] == value['questions'][2] == ['supported_0', 'relation_0', 'supported_description_0', 'relation_description_0']
 
     assert value['unchanged']['decision'] == value['degraded']['decision'] == 'propose'
 
@@ -457,7 +460,7 @@ def test_semantic_memory_repair_uses_one_shared_slot_and_rechecks_privacy() -> N
     from support import run_bun_script
     fixture = Path(__file__).with_name('learning-policy-harness.ts')
     accepted = run_bun_script(fixture, 'remember-shared', env={'CL_JEV_FIXTURE': 'repair-supported'})
-    assert accepted['semanticRepairs'] == 1
+    assert accepted['semanticRepairs'] == 1 and accepted['receivedFailureHints']
     assert accepted['jevValidations'] == ['memory', 'memory']
     assert accepted['memoryMirrored'] and accepted['registryReceipt']['operations'] == 1
     attempts = [a for a in accepted['registryReceipt']['attempts'] if a['phase'] == 'memory']
@@ -524,6 +527,7 @@ def test_legal_family_batch_is_atomic_bounded_and_accounts_partial_failures() ->
     assert value['good']['telemetry']['inputTokens'] == 200
     assert value['partial']['decision'] == 'propose'
     assert value['partial']['telemetry']['reason'] == 'unavailable'
+    assert 'candidateFailures' not in value['partial']['telemetry']
     assert 'inputTokens' not in value['partial']['telemetry']
     assert value['partial']['telemetry']['knownInputTokens'] == 100
     assert value['partial']['telemetry']['completedRequests'] == 1
@@ -647,3 +651,277 @@ def test_delete_without_body_still_requires_knowledge_preservation_judgment() ->
     assert 'missing content field' in value['question']
     assert value['candidate']['preservedIn'] == ['replacement.md']
     assert value['result']['decision'] == 'propose'
+
+
+def test_all_candidate_failures_are_reported_without_partial_permission() -> None:
+    # Given two independent failures in a fully returned batch,
+    # when judging it, retain both repair locations and keep the whole plan held.
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      let requests=0;
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+        requests++;const request=JSON.parse(init.body);const answers={};
+        for(const [key,q] of Object.entries(request.questions)){
+          const selected=key==='supported_0'?'unclear':'unsupported';
+          answers[key]={type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))};
+        }
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:10,output_tokens:2}}));
+      }});
+      const result=await judge.validate('memory',{entries:[{message:{role:'user',content:'Synthetic evidence'}}]},[{name:'PRIVATE-NAME-A.md',content:'Candidate A'},{name:'PRIVATE-NAME-B.md',content:'Candidate B'}],[]);
+      console.log(JSON.stringify({result,requests}));
+    ''')
+    assert value['result']['decision'] == 'propose'
+    assert value['requests'] == 1
+    telemetry = value['result']['telemetry']
+    assert telemetry['reason'] == 'uncertain' and telemetry['candidateIndex'] == 0
+    assert telemetry['candidateFailures'] == [
+        # Justification: a held dimension must record its controlled label and the
+        # chosen probability, so a threshold artefact is distinguishable from a
+        # classification artefact. The fields stay controlled vocabulary and
+        # numbers, so no model prose or private name enters the receipt.
+        {'candidateIndex': 0, 'dimension': 'support', 'reason': 'uncertain', 'choice': 'unclear', 'probability': 1, 'confidence': 1},
+        {'candidateIndex': 1, 'dimension': 'support', 'reason': 'unsupported', 'choice': 'unsupported', 'probability': 1, 'confidence': 1},
+    ]
+    assert 'PRIVATE-NAME' not in str(telemetry)
+
+
+def test_all_failure_hints_fit_existing_repair_limits() -> None:
+    value = isolated_run_bun(r'''
+      import {jevRepairFailureHints} from './packages/continual-learning/extensions/jev-learning.ts';
+      const candidateFailures=Array.from({length:128},(_,candidateIndex)=>({candidateIndex,dimension:'counterevidence',reason:'scope-expansion'}));
+      const hints=jevRepairFailureHints({stage:'memory',status:'propose',reason:'uncertain',durationMs:0,candidateFailures});
+      console.log(JSON.stringify({hints,maximum:Math.max(...hints.map(x=>x.length))}));
+    ''')
+    assert len(value['hints']) + 1 <= 16 and value['maximum'] <= 400
+    assert all(f'{index}:counterevidence:scope-expansion' in ','.join(value['hints']) for index in range(128))
+
+
+def test_proven_finite_git_matching_is_separate_from_support_and_authorization() -> None:
+    # Given the exact researched grammar, when production reviews it, only
+    # scope/counter receive the proven syntax description; support stays exact.
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const sample=(await Bun.file('./packages/continual-learning/tests/fixtures/jev-harness-support-corpus.json').json())[0];
+      const requests=[];
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',defaultModel:'jev-1.13.0',scopes:['harness'],fetch:async(_url,init)=>{
+        const r=JSON.parse(String(init.body));requests.push(r);const answers={};
+        for(const [key,q] of Object.entries(r.questions)) {
+          if(q.type==='noul') answers[key]={type:'noul',noul:.99};
+          else {const label=key.startsWith('counter')?'compatible':'same';answers[key]={type:'choice',choice:label,confidence:.99,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===label?1:0]))};}
+        }
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
+      }});
+      const original=JSON.stringify(sample);
+      const verdict=await judge.validate('harness',sample.snapshot,sample.plan.operations,[],undefined,sample.plan.evidence);
+      const questions=Object.assign({},...requests.map(r=>r.questions));
+      const unknown=structuredClone(sample);unknown.plan.operations[0].rule.bash+='|.*';requests.length=0;
+      await judge.validate('harness',unknown.snapshot,unknown.plan.operations,[],undefined,unknown.plan.evidence);
+      const unknownQuestions=Object.assign({},...requests.map(r=>r.questions));
+      const skipped=[];
+      for(const mode of ['disabled','replace']) {
+        const changed=structuredClone(sample);if(mode==='disabled')changed.plan.operations[0].rule.enabled=false;else changed.plan.operations[0].op='replaceRule';
+        requests.length=0;await judge.validate('harness',changed.snapshot,changed.plan.operations,[],undefined,changed.plan.evidence);
+        skipped.push(Object.assign({},...requests.map(r=>r.questions)));
+      }
+      console.log(JSON.stringify({questions,unknownQuestions,skipped,verdict,inputUnchanged:original===JSON.stringify(sample)}));
+    ''')
+    assert value['inputUnchanged']
+    questions = value['questions']
+    assert 'bash' in questions['supported_0']['instructions']['candidate']['rule']
+    for key in ('expands_0', 'counter_0_0'):
+        rule = questions[key]['instructions']['candidate']['rule']
+        assert 'bash' not in rule and 'matching' in rule
+        assert rule['action'] == 'block'
+    assert 'bash' in value['unknownQuestions']['expands_0']['instructions']['candidate']['rule']
+    assert 'bash' in value['unknownQuestions']['counter_0_0']['instructions']['candidate']['rule']
+    for questions in value['skipped']:
+        assert 'bash' in questions['expands_0']['instructions']['candidate']['rule']
+        assert 'bash' in questions['counter_0_0']['instructions']['candidate']['rule']
+
+
+def test_finite_git_proof_never_bypasses_semantic_holds_or_service_failure() -> None:
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const sample=(await Bun.file('./packages/continual-learning/tests/fixtures/jev-harness-support-corpus.json').json())[0];
+      const outcomes=[];
+      for(const action of ['block','confirm']) for(const mode of ['supported','unsupported','uncertain','scope','counter','unavailable']) {
+        const plan=structuredClone(sample.plan);plan.operations[0].rule.action=action;
+        const judge=createJevJudge({enabled:true,apiKey:'fixture',defaultModel:'jev-1.13.0',scopes:['harness'],fetch:async(_url,init)=>{
+          if(mode==='unavailable')throw Error('fixture service unavailable');
+          const r=JSON.parse(String(init.body));const answers={};
+          for(const [key,q] of Object.entries(r.questions)) {
+            if(q.type==='noul') answers[key]={type:'noul',noul:mode==='unsupported'?.01:mode==='uncertain'?.5:.99};
+            else {const label=key.startsWith('counter')?(mode==='counter'?'contradicts':'compatible'):(mode==='scope'?'broader':'same');answers[key]={type:'choice',choice:label,confidence:.99,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===label?1:0]))};}
+          }
+          return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
+        }});
+        outcomes.push({action,mode,...await judge.validate('harness',sample.snapshot,plan.operations,[],undefined,plan.evidence)});
+      }
+      console.log(JSON.stringify(outcomes));
+    ''')
+    for row in value:
+        if row['mode'] == 'supported':
+            assert row['decision'] == 'allow'
+        else:
+            assert row['decision'] == 'propose'
+            assert row['telemetry']['reason'] != 'supported'
+
+
+def test_http_failures_keep_only_trusted_status_and_preserve_proposal() -> None:
+    # Given an SDK HTTP failure, When judging a candidate, Then a numeric
+    # status diagnoses unavailability without raw error text or authorization.
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const rows=[];
+      for(const status of [400,401,403,429,500,503]){
+        const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async()=>new Response(JSON.stringify({error:'PRIVATE_DIAGNOSTIC_DO_NOT_LOG'}),{status})});
+        rows.push({status,result:await judge.validate('memory','evidence',['candidate'],[])});
+      }
+      const generic=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async()=>{throw Object.assign(new Error('PRIVATE_DIAGNOSTIC_DO_NOT_LOG'),{status:429});}});
+      const unknown=await generic.validate('memory','evidence',['candidate'],[]);
+      const selection=await createJevJudge({enabled:true,apiKey:'fixture',scopes:['selection'],fetch:async()=>new Response('PRIVATE_DIAGNOSTIC_DO_NOT_LOG',{status:429})}).select('For future tasks remember this project fact.',[],true);
+      console.log(JSON.stringify({rows,unknown,selection}));
+    ''')
+    for row in value['rows']:
+        assert row['result']['decision'] == 'propose'
+        assert row['result']['telemetry']['reason'] == 'unavailable'
+        assert row['result']['telemetry']['httpStatus'] == row['status']
+        assert row['result']['telemetry']['completedRequests'] == 0
+    assert value['unknown']['decision'] == 'propose'
+    assert 'httpStatus' not in value['unknown']['telemetry']
+    assert value['selection']['selection'] is None
+    assert value['selection']['telemetry']['status'] == 'fallback'
+    assert value['selection']['telemetry']['httpStatus'] == 429
+    assert 'PRIVATE_DIAGNOSTIC' not in str(value)
+
+
+def test_http_status_survives_split_and_cited_partial_failures() -> None:
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      let kind='split';
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory','harness'],fetch:async(_url,init)=>{
+        const r=JSON.parse(String(init.body));
+        if((kind==='split'&&Object.hasOwn(r.questions,'family_11'))||(kind==='cited'&&Object.hasOwn(r.questions,'counter_0_1')))
+          return new Response('PRIVATE_DIAGNOSTIC_DO_NOT_LOG',{status:503});
+        const answers={};for(const [key,q]of Object.entries(r.questions)){
+          if(q.type==='noul')answers[key]={type:'noul',noul:.99};else{
+            const label=['lasting','faithful','authorized','grounded','compatible','same'].find(x=>Object.hasOwn(q.criteria,x));
+            answers[key]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};
+          }
+        }return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:100,output_tokens:20}}));
+      }});
+      const candidates=Array.from({length:12},(_,i)=>({rule:{bash:`^git[ \\t]+op${i}(?:[ \\t]|$(?![\\s\\S]))`,action:'block',message:`Never run git op${i}.`}}));
+      const split=await judge.validate('harness','Never run these commands in future project work.',candidates,[]);
+      kind='cited';const quote='For future work, this project uses pnpm test.';
+      const snapshot={contextEnabled:true,entries:[{role:'user',content:quote},{role:'user',content:'context '+ 'x'.repeat(17000)},{role:'toolResult',content:'context '+ 'x'.repeat(17000)}]};
+      const candidate={name:'fact.md',kind:'project',classification:'safe',content:'---\nname: Fact\ndescription: This project uses pnpm test\ntype: project\n---\n'+quote,evidence:[{index:0,quote,role:'user'}]};
+      const cited=await judge.validate('memory',snapshot,[candidate],[]);
+      console.log(JSON.stringify({split,cited}));
+    ''')
+    for key in ('split', 'cited'):
+        result = value[key]
+        assert result['decision'] == 'propose', (key, result)
+        assert result['telemetry']['reason'] == 'unavailable'
+        assert result['telemetry']['httpStatus'] == 503
+        assert result['telemetry']['completedRequests'] < result['telemetry']['requestCount']
+        assert 'inputTokens' not in result['telemetry']
+        assert result['telemetry']['knownInputTokens'] > 0
+        assert 'candidateFailures' not in result['telemetry']
+    assert 'PRIVATE_DIAGNOSTIC' not in str(value)
+
+
+def test_held_candidate_records_the_controlled_choice_and_probability() -> None:
+    # Given a held support judgment, When the judge reports the failure, Then the
+    # telemetry records the question's own label and the chosen probability, so a
+    # threshold artefact is distinguishable from a classification artefact, and
+    # no model prose enters the receipt.
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const evidence={entries:[{message:{role:'user',content:'This project uses pnpm.'}}]};
+      const candidate={name:'test.md',content:'Use pnpm test.'};
+      const build=(choice,distribution,confidence)=>createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
+        const request=JSON.parse(init.body);const answers={};
+        for(const [key,q] of Object.entries(request.questions)){
+          if(q.type==='noul')answers[key]={type:'noul',noul:0.99};
+          if(q.type==='score')answers[key]={type:'score',score:2.88,confidence:0.95,probabilities:{0:0.01,1:0.01,2:0.07,3:0.91},legend:{0:"a",1:"b",2:"c",3:"d"}};
+          if(q.type==='choice'){
+            if(key.startsWith('supported_')) answers[key]={type:'choice',choice,confidence,probabilities:distribution};
+            else answers[key]={type:'choice',choice:'supplement',confidence:0.99,probabilities:{unrelated:0,duplicate:0,supplement:1,conflict:0,unclear:0}};
+          }
+        }
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:100,output_tokens:20}}));
+      }});
+      const subThreshold=await build('grounded',{grounded:0.85,speculative:0.10,transient:0,unsupported:0.05,unclear:0},0.99).validate('memory',evidence,[candidate],[]);
+      const speculative=await build('speculative',{grounded:0.01,speculative:0.99,transient:0,unsupported:0,unclear:0},0.99).validate('memory',evidence,[candidate],[]);
+      const confident=await build('grounded',{grounded:0.99,speculative:0.01,transient:0,unsupported:0,unclear:0},0.99).validate('memory',evidence,[candidate],[]);
+      console.log(JSON.stringify({subThreshold,speculative,confident}));
+    ''')
+    assert value['confident']['decision'] == 'allow'
+    sub = value['subThreshold']['telemetry']['candidateFailures'][0]
+    assert value['subThreshold']['decision'] == 'propose'
+    assert sub['dimension'] == 'support' and sub['reason'] == 'uncertain'
+    assert sub['choice'] == 'grounded' and sub['probability'] == 0.85
+    spec = value['speculative']['telemetry']['candidateFailures'][0]
+    assert spec['dimension'] == 'support' and spec['reason'] == 'unsupported'
+    assert spec['choice'] == 'speculative' and spec['probability'] == 0.99
+
+
+
+def test_support_definitions_ground_a_successful_run_and_reject_a_transient_one() -> None:
+    # Given the support question the judge sends for a Memory candidate, When a
+    # successful tool result and a transient failure are both possible readings,
+    # Then the instructions distinguish them, so a legitimate verified-observation
+    # hold does not depend on a noisy probability gate alone. Measured evidence:
+    # the negative transient sample was classified grounded at 0.68-0.73 while a
+    # legitimate supplement sat at 0.73-0.86, so the probability cannot separate
+    # the classes and the criteria must.
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parents[1] / 'extensions' / 'jev-learning.ts'
+    text = source.read_text(encoding='utf-8')
+    assert 'A successful tool result that ran the command grounds the claim that the command works for this project' in text
+    assert 'does not ground a lasting claim about the command' in text
+    assert 'A successful tool result that ran the command counts as that verified observation' in text
+
+
+def test_placeholder_credentials_in_tool_output_do_not_refuse_a_review() -> None:
+    # Given a project tool result that contains a documentation-style placeholder
+    # credential, When the judge preflights a Memory review, Then the review runs;
+    # And a realistic secret in the same position still refuses, so the guard
+    # keeps its strength. Measured evidence: iniconfig's own tracked source holds
+    # `passwd: <password>`, which refused both of its reviews with zero requests
+    # and lost both Memory and Harness learning.
+    value = isolated_run_bun(r'''
+      import {containsSensitiveMemoryMaterial} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const placeholderEvidence={entries:[{message:{role:'toolResult',content:'Configuration sample:\n  passwd: <password>'}}]};
+      const realEvidence={entries:[{message:{role:'toolResult',content:'Configuration:\n  password = hunter2long'}}]};
+      let requests=0;
+      const judge=createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
+        requests++;
+        const request=JSON.parse(init.body);const answers={};
+        for(const [key,q] of Object.entries(request.questions)){
+          if(q.type==='noul')answers[key]={type:'noul',noul:0.99};
+          if(q.type==='score')answers[key]={type:'score',score:2.88,confidence:0.95,probabilities:{0:0.01,1:0.01,2:0.07,3:0.91},legend:{0:"a",1:"b",2:"c",3:"d"}};
+          if(q.type==='choice')answers[key]=key.startsWith('supported_')
+            ?{type:'choice',choice:'grounded',confidence:0.99,probabilities:{grounded:1,speculative:0,transient:0,unsupported:0,unclear:0}}
+            :{type:'choice',choice:'supplement',confidence:0.99,probabilities:{unrelated:0,duplicate:0,supplement:1,conflict:0,unclear:0}};
+        }
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:10,output_tokens:2}}));
+      }});
+      const placeholder=await judge.validate('memory',placeholderEvidence,[{name:'fact.md',content:'Use pnpm test.'}],[]);
+      const requestsAfterPlaceholder=requests;
+      const real=await judge.validate('memory',realEvidence,[{name:'fact.md',content:'Use pnpm test.'}],[]);
+      console.log(JSON.stringify({samples:[
+        containsSensitiveMemoryMaterial('passwd: <password>'),
+        containsSensitiveMemoryMaterial('password = hunter2long'),
+        containsSensitiveMemoryMaterial('sk-'+'a'.repeat(20)),
+        containsSensitiveMemoryMaterial('AKIA'+'B'.repeat(16)),
+      ],placeholder,requestsAfterPlaceholder,real,requests}));
+    ''')
+    assert value['samples'] == [False, True, True, True]
+    assert value['placeholder']['decision'] == 'allow'
+    assert value['requestsAfterPlaceholder'] == 1
+    assert value['real']['decision'] == 'propose'
+    assert value['real']['telemetry']['reason'] == 'sensitive'
+    assert value['requests'] == 1

@@ -1,0 +1,36 @@
+{
+  "evidence": "local-boundary-validation-not-real-model-quality",
+  "red": {
+    "failed": 2,
+    "seconds": 0.88
+  },
+  "focusedGreen": {
+    "passed": 30,
+    "seconds": 15.34
+  },
+  "typecheck": "passed",
+  "nativePiPrintHookTests": {
+    "passed": 3,
+    "seconds": 10.26,
+    "provider": "offline fixed requests",
+    "realInference": false
+  },
+  "targetPack": "passed",
+  "workspacePack": {
+    "passedManifests": 19
+  },
+  "installation": {
+    "exitCode": 1,
+    "unrelatedFailure": "unconfigured bdd-jev package",
+    "continualLearningConfigured": true,
+    "hostConfigChanged": false
+  },
+  "freshIndependentReview": "no actionable blocker; focused30passed; model compliance unverified",
+  "fullTargetTests": {
+    "passed": 885,
+    "seconds": 310.31,
+    "exitCode": 0
+  },
+  "runtimeSha256": "87965c7ca5e201a3ffd5fa6ff9c8b58dfa5cd08d41a595ef7c072834a0c4a077",
+  "goalComplete": false
+}

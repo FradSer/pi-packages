@@ -1,0 +1,114 @@
+{
+  "evidence": "real-pi-native-hook-with-fixture-provider",
+  "fixtureProvider": true,
+  "externalRequests": 0,
+  "networkIsolation": "docker-network-none",
+  "fixtureForwardedRequests": 0,
+  "piVersion": "1.0.2",
+  "fixtureRequests": 17,
+  "realInference": false,
+  "harnessSha256": "e510fec3ea6b1c40d8b68c96c3b2611acf1173b602f8ba45c1e990c717c0e09d",
+  "nativeToolResults": 16,
+  "blockedCases": 9,
+  "allowedCases": 7,
+  "forbiddenSideEffects": 0,
+  "allPassed": true,
+  "cases": [
+    {
+      "id": "push-with-remote",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "push-dry-run",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "quoted-operator-print",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "plain-command-words-echo",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "unrelated-status",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "same-project-cwd-push",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-config-push",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-pager-push",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-option-print",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-option-echo",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "cwd-plain",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "cwd-single",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "cwd-double",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "cwd-dot",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "cwd-print",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "cwd-echo",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    }
+  ]
+}

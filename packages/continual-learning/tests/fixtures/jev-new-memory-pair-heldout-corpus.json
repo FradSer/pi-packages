@@ -1,0 +1,738 @@
+[
+  {
+    "id": "same-topic-independent-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The project uses pnpm as package manager."
+        },
+        {
+          "role": "user",
+          "content": "The verification command is pnpm test."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: The project uses pnpm as package manager.\ntype: project\n---\nThe project uses pnpm as package manager.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The project uses pnpm as package manager.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: The verification command is pnpm test.\ntype: project\n---\nThe verification command is pnpm test.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The verification command is pnpm test.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "same-topic-independent-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm 作为包管理器。"
+        },
+        {
+          "role": "user",
+          "content": "验证命令是 pnpm test。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: 本项目使用 pnpm 作为包管理器。\ntype: project\n---\n本项目使用 pnpm 作为包管理器。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "本项目使用 pnpm 作为包管理器。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: 验证命令是 pnpm test。\ntype: project\n---\n验证命令是 pnpm test。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "验证命令是 pnpm test。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "self-contained-condition-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project supports Node 20."
+        },
+        {
+          "role": "user",
+          "content": "If Node 20 is available, validate edits with pnpm test."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: This project supports Node 20.\ntype: project\n---\nThis project supports Node 20.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "This project supports Node 20.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: If Node 20 is available, validate edits with pnpm test.\ntype: project\n---\nIf Node 20 is available, validate edits with pnpm test.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "If Node 20 is available, validate edits with pnpm test.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "self-contained-condition-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目支持 Node 20。"
+        },
+        {
+          "role": "user",
+          "content": "如果 Node 20 可用，就用 pnpm test 验证修改。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: 本项目支持 Node 20。\ntype: project\n---\n本项目支持 Node 20。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "本项目支持 Node 20。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: 如果 Node 20 可用，就用 pnpm test 验证修改。\ntype: project\n---\n如果 Node 20 可用，就用 pnpm test 验证修改。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "如果 Node 20 可用，就用 pnpm test 验证修改。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "paraphrase-duplicate-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Every change must pass its tests before merge."
+        },
+        {
+          "role": "user",
+          "content": "Merge a change only after its tests succeed."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: Every change must pass its tests before merge.\ntype: project\n---\nEvery change must pass its tests before merge.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Every change must pass its tests before merge.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: Merge a change only after its tests succeed.\ntype: project\n---\nMerge a change only after its tests succeed.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "Merge a change only after its tests succeed.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "duplicate",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "paraphrase-duplicate-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "每次修改在合并前必须通过测试。"
+        },
+        {
+          "role": "user",
+          "content": "只有修改的测试成功后才能合并。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: 每次修改在合并前必须通过测试。\ntype: project\n---\n每次修改在合并前必须通过测试。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "每次修改在合并前必须通过测试。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: 只有修改的测试成功后才能合并。\ntype: project\n---\n只有修改的测试成功后才能合并。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "只有修改的测试成功后才能合并。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "duplicate",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "scope-conflict-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project deploys exclusively to Linux."
+        },
+        {
+          "role": "user",
+          "content": "This project deploys exclusively to macOS."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: This project deploys exclusively to Linux.\ntype: project\n---\nThis project deploys exclusively to Linux.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "This project deploys exclusively to Linux.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: This project deploys exclusively to macOS.\ntype: project\n---\nThis project deploys exclusively to macOS.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "This project deploys exclusively to macOS.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "conflict",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "scope-conflict-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目仅部署到 Linux。"
+        },
+        {
+          "role": "user",
+          "content": "本项目仅部署到 macOS。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: 本项目仅部署到 Linux。\ntype: project\n---\n本项目仅部署到 Linux。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "本项目仅部署到 Linux。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: 本项目仅部署到 macOS。\ntype: project\n---\n本项目仅部署到 macOS。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "本项目仅部署到 macOS。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "conflict",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "named-reference-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Use the timeout setting recorded in Memory b.md for every request."
+        },
+        {
+          "role": "user",
+          "content": "The timeout setting is 15 seconds."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: Use the timeout setting recorded in Memory b.md for every request.\ntype: project\n---\nUse the timeout setting recorded in Memory b.md for every request.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Use the timeout setting recorded in Memory b.md for every request.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: The timeout setting is 15 seconds.\ntype: project\n---\nThe timeout setting is 15 seconds.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The timeout setting is 15 seconds.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "dependent",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "named-reference-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "每次请求都使用 Memory b.md 中记录的超时设置。"
+        },
+        {
+          "role": "user",
+          "content": "超时设置是 15 秒。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: 每次请求都使用 Memory b.md 中记录的超时设置。\ntype: project\n---\n每次请求都使用 Memory b.md 中记录的超时设置。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "每次请求都使用 Memory b.md 中记录的超时设置。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: 超时设置是 15 秒。\ntype: project\n---\n超时设置是 15 秒。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "超时设置是 15 秒。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "dependent",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "condition-reference-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The smoke-test requirement may be skipped only under the exception recorded in the other note."
+        },
+        {
+          "role": "user",
+          "content": "The exception is the emergency flag being on."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: The smoke-test requirement may be skipped only under the exception recorded in the other note.\ntype: project\n---\nThe smoke-test requirement may be skipped only under the exception recorded in the other note.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The smoke-test requirement may be skipped only under the exception recorded in the other note.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: The exception is the emergency flag being on.\ntype: project\n---\nThe exception is the emergency flag being on.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The exception is the emergency flag being on.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "dependent",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "condition-reference-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "只有满足另一条记录中的例外条件，才可跳过冒烟测试。"
+        },
+        {
+          "role": "user",
+          "content": "例外条件是应急标志已开启。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: 只有满足另一条记录中的例外条件，才可跳过冒烟测试。\ntype: project\n---\n只有满足另一条记录中的例外条件，才可跳过冒烟测试。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "只有满足另一条记录中的例外条件，才可跳过冒烟测试。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: 例外条件是应急标志已开启。\ntype: project\n---\n例外条件是应急标志已开启。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "例外条件是应急标志已开启。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "dependent",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "missing-context-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The selected deployment target follows the environment definition in Memory c.md."
+        },
+        {
+          "role": "user",
+          "content": "The deployment target is Windows in the staging profile."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: The selected deployment target follows the environment definition in Memory c.md.\ntype: project\n---\nThe selected deployment target follows the environment definition in Memory c.md.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The selected deployment target follows the environment definition in Memory c.md.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: The deployment target is Windows in the staging profile.\ntype: project\n---\nThe deployment target is Windows in the staging profile.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The deployment target is Windows in the staging profile.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "unclear",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "missing-context-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "部署目标遵循 Memory c.md 中的环境定义。"
+        },
+        {
+          "role": "user",
+          "content": "预发布配置的部署目标是 Windows。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: 部署目标遵循 Memory c.md 中的环境定义。\ntype: project\n---\n部署目标遵循 Memory c.md 中的环境定义。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "部署目标遵循 Memory c.md 中的环境定义。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: 预发布配置的部署目标是 Windows。\ntype: project\n---\n预发布配置的部署目标是 Windows。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "预发布配置的部署目标是 Windows。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "unclear",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "description-conflict-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The deployment target is Linux only."
+        },
+        {
+          "role": "user",
+          "content": "The verification command is pytest."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: The deployment target is Linux only.\ntype: project\n---\nThe deployment target is Linux only.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The deployment target is Linux only.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: The deployment target is Windows only.\ntype: project\n---\nThe verification command is pytest.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The verification command is pytest.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "conflict",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  },
+  {
+    "id": "description-conflict-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "部署目标仅限 Linux。"
+        },
+        {
+          "role": "user",
+          "content": "验证命令是 pytest。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-0\ndescription: 部署目标仅限 Linux。\ntype: project\n---\n部署目标仅限 Linux。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "部署目标仅限 Linux。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: heldout-1\ndescription: 部署目标仅限 Windows。\ntype: project\n---\n验证命令是 pytest。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "验证命令是 pytest。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "conflict",
+    "labelNote": "Relation-only gold; support and complete counterevidence may hold a candidate independently. Self-contained conditions do not require the other note; unresolved environment definition is unclear."
+  }
+]

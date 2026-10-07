@@ -1,0 +1,12 @@
+{
+  "frozenDockerSourceDigest": "4abfa8f4e057b16ce74f27f957cd48015c24876635dc50f60dc4c2ba79ff6df5",
+  "changedFile": "extensions/learning-efficiency.ts",
+  "beforeSha256": "8dce173ad5c671df2937324e173f42bb486bf06d86e326e12595808d10f7aa01",
+  "afterSha256": "4ec6a4f5a3c821bcd88b9954febcf9cec22ae418a6d124579cdf11b8bf3a7c74",
+  "beforeSnippet": "${attempt.jev.candidateIndex} ${attempt.jev.dimension}`",
+  "afterSnippet": "${attempt.jev.candidateIndex} ${attempt.jev.dimension}${attempt.jev.field === \"description\" ? \".description\" : \"\"}`",
+  "change": "Display only controlled description field in readable receipts; no learning judgments or application changes",
+  "currentSourceDigest": "a5aa73740f49703351c30f630ebf1efc67ec417223da6a80b2e705dc93aaad25",
+  "normalizedSourceDigest": "4abfa8f4e057b16ce74f27f957cd48015c24876635dc50f60dc4c2ba79ff6df5",
+  "normalizedMatchesFrozenDocker": true
+}

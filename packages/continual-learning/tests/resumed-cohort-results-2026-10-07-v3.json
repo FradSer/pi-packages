@@ -1,0 +1,139 @@
+{
+  "kind": "resumed-cohort-results-v3",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "run": {
+    "outputRoot": "~/.cache/pi-continual-learning/docker/20261007T070830Z",
+    "protocol": "packages/continual-learning/tests/resumed-cohort-protocol-2026-10-07-v3.md",
+    "sourceDigest": "e274695653a0dfd5dede02834bd616924c98178c4fef313f5a52f411d02faba0",
+    "note": "First run of the code that carries both newest fixes: the support instruction and the placeholder-aware guard.",
+    "cohort": "resumed",
+    "project": "pluggy",
+    "commit": "60b15251ee18560f781c557b6b9ef3de4d786bee",
+    "arms": [
+      "pluggy-off",
+      "pluggy-on"
+    ],
+    "batchExit": "both arms passed; batch exit 0",
+    "providerRequests": 92,
+    "jevRequests": 12,
+    "jevResponsesWithUsage": 12
+  },
+  "armOff": {
+    "status": "passed",
+    "stage": "complete",
+    "learningSeconds": 326.72,
+    "memoryOps": 2,
+    "harnessOps": 1,
+    "checks": 12,
+    "jevJudgments": 0,
+    "totalsTokens": 165951,
+    "mainCostEstimateUsd": 0.028122288
+  },
+  "armOn": {
+    "status": "passed",
+    "stage": "complete",
+    "learningSeconds": 309.23,
+    "memoryOps": 2,
+    "harnessOps": 1,
+    "checks": 15,
+    "jevJudgments": 2,
+    "totalsTokens": 143482,
+    "mainCostEstimateUsd": 0.027616764,
+    "memoryDiagnostic": "Jev decided: supported",
+    "harnessDiagnostic": "Jev decided: supported",
+    "memoryJudgment": {
+      "status": "decided",
+      "reason": "supported",
+      "requestCount": 6,
+      "completedRequests": 6,
+      "evidenceWindows": 5,
+      "completedWindows": 5,
+      "inputTokens": 40973
+    },
+    "harnessJudgment": {
+      "status": "decided",
+      "reason": "supported",
+      "requestCount": 6,
+      "completedRequests": 6,
+      "evidenceWindows": 5,
+      "completedWindows": 5,
+      "inputTokens": 35177
+    },
+    "participationFlags": [
+      "realJevMemoryParticipation",
+      "realJevHarnessParticipation",
+      "realJevParticipation"
+    ],
+    "checksAllTrue": [
+      "learningCommandNativeSuccess",
+      "regressionChanged",
+      "privatePreference",
+      "safeFact",
+      "safeMirrorIdentical",
+      "baselinePrivateRecall",
+      "freshPrivateRecall",
+      "freshFullMemoryReads",
+      "freshVerifiedCommand",
+      "nativeBashBlocked",
+      "blockedSideEffectAbsent",
+      "unrelatedBashExecuted"
+    ]
+  },
+  "jevUsage": {
+    "responses": 12,
+    "inputTokens": 76150,
+    "outputTokens": 1487,
+    "estimatedCostUsd": 0.0031983
+  },
+  "sixMeasures": {
+    "effectivePersistence": {
+      "off": "2 Memory items plus 1 Harness rule",
+      "on": "2 Memory items plus 1 Harness rule",
+      "direction": "parity"
+    },
+    "misrecording": {
+      "off": "0 observed",
+      "on": "0 observed",
+      "direction": "parity; nothing for Jev to prevent on this project"
+    },
+    "falseHolds": {
+      "off": 0,
+      "on": 0,
+      "direction": "parity; the Memory plan was applied after a supported decision"
+    },
+    "constraintExecution": {
+      "off": "3 of 3 probes",
+      "on": "3 of 3 probes",
+      "direction": "parity"
+    },
+    "latency": {
+      "offSeconds": 326.72,
+      "onSeconds": 309.23,
+      "change": "on 5.3 percent faster",
+      "direction": "no penalty"
+    },
+    "cost": {
+      "offEstimateUsd": 0.028122288,
+      "onMainEstimateUsd": 0.027616764,
+      "onJevEstimateUsd": 0.0031983,
+      "onTotalEstimateUsd": 0.030815064,
+      "direction": "on costs about 9.6 percent more, driven by Jev"
+    }
+  },
+  "verdict": {
+    "headline": "Jev reached parity on a real untuned project for the first time: both the Memory and the Harness review completed and were supported, Memory applied, Harness applied, and every acceptance check passed.",
+    "netBenefit": "still not demonstrated as a gain",
+    "reason": "The off arm made no misrecording and missed nothing, so Jev had no error to prevent on this project. Parity at a small cost premium is not net benefit.",
+    "changedClaim": "The earlier finding that the Jev-on composed path consistently loses Memory no longer holds on the fixed code. It now completes when its reviews complete.",
+    "keepsDefaultOff": true
+  },
+  "limits": [
+    "One project and one pair. Parity on one project is not a rate.",
+    "Both arms passed, so this run cannot separate a Jev benefit from a Jev-neutral outcome.",
+    "Cost figures are estimates; usageAvailable and costAvailable are false on both arms.",
+    "The three untuned projects are not a controlled set: itsdangerous ran before the retry fix, iniconfig before the support and guard fixes, and pluggy after.",
+    "No misrecording was observed anywhere, so the value Jev is meant to add remains unmeasured."
+  ],
+  "writeAuthorized": false
+}

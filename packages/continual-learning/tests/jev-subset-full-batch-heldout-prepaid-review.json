@@ -1,0 +1,14 @@
+{
+  "evidence": "read-only-prospective-heldout-prereview",
+  "reviewer": "subset_batch_prepaid_review",
+  "manifestSha256": "1683ac55d14b6d97600e7df184b9ccfa64e9c0244a3d8167014f004b5eb1f1e8",
+  "sourceHashCount": 44,
+  "algorithmAndQuestionsUnchanged": true,
+  "goldNotTransmitted": true,
+  "authoredLabelsReasonable": true,
+  "nativeCommandRoutingNotTested": true,
+  "noPaidPrerequisiteRemains": true,
+  "preflightExternalRequests": 0,
+  "budget": 72,
+  "derivedScope": "host SDK; not Docker/Pi"
+}

@@ -2,6 +2,10 @@ Implement the work described by the user in the spec or tickets.
 
 Use [bdd](bdd.md) at the agreed seams, one red-green slice at a time. The bundled [tdd](tdd.md) owns Automation-phase test quality, seams, and mocking guidance.
 
+## Minimal fix
+
+Fix the defect directly. Do not add a defensive default or fallback for a value the trusted path cannot miss: `quantity ?? 1` and `quantity || 0` are the shape to avoid. Validate once at the boundary instead of guarding at every use.
+
 ## Verification and integration
 
 - Establish which checks are safe before execution; use isolated home, credentials and test data where needed. Do not assume local commands have no production access.

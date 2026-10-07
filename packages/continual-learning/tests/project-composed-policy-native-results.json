@@ -1,0 +1,97 @@
+{
+  "evidence": "Actual Docker installed-policy digest, extension import and Jev factory flags; no Pi session or model inference",
+  "attempts": [
+    {
+      "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/project-policy-d3c88b5b3bf3",
+      "manifestSha256": "701536de2b3069f4d0ea5bc3830e26dd90cb9831fa3aa1a09ba4908da4dd5adf",
+      "resultSha256": "a6f0d7ce8409f0a087f8bb594498279b02eb66d5508cdf8f274cc445101cd7f3",
+      "rows": [
+        {
+          "policy": "default",
+          "sourceDigest": "c18a761d3a7e5539201888553a71ebacd73ee1aa64c42749ae7ed4d72a85cca6",
+          "imageId": "sha256:6e242f615dc414fd3fbdd41a3459fdc5f7bb8d24589c3e28c2bcc594c5e0d742",
+          "exitCode": 1,
+          "cleanupExitCode": 0,
+          "ownedContainerAbsent": true
+        },
+        {
+          "policy": "composed",
+          "sourceDigest": "2f876ecfb25d50198d95c922821f8c1a01f1bc8ea020f38dce6d8f9fcf3afca1",
+          "imageId": "sha256:2ed471e8495bc360725fa574c3a0a45232a3a09b9769ad7e97c617ddb32374bb",
+          "exitCode": 1,
+          "cleanupExitCode": 0,
+          "ownedContainerAbsent": true
+        }
+      ],
+      "ownedContainerInventoryEmpty": true
+    },
+    {
+      "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/project-policy-2744dd6f7a68",
+      "manifestSha256": "4158b1425d05376a8a044fd523256cb643b9f2d61575141cfa29b2a907755062",
+      "resultSha256": "ebdd09b8e79b139f164c648102164f73f3fd9617ff2bb120cf24a56022ca96d1",
+      "rows": [
+        {
+          "policy": "default",
+          "sourceDigest": "c18a761d3a7e5539201888553a71ebacd73ee1aa64c42749ae7ed4d72a85cca6",
+          "imageId": "sha256:6e242f615dc414fd3fbdd41a3459fdc5f7bb8d24589c3e28c2bcc594c5e0d742",
+          "exitCode": 0,
+          "probe": {
+            "policy": "default",
+            "manifest": {
+              "memoryPolicy": "default",
+              "originalSha256": "bbbd5588968f93c9d1a64b2d0ee9288ad141d4afd82c17e9fed3a42a5be41a01",
+              "installedSha256": "bbbd5588968f93c9d1a64b2d0ee9288ad141d4afd82c17e9fed3a42a5be41a01"
+            },
+            "extensionImportVerified": true,
+            "offFlags": false,
+            "onFlags": false,
+            "explicitUserDisableRespected": true,
+            "fetchCalls": 0,
+            "realMainInference": false,
+            "realJevInference": false,
+            "piSessionStarted": false
+          },
+          "cleanupExitCode": 0,
+          "ownedContainerAbsent": true
+        },
+        {
+          "policy": "composed",
+          "sourceDigest": "2f876ecfb25d50198d95c922821f8c1a01f1bc8ea020f38dce6d8f9fcf3afca1",
+          "imageId": "sha256:2ed471e8495bc360725fa574c3a0a45232a3a09b9769ad7e97c617ddb32374bb",
+          "exitCode": 0,
+          "probe": {
+            "policy": "composed",
+            "manifest": {
+              "memoryPolicy": "composed",
+              "originalSha256": "bbbd5588968f93c9d1a64b2d0ee9288ad141d4afd82c17e9fed3a42a5be41a01",
+              "installedSha256": "4de1da7c03edfbccf26f966447ae96adfe4177441301fa21418b1c6920e8c55a"
+            },
+            "extensionImportVerified": true,
+            "offFlags": false,
+            "onFlags": true,
+            "explicitUserDisableRespected": true,
+            "fetchCalls": 0,
+            "realMainInference": false,
+            "realJevInference": false,
+            "piSessionStarted": false
+          },
+          "cleanupExitCode": 0,
+          "ownedContainerAbsent": true
+        }
+      ],
+      "ownedContainerInventoryEmpty": true
+    }
+  ],
+  "initialFailure": "Probe entry used CJS loading for an ESM-only Pi package; preserved, then fixed with an .mts entry. No product source or test thresholds changed.",
+  "hostOriginalSourceSha256": "bbbd5588968f93c9d1a64b2d0ee9288ad141d4afd82c17e9fed3a42a5be41a01",
+  "hostSourceUnchanged": true,
+  "realMainInference": false,
+  "realJevInference": false,
+  "defaultActivated": false,
+  "completeGoalEvidence": false,
+  "limitations": [
+    "Factory enablement and import do not prove candidate generation, full Pi learning, semantic quality or knowledge use",
+    "Configured Jev model is not an actual returned model version; no inference occurred",
+    "No complete main-model project comparison has been executed"
+  ]
+}

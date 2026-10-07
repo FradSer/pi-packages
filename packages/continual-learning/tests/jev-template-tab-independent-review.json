@@ -1,0 +1,24 @@
+{
+  "evidence": "fresh-independent-read-only-template-tab-and-real-result-review",
+  "reportSha256": "8053fa95ef9071b38209dacff748cfc4273f97e6a1de85d0d1abbf175c212f22",
+  "requiredFixesRemaining": 0,
+  "exactTemplateSpellingCombinations": 256,
+  "offlineChecksPassed": 58,
+  "reservationVerified": true,
+  "scriptSourceDataAndWireHashesVerified": true,
+  "sameOriginalCandidateAndSnapshot": true,
+  "completeActualRequests": 3,
+  "actualModel": "jev-1.13.0",
+  "entriesReviewed": 17,
+  "windowsReviewed": 2,
+  "inputTokens": 17299,
+  "outputTokens": 238,
+  "estimatedCostUsd": 0.000726558,
+  "accountBillingVerified": false,
+  "observation": "before four propose/uncertain; after one allow on same known candidate",
+  "productionWrites": 0,
+  "limits": [
+    "One known candidate and nonrandomized sequence; no heldout or whole workflow improvement.",
+    "Reviewer performed no new external calls."
+  ]
+}

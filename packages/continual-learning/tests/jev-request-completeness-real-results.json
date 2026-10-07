@@ -1,0 +1,972 @@
+{
+  "evidence": "real-jev-manually-anchored-request-completeness",
+  "manifestSha256": "cd423d387fb6d20a869bf2a2b45e0b4157898d60f0fa781533055eae85adf802",
+  "rawResultSha256": "54a5e52ce00e517ce3a09b9e51c1dc783cae78359f9af59069c70854670761db",
+  "heldout": false,
+  "humanGold": false,
+  "origins": {
+    "realGeneratorOutputs": 4,
+    "previousAuthoredSamples": 8,
+    "newAuthoredControls": 8
+  },
+  "aggregate": {
+    "samples": 20,
+    "labeledIncomplete": 9,
+    "labeledComplete": 11,
+    "whole": {
+      "definiteMissingDetected": 3,
+      "incompleteJudgedComplete": 1,
+      "incompleteUncertainOrUnavailable": 5,
+      "completeCorrectlyRecognized": 8,
+      "completeJudgedIncomplete": 0,
+      "completeUncertainOrUnavailable": 3
+    },
+    "perRequirement": {
+      "definiteMissingDetected": 4,
+      "incompleteJudgedComplete": 0,
+      "incompleteUncertainOrUnavailable": 5,
+      "completeCorrectlyRecognized": 8,
+      "completeJudgedIncomplete": 0,
+      "completeUncertainOrUnavailable": 3
+    },
+    "restoredCompleteRows": [
+      "explicit-long-term-observed-result-en-after",
+      "explicit-long-term-observed-result-zh-before"
+    ],
+    "newCompleteHolds": [
+      "requested-release-complete-zh",
+      "marker-complete-zh"
+    ]
+  },
+  "byLanguage": {
+    "en": {
+      "samples": 10,
+      "labeledIncomplete": 4,
+      "labeledComplete": 6,
+      "whole": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 1,
+        "incompleteUncertainOrUnavailable": 1,
+        "completeCorrectlyRecognized": 4,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 2
+      },
+      "perRequirement": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 2,
+        "completeCorrectlyRecognized": 5,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 1
+      },
+      "restoredCompleteRows": [
+        "explicit-long-term-observed-result-en-after"
+      ],
+      "newCompleteHolds": []
+    },
+    "zh": {
+      "samples": 10,
+      "labeledIncomplete": 5,
+      "labeledComplete": 5,
+      "whole": {
+        "definiteMissingDetected": 1,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 4,
+        "completeCorrectlyRecognized": 4,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 1
+      },
+      "perRequirement": {
+        "definiteMissingDetected": 2,
+        "incompleteJudgedComplete": 0,
+        "incompleteUncertainOrUnavailable": 3,
+        "completeCorrectlyRecognized": 3,
+        "completeJudgedIncomplete": 0,
+        "completeUncertainOrUnavailable": 2
+      },
+      "restoredCompleteRows": [
+        "explicit-long-term-observed-result-zh-before"
+      ],
+      "newCompleteHolds": [
+        "requested-release-complete-zh",
+        "marker-complete-zh"
+      ]
+    }
+  },
+  "perRequirementJudgments": {
+    "count": 48,
+    "byExpected": {
+      "true": {
+        "uncertain-or-unavailable": 5,
+        "correct": 32
+      },
+      "false": {
+        "uncertain-or-unavailable": 5,
+        "correct": 6
+      }
+    }
+  },
+  "apiReportedModels": [
+    "jev-1.13.0"
+  ],
+  "latency": {
+    "wholeProcessSeconds": 32.003,
+    "batchedJudgmentTotalMs": 29862,
+    "batchedMedianMs": 1499.0,
+    "batchedMaxMs": 2032
+  },
+  "billing": {
+    "jevRequests": 20,
+    "knownUsageResponses": 20,
+    "inputTokens": 26881,
+    "outputTokens": 1440,
+    "knownEstimatedCostUsd": 0.0011290020000000003,
+    "totalEstimatedCostUsd": 0.0011290020000000003,
+    "billingVerified": false,
+    "source": "Proxy upstream usage counted once; client usage overlaps, not added."
+  },
+  "transport": {
+    "process": {
+      "exitCode": 0,
+      "outcome": "completed",
+      "seconds": 32.003,
+      "processGroupStopConfirmed": true
+    },
+    "providerRequests": 20,
+    "jevRequests": 20,
+    "jevUsage": [
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1567,
+        "output_tokens": 84
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1563,
+        "output_tokens": 84
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1710,
+        "output_tokens": 84
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1758,
+        "output_tokens": 84
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1488,
+        "output_tokens": 84
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1619,
+        "output_tokens": 84
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1477,
+        "output_tokens": 84
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1596,
+        "output_tokens": 84
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1169,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1251,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1150,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1208,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1152,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1225,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1132,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1180,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1112,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1145,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1153,
+        "output_tokens": 64
+      },
+      {
+        "model": "jev-1.13.0",
+        "input_tokens": 1226,
+        "output_tokens": 64
+      }
+    ],
+    "providerErrors": 0,
+    "usageUnknown": false,
+    "billingVerified": false
+  },
+  "cleanup": {
+    "ownedContainerAbsent": true
+  },
+  "rows": [
+    {
+      "id": "explicit-long-term-observed-result-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "expectedOmission": false,
+      "wholeStatus": "uncertain",
+      "wholeProbability": 0.11,
+      "perRequirementStatus": "uncertain",
+      "missing": [],
+      "uncertain": [
+        0
+      ],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.88,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.97,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 2,
+          "expectedPreserved": true,
+          "probability": 0.97,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1536,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "explicit-long-term-observed-result-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "expectedOmission": false,
+      "wholeStatus": "uncertain",
+      "wholeProbability": 0.12,
+      "perRequirementStatus": "complete",
+      "missing": [],
+      "uncertain": [],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.9,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.97,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 2,
+          "expectedPreserved": true,
+          "probability": 0.96,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1227,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "expectedOmission": true,
+      "wholeStatus": "uncertain",
+      "wholeProbability": 0.12,
+      "perRequirementStatus": "uncertain",
+      "missing": [],
+      "uncertain": [
+        0
+      ],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": false,
+          "probability": 0.79,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.97,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 2,
+          "expectedPreserved": true,
+          "probability": 0.96,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1189,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "expectedOmission": false,
+      "wholeStatus": "uncertain",
+      "wholeProbability": 0.12,
+      "perRequirementStatus": "complete",
+      "missing": [],
+      "uncertain": [],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.93,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 2,
+          "expectedPreserved": true,
+          "probability": 0.96,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1159,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "requested-release-complete-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-complete",
+      "language": "en",
+      "expectedOmission": false,
+      "wholeStatus": "complete",
+      "wholeProbability": 0.06,
+      "perRequirementStatus": "complete",
+      "missing": [],
+      "uncertain": [],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.92,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 2,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1248,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "requested-release-complete-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-complete",
+      "language": "zh",
+      "expectedOmission": false,
+      "wholeStatus": "complete",
+      "wholeProbability": 0.07,
+      "perRequirementStatus": "uncertain",
+      "missing": [],
+      "uncertain": [
+        0
+      ],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.72,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.97,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 2,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1546,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "requested-release-incomplete-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-incomplete",
+      "language": "en",
+      "expectedOmission": true,
+      "wholeStatus": "uncertain",
+      "wholeProbability": 0.39,
+      "perRequirementStatus": "uncertain",
+      "missing": [],
+      "uncertain": [
+        0
+      ],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": false,
+          "probability": 0.37,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.96,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 2,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1650,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "requested-release-incomplete-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-incomplete",
+      "language": "zh",
+      "expectedOmission": true,
+      "wholeStatus": "uncertain",
+      "wholeProbability": 0.22,
+      "perRequirementStatus": "uncertain",
+      "missing": [],
+      "uncertain": [
+        0
+      ],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": false,
+          "probability": 0.16,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.97,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 2,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1462,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "requested-split-existing-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-split-existing",
+      "language": "en",
+      "expectedOmission": false,
+      "wholeStatus": "complete",
+      "wholeProbability": 0.04,
+      "perRequirementStatus": "complete",
+      "missing": [],
+      "uncertain": [],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1788,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "requested-split-existing-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-split-existing",
+      "language": "zh",
+      "expectedOmission": false,
+      "wholeStatus": "complete",
+      "wholeProbability": 0.04,
+      "perRequirementStatus": "complete",
+      "missing": [],
+      "uncertain": [],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1371,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "requested-report-placement-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-report-placement",
+      "language": "en",
+      "expectedOmission": true,
+      "wholeStatus": "complete",
+      "wholeProbability": 0.09,
+      "perRequirementStatus": "uncertain",
+      "missing": [],
+      "uncertain": [
+        0
+      ],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": false,
+          "probability": 0.83,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.95,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1540,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "requested-report-placement-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-report-placement",
+      "language": "zh",
+      "expectedOmission": true,
+      "wholeStatus": "uncertain",
+      "wholeProbability": 0.14,
+      "perRequirementStatus": "uncertain",
+      "missing": [],
+      "uncertain": [
+        0
+      ],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": false,
+          "probability": 0.54,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.92,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 2032,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "marker-complete-en",
+      "origin": "fresh-authored-development-control",
+      "scenario": "marker-complete",
+      "language": "en",
+      "expectedOmission": false,
+      "wholeStatus": "complete",
+      "wholeProbability": 0.07,
+      "perRequirementStatus": "complete",
+      "missing": [],
+      "uncertain": [],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.97,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.95,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1589,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "marker-complete-zh",
+      "origin": "fresh-authored-development-control",
+      "scenario": "marker-complete",
+      "language": "zh",
+      "expectedOmission": false,
+      "wholeStatus": "complete",
+      "wholeProbability": 0.09,
+      "perRequirementStatus": "uncertain",
+      "missing": [],
+      "uncertain": [
+        1
+      ],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.95,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.83,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ],
+      "durationMs": 1200,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "condition-complete-en",
+      "origin": "fresh-authored-development-control",
+      "scenario": "condition-complete",
+      "language": "en",
+      "expectedOmission": false,
+      "wholeStatus": "complete",
+      "wholeProbability": 0.05,
+      "perRequirementStatus": "complete",
+      "missing": [],
+      "uncertain": [],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.97,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1852,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "condition-complete-zh",
+      "origin": "fresh-authored-development-control",
+      "scenario": "condition-complete",
+      "language": "zh",
+      "expectedOmission": false,
+      "wholeStatus": "complete",
+      "wholeProbability": 0.05,
+      "perRequirementStatus": "complete",
+      "missing": [],
+      "uncertain": [],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": true,
+          "probability": 0.97,
+          "prediction": true,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.98,
+          "prediction": true,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1838,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "condition-missing-en",
+      "origin": "fresh-authored-development-control",
+      "scenario": "condition-missing",
+      "language": "en",
+      "expectedOmission": true,
+      "wholeStatus": "incomplete",
+      "wholeProbability": 0.9,
+      "perRequirementStatus": "incomplete",
+      "missing": [
+        0
+      ],
+      "uncertain": [
+        1
+      ],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": false,
+          "probability": 0.05,
+          "prediction": false,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.58,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ],
+      "durationMs": 1262,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "condition-missing-zh",
+      "origin": "fresh-authored-development-control",
+      "scenario": "condition-missing",
+      "language": "zh",
+      "expectedOmission": true,
+      "wholeStatus": "uncertain",
+      "wholeProbability": 0.89,
+      "perRequirementStatus": "incomplete",
+      "missing": [
+        0
+      ],
+      "uncertain": [
+        1
+      ],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": false,
+          "probability": 0.07,
+          "prediction": false,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": true,
+          "probability": 0.59,
+          "prediction": null,
+          "outcome": "uncertain-or-unavailable"
+        }
+      ],
+      "durationMs": 1787,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "marker-reversed-en",
+      "origin": "fresh-authored-development-control",
+      "scenario": "marker-reversed",
+      "language": "en",
+      "expectedOmission": true,
+      "wholeStatus": "incomplete",
+      "wholeProbability": 0.94,
+      "perRequirementStatus": "incomplete",
+      "missing": [
+        0,
+        1
+      ],
+      "uncertain": [],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": false,
+          "probability": 0.02,
+          "prediction": false,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": false,
+          "probability": 0.02,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1148,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    },
+    {
+      "id": "marker-reversed-zh",
+      "origin": "fresh-authored-development-control",
+      "scenario": "marker-reversed",
+      "language": "zh",
+      "expectedOmission": true,
+      "wholeStatus": "incomplete",
+      "wholeProbability": 0.91,
+      "perRequirementStatus": "incomplete",
+      "missing": [
+        0,
+        1
+      ],
+      "uncertain": [],
+      "questions": [
+        {
+          "index": 0,
+          "expectedPreserved": false,
+          "probability": 0.02,
+          "prediction": false,
+          "outcome": "correct"
+        },
+        {
+          "index": 1,
+          "expectedPreserved": false,
+          "probability": 0.02,
+          "prediction": false,
+          "outcome": "correct"
+        }
+      ],
+      "durationMs": 1438,
+      "model": "jev-1.13.0",
+      "writeAuthorized": false
+    }
+  ],
+  "productionWrites": 0,
+  "adopted": false,
+  "mainModelUsed": false,
+  "limits": [
+    "Manual requirement selection is not validated automatic extraction.",
+    "Both questions use the same complete resulting bodies with frontmatter removed.",
+    "No candidate generation, Memory writes, recall or Harness effects.",
+    "Complete covers supplied requirements only; no authorization or privacy classification proof.",
+    "Requirements are manually selected and model reviewed, not automatic extraction or human gold.",
+    "Requirements cover body knowledge only, not persisted privacy classification or sharing authorization.",
+    "All existing and resulting frontmatter is removed in both compared questions.",
+    "Twelve known development outputs and eight new authored controls; paired language and before/after rows are not independent scenarios.",
+    "Label agreement is against authored expectations reviewed by a model, not measured human-gold error rates.",
+    "Separate questions in the same batch do not imply statistical independence.",
+    "Latency and cost cover both compared methods together; incremental cost was not independently measured.",
+    "Fewer unsafe complete judgments can be caused by uncertainty; that is distinct from definite omission detection.",
+    "Two valid cases improve and two valid cases regress; aggregate valid completeness count alone hides these changes."
+  ]
+}

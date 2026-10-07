@@ -1,0 +1,14 @@
+{
+  "evidence": "independent-terminal-diagnostic-review",
+  "resultSha256": "a308d3ac59447acbefae6d6390b7fc2318eed9e484aec5efce681ef4110e5b88",
+  "manifestAndRawAndConfigHashesMatched": true,
+  "actualRequestsAndCapsVerified": true,
+  "modelCooldownMetadataMatched": true,
+  "failedUsageUnknownNotZero": true,
+  "processGroupsStopped": true,
+  "localProxySocketsClosed": true,
+  "ownedContainerIdsAbsent": true,
+  "remoteProviderCancellationVerified": false,
+  "recommendation": "do-not-adopt-output-cap-change; avoid calls during reported cooldown",
+  "remainingBlockers": []
+}

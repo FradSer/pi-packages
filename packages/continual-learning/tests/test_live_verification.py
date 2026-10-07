@@ -221,3 +221,51 @@ def test_live_acceptance_rejects_shared_symlinks_without_reading_targets(tmp_pat
     assert alias in live_smoke.shared_surface_leaks(project, "PRIVATE_PREF_QUARTZ")
     private.unlink()
     assert alias in live_smoke.shared_surface_leaks(project, "PRIVATE_PREF_QUARTZ")
+
+
+def test_native_learning_acceptance_handles_exact_combined_rule_messages() -> None:
+    # Given multiple matching enabled rules, When the native hook joins their
+    # reasons, Then the configured combined rejection remains proof of a block.
+    from live_docker_projects import learned_block_result
+    def messages(text: str, error: bool = True) -> list[dict]:
+        return [
+            {'role': 'assistant', 'content': [{'type': 'toolCall', 'id': 'probe', 'name': 'bash', 'arguments': {'command': 'git push --dry-run'}}]},
+            {'role': 'toolResult', 'toolCallId': 'probe', 'toolName': 'bash', 'isError': error, 'content': [{'type': 'text', 'text': text}]},
+        ]
+    rules = [{'action': 'block', 'message': 'Never push.'}, {'action': 'block', 'message': 'Never push.'}]
+    assert learned_block_result(messages('Never push.\nNever push.'), 'git push --dry-run', rules)
+    assert not learned_block_result(messages('Never push.\nNever push.', False), 'git push --dry-run', rules)
+    assert not learned_block_result(messages('Never push.\nunknown'), 'git push --dry-run', rules)
+    assert not learned_block_result(messages('Never push.\nNever push.\nNever push.'), 'git push --dry-run', rules)
+    assert not learned_block_result(messages('Never push.\nNever push.'), 'git push --dry-run', [rules[0], {**rules[1], 'enabled': False}])
+    multi = [{'action': 'block', 'message': 'One\nTwo'}, {'action': 'block', 'message': 'Three'}]
+    assert learned_block_result(messages('One\nTwo\nThree'), 'git push --dry-run', multi)
+    assert not learned_block_result(messages('Three\nOne\nTwo'), 'git push --dry-run', multi)
+
+
+def test_native_probe_accepts_only_bounded_exit_status_diagnostic_suffix() -> None:
+    # Given a real native attempt with a trailing exit-status echo, When the
+    # hook returns its exact learned rejection, Then it remains block evidence.
+    from live_docker_projects import learned_block_result, native_probe_commands
+    project = Path('/work/click')
+    command = 'cd /work/click && git push --dry-run; echo "exit=$?"'
+    rules = [{'action': 'block', 'message': 'Never push.'}]
+    def messages(cmd: str, text: str = 'Never push.', error: bool = True) -> list[dict]:
+        return [
+            {'role': 'assistant', 'content': [{'type': 'toolCall', 'id': 'probe', 'name': 'bash', 'arguments': {'command': cmd}}]},
+            {'role': 'toolResult', 'toolCallId': 'probe', 'toolName': 'bash', 'isError': error, 'content': [{'type': 'text', 'text': text}]},
+        ]
+    assert command in native_probe_commands('git push --dry-run', project)
+    assert learned_block_result(messages(command), 'git push --dry-run', rules, project)
+    assert not learned_block_result(messages(command, error=False), 'git push --dry-run', rules, project)
+    assert not learned_block_result(messages(command, text='unknown'), 'git push --dry-run', rules, project)
+    for invalid in (
+        'echo "git push --dry-run"; echo "exit=$?"',
+        'cd /work/foreign && git push --dry-run; echo "exit=$?"',
+        command + '; touch /tmp/extra',
+        'git push --dry-run; echo "exit=$(touch /tmp/extra)"',
+        'false; echo "exit=$?"',
+        'git push --dry-run || echo "exit=$?"',
+    ):
+        assert invalid not in native_probe_commands('git push --dry-run', project)
+        assert not learned_block_result(messages(invalid), 'git push --dry-run', rules, project)

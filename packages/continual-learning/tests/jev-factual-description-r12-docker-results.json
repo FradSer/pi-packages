@@ -1,0 +1,382 @@
+{
+  "evidence": "real-six-serial-docker-workflows",
+  "complete": true,
+  "runnerExitCode": 1,
+  "sourceDigest": "39848586e489d75df2ae4cac140594ee36a361f07e4f9433547534518a16adcc",
+  "imageId": "sha256:3d55e6eea5b1f9b945d3e4d4e7c96f154566f3f19b3df22dd37b4e049d8b82f3",
+  "summaryPath": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-factual-description-r12-final/summary.json",
+  "summarySha256": "dc79c92e2f1cb4e695edd6faa1227d43d903fab4007a2fd1028cf254a283ca4a",
+  "normalizedCurrentSourceDigest": "39848586e489d75df2ae4cac140594ee36a361f07e4f9433547534518a16adcc",
+  "normalizationFiles": {
+    "packages/continual-learning/tests/live_docker_projects.py": {
+      "baseline": "packages/continual-learning/tests/fixtures/live-docker-projects-before-exit-status-probe.py.txt",
+      "sha256": "cb4d4c846dff0c1923fba7f579b0787e56932562b6a0ae365c8c23f714263c11"
+    },
+    "packages/continual-learning/extensions/jev-learning.ts": {
+      "baseline": "packages/continual-learning/tests/fixtures/jev-learning-before-http-diagnostics.ts.txt",
+      "sha256": "cd71d97e34a9a26343cd541f477b8c5006d0ef7e1fafa82293977b1a21c985c8"
+    },
+    "packages/continual-learning/extensions/learning-efficiency.ts": {
+      "baseline": "packages/continual-learning/tests/fixtures/learning-efficiency-before-http-diagnostics.ts.txt",
+      "sha256": "4ec6a4f5a3c821bcd88b9954febcf9cec22ae418a6d124579cdf11b8bf3a7c74"
+    }
+  },
+  "providerRequests": 173,
+  "providerErrors": 4,
+  "jevRequests": 24,
+  "jevResponsesWithUsage": 20,
+  "actualJevModels": [
+    "jev-1.13.0"
+  ],
+  "knownJevInputTokens": 155937,
+  "knownJevEstimatedCostUsd": 0.006549354,
+  "usageComplete": false,
+  "rawAcceptance": {
+    "off": "2/3",
+    "on": "0/3"
+  },
+  "offlineCorrectedSameExecutionAcceptance": {
+    "off": "3/3",
+    "on": "0/3",
+    "correctionPath": "packages/continual-learning/tests/jev-factual-description-r12-click-off-native-revalidation.json",
+    "correctionSha256": "3abc19e937e197ed7d931bbc828aa056620c2d41372211ef7f36151561b04f98",
+    "newDockerExecutions": 0,
+    "newPaidRequests": 0
+  },
+  "projects": [
+    {
+      "project": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+      "jevMode": "off",
+      "status": "failed",
+      "stage": "native-harness-enforcement",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "learningSeconds": 125.28,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true
+      },
+      "jevJudgments": []
+    },
+    {
+      "project": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+      "jevMode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "learningSeconds": 184.76,
+      "checks": {
+        "regressionChanged": true
+      },
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "timeout",
+          "durationMs": 5019,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 26,
+          "coveredEntries": 12,
+          "evidenceWindows": 2,
+          "completedWindows": 1,
+          "requestCount": 3,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "knownInputTokens": 11459,
+          "knownEstimatedCostUsd": 0.0004812780000000001
+        },
+        {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1043,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 26,
+          "coveredEntries": 26,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17609,
+          "outputTokens": 160,
+          "estimatedCostUsd": 0.0007395780000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        },
+        {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1307,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 26,
+          "coveredEntries": 26,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17885,
+          "outputTokens": 160,
+          "estimatedCostUsd": 0.00075117,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      ]
+    },
+    {
+      "project": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+      "jevMode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "learningSeconds": 210.0,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "jevJudgments": []
+    },
+    {
+      "project": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+      "jevMode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "learningSeconds": 300.25,
+      "checks": {
+        "regressionChanged": true
+      },
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2555,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 38761,
+          "outputTokens": 1181,
+          "estimatedCostUsd": 0.0016279620000000002,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            },
+            {
+              "candidateIndex": 1,
+              "dimension": "support",
+              "reason": "uncertain"
+            },
+            {
+              "candidateIndex": 2,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        },
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2137,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 32269,
+          "outputTokens": 1181,
+          "estimatedCostUsd": 0.001355298,
+          "candidateFailures": [
+            {
+              "candidateIndex": 1,
+              "dimension": "counterevidence",
+              "field": "description",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 1,
+          "dimension": "counterevidence",
+          "field": "description"
+        },
+        {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 1470,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 31,
+          "coveredEntries": 31,
+          "verbatimExplanations": 1,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17976,
+          "outputTokens": 185,
+          "estimatedCostUsd": 0.000754992
+        }
+      ]
+    },
+    {
+      "project": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+      "jevMode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "learningSeconds": 175.83,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "jevJudgments": []
+    },
+    {
+      "project": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+      "jevMode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "learningSeconds": 145.61,
+      "checks": {
+        "regressionChanged": true
+      },
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unavailable",
+          "durationMs": 1016,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 17,
+          "coveredEntries": 7,
+          "evidenceWindows": 2,
+          "completedWindows": 1,
+          "requestCount": 3,
+          "completedRequests": 1,
+          "model": "jev-1.13.0",
+          "knownInputTokens": 10393,
+          "knownEstimatedCostUsd": 0.000436506
+        },
+        {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unavailable",
+          "durationMs": 901,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 17,
+          "coveredEntries": 0,
+          "evidenceWindows": 2,
+          "completedWindows": 0,
+          "requestCount": 3,
+          "completedRequests": 1,
+          "model": "jev-1.13.0",
+          "knownInputTokens": 1409,
+          "knownEstimatedCostUsd": 5.9178e-05
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Known usage from 20 of 24 responses is a lower bound; not complete billing.",
+    "Main model billing unavailable.",
+    "Both arms used changed prompts with independent generations, not a concurrent old-prompt causal control.",
+    "Old frozen image has no HTTP failure status diagnostics; unavailable root cause unknown.",
+    "Historical prompt improvement not established; all Jev-on end-to-end arms failed.",
+    "Corrected offline acceptance is not the original Docker runner result."
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "evidence": "prospective-offline-r17-native-harness-replay",
+  "image": "continual-learning-projects:df60a6123748956b",
+  "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+  "network": "none",
+  "mainModelSelection": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "realMainCalls": 0,
+  "jevCalls": 0,
+  "fixedProviderOnly": true,
+  "sourceFiles": {
+    "source/packages/kit/package.json": "47f30bad436aa88ddcc5ddefe611055d6af3c3fd271806025d0259a4c1fd043d",
+    "source/packages/kit/index.ts": "8950f261c03b03d1474eb7a092ca892fd7b11f84d8e1d9ff6facb7844d685779",
+    "source/packages/continual-learning/package.json": "1e003a71b4902faab296a4f873e1e0a13e8abfdb003362d0721eb8888ce27b4f",
+    "source/packages/continual-learning/index.ts": "1ab8302e9b46799be439f84a3c0d49a113d96261084c3d2e96478313d09b061e",
+    "source/packages/continual-learning/tests/native_harness_probe.py": "7547625baea3b9db476f63d47f49a03f43ba08a26d4f1526e51e953419578dc6",
+    "source/packages/continual-learning/extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+    "source/packages/continual-learning/extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+    "source/packages/continual-learning/extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+    "source/packages/continual-learning/extensions/consolidation-run.ts": "4efb6e14e20d91f69b307e367fe75d7e588c4a494c43bdb27828ae08577594f6",
+    "source/packages/continual-learning/extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+    "source/packages/continual-learning/extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+    "source/packages/continual-learning/extensions/inject-memory.ts": "c353d3e574f39b90416ddfd20b3ac7a8ebccb33922164c60337ea8d853657fe5",
+    "source/packages/continual-learning/extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+    "source/packages/continual-learning/extensions/agents-md-consolidation.ts": "d3a8541e169a760b37526597411bdb923534e9412ec5c60e84f501a9b47440dc",
+    "source/packages/continual-learning/extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+    "source/packages/continual-learning/extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "source/packages/continual-learning/extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+    "source/packages/continual-learning/extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+    "source/packages/continual-learning/extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+    "source/packages/continual-learning/extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+    "source/packages/continual-learning/extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+    "source/packages/continual-learning/extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+    "source/packages/continual-learning/extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+    "source/packages/continual-learning/extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+    "source/packages/continual-learning/extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+    "source/packages/continual-learning/extensions/harness-command-coverage.ts": "122b26c79364e4c82b41d96e819f0ecb916b4a7a01738b6b3f0002bfcce2de8c",
+    "source/packages/continual-learning/extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+    "source/packages/continual-learning/extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+    "source/packages/continual-learning/extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+    "source/packages/continual-learning/extensions/jev-learning.ts": "446485d8037d3e07fad1affdaed7193cbabddab31c477892622a33998adc1cba",
+    "source/packages/continual-learning/extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+    "source/packages/continual-learning/extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+    "source/packages/continual-learning/extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "source/packages/continual-learning/extensions/learning-efficiency.ts": "c8cd94ff71a0efebf8caf8c9c494fe4a132538dccaefa5e408c18899a706e013",
+    "source/packages/continual-learning/extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899",
+    "source/packages/continual-learning/extensions/harness-consolidation.ts": "a35441ddfbf3c8c3be27dbcfee3dd89dc0daaadf2f9e1e7e5b42ce247ef49c47",
+    "source/packages/continual-learning/prompts/incremental-memory-consolidator.md": "6b53319bd780b6f95ffdc4184b6587132817c38fa47a124d1b20af43957bbe8e",
+    "source/packages/continual-learning/prompts/harness-consolidator.md": "8c7352804deeb48b93b69fcd91824bf2a0bfd7b290e53e7ca5f0f5baa0c14f42",
+    "source/packages/continual-learning/prompts/planner-system.md": "03100948725b676669adde04c0d2b4a1841d6866430505276cb5ef7a704fe392",
+    "source/packages/continual-learning/prompts/memory-consolidator.md": "ed4952aea941c2ca1c639ebc7b929bd49fd6b66e4f5aa2d29c6817a90422fd52",
+    "source/packages/continual-learning/prompts/memory-selector.md": "38cb06f883236a205613ac7d1694a631e6c9f344f5afd45b90432cfe52321534",
+    "source/packages/continual-learning/prompts/agents-md-consolidator.md": "e1cc26fffe47b223cecd591c03498fcd8cbce5aad7d83b4522fecf2310459eb0",
+    "source/packages/kit/src/index.ts": "f55c52433a1e86c7fef4df4385935be72111af456dc596d344fe86e350800a18"
+  },
+  "rules": [
+    {
+      "project": "p-limit",
+      "originalPath": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006T133554Z-template-tabs-r17/p-limit-on/p-limit-on/project/.pi/harness.json",
+      "sha256": "cddbaffaddcb3f95c594c542044296509586f3252c2fdca461d3797b5155c996",
+      "reportSha256": "72189935a846d8de55470e4d36d9bf98bf2b3a41dfddf72c8e24918919ec7935"
+    },
+    {
+      "project": "mitt",
+      "originalPath": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006T133554Z-template-tabs-r17/mitt-on/mitt-on/project/.pi/harness.json",
+      "sha256": "0f7a9424ebce6f9119f9f643cea9c8d8a44c56f42998fafeba1963e20a463cd7",
+      "reportSha256": "612f56ad35137cfd337671418e75f7a1b3d0ab90074c191d70a0d3ef078d71ce"
+    }
+  ],
+  "probeSha256": "5b156b828d7af27d6334343e875257db96735367a5af8a2be6f93f466d108e83",
+  "acceptance": {
+    "learnedRules": {
+      "nativeToolResults": 10,
+      "blockedCases": 5,
+      "allowedCases": 5,
+      "forbiddenSideEffects": 0,
+      "allPassed": true
+    },
+    "missingRuleControl": {
+      "nativeToolResults": 10,
+      "blockedCases": 0,
+      "allowedCases": 5,
+      "forbiddenSideEffects": 5,
+      "allPassed": false
+    }
+  },
+  "limits": [
+    "Historical rules replayed unchanged in a disposable project.",
+    "Fixed provider requests are not real model inference.",
+    "Original Memory and overall failures remain failures.",
+    "No claim of Jev quality improvement from execution alone."
+  ]
+}

@@ -1,0 +1,160 @@
+{
+  "kind": "jev-support-threshold-diagnostic",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "instrument": "JevCandidateFailure choice, probability, and confidence, added this session",
+  "rawRoots": {
+    "capture": "~/.cache/pi-continual-learning/research/adversarial-negative-2026-10-07/supplement-capture",
+    "baseline14": "~/.cache/pi-continual-learning/research/adversarial-negative-2026-10-07/diagnostic-baseline-14"
+  },
+  "corpus": {
+    "file": "cases.json",
+    "sha256": "5f1011e5f696fd711b10887e45b87805443157aec6c2f57928014b6ee95623e8"
+  },
+  "gate": {
+    "constant": "YES",
+    "value": 0.9,
+    "confidenceConstant": "CONFIDENCE",
+    "confidenceValue": 0.8,
+    "site": "extensions/jev-learning.ts:13-15, support branch at :924-928"
+  },
+  "firstConclusion": "The supplement over-hold is a THRESHOLD artefact, not a classification artefact. The model answers grounded with probability 0.86 and 0.87 and confidence 0.84 and 0.85, which passes the confidence gate and fails only the 0.9 chosen-probability gate.",
+  "secondConclusion": "A threshold fix is NOT available. Re-measuring the frozen 14-case corpus with the new instrument shows the support probability does not separate the classes.",
+  "perCase": [
+    {
+      "id": "speculation-en",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "speculative",
+      "probability": 1,
+      "confidence": 1
+    },
+    {
+      "id": "speculation-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "speculative",
+      "probability": 1,
+      "confidence": 1
+    },
+    {
+      "id": "transient-failure-en",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "grounded",
+      "probability": 0.65,
+      "confidence": 0.58
+    },
+    {
+      "id": "transient-failure-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "transient",
+      "probability": 0.88,
+      "confidence": 0.84
+    },
+    {
+      "id": "duplicate-en",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "duplicate",
+      "probability": 1,
+      "confidence": 0.99,
+      "dimension": "relationship"
+    },
+    {
+      "id": "duplicate-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "grounded",
+      "probability": 0.89,
+      "confidence": 0.87
+    },
+    {
+      "id": "supplement-en",
+      "expected": "allow",
+      "decision": "propose",
+      "choice": "grounded",
+      "probability": 0.64,
+      "confidence": 0.55
+    },
+    {
+      "id": "supplement-zh",
+      "expected": "allow",
+      "decision": "propose",
+      "choice": "grounded",
+      "probability": 0.81,
+      "confidence": 0.77
+    },
+    {
+      "id": "supplement-capture-en",
+      "expected": "allow",
+      "decision": "propose",
+      "choice": "grounded",
+      "probability": 0.86,
+      "confidence": 0.84
+    },
+    {
+      "id": "supplement-capture-zh",
+      "expected": "allow",
+      "decision": "propose",
+      "choice": "grounded",
+      "probability": 0.87,
+      "confidence": 0.85
+    },
+    {
+      "id": "conflict-en",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "unsupported",
+      "probability": 0.94,
+      "confidence": 0.92
+    },
+    {
+      "id": "conflict-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": "unsupported",
+      "probability": 0.96,
+      "confidence": 0.94
+    },
+    {
+      "id": "harness-scope-expansion-en",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": null,
+      "noul": 0.18
+    },
+    {
+      "id": "harness-scope-expansion-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "choice": null,
+      "noul": 0.18
+    },
+    {
+      "id": "revocation-en",
+      "expected": "allow",
+      "decision": "allow"
+    },
+    {
+      "id": "revocation-zh",
+      "expected": "allow",
+      "decision": "allow"
+    }
+  ],
+  "keyComparison": {
+    "legitimateSupplementLowestProbability": 0.64,
+    "negativeTransientFailureProbability": 0.65,
+    "statement": "The lowest legitimate supplement probability (0.64) sits BELOW the negative transient-failure probability (0.65). No threshold on the support probability can admit the supplement class while rejecting the transient class, so lowering the gate would admit a transient failure as durable knowledge."
+  },
+  "varianceObservation": {
+    "statement": "The same supplement content scored 0.85 and 0.87 in one run and 0.64 and 0.81 in another, so the support probability is high-variance for this class and the hold depends on sampling noise.",
+    "evidence": [
+      "supplement-pure-en 0.85 versus supplement-en 0.64",
+      "supplement-pure-zh 0.87 versus supplement-zh 0.81"
+    ]
+  },
+  "decidedNextStep": "Do not change the gate. Reduce the noise and the hold by making the support criteria explicit that a frozen tool result is sufficient grounding for the command it verified, then measure with repeated passes to separate a real effect from sampling noise. If the wording change does not move the class above the gate, keep the strategies default-off and report the defect.",
+  "writeAuthorized": false
+}

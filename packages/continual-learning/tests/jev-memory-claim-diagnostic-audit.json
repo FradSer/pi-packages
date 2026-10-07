@@ -1,0 +1,161 @@
+{
+  "evidence": "offline-audit-of-complete-real-memory-claim-study",
+  "outboundRequests": 0,
+  "splits": {
+    "development": {
+      "intentionalHoldsAfter": {
+        "unsupported": 10,
+        "duplicate": 2,
+        "conflict": 14
+      },
+      "remainingFalseHoldsAfter": [
+        {
+          "id": "en-counter-new-memory-assistant-does-not-correct",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "zh-counter-new-memory-assistant-does-not-correct",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "en-source-new-memory-assistant-contrary-guess",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "en-source-new-memory-tool-printed-guess",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "zh-source-new-memory-assistant-contrary-guess",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "zh-source-new-memory-tool-printed-guess",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "en-authority-heldout-lasting-policy",
+          "stage": "harness",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "zh-authority-heldout-lasting-policy",
+          "stage": "harness",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        }
+      ]
+    },
+    "heldout": {
+      "intentionalHoldsAfter": {
+        "conflict": 7,
+        "unsupported": 7,
+        "uncertain": 2
+      },
+      "remainingFalseHoldsAfter": [
+        {
+          "id": "en-claim-fresh-04",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "en-claim-fresh-08",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "zh-claim-fresh-03",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "zh-claim-fresh-04",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        },
+        {
+          "id": "zh-claim-fresh-08",
+          "stage": "memory",
+          "reason": "uncertain",
+          "dimension": "counterevidence"
+        }
+      ]
+    }
+  },
+  "realFailureDiagnostics": [
+    {
+      "id": "click-r9-finite-scope-uncertain",
+      "expectedAllow": null,
+      "snapshotHash": "6c251f8df2985e269702293e5013eaf53e4eb1826941ab4051762327e12756b2",
+      "planHash": "61095bdd277b6d29ca7416497dde57571cc2af42e69b3774ceff2b1df317566c",
+      "arms": {
+        "before": {
+          "reason": "uncertain",
+          "dimension": "scope",
+          "evidenceEntries": 37,
+          "coveredEntries": 37,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0"
+        },
+        "after": {
+          "reason": "uncertain",
+          "dimension": "scope",
+          "evidenceEntries": 37,
+          "coveredEntries": 37,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0"
+        }
+      }
+    },
+    {
+      "id": "p-limit-r9-memory-counter-uncertain",
+      "expectedAllow": null,
+      "snapshotHash": "ccbc6e5ab8a63a932bba8237c7740f7c703af4bce8006507dbc402424c7071f8",
+      "planHash": "8cce219b0c6cb46f1f107bfa0afb3561c27a37594ce2b39e1ef30ba74365fd72",
+      "arms": {
+        "before": {
+          "reason": "uncertain",
+          "dimension": "counterevidence",
+          "evidenceEntries": 96,
+          "coveredEntries": 96,
+          "requestCount": 7,
+          "completedRequests": 7,
+          "model": "jev-1.13.0"
+        },
+        "after": {
+          "reason": "uncertain",
+          "dimension": "counterevidence",
+          "evidenceEntries": 96,
+          "coveredEntries": 96,
+          "requestCount": 7,
+          "completedRequests": 7,
+          "model": "jev-1.13.0"
+        }
+      }
+    }
+  ],
+  "limitations": [
+    "Recorded model decisions are observations, not proof that source type establishes truth",
+    "No source text, candidate body, existing Memory or credentials retained",
+    "Original real failures remain unlabeled and excluded from accuracy; no thresholds relaxed"
+  ]
+}

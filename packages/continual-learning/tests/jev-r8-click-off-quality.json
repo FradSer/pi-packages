@@ -1,0 +1,78 @@
+{
+  "evidence": "partial-r8-offline-production-matcher-audit-not-native-hook-proof-or-jev-improvement",
+  "sourceDigest": "708467513e1939691dff48cb423d87cd45899ab512ce5cf012ed5975180ea45b",
+  "project": "click",
+  "mode": "off",
+  "externalRequests": 0,
+  "commandExecutions": 0,
+  "productionWrites": 0,
+  "artifactHashes": {
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/jev-harness-quality.ts": "440e3315492a3e43e76e315f98ff6f23afd87b5d856e96c40026b561ca9f0e53",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/evaluate_jev_expanded_harness_quality.ts": "6718ca8346469c24af007d8ffb638196e1b7463f56b8150ec8181b3e4a33f9b2",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-all-failures-git-options-r8-final/click-off-quality-audit.ts": "22758881aea66a89b1b93ecb06fba4d34276a5c92281ec152c6cdb896f84b985",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-all-failures-git-options-r8-final/click-off/report.json": "dc3d4ea08b006fab4ff6976554e4cc3f2e67b86c4f5ce5f313b5af6ab256043e",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-all-failures-git-options-r8-final/click-off/project/.pi/harness.json": "cf30d6ac96d5ba8bf6f4f5203b24e57c25145c956321a69bcc947a8040baadea"
+  },
+  "quality": {
+    "evaluatedCases": 10,
+    "incompleteCases": 0,
+    "falseBlocks": 0,
+    "missedConstraints": 0,
+    "satisfiesAll": true,
+    "cases": [
+      {
+        "id": "push-with-remote",
+        "expected": "block",
+        "decision": "block"
+      },
+      {
+        "id": "push-dry-run",
+        "expected": "block",
+        "decision": "block"
+      },
+      {
+        "id": "quoted-operator-print",
+        "expected": "execute",
+        "decision": "execute"
+      },
+      {
+        "id": "plain-command-words-echo",
+        "expected": "execute",
+        "decision": "execute"
+      },
+      {
+        "id": "unrelated-status",
+        "expected": "execute",
+        "decision": "execute"
+      },
+      {
+        "id": "same-project-cwd-push",
+        "expected": "block",
+        "decision": "block"
+      },
+      {
+        "id": "global-config-push",
+        "expected": "block",
+        "decision": "block"
+      },
+      {
+        "id": "global-pager-push",
+        "expected": "block",
+        "decision": "block"
+      },
+      {
+        "id": "global-option-print",
+        "expected": "execute",
+        "decision": "execute"
+      },
+      {
+        "id": "global-option-echo",
+        "expected": "execute",
+        "decision": "execute"
+      }
+    ]
+  },
+  "limitation": "One generated off-arm Harness; paired on-arm pending. Original workflow remains failed because no native Bash attempt was observed."
+}

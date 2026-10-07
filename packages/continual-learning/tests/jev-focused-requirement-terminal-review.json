@@ -1,0 +1,34 @@
+{
+  "evidence": "independent-read-only-terminal-review",
+  "manifestSha256": "c4e3ffccec847411a0f6e585fca12e74647bbaf88994bd1c15610c45ad42d512",
+  "allHashesVerified": true,
+  "labelsUnchanged": true,
+  "aggregateIndependentlyRecomputed": true,
+  "publicRowsMatchPrivateRawRows": true,
+  "requestCount": 20,
+  "jevRequests": 20,
+  "mainRequests": 0,
+  "usageResponses": 20,
+  "newFalseAccepts": 1,
+  "regression": {
+    "case": "explicit-long-term-observed-result-zh-after",
+    "requirementIndex": 0,
+    "beforeProbability": 0.8,
+    "afterProbability": 0.92,
+    "expectedPreserved": false
+  },
+  "independentOwnedContainerAbsent": true,
+  "workerProcessGroupStopped": true,
+  "proxyProcessGroupStopped": true,
+  "localProxySocketsClosed": true,
+  "activeHandlersAtSnapshot": 0,
+  "remoteProviderCancellationVerified": false,
+  "billingVerified": false,
+  "adopted": false,
+  "goalComplete": false,
+  "limits": [
+    "Manual fixed development corpus; no untouched heldout, generation, write, recall or Harness execution.",
+    "Single shared-batch observation; no causal, standalone-arm latency or cost conclusion."
+  ],
+  "remainingBlockers": []
+}

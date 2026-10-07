@@ -1,0 +1,39 @@
+{
+  "scope": "fresh authored heldout corpus and real SDK inference; no production code changes",
+  "focusedTests": {
+    "passed": 10,
+    "seconds": 3.44,
+    "command": "uv run --no-project --with pytest python -m pytest packages/continual-learning/tests/test_jev_subset_batch_metrics.py packages/continual-learning/tests/test_jev_independent_subset_research.py -q"
+  },
+  "rootTypecheck": "passed",
+  "privateEvaluatorStrictNoUnusedTypecheck": "passed with repository-compatible ESNext/Bundler",
+  "targetPackDryRun": "passed; research files excluded",
+  "frozenCodeSdkHashesMatched": 44,
+  "corpusHashMatched": true,
+  "documentReferences": "passed",
+  "preflight": {
+    "batches": 12,
+    "localAttempts": 24,
+    "externalRequests": 0
+  },
+  "realInference": {
+    "externalRequests": 60,
+    "actualModel": "jev-1.13.0",
+    "modelAndUsageComplete": true,
+    "heldoutCriteriaMet": true
+  },
+  "independentTerminalReview": "jev-subset-full-batch-heldout-terminal-review.json",
+  "productionAdopted": false,
+  "productionWrites": 0,
+  "mainModelCalls": 0,
+  "verificationInvocationCorrections": [
+    "Initial uv environment lacked pytest; reran with uv --with pytest successfully.",
+    "Initial ad hoc NodeNext check did not match repository Bun ES module resolution; corrected to ESNext/Bundler and passed without source changes.",
+    "Initial document reference regex retained sentence-ending period; corrected parser and passed without document change."
+  ],
+  "packageSuite": "Not rerun this data/document-only phase; previous complete 964 tests passed and all frozen runtime/research sources unchanged.",
+  "limits": [
+    "No actual Pi/Docker or production partial-application validation this phase.",
+    "Prior unrelated root-suite and install-check failures not rerun."
+  ]
+}

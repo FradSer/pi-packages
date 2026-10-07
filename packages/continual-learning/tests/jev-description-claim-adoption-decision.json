@@ -1,0 +1,209 @@
+{
+  "decision": "do-not-adopt-yet",
+  "experimentalSemanticPathAdopted": false,
+  "reason": "Verified description-claim leak prevented 16 false accepts, but string projection introduces one new support hold on a valid regression-command description. Original full-workflow failures remain held. Test structured knowledge fields next; do not infer cause from probabilities.",
+  "development": {
+    "complete": true,
+    "samples": 34,
+    "metrics": {
+      "before": {
+        "evaluatedPlans": 32,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 16,
+        "falseHolds": 2
+      },
+      "after": {
+        "evaluatedPlans": 32,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 3
+      }
+    },
+    "decisionChanges": [
+      {
+        "id": "en-description-dev-03",
+        "expectedAllow": true,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "uncertain",
+        "afterDimension": "support"
+      },
+      {
+        "id": "en-description-dev-05",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "uncertain",
+        "afterDimension": "support"
+      },
+      {
+        "id": "en-description-dev-06",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "unsupported",
+        "afterDimension": "support"
+      },
+      {
+        "id": "en-description-dev-07",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "uncertain",
+        "afterDimension": "support"
+      },
+      {
+        "id": "en-description-dev-08",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "unsupported",
+        "afterDimension": "support"
+      },
+      {
+        "id": "en-description-dev-09",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "uncertain",
+        "afterDimension": "support"
+      },
+      {
+        "id": "en-description-dev-10",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "unsupported",
+        "afterDimension": "support"
+      },
+      {
+        "id": "en-description-dev-11",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "unsupported",
+        "afterDimension": "support"
+      },
+      {
+        "id": "en-description-dev-12",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "unsupported",
+        "afterDimension": "support"
+      },
+      {
+        "id": "zh-description-dev-05",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "uncertain",
+        "afterDimension": "support"
+      },
+      {
+        "id": "zh-description-dev-06",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "unsupported",
+        "afterDimension": "support"
+      },
+      {
+        "id": "zh-description-dev-07",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "uncertain",
+        "afterDimension": "support"
+      },
+      {
+        "id": "zh-description-dev-08",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "uncertain",
+        "afterDimension": "support"
+      },
+      {
+        "id": "zh-description-dev-09",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "unsupported",
+        "afterDimension": "support"
+      },
+      {
+        "id": "zh-description-dev-10",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "uncertain",
+        "afterDimension": "support"
+      },
+      {
+        "id": "zh-description-dev-11",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "unsupported",
+        "afterDimension": "support"
+      },
+      {
+        "id": "zh-description-dev-12",
+        "expectedAllow": false,
+        "before": "allow",
+        "after": "propose",
+        "afterReason": "unsupported",
+        "afterDimension": "support"
+      }
+    ],
+    "perStage": {
+      "memory": {
+        "before": {
+          "evaluatedPlans": 28,
+          "falseAccepts": 16,
+          "falseHolds": 0
+        },
+        "after": {
+          "evaluatedPlans": 28,
+          "falseAccepts": 0,
+          "falseHolds": 1
+        }
+      },
+      "harness": {
+        "before": {
+          "evaluatedPlans": 4,
+          "falseAccepts": 0,
+          "falseHolds": 2
+        },
+        "after": {
+          "evaluatedPlans": 4,
+          "falseAccepts": 0,
+          "falseHolds": 2
+        }
+      }
+    }
+  },
+  "heldout": {
+    "realInferenceVerified": false,
+    "outboundRequests": 0,
+    "samples": 32,
+    "semanticScenarios": 16,
+    "evidence": "frozen-offline-preflight-only",
+    "reasonNotCalled": "Refine structured representation on development before blind new sample calls"
+  },
+  "outboundRequests": 150,
+  "knownInputTokens": 243093,
+  "estimatedInputCostUsd": 0.010209906,
+  "durationsMedianMs": {
+    "before": 361.5,
+    "after": 368.0
+  },
+  "limitations": [
+    "Before is the original production Jev gate, not Jev disabled",
+    "Only candidate validation measured; not selection or end-to-end application",
+    "Mock only verifies code paths; real metrics derived exclusively from actual model responses",
+    "Description may contain knowledge; name/type remain administrative",
+    "All original evidence, permissions, classification, thresholds and retry limits retained; no production writes"
+  ]
+}

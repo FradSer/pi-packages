@@ -1,0 +1,103 @@
+{
+  "decision": "do-not-adopt",
+  "experimentalSemanticPathAdopted": false,
+  "reason": "Reused development holds improved but new-sample overall holds unchanged; both real R9 failures remain held.",
+  "development": {
+    "metrics": {
+      "before": {
+        "evaluatedPlans": 38,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 4
+      },
+      "after": {
+        "evaluatedPlans": 38,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 2
+      }
+    },
+    "complete": true,
+    "samples": 38,
+    "perStage": {
+      "memory": {
+        "before": {
+          "falseHolds": 0,
+          "falseAccepts": 0
+        },
+        "after": {
+          "falseHolds": 0,
+          "falseAccepts": 0
+        }
+      },
+      "harness": {
+        "before": {
+          "falseHolds": 4,
+          "falseAccepts": 0
+        },
+        "after": {
+          "falseHolds": 2,
+          "falseAccepts": 0
+        }
+      }
+    }
+  },
+  "newSamples": {
+    "metrics": {
+      "before": {
+        "evaluatedPlans": 24,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 4
+      },
+      "after": {
+        "evaluatedPlans": 24,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 0,
+        "falseHolds": 4
+      }
+    },
+    "complete": true,
+    "samples": 24,
+    "perStage": {
+      "memory": {
+        "before": {
+          "falseHolds": 2,
+          "falseAccepts": 0
+        },
+        "after": {
+          "falseHolds": 2,
+          "falseAccepts": 0
+        }
+      },
+      "harness": {
+        "before": {
+          "falseHolds": 2,
+          "falseAccepts": 0
+        },
+        "after": {
+          "falseHolds": 2,
+          "falseAccepts": 0
+        }
+      }
+    }
+  },
+  "outboundRequests": 270,
+  "knownInputTokens": 379777,
+  "estimatedInputCostUsd": 0.015950633999999998,
+  "durationsMedianMs": {
+    "development": {
+      "before": 332.5,
+      "after": 334.0
+    },
+    "newSamples": {
+      "before": 329.0,
+      "after": 328.5
+    }
+  },
+  "limitations": [
+    "Both full-workflow failure artifacts remain unlabeled, excluded from accuracy.",
+    "No thresholds, retry, timeout, evidence coverage, privacy or parent permission changed.",
+    "Complete small-corpus results do not establish full workflow improvement."
+  ]
+}

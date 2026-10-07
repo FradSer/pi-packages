@@ -1,0 +1,23 @@
+{
+  "evidence": "availability-diagnostic-adoption-decision",
+  "adopted": false,
+  "hostConfigurationChanged": false,
+  "pluginRuntimeChanged": false,
+  "resultSha256": "a308d3ac59447acbefae6d6390b7fc2318eed9e484aec5efce681ef4110e5b88",
+  "reason": "Both once-only calls failed with model_cooldown before generation; output cap causal effect is unverified.",
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "mainModelCalls": 2,
+  "apiSuccesses": 0,
+  "latestReportedResetSeconds": 23750,
+  "usageUnknown": true,
+  "billingVerified": false,
+  "nextEvidence": [
+    "Wait for the selected upstream model cooldown to clear or receive an explicit different model selection.",
+    "Inspect failed/aborted planner output handling without assuming child exit0 means inference succeeded.",
+    "Resume real candidate generation and new-project learning/application/recall/Harness comparisons once main inference is available."
+  ],
+  "goalComplete": false
+}

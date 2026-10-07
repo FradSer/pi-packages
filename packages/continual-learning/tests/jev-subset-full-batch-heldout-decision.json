@@ -1,0 +1,54 @@
+{
+  "evidence": "authored-heldout-real-jev-signal-not-durable-learning-proof",
+  "manifestSha256": "1683ac55d14b6d97600e7df184b9ccfa64e9c0244a3d8167014f004b5eb1f1e8",
+  "reportSha256": "d656d704a3bdd802380cb82c31d108b5dcb9cfdaf45e2093a55e877dbcab0e1d",
+  "heldoutCriteriaMet": true,
+  "productionAdopted": false,
+  "goalComplete": false,
+  "metrics": {
+    "whole": {
+      "validAccepted": 6,
+      "erroneousAccepted": 0,
+      "validHeld": 20
+    },
+    "subset": {
+      "validAccepted": 15,
+      "erroneousAccepted": 0,
+      "validHeld": 11
+    },
+    "newErroneousAccepted": 0,
+    "newValidHolds": 0,
+    "recoveredValid": 9
+  },
+  "externalRequests": 60,
+  "actualModel": "jev-1.13.0",
+  "usageComplete": true,
+  "inputTokens": 104815,
+  "outputTokens": 11726,
+  "knownInputTariffEstimateUsd": 0.004402230000000001,
+  "wholeInputTokensIncludedInTotal": 56009,
+  "summedWholeDurationMs": 5566,
+  "summedFullBatchDurationMs": 11579,
+  "process": {
+    "exitCode": 0,
+    "outcome": "completed",
+    "seconds": 11.988,
+    "processGroupStopConfirmed": true,
+    "pid": 67550,
+    "pgid": 67550
+  },
+  "qualifications": [
+    "Author-labeled synthetic heldout: 12 batches, 36 candidates, 26 eligible and 10 ineligible; not independent human gold or generated project candidates.",
+    "Duplicate candidate labels mean redundant new record, not a false fact.",
+    "The original live report retains an inherited dependency B/C ambiguity limit from development. No such dangling-reference pair is present in this heldout corpus. This correction does not change raw results, labels or thresholds.",
+    "Already accepted whole plans are preserved by construction; zero new valid holds is an invariant, not separate calibration evidence.",
+    "Manual-memory source text tests candidate semantics, not native /memory command routing or eventual proposal delivery.",
+    "Host Bun/SDK real API calls, no Docker/Pi, no main model generation, no Memory/Harness writes or recall.",
+    "Estimated input tariff is not invoice or guaranteed billing."
+  ],
+  "remaining": [
+    "Parent proposal persistence, permissions, digest rebinding and rollback-backed subset transaction.",
+    "Real isolated Pi/Docker generated-candidate/application/recall comparison with cli-proxy / opencode/space-bunny-free.",
+    "Remaining 11 eligible holds and previous negative studies remain failures; do not tune thresholds against this heldout."
+  ]
+}

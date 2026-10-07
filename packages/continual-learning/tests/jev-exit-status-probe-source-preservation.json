@@ -1,0 +1,6 @@
+{
+  "baselinePath": "packages/continual-learning/tests/fixtures/live-docker-projects-before-exit-status-probe.py.txt",
+  "baselineSha256": "cb4d4c846dff0c1923fba7f579b0787e56932562b6a0ae365c8c23f714263c11",
+  "updatedSha256": "a6485ae15057863400931585dd5e61595917538006417726d96fb0247f224668",
+  "scope": "Research verifier only; existing R12 Docker image and original failed report unchanged."
+}

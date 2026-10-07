@@ -70,6 +70,22 @@ function escape(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/** The bounds on the prose the checker reads.
+ *
+ * `create_goal` and `update_goal` accept an objective and a claim with no length
+ * cap, so the bounds live here rather than in the tool schema. The prompt states
+ * each truncation, because a silently shortened objective or claim would let the
+ * checker read a partial one as the whole. The full text stays in the goal record. */
+const MAX_CHECK_OBJECTIVE_CHARS = 4_000;
+const MAX_CLAIM_CHARS = 4_000;
+
+function bound(text: string | undefined, cap: number, whenEmpty: string): string {
+  const trimmed = text?.trim();
+  if (!trimmed) return whenEmpty;
+  if (trimmed.length <= cap) return trimmed;
+  return `${trimmed.slice(0, cap)}\n…[truncated at ${cap} characters; the full text is in the goal record.]`;
+}
+
 export function buildCheckPrompt(args: {
   objective: string;
   claim: string | undefined;
@@ -87,7 +103,7 @@ export function buildCheckPrompt(args: {
     "",
     "Objective:",
     "<objective>",
-    escape(args.objective),
+    escape(bound(args.objective, MAX_CHECK_OBJECTIVE_CHARS, "")),
     "</objective>",
     "",
     ...(args.contract
@@ -104,7 +120,7 @@ export function buildCheckPrompt(args: {
     "",
     "What the executor says it did (UNTRUSTED — a claim, not evidence):",
     "<claim>",
-    escape(args.claim?.trim() || "(no claim provided)"),
+    escape(bound(args.claim, MAX_CLAIM_CHARS, "(no claim provided)")),
     "</claim>",
   ].join("\n");
 }
@@ -144,7 +160,14 @@ export async function runCompletionCheck(options: RunCheckOptions): Promise<Chec
   }
   const text = result.text.trim();
   if (!text) {
-    return { met: false, report: "", usage: result.usage, model: options.model, error: "The check returned nothing." };
+    // An exit-0 child that said nothing is the failure this runtime cannot
+    // explain from here: `runPiWorker` exposes no raw stdout, so an empty
+    // assistant answer and a provider that answered nothing look alike. Name
+    // the model that swallowed the answer, because the model is the usual cause
+    // and it is the one fact available. A silent model otherwise reads as an
+    // unmet goal, and the executor has no way to tell the two apart.
+    const cause = result.stderr.trim().slice(0, 200) || (options.model ? `model ${options.model}` : "no model was passed");
+    return { met: false, report: "", usage: result.usage, model: options.model, error: `The check returned nothing (exit 0, ${cause}).` };
   }
   // A report with no marker is a rejection. An unparseable answer must never open
   // the path that closes a goal, and it is not a decision at all, so it is

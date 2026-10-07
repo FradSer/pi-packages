@@ -1,0 +1,59 @@
+{
+  "evidence": "new-memory-pair-adoption-decision",
+  "adopted": false,
+  "decision": "reject-readiness-due-to-missed-independent-conditions",
+  "reports": {
+    "development": {
+      "path": "jev-memory-pair-development-real-results.json",
+      "sha256": "e2a772c0cc2a6a82f6e7d63838f760b312d7525669240451ed527006f00091e6",
+      "metrics": {
+        "correct": 2,
+        "wrong": 0,
+        "held": 6,
+        "unsafeIndependence": 0,
+        "missedIndependence": 0
+      },
+      "rawLabelCorrect": 6,
+      "rawLabelWrong": 2,
+      "medianDurationMs": 358.0,
+      "knownInputTokens": 6127,
+      "knownEstimatedCostUsd": 0.000257334,
+      "usageComplete": true
+    },
+    "heldout": {
+      "path": "jev-memory-pair-heldout-real-results.json",
+      "sha256": "c9bdd3da6ba2e3911038d097efff8555c7f2527f2f321ddde9cf298a83cc52bf",
+      "metrics": {
+        "correct": 4,
+        "wrong": 0,
+        "held": 12,
+        "unsafeIndependence": 0,
+        "missedIndependence": 2
+      },
+      "rawLabelCorrect": 12,
+      "rawLabelWrong": 4,
+      "medianDurationMs": 348.5,
+      "knownInputTokens": 12568,
+      "knownEstimatedCostUsd": 0.0005278559999999999,
+      "usageComplete": true
+    }
+  },
+  "externalRequests": 24,
+  "knownInputTokens": 18695,
+  "knownEstimatedCostUsd": 0.00078519,
+  "missedHeldoutIndependence": [
+    "self-contained-condition-en",
+    "self-contained-condition-zh"
+  ],
+  "heldoutUnsafeIndependence": 0,
+  "productionWrites": 0,
+  "productionRelationIntegration": false,
+  "limitations": [
+    "Raw winning-label accuracy does not imply a usable decisive result.",
+    "Heldout has 8 bilingual scenarios, 16 pairs, not 16 independent archetypes.",
+    "Unclear/low confidence kept held and never used as independence.",
+    "No original candidate/full-window support proof or parent permission from relation research.",
+    "All4independent target criterion failed:2recognized,2held; do not lower thresholds or relabel."
+  ],
+  "nextHypothesis": "Structured exact body/description views and explicit self-contained-condition distinction, preserving complete raw candidate/evidence. New preregistered study required; no favorable rerun."
+}

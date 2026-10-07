@@ -28,6 +28,7 @@ import {
   findProcedure,
   modelStandaloneCapabilities,
   standaloneCapabilities,
+  userStandaloneCapabilities,
   validateProcedureCatalog,
   workflowDefinitions,
   workflowPlacement,
@@ -88,6 +89,7 @@ function stringEnum(values: string[], options?: Record<string, unknown>) {
 function workflowGatewayParameters() {
   const routes = workflowRoutes().map((route) => route.route);
   const capabilities = modelStandaloneCapabilities().map((capability) => capability.id);
+  const userCapabilities = userStandaloneCapabilities().map((capability) => capability.id);
   const branches = Type.Union([
     Type.Object({
       mode: Type.Literal("workflow", { description: "Start a persisted multi-step engineering workflow." }),
@@ -96,6 +98,10 @@ function workflowGatewayParameters() {
     Type.Object({
       mode: Type.Literal("capability", { description: "Run a curated standalone capability without persistent workflow state." }),
       capability: stringEnum(capabilities, { description: "Standalone capability to run." }),
+    }, { additionalProperties: false }),
+    Type.Object({
+      mode: Type.Literal("user-capability", { description: "Run a user-invoked standalone capability the user explicitly asked for." }),
+      capability: stringEnum(userCapabilities, { description: "User-invoked capability the user requested by name." }),
     }, { additionalProperties: false }),
     Type.Object({
       mode: Type.Literal("reference", { description: "Load a reference disclosed by a standalone capability." }),
@@ -110,7 +116,7 @@ function workflowGatewayParameters() {
   return Type.Unsafe<Static<typeof branches>>({
     type: "object",
     properties: {
-      mode: stringEnum(["workflow", "capability", "reference"]),
+      mode: stringEnum(["workflow", "capability", "user-capability", "reference"]),
       route: Type.Union([stringEnum(routes), Type.Null()]),
       capability: Type.Union([Type.String(), Type.Null()]),
       reference: Type.Union([Type.String(), Type.Null()]),
@@ -553,11 +559,12 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
   pi.registerTool({
     name: "matt_pocock_workflow",
     label: "Matt Pocock Gateway",
-    description: "Start a Matt Pocock engineering workflow, run a curated standalone capability, or load a reference disclosed by that capability. Workflows cover structured multi-step engineering; standalone capabilities cover focused methods and are listed in the injected capability catalog.",
+    description: "Start a Matt Pocock engineering workflow, run a curated standalone capability, run a user-invoked capability the user explicitly asked for, or load a reference disclosed by that capability. Workflows cover structured multi-step engineering; standalone capabilities cover focused methods and are listed in the injected capability catalog.",
     promptSnippet: "Start a Matt Pocock workflow or run a standalone capability",
     promptGuidelines: [
       'mode workflow: {"mode": "workflow", "route": "<route id>"} for structured multi-step engineering (idea-to-ship for features, hard-bug for non-trivial bugs, architecture for deepening/refactoring, wayfinding for ambiguous maps, triage for issues).',
       'mode capability: {"mode": "capability", "capability": "<capability id>"} for a focused method. A capability id is not a workflow route; use mode capability even when its subject is engineering.',
+      'mode user-capability: {"mode": "user-capability", "capability": "<capability id>"} only when the user explicitly asked for that named capability, such as "grill me". Never select one on your own initiative.',
       'mode reference: {"mode": "reference", "capability": "<capability id>", "reference": "<disclosed reference id>"}.',
       "Start with matt_pocock_workflow; the started workflow carries its procedure and next-step guidance.",
     ],
@@ -590,6 +597,16 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         return {
           content: [{ type: "text", text: content }],
           details: { mode: "reference", capability: params.capability, reference: params.reference },
+        };
+      }
+      if (params.mode === "user-capability") {
+        const definition = findProcedure(params.capability);
+        if (!definition?.standalone || definition.invocation !== "user") {
+          throw new Error(`Capability ${params.capability} is not a user-invocation capability.`);
+        }
+        return {
+          content: [{ type: "text", text: standalonePrompt(definition.id) }],
+          details: { mode: "user-capability", capability: definition.id },
         };
       }
       const definition = findProcedure(params.capability);

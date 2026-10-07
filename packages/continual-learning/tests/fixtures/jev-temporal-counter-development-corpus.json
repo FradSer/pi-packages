@@ -1,0 +1,602 @@
+[
+  {
+    "id": "recovered-verification-en",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-recovered-verification-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "pnpm exec ava test.js failed because the regression was not fixed yet."
+        },
+        {
+          "role": "toolResult",
+          "content": "After repairing the regression, pnpm exec ava test.js exited 0: all tests passed."
+        },
+        {
+          "role": "user",
+          "content": "For future work in this project, the verified regression command is pnpm exec ava test.js."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: The verified regression command for future work in this project is pnpm exec ava test.js.\ntype: project\n---\nThe verified regression command for future work in this project is pnpm exec ava test.js.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "For future work in this project, the verified regression command is pnpm exec ava test.js.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "recovered-verification-zh",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-recovered-verification-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "pnpm exec ava test.js 在修复回归之前失败了。"
+        },
+        {
+          "role": "toolResult",
+          "content": "修复回归后，pnpm exec ava test.js 退出码为 0：全部测试通过。"
+        },
+        {
+          "role": "user",
+          "content": "今后在这个项目中，已经验证过的回归测试命令是 pnpm exec ava test.js。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 这个项目今后使用的、已经验证过的回归测试命令是 pnpm exec ava test.js。\ntype: project\n---\n这个项目今后使用的、已经验证过的回归测试命令是 pnpm exec ava test.js。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "今后在这个项目中，已经验证过的回归测试命令是 pnpm exec ava test.js。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "replaced-toolchain-en",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-replaced-toolchain-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses Mocha for regression tests."
+        },
+        {
+          "role": "toolResult",
+          "content": "The migration replaced Mocha with Vitest; the Vitest regression suite passed."
+        },
+        {
+          "role": "user",
+          "content": "For future tasks this project now uses Vitest for regression tests; Mocha is retired."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: This project now uses Vitest for regression tests.\ntype: project\n---\nThis project now uses Vitest for regression tests.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "For future tasks this project now uses Vitest for regression tests; Mocha is retired.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "replaced-toolchain-zh",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-replaced-toolchain-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "这个项目用 Mocha 做回归测试。"
+        },
+        {
+          "role": "toolResult",
+          "content": "迁移已将 Mocha 换成 Vitest；Vitest 回归测试全部通过。"
+        },
+        {
+          "role": "user",
+          "content": "今后的任务中，这个项目改用 Vitest 做回归测试；Mocha 已停用。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 这个项目现在用 Vitest 做回归测试。\ntype: project\n---\n这个项目现在用 Vitest 做回归测试。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "今后的任务中，这个项目改用 Vitest 做回归测试；Mocha 已停用。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "replaced-report-preference-en",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-replaced-report-preference-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Use long prose reports for future tasks in this project."
+        },
+        {
+          "role": "user",
+          "content": "Replace that preference: for future tasks in this project use concise bullet-point reports."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: For future tasks in this project use concise bullet-point reports.\ntype: project\n---\nFor future tasks in this project use concise bullet-point reports.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "Replace that preference: for future tasks in this project use concise bullet-point reports.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "replaced-report-preference-zh",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-replaced-report-preference-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "今后这个项目的任务报告使用长篇文字。"
+        },
+        {
+          "role": "user",
+          "content": "替换刚才的偏好：今后这个项目的任务报告使用简短的要点列表。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 今后这个项目的任务报告使用简短的要点列表。\ntype: project\n---\n今后这个项目的任务报告使用简短的要点列表。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "替换刚才的偏好：今后这个项目的任务报告使用简短的要点列表。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "different-target-failure-en",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-different-target-failure-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "The examples/demo browser test failed; this does not test the package regression suite."
+        },
+        {
+          "role": "toolResult",
+          "content": "The package regression command pnpm test exited 0."
+        },
+        {
+          "role": "user",
+          "content": "The verified package regression command for future tasks is pnpm test; browser demo tests are separate."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: The verified package regression command for future tasks is pnpm test.\ntype: project\n---\nThe verified package regression command for future tasks is pnpm test.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "The verified package regression command for future tasks is pnpm test; browser demo tests are separate.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "different-target-failure-zh",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-different-target-failure-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "examples/demo 的浏览器测试失败；它不测试包的回归测试套件。"
+        },
+        {
+          "role": "toolResult",
+          "content": "包的回归测试命令 pnpm test 退出码为 0。"
+        },
+        {
+          "role": "user",
+          "content": "今后的任务中，已验证过的包回归测试命令是 pnpm test；浏览器示例测试另行运行。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 今后的任务中，已验证过的包回归测试命令是 pnpm test。\ntype: project\n---\n今后的任务中，已验证过的包回归测试命令是 pnpm test。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "今后的任务中，已验证过的包回归测试命令是 pnpm test；浏览器示例测试另行运行。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "later-revocation-en",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-later-revocation-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "For future work in this project use pnpm test as the regression command."
+        },
+        {
+          "role": "user",
+          "content": "Revoke that instruction: pnpm test was removed. For future work use pnpm verify instead."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: For future work in this project use pnpm test as the regression command.\ntype: project\n---\nFor future work in this project use pnpm test as the regression command.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "For future work in this project use pnpm test as the regression command.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "later-revocation-zh",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-later-revocation-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "今后这个项目的回归测试命令用 pnpm test。"
+        },
+        {
+          "role": "user",
+          "content": "撤销刚才的要求：pnpm test 已被移除。今后改用 pnpm verify。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 今后这个项目的回归测试命令用 pnpm test。\ntype: project\n---\n今后这个项目的回归测试命令用 pnpm test。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "今后这个项目的回归测试命令用 pnpm test。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "later-factual-correction-en",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-later-factual-correction-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project development image includes Python 3."
+        },
+        {
+          "role": "toolResult",
+          "content": "Verified the current development image: python3 is absent; the image manifest has no Python installation."
+        },
+        {
+          "role": "user",
+          "content": "Correction: the current project development image does not include Python 3."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: This project development image includes Python 3.\ntype: project\n---\nThis project development image includes Python 3.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "This project development image includes Python 3.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "later-factual-correction-zh",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-later-factual-correction-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "这个项目的开发镜像包含 Python 3。"
+        },
+        {
+          "role": "toolResult",
+          "content": "已检查当前开发镜像：不存在 python3；镜像清单也未安装 Python。"
+        },
+        {
+          "role": "user",
+          "content": "更正：这个项目当前的开发镜像不包含 Python 3。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 这个项目的开发镜像包含 Python 3。\ntype: project\n---\n这个项目的开发镜像包含 Python 3。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "这个项目的开发镜像包含 Python 3。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unverified-success-en",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-unverified-success-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Try pnpm regression for this task; it has not been validated yet."
+        },
+        {
+          "role": "toolResult",
+          "content": "pnpm regression failed: unknown script regression."
+        },
+        {
+          "role": "assistant",
+          "content": "I think the command should be the future regression command."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: The verified regression command for future project tasks is pnpm regression.\ntype: project\n---\nThe verified regression command for future project tasks is pnpm regression.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Try pnpm regression for this task; it has not been validated yet.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unverified-success-zh",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-unverified-success-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "本次任务试试 pnpm regression；它还没有验证过。"
+        },
+        {
+          "role": "toolResult",
+          "content": "pnpm regression 失败：不存在 regression 脚本。"
+        },
+        {
+          "role": "assistant",
+          "content": "我猜这个命令可以作为今后的回归测试命令。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 今后项目任务使用的、已经验证过的回归测试命令是 pnpm regression。\ntype: project\n---\n今后项目任务使用的、已经验证过的回归测试命令是 pnpm regression。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "本次任务试试 pnpm regression；它还没有验证过。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "later-port-change-en",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-later-port-change-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "For future project tasks the development server listens on port 6060."
+        },
+        {
+          "role": "user",
+          "content": "Correction: for future project tasks the development server now listens on port 8080, not 6060."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: For future project tasks the development server listens on port 6060.\ntype: project\n---\nFor future project tasks the development server listens on port 6060.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "For future project tasks the development server listens on port 6060.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "later-port-change-zh",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-temporal-later-port-change-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "今后项目任务的开发服务器监听 6060 端口。"
+        },
+        {
+          "role": "user",
+          "content": "更正：今后项目任务的开发服务器改为监听 8080 端口，不再是 6060。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 今后项目任务的开发服务器监听 6060 端口。\ntype: project\n---\n今后项目任务的开发服务器监听 6060 端口。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "今后项目任务的开发服务器监听 6060 端口。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  }
+]

@@ -1,0 +1,79 @@
+{
+  "evidence": "prospective-r16-p-limit-harness-repair-bindings-paired",
+  "sourceDigest": "5818b1f6be33de6acce0cd035e331d631ccf08c4178883466429a7df655e2967",
+  "projects": [
+    {
+      "name": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb"
+    }
+  ],
+  "executions": 2,
+  "modes": [
+    "off",
+    "on"
+  ],
+  "jobs": 1,
+  "aggregateProviderRequestBudget": 360,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "bailian/qwen3.8-flash"
+  },
+  "mainCostPerMillion": {
+    "input": 0.15,
+    "output": 0.47,
+    "cacheRead": 0.016,
+    "cacheWrite": 0.2
+  },
+  "jevModel": "jev-1.13.0",
+  "jevTimeoutMs": 5000,
+  "jevRetryLimit": 0,
+  "credentialAvailable": true,
+  "output": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-harness-bindings-r16",
+  "hypothesis": "Exact immutable binding table may prevent identity or citation drift in existing semantic repair; not guaranteed.",
+  "comparisonLimits": [
+    "New stochastic workflow pair; historical R15 is not a controlled before/after generator arm.",
+    "Missing semantic repair trigger is missing coverage, not prompt improvement.",
+    "Original checks, failures and thresholds remain unchanged; no favorable retry."
+  ],
+  "localPrerequisites": {
+    "focusedRepairTests": "30passed15.34s",
+    "typecheck": "passed",
+    "nativePiHookTests": "3passed10.26s",
+    "freshIndependentReview": "passed",
+    "packagePack": "passed",
+    "workspacePack": "19manifests passed",
+    "installation": "target configured; workspace check fails unrelated uninstalled bdd-jev",
+    "fullTargetTests": "pending"
+  },
+  "sourceFiles": {
+    "packages/continual-learning/extensions/harness-consolidation.ts": "87965c7ca5e201a3ffd5fa6ff9c8b58dfa5cd08d41a595ef7c072834a0c4a077",
+    "packages/continual-learning/tests/live_docker_projects.py": "a6485ae15057863400931585dd5e61595917538006417726d96fb0247f224668"
+  },
+  "authorization": "Existing user authorization for isolated Docker and paid inference; no host config writes or publication.",
+  "costBoundary": "360 shared request hardcap, metadata tariff estimates, not a currency hardcap; account billing unverified.",
+  "productionPromptEffectVerified": false,
+  "goalComplete": false,
+  "image": "continual-learning-projects:5818b1f6be33de6a",
+  "command": [
+    "uv",
+    "run",
+    "--no-project",
+    "python",
+    "packages/continual-learning/tests/live_docker_projects.py",
+    "--project",
+    "p-limit",
+    "--jev",
+    "paired",
+    "--jobs",
+    "1",
+    "--output",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-harness-bindings-r16"
+  ],
+  "preRunRequirements": [
+    "Completed885targettest gate; source digest and two frozen source hashes match.",
+    "Installation failure is unrelated unconfigured bdd-jev; target is configured; host config remains untouched.",
+    "No task-owned paid process is live; unrelated containers must be preserved.",
+    "Do not mutate runtime while pair is active; recheck digest at terminal."
+  ]
+}

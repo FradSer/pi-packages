@@ -1,0 +1,51 @@
+{
+  "evidence": "controlled-counter-window-final-verification",
+  "fullTargetTests": {
+    "passed": 867,
+    "seconds": 267.77,
+    "exitCode": 0
+  },
+  "redTests": {
+    "failed": 2,
+    "cause": "missing location telemetry and receipt/hint rendering before implementation"
+  },
+  "focusedTests": {
+    "passed": 54,
+    "seconds": 26.75
+  },
+  "rootTypecheck": "passed",
+  "installCheck": {
+    "packages": 17,
+    "settings": 18,
+    "passed": true
+  },
+  "targetPackDryRun": "passed",
+  "rootPackedManifests": 18,
+  "scopedDiffCheck": "passed",
+  "freshIndependentReview": "counter_window_review - no concrete regressions; supplemental mutation and mixed-model checks passed",
+  "nativePi": "1.0.0",
+  "nativeEvidence": "jev-counter-window-native-print-evidence.json",
+  "diagnosticIncrementExternalRequests": 0,
+  "productionCandidateWrites": 0,
+  "qualityCriterionMet": false,
+  "priorRealEvidence": "jev-actual-candidate-paired-real-results.json",
+  "priorPaidProcess": {
+    "id": 40394,
+    "terminalExitCode": 0
+  },
+  "goalComplete": false,
+  "limitations": [
+    "Diagnostic integration does not improve measured learning judgments by itself.",
+    "Old replay failed counter-window remains unknown; no favorable requery.",
+    "Real actual-candidate replay is not a new Docker full workflow."
+  ],
+  "fileSha256": {
+    "../extensions/jev-learning.ts": "c66ae21b112581ae3e8f4e75f078fb6445f7ae237f0206f22b23a341f08dab28",
+    "../extensions/learning-efficiency.ts": "21d41647f6d1256b62437b1cb1a65c3c49ab1226f4c76218c1d548197bdf0fe3",
+    "test_jev_counter_window_diagnostics.py": "912b50e7d31de097b3dafd9ad3d2fb184c61e69f7499e771c2254ef19b63ff24",
+    "native_counter_window_probe.py": "fbb880dabc0be670998b0e41fc831aa6ec92ac952921d5e9a8cefd856487e26b",
+    "jev-counter-window-native-print-evidence.json": "5fd807774a2c62660f38bb8f468c28f8af762852a74607e6f18aaed8b9453850",
+    "jev-counter-window-source-preservation.json": "37e7c345de7a101cc72253a0add5253527e15105d5c9968545a602c86ae59597",
+    "jev-counter-window-diagnostic-plan.md": "59efbd2f629400c4fccc82b2708adc094563cd5e92203da22835086c9d948e6b"
+  }
+}

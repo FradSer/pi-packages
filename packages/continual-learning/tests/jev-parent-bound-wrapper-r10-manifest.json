@@ -1,0 +1,32 @@
+{
+  "evidence": "real-generated-r10-parent-bound-wrapper-scope-hold-unlabeled",
+  "id": "p-limit-r10-bound-wrapper-scope-uncertain",
+  "sourceDigest": "4abfa8f4e057b16ce74f27f957cd48015c24876635dc50f60dc4c2ba79ff6df5",
+  "expectedAllow": null,
+  "productionWriteEligible": false,
+  "files": {
+    "history": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-independent-description-r10-final/p-limit-on/memory/history/--work-p-limit--/change_muvrjevk_eef9508555fdbb76.json",
+      "sha256": "8b39608d4503d6144fe742d8f14b2a2871de64d275be3083acc6a44ab9e93b41"
+    },
+    "snapshot": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-independent-description-r10-final/p-limit-on/memory/runs/--work-p-limit--/run_muvrgpqp_9ea05e5dedbd6fe0/snapshot.json",
+      "sha256": "ae4eb217ec8628d3804ac7578553fe86a73ee809d4aa785267b5ede281f1da27"
+    },
+    "parentManifest": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-independent-description-r10-final/p-limit-on/memory/runs/--work-p-limit--/run_muvrgpqp_9ea05e5dedbd6fe0/manifest.json",
+      "sha256": "3188897df046e9bd89b0076c1d94a9e87eaace21737ddbbc2a2f14660d6fb263"
+    },
+    "report": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-independent-description-r10-final/p-limit-on/report.json",
+      "sha256": "05a369e6d0ad1e4cc6e052432d6bb003f7231127c6609b14a03809d1659a5132"
+    }
+  },
+  "scopeContextSource": "Frozen parent consolidation manifest, never candidate text or snapshot inference",
+  "limitations": [
+    "Snapshot has no cwd field; parent manifest owns current project root",
+    "Only research hypothesis: exact generated template proof is not semantic permission",
+    "Original proposal and scope uncertainty retained; no real follow-up inference yet"
+  ],
+  "exactParentBoundTemplateMatch": true
+}

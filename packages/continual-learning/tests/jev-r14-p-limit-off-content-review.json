@@ -1,0 +1,20 @@
+{
+  "evidence": "r14-p-limit-off-independent-content-review",
+  "reviewer": "citation_generation_review",
+  "blockingFindings": 0,
+  "status": "passed",
+  "reportSha256": "a150ea63bb662a398e0fb3bb12f0fb2c7977e472e8329ad9fb2fd7dc4566625f",
+  "verified": [
+    "frozen snapshot and appliedplan digests",
+    "allfinalquotes exactoriginal",
+    "public command/body/description supported by user and actualsuccessfultool result",
+    "independently reruncommand exit0",
+    "private preference and nosharing scope retained; projectexport no privatevalue",
+    "project-bound pushregex and actualblock/no-sideeffect/unrelatedallow"
+  ],
+  "limits": [
+    "Sharedfilesystem baseline also finds privatevalue manually, no recallgain claim.",
+    "Onarm notterminal atreview time; no paired improvement evidence yet."
+  ],
+  "goalComplete": false
+}

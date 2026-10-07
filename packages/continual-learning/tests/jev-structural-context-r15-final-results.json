@@ -1,0 +1,430 @@
+{
+  "evidence": "real-r15-six-isolated-workflows-terminal",
+  "terminalExitCode": 1,
+  "sourceDigest": "bacf936aaefbb9d601f32d9d07c14b29739af14f2c056e30566d40ed2f5d1afd",
+  "sourceMatches": true,
+  "image": "continual-learning-projects:bacf936aaefbb9d6",
+  "imageId": "sha256:b4070e356f7a6822752981a81d26023907c17167c3c67bc6d7ac7c795d4b6a83",
+  "summarySha256": "b229b4921400cb0b15c2ee3fb04f9ee1528bee80a22e84aba379c7aca954d813",
+  "providerRequestsTotal": 176,
+  "mainProviderRequests": 140,
+  "jevRequests": 36,
+  "providerErrors": 0,
+  "jevResponsesWithUsage": 36,
+  "actualJevModels": [
+    "jev-1.13.0"
+  ],
+  "jevInputTokens": 259134,
+  "jevEstimatedCostUsd": 0.010883628000000001,
+  "accountBillingVerified": false,
+  "rows": [
+    {
+      "project": "click",
+      "mode": "off",
+      "status": "failed",
+      "stage": "setup",
+      "learningSeconds": null,
+      "checks": {},
+      "independentCheckExitCode": null,
+      "attempts": []
+    },
+    {
+      "project": "click",
+      "mode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "learningSeconds": 389.93,
+      "checks": {
+        "regressionChanged": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 190375,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "uncertain",
+            "status": "propose",
+            "candidateFailures": [
+              {
+                "candidateIndex": 2,
+                "dimension": "support",
+                "field": "description",
+                "reason": "uncertain"
+              },
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "uncertain",
+                "evidenceWindowIndex": 2,
+                "evidenceEntryStart": 4,
+                "evidenceEntryEnd": 28
+              },
+              {
+                "candidateIndex": 1,
+                "dimension": "counterevidence",
+                "field": "description",
+                "reason": "uncertain",
+                "evidenceWindowIndex": 3,
+                "evidenceEntryStart": 29,
+                "evidenceEntryEnd": 35
+              }
+            ],
+            "model": "jev-1.13.0",
+            "requestCount": 5,
+            "completedRequests": 5,
+            "evidenceEntries": 36,
+            "coveredEntries": 36,
+            "inputTokens": 33060,
+            "estimatedCostUsd": 0.00138852
+          }
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 116503,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "uncertain",
+            "status": "propose",
+            "candidateFailures": [
+              {
+                "candidateIndex": 2,
+                "dimension": "support",
+                "field": "description",
+                "reason": "uncertain"
+              }
+            ],
+            "model": "jev-1.13.0",
+            "requestCount": 5,
+            "completedRequests": 5,
+            "evidenceEntries": 36,
+            "coveredEntries": 36,
+            "inputTokens": 31345,
+            "estimatedCostUsd": 0.00131649
+          }
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 61242,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "supported",
+            "status": "decided",
+            "model": "jev-1.13.0",
+            "requestCount": 5,
+            "completedRequests": 5,
+            "evidenceEntries": 36,
+            "coveredEntries": 36,
+            "inputTokens": 24597,
+            "estimatedCostUsd": 0.0010330740000000001
+          }
+        }
+      ]
+    },
+    {
+      "project": "mitt",
+      "mode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "learningSeconds": 370.19,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": false,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "rejected",
+          "operations": 0,
+          "durationMs": 52154,
+          "structuralMemoryRepair": false,
+          "jev": {}
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "applied",
+          "operations": 3,
+          "durationMs": 8896,
+          "structuralMemoryRepair": true,
+          "jev": {}
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 79109,
+          "structuralMemoryRepair": false,
+          "jev": {}
+        }
+      ]
+    },
+    {
+      "project": "mitt",
+      "mode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "learningSeconds": 534.59,
+      "checks": {
+        "regressionChanged": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 226739,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "uncertain",
+            "status": "propose",
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "support",
+                "reason": "uncertain"
+              },
+              {
+                "candidateIndex": 1,
+                "dimension": "support",
+                "reason": "uncertain"
+              }
+            ],
+            "model": "jev-1.13.0",
+            "requestCount": 4,
+            "completedRequests": 4,
+            "evidenceEntries": 32,
+            "coveredEntries": 32,
+            "inputTokens": 43541,
+            "estimatedCostUsd": 0.001828722
+          }
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 119967,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "uncertain",
+            "status": "propose",
+            "candidateFailures": [
+              {
+                "candidateIndex": 1,
+                "dimension": "support",
+                "field": "description",
+                "reason": "uncertain"
+              },
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "field": "description",
+                "reason": "uncertain",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 11
+              }
+            ],
+            "model": "jev-1.13.0",
+            "requestCount": 4,
+            "completedRequests": 4,
+            "evidenceEntries": 32,
+            "coveredEntries": 32,
+            "inputTokens": 39865,
+            "estimatedCostUsd": 0.0016743300000000003
+          }
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 77339,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "supported",
+            "status": "decided",
+            "model": "jev-1.13.0",
+            "requestCount": 4,
+            "completedRequests": 4,
+            "evidenceEntries": 32,
+            "coveredEntries": 32,
+            "inputTokens": 26080,
+            "estimatedCostUsd": 0.00109536
+          }
+        }
+      ]
+    },
+    {
+      "project": "p-limit",
+      "mode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "learningSeconds": 239.13,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 2,
+          "durationMs": 37485,
+          "structuralMemoryRepair": false,
+          "jev": {}
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 51004,
+          "structuralMemoryRepair": false,
+          "jev": {}
+        }
+      ]
+    },
+    {
+      "project": "p-limit",
+      "mode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "learningSeconds": 277.8,
+      "checks": {
+        "regressionChanged": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 80345,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "uncertain",
+            "status": "propose",
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "support",
+                "reason": "uncertain"
+              }
+            ],
+            "model": "jev-1.13.0",
+            "requestCount": 3,
+            "completedRequests": 3,
+            "evidenceEntries": 17,
+            "coveredEntries": 17,
+            "inputTokens": 21491,
+            "estimatedCostUsd": 0.0009026220000000001
+          }
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "applied",
+          "operations": 2,
+          "durationMs": 48041,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "supported",
+            "status": "decided",
+            "model": "jev-1.13.0",
+            "requestCount": 3,
+            "completedRequests": 3,
+            "evidenceEntries": 17,
+            "coveredEntries": 17,
+            "inputTokens": 19817,
+            "estimatedCostUsd": 0.0008323140000000001
+          }
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 41080,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "uncertain",
+            "status": "propose",
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "scope",
+                "reason": "uncertain"
+              }
+            ],
+            "model": "jev-1.13.0",
+            "requestCount": 3,
+            "completedRequests": 3,
+            "evidenceEntries": 17,
+            "coveredEntries": 17,
+            "inputTokens": 19338,
+            "estimatedCostUsd": 0.0008121960000000001
+          }
+        },
+        {
+          "phase": "harness",
+          "attempt": 1,
+          "outcome": "rejected",
+          "operations": 0,
+          "durationMs": 47992,
+          "structuralMemoryRepair": false,
+          "jev": {}
+        }
+      ]
+    }
+  ],
+  "offPassed": 2,
+  "onPassed": 0,
+  "qualityUpliftProved": false,
+  "goalComplete": false,
+  "structuralMemoryRepairTriggers": 1,
+  "limits": [
+    "Click off setup DNS failure retained; no learning judgment from that arm.",
+    "No Jev-enabled first structural Memory repair trigger; the one recorded structural repair was in an off arm, so frozen-context effect is unverified.",
+    "Original outcome/thresholds retained, no favorable retries.",
+    "Known tariff estimates, not account billing."
+  ],
+  "jevEnabledStructuralMemoryRepairTriggers": 0
+}

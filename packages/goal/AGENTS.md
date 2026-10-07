@@ -6,7 +6,8 @@ repository-relative.
 ## Read by Task
 
 - The record, its normalization, and elapsed time: @packages/goal/src/record.ts.
-- On-disk layout and path safety: @packages/goal/src/paths.ts.
+- On-disk layout, path safety, and where the goals directory may not live:
+  @packages/goal/src/paths.ts.
 - The event vocabulary and history paging: @packages/goal/src/ledger.ts.
 - The sole mutation boundary: @packages/goal/src/store.ts.
 - Continuation authorization: @packages/goal/src/scheduler.ts.
@@ -21,6 +22,10 @@ repository-relative.
 - Below-editor passive status row with whole-minute time: @packages/goal/src/dashboard.ts.
 - The single `/goal` command: @packages/goal/src/commands.ts.
 - Settings layering: @packages/goal/src/settings.ts.
+- An unset model means the session's model. Both children take the configured model
+  when one is set, and the session's otherwise. A child given no model falls back to
+  the persisted CLI default, which is a different model and can be unavailable, so
+  never leave the model unresolved. Global defaults live in `~/.pi/agent/goal.json`.
 - Behavior contract: @packages/goal/features/goal.feature.
 
 ## What a goal is not
@@ -42,6 +47,16 @@ Findings reach disk only through `store.create`; a failed research attaches
 no new findings and never blocks creation. The latest successful run replaces earlier findings. A session boundary clears pending findings. The research model setting is separate from
 the check's, so each can be set alone.
 
+Research blocks until the child settles, so it owns one transcript row and no
+widget above the editor. That row reads `[goal] Researching...` while the child
+works, and the child's own latest activity is rendered on its own row beneath it,
+through pi-kit's markdown (`summaryFormat: "markdown"`; kit fits each band row to
+the content width, so the activity is never placed beside the subject). The result
+row reads `Research ready` with no character count in its subject.
+`get_goal(section="research")` is the reading path for the findings: pi's TUI does
+not repaint an extension tool row after its call completes, so a research call's
+result row is not on screen to read.
+
 ## Behavior Boundaries
 
 - The store is the only goal-record mutation boundary and the ledger module is
@@ -51,13 +66,25 @@ the check's, so each can be set alone.
 - Goals belong to a thread. Restore only that thread's persisted reference.
   Never adopt project goals, including through legacy auto-selection settings.
   A record's threadId cannot change through resume. Legacy records require a thread entry.
+- The goals directory is project state, so the project root decides its whole
+  path. Refuse to create one inside Pi's own home or agent directory: that is
+  what produces a second `.pi` inside Pi's layout, and a project at the home
+  directory would drop goals next to Pi's own sessions. Only new state is
+  refused, so a goal stored before the rule existed keeps running in place.
 - Register only `/goal`: bare input reads status; exact pause/resume/clear arguments manage the current goal.
   Other complete text supplies the objective and completion conditions. Never parse management verbs by prefix.
   Activation requires a matching accepted request at before_agent_start, never merely a void send call.
   A busy request with no goal being pursued is refused before intent is stored; one under way takes the
   text as a revision through the same writer as `update_goal`. Completion checks bind the scheduler generation.
-- Status, tools, and the widget read fresh disk state. Paused goals do not accrue usage or run automatic checks.
+- Status, tools, and the widget read fresh disk state. Reading follows the
+  record it would read: with nothing focused, `get_goal` is not declared, and a
+  budget-limited goal stays readable because it is stopped but still focused.
+  A withdrawn tool still answers when a call arrives one transition late.
+  Paused goals do not accrue usage or run automatic checks.
   Resume must set the current scheduling owner and bind an idle context before reporting an authorized continuation.
+- The status row reads `<verb> · <elapsed>` and never carries a `[goal]` tag. Every verb
+  already names the goal, so a tag would repeat it on every line below the editor. The
+  transcript rows keep the tag. The row never prints the goal id.
 - Authorization is a durable decision in the record, consumed exactly once by
   `claim`, which re-validates ownership, goal, generation, budget, allowance and
   deadline at delivery time. A timer, a settled turn, and a queued message are
@@ -80,6 +107,10 @@ the check's, so each can be set alone.
 - Only a verdict marker on the final line counts. No marker is a rejection.
 - Treat the executor's completion claim as untrusted input, and escape every
   interpolated payload so it cannot close its own delimiter.
+- The objective and `completion_summary` have no length cap, so the check bounds both
+  where it builds the prompt and states each truncation. A silently shortened objective
+  or claim would let the checker read a partial one as the whole. The record keeps the
+  full text, and `prompt.ts` bounds the injected note with a retrieve hint.
 - Archive moves the whole goal directory, history included. Any ledger append for
   an archived goal must target the archive, or the append recreates an empty open
   directory beside it and splits one goal's history in two.
@@ -103,10 +134,11 @@ the check's, so each can be set alone.
 
 Prefer pi-kit over local helpers: `setOwnedTools` for tool availability,
 `notifyPi` for notifications, `bindLifecycleRenderers` plus `emptyToolCall` for
-tool rows, `createLiveActivityWidget` / `renderPiPanel` / `computeScrollWindow` /
-`createPiThemeStyle` for the panel, `runPiWorker` with `minimal: true` and an
-empty tool allowlist for the check, `safeFileName` for path segments. Import
-`truncateToWidth` / `visibleWidth` / `wrapTextWithAnsi` / `Key` / `matchesKey` from
+tool rows, `runPiWorker` with `minimal: true` and an empty tool allowlist for
+the check, `safeFileName` for path segments, and `writeJsonAtomic` for single
+files. The status row renders through `ui.setWidget` directly, because pi-kit's
+live-activity row always prefixes a spinner. Import `truncateToWidth` /
+`visibleWidth` / `wrapTextWithAnsi` / `Key` / `matchesKey` from
 pi-tui directly.
 
 ## Verification

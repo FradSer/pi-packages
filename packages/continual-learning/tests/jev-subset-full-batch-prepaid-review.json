@@ -1,0 +1,14 @@
+{
+  "evidence": "fresh-read-only-prepaid-review",
+  "manifestSha256": "d63592c05043e4111758115f02daa02c356c8146755a0f93b0d083c7138591e3",
+  "sourceHashCount": 44,
+  "corpusUnchanged": true,
+  "originalFinding": "token completeness did not prove actual model completeness",
+  "findingResolved": true,
+  "dependencyPairLabelAmbiguityDisclosed": true,
+  "paidPrerequisitesRemain": false,
+  "offlinePreflightExternalRequests": 0,
+  "reviewer": "subset_batch_prepaid_review",
+  "requestsBudget": 48,
+  "productionWrites": 0
+}

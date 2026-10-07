@@ -1,0 +1,1023 @@
+{
+  "requests": 64,
+  "rows": [
+    {
+      "id": "recovered-verification-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1120,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1951,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.000081942
+          }
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 341,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2255,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.00009470999999999999
+          }
+        }
+      }
+    },
+    {
+      "id": "recovered-verification-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 355,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2348,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.000098616
+          }
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 336,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2044,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.000085848
+          }
+        }
+      }
+    },
+    {
+      "id": "replaced-toolchain-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 358,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1896,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.000079632
+          }
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 377,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2200,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.0000924
+          }
+        }
+      }
+    },
+    {
+      "id": "replaced-toolchain-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 368,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2286,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.000096012,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "support",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "support"
+          }
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 370,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1982,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.000083244,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "support",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "support"
+          }
+        }
+      }
+    },
+    {
+      "id": "replaced-report-preference-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 355,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1874,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.000078708
+          }
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 339,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2174,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.00009130800000000001
+          }
+        }
+      }
+    },
+    {
+      "id": "replaced-report-preference-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 339,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2259,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.00009487800000000001
+          }
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 356,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1959,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.000082278
+          }
+        }
+      }
+    },
+    {
+      "id": "different-target-failure-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 350,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1921,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.00008068200000000001
+          }
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 383,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2225,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.00009345000000000001
+          }
+        }
+      }
+    },
+    {
+      "id": "different-target-failure-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 323,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2344,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.000098448
+          }
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 335,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2040,
+            "outputTokens": 214,
+            "estimatedCostUsd": 0.00008568
+          }
+        }
+      }
+    },
+    {
+      "id": "later-revocation-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 349,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1886,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.000079212,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1
+          }
+        },
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 424,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2186,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.00009181200000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "later-revocation-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 387,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2216,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.000093072,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1
+          }
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 351,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1916,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.000080472,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "later-factual-correction-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 321,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1882,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.00007904400000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 2
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 2
+          }
+        },
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 339,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2186,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.00009181200000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 2
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "later-factual-correction-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 358,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2245,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.00009429,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 2
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 2
+          }
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 350,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1941,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.000081522,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 2
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "unverified-success-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 382,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1891,
+            "outputTokens": 216,
+            "estimatedCostUsd": 0.000079422,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "support",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "support"
+          }
+        },
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 369,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2195,
+            "outputTokens": 216,
+            "estimatedCostUsd": 0.00009219000000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "support",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "support"
+          }
+        }
+      }
+    },
+    {
+      "id": "unverified-success-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 333,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2279,
+            "outputTokens": 212,
+            "estimatedCostUsd": 0.00009571800000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "support",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "support"
+          }
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 409,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1975,
+            "outputTokens": 212,
+            "estimatedCostUsd": 0.00008295000000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "support",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "support"
+          }
+        }
+      }
+    },
+    {
+      "id": "later-port-change-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 379,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1896,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.000079632,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1
+          }
+        },
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 365,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2196,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.00009223200000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "later-port-change-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 360,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 2259,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.00009487800000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1
+          }
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 325,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "inputTokens": 1959,
+            "outputTokens": 218,
+            "estimatedCostUsd": 0.000082278,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1
+          }
+        }
+      }
+    }
+  ]
+}

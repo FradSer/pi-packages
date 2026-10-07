@@ -1,0 +1,68 @@
+{
+  "scope": "Parent final verification now belongs to writer rollback transaction; optional Jev partial gate remains off for ordinary construction",
+  "sourceHashes": {
+    "../extensions/consolidation-run.ts": "1f121be40c5d93dc7679325e18a8c71366e46827dc83ca8970356b83f3912b6e",
+    "../extensions/inject-memory.ts": "6ccbb5172543894e1247c1107c03d3fb9a5e758b56ecf3d4b0829f7b4f57de6b",
+    "learning-policy-harness.ts": "da08683a29537b5134c55bca6ef85531501ab2359d9e08ad3fd768a91890cd9d",
+    "test_independent_memory_parent_pipeline.py": "f1c8b35ddb8bea43cc8ed48c4988f77899b247ce2a943abd55c90c5ce469240d",
+    "test_memory_final_verification_transaction.py": "af23b05554499ded68df17821260844e8edc99553a95edc619e0692128c80a38",
+    "test_inject_memory_extension.py": "e637214be0f009f1a82e6ea0ece548771de3e77f1c36b33d901c675f19d9b34d",
+    "../features/memory-final-verification-transaction.feature": "2d90d2db24ae1583eee395370e0e954ef86975ddd4bec68032d4d4c86a7711ab"
+  },
+  "red": {
+    "actualPythonFinalValidatorFailedButOperationsWereTwo": true,
+    "writerWithoutVerifyCallbackRegressionFailed": true
+  },
+  "focused": {
+    "passed": 59,
+    "seconds": 20.4,
+    "coverage": "actual temporary file/index writes then reject/cancel, actual Python parent receipt rejection, prior inject-memory tests"
+  },
+  "packageSuite": {
+    "status": "passed",
+    "passed": 997,
+    "seconds": 382.92,
+    "command": "uv run --no-project --with pytest python -m pytest packages/continual-learning/tests -q"
+  },
+  "rootTypecheck": "passed",
+  "workspacePackedManifestsPassed": 19,
+  "targetPackDryRun": "passed",
+  "diffCheck": "passed",
+  "installation": {
+    "exitCode": 1,
+    "unrelatedMissingPackages": 11,
+    "continualLearningMissing": false,
+    "globalSettingsChanged": false
+  },
+  "freshReview": {
+    "agent": "memory_final_verification_review",
+    "blockingFindings": 0,
+    "nativeFirstRunReviewed": true,
+    "nativeFirstCompactInspectLimitation": "No recorded created status or collection timestamp; runtime execution order established by parent tool output only; original retained",
+    "nativeCreatedStateRerunReviewed": true,
+    "nativeBeforeStartProvenance": "Identical probe/native/manifest rerun prospectively saved State.Status=created, Running=false, Pid=0, zero StartedAt and collection time before launch; reviewer checked all 8 artifact hashes and absent container"
+  },
+  "nativeEvidence": "memory-final-verification-native-results.json",
+  "realMainInference": false,
+  "realJevInference": false,
+  "newExternalInferenceCalls": 0,
+  "providerModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free",
+    "globalSettingsChanged": false
+  },
+  "realMainLastObservedStatus": {
+    "source": "jev-main-output-budget-real-results.json",
+    "http": 429,
+    "code": "model_cooldown",
+    "resetSeconds": 23750,
+    "reprobedThisPhase": false
+  },
+  "productionMemoryWrites": 0,
+  "goalComplete": false,
+  "remaining": [
+    "Prospectively frozen full native parent generation and write/recall evidence",
+    "Actual cli-proxy / opencode/space-bunny-free inference once known cooldown expires",
+    "Net learning quality comparison with fixed new cases, retaining negative outcomes, false writes/holds, constraints, latency and cost; fixed fixtures cannot prove effect"
+  ]
+}

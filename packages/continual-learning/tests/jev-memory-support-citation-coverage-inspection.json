@@ -1,0 +1,22 @@
+{
+  "evidence": "offline-public-synthetic-citation-coverage-inspection",
+  "corpus": "fixtures/jev-temporal-counter-development-corpus.json",
+  "corpusSha256": "cef7ed206ff1f1a88a80c6e31ab3ccbc7ceb9a2cc4417b37ce9901379ba9b247",
+  "sampleId": "replaced-toolchain-zh",
+  "citedEntryIndexes": [
+    2
+  ],
+  "verifiedObservationEntryIndexes": [
+    1
+  ],
+  "verifiedObservationNotCited": [
+    1
+  ],
+  "controlledTextualDistinction": "Candidate describes current configuration; cited user text describes future-task use; earlier snapshot tool entry describes completed migration. These are different original entries and tense/scope expressions.",
+  "modelCauseEstablished": false,
+  "originalGoldChanged": false,
+  "originalCandidateChanged": false,
+  "nextAction": "Prospectively compare complete citations or source-faithful wording under the unchanged original judge, with full parent/privacy/quote validation. Do not fabricate sources or relabel the rejected study.",
+  "externalRequests": 0,
+  "productionWrites": 0
+}

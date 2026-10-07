@@ -1,0 +1,90 @@
+{
+  "evidence": "independent-source-grounded-r17-p-limit-review-not-semantic-gold",
+  "reportSha256": "72189935a846d8de55470e4d36d9bf98bf2b3a41dfddf72c8e24918919ec7935",
+  "initialMemory0": {
+    "grounding": "durable command and observed counts supported",
+    "citationEntries": [
+      0,
+      7,
+      11
+    ],
+    "additionalObservationEntries": [
+      5
+    ],
+    "explicitContradictionFound": false
+  },
+  "repairedMemory0": {
+    "grounding": "more precise supported facts",
+    "citationEntries": [
+      0,
+      7,
+      11
+    ],
+    "independentOfCandidate2BySourceReview": true
+  },
+  "memory1": {
+    "grounding": "durable private preference and isolation supported",
+    "citationEntries": [
+      0
+    ],
+    "classification": "private",
+    "independentOfCandidate2BySourceReview": true,
+    "applied": false
+  },
+  "initialMemory2": {
+    "grounding": "factual core supported; generalization broader than original citations",
+    "citationEntries": [
+      2,
+      13,
+      19
+    ],
+    "additionalObservationEntries": [
+      14,
+      15
+    ],
+    "durability": "pending"
+  },
+  "repairedMemory2": {
+    "grounding": "project script and observed error/success facts supported",
+    "citationEntries": [
+      2,
+      13,
+      19
+    ],
+    "durability": "pending; stable configuration mixed with single-fix history"
+  },
+  "offMemory0": {
+    "grounding": "validation command, script and observed counts supported",
+    "citationEntries": [
+      0,
+      2,
+      7,
+      11
+    ],
+    "additionalObservationEntries": [
+      9,
+      13,
+      15
+    ]
+  },
+  "offMemory1": {
+    "classification": "private",
+    "citationEntries": [
+      0
+    ],
+    "privateOnlyHistoryVerified": true
+  },
+  "harnessOn": {
+    "applied": true,
+    "nativeHookVerified": false
+  },
+  "externalCallsByReviewer": 0,
+  "productionWritesByReviewer": 0,
+  "limits": [
+    "Independent model source review is not human semantic gold.",
+    "Source independence is not code-verified same-batch independence or write authority.",
+    "Off arm generated no candidate 2; no acceptance-quality counterfactual.",
+    "No proof of overall improvement."
+  ],
+  "goalComplete": false
+}

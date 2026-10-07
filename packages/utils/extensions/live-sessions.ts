@@ -127,8 +127,11 @@ export default function registerLiveSessions(pi: ExtensionAPI): void {
 		getArgumentCompletions: async (prefix: string): Promise<AutocompleteItem[] | null> => {
 			if (/\s/.test(prefix)) return null;
 			try {
+				const typed = prefix.toLowerCase();
 				const sessions = await listLiveSessions();
-				return sessions.map((session) => ({ value: session.sessionId, label: session.sessionId }));
+				return sessions
+					.filter((session) => session.sessionId.toLowerCase().startsWith(typed))
+					.map((session) => ({ value: session.sessionId, label: session.sessionId }));
 			} catch {
 				return null;
 			}

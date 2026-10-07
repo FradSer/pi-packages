@@ -1,0 +1,858 @@
+{
+  "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+  "image": "continual-learning-projects:909012fddcc15da5",
+  "imageId": "sha256:5817cc40e99069006a3cea7053b6fa12fbb7ae55e896282969f803996411e4cc",
+  "providerRequests": 131,
+  "providerErrors": 0,
+  "jevRequests": 14,
+  "jevResponsesWithUsage": 14,
+  "jevUsage": [
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 8702,
+      "output_tokens": 129
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 3828,
+      "output_tokens": 129
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 1623,
+      "output_tokens": 186
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 9252,
+      "output_tokens": 129
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 2349,
+      "output_tokens": 129
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 1691,
+      "output_tokens": 125
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 8392,
+      "output_tokens": 87
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 9780,
+      "output_tokens": 87
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 7968,
+      "output_tokens": 87
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 9356,
+      "output_tokens": 87
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 1267,
+      "output_tokens": 125
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 1139,
+      "output_tokens": 95
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 7722,
+      "output_tokens": 45
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 9110,
+      "output_tokens": 45
+    }
+  ],
+  "projects": [
+    {
+      "project": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+      "jevMode": "off",
+      "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+      "model": {
+        "provider": "cli-proxy",
+        "model": "bailian/qwen3.8-flash"
+      },
+      "status": "failed",
+      "stage": "setup",
+      "checks": {},
+      "realProvider": true,
+      "harnessInvocationFixture": "git push wrapper writes a local marker if execution reaches it",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "error": "{'stage': 'git-fetch', 'command': ['git', 'fetch', '--depth', '1', 'origin', '06b2a678741131fd577ce170e23e5ca0aeba0309'], 'exitCode': 128, 'durationSeconds': 0.02, 'stdout': '', 'stderr': \"fatal: unable to access 'https://github.com/pallets/click.git/': Could not resolve host: github.com\\n\"}",
+      "containerExitCode": 1,
+      "containerId": "f7b9de0d97729c88122458447c3f020bff95760cc9f1d286d16f73229f2fdbef",
+      "image": "continual-learning-projects:909012fddcc15da5"
+    },
+    {
+      "project": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+      "jevMode": "on",
+      "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+      "model": {
+        "provider": "cli-proxy",
+        "model": "bailian/qwen3.8-flash"
+      },
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "realProvider": true,
+      "harnessInvocationFixture": "git push wrapper writes a local marker if execution reaches it",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "baselineCheck": {
+        "command": [
+          "uv",
+          "run",
+          "--no-sync",
+          "pytest",
+          "-q"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 4.37,
+        "stdout": "........................................................................ [  3%]\n........................................................................ [  6%]\n........................................................................ [  9%]\n........................................................................ [ 12%]\n............................................x........................... [ 15%]\n........................................................................ [ 19%]\n........................................................................ [ 22%]\n........................................................................ [ 25%]\n........................................................................ [ 28%]\n........................................................................ [ 31%]\n........................................................................ [ 34%]\n........................................................................ [ 38%]\n........................................................................ [ 41%]\n........................................................................ [ 44%]\n........................................................................ [ 47%]\n........................................................................ [ 50%]\n........................................................................ [ 54%]\n........................................................................ [ 57%]\n........................................................................ [ 60%]\n........................................................................ [ 63%]\n........................................................................ [ 66%]\n........................................................................ [ 69%]\n........................................................................ [ 73%]\n.....................sssssssssssssssssssss..................ss.......... [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n................................................................s....... [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 92%]\n........................................................................ [ 95%]\n........................................................................ [ 98%]\n..................................                                       [100%]\n2241 passed, 24 skipped, 31000 deselected, 1 xfailed in 3.37s\n",
+        "stderr": ""
+      },
+      "learningSeconds": 219.63,
+      "independentCheck": {
+        "command": [
+          "uv",
+          "run",
+          "--no-sync",
+          "pytest",
+          "-q"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 3.35,
+        "stdout": "........................................................................ [  3%]\n........................................................................ [  6%]\n........................................................................ [  9%]\n........................................................................ [ 12%]\n............................................x........................... [ 15%]\n........................................................................ [ 19%]\n........................................................................ [ 22%]\n........................................................................ [ 25%]\n........................................................................ [ 28%]\n........................................................................ [ 31%]\n........................................................................ [ 34%]\n........................................................................ [ 38%]\n........................................................................ [ 41%]\n........................................................................ [ 44%]\n........................................................................ [ 47%]\n........................................................................ [ 50%]\n........................................................................ [ 53%]\n........................................................................ [ 57%]\n........................................................................ [ 60%]\n........................................................................ [ 63%]\n........................................................................ [ 66%]\n........................................................................ [ 69%]\n........................................................................ [ 73%]\n.....................sssssssssssssssssssss..................ss.......... [ 76%]\n........................................................................ [ 79%]\n........................................................................ [ 82%]\n.................................................................s...... [ 85%]\n........................................................................ [ 88%]\n........................................................................ [ 92%]\n........................................................................ [ 95%]\n........................................................................ [ 98%]\n...................................                                      [100%]\n2242 passed, 24 skipped, 31000 deselected, 1 xfailed in 2.55s\n",
+        "stderr": ""
+      },
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "durable-user-evidence",
+              "constraint-evidence",
+              "no-agents-evidence",
+              "Jev semantic review"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 6,
+              "operations": 0,
+              "diagnostic": "empty Memory index; parent-routed explicit evidence",
+              "selectedMemory": []
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 41648,
+              "operations": 3,
+              "usage": {
+                "input": 23604,
+                "output": 2277,
+                "cacheRead": 45056,
+                "cacheWrite": 0,
+                "totalTokens": 70937,
+                "cost": 0.0053316859999999995
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "decided",
+                "reason": "supported",
+                "durationMs": 3542,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 27,
+                "coveredEntries": 27,
+                "evidenceWindows": 4,
+                "completedWindows": 4,
+                "requestCount": 5,
+                "completedRequests": 5,
+                "model": "jev-1.13.0",
+                "inputTokens": 25754,
+                "outputTokens": 702,
+                "estimatedCostUsd": 0.0010816679999999998
+              },
+              "diagnostic": "Jev decided: supported"
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "rejected",
+              "durationMs": 57631,
+              "operations": 0,
+              "usage": {
+                "input": 2358,
+                "output": 904,
+                "cacheRead": 43008,
+                "cacheWrite": 0,
+                "totalTokens": 46270,
+                "cost": 0.001466708
+              }
+            },
+            {
+              "phase": "harness",
+              "attempt": 1,
+              "outcome": "rejected",
+              "durationMs": 18010,
+              "operations": 0,
+              "usage": {
+                "input": 5153,
+                "output": 1074,
+                "cacheRead": 2048,
+                "cacheWrite": 0,
+                "totalTokens": 8275,
+                "cost": 0.001310498
+              }
+            }
+          ],
+          "totals": {
+            "input": 31115,
+            "output": 4255,
+            "cacheRead": 90112,
+            "cacheWrite": 0,
+            "totalTokens": 125482,
+            "cost": 0.008108892
+          },
+          "costAvailable": true,
+          "operations": 3,
+          "retries": 1
+        }
+      ],
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 3542,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 27,
+          "coveredEntries": 27,
+          "evidenceWindows": 4,
+          "completedWindows": 4,
+          "requestCount": 5,
+          "completedRequests": 5,
+          "model": "jev-1.13.0",
+          "inputTokens": 25754,
+          "outputTokens": 702,
+          "estimatedCostUsd": 0.0010816679999999998
+        }
+      ],
+      "error": "No successful real Jev harness judgment",
+      "containerExitCode": 1,
+      "containerId": "9543044c11fd181a8ea429aefc3bd967e75a531b9a7102e55dfa70943cf8f95d",
+      "image": "continual-learning-projects:909012fddcc15da5"
+    },
+    {
+      "project": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+      "jevMode": "off",
+      "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+      "model": {
+        "provider": "cli-proxy",
+        "model": "bailian/qwen3.8-flash"
+      },
+      "status": "passed",
+      "stage": "complete",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "realProvider": true,
+      "harnessInvocationFixture": "git push wrapper writes a local marker if execution reaches it",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "baselineCheck": {
+        "command": [
+          "pnpm",
+          "exec",
+          "ava",
+          "test.js"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 3.81,
+        "stdout": "\n  \u2714 throws on invalid concurrency argument\n  \u2714 clearQueue\n  \u2714 accepts additional arguments\n  \u2714 map rejects with the iterable error when it throws before the first item\n  \u2714 continues after sync throw\n  \u2714 runs all tasks asynchronously\n  \u2714 map resolves to an empty array for an empty iterable\n  \u2714 non-promise returning function\n  \u2714 map accepts an iterable (set)\n  \u2714 map accepts an iterable (array iterator)\n  \u2714 map accepts array-like inputs\n  \u2714 map passes sequential indexes for a generator\n  \u2714 map rejects with the mapper error\n  \u2714 map\n  \u2714 propagates async execution context properly\n  \u2714 limitFunction exposes clearQueue\n  \u2714 shared context with a limited provider helper\n  \u2714 map passes index and preserves order with concurrency\n  \u2714 map works when detached from the limit\n  \u2714 map does not leave unhandled rejections when the iterable throws\n  \u2714 clearQueue rejects pending promises when enabled (106ms)\n  \u2714 map rejects immediately with the iterable error and still runs already scheduled tasks (110ms)\n  \u2714 accepts options object (109ms)\n  \u2714 does not ignore errors (118ms)\n  \u2714 change concurrency to bigger value (161ms)\n  \u2714 change concurrency to smaller value (219ms)\n  \u2714 concurrency: 1 (618ms)\n  \u2714 limitFunction() (2.3s)\n  \u2714 concurrency: 4 (2.4s)\n  \u2714 activeCount and pendingCount properties (3s)\n  \u2500\n\n  30 tests passed\n",
+        "stderr": ""
+      },
+      "learningSeconds": 699.92,
+      "independentCheck": {
+        "command": [
+          "pnpm",
+          "exec",
+          "ava",
+          "test.js"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 3.87,
+        "stdout": "\n  \u2714 throws on invalid concurrency argument\n  \u2714 clearQueue\n  \u2714 accepts additional arguments\n  \u2714 map rejects with the iterable error when it throws before the first item\n  \u2714 continues after sync throw\n  \u2714 runs all tasks asynchronously\n  \u2714 map resolves to an empty array for an empty iterable\n  \u2714 non-promise returning function\n  \u2714 map accepts an iterable (set)\n  \u2714 map accepts an iterable (array iterator)\n  \u2714 map accepts array-like inputs\n  \u2714 map passes sequential indexes for a generator\n  \u2714 map rejects with the mapper error\n  \u2714 map\n  \u2714 propagates async execution context properly\n  \u2714 raising concurrency to Infinity drains the entire queue in one go\n  \u2714 limitFunction exposes clearQueue\n  \u2714 shared context with a limited provider helper\n  \u2714 raised concurrency is honored by queued work and every submitted promise settles\n  \u2714 map passes index and preserves order with concurrency\n  \u2714 map works when detached from the limit\n  \u2714 map does not leave unhandled rejections when the iterable throws\n  \u2714 clearQueue rejects pending promises when enabled (107ms)\n  \u2714 map rejects immediately with the iterable error and still runs already scheduled tasks (107ms)\n  \u2714 accepts options object (107ms)\n  \u2714 does not ignore errors (117ms)\n  \u2714 change concurrency to bigger value (158ms)\n  \u2714 change concurrency to smaller value (212ms)\n  \u2714 concurrency: 1 (610ms)\n  \u2714 concurrency: 4 (2.3s)\n  \u2714 limitFunction() (2.4s)\n  \u2714 activeCount and pendingCount properties (3s)\n  \u2500\n\n  32 tests passed\n",
+        "stderr": ""
+      },
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "durable-user-evidence",
+              "constraint-evidence",
+              "no-agents-evidence"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 8,
+              "operations": 0,
+              "diagnostic": "empty Memory index; parent-routed explicit evidence",
+              "selectedMemory": []
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 28330,
+              "operations": 2,
+              "usage": {
+                "input": 33445,
+                "output": 1682,
+                "cacheRead": 51968,
+                "cacheWrite": 0,
+                "totalTokens": 87095,
+                "cost": 0.006638778
+              }
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 96052,
+              "operations": 1,
+              "usage": {
+                "input": 5922,
+                "output": 4447,
+                "cacheRead": 52224,
+                "cacheWrite": 0,
+                "totalTokens": 62593,
+                "cost": 0.0038139739999999995
+              }
+            }
+          ],
+          "totals": {
+            "input": 39367,
+            "output": 6129,
+            "cacheRead": 104192,
+            "cacheWrite": 0,
+            "totalTokens": 149688,
+            "cost": 0.010452752
+          },
+          "costAvailable": true,
+          "operations": 3,
+          "retries": 0
+        }
+      ],
+      "jevJudgments": [],
+      "recallComparison": {
+        "baselineSeconds": 27.72,
+        "freshSeconds": 12.98,
+        "baselineToolCalls": 8,
+        "freshToolCalls": 3,
+        "baselineScope": "Separate empty agent configuration, same project and user filesystem; manual Memory discovery is allowed"
+      },
+      "enforcementProbe": {
+        "attemptObserved": true,
+        "sideEffectAbsent": true
+      },
+      "containerExitCode": 0,
+      "containerId": "3d3a28363f2d3caac82dc369fb8a9c2b9e228e0a8c64498825d845c8a3f22c22",
+      "image": "continual-learning-projects:909012fddcc15da5"
+    },
+    {
+      "project": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+      "jevMode": "on",
+      "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+      "model": {
+        "provider": "cli-proxy",
+        "model": "bailian/qwen3.8-flash"
+      },
+      "status": "failed",
+      "stage": "setup",
+      "checks": {},
+      "realProvider": true,
+      "harnessInvocationFixture": "git push wrapper writes a local marker if execution reaches it",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "error": "{'stage': 'git-fetch', 'command': ['git', 'fetch', '--depth', '1', 'origin', 'a8a6fbec4e0e866d6d779b10889bb4f5567e70eb'], 'exitCode': 128, 'durationSeconds': 0.02, 'stdout': '', 'stderr': \"fatal: unable to access 'https://github.com/sindresorhus/p-limit.git/': Could not resolve host: github.com\\n\"}",
+      "containerExitCode": 1,
+      "containerId": "90a7515e5cf6d4ded8d46c175ba21383acaec129be39fde07a7803ada6345e2e",
+      "image": "continual-learning-projects:909012fddcc15da5"
+    },
+    {
+      "project": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+      "jevMode": "off",
+      "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+      "model": {
+        "provider": "cli-proxy",
+        "model": "bailian/qwen3.8-flash"
+      },
+      "status": "passed",
+      "stage": "complete",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "realProvider": true,
+      "harnessInvocationFixture": "git push wrapper writes a local marker if execution reaches it",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "environmentAdjustments": [
+        "npm-compatible hoisting",
+        "@types/node pinned to 18.19.0 for TypeScript 4.9",
+        "ts-node CommonJS loader replaces obsolete esm; same original typecheck/lint/mocha/test-types stages"
+      ],
+      "baselineCheck": {
+        "command": [
+          "pnpm",
+          "test"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 10.56,
+        "stdout": "\n\n  mitt\n    \u2713 should default export be a function\n    \u2713 should accept an optional event handler map\n\n  mitt#\n    properties\n      \u2713 should expose the event handler map\n    on()\n      \u2713 should be a function\n      \u2713 should register handler for new type\n      \u2713 should register handlers for any type strings\n      \u2713 should append handler for existing type\n      \u2713 should NOT normalize case\n      \u2713 can take symbols for event types\n      \u2713 should add duplicate listeners\n    off()\n      \u2713 should be a function\n      \u2713 should remove handler for type\n      \u2713 should NOT normalize case\n      \u2713 should remove only the first matching listener\n      \u2713 off(\"type\") should remove all handlers of the given type\n    emit()\n      \u2713 should be a function\n      \u2713 should invoke handler for type\n      \u2713 should NOT ignore case\n      \u2713 should invoke * handlers\n\n\n  19 passing (16ms)\n\n",
+        "stderr": "$ npm-run-all --silent typecheck lint mocha test-types\nWarning: React version not specified in eslint-plugin-react settings. See https://github.com/jsx-eslint/eslint-plugin-react#configuration .\n"
+      },
+      "learningSeconds": 325.9,
+      "independentCheck": {
+        "command": [
+          "pnpm",
+          "test"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 9.84,
+        "stdout": "\n\n  mitt\n    \u2713 should default export be a function\n    \u2713 should accept an optional event handler map\n\n  mitt#\n    properties\n      \u2713 should expose the event handler map\n    on()\n      \u2713 should be a function\n      \u2713 should register handler for new type\n      \u2713 should register handlers for any type strings\n      \u2713 should append handler for existing type\n      \u2713 should NOT normalize case\n      \u2713 can take symbols for event types\n      \u2713 should add duplicate listeners\n    off()\n      \u2713 should be a function\n      \u2713 should remove handler for type\n      \u2713 should NOT normalize case\n      \u2713 should remove only the first matching listener\n      \u2713 off(\"type\") should remove all handlers of the given type\n    emit()\n      \u2713 should be a function\n      \u2713 should invoke handler for type\n      \u2713 should NOT ignore case\n      \u2713 should invoke * handlers\n      \u2713 should not skip remaining handlers when a handler removes itself mid-emit\n\n\n  20 passing (11ms)\n\n",
+        "stderr": "$ npm-run-all --silent typecheck lint mocha test-types\nWarning: React version not specified in eslint-plugin-react settings. See https://github.com/jsx-eslint/eslint-plugin-react#configuration .\n"
+      },
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "durable-user-evidence",
+              "constraint-evidence",
+              "no-agents-evidence"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 6,
+              "operations": 0,
+              "diagnostic": "empty Memory index; parent-routed explicit evidence",
+              "selectedMemory": []
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 37023,
+              "operations": 3,
+              "usage": {
+                "input": 20380,
+                "output": 2442,
+                "cacheRead": 3584,
+                "cacheWrite": 0,
+                "totalTokens": 26406,
+                "cost": 0.004262083999999999
+              }
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 64565,
+              "operations": 1,
+              "usage": {
+                "input": 32646,
+                "output": 3517,
+                "cacheRead": 6144,
+                "cacheWrite": 0,
+                "totalTokens": 42307,
+                "cost": 0.006648194
+              }
+            }
+          ],
+          "totals": {
+            "input": 53026,
+            "output": 5959,
+            "cacheRead": 9728,
+            "cacheWrite": 0,
+            "totalTokens": 68713,
+            "cost": 0.010910277999999999
+          },
+          "costAvailable": true,
+          "operations": 4,
+          "retries": 0
+        }
+      ],
+      "jevJudgments": [],
+      "recallComparison": {
+        "baselineSeconds": 37.49,
+        "freshSeconds": 38.98,
+        "baselineToolCalls": 9,
+        "freshToolCalls": 10,
+        "baselineScope": "Separate empty agent configuration, same project and user filesystem; manual Memory discovery is allowed"
+      },
+      "enforcementProbe": {
+        "attemptObserved": true,
+        "sideEffectAbsent": true
+      },
+      "containerExitCode": 0,
+      "containerId": "7534d5259cb87e2774ed5c55eaab676905a4328b85a35f44ff5065e496f71194",
+      "image": "continual-learning-projects:909012fddcc15da5"
+    },
+    {
+      "project": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+      "jevMode": "on",
+      "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+      "model": {
+        "provider": "cli-proxy",
+        "model": "bailian/qwen3.8-flash"
+      },
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "realProvider": true,
+      "harnessInvocationFixture": "git push wrapper writes a local marker if execution reaches it",
+      "runtime": {
+        "pi": "1.0.2",
+        "node": "v22.23.2",
+        "python": "Python 3.11.2",
+        "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+      },
+      "environmentAdjustments": [
+        "npm-compatible hoisting",
+        "@types/node pinned to 18.19.0 for TypeScript 4.9",
+        "ts-node CommonJS loader replaces obsolete esm; same original typecheck/lint/mocha/test-types stages"
+      ],
+      "baselineCheck": {
+        "command": [
+          "pnpm",
+          "test"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 8.54,
+        "stdout": "\n\n  mitt\n    \u2713 should default export be a function\n    \u2713 should accept an optional event handler map\n\n  mitt#\n    properties\n      \u2713 should expose the event handler map\n    on()\n      \u2713 should be a function\n      \u2713 should register handler for new type\n      \u2713 should register handlers for any type strings\n      \u2713 should append handler for existing type\n      \u2713 should NOT normalize case\n      \u2713 can take symbols for event types\n      \u2713 should add duplicate listeners\n    off()\n      \u2713 should be a function\n      \u2713 should remove handler for type\n      \u2713 should NOT normalize case\n      \u2713 should remove only the first matching listener\n      \u2713 off(\"type\") should remove all handlers of the given type\n    emit()\n      \u2713 should be a function\n      \u2713 should invoke handler for type\n      \u2713 should NOT ignore case\n      \u2713 should invoke * handlers\n\n\n  19 passing (11ms)\n\n",
+        "stderr": "$ npm-run-all --silent typecheck lint mocha test-types\nWarning: React version not specified in eslint-plugin-react settings. See https://github.com/jsx-eslint/eslint-plugin-react#configuration .\n"
+      },
+      "learningSeconds": 259.52,
+      "independentCheck": {
+        "command": [
+          "pnpm",
+          "test"
+        ],
+        "exitCode": 0,
+        "durationSeconds": 8.27,
+        "stdout": "\n\n  mitt\n    \u2713 should default export be a function\n    \u2713 should accept an optional event handler map\n\n  mitt#\n    properties\n      \u2713 should expose the event handler map\n    on()\n      \u2713 should be a function\n      \u2713 should register handler for new type\n      \u2713 should register handlers for any type strings\n      \u2713 should append handler for existing type\n      \u2713 should NOT normalize case\n      \u2713 can take symbols for event types\n      \u2713 should add duplicate listeners\n    off()\n      \u2713 should be a function\n      \u2713 should remove handler for type\n      \u2713 should NOT normalize case\n      \u2713 should remove only the first matching listener\n      \u2713 off(\"type\") should remove all handlers of the given type\n    emit()\n      \u2713 should be a function\n      \u2713 should invoke handler for type\n      \u2713 should NOT ignore case\n      \u2713 should invoke * handlers\n      \u2713 should NOT skip remaining handlers when off() removes one mid-emit\n\n\n  20 passing (13ms)\n\n",
+        "stderr": "$ npm-run-all --silent typecheck lint mocha test-types\nWarning: React version not specified in eslint-plugin-react settings. See https://github.com/jsx-eslint/eslint-plugin-react#configuration .\n"
+      },
+      "receipts": [
+        {
+          "kind": "learning-pipeline-receipt",
+          "version": 1,
+          "mode": "automatic",
+          "screen": {
+            "memory": true,
+            "harness": true,
+            "agents": false,
+            "reasons": [
+              "durable-user-evidence",
+              "constraint-evidence",
+              "no-agents-evidence",
+              "Jev semantic review"
+            ]
+          },
+          "attempts": [
+            {
+              "phase": "selector",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 7,
+              "operations": 0,
+              "diagnostic": "empty Memory index; parent-routed explicit evidence",
+              "selectedMemory": []
+            },
+            {
+              "phase": "memory",
+              "attempt": 0,
+              "outcome": "proposed",
+              "durationMs": 64607,
+              "operations": 0,
+              "usage": {
+                "input": 20770,
+                "output": 2054,
+                "cacheRead": 3072,
+                "cacheWrite": 0,
+                "totalTokens": 25896,
+                "cost": 0.0041300320000000005
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "propose",
+                "reason": "uncertain",
+                "durationMs": 2878,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 26,
+                "coveredEntries": 26,
+                "evidenceWindows": 2,
+                "completedWindows": 2,
+                "requestCount": 3,
+                "completedRequests": 3,
+                "model": "jev-1.13.0",
+                "inputTokens": 19863,
+                "outputTokens": 299,
+                "estimatedCostUsd": 0.0008342460000000001,
+                "candidateIndex": 0,
+                "dimension": "counterevidence"
+              },
+              "diagnostic": "Jev propose: uncertain"
+            },
+            {
+              "phase": "memory",
+              "attempt": 1,
+              "outcome": "proposed",
+              "durationMs": 27814,
+              "operations": 0,
+              "usage": {
+                "input": 16630,
+                "output": 1694,
+                "cacheRead": 0,
+                "cacheWrite": 0,
+                "totalTokens": 18324,
+                "cost": 0.00329068
+              },
+              "jev": {
+                "stage": "memory",
+                "status": "propose",
+                "reason": "uncertain",
+                "durationMs": 2476,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 26,
+                "coveredEntries": 26,
+                "evidenceWindows": 2,
+                "completedWindows": 2,
+                "requestCount": 3,
+                "completedRequests": 3,
+                "model": "jev-1.13.0",
+                "inputTokens": 18591,
+                "outputTokens": 299,
+                "estimatedCostUsd": 0.000780822,
+                "candidateIndex": 0,
+                "dimension": "counterevidence"
+              },
+              "diagnostic": "Jev propose: uncertain"
+            },
+            {
+              "phase": "harness",
+              "attempt": 0,
+              "outcome": "applied",
+              "durationMs": 37939,
+              "operations": 1,
+              "usage": {
+                "input": 668,
+                "output": 2399,
+                "cacheRead": 37888,
+                "cacheWrite": 0,
+                "totalTokens": 40955,
+                "cost": 0.0018339379999999998
+              },
+              "jev": {
+                "stage": "harness",
+                "status": "decided",
+                "reason": "supported",
+                "durationMs": 1382,
+                "strategy": "cited-support-full-review",
+                "evidenceEntries": 26,
+                "coveredEntries": 26,
+                "verbatimExplanations": 1,
+                "evidenceWindows": 2,
+                "completedWindows": 2,
+                "requestCount": 3,
+                "completedRequests": 3,
+                "model": "jev-1.13.0",
+                "inputTokens": 17971,
+                "outputTokens": 185,
+                "estimatedCostUsd": 0.0007547820000000001
+              },
+              "diagnostic": "Jev decided: supported"
+            }
+          ],
+          "totals": {
+            "input": 38068,
+            "output": 6147,
+            "cacheRead": 40960,
+            "cacheWrite": 0,
+            "totalTokens": 85175,
+            "cost": 0.00925465
+          },
+          "costAvailable": true,
+          "operations": 1,
+          "retries": 1
+        }
+      ],
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2878,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 26,
+          "coveredEntries": 26,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 19863,
+          "outputTokens": 299,
+          "estimatedCostUsd": 0.0008342460000000001,
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        },
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2476,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 26,
+          "coveredEntries": 26,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 18591,
+          "outputTokens": 299,
+          "estimatedCostUsd": 0.000780822,
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        },
+        {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 1382,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 26,
+          "coveredEntries": 26,
+          "verbatimExplanations": 1,
+          "evidenceWindows": 2,
+          "completedWindows": 2,
+          "requestCount": 3,
+          "completedRequests": 3,
+          "model": "jev-1.13.0",
+          "inputTokens": 17971,
+          "outputTokens": 185,
+          "estimatedCostUsd": 0.0007547820000000001
+        }
+      ],
+      "error": "No successful real Jev memory judgment",
+      "containerExitCode": 1,
+      "containerId": "3a2f7b51e5cf16c4240f0ddf234468c8a0c47d2218ba5eca9b609751456698e7",
+      "image": "continual-learning-projects:909012fddcc15da5"
+    }
+  ],
+  "evidence": "real-pi-docker-inference-frozen-before-all-candidate-failure-hints",
+  "inputTokens": 82179,
+  "estimatedJevInputCostUsd": 0.003451518
+}

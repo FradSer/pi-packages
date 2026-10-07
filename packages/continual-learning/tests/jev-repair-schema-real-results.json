@@ -1,0 +1,303 @@
+{
+  "evidence": "real-isolated-native-repair-attempts-with-upstream-failure",
+  "manifestSha256": "ec181b29ee15c01c035059bddf9b8bb6e2d6579ada73861c48fee2308c71da23",
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "arms": 8,
+  "mainRequests": 8,
+  "jevRequests": 0,
+  "providerErrors": 8,
+  "generatedCandidates": 0,
+  "unknownUsageArms": 8,
+  "totalCostUsd": null,
+  "billingVerified": false,
+  "productionWrites": 0,
+  "comparisonOfLearningQualityVerified": false,
+  "heldout": false,
+  "humanGold": false,
+  "ownedCleanupConfirmed": true,
+  "rows": [
+    {
+      "caseId": "nanoid-stable-default-en",
+      "arm": "before",
+      "generatedOutcome": "failed",
+      "durationMs": 2321,
+      "parentCategory": "missing",
+      "jevDecision": null,
+      "transport": {
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 4.422,
+          "processGroupStopConfirmed": true
+        },
+        "providerRequests": 1,
+        "jevRequests": 0,
+        "jevUsage": [],
+        "providerErrors": 1,
+        "mainUsage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": 0
+        },
+        "usageUnknown": true,
+        "billingVerified": false
+      },
+      "cleanup": {
+        "ownedContainerAbsent": true
+      },
+      "rawResultSha256": "6e214e57b2830d3b7ccef6d5a501de3f53390536fdd6138aaeaf1e1da6bc8b98"
+    },
+    {
+      "caseId": "nanoid-stable-default-en",
+      "arm": "after",
+      "generatedOutcome": "failed",
+      "durationMs": 831,
+      "parentCategory": "missing",
+      "jevDecision": null,
+      "transport": {
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.812,
+          "processGroupStopConfirmed": true
+        },
+        "providerRequests": 1,
+        "jevRequests": 0,
+        "jevUsage": [],
+        "providerErrors": 1,
+        "mainUsage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": 0
+        },
+        "usageUnknown": true,
+        "billingVerified": false
+      },
+      "cleanup": {
+        "ownedContainerAbsent": true
+      },
+      "rawResultSha256": "ac26d7af7f2eaf6133c419c4a55ac75620848761bd583dc6721cba6387344915"
+    },
+    {
+      "caseId": "nanoid-stable-default-zh",
+      "arm": "after",
+      "generatedOutcome": "failed",
+      "durationMs": 1050,
+      "parentCategory": "missing",
+      "jevDecision": null,
+      "transport": {
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 3.153,
+          "processGroupStopConfirmed": true
+        },
+        "providerRequests": 1,
+        "jevRequests": 0,
+        "jevUsage": [],
+        "providerErrors": 1,
+        "mainUsage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": 0
+        },
+        "usageUnknown": true,
+        "billingVerified": false
+      },
+      "cleanup": {
+        "ownedContainerAbsent": true
+      },
+      "rawResultSha256": "7d021a64e3b2f39fc0476e81532c6c5e190e9d86ec7674e7f3f7090fbd91d908"
+    },
+    {
+      "caseId": "nanoid-stable-default-zh",
+      "arm": "before",
+      "generatedOutcome": "failed",
+      "durationMs": 861,
+      "parentCategory": "missing",
+      "jevDecision": null,
+      "transport": {
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.887,
+          "processGroupStopConfirmed": true
+        },
+        "providerRequests": 1,
+        "jevRequests": 0,
+        "jevUsage": [],
+        "providerErrors": 1,
+        "mainUsage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": 0
+        },
+        "usageUnknown": true,
+        "billingVerified": false
+      },
+      "cleanup": {
+        "ownedContainerAbsent": true
+      },
+      "rawResultSha256": "f527ca0096129da8652855e7682c99500abcbc7c280d8ec00abb4d616009954f"
+    },
+    {
+      "caseId": "tinypool-stable-runtime-en",
+      "arm": "before",
+      "generatedOutcome": "failed",
+      "durationMs": 752,
+      "parentCategory": "missing",
+      "jevDecision": null,
+      "transport": {
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.832,
+          "processGroupStopConfirmed": true
+        },
+        "providerRequests": 1,
+        "jevRequests": 0,
+        "jevUsage": [],
+        "providerErrors": 1,
+        "mainUsage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": 0
+        },
+        "usageUnknown": true,
+        "billingVerified": false
+      },
+      "cleanup": {
+        "ownedContainerAbsent": true
+      },
+      "rawResultSha256": "1051f90dce20a3c8ca5b6c3454ed016897151145a67b4edf00e30156213c4156"
+    },
+    {
+      "caseId": "tinypool-stable-runtime-en",
+      "arm": "after",
+      "generatedOutcome": "failed",
+      "durationMs": 944,
+      "parentCategory": "missing",
+      "jevDecision": null,
+      "transport": {
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.911,
+          "processGroupStopConfirmed": true
+        },
+        "providerRequests": 1,
+        "jevRequests": 0,
+        "jevUsage": [],
+        "providerErrors": 1,
+        "mainUsage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": 0
+        },
+        "usageUnknown": true,
+        "billingVerified": false
+      },
+      "cleanup": {
+        "ownedContainerAbsent": true
+      },
+      "rawResultSha256": "b981b98e9be26cd43760cab7b090a5eac639280643cd5124bb5135cb34d25b40"
+    },
+    {
+      "caseId": "tinypool-stable-runtime-zh",
+      "arm": "after",
+      "generatedOutcome": "failed",
+      "durationMs": 1044,
+      "parentCategory": "missing",
+      "jevDecision": null,
+      "transport": {
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 3.455,
+          "processGroupStopConfirmed": true
+        },
+        "providerRequests": 1,
+        "jevRequests": 0,
+        "jevUsage": [],
+        "providerErrors": 1,
+        "mainUsage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": 0
+        },
+        "usageUnknown": true,
+        "billingVerified": false
+      },
+      "cleanup": {
+        "ownedContainerAbsent": true
+      },
+      "rawResultSha256": "8c80fae15af09db2b8f85dc52ad346613e8ce5c30867ec3801ca1f46c00c8307"
+    },
+    {
+      "caseId": "tinypool-stable-runtime-zh",
+      "arm": "before",
+      "generatedOutcome": "failed",
+      "durationMs": 778,
+      "parentCategory": "missing",
+      "jevDecision": null,
+      "transport": {
+        "process": {
+          "exitCode": 0,
+          "outcome": "completed",
+          "seconds": 2.554,
+          "processGroupStopConfirmed": true
+        },
+        "providerRequests": 1,
+        "jevRequests": 0,
+        "jevUsage": [],
+        "providerErrors": 1,
+        "mainUsage": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "totalTokens": 0,
+          "cost": 0
+        },
+        "usageUnknown": true,
+        "billingVerified": false
+      },
+      "cleanup": {
+        "ownedContainerAbsent": true
+      },
+      "rawResultSha256": "86b7c8869575ce98cf527a35b8772fd3a43bd263df08677ab557c0c38f57e157"
+    }
+  ],
+  "diagnostic": "Separate two-call diagnostic received HTTP 429 for both default thinking and thinking-off. Study did not capture each HTTP status, so do not retroactively label all eight study responses 429.",
+  "limits": [
+    "All eight candidate-generation attempts failed; no zero-quality score or Jev conclusion can replace missing coverage.",
+    "Worker wrapper exit zero means receipt written, not successful generation.",
+    "Client zero usage on failed responses is not verified zero cost.",
+    "Four fixed development samples from pinned project documentation are not full workflow or heldout project evidence.",
+    "Schema example was locally corrected, but real effect comparison is unverified."
+  ]
+}

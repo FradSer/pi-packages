@@ -1,0 +1,37 @@
+{
+  "evidence": "independent-prepaid-review-and-offline-resource-regression",
+  "remainingBlockers": [],
+  "requestCap": 2,
+  "upstreamRequestCapPerArm": 1,
+  "originalConfigurationPreserved": true,
+  "configDiffOnlySelectedMaxTokens": true,
+  "imageAndHashesVerified": true,
+  "resourceRegression": {
+    "evidence": "offline-local-socket-lifecycle-regression-not-model-quality",
+    "externalModelCalls": 0,
+    "rows": [
+      {
+        "mode": "in-process-before",
+        "upstreamSocketClosed": false,
+        "processGroupStopConfirmed": null
+      },
+      {
+        "mode": "owned-process-after",
+        "upstreamSocketClosed": true,
+        "processGroupStopConfirmed": true
+      }
+    ],
+    "remoteProviderCancellationVerified": false
+  },
+  "preflight": {
+    "externalRequests": 0,
+    "configurationsVerified": 2,
+    "imageVerified": true,
+    "ownedProcessProxy": true
+  },
+  "limits": [
+    "Docker create timeout settlement remains unverified and stops later arms.",
+    "Owned process termination closes local proxy sockets; remote provider cancellation remains unverified.",
+    "No claim of learning quality from readiness."
+  ]
+}

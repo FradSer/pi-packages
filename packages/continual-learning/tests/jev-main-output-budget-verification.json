@@ -1,0 +1,31 @@
+{
+  "evidence": "real-pi-availability-and-offline-resource-checks",
+  "externalMainRequests": 2,
+  "jevRequests": 0,
+  "apiSuccesses": 0,
+  "upstreamStatuses": [
+    429,
+    429
+  ],
+  "productionWrites": 0,
+  "hostConfigurationChanged": false,
+  "outputCapsVerified": [
+    524288,
+    8192
+  ],
+  "processGroupsStopped": true,
+  "localProxySocketsClosed": true,
+  "ownedContainersAbsent": true,
+  "creationSettled": true,
+  "remoteProviderCancellationVerified": false,
+  "modelUsageUnknown": true,
+  "billingVerified": false,
+  "pythonSyntaxCheck": "passed",
+  "offlineResourceRegression": "before-open-after-closed",
+  "preflightRequests": 0,
+  "newPackageTestOrTypecheckRun": false,
+  "reason": "This phase changes only private diagnostic scripts and public receipts; package runtime and research modules remain unchanged.",
+  "goalComplete": false,
+  "targetPackDryRun": "passed-after-documentation",
+  "publicJsonAndReferences": "passed"
+}

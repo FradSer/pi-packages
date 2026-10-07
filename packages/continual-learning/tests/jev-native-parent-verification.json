@@ -1,0 +1,60 @@
+{
+  "scope": "native fixed-generation parent workflow, real Jev judgments; not full project quality acceptance",
+  "realStudyResult": "jev-native-parent-real-results.json",
+  "productionSourceChangedThisIteration": false,
+  "checks": {
+    "targetPackagePytest": {
+      "passed": 1001,
+      "durationSeconds": 379.09,
+      "exitCode": 0,
+      "note": "collection preceded addition of lowercase missing-object regression; all 5 focused native safety tests, including that additional case, separately passed"
+    },
+    "focusedNativeSafetyPytest": {
+      "passed": 5,
+      "durationSeconds": 1.18,
+      "exitCode": 0
+    },
+    "typecheck": {
+      "exitCode": 0
+    },
+    "packedManifestCheck": {
+      "exitCode": 0,
+      "packages": 19
+    },
+    "targetPackDryRun": {
+      "exitCode": 0
+    },
+    "installCheck": {
+      "exitCode": 1,
+      "unrelatedMissing": [
+        "agent-teams",
+        "bdd-jev",
+        "btw",
+        "context",
+        "keyboard",
+        "monitor",
+        "plan-mode",
+        "recap",
+        "skill-router",
+        "utils",
+        "vision"
+      ]
+    },
+    "rootFullSuite": "not rerun this iteration"
+  },
+  "regressionEvidence": {
+    "timeoutGroupCleanup": "old subprocess.run RED; independent process group and bounded kill/reap GREEN",
+    "missingDockerObject": "actual lowercase Docker absent response RED; case-insensitive missing-object recognition GREEN"
+  },
+  "goalStatus": "active; complete net quality improvement not proven",
+  "requestedMainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "actualMainInferenceThisIteration": false,
+  "actualLostCidDockerCleanup": {
+    "evidenceRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/lost-cid-cleanup-20261006T205502Z",
+    "resultSha256": "b6ac8e0cd5ed47669c63b2b8931d3ac279bbbce80082e9ec2653d4b3d78257e6",
+    "ownedRunningContainerRemoved": true
+  }
+}

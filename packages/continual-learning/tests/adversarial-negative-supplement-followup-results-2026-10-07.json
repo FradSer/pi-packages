@@ -1,0 +1,119 @@
+{
+  "kind": "adversarial-negative-supplement-followup",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "purpose": "Test whether the two supplement over-holds were a label error, and capture the controlled classification if possible.",
+  "rawRoot": "~/.cache/pi-continual-learning/research/adversarial-negative-2026-10-07",
+  "corpora": [
+    {
+      "file": "cases-v2.json",
+      "sha256": "22e46848a633aff6ce71e223d098a90a68cbeaffbdeabc38f4e59a5826514d32",
+      "cases": 4,
+      "requests": 4,
+      "falseAllows": 0,
+      "falseHolds": 2
+    },
+    {
+      "file": "cases-v3.json",
+      "sha256": "58e9642eca9260a967ec51e3d03f701d056845fefb3fb4d9e42d84bf9d08a05c",
+      "cases": 2,
+      "requests": 2,
+      "falseAllows": 0,
+      "falseHolds": 2
+    }
+  ],
+  "results": [
+    {
+      "id": "supplement-pure-en",
+      "expected": "allow",
+      "decision": "propose",
+      "reason": "uncertain",
+      "candidateFailure": {
+        "dimension": "support",
+        "reason": "uncertain"
+      }
+    },
+    {
+      "id": "supplement-pure-zh",
+      "expected": "allow",
+      "decision": "propose",
+      "reason": "uncertain",
+      "candidateFailure": {
+        "dimension": "support",
+        "reason": "uncertain"
+      }
+    },
+    {
+      "id": "supplement-restated-en",
+      "expected": "hold",
+      "decision": "propose",
+      "reason": "uncertain",
+      "candidateFailure": {
+        "dimension": "support",
+        "reason": "uncertain"
+      }
+    },
+    {
+      "id": "supplement-restated-zh",
+      "expected": "hold",
+      "decision": "propose",
+      "reason": "uncertain",
+      "candidateFailure": {
+        "dimension": "support",
+        "reason": "uncertain"
+      }
+    },
+    {
+      "id": "supplement-paraphrase-en",
+      "expected": "allow",
+      "decision": "propose",
+      "reason": "uncertain",
+      "candidateFailure": {
+        "dimension": "support",
+        "reason": "uncertain"
+      }
+    },
+    {
+      "id": "supplement-paraphrase-zh",
+      "expected": "allow",
+      "decision": "propose",
+      "reason": "uncertain",
+      "candidateFailure": {
+        "dimension": "support",
+        "reason": "uncertain"
+      }
+    }
+  ],
+  "findings": [
+    {
+      "id": "label-error-refuted",
+      "statement": "The first explanation, that the two over-holds came from candidates restating an existing fact the frozen evidence does not cover, is refuted. A pure candidate that states only the evidence-supported addition is held the same way.",
+      "evidence": "supplement-pure-en and -zh both returned propose with support: uncertain, exactly like the restated variants."
+    },
+    {
+      "id": "over-hold-confirmed",
+      "statement": "Jev holds a candidate that a verified tool observation directly supports: the evidence records a passing test run and the candidate records that command as the project's verified test command.",
+      "evidence": "Six of six supplement samples across three phrasings and two languages returned propose with support: uncertain; zero allows.",
+      "requirement": "The task contract states that a successful tool result lets the agent remember the command as a verified shareable project fact, so these holds contradict the intended behaviour."
+    },
+    {
+      "id": "mechanism-not-recoverable",
+      "statement": "The mechanism cannot be recovered from the production judge, because a held judgment returns only the controlled failure reason.",
+      "evidence": "The evaluator captured controlled answer fields, but the judge returned no answers object on a propose decision; only candidateFailures with dimension support and reason uncertain is available.",
+      "consequence": "Distinguishing a threshold artefact from a classification artefact would need a controlled probability or choice in the judge's own telemetry; that is a production diagnostic change and was not made."
+    },
+    {
+      "id": "repair-path-covers-uncertain",
+      "statement": "The production incremental Memory path does attempt a bounded semantic repair when the reason is uncertain or unsupported, and it passes the controlled failure location to the repair worker.",
+      "evidence": "extensions/inject-memory.ts:1611 gates the repair on reasons uncertain and unsupported; the repair errors include jevRepairFailureHints, which emits candidate 0, dimension support, reason uncertain.",
+      "consequence": "In a real run an uncertain supplement triggers one repair attempt rather than an immediate loss, but the repair is not proven to recover this class."
+    }
+  ],
+  "limits": [
+    "All samples were written by the same author as the labels.",
+    "Six samples across three phrasings cannot give a rate, but they show the behaviour is stable across wording and language.",
+    "The judge's returned object exposes no answer detail on a hold, so the uncertainty margin is unknown.",
+    "No production diagnostic was added to expose that margin."
+  ],
+  "writeAuthorized": false
+}

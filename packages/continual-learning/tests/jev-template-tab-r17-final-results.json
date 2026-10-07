@@ -1,0 +1,565 @@
+{
+  "evidence": "r17-original-six-independent-docker-arms-final",
+  "sourceDigest": "df60a6123748956bdd39e0b23ca70113aeb68e3be59b9dc56cfd51bf9f317acf",
+  "sourceMatches": true,
+  "allFrozenSourceHashesMatch": true,
+  "frozenSourceHashCount": 66,
+  "image": "continual-learning-projects:df60a6123748956b",
+  "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+  "imageMatches": true,
+  "rows": [
+    {
+      "arm": "click-off",
+      "status": "passed",
+      "stage": "complete",
+      "failureCategory": null,
+      "providerRequests": 33,
+      "mainRequests": 33,
+      "jevRequests": 0,
+      "jevResponsesWithUsage": 0,
+      "providerErrors": 0,
+      "learningSeconds": 166.29,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": false,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "knownLearningModelCostUsd": 0.007693815999999999,
+      "attempts": [
+        {
+          "phase": "selector",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 0
+        },
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 2
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1
+        }
+      ],
+      "summarySha256": "8d44f65af01ea08e62b8d1110192e0d9102bd8d55c5c617fde72207203244c4f"
+    },
+    {
+      "arm": "click-on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "failureCategory": "memory-semantic-success-gate",
+      "providerRequests": 30,
+      "mainRequests": 21,
+      "jevRequests": 9,
+      "jevResponsesWithUsage": 8,
+      "providerErrors": 1,
+      "learningSeconds": 286.67,
+      "checks": {
+        "regressionChanged": true
+      },
+      "knownLearningModelCostUsd": 0.008969762,
+      "attempts": [
+        {
+          "phase": "selector",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 0
+        },
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "jev": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 2214,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 30,
+            "coveredEntries": 30,
+            "evidenceWindows": 2,
+            "completedWindows": 2,
+            "requestCount": 3,
+            "completedRequests": 3,
+            "model": "jev-1.13.0",
+            "inputTokens": 20380,
+            "outputTokens": 595,
+            "estimatedCostUsd": 0.00085596,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "support",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "support"
+          }
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "proposed",
+          "operations": 0,
+          "jev": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "unavailable",
+            "durationMs": 3135,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 30,
+            "coveredEntries": 18,
+            "evidenceWindows": 2,
+            "completedWindows": 1,
+            "requestCount": 3,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "knownInputTokens": 10140,
+            "knownEstimatedCostUsd": 0.00042588
+          }
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "jev": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "timeout",
+            "durationMs": 5026,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 30,
+            "coveredEntries": 30,
+            "evidenceWindows": 2,
+            "completedWindows": 2,
+            "requestCount": 3,
+            "completedRequests": 2,
+            "model": "jev-1.13.0",
+            "knownInputTokens": 15121,
+            "knownEstimatedCostUsd": 0.0006350820000000001
+          }
+        }
+      ],
+      "summarySha256": "98ce6806b70773dd98982a987e7998f151f3509575bff9bba0e50b01a9253333"
+    },
+    {
+      "arm": "p-limit-off",
+      "status": "passed",
+      "stage": "complete",
+      "failureCategory": null,
+      "providerRequests": 24,
+      "mainRequests": 24,
+      "jevRequests": 0,
+      "jevResponsesWithUsage": 0,
+      "providerErrors": 0,
+      "learningSeconds": 225.87,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "knownLearningModelCostUsd": 0.011168568,
+      "attempts": [
+        {
+          "phase": "selector",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 0
+        },
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 2
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "rejected",
+          "operations": 0
+        },
+        {
+          "phase": "harness",
+          "attempt": 1,
+          "outcome": "applied",
+          "operations": 1
+        }
+      ],
+      "summarySha256": "e70f478dc9542361188865e95aee3c6d8cfaea2abae709244c363b3e49ab5a4e"
+    },
+    {
+      "arm": "p-limit-on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "failureCategory": "memory-semantic-success-gate",
+      "providerRequests": 28,
+      "mainRequests": 19,
+      "jevRequests": 9,
+      "jevResponsesWithUsage": 9,
+      "providerErrors": 0,
+      "learningSeconds": 406.15,
+      "checks": {
+        "regressionChanged": true
+      },
+      "knownLearningModelCostUsd": 0.013788168,
+      "attempts": [
+        {
+          "phase": "selector",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 0
+        },
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "jev": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 3801,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 21,
+            "coveredEntries": 21,
+            "evidenceWindows": 2,
+            "completedWindows": 2,
+            "requestCount": 3,
+            "completedRequests": 3,
+            "model": "jev-1.13.0",
+            "inputTokens": 30767,
+            "outputTokens": 888,
+            "estimatedCostUsd": 0.001292214,
+            "candidateFailures": [
+              {
+                "candidateIndex": 2,
+                "dimension": "support",
+                "reason": "uncertain"
+              },
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "uncertain",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 6
+              }
+            ],
+            "candidateIndex": 2,
+            "dimension": "support"
+          }
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "proposed",
+          "operations": 0,
+          "jev": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 1717,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 21,
+            "coveredEntries": 21,
+            "evidenceWindows": 2,
+            "completedWindows": 2,
+            "requestCount": 3,
+            "completedRequests": 3,
+            "model": "jev-1.13.0",
+            "inputTokens": 30725,
+            "outputTokens": 888,
+            "estimatedCostUsd": 0.00129045,
+            "candidateFailures": [
+              {
+                "candidateIndex": 2,
+                "dimension": "support",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 2,
+            "dimension": "support"
+          }
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "jev": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 2991,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 21,
+            "coveredEntries": 21,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 2,
+            "completedWindows": 2,
+            "requestCount": 3,
+            "completedRequests": 3,
+            "model": "jev-1.13.0",
+            "inputTokens": 19135,
+            "outputTokens": 185,
+            "estimatedCostUsd": 0.00080367
+          }
+        }
+      ],
+      "summarySha256": "7d88fbb95589715f22594e2b703795948bce77e6e9409ede010b56f7beadfc2b"
+    },
+    {
+      "arm": "mitt-off",
+      "status": "failed",
+      "stage": "setup",
+      "failureCategory": "dependency-install-timeout-before-inference",
+      "providerRequests": 0,
+      "mainRequests": 0,
+      "jevRequests": 0,
+      "jevResponsesWithUsage": 0,
+      "providerErrors": 0,
+      "learningSeconds": null,
+      "checks": {},
+      "knownLearningModelCostUsd": 0,
+      "attempts": [],
+      "summarySha256": "f0663ef4494b8919eccdc655ddcd78386fb97d3d56f1b9f24f00f24274b29d65"
+    },
+    {
+      "arm": "mitt-on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "failureCategory": "memory-semantic-success-gate",
+      "providerRequests": 38,
+      "mainRequests": 30,
+      "jevRequests": 8,
+      "jevResponsesWithUsage": 8,
+      "providerErrors": 0,
+      "learningSeconds": 327.03,
+      "checks": {
+        "regressionChanged": true
+      },
+      "knownLearningModelCostUsd": 0.012668707999999999,
+      "attempts": [
+        {
+          "phase": "selector",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 0
+        },
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "rejected",
+          "operations": 0,
+          "jev": {
+            "stage": "memory",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 2519,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 48,
+            "coveredEntries": 48,
+            "evidenceWindows": 3,
+            "completedWindows": 3,
+            "requestCount": 4,
+            "completedRequests": 4,
+            "model": "jev-1.13.0",
+            "inputTokens": 29417,
+            "outputTokens": 768,
+            "estimatedCostUsd": 0.001235514,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "uncertain",
+                "evidenceWindowIndex": 1,
+                "evidenceEntryStart": 16,
+                "evidenceEntryEnd": 46
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 1,
+            "evidenceEntryStart": 16,
+            "evidenceEntryEnd": 46
+          }
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "proposed",
+          "operations": 0
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "jev": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 2298,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 48,
+            "coveredEntries": 48,
+            "evidenceWindows": 3,
+            "completedWindows": 3,
+            "requestCount": 4,
+            "completedRequests": 4,
+            "model": "jev-1.13.0",
+            "inputTokens": 23470,
+            "outputTokens": 283,
+            "estimatedCostUsd": 0.00098574
+          }
+        }
+      ],
+      "summarySha256": "160c61e6bcc8b2ce16cd8df3f45b80867cdb793ddcc92f6ede2e07003d3352ae"
+    }
+  ],
+  "offPasses": 2,
+  "onPasses": 0,
+  "providerRequests": 153,
+  "mainRequests": 127,
+  "jevRequests": 26,
+  "jevResponsesWithUsage": 25,
+  "knownClientJevInputTokens": 179155,
+  "knownClientJevEstimatedCostUsd": 0.007524510000000001,
+  "knownProxyJevInputTokens": 180561,
+  "knownProxyJevOutputTokens": 4267,
+  "knownProxyJevEstimatedCostUsd": 0.007583562000000001,
+  "knownLearningPhaseMainModelCostUsd": 0.054289022,
+  "actualJevModels": [
+    "jev-1.13.0"
+  ],
+  "continuationProcess": {
+    "sessionId": 37855,
+    "terminalExitCode": 0
+  },
+  "continuationOwnedProcesses": [
+    {
+      "arm": "click-on",
+      "process": {
+        "exitCode": 1,
+        "outcome": "completed",
+        "seconds": 310.085,
+        "processGroupStopConfirmed": true
+      },
+      "containerAbsent": true
+    },
+    {
+      "arm": "p-limit-off",
+      "process": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 541.217,
+        "processGroupStopConfirmed": true
+      },
+      "containerAbsent": true
+    },
+    {
+      "arm": "p-limit-on",
+      "process": {
+        "exitCode": 1,
+        "outcome": "completed",
+        "seconds": 616.315,
+        "processGroupStopConfirmed": true
+      },
+      "containerAbsent": true
+    },
+    {
+      "arm": "mitt-off",
+      "process": {
+        "exitCode": 1,
+        "outcome": "completed",
+        "seconds": 271.392,
+        "processGroupStopConfirmed": true
+      },
+      "containerAbsent": true
+    },
+    {
+      "arm": "mitt-on",
+      "process": {
+        "exitCode": 1,
+        "outcome": "completed",
+        "seconds": 564.07,
+        "processGroupStopConfirmed": true
+      },
+      "containerAbsent": true
+    }
+  ],
+  "ownedContainers": [
+    {
+      "arm": "click-off",
+      "containerName": "cl-project-click-3953305b",
+      "absent": true
+    },
+    {
+      "arm": "click-on",
+      "containerName": "cl-project-click-c5feda3f",
+      "absent": true
+    },
+    {
+      "arm": "p-limit-off",
+      "containerName": "cl-project-p-limit-704c30ab",
+      "absent": true
+    },
+    {
+      "arm": "p-limit-on",
+      "containerName": "cl-project-p-limit-623b8901",
+      "absent": true
+    },
+    {
+      "arm": "mitt-off",
+      "containerName": "cl-project-mitt-914c14d5",
+      "absent": true
+    },
+    {
+      "arm": "mitt-on",
+      "containerName": "cl-project-mitt-55d653e2",
+      "absent": true
+    }
+  ],
+  "originalOrchestratorFailure": {
+    "sessionId": 49810,
+    "terminalExitCode": 1,
+    "category": "case-sensitive-absence-recognition-after-successful-first-workflow",
+    "firstWorkflowProcessMetadata": "not-persisted; unknown",
+    "firstWorkflowStatus": "passed",
+    "rerunFirstWorkflow": false
+  },
+  "billingVerified": false,
+  "goalComplete": false,
+  "limits": [
+    "Original workflow gates unchanged; no favorable retries.",
+    "Mitt off has no inference coverage because dependency installation failed.",
+    "Client and proxy Jev usage overlap: never add these totals. One Jev request lacks proxy usage; unknown cost is not zero.",
+    "Known learning-phase main cost excludes other main-task/fresh-session calls; lower bound, not overall bill.",
+    "Independent source reviews are not human semantic gold; no automatic false-hold labels.",
+    "On arms stopped before fresh recall and native Harness checks; missing coverage, not negative enforcement results.",
+    "Baseline private recall was already present for p-limit off; no attributable recall improvement.",
+    "No whole-plugin superiority shown; original failed reports preserved."
+  ]
+}

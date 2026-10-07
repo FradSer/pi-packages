@@ -1,0 +1,19 @@
+{
+  "evidence": "independent-offline-original-wire-audit",
+  "transportPreparationSha256": "5e96e08b5bfacd6ff96b8429a78135ae344d8147ceb861b1b53651755efd5bdd",
+  "snapshotNativeOutputReportHashesMatch": true,
+  "candidateHashAndParentChecksMatch": true,
+  "wireHashesAndPermissionsVerified": 3,
+  "rawWireMode": "0600",
+  "counterIndexesCovered": 17,
+  "counterWindows": 2,
+  "fixtureRequests": 3,
+  "externalRequests": 0,
+  "historicalWireIdentityVerified": false,
+  "semanticGoldEstablished": false,
+  "productionWrites": 0,
+  "limits": [
+    "Only forced-answer wire extraction; current private script and source manifest bound in prospective transport preparation.",
+    "Historical wire bodies absent; no timeout cause or quality claim."
+  ]
+}

@@ -325,6 +325,19 @@ Feature: The completion check
     Then the claim is presented as untrusted
     And an unproven claim is not proof
 
+  Scenario: A long objective is recorded in full and read bounded
+    Given an objective longer than the check's reading bound
+    When the goal is created or revised
+    Then the objective is recorded in full, not shortened by normalization
+    And the check reads it truncated, with the truncation stated
+    And the injected note reads it truncated, with a retrieve hint
+
+  Scenario: A long completion claim is recorded in full and read bounded
+    Given an executor completion claim longer than the check's reading bound
+    When the check runs
+    Then the claim reaches the check truncated, and the truncation is stated
+    And the full claim is recorded with the goal
+
   Scenario: A refused completion leaves the goal open
     Given a check that says the objective is not met
     When the model asked for completion
@@ -356,6 +369,12 @@ Feature: The completion check
     Or the check hangs and is cancelled
     Then the goal is not accepted
     And the failure is reported rather than silent
+
+  Scenario: A silent check names the model that swallowed the answer
+    Given the check child exits successfully with no answer
+    And the check runs with a configured model
+    Then the reason names that model
+    And the goal is not accepted
 
   Scenario: The objective and the claim cannot close their own blocks
     Given an objective that tries to close its own injection block
@@ -396,13 +415,22 @@ Feature: Research before creation
     And a "research_attached" event follows "goal_created" in the ledger
     And get_goal can read the findings back
     When a second creation is requested in the same thread
-    Then creation is refused and the first goal remains current
+    Then creation without superseding is refused and the first goal remains current
+    When the new request carries the earlier goal forward with supersedes
+    Then a new goal is created and focused
+    And the earlier goal is archived as superseded
 
   Scenario: Research runs on its configured model
     Given a research model is set in the settings
     When research runs
     Then the child is started with that model
     And the completion check keeps its own model
+
+  Scenario: An unset model follows the session
+    Given no goal model is configured
+    When the completion check or research runs
+    Then the child is started with the session's model
+    And the persisted CLI default is never used instead
 
   Scenario: A failed research never blocks creation
     Given the research worker fails or returns nothing
@@ -435,6 +463,16 @@ Feature: Research before creation
     Then it carries the objective, the contract, the claim and the recorded observations
     And the research findings are not part of it
 
+Feature: Goals directory placement
+
+  Scenario: Goals are not stored inside Pi's own directories
+    Given a session whose directory is Pi's home, or inside it
+    When a goal would be created
+    Then nothing is written and the path that was refused is named
+    And a goal already stored there keeps running
+    Given a session in a project directory
+    Then goals are stored under that project's .pi/goals
+
 Feature: Below-editor status and minute display
 
   Scenario: Goal activity stays below the editor
@@ -449,7 +487,25 @@ Feature: Below-editor status and minute display
     When the elapsed time is displayed
     Then it uses days and hours
 
+  Scenario: The status row never carries the goal tag
+    Given a goal is being pursued, held, paused, blocked, or budget limited
+    When the status row is rendered
+    Then it reads "<verb> · <elapsed>" with no goal tag
+    Given a completion check is running
+    Then the row shows the check label with no goal tag
+    And the transcript rows keep the goal tag
+
 Feature: What the surface shows
+
+  Scenario: Reading is offered only when there is something to read
+    Given a session with no focused goal
+    When the tool surface is declared
+    Then creating a goal and researching are offered
+    And reading the goal is not offered
+    And recording an outcome is not offered
+    Given a goal is focused
+    Then reading the goal is offered
+    And a budget limited goal stays readable
 
   Scenario: Elapsed time is the progress a goal reports
     Given a goal that has been running for some time
@@ -486,3 +542,61 @@ Feature: What the surface shows
     When the user runs a command
     Then the outcome is reported to them
     And the durable state agrees with what they were told
+Feature: Blocking research row
+
+  Scenario: Research blocks without a widget above the editor
+    Given a session with no research in flight
+    When research_goal starts a read-only child
+    Then no widget is mounted above the editor
+    And a child progress update mounts none either
+
+  Scenario: The research row shows the child's latest progress as markdown
+    Given research_goal is running
+    When the child reports new activity
+    Then exactly one transcript row reads "[goal] Researching..."
+    And the child's latest activity is rendered on its own row beneath it
+    And that activity row renders through markdown
+
+  Scenario: The research result carries no character count
+    Given research_goal returns findings
+    Then the row reads "[goal] Research ready" with no character count
+    And the findings render through markdown
+
+  Scenario: The final research update replaces the in-progress row
+    Given research_goal has shown child activity
+    When the child returns findings
+    Then its last partial update reads "[goal] Research ready"
+    And that update carries the findings as markdown
+    And the tool returns the same final result
+
+  Scenario: Every research outcome still returns one row
+    Given research_goal is running
+    When the child returns findings, exits non-zero, prints nothing, or is aborted
+    Then the result row reports that outcome
+    And no widget is left mounted
+
+Feature: Goal procedure row
+
+  Scenario: /goal delivers one lifecycle row with the requirement
+    Given an idle session with no goal being pursued
+    When the user enters /goal <requirement>
+    Then exactly one transcript row reads "[goal] started"
+    And the requirement appears verbatim in a block under the head
+    And the model receives the full goalRequest body in the same turn
+
+  Scenario: Different requirements produce different rows
+    Given two /goal requests in one session
+    When the second request carries different text
+    Then the second row shows the second text
+
+  Scenario: Management arguments emit no lifecycle row
+    Given the user enters /goal, /goal pause, /goal resume, or /goal clear
+    Then no "[goal] started" row is sent
+    And the existing notification behaviour is unchanged
+
+  Scenario: A revision under way emits exactly one row
+    Given an active goal with automatic continuation
+    And the session is busy
+    When the user enters /goal <new requirement>
+    Then the text goes through applyRevision as a revision
+    And exactly one lifecycle row is sent

@@ -1,0 +1,110 @@
+{
+  "evidence": "real-native-original-repair-before-after",
+  "preparationSha256": "9a28ca876b28c5b9b0b29dd38b3aff0e14ebb088fb0378fea55cc19110bca00c",
+  "codeHashes": {
+    "live_harness_binding_repair.py": "7d6c2f7614213ab6e883f53e5eb3795951fa507621eb3cab613153064ef9711f",
+    "evaluate_harness_binding_repair.ts": "e85395435d822cf42f7dae2338995a454c2a7b7e02c4ef612834de7faadc959e",
+    "harness-binding-repair-research.ts": "8a0c542ba4a1ba7581cbbe61d4d9952940a849df91eefc470e0da361abb28ec8"
+  },
+  "image": "continual-learning-projects:5818b1f6be33de6a",
+  "rows": [
+    {
+      "arm": "before",
+      "nativeExitCode": 0,
+      "nativeOutcome": "completed",
+      "nativeSeconds": 149.786,
+      "evaluationExitCode": 0,
+      "evaluationOutcome": "completed",
+      "evaluation": {
+        "evidence": "real-native-repair-generation-and-jev-on-frozen-original",
+        "nativeOutputSha256": "3df58193fc67c6c3634de8f6890b4759fe2a7daa3cdd11e57112573a6230ab48",
+        "parentCategory": "citation-mismatch",
+        "mainUsage": {
+          "input": 2431,
+          "output": 6524,
+          "cacheRead": 12544,
+          "cacheWrite": 0,
+          "totalTokens": 21499,
+          "cost": 0.0036316339999999995
+        },
+        "productionWrites": 0,
+        "limits": [
+          "One known original input; not heldout or full-workflow quality.",
+          "Retention comparison follows existing contract independently; no parent mutation queue or apply invoked."
+        ]
+      }
+    },
+    {
+      "arm": "after",
+      "nativeExitCode": 0,
+      "nativeOutcome": "completed",
+      "nativeSeconds": 42.24,
+      "evaluationExitCode": 0,
+      "evaluationOutcome": "completed",
+      "evaluation": {
+        "evidence": "real-native-repair-generation-and-jev-on-frozen-original",
+        "nativeOutputSha256": "af830501eccc276a27dfa895c1e85716d592b2cdfd301e57b045d7e7b2de45a9",
+        "parentCategory": "ready",
+        "mainUsage": {
+          "input": 6247,
+          "output": 3353,
+          "cacheRead": 2048,
+          "cacheWrite": 0,
+          "totalTokens": 11648,
+          "cost": 0.0025457279999999997
+        },
+        "verdict": {
+          "decision": "propose",
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "timeout",
+            "durationMs": 5042,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 17,
+            "coveredEntries": 0,
+            "evidenceWindows": 2,
+            "completedWindows": 0,
+            "requestCount": 3,
+            "completedRequests": 0,
+            "knownInputTokens": 0,
+            "knownEstimatedCostUsd": 0
+          }
+        },
+        "productionWrites": 0,
+        "limits": [
+          "One known original input; not heldout or full-workflow quality.",
+          "Retention comparison follows existing contract independently; no parent mutation queue or apply invoked."
+        ]
+      }
+    }
+  ],
+  "originalProjectTreeSha256": "d6ce948da3f4542b4a8023449f23afd38e6afaa594bcd8d7f55399bd0f7b76b5",
+  "plannedArms": 2,
+  "allArmsEvaluated": true,
+  "totalRequests": 11,
+  "jevRequests": 3,
+  "providerErrors": 0,
+  "jevUsage": [],
+  "productionWrites": 0,
+  "goalComplete": false,
+  "limits": [
+    "One known historical input; no heldout/full-workflow quality claim.",
+    "Independent retention contract check precedes real Jev; no mutation queue/apply.",
+    "Original outputs preserved; no retries, output selection or changed source."
+  ],
+  "cleanup": [
+    {
+      "containerIndex": 0,
+      "removalExitCode": 0,
+      "observedState": "removed",
+      "childStoppedConfirmed": true
+    },
+    {
+      "containerIndex": 1,
+      "removalExitCode": 0,
+      "observedState": "removed",
+      "childStoppedConfirmed": true
+    }
+  ]
+}

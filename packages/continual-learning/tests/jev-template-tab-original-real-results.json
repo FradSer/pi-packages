@@ -1,0 +1,157 @@
+{
+  "evidence": "real-original-tab-spelling-after-fix",
+  "manifestSha256": "78fde6312d4b2dac271355f6ba46b0a64b2768dc56acd832702c12d804025dce",
+  "candidateSha256": "4144edf4141365c6bdf9dfbc7cd46d00f8832f26a4636538adcb632f902f3308",
+  "snapshotSha256": "7da9861460df8608df37f0712adb5e05c13c2af6cdb77fccd080a031bf2a0425",
+  "requestBudget": 3,
+  "externalRequests": 3,
+  "fixtureRequests": 0,
+  "decision": "allow",
+  "telemetry": {
+    "stage": "harness",
+    "status": "decided",
+    "reason": "supported",
+    "durationMs": 1725,
+    "strategy": "cited-support-full-review",
+    "evidenceEntries": 17,
+    "coveredEntries": 17,
+    "evidenceWindows": 2,
+    "completedWindows": 2,
+    "requestCount": 3,
+    "completedRequests": 3,
+    "model": "jev-1.13.0",
+    "inputTokens": 17299,
+    "outputTokens": 238,
+    "estimatedCostUsd": 0.0007265580000000001
+  },
+  "complete": true,
+  "wires": [
+    {
+      "index": 0,
+      "sha256": "f45b27ad52d37aa7b07f1c79476b793c8241cf6ef17ae19143e8bcf05a2de9e0",
+      "bytes": 4488,
+      "questionCount": 3,
+      "questionKeys": [
+        "authority_0",
+        "explanation_0",
+        "family_0"
+      ],
+      "evidenceEntries": 1
+    },
+    {
+      "index": 1,
+      "sha256": "685ef7b8cc920f5e92eea6edbd4966d5e7bbc9c18c252bf7761853b7fdf65954",
+      "bytes": 28802,
+      "questionCount": 1,
+      "questionKeys": [
+        "counter_0_0"
+      ],
+      "evidenceEntries": 7
+    },
+    {
+      "index": 2,
+      "sha256": "7e3b06e11bf533a944a6e01dad7c374b579f1203e00a5112e818c9b98ae22760",
+      "bytes": 19508,
+      "questionCount": 1,
+      "questionKeys": [
+        "counter_0_1"
+      ],
+      "evidenceEntries": 10
+    }
+  ],
+  "observations": [
+    {
+      "index": 2,
+      "status": 200,
+      "durationMs": 1162,
+      "modelVerified": true,
+      "inputTokens": 6330,
+      "outputTokens": 45,
+      "judgments": [
+        {
+          "key": "counter_0_1",
+          "choice": "compatible",
+          "confidence": 0.99,
+          "probabilities": {
+            "contradicts": 0,
+            "compatible": 1,
+            "unclear": 0
+          }
+        }
+      ]
+    },
+    {
+      "index": 0,
+      "status": 200,
+      "durationMs": 1430,
+      "modelVerified": true,
+      "inputTokens": 1401,
+      "outputTokens": 148,
+      "judgments": [
+        {
+          "key": "authority_0",
+          "choice": "lasting",
+          "confidence": 0.99,
+          "probabilities": {
+            "lasting": 1,
+            "conditional": 0,
+            "elsewhere": 0,
+            "absent": 0,
+            "temporary": 0
+          }
+        },
+        {
+          "key": "explanation_0",
+          "choice": "faithful",
+          "confidence": 0.94,
+          "probabilities": {
+            "faithful": 0.96,
+            "extra": 0.04,
+            "invented": 0,
+            "unclear": 0
+          }
+        },
+        {
+          "key": "family_0",
+          "choice": "authorized",
+          "confidence": 0.92,
+          "probabilities": {
+            "extra": 0.05,
+            "unclear": 0,
+            "authorized": 0.95
+          }
+        }
+      ]
+    },
+    {
+      "index": 1,
+      "status": 200,
+      "durationMs": 1699,
+      "modelVerified": true,
+      "inputTokens": 9568,
+      "outputTokens": 45,
+      "judgments": [
+        {
+          "key": "counter_0_0",
+          "choice": "compatible",
+          "confidence": 0.99,
+          "probabilities": {
+            "contradicts": 0,
+            "unclear": 0,
+            "compatible": 1
+          }
+        }
+      ]
+    }
+  ],
+  "productionWrites": 0,
+  "goalComplete": false,
+  "accountBillingVerified": false,
+  "semanticGoldEstablished": false,
+  "limits": [
+    "One known candidate, no heldout or full workflow effect.",
+    "Compared to preserved before matrix, not a simultaneous randomized comparison.",
+    "Incomplete requests and missing usage are unknown, never free."
+  ],
+  "privateResultSha256": "20507db474cd389ccb34604cd16cf6f8e14c5c1ab36fb1ba3c2a711b4f338df5"
+}

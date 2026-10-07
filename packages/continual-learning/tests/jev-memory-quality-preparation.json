@@ -1,0 +1,25 @@
+{
+  "root": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z",
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "hostGlobalConfigChanged": false,
+  "projectSources": [
+    {
+      "repo": "ai/nanoid",
+      "commit": "3167e108865702c0539d8e552365ed840ac9d8d9",
+      "readmeSha256": "7114152cd558eab8582ce671dc97aefd8cbf7fa1531fb670009e6ae679a15e00",
+      "readmePath": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/nanoid-README.md",
+      "url": "https://github.com/ai/nanoid/blob/3167e108865702c0539d8e552365ed840ac9d8d9/README.md"
+    },
+    {
+      "repo": "tinylibs/tinypool",
+      "commit": "2ed306417986823e7a7989fd392e9cbfeee1b0c1",
+      "readmeSha256": "dc9864095f94de4c9701eb437abed2c6952a69cbda6ef131d23c15fa869c334a",
+      "readmePath": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/tinypool-README.md",
+      "url": "https://github.com/tinylibs/tinypool/blob/2ed306417986823e7a7989fd392e9cbfeee1b0c1/README.md"
+    }
+  ],
+  "realInferenceStarted": false
+}

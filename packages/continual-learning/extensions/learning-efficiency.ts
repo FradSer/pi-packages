@@ -1,4 +1,4 @@
-import type { JevTelemetry } from "./jev-learning";
+import { jevCounterLocationText, type JevTelemetry } from "./jev-learning";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fieldLine, type PiWorkerUsage } from "@fradser/pi-kit";
@@ -21,6 +21,8 @@ export interface LearningAttempt {
   outcome: LearningOutcome;
   durationMs: number;
   operations: number;
+  /** Pending original records preserved separately from applied operations. */
+  pendingOperations?: number;
   usage?: PiWorkerUsage;
   costAvailable?: boolean;
   /** Controlled parent diagnostic; never raw worker stderr or model output. */
@@ -317,6 +319,8 @@ export interface LearningPipelineReceipt {
   screen: LearningScreen;
   attempts: LearningAttempt[];
   totals: PiWorkerUsage;
+  /** False when totals contain only the known subtotal of attempted calls. */
+  usageAvailable?: boolean;
   costAvailable: boolean;
   operations: number;
   retries: number;
@@ -330,6 +334,10 @@ export interface LearningInputSource {
   sourceDigest?: string;
 }
 
+function allLearningUsageAvailable(attempts: readonly LearningAttempt[]): boolean {
+  return attempts.every(attempt => attempt.usage !== undefined || attempt.outcome === "skipped" || attempt.outcome === "screened");
+}
+
 export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen, attempts: LearningAttempt[], input?: LearningInputSource): LearningPipelineReceipt {
   return {
     kind: "learning-pipeline-receipt",
@@ -338,8 +346,9 @@ export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen,
     screen,
     attempts,
     totals: totalLearningUsage(attempts),
+    usageAvailable: allLearningUsageAvailable(attempts),
     costAvailable: attempts.every((attempt) => {
-      if (!attempt.usage) return true;
+      if (!attempt.usage) return (attempt.outcome === "skipped" || attempt.outcome === "screened") && attempt.costAvailable !== false;
       const hasUsage = attempt.usage.input > 0 || attempt.usage.output > 0 || attempt.usage.cacheRead > 0 || attempt.usage.cacheWrite > 0 || attempt.usage.totalTokens > 0;
       return attempt.costAvailable ?? !(hasUsage && attempt.usage.cost === 0);
     }),
@@ -395,7 +404,8 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
     typeof receipt.mode === "string" && modes.includes(receipt.mode as LearningMode) &&
     Boolean(screen && typeof screen.memory === "boolean" && typeof screen.harness === "boolean" && typeof screen.agents === "boolean" && Array.isArray(screen.reasons) && screen.reasons.every((reason) => typeof reason === "string")) &&
     Array.isArray(receipt.attempts) && receipt.attempts.every((attempt) =>
-      Boolean(attempt && phases.includes(attempt.phase) && outcomes.includes(attempt.outcome) && Number.isSafeInteger(attempt.attempt) && attempt.attempt >= 0 && finiteNumber(attempt.durationMs) && finiteNumber(attempt.operations) && (attempt.usage === undefined || validUsage(attempt.usage)))) &&
+      Boolean(attempt && phases.includes(attempt.phase) && outcomes.includes(attempt.outcome) && Number.isSafeInteger(attempt.attempt) && attempt.attempt >= 0 && finiteNumber(attempt.durationMs) && finiteNumber(attempt.operations) && (attempt.pendingOperations === undefined || Number.isSafeInteger(attempt.pendingOperations) && attempt.pendingOperations >= 0) && (attempt.usage === undefined || validUsage(attempt.usage)))) &&
+    (receipt.usageAvailable === undefined || typeof receipt.usageAvailable === "boolean") &&
     validUsage(receipt.totals) && finiteNumber(receipt.operations) && typeof receipt.retries === "number" && Number.isSafeInteger(receipt.retries) && receipt.retries >= 0 && typeof receipt.costAvailable === "boolean";
 }
 
@@ -418,11 +428,27 @@ export function learningSummarySubject(receipt: LearningPipelineReceipt): string
     ...(harness > 0 ? [surfaceLabel(harness, "harness change", "harness changes")] : []),
     ...(agents > 0 ? [surfaceLabel(agents, "AGENTS.md change", "AGENTS.md changes")] : []),
   ];
-  if (surfaces.length > 0) return `${surfaces.join(" and ")} applied`;
+  const pending = receipt.attempts.reduce((sum, attempt) => sum + (attempt.pendingOperations ?? 0), 0);
+  if (surfaces.length > 0) return `${surfaces.join(" and ")} applied${pending ? `; ${pending} pending review` : ""}`;
   if (receipt.attempts.some(attempt => attempt.outcome === "proposed")) return "proposals saved for review";
   if (receipt.attempts.some((attempt) => attempt.outcome === "failed" || attempt.outcome === "rejected")) return "finished with issues";
+  if (receipt.attempts.some(attempt => attempt.outcome === "cancelled")) return "cancelled";
   if (receipt.attempts.length === 0 && receipt.screen.reasons.includes("no-learning-inputs")) return "no learning input";
   return "no durable changes";
+}
+
+function receiptUsageAvailable(receipt: LearningPipelineReceipt): boolean {
+  return receipt.usageAvailable !== false && allLearningUsageAvailable(receipt.attempts);
+}
+
+function receiptUsageText(receipt: LearningPipelineReceipt): string {
+  if (receiptUsageAvailable(receipt)) return formatLearningUsage(receipt.totals);
+  return receipt.totals.totalTokens > 0 ? `${formatLearningUsage(receipt.totals)} · known subtotal; total unavailable` : "usage unavailable";
+}
+
+function receiptCostText(receipt: LearningPipelineReceipt): string {
+  if (receiptUsageAvailable(receipt)) return formatLearningCost(receipt.totals, receipt.costAvailable);
+  return receipt.totals.cost > 0 ? `cost unavailable · known subtotal ${formatLearningCost(receipt.totals)}` : "cost unavailable";
 }
 
 export function learningSummaryDetails(receipt: LearningPipelineReceipt): string[] {
@@ -433,20 +459,20 @@ export function learningSummaryDetails(receipt: LearningPipelineReceipt): string
     ...(receipt.screen.reasons.includes("no-learning-inputs") ? ["No session evidence or existing Memory. Resume a task session or use /memory <request>."] : []),
     fieldLine("operations", receipt.operations),
     fieldLine("calls", receipt.attempts.length),
-    fieldLine("usage", formatLearningUsage(receipt.totals)),
-    fieldLine("cost", formatLearningCost(receipt.totals, receipt.costAvailable)),
+    fieldLine("usage", receiptUsageText(receipt)),
+    fieldLine("cost", receiptCostText(receipt)),
     fieldLine("directions", [receipt.screen.memory ? "memory" : "", receipt.screen.harness ? "harness" : "", receipt.screen.agents ? "agents" : ""].filter(Boolean).join(", ") || "none"),
     ...receipt.attempts.flatMap(attempt => [
       ...(attempt.selectedMemory ? [fieldLine("selected Memory", attempt.selectedMemory.join(", ") || "none")] : []),
       ...(attempt.diagnostic ? [fieldLine(`${attempt.phase} reason`, attempt.diagnostic)] : []),
-      ...(attempt.jev ? [fieldLine(`Jev ${attempt.jev.stage}`, `${attempt.jev.status}: ${attempt.jev.reason}${attempt.jev.candidateIndex !== undefined && attempt.jev.dimension ? ` · candidate ${attempt.jev.candidateIndex} ${attempt.jev.dimension}` : ""}${attempt.jev.strategy ? ` · full review ${attempt.jev.coveredEntries}/${attempt.jev.evidenceEntries} entries (${attempt.jev.completedWindows}/${attempt.jev.evidenceWindows} windows)` : ""} · ${attempt.jev.model ?? "no model response"} · ${attempt.jev.durationMs} ms · input ${attempt.jev.inputTokens ?? (attempt.jev.knownInputTokens !== undefined ? `unknown (at least ${attempt.jev.knownInputTokens})` : "unknown")} · output ${attempt.jev.outputTokens ?? "unknown"} · estimated cost ${attempt.jev.estimatedCostUsd === undefined ? (attempt.jev.knownEstimatedCostUsd !== undefined ? `unknown (at least $${attempt.jev.knownEstimatedCostUsd.toFixed(8)})` : "unavailable") : `$${attempt.jev.estimatedCostUsd.toFixed(8)}`}`)] : []),
+      ...(attempt.jev ? [fieldLine(`Jev ${attempt.jev.stage}`, `${attempt.jev.status}: ${attempt.jev.reason}${typeof attempt.jev.httpStatus === "number" && Number.isSafeInteger(attempt.jev.httpStatus) && attempt.jev.httpStatus >= 400 && attempt.jev.httpStatus <= 599 ? ` · HTTP ${attempt.jev.httpStatus}` : ""}${attempt.jev.candidateIndex !== undefined && attempt.jev.dimension ? ` · candidate ${attempt.jev.candidateIndex} ${attempt.jev.dimension}${attempt.jev.field === "description" ? ".description" : ""}` : ""}${jevCounterLocationText(attempt.jev) ? ` · ${jevCounterLocationText(attempt.jev)}` : ""}${attempt.jev.strategy === "cited-support-full-review" ? ` · full review ${attempt.jev.coveredEntries}/${attempt.jev.evidenceEntries} entries (${attempt.jev.completedWindows}/${attempt.jev.evidenceWindows} windows)` : attempt.jev.strategy === "same-batch-relations" ? " · same-batch relations" : attempt.jev.strategy === "standalone-memory" ? " · standalone meaning" : ""} · ${attempt.jev.model ?? "no model response"} · ${attempt.jev.durationMs} ms · input ${attempt.jev.inputTokens ?? (attempt.jev.knownInputTokens !== undefined ? `unknown (at least ${attempt.jev.knownInputTokens})` : "unknown")} · output ${attempt.jev.outputTokens ?? "unknown"} · estimated cost ${attempt.jev.estimatedCostUsd === undefined ? (attempt.jev.knownEstimatedCostUsd !== undefined ? `unknown (at least $${attempt.jev.knownEstimatedCostUsd.toFixed(8)})` : "unavailable") : `$${attempt.jev.estimatedCostUsd.toFixed(8)}`}`)] : []),
     ]),
     ...phaseLines,
   ];
 }
 
 export function formatLearningSummary(receipt: LearningPipelineReceipt): string {
-  return `Learning ${learningSummarySubject(receipt)} · ${formatLearningUsage(receipt.totals)} · ${formatLearningCost(receipt.totals, receipt.costAvailable)}`;
+  return `Learning ${learningSummarySubject(receipt)} · ${receiptUsageText(receipt)} · ${receiptCostText(receipt)}`;
 }
 
 export function totalLearningUsage(attempts: readonly LearningAttempt[]): PiWorkerUsage {

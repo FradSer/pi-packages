@@ -1,0 +1,58 @@
+{
+  "evidence": "research-adoption-decision",
+  "adopted": false,
+  "productionRuntimeChangedThisPhase": false,
+  "jevDefaultChanged": false,
+  "resultSha256": "827bf0b18d70214198d4bbf1c7a3dafc7ac6da7ecc8c7e5d18cfb864ece5c24e",
+  "aggregate": {
+    "samples": 20,
+    "labeledIncomplete": 9,
+    "labeledComplete": 11,
+    "whole": {
+      "definiteMissingDetected": 3,
+      "incompleteJudgedComplete": 1,
+      "incompleteUncertainOrUnavailable": 5,
+      "completeCorrectlyRecognized": 8,
+      "completeJudgedIncomplete": 0,
+      "completeUncertainOrUnavailable": 3
+    },
+    "perRequirement": {
+      "definiteMissingDetected": 4,
+      "incompleteJudgedComplete": 0,
+      "incompleteUncertainOrUnavailable": 5,
+      "completeCorrectlyRecognized": 8,
+      "completeJudgedIncomplete": 0,
+      "completeUncertainOrUnavailable": 3
+    },
+    "restoredCompleteRows": [
+      "explicit-long-term-observed-result-en-after",
+      "explicit-long-term-observed-result-zh-before"
+    ],
+    "newCompleteHolds": [
+      "requested-release-complete-zh",
+      "marker-complete-zh"
+    ]
+  },
+  "reason": "Local safety signal with unresolved Chinese regressions and manual extraction dependence; no full plugin learning benefit established.",
+  "limits": [
+    "Manual requirement selection is not validated automatic extraction.",
+    "Both questions use the same complete resulting bodies with frontmatter removed.",
+    "No candidate generation, Memory writes, recall or Harness effects.",
+    "Complete covers supplied requirements only; no authorization or privacy classification proof.",
+    "Requirements are manually selected and model reviewed, not automatic extraction or human gold.",
+    "Requirements cover body knowledge only, not persisted privacy classification or sharing authorization.",
+    "All existing and resulting frontmatter is removed in both compared questions.",
+    "Twelve known development outputs and eight new authored controls; paired language and before/after rows are not independent scenarios.",
+    "Label agreement is against authored expectations reviewed by a model, not measured human-gold error rates.",
+    "Separate questions in the same batch do not imply statistical independence.",
+    "Latency and cost cover both compared methods together; incremental cost was not independently measured.",
+    "Fewer unsafe complete judgments can be caused by uncertainty; that is distinct from definite omission detection.",
+    "Two valid cases improve and two valid cases regress; aggregate valid completeness count alone hides these changes."
+  ],
+  "nextRequiredEvidence": [
+    "Prepare exhaustive original-request spans without hand-selected requirements and validate source coverage before transport.",
+    "Validate preserved requirements against original context and full counterevidence; never grant write authority from completeness.",
+    "Verify candidate generation, actual Memory storage, new-session use and native Harness effects with the user-selected main model once its upstream accepts calls.",
+    "Use new frozen projects and bilingual cases, preserving all existing failures and unchanged thresholds."
+  ]
+}

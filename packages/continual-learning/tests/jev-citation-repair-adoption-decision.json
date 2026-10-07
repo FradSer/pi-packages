@@ -1,0 +1,85 @@
+{
+  "evidence": "original-citation-completeness-development-and-fresh-heldout",
+  "decision": "retain-positive-research-signal-do-not-deploy-attach-all",
+  "adopted": false,
+  "productionRuntimeChanged": false,
+  "goalComplete": false,
+  "actualModel": "jev-1.13.0",
+  "externalRequests": 160,
+  "knownInputTokens": 157404,
+  "knownEstimatedCostUsd": 0.006610968000000002,
+  "actualBillingVerified": false,
+  "results": {
+    "development": {
+      "metrics": {
+        "before": {
+          "complete": 16,
+          "incomplete": 0,
+          "falseAccepts": 0,
+          "falseHolds": 1,
+          "correct": 15
+        },
+        "after": {
+          "complete": 16,
+          "incomplete": 0,
+          "falseAccepts": 0,
+          "falseHolds": 0,
+          "correct": 16
+        }
+      },
+      "ruleMet": true,
+      "armUsage": {
+        "before": {
+          "inputTokens": 31013,
+          "medianMs": 380.5
+        },
+        "after": {
+          "inputTokens": 32663,
+          "medianMs": 413.0
+        }
+      },
+      "remainingValidHolds": [],
+      "reportSha256": "5a340163436fc51971ba15bffcb99b3ed3b0db4fcbcaa533620dae7f95a000f2"
+    },
+    "heldout": {
+      "metrics": {
+        "before": {
+          "complete": 24,
+          "incomplete": 0,
+          "falseAccepts": 0,
+          "falseHolds": 9,
+          "correct": 15
+        },
+        "after": {
+          "complete": 24,
+          "incomplete": 0,
+          "falseAccepts": 0,
+          "falseHolds": 1,
+          "correct": 23
+        }
+      },
+      "ruleMet": true,
+      "armUsage": {
+        "before": {
+          "inputTokens": 45455,
+          "medianMs": 481.0
+        },
+        "after": {
+          "inputTokens": 48273,
+          "medianMs": 485.5
+        }
+      },
+      "remainingValidHolds": [
+        "unrelated-network-zh"
+      ],
+      "reportSha256": "fddc15aaa513cc73dd1d99608e28cae720b25e33b8ae04ea2b7cf244896a261b"
+    }
+  },
+  "limits": [
+    "40samples comprise20bilingual scenario pairs, not40independent projects.",
+    "One paired run per split; no favorable retries or gold changes after inference.",
+    "Public synthetic fully cited new project Memory only; no multi-window/multi-candidate/existingMemory/privacy learning/Docker workflow quality.",
+    "Adding all original citations is a bounded research control, not a production strategy.",
+    "1valid Chinese heldout record still held; zero unsafe acceptance in this pool is not general safety proof."
+  ]
+}

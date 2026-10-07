@@ -1,0 +1,276 @@
+{
+  "purpose": "Historical real inference provenance after first runtime partition integration",
+  "studyManifestSha256": "614a16210eaeed0dcc0392a8fb900a22ede84a56c0b6713c6d9b0f64e68cf2db",
+  "studyResultsSha256": "d05cbc377273af4ff17a7d79cedfa1ea7e078314c7878e8740ecb42c4a95cab7",
+  "all44SourceHashesVerified": true,
+  "sources": [
+    {
+      "originalSource": "evaluate_jev_composed_readiness.ts",
+      "expectedSha256": "ec15cea6524b4c66041112bd33df831b13e37a90938a87deff03574e19de5483",
+      "resolvedSource": "evaluate_jev_composed_readiness.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "jev-composed-readiness-research.ts",
+      "expectedSha256": "98800f814b4031c20ac0a909774b929ec0428897e6f13e59ffafca6f8e13ee7a",
+      "resolvedSource": "jev-composed-readiness-research.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "jev-composed-readiness-protocol.md",
+      "expectedSha256": "44733947a8e0d53fc2d760bacfb9b048dfdc32b8027e68d6101d5bd9cae2faae",
+      "resolvedSource": "jev-composed-readiness-protocol.md",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "jev-standalone-memory-research.ts",
+      "expectedSha256": "8deab3bd0581fc95865ba0b6fabdb07c2dab91fa707087336094e50a67066781",
+      "resolvedSource": "jev-standalone-memory-research.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "frozen-research-manifest.ts",
+      "expectedSha256": "dabd48c021dff53a2684d1436238b2bfcbacbaf2e33ff558bdd5fd4950724b28",
+      "resolvedSource": "frozen-research-manifest.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "jev-memory-pair-judgment.ts",
+      "expectedSha256": "ae105d296f4fcb6af6c3f4fddb0a9af30d635e2fffcbc1a5c53b08bab020ec15",
+      "resolvedSource": "jev-memory-pair-judgment.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "independent-memory-subset-research.ts",
+      "expectedSha256": "29fed0392b8a422c3f3ecf4ec213a043d63a9c225dde95906e48ee7d756c48da",
+      "resolvedSource": "independent-memory-subset-research.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../index.ts",
+      "expectedSha256": "1ab8302e9b46799be439f84a3c0d49a113d96261084c3d2e96478313d09b061e",
+      "resolvedSource": "../index.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../node_modules/@typesafe-ai/sdk/package.json",
+      "expectedSha256": "b94bd1d862b166be53b0b91a36a2af27a0b14e397ffea8f0c53cbfcc9718c508",
+      "resolvedSource": "../node_modules/@typesafe-ai/sdk/package.json",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../node_modules/@typesafe-ai/sdk/dist/index.mjs",
+      "expectedSha256": "bbb851dfe375c586c5bee3c082a04ab71882813dde39df0e95eaa23f30ec7012",
+      "resolvedSource": "../node_modules/@typesafe-ai/sdk/dist/index.mjs",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../../../pnpm-lock.yaml",
+      "expectedSha256": "217a0ac104d6551be83ee2770aff0f715663e55cedab2e2f68cfbbf42fda62db",
+      "resolvedSource": "../../../pnpm-lock.yaml",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/learning-settings.ts",
+      "expectedSha256": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+      "resolvedSource": "../extensions/learning-settings.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/incremental-learning.ts",
+      "expectedSha256": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+      "resolvedSource": "../extensions/incremental-learning.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/memory-files.ts",
+      "expectedSha256": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+      "resolvedSource": "../extensions/memory-files.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/consolidation-run.ts",
+      "expectedSha256": "1f121be40c5d93dc7679325e18a8c71366e46827dc83ca8970356b83f3912b6e",
+      "resolvedSource": "../extensions/consolidation-run.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/learning-history.ts",
+      "expectedSha256": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+      "resolvedSource": "../extensions/learning-history.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/memory-paths.ts",
+      "expectedSha256": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+      "resolvedSource": "../extensions/memory-paths.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/inject-memory.ts",
+      "expectedSha256": "6ccbb5172543894e1247c1107c03d3fb9a5e758b56ecf3d4b0829f7b4f57de6b",
+      "resolvedSource": "../extensions/inject-memory.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/guardrail-types.ts",
+      "expectedSha256": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+      "resolvedSource": "../extensions/guardrail-types.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/agents-md-consolidation.ts",
+      "expectedSha256": "d3a8541e169a760b37526597411bdb923534e9412ec5c60e84f501a9b47440dc",
+      "resolvedSource": "../extensions/agents-md-consolidation.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/learning-input.ts",
+      "expectedSha256": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+      "resolvedSource": "../extensions/learning-input.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/jev-memory-relations.ts",
+      "expectedSha256": "bfb4030799a2d254174524887e4241d69223a7c355d7e06b6dc0fd568cbc5529",
+      "resolvedSource": "../extensions/jev-memory-relations.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/legacy-harness.ts",
+      "expectedSha256": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+      "resolvedSource": "../extensions/legacy-harness.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/learning-management.ts",
+      "expectedSha256": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+      "resolvedSource": "../extensions/learning-management.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/guardrails.ts",
+      "expectedSha256": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+      "resolvedSource": "../extensions/guardrails.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/output-checks.ts",
+      "expectedSha256": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+      "resolvedSource": "../extensions/output-checks.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/guardrail-config.ts",
+      "expectedSha256": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+      "resolvedSource": "../extensions/guardrail-config.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/harness-guidance.ts",
+      "expectedSha256": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+      "resolvedSource": "../extensions/harness-guidance.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/learning-evaluation.ts",
+      "expectedSha256": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+      "resolvedSource": "../extensions/learning-evaluation.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/incremental-memory-plan.ts",
+      "expectedSha256": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+      "resolvedSource": "../extensions/incremental-memory-plan.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/memory-menu.ts",
+      "expectedSha256": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+      "resolvedSource": "../extensions/memory-menu.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/learning-backlog.ts",
+      "expectedSha256": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+      "resolvedSource": "../extensions/learning-backlog.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/harness-command-coverage.ts",
+      "expectedSha256": "122b26c79364e4c82b41d96e819f0ecb916b4a7a01738b6b3f0002bfcce2de8c",
+      "resolvedSource": "../extensions/harness-command-coverage.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/automatic-learning.ts",
+      "expectedSha256": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+      "resolvedSource": "../extensions/automatic-learning.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/harness-menu.ts",
+      "expectedSha256": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+      "resolvedSource": "../extensions/harness-menu.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/learning-controls.ts",
+      "expectedSha256": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+      "resolvedSource": "../extensions/learning-controls.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/independent-memory-partition.ts",
+      "expectedSha256": "85c7b8b3c24e79a45be81cf323cbdc2dc1bddf41c54f3c1bda8d5c0b2cfe1c9a",
+      "resolvedSource": "fixtures/composed-partition-preintegration/independent-memory-partition.ts",
+      "currentOriginalBytesMatch": false
+    },
+    {
+      "originalSource": "../extensions/jev-learning.ts",
+      "expectedSha256": "348ca3a03ce3c303368595b1c8e8040002545970ac53927e9ee7533e98c6b948",
+      "resolvedSource": "../extensions/jev-learning.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/harness-guidance-planner.ts",
+      "expectedSha256": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+      "resolvedSource": "../extensions/harness-guidance-planner.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/config.ts",
+      "expectedSha256": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+      "resolvedSource": "../extensions/config.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/guardrail-engine.ts",
+      "expectedSha256": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+      "resolvedSource": "../extensions/guardrail-engine.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/learning-efficiency.ts",
+      "expectedSha256": "419b791f40d94d2c94fe7b3aae7a8a8be3c3e1f6b46d81122f479fe4333daab7",
+      "resolvedSource": "../extensions/learning-efficiency.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/planner-prompts.ts",
+      "expectedSha256": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899",
+      "resolvedSource": "../extensions/planner-prompts.ts",
+      "currentOriginalBytesMatch": true
+    },
+    {
+      "originalSource": "../extensions/harness-consolidation.ts",
+      "expectedSha256": "a35441ddfbf3c8c3be27dbcfee3dd89dc0daaadf2f9e1e7e5b42ce247ef49c47",
+      "resolvedSource": "../extensions/harness-consolidation.ts",
+      "currentOriginalBytesMatch": true
+    }
+  ],
+  "limitations": [
+    "Historical model responses remain unchanged; current runtime changes have not been subjected to new real inference.",
+    "The historical runner deliberately rejects current modified sources. The snapshot only preserves prior provenance, not permission to rerun it."
+  ]
+}

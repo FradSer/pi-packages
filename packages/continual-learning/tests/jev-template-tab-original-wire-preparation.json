@@ -1,0 +1,55 @@
+{
+  "evidence": "offline-original-large-candidate-wire-profile",
+  "originalRealReportSha256": "5b4b73ff65409217bf07e94c91a7bf81a3e6f88999980ece8c004518365341ec",
+  "originalNativeOutputSha256": "af830501eccc276a27dfa895c1e85716d592b2cdfd301e57b045d7e7b2de45a9",
+  "snapshotSha256": "7da9861460df8608df37f0712adb5e05c13c2af6cdb77fccd080a031bf2a0425",
+  "candidateSha256": "4144edf4141365c6bdf9dfbc7cd46d00f8832f26a4636538adcb632f902f3308",
+  "evidenceEntries": 17,
+  "evidenceWindows": 2,
+  "fixtureRequests": 3,
+  "externalRequests": 0,
+  "wires": [
+    {
+      "index": 0,
+      "sha256": "f45b27ad52d37aa7b07f1c79476b793c8241cf6ef17ae19143e8bcf05a2de9e0",
+      "bytes": 4488,
+      "questionCount": 3,
+      "questionKeys": [
+        "authority_0",
+        "explanation_0",
+        "family_0"
+      ],
+      "evidenceEntries": 1
+    },
+    {
+      "index": 1,
+      "sha256": "685ef7b8cc920f5e92eea6edbd4966d5e7bbc9c18c252bf7761853b7fdf65954",
+      "bytes": 28802,
+      "questionCount": 1,
+      "questionKeys": [
+        "counter_0_0"
+      ],
+      "evidenceEntries": 7
+    },
+    {
+      "index": 2,
+      "sha256": "7e3b06e11bf533a944a6e01dad7c374b579f1203e00a5112e818c9b98ae22760",
+      "bytes": 19508,
+      "questionCount": 1,
+      "questionKeys": [
+        "counter_0_1"
+      ],
+      "evidenceEntries": 10
+    }
+  ],
+  "paidExecutionAllowedNow": false,
+  "productionWrites": 0,
+  "goalComplete": false,
+  "limits": [
+    "Offline profile after equivalent tab recognition; not real after-fix inference.",
+    "Known original synthetic Docker candidate, no complete semantic gold.",
+    "Forced answers only establish full frozen wire profile, never quality.",
+    "Raw wire private mode0600; no API key or raw source in public profile.",
+    "No retries or original result relabel; prospective transport/deadline matrix not yet run."
+  ]
+}

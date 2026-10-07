@@ -1,0 +1,43 @@
+{
+  "evidence": "offline-research-preparation-not-model-effect",
+  "initialRedFailed": 2,
+  "initialRedSeconds": 0.08,
+  "sourceIdentityRegressionRedFailed": 1,
+  "finalFocusedTestsPassed": 4,
+  "strictResearchTypecheck": "passed",
+  "rootTypecheck": "passed",
+  "freshIndependentReview": "r15_click_content_review:final helper/runner/corpus/preflight no blocker; all24gold labels consistent; no realmodel claim",
+  "offlineSamples": 24,
+  "offlineArms": 48,
+  "forcedTransports": 96,
+  "externalRequests": 0,
+  "productionWrites": 0,
+  "livePrerequisiteGuard": {
+    "blocked": true,
+    "externalRequests": 0
+  },
+  "adopted": false,
+  "goalComplete": false,
+  "realInferenceVerified": false,
+  "fullTargetTestSessionId": 90806,
+  "limits": [
+    "Forced mock answer metrics are not model accuracy; mock accepts all12negative cases per arm.",
+    "Unqueried public bilingual development set, not heldout or Docker quality.",
+    "R15 paid workflow process50837 is live; no second paid process permitted."
+  ],
+  "fullTargetTests": {
+    "passed": 883,
+    "seconds": 282.95,
+    "exitCode": 0
+  },
+  "officialDocumentationReviewed": [
+    {
+      "url": "https://docs.typesafe.ai/cookbooks/citation_check",
+      "application": "Code proves quote occurrence; full original context still determines support. Published Jev1.12 cookbook numbers are not current Jev1.13 evidence."
+    },
+    {
+      "url": "https://docs.typesafe.ai/concepts/state",
+      "application": "Retain state as original evidence; do not replace complete sources with selected quotes."
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "evidence": "real-jev-description-context-adoption-decision",
+  "adopted": false,
+  "productionChanged": false,
+  "reason": "Development improvement did not generalize to frozen heldout; unlabeled real Click replay still held. Body context increases input usage.",
+  "reports": {
+    "development": {
+      "path": "jev-description-context-development-real-results.json",
+      "sha256": "c12dcb723f1b5e0123ab48af99587ca2e0120111291407f80f13ac52ce0326b1",
+      "complete": true,
+      "metrics": {
+        "before": {
+          "evaluatedPlans": 24,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 6
+        },
+        "after": {
+          "evaluatedPlans": 24,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 4
+        }
+      },
+      "outboundRequests": 102,
+      "knownInputTokens": 132245,
+      "knownEstimatedCostUsd": 0.00555429,
+      "medianDurationMs": {
+        "before": 359,
+        "after": 357
+      },
+      "inputTokensByArm": {
+        "before": 62192,
+        "after": 70053
+      }
+    },
+    "heldout": {
+      "path": "jev-description-context-heldout-real-results.json",
+      "sha256": "e6b4d3e40234b3e6b22c94c4918d1f8e48d7087eb3c5dd460b78d36f2a15f704",
+      "complete": true,
+      "metrics": {
+        "before": {
+          "evaluatedPlans": 24,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 8
+        },
+        "after": {
+          "evaluatedPlans": 24,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 8
+        }
+      },
+      "outboundRequests": 96,
+      "knownInputTokens": 95112,
+      "knownEstimatedCostUsd": 0.003994704000000001,
+      "medianDurationMs": {
+        "before": 365.5,
+        "after": 360.0
+      },
+      "inputTokensByArm": {
+        "before": 44298,
+        "after": 50814
+      }
+    }
+  },
+  "combined": {
+    "requests": 198,
+    "inputTokens": 227357,
+    "estimatedInputTariffUsd": 0.009548994000000002
+  },
+  "limitations": [
+    "Each split has 12 bilingual expression pairs, not 24 independent mechanisms. Heldout uses new expressions and commands from the same archetypes.",
+    "Single paired query per arm and sample; no significance or global quality claim.",
+    "Click replay is original frozen read-only unlabeled proposal, not a new Docker execution or applied plan.",
+    "Costs use known input tariff and response usage, not actual billed fees.",
+    "Offline preflight and mocked regression outcomes are not quality evidence."
+  ],
+  "nextSignal": "Remaining positive holds concentrate on the independent description support question; retrieval-cue interpretation needs a task-specific judgment or generator clarification, not lower confidence."
+}

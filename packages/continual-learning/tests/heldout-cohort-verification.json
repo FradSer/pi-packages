@@ -1,0 +1,94 @@
+{
+  "scope": "Frozen heldout project cohort and explicit requested main model in real-project evaluator",
+  "sourceHashes": {
+    "tests/docker_experiment.py": "56082b8879b408814b220e9279d2da0f6f5abe8c58310cc2fe3416513090a727",
+    "tests/live_docker_projects.py": "dc3098aed2b35dd974e6ac1ae479f1887b0a77f0e700b219b3205cb93909b48a",
+    "tests/heldout_project_catalog.py": "2570b5145174294e995625284caa34308183c383664025711171ec65cc605212",
+    "tests/test_heldout_project_cohort.py": "0db159f5eeb4a9d9e6a56d75a51d57f6d66c62c559972cb71b6e406ea7ebeb3d",
+    "tests/test_docker_experiment.py": "d57452a2b86b552791be7220951161e05ee10faae764664bc5c153903a85ffe0",
+    "features/heldout-project-cohort.feature": "8b5153f73aff08d94d2242edf0bff568ad400890c294e1b91d601de6a67cb105"
+  },
+  "sourceDigest": "7b98c3a6ace108ab808a2593c73be19f80696e68a5a886b21d8c0e0a7a5e0154",
+  "nativeEvidence": "heldout-cohort-native-results.json",
+  "pristineBaselineEvidence": "heldout-project-baselines.json",
+  "red": {
+    "cohortSelectionAndMetadataBindingFailed": 4,
+    "explicitModelOverrideNotSupported": true
+  },
+  "focused": {
+    "passed": 34,
+    "seconds": 2.88,
+    "evidence": "Offline routing/configuration/wiring checks, not model inference"
+  },
+  "packageSuite": {
+    "passed": 1040,
+    "seconds": 403.81,
+    "exitCode": 0,
+    "command": "uv run --no-project --python /opt/homebrew/bin/python3 python -m pytest packages/continual-learning/tests -q"
+  },
+  "interruptedEarlierSuite": {
+    "passedBeforeIntentionalInterrupt": 259,
+    "seconds": 129.65,
+    "exitCode": 2,
+    "reason": "Ambient alternate main selection was discovered; suite deliberately interrupted for explicit model pinning and then fully rerun"
+  },
+  "rootTypecheck": "passed",
+  "workspacePackedManifestsPassed": 19,
+  "targetPackDryRun": "passed",
+  "packageDiffCheck": "passed",
+  "installation": {
+    "exitCode": 1,
+    "continualLearningMissing": false,
+    "unrelatedMissingPackages": [
+      "agent-teams",
+      "bdd-jev",
+      "btw",
+      "context",
+      "keyboard",
+      "monitor",
+      "plan-mode",
+      "recap",
+      "skill-router",
+      "utils",
+      "vision"
+    ]
+  },
+  "freshReview": {
+    "agent": "heldout_cohort_review",
+    "blockingFindings": 0,
+    "cohortOfflinePassed": 15,
+    "independentObservationOfflinePassed": 26,
+    "finalModelPinningOfflinePassed": 17
+  },
+  "realConfiguredModelPreflight": {
+    "selection": {
+      "provider": "cli-proxy",
+      "model": "opencode/space-bunny-free"
+    },
+    "temporarySelectionVerified": true,
+    "hostCredentialNotCopied": true,
+    "requests": 0,
+    "configuredMaxTokens": 524288,
+    "hostConfigUnchanged": true
+  },
+  "newEnvironmentDockerExecutions": 6,
+  "finalSourceEnvironmentDockerExecutions": 3,
+  "ownedContainersRemaining": 0,
+  "newMainInferenceRequests": 0,
+  "newJevInferenceRequests": 0,
+  "globalSettingsChanged": false,
+  "defaultHistoricalCohortChanged": false,
+  "productionDefaultActivated": false,
+  "completeGoalEvidence": false,
+  "remaining": [
+    "Integrate the composed experimental Memory policy into a prospectively frozen actual-main project comparison; ordinary production construction still keeps the policy off",
+    "Run actual cli-proxy/opencode/space-bunny-free generation, durable application and knowledge use after the known service cooldown",
+    "Compare useful knowledge, incorrect writes, false holds, constraint behavior, latency and cost on frozen independent projects; retain all failed and negative arms"
+  ],
+  "limitations": [
+    "Actual Docker dependency helper and upstream tests passed, but Pi candidate generation and learning were not dispatched",
+    "Configuration preflight proves identity and host-file preservation, not remote service availability",
+    "Historical results retain their recorded model identities; current model pinning does not retroactively change them",
+    "Passing environment and offline tests is not new evidence of improved semantic learning quality"
+  ]
+}

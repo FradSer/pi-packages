@@ -307,3 +307,224 @@ Feature: Evidence-bound Jev judgments
     Then its task requires negative cases for quoted command strings containing operators and arguments
     And only a family prohibition may use the anchored ASCII family matcher
     And an unresolved correction remains a proposal without Harness writes
+
+  Scenario: Durable Harness quality is independent of workflow completion
+    Given a completed real task with a persisted Harness restriction
+    When the frozen whole configuration is audited against independent harmless command probes
+    Then command text printed by echo or quoted printf must not be counted as an invocation
+    And absent restrictions retain missed constraints rather than full quality success
+    And invalid whole configurations count as incomplete
+    And a changed matcher dependency or an unmatched artifact hash stops the audit
+
+  Scenario: Parent rejection is distinguishable from a Jev hold
+    Given an original or repaired Harness plan whose executable cases fail
+    When parent validation rejects the plan before semantic inference
+    Then its receipt explains the controlled validation category and error count
+    And no candidate text, rule identity or evidence quote appears in that diagnostic
+    And no rejected rule is applied
+
+  Scenario: One semantic repair receives every held candidate location
+    Given complete Jev results with failures on multiple candidates
+    When the plugin prepares its one bounded semantic repair
+    Then the first failure on each candidate is included as controlled metadata
+    And the original whole plan remains held until parent validation and semantic recheck pass
+    And unavailable or incomplete service results never imply partial write permission
+    And the existing repair input and request limits remain unchanged
+
+  Scenario: Git global options are not mistaken for harmless command text
+    Given cited evidence prohibits the Git push command family in this project
+    When generating or repairing its matcher
+    Then same-project Git global options before push remain positive cases
+    And echo and quoted printf of those commands remain negative cases
+    And exact-only restrictions and existing rules are not broadened
+    And bare-command probes alone do not establish whole-family coverage
+
+  Scenario: Native enforcement evidence is independent of a model refusal
+    Given a generated Harness and a real-model session that never attempts Bash
+    When fixed safe tool requests exercise real Pi in an isolated agent directory
+    Then each request is paired with its actual native tool result
+    And prohibited Git calls cannot reach the local marker wrapper
+    And harmless command text is allowed
+    And this fixture-provider evidence is separate from real inference quality
+    And no credentials or remote Git writes are involved
+
+  Scenario: Harness support decomposition is a read-only paired experiment
+    Given a frozen parent-valid new command rule held by the real support judgment
+    When comparing the current question with a message-and-action support question
+    Then only the support question changes
+    And original scope, counterevidence, evidence bytes and thresholds remain unchanged
+    And rewritten or removed rules retain their complete operation context
+    And unlabeled real holds are not assumed to be false holds
+    And service failures and incomplete usage remain outside semantic accuracy
+    And the experiment cannot grant production writes
+
+  Scenario: Research translates only a code-proven finite Git matcher
+    Given a fixed bilingual corpus and a matcher equal to the audited finite Git grammar
+    When read-only paired inference compares raw syntax with its proven matching description
+    Then support and authorization evidence and all decision thresholds remain unchanged
+    And unknown regexes retain the original questions
+    And no research judgment grants a production write
+
+  Scenario: Proven finite Git syntax does not supply authorization
+    Given an exactly recognized finite Git push matcher and parent-validated citations
+    When Jev reviews the proposed Harness
+    Then support retains the original candidate
+    And scope and complete counterevidence review receive its code-proven matching language
+    And unknown matchers retain the original path
+    And all permission and uncertainty gates still apply
+
+  Scenario: Read-only finite-family research separates authorization judgments
+    Given code-proven finite same-project Git push syntax and frozen original citations
+    When research compares general scope review with existing command-family judgments
+    Then lasting authorization, explanation fidelity and argument-family limits are checked independently
+    And complete counterevidence and all confidence thresholds remain mandatory
+    And unknown, disabled, confirmation and non-add rules keep the production path
+    And the research result cannot write Memory or Harness
+
+  Scenario: Read-only counterevidence decomposition preserves independent authorization
+    Given original cited candidates and the complete frozen evidence
+    When research asks only about corrections, exceptions and conflicting observations
+    Then support and scope questions are unchanged
+    And every original evidence window is still reviewed
+    And uncertainty, conflict and service failure still hold the complete plan
+    And the experiment grants no write permission
+
+  Scenario: Read-only source identity never becomes truth or permission
+    Given every original indexed evidence entry including assistant and tool messages
+    When research adds identity derived only from structured message roles
+    Then all original content, indexes and questions remain unchanged
+    And quoted role text cannot become user authority
+    And tool observations remain available to check factual conflicts
+    And source identity establishes neither truth nor write permission
+
+  Scenario: Read-only Noul counterevidence experiment has explicit contradiction polarity
+    Given the original cited candidates and every complete evidence window
+    When Noul judges whether a conflict is established
+    Then a value at least 0.9 holds the entire plan as conflict
+    And only a value at most 0.1 passes that countercheck
+    And intermediate values remain proposals
+    And independent support, scope, privacy and permission gates still apply
+
+  Scenario: Memory conflict classification concerns only asserted claims
+    Given a user states a project fact and a separate behavioral prohibition
+    When research checks a Memory containing only that fact
+    Then omitting the separate prohibition is not itself a Memory conflict
+    And later corrections and factual scope limits still hold the complete plan
+    And Harness judgment, original evidence and every other gate are unchanged
+  Scenario: Scope expansion is a single bounded proposition in research
+    Given a Harness candidate and the complete frozen original authorization
+    When the research judge compares its restriction with the original boundary
+    Then both the same scope and a narrower scope count as no expansion
+    And an uncertain boundary holds the complete plan
+    And independent support and counterevidence checks remain mandatory
+    And no research judgment authorizes a file write
+  Scenario: A Memory index description cannot invent knowledge absent from its body
+    Given a candidate whose body is supported but whose indexed description adds an unsupported claim
+    When the research semantic gate reviews the candidate
+    Then the description and full body are both treated as proposed knowledge
+    And the file name and type remain administrative context
+    And the whole plan remains proposed until the description is corrected and rechecked
+    And privacy and the original frozen evidence are unchanged
+
+  Scenario: Index descriptions receive independent bounded semantic checks
+    Given a parent-valid Memory with frozen citations and an index description
+    When Jev validates the candidate
+    Then the body retains its original support and relationship checks
+    And the description receives independent support, relationship and full-evidence checks
+    And a duplicate description does not reject a body that adds supported knowledge
+    And a duplicate body remains proposed
+    And a failed description identifies only its controlled field and candidate index
+    And all extra questions fit existing limits before any external request
+
+  Scenario: Research parent-bound matching proof never grants semantic authority
+    Given an exact canonical project push matcher and a parent-owned frozen identity
+    When the read-only research judge verifies directory, run, scope and evidence digest
+    Then code supplies only the matcher meaning to independent authorization judgments
+    And wrong bindings retain the general scope judgment
+    And temporary, conditional, parameter-limited or revoked restrictions remain proposals
+    And the research judge never writes a Memory or Harness
+
+  Scenario: Parent-bound project matcher preserves independent semantic gates
+    Given a new blocking rule exactly matches the canonical project push template
+    And the parent froze its directory, run, scope and full evidence identity
+    When Jev checks that rule during initial validation or bounded repair
+    Then matching syntax is supplied as code-verified context
+    And Jev independently checks lasting authorization, argument scope and every counter window
+    And unavailable or uncertain answers keep the whole plan as a proposal
+    And existing rules and explicit Memory handling retain their original contracts
+
+  Scenario: Research description retrieval cue uses proposed body as context only
+    Given a parent-validated Memory body and its complete index description
+    When the read-only research judge interprets an elliptical retrieval cue
+    Then the proposed body provides referent context but cannot supply evidence
+    And independent body, description, relationship and complete counter checks remain mandatory
+    And original privacy scanning and request limits apply before transport
+
+
+  Scenario: Research retrieval description judges its actual index role
+    Given a Memory body and an index description that may be a retrieval cue
+    When the read-only research judge checks independent description support
+    Then it judges the cue and every claim against frozen original evidence
+    And broader scope, speculation, transient faults and invented claims still hold
+    And proposed body context cannot supply evidence or authorize a write
+    And whole-body grounding, full counterevidence and original privacy gates remain mandatory
+
+
+  Scenario: Memory candidate descriptions state scoped evidence-backed knowledge
+    Given original frozen evidence and either full or incremental Memory planning
+    When the generation model proposes a Memory index description
+    Then it includes a concise evidence-backed fact or preference rather than a bare relevance trigger
+    And preserves the original target, conditions, duration and permission exceptions
+    And the existing independent description and body Jev checks still decide support
+    And unclear judgments remain proposals without automatic description rewriting
+
+
+  Scenario: Native probe with a literal exit-status diagnostic is still observed
+    Given the exact project-scoped probe followed by a literal exit-status echo
+    When its native Bash tool result is an error with the configured learned block message
+    Then the evaluator observes the attempted probe and keeps the no-side-effect check
+    And foreign cwd, quoted command text, arbitrary suffixes and successful outputs are rejected
+    And historical Docker reports remain unchanged with separate offline revalidation
+
+  Scenario: Service diagnosis retains only a trusted HTTP status
+    Given an SDK HTTP failure while selecting or validating frozen evidence
+    When a whole request or one required batch fails
+    Then the existing fallback or proposal includes the first failed request’s trusted numeric HTTP status when available
+    And partial responses never authorize candidate application
+    And raw error bodies, headers and messages never enter the receipt
+
+  Scenario: Complete new Memory review is observable without partial write authority
+    Given new Memory candidates have frozen original citations and descriptions
+    When all original support relationship and counterevidence checks complete
+    Then the review binds original evidence existing Memory and candidate digests
+    And each candidate reports passed and held expected checks
+    And same-batch independence is explicitly not proved
+    And a held candidate still holds the entire original plan
+
+  Scenario: Incomplete or changed inputs cannot produce a candidate review
+    Given a new Memory plan is being semantically reviewed
+    When a response is missing or a source dossier changes during review
+    Then no complete candidate review is returned
+    And original permission and proposal behavior remain unchanged
+
+  Scenario: Complete counter failures locate original evidence without disclosing it
+    Given frozen evidence has multiple original whole-entry windows
+    When a complete body or description counter judgment is held
+    Then its first failure identifies the zero-based window and inclusive original entry range
+    And the receipt and bounded repair hints display only controlled numeric locations
+    And no raw evidence or private filename is copied into the diagnostic
+    And the entire plan remains proposed with all original checks and permissions
+
+  Scenario: Incomplete review cannot invent a failure location
+    Given required counterevidence requests are missing cancelled or inconsistent
+    When a whole review cannot return complete semantic judgments
+    Then no failure window is inferred from reviewed entries or successful requests
+    And existing fallback proposal and Harness behavior remain unchanged
+
+  Scenario: Research temporal context preserves the original complete review
+    Given original indexed evidence and fully cited new Memory candidates
+    When a read-only study adds cited and window indexes to counter instructions
+    Then every original entry candidate criterion and confidence threshold remains
+    And support requests and original parent privacy checks remain unchanged
+    And no chronology observation grants permission or bypasses a held candidate
+    And forced offline answers cannot establish measured learning improvement

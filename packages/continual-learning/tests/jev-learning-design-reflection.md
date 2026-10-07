@@ -114,3 +114,106 @@ Harness真实执行、耗时和费用。仅模型返回允许不能算学习效�
 - continual-learning全量：**758 passed in 274.80s**。
 - 根目录类型检查、目标包打包、18个工作区包清单校验均通过。
 - 新增代码仅在研究测试目录；生产扩展未改，因此没有新增生产运行或Docker验收结论。
+
+## 原始大输入的传输诊断与模板拼写修复
+
+本轮固定四臂（直连5秒、转发15秒、转发5秒、直连15秒），同主机、同SDK、同候选与三份精确请求体；仅路由和时限不同。12次真实响应全部HTTP200/Jev1.13，四臂均覆盖17/17条、2/2窗口，均没有超时，但全部保留提案。三臂首先报告scope不确定（confidence 0.54–0.62），直连15秒首先报告support 0.89，低于原0.9门槛。不能在没有完整语义gold时将其全部称为误拦。78,280输入tokens、640输出tokens，费率估算$0.00328776，非账单。direct6加forwarded6是12；client12已含proxy6，不能相加。
+
+独立审查验证原wire集合、全覆盖、用量及清理。每个转发臂现在拥有单独进程，退出前确认停止，避免旧转发器300秒上游请求跨臂重叠。阻塞本地连接fixture验证进程退出关闭连接；远端服务取消仍未验证。本次同主机结果不能解释历史Docker超时、隔离Docker网络或证明延长时限有益。生产仍5秒，无重试或门槛调整。
+
+进一步检查发现：真实候选的8处字符类用literal tab替代escaped tab，正则含义相同，却未通过canonical字节相等，失去既有parent-bound匹配证明路径。修复只归一化literal tab，再要求整个字符串等于白名单目录的模板；共256种等价组合。未知正则、改变命令/目录/分隔符/字符类、旧绑定、确认规则和已有规则均不因此获得匹配证明。不会改写持久化规则，也不会把匹配证明当作用户授权。
+
+新场景RED为2 failed in 0.42s；GREEN相关12 passed in 3.75s。新回归穷举全部256种拼写，并验证临时/异项目/审批例外/参数限制/反证/服务不可用都保持提案。独立只读审查58项离线检查通过。实际原候选离线profile保留全部17条与两个窗口；forced答案仅验证路由，不是模型效果。
+
+全量906 passed in 305.19s；根类型检查、目标pack及19个工作区清单通过。原生Pi fixture3 passed in 9.04s，实际CLI和工具钩子执行，但不是真实模型质量比较。安装检查只因无关bdd-jev未加入配置失败，未写主机配置。
+
+随后原候选的真实after回放严格冻结脚本、源码、原输入、candidate/snapshot哈希和3份新wire，每次发送前核对，以不可重复reservation限制整批最多3次。审查发现的输入冻结、重跑预算和返回模型完整性缺口在调用前修复；所有准备预检0外部调用、原记录保留。实际3/3响应HTTP200/Jev1.13且用量完整，覆盖17/17、2/2，结果allow/supported，1.725秒、17,299输入/238输出tokens，估算$0.000726558，账单未验证。持续授权、说明、参数范围和反证分别经过Jev判断；没有执行持久化。
+
+这个结果支持“等价拼写导致已有判断分解路径未触发”作为具体修复方向。它是一个已知输入、先前四臂与后来单次after的观察，模型随机性和顺序未隔离；不能证明误拦率下降、heldout或全工作流优势。原18次及R15/R16失败结果不重标。下一步仍需新的双语语义反例与实际生成/写入/新会话使用的Docker比较。完整目标尚未达成。
+
+证据：@tests/jev-original-transport-real-results.json、@tests/jev-original-transport-independent-review.json、@tests/jev-template-tab-original-real-results.json、@tests/jev-template-tab-local-verification.json。
+
+
+## R17 原定 Docker 对照结束与下一研究边界
+
+六个独立执行全部终止；关闭 Jev 2/3、开启 0/3。mitt 关闭臂依赖安装超时，
+模型调用为零，不将其当成学习器失败或补跑。开启三个臂都未通过原 Memory
+成功门槛：Click 的修复请求 unavailable、Harness timeout；p-limit 和 mitt
+语义请求全部返回，但 Memory 仍 uncertain。后两者 Harness 已应用，后续召回及
+原生拦截未执行，属于缺失覆盖。没有调整原门槛或选择有利重跑。
+
+共153次provider请求=127主模型+26Jev，25次Jev响应有用量。客户端已知Jev
+费率估算$0.00752451，主模型学习阶段已知$0.054289022；未知调用和其他主任务
+费用未计入，因此均不是总账单。转发器Jev用量与客户端重叠，不相加。源码、
+镜像和冻结输入保持一致；六个所属容器、五个已记录续跑进程组均停止，无关容器保留。
+最初编排进程因大小写敏感的容器不存在识别而退出，记录不删除；首次Click关闭臂
+工作流实际通过，原进程元数据未保存，不能补造。续跑只执行余下五臂。
+
+独立原文审查发现：Click 初始事实夹带测试范围及必要性推断，修复后核心有据，
+但缺失服务响应不构成判断结论；p-limit 修复候选2事实有据，持续价值仍待确定。
+候选0/1原文独立不等于代码已经证明批内无依赖，也不能授予部分写入权限。
+下一步先研究同一候选内保留稳定事实、精简一次运行经过，保持全部名称、操作、
+隐私、例外和整批验证。必须加入“用户显式记住结果”“持续兼容条件”“后续撤销”等
+反例，测量真实知识损失。允许率上升本身不足以采纳；本轮尚未执行或采纳该方案。
+
+全量当前910 passed in 291.38s；生产改动此前的根类型、目标pack、19个清单和
+原生Pi离线fixture检查已通过。安装检查的无关bdd-jev配置失败未修主机配置。
+这些检查不代表真实学习质量通过。完整目标继续保持未达成。
+
+证据：@tests/jev-template-tab-r17-final-results.json、
+@tests/jev-template-tab-r17-click-source-review.json、
+@tests/jev-template-tab-r17-p-limit-source-review.json、
+@tests/jev-durable-core-research-plan.json。
+
+
+mitt 独立链条核对补充：结构修复先于唯一一次完整 Memory Jev 审查，修复后的
+保存计划覆盖48条、3窗口、4请求。receipt 的 Jev 放在attempt0，而attempt1
+标记结构修复，不应把字段位置误读为执行时间顺序。共享修复槽已消耗，所以没有
+第二次语义修复。窗口16–46含真实测试错误、主动负向验证、恢复失败及随后重建
+恢复；它们不直接撤销用户的持久命令事实，但候选夹带的任务历史价值仍待确定。
+不据此自动判定误拦截。修复前原计划和精确结构错误未单独保存，无法补造。
+证据：@tests/jev-template-tab-r17-mitt-source-review.json。
+下一前瞻研究另含中英文“负向验证与恢复”反例，区分预期失败和未解决兼容性问题。
+
+
+## 独立阶段观察实现
+
+按质量目标修复研究观察器：Memory 未通过时，依赖它的召回标为未验证；
+安全的本地 Harness 探针仍执行。召回失败也不遮住 Harness，任一失败仍使最终
+工作流失败。新报告以effectObservationVersion=1标识协议；历史原报告不修改。
+与原R17镜像中的函数比较，20条原验收assertion的表达式和消息完全保留。
+最初跨Python版本AST/token比较不兼容，改为同一解析器分析原文片段后通过。
+调度与成本覆盖不同，不能将新协议和旧早退出协议当作等价样本计算提升。
+
+新增Given/When/Then及RED3 failed后GREEN。独立审查发现失败原因丢失，
+已增加固定gate ID；不序列化任意异常原文。实际函数接线fixture检查Memory失败、
+autoMemory关闭、本地wrapper/PATH、召回跳过和最终失败；5项新增离线测试通过。
+它们是控制流测试，不是实际模型或原生hook质量。
+
+真实Linux且network=none的观察器/本地wrapper测试：默认tmpfs执行设置下首轮
+失败保留；仅改为可执行tmpfs后，同一冻结脚本通过。没有模型、外部请求或远程写，
+两个所属容器均确认清理。不把这个Linux结果表述为原生Pi hook或学习提升。
+取消继续传播，不启动后续callback；容器内取消快照可能仍为running，已有汇总器
+以非零退出保留失败状态。独立只读复核已通过。
+
+证据：@tests/jev-independent-effect-linux-results.json、
+@tests/jev-independent-effect-assertion-preservation.json。
+
+## R17 已应用 Harness 的独立执行补证
+
+原 R17 的 p-limit-on 和 mitt-on 因 Memory 验收失败而未执行后续 Harness
+探针。本轮冻结并原样复制这两份已应用的 Harness（原回执均记录真实
+`jev-1.13.0`、`supported`、`applied`），在断网、只读根目录的 Docker
+中，用当前插件和 Pi 1.0.2 执行固定工具请求。
+
+两份规则各观察到 10 个真实原生工具结果：5 次禁用 push 均被拦截，
+5 次正常或仅打印命令的调用均放行，禁用副作用为 0。无规则负对照
+观察到同样的 10 个结果，但产生 5 次本地标记写入，证明探针能检出
+约束缺失。共 33 次本地固定响应，无外部调用、主模型推理或新 Jev 判断。
+
+这是历史已学习约束在当前运行时的执行证据。它不是新的开关 Jev
+端到端对照，也未复现原项目完整环境；不能据此推断整体学习质量
+或新的 Memory/召回效果。原 R17 的 Memory 和总体失败保持不变。
+
+证据：@tests/jev-r17-native-effects-manifest.json、
+@tests/jev-r17-native-effects-results.json。

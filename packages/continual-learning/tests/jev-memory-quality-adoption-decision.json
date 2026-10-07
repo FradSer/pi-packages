@@ -1,0 +1,63 @@
+{
+  "evidence": "research-adoption-decision",
+  "adopted": false,
+  "productionRuntimeChanged": false,
+  "jevDefaultChanged": false,
+  "resultSha256": "edbf4cc35a7758a9c0753c221769adb838d11fe41f05be5a236589c0f64330fb",
+  "reason": "No demonstrated net benefit: three unsuitable allows prevented at the cost of ten new eligible holds, with two omission misses and many uncertain judgments.",
+  "aggregate": {
+    "samples": 48,
+    "expectedEligible": 35,
+    "baseline": {
+      "propose": 24,
+      "allow": 24
+    },
+    "quality": {
+      "propose": 31,
+      "allow": 17
+    },
+    "combined": {
+      "propose": 37,
+      "allow": 11
+    },
+    "baselineUnsuitableAllows": 4,
+    "combinedUnsuitableAllows": 1,
+    "eligibleBaselineAllows": 20,
+    "eligibleCombinedAllows": 10,
+    "newEligibleHolds": 10,
+    "preventedUnsuitableAllows": 3
+  },
+  "billing": {
+    "knownJevResponses": 79,
+    "requests": 80,
+    "knownInputTokens": 70554,
+    "knownOutputTokens": 5519,
+    "knownEstimatedCostUsd": 0.0029632680000000002,
+    "totalEstimatedCostUsd": null,
+    "billingVerified": false,
+    "usageSource": "proxy upstream response usage counted once; client estimates overlap and are not added"
+  },
+  "limitations": [
+    "Authored development labels, not human gold or heldout.",
+    "Known baseline results are preserved observations, not concurrent reruns.",
+    "Fresh baselines have no full parent apply or real storage authorization.",
+    "Quality allow never grants write permission.",
+    "No Pi candidate generation, actual Memory writes, recall or Harness effects in this semantic study.",
+    "Label-agreement errors are against authored, independently model-reviewed expectations; they are not measured human-gold misremembering rates.",
+    "Whole-plan holds remain atomic; useful individual candidates are not independently applied.",
+    "Value=true can coexist with incidental noise.",
+    "All fresh candidates used generic metadata descriptions; baseline description support holds limit fresh workflow comparison and must not be removed or rerun to improve this result.",
+    "Omission covers explicit storage requests and body knowledge only, not all useful facts, privacy classification or sharing authorization."
+  ],
+  "nextResearch": [
+    "Improve candidate descriptions from exact frozen evidence without relaxing metadata support checks; freeze a new cohort rather than rerunning this one.",
+    "Generate actual candidates with cli-proxy/opencode/space-bunny-free in isolated project workflows.",
+    "Verify real Memory storage, new-session use and native Harness effects separately before any adoption.",
+    "Include untouched projects and independently reviewed expectations; model review is not human gold."
+  ],
+  "omissionDetectionLimit": "No definite omissions detected among seven labeled omissions: two false negatives, five uncertain.",
+  "newEligibleHoldCauses": {
+    "timeout": 1,
+    "uncertain": 9
+  }
+}

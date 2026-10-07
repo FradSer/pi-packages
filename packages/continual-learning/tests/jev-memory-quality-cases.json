@@ -1,0 +1,3113 @@
+{
+  "evidence": "prospective-separate-memory-quality-judgments",
+  "heldout": false,
+  "humanGold": false,
+  "knownOutputs": 32,
+  "freshAuthoredSamples": 16,
+  "freshIndependentScenarios": 8,
+  "projectSources": [
+    {
+      "repo": "ai/nanoid",
+      "commit": "3167e108865702c0539d8e552365ed840ac9d8d9",
+      "readmeSha256": "7114152cd558eab8582ce671dc97aefd8cbf7fa1531fb670009e6ae679a15e00",
+      "readmePath": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/nanoid-README.md",
+      "url": "https://github.com/ai/nanoid/blob/3167e108865702c0539d8e552365ed840ac9d8d9/README.md"
+    },
+    {
+      "repo": "tinylibs/tinypool",
+      "commit": "2ed306417986823e7a7989fd392e9cbfeee1b0c1",
+      "readmeSha256": "dc9864095f94de4c9701eb437abed2c6952a69cbda6ef131d23c15fa869c334a",
+      "readmePath": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/tinypool-README.md",
+      "url": "https://github.com/tinylibs/tinypool/blob/2ed306417986823e7a7989fd392e9cbfeee1b0c1/README.md"
+    }
+  ],
+  "rows": [
+    {
+      "id": "stable-config-plus-run-history-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "stable-config-plus-run-history",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-stable-config-plus-run-history-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Project Aurora uses pnpm test for future regression checks."
+          },
+          {
+            "role": "toolResult",
+            "content": "Observed package script: test = vitest run. This invocation passed 17 tests."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-stable-config-plus-run-history-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "4aa2de9a02d0209ad5f73ef14995da6dae847e45a81c359440201d2c7bb8cb05",
+        "snapshotDigest": "4aa2de9a02d0209ad5f73ef14995da6dae847e45a81c359440201d2c7bb8cb05",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Project Aurora uses pnpm test for regression checks; package script test = vitest run.\ntype: project\n---\nProject Aurora uses pnpm test for regression checks. The package script test is configured as vitest run.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Project Aurora uses pnpm test for future regression checks."
+              },
+              {
+                "index": 1,
+                "quote": "Observed package script: test = vitest run."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Project Aurora uses pnpm test for regression checks; package script test = vitest run.\ntype: project\n---\nProject Aurora uses pnpm test for regression checks. The package script test is configured as vitest run.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "propose",
+        "parentCategory": "rejected",
+        "jevDecision": "not-called",
+        "sourceSha256": "69ef94eecc354258906c6d2307625389017fcb590647d4c65ccd37ed83f37a03",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-before/result.json"
+      }
+    },
+    {
+      "id": "stable-config-plus-run-history-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "stable-config-plus-run-history",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-stable-config-plus-run-history-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Project Aurora uses pnpm test for future regression checks."
+          },
+          {
+            "role": "toolResult",
+            "content": "Observed package script: test = vitest run. This invocation passed 17 tests."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-stable-config-plus-run-history-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "4aa2de9a02d0209ad5f73ef14995da6dae847e45a81c359440201d2c7bb8cb05",
+        "snapshotDigest": "4aa2de9a02d0209ad5f73ef14995da6dae847e45a81c359440201d2c7bb8cb05",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora uses pnpm test for regression checks; the observed package test script is vitest run.\ntype: project\n---\nProject Aurora uses pnpm test for future regression checks. The observed package script maps test to vitest run.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Project Aurora uses pnpm test for future regression checks."
+              },
+              {
+                "index": 1,
+                "quote": "Observed package script: test = vitest run. This invocation passed 17 tests."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora uses pnpm test for regression checks; the observed package test script is vitest run.\ntype: project\n---\nProject Aurora uses pnpm test for future regression checks. The observed package script maps test to vitest run.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "9e2d444802f054c926367a989ee60f6010806bdcd0268c2495df6ee1693b8868",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-after/result.json"
+      }
+    },
+    {
+      "id": "stable-config-plus-run-history-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "stable-config-plus-run-history",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-stable-config-plus-run-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Aurora 项目今后的回归验证使用 pnpm test。"
+          },
+          {
+            "role": "toolResult",
+            "content": "观察到项目脚本：test = vitest run。本次运行通过 17 项测试。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-stable-config-plus-run-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "b60b597d3cbe087a6ae24b57ce937866d48e4d8b49adb17f5f05ed344f652314",
+        "snapshotDigest": "b60b597d3cbe087a6ae24b57ce937866d48e4d8b49adb17f5f05ed344f652314",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 项目回归验证使用 pnpm test，底层脚本为 test = vitest run。\ntype: project\n---\nAurora 项目今后的回归验证使用 pnpm test。项目脚本配置为 test = vitest run。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Aurora 项目今后的回归验证使用 pnpm test。"
+              },
+              {
+                "index": 1,
+                "quote": "观察到项目脚本：test = vitest run。本次运行通过 17 项测试。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora 项目回归验证使用 pnpm test，底层脚本为 test = vitest run。\ntype: project\n---\nAurora 项目今后的回归验证使用 pnpm test。项目脚本配置为 test = vitest run。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "04eaa3513e81f3cd5e9c699e2c2e59e00239902e91c76177c69f2948f06eaf5b",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-after/result.json"
+      }
+    },
+    {
+      "id": "stable-config-plus-run-history-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "stable-config-plus-run-history",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-stable-config-plus-run-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Aurora 项目今后的回归验证使用 pnpm test。"
+          },
+          {
+            "role": "toolResult",
+            "content": "观察到项目脚本：test = vitest run。本次运行通过 17 项测试。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-stable-config-plus-run-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "b60b597d3cbe087a6ae24b57ce937866d48e4d8b49adb17f5f05ed344f652314",
+        "snapshotDigest": "b60b597d3cbe087a6ae24b57ce937866d48e4d8b49adb17f5f05ed344f652314",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 项目 test 脚本配置为 vitest run，用户指定今后回归验证使用 pnpm test\ntype: project\n---\nAurora 项目的 test 脚本配置为 vitest run（通过 pnpm test 调用）。用户指定今后的回归验证使用 pnpm test。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Aurora 项目今后的回归验证使用 pnpm test。"
+              },
+              {
+                "index": 1,
+                "quote": "观察到项目脚本：test = vitest run。本次运行通过 17 项测试。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora 项目 test 脚本配置为 vitest run，用户指定今后回归验证使用 pnpm test\ntype: project\n---\nAurora 项目的 test 脚本配置为 vitest run（通过 pnpm test 调用）。用户指定今后的回归验证使用 pnpm test。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "0d60b4177df54a48171e3f5522862cb4d0ff43654760075fedcba65f48bbc1c6",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-before/result.json"
+      }
+    },
+    {
+      "id": "explicit-long-term-observed-result-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember this release qualification result permanently: on Node 22.23.2, all 17 compatibility tests passed; preserve the exact version and count."
+          },
+          {
+            "role": "toolResult",
+            "content": "Verified release qualification on Node 22.23.2: 17 passed."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "snapshotDigest": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Node 22.23.2: all 17 compatibility tests passed; release qualification verified.\ntype: project\n---\nNode 22.23.2: all 17 compatibility tests passed; release qualification verified.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember this release qualification result permanently: on Node 22.23.2, all 17 compatibility tests passed; preserve the exact version and count."
+              },
+              {
+                "index": 1,
+                "quote": "Verified release qualification on Node 22.23.2: 17 passed."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Node 22.23.2: all 17 compatibility tests passed; release qualification verified.\ntype: project\n---\nNode 22.23.2: all 17 compatibility tests passed; release qualification verified.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "f8b2477fd5be00004e6606873753b367d57202c14ebc93be6ea413b43e6aa106",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-before/result.json"
+      }
+    },
+    {
+      "id": "explicit-long-term-observed-result-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember this release qualification result permanently: on Node 22.23.2, all 17 compatibility tests passed; preserve the exact version and count."
+          },
+          {
+            "role": "toolResult",
+            "content": "Verified release qualification on Node 22.23.2: 17 passed."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "snapshotDigest": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: \"Verified release qualification: Node 22.23.2, 17 compatibility tests passed.\"\ntype: project\n---\nVerified release qualification: Node 22.23.2, 17 compatibility tests passed.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember this release qualification result permanently: on Node 22.23.2, all 17 compatibility tests passed; preserve the exact version and count."
+              },
+              {
+                "index": 1,
+                "quote": "Verified release qualification on Node 22.23.2: 17 passed."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: \"Verified release qualification: Node 22.23.2, 17 compatibility tests passed.\"\ntype: project\n---\nVerified release qualification: Node 22.23.2, 17 compatibility tests passed.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "c5b75176e303fc44fb4f3e38fb5973a8e26d57965cd4b3c4aeb952a7329e3c4e",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-after/result.json"
+      }
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "请长期记住这个版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过；保留准确版本和数量。"
+          },
+          {
+            "role": "toolResult",
+            "content": "已验证此版本在 Node 22.23.2 上的验收结果：17 passed。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "snapshotDigest": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: 此版本在 Node 22.23.2 上全部 17 项兼容性测试通过\ntype: project\n---\n此版本在 Node 22.23.2 上全部 17 项兼容性测试通过。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "请长期记住这个版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过；保留准确版本和数量。"
+              },
+              {
+                "index": 1,
+                "quote": "已验证此版本在 Node 22.23.2 上的验收结果：17 passed。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: 此版本在 Node 22.23.2 上全部 17 项兼容性测试通过\ntype: project\n---\n此版本在 Node 22.23.2 上全部 17 项兼容性测试通过。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "41753ab5abed8a371568d08e1934ac9a087bc4aaac027d3d29843a9fbcb303a7",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-after/result.json"
+      }
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "请长期记住这个版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过；保留准确版本和数量。"
+          },
+          {
+            "role": "toolResult",
+            "content": "已验证此版本在 Node 22.23.2 上的验收结果：17 passed。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "snapshotDigest": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: 此版本在 Node 22.23.2 上的验收结果：17 项兼容性测试通过（已验证）。\ntype: project\n---\n此版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过（已验证）。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "请长期记住这个版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过；保留准确版本和数量。"
+              },
+              {
+                "index": 1,
+                "quote": "已验证此版本在 Node 22.23.2 上的验收结果：17 passed。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: 此版本在 Node 22.23.2 上的验收结果：17 项兼容性测试通过（已验证）。\ntype: project\n---\n此版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过（已验证）。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "8490cde2a1b2f2f0c2eaed3baa88b0e11fda502efa10a73745a1f5a8d7aefde9",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-before/result.json"
+      }
+    },
+    {
+      "id": "lasting-compatibility-exception-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "lasting-compatibility-exception",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-lasting-compatibility-exception-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "For future Aurora builds retain this compatibility condition: use Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified."
+          },
+          {
+            "role": "toolResult",
+            "content": "The compatibility check passed with Node 18.19.0 and TypeScript 4.9 after the earlier failure."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-lasting-compatibility-exception-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "a2893ce702dea8790dd3a86ee0347d9ae17d731d33dd2af8e243f550776ac502",
+        "snapshotDigest": "a2893ce702dea8790dd3a86ee0347d9ae17d731d33dd2af8e243f550776ac502",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora builds require the compatibility condition Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified.\ntype: project\n---\nAurora builds require the compatibility condition Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "For future Aurora builds retain this compatibility condition: use Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified."
+              },
+              {
+                "index": 1,
+                "quote": "The compatibility check passed with Node 18.19.0 and TypeScript 4.9 after the earlier failure."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora builds require the compatibility condition Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified.\ntype: project\n---\nAurora builds require the compatibility condition Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "propose",
+        "parentCategory": "rejected",
+        "jevDecision": "not-called",
+        "sourceSha256": "836a5eca706a0ccb51e4c870f40c99128dea60a3015aa2327438b10e03bae638",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-before/result.json"
+      }
+    },
+    {
+      "id": "lasting-compatibility-exception-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "lasting-compatibility-exception",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-lasting-compatibility-exception-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "For future Aurora builds retain this compatibility condition: use Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified."
+          },
+          {
+            "role": "toolResult",
+            "content": "The compatibility check passed with Node 18.19.0 and TypeScript 4.9 after the earlier failure."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-lasting-compatibility-exception-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "a2893ce702dea8790dd3a86ee0347d9ae17d731d33dd2af8e243f550776ac502",
+        "snapshotDigest": "a2893ce702dea8790dd3a86ee0347d9ae17d731d33dd2af8e243f550776ac502",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Compatibility condition for future Aurora builds: Node 18.19.0 with TypeScript 4.9; exception if compiler is upgraded and that compatibility is verified.\ntype: project\n---\nCompatibility condition for future Aurora builds: use Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified. The compatibility check passed with Node 18.19.0 and TypeScript 4.9.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "For future Aurora builds retain this compatibility condition: use Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified."
+              },
+              {
+                "index": 1,
+                "quote": "The compatibility check passed with Node 18.19.0 and TypeScript 4.9 after the earlier failure."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Compatibility condition for future Aurora builds: Node 18.19.0 with TypeScript 4.9; exception if compiler is upgraded and that compatibility is verified.\ntype: project\n---\nCompatibility condition for future Aurora builds: use Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified. The compatibility check passed with Node 18.19.0 and TypeScript 4.9.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "propose",
+        "parentCategory": "rejected",
+        "jevDecision": "not-called",
+        "sourceSha256": "4cc095177c8036429b201ea08f2f2c410f1b0c3a8a5051731df32bc9cca98071",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-after/result.json"
+      }
+    },
+    {
+      "id": "lasting-compatibility-exception-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "lasting-compatibility-exception",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-lasting-compatibility-exception-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Aurora 今后的构建要保留此兼容条件：TypeScript 4.9 配合 Node 18.19.0；除非编译器已升级并验证兼容性。"
+          },
+          {
+            "role": "toolResult",
+            "content": "之前失败后，Node 18.19.0 与 TypeScript 4.9 的兼容检查通过。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-lasting-compatibility-exception-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "c83ee227df88f2749e21bdfca70c39fd320de063bc976d57d0e575795671ac13",
+        "snapshotDigest": "c83ee227df88f2749e21bdfca70c39fd320de063bc976d57d0e575795671ac13",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 今后构建须保留 TypeScript 4.9 配合 Node 18.19.0 的兼容条件，除非编译器已升级并验证兼容性。\ntype: project\n---\nAurora 今后构建须保留 TypeScript 4.9 配合 Node 18.19.0 的兼容条件；除非编译器已升级并验证兼容性。",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Aurora 今后的构建要保留此兼容条件：TypeScript 4.9 配合 Node 18.19.0；除非编译器已升级并验证兼容性。"
+              },
+              {
+                "index": 1,
+                "quote": "之前失败后，Node 18.19.0 与 TypeScript 4.9 的兼容检查通过。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora 今后构建须保留 TypeScript 4.9 配合 Node 18.19.0 的兼容条件，除非编译器已升级并验证兼容性。\ntype: project\n---\nAurora 今后构建须保留 TypeScript 4.9 配合 Node 18.19.0 的兼容条件；除非编译器已升级并验证兼容性。"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "4738ce948b2445aed78615ae96f66c57d891965c13a1b79d9057a26ebf39420a",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-after/result.json"
+      }
+    },
+    {
+      "id": "lasting-compatibility-exception-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "lasting-compatibility-exception",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-lasting-compatibility-exception-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Aurora 今后的构建要保留此兼容条件：TypeScript 4.9 配合 Node 18.19.0；除非编译器已升级并验证兼容性。"
+          },
+          {
+            "role": "toolResult",
+            "content": "之前失败后，Node 18.19.0 与 TypeScript 4.9 的兼容检查通过。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-lasting-compatibility-exception-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "c83ee227df88f2749e21bdfca70c39fd320de063bc976d57d0e575795671ac13",
+        "snapshotDigest": "c83ee227df88f2749e21bdfca70c39fd320de063bc976d57d0e575795671ac13",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 今后构建须保留 TypeScript 4.9 配合 Node 18.19.0 的兼容条件，除非编译器已升级并验证兼容性\ntype: project\n---\nAurora 今后的构建须保留此兼容条件：TypeScript 4.9 配合 Node 18.19.0；除非编译器已升级并验证兼容性。之前失败后，Node 18.19.0 与 TypeScript 4.9 的兼容检查通过。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Aurora 今后的构建要保留此兼容条件：TypeScript 4.9 配合 Node 18.19.0；除非编译器已升级并验证兼容性。"
+              },
+              {
+                "index": 1,
+                "quote": "之前失败后，Node 18.19.0 与 TypeScript 4.9 的兼容检查通过。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora 今后构建须保留 TypeScript 4.9 配合 Node 18.19.0 的兼容条件，除非编译器已升级并验证兼容性\ntype: project\n---\nAurora 今后的构建须保留此兼容条件：TypeScript 4.9 配合 Node 18.19.0；除非编译器已升级并验证兼容性。之前失败后，Node 18.19.0 与 TypeScript 4.9 的兼容检查通过。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "331b7f68995d521cca05f471d6b80ff5410a12e0ba10ad7e5ced7a3cd45409b8",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-before/result.json"
+      }
+    },
+    {
+      "id": "only-transient-failure-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "only-transient-failure",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-only-transient-failure-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "This task only: retry the registry request once; do not infer a lasting project limitation."
+          },
+          {
+            "role": "toolResult",
+            "content": "The registry returned HTTP 503 once and the retry succeeded."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-only-transient-failure-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "703d42793cd71639d6c1b5eae9520f7e5b75cc52918434e33be63b7ae8b95118",
+        "snapshotDigest": "703d42793cd71639d6c1b5eae9520f7e5b75cc52918434e33be63b7ae8b95118",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora registry experienced a transient HTTP 503; a single retry succeeded.\ntype: project\n---\nThe Aurora registry returned HTTP 503 once and a single retry succeeded. This was a transient failure, not a permanent limitation.\n",
+            "evidence": [
+              {
+                "index": 1,
+                "quote": "The registry returned HTTP 503 once and the retry succeeded."
+              },
+              {
+                "index": 0,
+                "quote": "This task only: retry the registry request once; do not infer a lasting project limitation."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora registry experienced a transient HTTP 503; a single retry succeeded.\ntype: project\n---\nThe Aurora registry returned HTTP 503 once and a single retry succeeded. This was a transient failure, not a permanent limitation.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          false
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "propose",
+        "parentCategory": "rejected",
+        "jevDecision": "not-called",
+        "sourceSha256": "222b9304b3fcaa7c2470a2534fa0a66890f794149ca20c2e8f1127c19b00e94c",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-before/result.json"
+      }
+    },
+    {
+      "id": "only-transient-failure-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "only-transient-failure",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-only-transient-failure-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "This task only: retry the registry request once; do not infer a lasting project limitation."
+          },
+          {
+            "role": "toolResult",
+            "content": "The registry returned HTTP 503 once and the retry succeeded."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-only-transient-failure-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "703d42793cd71639d6c1b5eae9520f7e5b75cc52918434e33be63b7ae8b95118",
+        "snapshotDigest": "703d42793cd71639d6c1b5eae9520f7e5b75cc52918434e33be63b7ae8b95118",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora registry returned a transient HTTP 503 resolved on retry; no lasting limitation inferred.\ntype: project\n---\nThe Aurora registry returned HTTP 503 once and the retry succeeded. The user explicitly stated this was task-scoped and instructed against inferring a lasting project limitation from this transient failure.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "This task only: retry the registry request once; do not infer a lasting project limitation."
+              },
+              {
+                "index": 1,
+                "quote": "The registry returned HTTP 503 once and the retry succeeded."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora registry returned a transient HTTP 503 resolved on retry; no lasting limitation inferred.\ntype: project\n---\nThe Aurora registry returned HTTP 503 once and the retry succeeded. The user explicitly stated this was task-scoped and instructed against inferring a lasting project limitation from this transient failure.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          false
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "c9c3b105b883c0be3d2dcbfddedf8ddef4a274e8483108cc9c4dfc5e6f5e5e42",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-after/result.json"
+      }
+    },
+    {
+      "id": "only-transient-failure-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "only-transient-failure",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-only-transient-failure-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "仅本次任务：重试一次软件仓库请求；不要推导永久项目限制。"
+          },
+          {
+            "role": "toolResult",
+            "content": "软件仓库一次返回 HTTP 503，重试后成功。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-only-transient-failure-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "9cb473a48695d21f9125a9e57a61aa4631a783b36dfb35a1ed2cedc38a17a9bb",
+        "snapshotDigest": "9cb473a48695d21f9125a9e57a61aa4631a783b36dfb35a1ed2cedc38a17a9bb",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 软件仓库 HTTP 503 属本次任务，用户明确禁止推导永久项目限制。\ntype: project\n---\n用户明确限定软件仓库重试为本次任务，并禁止推导永久项目限制。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "仅本次任务：重试一次软件仓库请求；不要推导永久项目限制。"
+              },
+              {
+                "index": 1,
+                "quote": "软件仓库一次返回 HTTP 503，重试后成功。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora 软件仓库 HTTP 503 属本次任务，用户明确禁止推导永久项目限制。\ntype: project\n---\n用户明确限定软件仓库重试为本次任务，并禁止推导永久项目限制。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          false
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "23473f294cbd47384c2c4ff089651dbacc4b92aab6db7122cfcb70285f5ab7a9",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-after/result.json"
+      }
+    },
+    {
+      "id": "only-transient-failure-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "only-transient-failure",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-only-transient-failure-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "仅本次任务：重试一次软件仓库请求；不要推导永久项目限制。"
+          },
+          {
+            "role": "toolResult",
+            "content": "软件仓库一次返回 HTTP 503，重试后成功。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-only-transient-failure-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "9cb473a48695d21f9125a9e57a61aa4631a783b36dfb35a1ed2cedc38a17a9bb",
+        "snapshotDigest": "9cb473a48695d21f9125a9e57a61aa4631a783b36dfb35a1ed2cedc38a17a9bb",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 软件仓库曾出现一次 HTTP 503 瞬时故障，重试后成功\ntype: project\n---\nAurora 软件仓库曾出现一次 HTTP 503 瞬时故障，重试后成功。用户明确指示仅本次任务重试，不要由此推导永久项目限制。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "仅本次任务：重试一次软件仓库请求；不要推导永久项目限制。"
+              },
+              {
+                "index": 1,
+                "quote": "软件仓库一次返回 HTTP 503，重试后成功。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora 软件仓库曾出现一次 HTTP 503 瞬时故障，重试后成功\ntype: project\n---\nAurora 软件仓库曾出现一次 HTTP 503 瞬时故障，重试后成功。用户明确指示仅本次任务重试，不要由此推导永久项目限制。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          false
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "de17aa7cfde4c0eafcc6de6315d4fc5c22c2ba38d3fc72f9b5c7f2b76229dfe0",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-before/result.json"
+      }
+    },
+    {
+      "id": "later-config-revocation-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "later-config-revocation",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-later-config-revocation-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Correction for future work: Aurora now uses npm test, replacing the old pnpm test command."
+          },
+          {
+            "role": "toolResult",
+            "content": "Verified current package manager: npm. Earlier archived logs mention pnpm test."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-later-config-revocation-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "e265c05c4b98a79eae4cac009456fa2acabd5d1699dd85719bb19ef86bea2ce6",
+        "snapshotDigest": "e265c05c4b98a79eae4cac009456fa2acabd5d1699dd85719bb19ef86bea2ce6",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora's current package manager is npm (npm test); the old pnpm test command has been replaced.\ntype: project\n---\nAurora's current package manager is npm, verified. The old pnpm test command has been replaced. Earlier archived logs mention pnpm test.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Correction for future work: Aurora now uses npm test, replacing the old pnpm test command."
+              },
+              {
+                "index": 1,
+                "quote": "Verified current package manager: npm. Earlier archived logs mention pnpm test."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora's current package manager is npm (npm test); the old pnpm test command has been replaced.\ntype: project\n---\nAurora's current package manager is npm, verified. The old pnpm test command has been replaced. Earlier archived logs mention pnpm test.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "a7d8ccf29143bb762866f2864f725f19d37346d4b1202522bec5fe0627f8737b",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-before/result.json"
+      }
+    },
+    {
+      "id": "later-config-revocation-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "later-config-revocation",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-later-config-revocation-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Correction for future work: Aurora now uses npm test, replacing the old pnpm test command."
+          },
+          {
+            "role": "toolResult",
+            "content": "Verified current package manager: npm. Earlier archived logs mention pnpm test."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-later-config-revocation-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "e265c05c4b98a79eae4cac009456fa2acabd5d1699dd85719bb19ef86bea2ce6",
+        "snapshotDigest": "e265c05c4b98a79eae4cac009456fa2acabd5d1699dd85719bb19ef86bea2ce6",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora uses npm test for future work, replacing the old pnpm test command.\ntype: project\n---\nAurora uses npm test for future work, replacing the old pnpm test command. Verified current package manager: npm.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Correction for future work: Aurora now uses npm test, replacing the old pnpm test command."
+              },
+              {
+                "index": 1,
+                "quote": "Verified current package manager: npm. Earlier archived logs mention pnpm test."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora uses npm test for future work, replacing the old pnpm test command.\ntype: project\n---\nAurora uses npm test for future work, replacing the old pnpm test command. Verified current package manager: npm.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "857e6657c874e5657c474bfeaec896cc691ef89e50f563e4376e26f9f268d83f",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-after/result.json"
+      }
+    },
+    {
+      "id": "later-config-revocation-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "later-config-revocation",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-later-config-revocation-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后工作请采用修正后的事实：Aurora 现在使用 npm test，替代旧的 pnpm test 命令。"
+          },
+          {
+            "role": "toolResult",
+            "content": "验证当前包管理器是 npm。较早归档日志提到 pnpm test。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-later-config-revocation-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "325c077cec4cae2b5e08bfc6adaa4e3511f7517db5c18952470b257157ad58cf",
+        "snapshotDigest": "325c077cec4cae2b5e08bfc6adaa4e3511f7517db5c18952470b257157ad58cf",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 当前使用 npm test，已替代旧的 pnpm test。\ntype: project\n---\nAurora 当前使用 npm test，已替代旧的 pnpm test。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "今后工作请采用修正后的事实：Aurora 现在使用 npm test，替代旧的 pnpm test 命令。"
+              },
+              {
+                "index": 1,
+                "quote": "验证当前包管理器是 npm。较早归档日志提到 pnpm test。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora 当前使用 npm test，已替代旧的 pnpm test。\ntype: project\n---\nAurora 当前使用 npm test，已替代旧的 pnpm test。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "f68ee7a1bc28fe179820185507fda23a1205c496e0e372a441b89453e478be93",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-after/result.json"
+      }
+    },
+    {
+      "id": "later-config-revocation-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "later-config-revocation",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-later-config-revocation-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后工作请采用修正后的事实：Aurora 现在使用 npm test，替代旧的 pnpm test 命令。"
+          },
+          {
+            "role": "toolResult",
+            "content": "验证当前包管理器是 npm。较早归档日志提到 pnpm test。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-later-config-revocation-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "325c077cec4cae2b5e08bfc6adaa4e3511f7517db5c18952470b257157ad58cf",
+        "snapshotDigest": "325c077cec4cae2b5e08bfc6adaa4e3511f7517db5c18952470b257157ad58cf",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 当前包管理器是 npm；较早归档日志提到过 pnpm test。\ntype: project\n---\nAurora 当前包管理器是 npm。较早归档日志提到过 pnpm test。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "今后工作请采用修正后的事实：Aurora 现在使用 npm test，替代旧的 pnpm test 命令。"
+              },
+              {
+                "index": 1,
+                "quote": "验证当前包管理器是 npm。较早归档日志提到 pnpm test。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora 当前包管理器是 npm；较早归档日志提到过 pnpm test。\ntype: project\n---\nAurora 当前包管理器是 npm。较早归档日志提到过 pnpm test。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "5954a9f09de0ed981f1572016a9e5f1770dfbd3e13689f08639da185e082bcd1",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-before/result.json"
+      }
+    },
+    {
+      "id": "private-conditional-preference-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "private-conditional-preference",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-private-conditional-preference-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Keep this preference private for future Aurora reports: finish with REPORT_DONE only for successful verification, never after an error; do not publish it into project Memory, Harness or AGENTS.md."
+          },
+          {
+            "role": "toolResult",
+            "content": "This successful verification report ended with REPORT_DONE."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-private-conditional-preference-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "f05f20a63a6dd524cd1b7a0b6d59f36cc2fdc64ddeb3165eac998046b8dc8da1",
+        "snapshotDigest": "f05f20a63a6dd524cd1b7a0b6d59f36cc2fdc64ddeb3165eac998046b8dc8da1",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "preference",
+            "classification": "private",
+            "content": "---\nname: aurora_fact\ndescription: User-stated private preference for Aurora reports: use REPORT_DONE only on successful verification, never after an error; do not publish into project Memory, Harness or AGENTS.md\ntype: preference\n---\nUser stated that for future Aurora reports, keep this preference private: use REPORT_DONE only for successful verification, never after an error, and do not publish it into project Memory, Harness or AGENTS.md. A tool result shows one successful verification report ended with REPORT_DONE, consistent with this stated preference.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Keep this preference private for future Aurora reports: finish with REPORT_DONE only for successful verification, never after an error; do not publish it into project Memory, Harness or AGENTS.md."
+              },
+              {
+                "index": 1,
+                "quote": "This successful verification report ended with REPORT_DONE."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: User-stated private preference for Aurora reports: use REPORT_DONE only on successful verification, never after an error; do not publish into project Memory, Harness or AGENTS.md\ntype: preference\n---\nUser stated that for future Aurora reports, keep this preference private: use REPORT_DONE only for successful verification, never after an error, and do not publish it into project Memory, Harness or AGENTS.md. A tool result shows one successful verification report ended with REPORT_DONE, consistent with this stated preference.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "baseline": {
+        "decision": "propose",
+        "parentCategory": "rejected",
+        "jevDecision": "not-called",
+        "sourceSha256": "0c1ddb0266d2cf78b0fbe937e506fca167141b1d264275a015b7d04f07eacf16",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-before/result.json"
+      }
+    },
+    {
+      "id": "private-conditional-preference-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "private-conditional-preference",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-private-conditional-preference-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Keep this preference private for future Aurora reports: finish with REPORT_DONE only for successful verification, never after an error; do not publish it into project Memory, Harness or AGENTS.md."
+          },
+          {
+            "role": "toolResult",
+            "content": "This successful verification report ended with REPORT_DONE."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-private-conditional-preference-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "f05f20a63a6dd524cd1b7a0b6d59f36cc2fdc64ddeb3165eac998046b8dc8da1",
+        "snapshotDigest": "f05f20a63a6dd524cd1b7a0b6d59f36cc2fdc64ddeb3165eac998046b8dc8da1",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "preference",
+            "classification": "private",
+            "content": "---\nname: aurora_fact\ndescription: Privately use REPORT_DONE only on successful Aurora verification, never after an error; do not publish into project Memory, Harness or AGENTS.md\ntype: preference\n---\nFor future Aurora reports, use REPORT_DONE only on successful verification, never after an error. Keep this preference private; do not publish it into project Memory, Harness or AGENTS.md.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Keep this preference private for future Aurora reports: finish with REPORT_DONE only for successful verification, never after an error; do not publish it into project Memory, Harness or AGENTS.md."
+              },
+              {
+                "index": 1,
+                "quote": "This successful verification report ended with REPORT_DONE."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Privately use REPORT_DONE only on successful Aurora verification, never after an error; do not publish into project Memory, Harness or AGENTS.md\ntype: preference\n---\nFor future Aurora reports, use REPORT_DONE only on successful verification, never after an error. Keep this preference private; do not publish it into project Memory, Harness or AGENTS.md.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "baseline": {
+        "decision": "propose",
+        "parentCategory": "rejected",
+        "jevDecision": "not-called",
+        "sourceSha256": "f6b05d3a1bfef6a26b7e4a20743db0436693060b27d1ddfba4fde6ab8d2a751e",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-after/result.json"
+      }
+    },
+    {
+      "id": "private-conditional-preference-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "private-conditional-preference",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-private-conditional-preference-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后 Aurora 报告保留此私有偏好：只在验证成功时以 REPORT_DONE 结尾，错误后不要使用；不要发布到项目 Memory、Harness 或 AGENTS.md。"
+          },
+          {
+            "role": "toolResult",
+            "content": "本次成功验证报告以 REPORT_DONE 结尾。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-private-conditional-preference-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "d3b68e8cbbfc144c6832fba59d196db3aa1b7cc1a5450691d6543539576292eb",
+        "snapshotDigest": "d3b68e8cbbfc144c6832fba59d196db3aa1b7cc1a5450691d6543539576292eb",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "preference",
+            "classification": "private",
+            "content": "---\nname: aurora_fact\ndescription: 今后 Aurora 报告只在验证成功时以 REPORT_DONE 结尾，错误后不使用；不要发布到项目 Memory、Harness 或 AGENTS.md。\ntype: preference\n---\n今后 Aurora 报告只在验证成功时以 REPORT_DONE 结尾，错误后不使用；不要发布到项目 Memory、Harness 或 AGENTS.md。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "今后 Aurora 报告保留此私有偏好：只在验证成功时以 REPORT_DONE 结尾，错误后不要使用；不要发布到项目 Memory、Harness 或 AGENTS.md。"
+              },
+              {
+                "index": 1,
+                "quote": "本次成功验证报告以 REPORT_DONE 结尾。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: 今后 Aurora 报告只在验证成功时以 REPORT_DONE 结尾，错误后不使用；不要发布到项目 Memory、Harness 或 AGENTS.md。\ntype: preference\n---\n今后 Aurora 报告只在验证成功时以 REPORT_DONE 结尾，错误后不使用；不要发布到项目 Memory、Harness 或 AGENTS.md。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "2ac1992d626abaa5a81499ecfe90655ac863dfaec67b911cb7c79f2df91d3ceb",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-after/result.json"
+      }
+    },
+    {
+      "id": "private-conditional-preference-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "private-conditional-preference",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-private-conditional-preference-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后 Aurora 报告保留此私有偏好：只在验证成功时以 REPORT_DONE 结尾，错误后不要使用；不要发布到项目 Memory、Harness 或 AGENTS.md。"
+          },
+          {
+            "role": "toolResult",
+            "content": "本次成功验证报告以 REPORT_DONE 结尾。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-private-conditional-preference-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "d3b68e8cbbfc144c6832fba59d196db3aa1b7cc1a5450691d6543539576292eb",
+        "snapshotDigest": "d3b68e8cbbfc144c6832fba59d196db3aa1b7cc1a5450691d6543539576292eb",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "preference",
+            "classification": "private",
+            "content": "---\nname: aurora_fact\ndescription: 用户指示：今后 Aurora 报告只在验证成功时以 REPORT_DONE 结尾，错误后不使用；不要发布到项目 Memory、Harness 或 AGENTS.md\ntype: preference\n---\n用户指示：今后 Aurora 报告只在验证成功时以 REPORT_DONE 结尾，错误后不使用；不要发布到项目 Memory、Harness 或 AGENTS.md。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "今后 Aurora 报告保留此私有偏好：只在验证成功时以 REPORT_DONE 结尾，错误后不要使用；不要发布到项目 Memory、Harness 或 AGENTS.md。"
+              },
+              {
+                "index": 1,
+                "quote": "本次成功验证报告以 REPORT_DONE 结尾。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: 用户指示：今后 Aurora 报告只在验证成功时以 REPORT_DONE 结尾，错误后不使用；不要发布到项目 Memory、Harness 或 AGENTS.md\ntype: preference\n---\n用户指示：今后 Aurora 报告只在验证成功时以 REPORT_DONE 结尾，错误后不使用；不要发布到项目 Memory、Harness 或 AGENTS.md。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "d808cb68de700fabd5d97074d293d912245dae6de376fc03df77a166ef45052e",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-before/result.json"
+      }
+    },
+    {
+      "id": "negative-verification-and-recovery-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "negative-verification-and-recovery",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-negative-verification-and-recovery-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "For future Aurora regression checks, remember that the verified command is pnpm test."
+          },
+          {
+            "role": "toolResult",
+            "content": "pnpm test passed. Deliberately corrupting the fixture produced an expected failing test. Restoring it made pnpm test pass again."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-negative-verification-and-recovery-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "19d407ecc9162f05a0c6dc5ab55b94f252720709ceda91d844c47c7c66e646eb",
+        "snapshotDigest": "19d407ecc9162f05a0c6dc5ab55b94f252720709ceda91d844c47c7c66e646eb",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: pnpm test observed to pass for Aurora regression, including negative and recovery cycle\ntype: project\n---\nAurora regression checks use pnpm test. In the observed session, pnpm test passed; deliberately corrupting the fixture produced an expected failing test; restoring it made pnpm test pass again.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "For future Aurora regression checks, remember that the verified command is pnpm test."
+              },
+              {
+                "index": 1,
+                "quote": "pnpm test passed. Deliberately corrupting the fixture produced an expected failing test. Restoring it made pnpm test pass again."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: pnpm test observed to pass for Aurora regression, including negative and recovery cycle\ntype: project\n---\nAurora regression checks use pnpm test. In the observed session, pnpm test passed; deliberately corrupting the fixture produced an expected failing test; restoring it made pnpm test pass again.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "e043e102b6f039756899aa549675ab69c03dd2e63f537f734c2f9070b4e8bd3b",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-before/result.json"
+      }
+    },
+    {
+      "id": "negative-verification-and-recovery-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "negative-verification-and-recovery",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-negative-verification-and-recovery-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "For future Aurora regression checks, remember that the verified command is pnpm test."
+          },
+          {
+            "role": "toolResult",
+            "content": "pnpm test passed. Deliberately corrupting the fixture produced an expected failing test. Restoring it made pnpm test pass again."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-negative-verification-and-recovery-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "19d407ecc9162f05a0c6dc5ab55b94f252720709ceda91d844c47c7c66e646eb",
+        "snapshotDigest": "19d407ecc9162f05a0c6dc5ab55b94f252720709ceda91d844c47c7c66e646eb",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: The verified Aurora regression command is pnpm test.\ntype: project\n---\nThe verified Aurora regression command is pnpm test.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "For future Aurora regression checks, remember that the verified command is pnpm test."
+              },
+              {
+                "index": 1,
+                "quote": "pnpm test passed. Deliberately corrupting the fixture produced an expected failing test. Restoring it made pnpm test pass again."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: The verified Aurora regression command is pnpm test.\ntype: project\n---\nThe verified Aurora regression command is pnpm test.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "074ef10c17a1eecb197504821ad933d966b9ff0a5743e0fb30b4b36a68d85a95",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-after/result.json"
+      }
+    },
+    {
+      "id": "negative-verification-and-recovery-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "negative-verification-and-recovery",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-negative-verification-and-recovery-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后 Aurora 回归验证请记住：经验证的命令是 pnpm test。"
+          },
+          {
+            "role": "toolResult",
+            "content": "pnpm test 通过。主动破坏 fixture 后测试按预期失败。恢复后 pnpm test 再次通过。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-negative-verification-and-recovery-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "54a8a24407355218c54410b90e1c7a4e6a3e2d50efda4acf398306e8e8348667",
+        "snapshotDigest": "54a8a24407355218c54410b90e1c7a4e6a3e2d50efda4acf398306e8e8348667",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 回归验证的已经验证命令是 pnpm test\ntype: project\n---\n用户要求记住 Aurora 回归验证的已经验证命令是 pnpm test。工具结果确认 pnpm test 通过。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "今后 Aurora 回归验证请记住：经验证的命令是 pnpm test。"
+              },
+              {
+                "index": 1,
+                "quote": "pnpm test 通过。主动破坏 fixture 后测试按预期失败。恢复后 pnpm test 再次通过。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora 回归验证的已经验证命令是 pnpm test\ntype: project\n---\n用户要求记住 Aurora 回归验证的已经验证命令是 pnpm test。工具结果确认 pnpm test 通过。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "718e47ffc6edd1adf0a06dbccd32a6aa8f60f21377dbc0cbf7ced86c23aebc38",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-after/result.json"
+      }
+    },
+    {
+      "id": "negative-verification-and-recovery-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "negative-verification-and-recovery",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-negative-verification-and-recovery-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后 Aurora 回归验证请记住：经验证的命令是 pnpm test。"
+          },
+          {
+            "role": "toolResult",
+            "content": "pnpm test 通过。主动破坏 fixture 后测试按预期失败。恢复后 pnpm test 再次通过。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-negative-verification-and-recovery-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "54a8a24407355218c54410b90e1c7a4e6a3e2d50efda4acf398306e8e8348667",
+        "snapshotDigest": "54a8a24407355218c54410b90e1c7a4e6a3e2d50efda4acf398306e8e8348667",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 经验证的回归命令是 pnpm test。\ntype: project\n---\nAurora 经验证的回归命令是 pnpm test。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "今后 Aurora 回归验证请记住：经验证的命令是 pnpm test。"
+              },
+              {
+                "index": 1,
+                "quote": "pnpm test 通过。主动破坏 fixture 后测试按预期失败。恢复后 pnpm test 再次通过。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora 经验证的回归命令是 pnpm test。\ntype: project\n---\nAurora 经验证的回归命令是 pnpm test。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "26be1886b25d752a192964cd2036cf7a76e60c4c42a1155b2beb8d71a98de02c",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-before/result.json"
+      }
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history-en-before",
+      "origin": "known-generator-development-output",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-unrequested-durable-diagnostic-history-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Investigate the Aurora CI network failures and report verified findings."
+          },
+          {
+            "role": "toolResult",
+            "content": "Across three isolated checks, IPv6 connections failed because this CI environment has no IPv6 route; IPv4 connections succeeded in all three. The route configuration is unchanged and this condition remains until IPv6 routing is provisioned."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-unrequested-durable-diagnostic-history-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "283121a6ff8cb475d3d48ae23ef10d4ca6ff5ab878e8cfad64ae48af235dcda9",
+        "snapshotDigest": "283121a6ff8cb475d3d48ae23ef10d4ca6ff5ab878e8cfad64ae48af235dcda9",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora CI environment has no IPv6 route; IPv4 connections succeed; route configuration unchanged until IPv6 routing is provisioned.\ntype: project\n---\nAurora CI environment has no IPv6 route; IPv4 connections succeeded in all three isolated checks. The route configuration is unchanged and this condition remains until IPv6 routing is provisioned.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Investigate the Aurora CI network failures and report verified findings."
+              },
+              {
+                "index": 1,
+                "quote": "Across three isolated checks, IPv6 connections failed because this CI environment has no IPv6 route; IPv4 connections succeeded in all three. The route configuration is unchanged and this condition remains until IPv6 routing is provisioned."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora CI environment has no IPv6 route; IPv4 connections succeed; route configuration unchanged until IPv6 routing is provisioned.\ntype: project\n---\nAurora CI environment has no IPv6 route; IPv4 connections succeeded in all three isolated checks. The route configuration is unchanged and this condition remains until IPv6 routing is provisioned.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "propose",
+        "parentCategory": "rejected",
+        "jevDecision": "not-called",
+        "sourceSha256": "b9c0da4bbcdbe110f288a041d4a04179463c36d12d3819b39a6ffafeed9e06c3",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-before/result.json"
+      }
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history-en-after",
+      "origin": "known-generator-development-output",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-unrequested-durable-diagnostic-history-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Investigate the Aurora CI network failures and report verified findings."
+          },
+          {
+            "role": "toolResult",
+            "content": "Across three isolated checks, IPv6 connections failed because this CI environment has no IPv6 route; IPv4 connections succeeded in all three. The route configuration is unchanged and this condition remains until IPv6 routing is provisioned."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-unrequested-durable-diagnostic-history-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "283121a6ff8cb475d3d48ae23ef10d4ca6ff5ab878e8cfad64ae48af235dcda9",
+        "snapshotDigest": "283121a6ff8cb475d3d48ae23ef10d4ca6ff5ab878e8cfad64ae48af235dcda9",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora CI has no IPv6 route; isolated checks showed IPv6 connections failed and IPv4 connections succeeded, and this unchanged condition remains until IPv6 routing is provisioned.\ntype: project\n---\nAurora CI has no IPv6 route; isolated checks showed IPv6 connections failed and IPv4 connections succeeded, and this unchanged condition remains until IPv6 routing is provisioned.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Investigate the Aurora CI network failures and report verified findings."
+              },
+              {
+                "index": 1,
+                "quote": "Across three isolated checks, IPv6 connections failed because this CI environment has no IPv6 route; IPv4 connections succeeded in all three. The route configuration is unchanged and this condition remains until IPv6 routing is provisioned."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora CI has no IPv6 route; isolated checks showed IPv6 connections failed and IPv4 connections succeeded, and this unchanged condition remains until IPv6 routing is provisioned.\ntype: project\n---\nAurora CI has no IPv6 route; isolated checks showed IPv6 connections failed and IPv4 connections succeeded, and this unchanged condition remains until IPv6 routing is provisioned.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "propose",
+        "parentCategory": "rejected",
+        "jevDecision": "not-called",
+        "sourceSha256": "7ec18d79cc334689650d88b71d799bae5ebbfe84057024f3d88a1a718e8237e0",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-after/result.json"
+      }
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history-zh-after",
+      "origin": "known-generator-development-output",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-unrequested-durable-diagnostic-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "调查 Aurora CI 网络故障并报告已验证的发现。"
+          },
+          {
+            "role": "toolResult",
+            "content": "三个隔离检查中，IPv6 连接都因这个 CI 环境没有 IPv6 路由而失败；三个检查的 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前这个条件仍持续。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-unrequested-durable-diagnostic-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "e5b0788fefed744dbe97a7528293e0ff090107068f3149556cd1f19121315854",
+        "snapshotDigest": "e5b0788fefed744dbe97a7528293e0ff090107068f3149556cd1f19121315854",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora CI 没有 IPv6 路由，IPv4 连接成功；此条件在配置 IPv6 路由前持续。\ntype: project\n---\nAurora CI 环境没有 IPv6 路由；在三个隔离检查中 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前此条件持续。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "调查 Aurora CI 网络故障并报告已验证的发现。"
+              },
+              {
+                "index": 1,
+                "quote": "三个隔离检查中，IPv6 连接都因这个 CI 环境没有 IPv6 路由而失败；三个检查的 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前这个条件仍持续。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora CI 没有 IPv6 路由，IPv4 连接成功；此条件在配置 IPv6 路由前持续。\ntype: project\n---\nAurora CI 环境没有 IPv6 路由；在三个隔离检查中 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前此条件持续。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "23d2246f120283f3fd6bab0385afee476dd72965adc119f1be6c0122c62fb04f",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-after/result.json"
+      }
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history-zh-before",
+      "origin": "known-generator-development-output",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-unrequested-durable-diagnostic-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "调查 Aurora CI 网络故障并报告已验证的发现。"
+          },
+          {
+            "role": "toolResult",
+            "content": "三个隔离检查中，IPv6 连接都因这个 CI 环境没有 IPv6 路由而失败；三个检查的 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前这个条件仍持续。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-unrequested-durable-diagnostic-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "e5b0788fefed744dbe97a7528293e0ff090107068f3149556cd1f19121315854",
+        "snapshotDigest": "e5b0788fefed744dbe97a7528293e0ff090107068f3149556cd1f19121315854",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora CI 没有 IPv6 路由；三次隔离检查中 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前该条件持续。\ntype: project\n---\nAurora CI 没有 IPv6 路由；三次隔离检查中 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前该条件持续。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "调查 Aurora CI 网络故障并报告已验证的发现。"
+              },
+              {
+                "index": 1,
+                "quote": "三个隔离检查中，IPv6 连接都因这个 CI 环境没有 IPv6 路由而失败；三个检查的 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前这个条件仍持续。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "aurora_fact.md",
+          "op": "create",
+          "content": "---\nname: aurora_fact\ndescription: Aurora CI 没有 IPv6 路由；三次隔离检查中 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前该条件持续。\ntype: project\n---\nAurora CI 没有 IPv6 路由；三次隔离检查中 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前该条件持续。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "baseline": {
+        "decision": "allow",
+        "parentCategory": "ready",
+        "jevDecision": "allow",
+        "sourceSha256": "89b2cba6b789ad6078c239261f00b8d6010319cc3744db682594b15a698553e5",
+        "sourcePath": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-before/result.json"
+      }
+    },
+    {
+      "id": "nanoid-stable-default-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "nanoid-stable-default",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-nanoid-stable-default-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "Verified pinned Nano ID README: default IDs have 21 symbols."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNano ID default IDs have 21 symbols.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Verified pinned Nano ID README: default IDs have 21 symbols."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNano ID default IDs have 21 symbols.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": {
+        "repo": "ai/nanoid",
+        "commit": "3167e108865702c0539d8e552365ed840ac9d8d9",
+        "readmeSha256": "7114152cd558eab8582ce671dc97aefd8cbf7fa1531fb670009e6ae679a15e00",
+        "readmePath": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/nanoid-README.md",
+        "url": "https://github.com/ai/nanoid/blob/3167e108865702c0539d8e552365ed840ac9d8d9/README.md"
+      }
+    },
+    {
+      "id": "nanoid-stable-default-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "nanoid-stable-default",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-nanoid-stable-default-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "已核对固定版本 Nano ID README：默认 ID 为 21 个字符。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNano ID 默认 ID 为 21 个字符。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "已核对固定版本 Nano ID README：默认 ID 为 21 个字符。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNano ID 默认 ID 为 21 个字符。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": {
+        "repo": "ai/nanoid",
+        "commit": "3167e108865702c0539d8e552365ed840ac9d8d9",
+        "readmeSha256": "7114152cd558eab8582ce671dc97aefd8cbf7fa1531fb670009e6ae679a15e00",
+        "readmePath": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/nanoid-README.md",
+        "url": "https://github.com/ai/nanoid/blob/3167e108865702c0539d8e552365ed840ac9d8d9/README.md"
+      }
+    },
+    {
+      "id": "tinypool-stable-runtime-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "tinypool-stable-runtime",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-tinypool-stable-runtime-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "Verified pinned Tinypool README: supports worker_threads and child_process."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nTinypool supports worker_threads and child_process.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Verified pinned Tinypool README: supports worker_threads and child_process."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nTinypool supports worker_threads and child_process.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": {
+        "repo": "tinylibs/tinypool",
+        "commit": "2ed306417986823e7a7989fd392e9cbfeee1b0c1",
+        "readmeSha256": "dc9864095f94de4c9701eb437abed2c6952a69cbda6ef131d23c15fa869c334a",
+        "readmePath": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/tinypool-README.md",
+        "url": "https://github.com/tinylibs/tinypool/blob/2ed306417986823e7a7989fd392e9cbfeee1b0c1/README.md"
+      }
+    },
+    {
+      "id": "tinypool-stable-runtime-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "tinypool-stable-runtime",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-tinypool-stable-runtime-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "已核对固定版本 Tinypool README：支持 worker_threads 和 child_process。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nTinypool 支持 worker_threads 和 child_process。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "已核对固定版本 Tinypool README：支持 worker_threads 和 child_process。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nTinypool 支持 worker_threads 和 child_process。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": {
+        "repo": "tinylibs/tinypool",
+        "commit": "2ed306417986823e7a7989fd392e9cbfeee1b0c1",
+        "readmeSha256": "dc9864095f94de4c9701eb437abed2c6952a69cbda6ef131d23c15fa869c334a",
+        "readmePath": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/tinypool-README.md",
+        "url": "https://github.com/tinylibs/tinypool/blob/2ed306417986823e7a7989fd392e9cbfeee1b0c1/README.md"
+      }
+    },
+    {
+      "id": "transient-download-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "transient-download",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-transient-download-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "For this download only, the server returned 502 once and retry succeeded. Do not derive future project settings."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nThis download returned 502 once and retry succeeded.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "For this download only, the server returned 502 once and retry succeeded. Do not derive future project settings."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nThis download returned 502 once and retry succeeded.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          false
+        ],
+        "omission": false
+      },
+      "projectSource": null
+    },
+    {
+      "id": "transient-download-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "transient-download",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-transient-download-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "仅本次下载：服务端出现一次 502，重试成功。不能据此推导后续项目配置。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n这次下载出现一次 502，重试成功。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "仅本次下载：服务端出现一次 502，重试成功。不能据此推导后续项目配置。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n这次下载出现一次 502，重试成功。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          false
+        ],
+        "omission": false
+      },
+      "projectSource": null
+    },
+    {
+      "id": "requested-release-complete-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-complete",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-release-complete-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember the release acceptance result: Node 22.23.2 completed all 23 compatibility checks."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nRelease acceptance: Node 22.23.2 completed all 23 compatibility checks.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember the release acceptance result: Node 22.23.2 completed all 23 compatibility checks."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nRelease acceptance: Node 22.23.2 completed all 23 compatibility checks.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": null
+    },
+    {
+      "id": "requested-release-complete-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-complete",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-release-complete-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住发布验收结果：Node 22.23.2 完成了全部 23 项兼容性检查。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n发布验收：Node 22.23.2 完成了全部 23 项兼容性检查。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住发布验收结果：Node 22.23.2 完成了全部 23 项兼容性检查。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n发布验收：Node 22.23.2 完成了全部 23 项兼容性检查。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": null
+    },
+    {
+      "id": "requested-release-incomplete-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-incomplete",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-release-incomplete-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember the release acceptance result: Node 22.23.2 completed all 23 compatibility checks."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNode 22.23.2 completed all 23 compatibility checks.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember the release acceptance result: Node 22.23.2 completed all 23 compatibility checks."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNode 22.23.2 completed all 23 compatibility checks.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "projectSource": null
+    },
+    {
+      "id": "requested-release-incomplete-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-release-incomplete",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-release-incomplete-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住发布验收结果：Node 22.23.2 完成了全部 23 项兼容性检查。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNode 22.23.2 完成了全部 23 项兼容性检查。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住发布验收结果：Node 22.23.2 完成了全部 23 项兼容性检查。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nNode 22.23.2 完成了全部 23 项兼容性检查。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "projectSource": null
+    },
+    {
+      "id": "requested-split-existing-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-split-existing",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-split-existing-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember both project settings: cache TTL is 60 seconds and pool limit is 16 connections."
+          }
+        ]
+      },
+      "existing": [
+        {
+          "name": "pool.md",
+          "classification": "safe",
+          "type": "project",
+          "description": "Connection pool limit",
+          "content": "Pool limit is 16 connections."
+        }
+      ],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nCache TTL is 60 seconds.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember both project settings: cache TTL is 60 seconds and pool limit is 16 connections."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nCache TTL is 60 seconds.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": null
+    },
+    {
+      "id": "requested-split-existing-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-split-existing",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-split-existing-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住两项项目配置：缓存 TTL 为 60 秒，连接池上限为 16 个连接。"
+          }
+        ]
+      },
+      "existing": [
+        {
+          "name": "pool.md",
+          "classification": "safe",
+          "type": "project",
+          "description": "Connection pool limit",
+          "content": "连接池上限为 16 个连接。"
+        }
+      ],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n缓存 TTL 为 60 秒。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住两项项目配置：缓存 TTL 为 60 秒，连接池上限为 16 个连接。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n缓存 TTL 为 60 秒。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": null
+    },
+    {
+      "id": "requested-report-placement-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-report-placement",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-report-placement-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember: successful reports must begin with READY_FOR_REVIEW; error reports must never use that marker."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nSuccessful reports use READY_FOR_REVIEW; error reports never use it.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember: successful reports must begin with READY_FOR_REVIEW; error reports must never use that marker."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nSuccessful reports use READY_FOR_REVIEW; error reports never use it.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "projectSource": null
+    },
+    {
+      "id": "requested-report-placement-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "requested-report-placement",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-requested-report-placement-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "user",
+            "content": "记住：成功报告必须以 READY_FOR_REVIEW 开头；错误报告绝不使用该标记。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n成功报告使用 READY_FOR_REVIEW；错误报告不使用。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "记住：成功报告必须以 READY_FOR_REVIEW 开头；错误报告绝不使用该标记。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n成功报告使用 READY_FOR_REVIEW；错误报告不使用。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": true
+      },
+      "projectSource": null
+    },
+    {
+      "id": "ongoing-diagnostic-en",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "ongoing-diagnostic",
+      "language": "en",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-ongoing-diagnostic-en",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "Verified routing status: IPv6 is unavailable until routing is provisioned; IPv4 connectivity works. This remains relevant for deployment diagnostics."
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nFor deployment diagnostics while IPv6 routing is unprovisioned, IPv4 connectivity works; this condition ends when routing is provisioned.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Verified routing status: IPv6 is unavailable until routing is provisioned; IPv4 connectivity works. This remains relevant for deployment diagnostics."
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\nFor deployment diagnostics while IPv6 routing is unprovisioned, IPv4 connectivity works; this condition ends when routing is provisioned.\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": null
+    },
+    {
+      "id": "ongoing-diagnostic-zh",
+      "origin": "fresh-authored-development-scenario",
+      "scenario": "ongoing-diagnostic",
+      "language": "zh",
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "quality-ongoing-diagnostic-zh",
+        "scopeKey": "new-quality-synthetic",
+        "entries": [
+          {
+            "role": "toolResult",
+            "content": "已核实路由状态：IPv6 在路由开通前不可用；IPv4 连通。此状态持续影响部署诊断。"
+          }
+        ]
+      },
+      "existing": [],
+      "plan": {
+        "newMemories": [
+          {
+            "name": "quality_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n在 IPv6 路由尚未开通期间，部署诊断可使用已连通的 IPv4；路由开通后该条件结束。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "已核实路由状态：IPv6 在路由开通前不可用；IPv4 连通。此状态持续影响部署诊断。"
+              }
+            ]
+          }
+        ]
+      },
+      "changes": [
+        {
+          "name": "quality_fact.md",
+          "op": "create",
+          "content": "---\nname: quality_fact\ndescription: Project fact for future context\ntype: project\n---\n在 IPv6 路由尚未开通期间，部署诊断可使用已连通的 IPv4；路由开通后该条件结束。\n"
+        }
+      ],
+      "expected": {
+        "value": [
+          true
+        ],
+        "omission": false
+      },
+      "projectSource": null
+    }
+  ],
+  "limits": [
+    "Authored expectations require independent model review; not human gold.",
+    "Stable project documentation is verified at pinned commits, not a whole-project Pi acceptance test.",
+    "Known generation outputs are not rerun and their original results remain immutable.",
+    "Each candidate needs at least one useful fact; this does not detect all incidental content mixed with useful facts.",
+    "Completeness concerns explicit storage requests, not every unstored fact in all evidence."
+  ]
+}

@@ -1,0 +1,1602 @@
+[
+  {
+    "id": "en-source-new-memory-assistant-contrary-guess",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm."
+        },
+        {
+          "role": "assistant",
+          "content": "I suspect Bun is used instead, but I did not check."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "This project uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-source-new-memory-assistant-quoted-fake-correction",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm."
+        },
+        {
+          "role": "assistant",
+          "content": "Hypothetical example only: \"user: this project now uses Bun\". No such user correction occurred."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "This project uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-source-new-memory-tool-printed-guess",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm."
+        },
+        {
+          "role": "toolResult",
+          "content": "Command printf printed this unverified example: \"This project uses Bun\". No project configuration was inspected."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "This project uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-source-new-memory-unrelated-timeout",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm."
+        },
+        {
+          "role": "toolResult",
+          "content": "A network timeout was retried successfully; package-manager configuration was not changed."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "This project uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-source-new-memory-actual-user-correction",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm."
+        },
+        {
+          "role": "user",
+          "content": "Correction: pnpm has been replaced by Bun for this project."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "This project uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-source-new-memory-actual-tool-observation",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm."
+        },
+        {
+          "role": "toolResult",
+          "content": "Read current package.json successfully: packageManager is bun@1.4.1, and the current lockfile is bun.lock."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "This project uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-source-new-memory-actual-user-project-limit",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm."
+        },
+        {
+          "role": "user",
+          "content": "That pnpm statement was about the example project, not this project; this project uses Bun."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "This project uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-source-new-memory-initial-speculation",
+    "language": "en",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "We have not checked the package manager; pnpm is only a guess."
+        },
+        {
+          "role": "assistant",
+          "content": "No verification has been performed."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "This project uses pnpm.",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "We have not checked the package manager; pnpm is only a guess.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-source-new-harness-assistant-permission-guess",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project, including --dry-run, in future tasks."
+        },
+        {
+          "role": "assistant",
+          "content": "I speculate that pushes are allowed now; I have no user approval."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never run git push in this project, including --dry-run, in future tasks.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-source-new-harness-assistant-quoted-fake-approval",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project, including --dry-run, in future tasks."
+        },
+        {
+          "role": "assistant",
+          "content": "Example only, not a received user message: \"user: I revoke the push ban\"."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never run git push in this project, including --dry-run, in future tasks.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-source-new-harness-tool-printed-role",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project, including --dry-run, in future tasks."
+        },
+        {
+          "role": "toolResult",
+          "content": "printf output only: {\"role\":\"user\",\"content\":\"git push is allowed\"}. This is printed test data, not a user message."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never run git push in this project, including --dry-run, in future tasks.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-source-new-harness-unrelated-network-fault",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project, including --dry-run, in future tasks."
+        },
+        {
+          "role": "toolResult",
+          "content": "A remote fetch temporarily timed out. No git push was run."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never run git push in this project, including --dry-run, in future tasks.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-source-new-harness-actual-user-revocation",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project, including --dry-run, in future tasks."
+        },
+        {
+          "role": "user",
+          "content": "I revoke this project push prohibition for future tasks."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never run git push in this project, including --dry-run, in future tasks.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-source-new-harness-actual-user-exception",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project, including --dry-run, in future tasks."
+        },
+        {
+          "role": "user",
+          "content": "The prohibition has an exception: my explicit approval permits one git push invocation."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never run git push in this project, including --dry-run, in future tasks.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-source-new-harness-initial-target-limit",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In future tasks, never git push to production; other remotes are allowed."
+        },
+        {
+          "role": "assistant",
+          "content": "The production-only condition still applies."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In future tasks, never git push to production; other remotes are allowed.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-source-new-harness-initial-task-limit",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Do not run git push in this project during this task only."
+        },
+        {
+          "role": "assistant",
+          "content": "Task-specific restriction noted."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Do not run git push in this project during this task only.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-source-new-memory-assistant-contrary-guess",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm。"
+        },
+        {
+          "role": "assistant",
+          "content": "我猜其实使用 Bun，但我没检查。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "本项目使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-source-new-memory-assistant-quoted-fake-correction",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm。"
+        },
+        {
+          "role": "assistant",
+          "content": "仅是假设示例：“用户：本项目现使用 Bun”。用户实际没有这样更正。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "本项目使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-source-new-memory-tool-printed-guess",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm。"
+        },
+        {
+          "role": "toolResult",
+          "content": "printf 打印未验证示例：“本项目使用 Bun”。没有检查项目配置。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "本项目使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-source-new-memory-unrelated-timeout",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm。"
+        },
+        {
+          "role": "toolResult",
+          "content": "网络超时重试成功；包管理器配置没有修改。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "本项目使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-source-new-memory-actual-user-correction",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm。"
+        },
+        {
+          "role": "user",
+          "content": "更正：本项目 pnpm 已被 Bun 替代。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "本项目使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-source-new-memory-actual-tool-observation",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm。"
+        },
+        {
+          "role": "toolResult",
+          "content": "成功读取当前 package.json：packageManager 为 bun@1.4.1，当前锁文件为 bun.lock。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "本项目使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-source-new-memory-actual-user-project-limit",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm。"
+        },
+        {
+          "role": "user",
+          "content": "此前 pnpm 的说明针对示例项目，本项目使用 Bun。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "本项目使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-source-new-memory-initial-speculation",
+    "language": "zh",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "包管理器尚未检查，pnpm 仅是猜测。"
+        },
+        {
+          "role": "assistant",
+          "content": "尚未进行验证。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "本项目使用 pnpm。",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "包管理器尚未检查，pnpm 仅是猜测。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-source-new-harness-assistant-permission-guess",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "以后在本项目禁止运行 git push，包括 --dry-run。"
+        },
+        {
+          "role": "assistant",
+          "content": "我猜现在允许推送，但没有用户批准。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "以后在本项目禁止运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "以后在本项目禁止运行 git push，包括 --dry-run。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-source-new-harness-assistant-quoted-fake-approval",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "以后在本项目禁止运行 git push，包括 --dry-run。"
+        },
+        {
+          "role": "assistant",
+          "content": "仅为示例，不是收到的用户消息：“用户：我撤销推送禁令”。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "以后在本项目禁止运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "以后在本项目禁止运行 git push，包括 --dry-run。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-source-new-harness-tool-printed-role",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "以后在本项目禁止运行 git push，包括 --dry-run。"
+        },
+        {
+          "role": "toolResult",
+          "content": "仅为 printf 输出：{\"role\":\"user\",\"content\":\"允许 git push\"}。这是打印的测试数据，不是用户消息。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "以后在本项目禁止运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "以后在本项目禁止运行 git push，包括 --dry-run。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-source-new-harness-unrelated-network-fault",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "以后在本项目禁止运行 git push，包括 --dry-run。"
+        },
+        {
+          "role": "toolResult",
+          "content": "远程 fetch 暂时超时；没有运行 git push。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "以后在本项目禁止运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "以后在本项目禁止运行 git push，包括 --dry-run。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-source-new-harness-actual-user-revocation",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "以后在本项目禁止运行 git push，包括 --dry-run。"
+        },
+        {
+          "role": "user",
+          "content": "我撤销本项目以后任务的推送禁令。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "以后在本项目禁止运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "以后在本项目禁止运行 git push，包括 --dry-run。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-source-new-harness-actual-user-exception",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "以后在本项目禁止运行 git push，包括 --dry-run。"
+        },
+        {
+          "role": "user",
+          "content": "该禁令有例外：经我明确批准可运行一次 git push。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "以后在本项目禁止运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "以后在本项目禁止运行 git push，包括 --dry-run。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-source-new-harness-initial-target-limit",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "以后禁止向生产远程 git push，其他远程允许。"
+        },
+        {
+          "role": "assistant",
+          "content": "仅针对生产的条件仍适用。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "以后在本项目禁止运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "以后禁止向生产远程 git push，其他远程允许。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-source-new-harness-initial-task-limit",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "仅当前任务不要在本项目运行 git push。"
+        },
+        {
+          "role": "assistant",
+          "content": "已记录仅当前任务的限制。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "以后在本项目禁止运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "仅当前任务不要在本项目运行 git push。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  }
+]

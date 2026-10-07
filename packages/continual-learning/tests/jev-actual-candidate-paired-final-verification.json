@@ -1,0 +1,34 @@
+{
+  "evidence": "actual-generated-candidate-replay-final-verification",
+  "fullTargetTests": {
+    "passed": 865,
+    "seconds": 260.06,
+    "exitCode": 0
+  },
+  "rootTypecheck": "passed",
+  "strictRunnerTypecheck": "passed",
+  "targetPackDryRun": "passed",
+  "independentReview": "passed - cited_memory_security_review",
+  "externalRequests": 19,
+  "actualModel": "jev-1.13.0",
+  "knownInputTokens": 110584,
+  "estimatedCostUsd": 0.004644528,
+  "actualBilledCostVerified": false,
+  "paidProcess": {
+    "id": 40394,
+    "terminalExitCode": 0
+  },
+  "newDockerExecutions": 0,
+  "productionWrites": 0,
+  "qualityCriterionMet": false,
+  "goalComplete": false,
+  "fileSha256": {
+    "jev-actual-candidate-paired-study-manifest.json": "3e034ca60a192422df722a8b8ff596a5188e41030fbef495fbd27565dfa94ac4",
+    "jev-actual-candidate-paired-real-results.json": "a1d70bb388f253de7fe33837d1edd512e277622a38b635324f786ca17ddd48dd",
+    "jev-actual-candidate-paired-effect-decision.json": "2541e6553f814c7411afe94601f4c7c7ee641d8df742b48bfdd9bd308cc5d1e9",
+    "actual-candidate-replay.ts": "cef9719780cd758973b16f767eb7f8baba453457bc086906dce2bfacf7e77f09",
+    "evaluate_jev_actual_candidate_replay.ts": "c27bb64bda91848cd2ad6eb139afecdc098876b8ea831e69c12b02fcf657bef2",
+    "test_jev_actual_candidate_replay.py": "b4cf1c30e28aafbb35c10cdc3941aa4a7cc8f835d646411a710c77460c4d2aca",
+    "jev-counter-window-diagnostic-plan.md": "657619472d3d9de86290a075a8dfbca6a348ad410ed2632a2f78d435169195f5"
+  }
+}

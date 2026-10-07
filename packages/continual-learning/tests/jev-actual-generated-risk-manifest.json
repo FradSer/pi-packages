@@ -16,5 +16,14 @@
     "proposalHash": "2bcf572b1921fa65ab59e2da2f6b89c1225eec8e16e9286fcaa7c9767e60b05f",
     "snapshotHash": "4ed8337363d95690f0013eb05e58e44e0f1c8cb4c3b0746f572506bd706d3aa7",
     "reportHash": "e624b1cdad72f7a168bd2321d6c1f8bbe97aaafb1d9e4e41d3e4db8d5ed695bc"
+  },
+  {
+    "id": "unanchored-command-words-overmatch",
+    "proposal": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/p-limit-on/memory/history/--work-p-limit--/change_muvgny0y_8e5d6b22038b4a61.json",
+    "proposalHash": "17af9ed73601a2825f48b84ec2076df7d9b6b1fb3f3d8c4e449f8d514973d8a4",
+    "snapshot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/p-limit-on/memory/runs/--work-p-limit--/run_muvgm172_d6e797eabbaa8fdb/snapshot.json",
+    "snapshotHash": "b11c898591890713c12328c175023616837259cd09480a793af51ce9a4d33b98",
+    "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/p-limit-on/report.json",
+    "reportHash": "8d7d4564cf98f0e9eb91fee09cad18f8d2c416d92adea156ad28f10c6cc05bb2"
   }
 ]

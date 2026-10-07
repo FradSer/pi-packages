@@ -1,0 +1,279 @@
+{
+  "piVersion": "1.0.4",
+  "model": "cli-proxy/opencode/deepseek-v4.1-flash",
+  "completed": true,
+  "error": null,
+  "lifecycle": [
+    {
+      "saved": false,
+      "attempt": 0,
+      "first": "result",
+      "second": "result",
+      "idle": "idle",
+      "stopOk": true,
+      "staleRefused": true
+    },
+    {
+      "saved": false,
+      "attempt": 1,
+      "first": "result",
+      "second": "result",
+      "idle": "idle",
+      "stopOk": true,
+      "staleRefused": true
+    },
+    {
+      "saved": false,
+      "attempt": 2,
+      "first": "result",
+      "second": "result",
+      "idle": "idle",
+      "stopOk": true,
+      "staleRefused": true
+    },
+    {
+      "saved": true,
+      "attempt": 0,
+      "first": "result",
+      "second": "result",
+      "idle": "idle",
+      "stopOk": true,
+      "staleRefused": true
+    },
+    {
+      "saved": true,
+      "attempt": 1,
+      "first": "result",
+      "second": "result",
+      "idle": "idle",
+      "stopOk": true,
+      "staleRefused": true
+    },
+    {
+      "saved": true,
+      "attempt": 2,
+      "first": "result",
+      "second": "result",
+      "idle": "idle",
+      "stopOk": true,
+      "staleRefused": true
+    }
+  ],
+  "evaluations": [
+    {
+      "case": "delivery",
+      "auditFile": "child-190.jsonl",
+      "memoryIndexInjected": false,
+      "fullEntryRead": false,
+      "withMemory": false,
+      "resultKind": "result",
+      "parseable": true,
+      "missingCoverage": false,
+      "codes": [
+        "unhandled-delivery"
+      ],
+      "correct": true,
+      "falsePositives": 0,
+      "missed": false
+    },
+    {
+      "case": "delivery",
+      "auditFile": "child-202.jsonl",
+      "memoryIndexInjected": true,
+      "fullEntryRead": true,
+      "withMemory": true,
+      "resultKind": "result",
+      "parseable": true,
+      "missingCoverage": false,
+      "codes": [
+        "unhandled-delivery"
+      ],
+      "correct": true,
+      "falsePositives": 0,
+      "missed": false
+    },
+    {
+      "case": "closure",
+      "auditFile": "child-214.jsonl",
+      "memoryIndexInjected": false,
+      "fullEntryRead": false,
+      "withMemory": false,
+      "resultKind": "result",
+      "parseable": true,
+      "missingCoverage": false,
+      "codes": [
+        "premature-release"
+      ],
+      "correct": true,
+      "falsePositives": 0,
+      "missed": false
+    },
+    {
+      "case": "closure",
+      "auditFile": "child-231.jsonl",
+      "memoryIndexInjected": true,
+      "fullEntryRead": true,
+      "withMemory": true,
+      "resultKind": "result",
+      "parseable": true,
+      "missingCoverage": false,
+      "codes": [
+        "premature-release"
+      ],
+      "correct": true,
+      "falsePositives": 0,
+      "missed": false
+    },
+    {
+      "case": "packaging",
+      "auditFile": "child-243.jsonl",
+      "memoryIndexInjected": false,
+      "fullEntryRead": false,
+      "withMemory": false,
+      "resultKind": "result",
+      "parseable": true,
+      "missingCoverage": false,
+      "codes": [
+        "missing-resource"
+      ],
+      "correct": true,
+      "falsePositives": 0,
+      "missed": false
+    },
+    {
+      "case": "packaging",
+      "auditFile": "child-260.jsonl",
+      "memoryIndexInjected": true,
+      "fullEntryRead": true,
+      "withMemory": true,
+      "resultKind": "result",
+      "parseable": true,
+      "missingCoverage": false,
+      "codes": [
+        "missing-resource"
+      ],
+      "correct": true,
+      "falsePositives": 0,
+      "missed": false
+    },
+    {
+      "case": "safe",
+      "auditFile": "child-272.jsonl",
+      "memoryIndexInjected": false,
+      "fullEntryRead": false,
+      "withMemory": false,
+      "resultKind": "result",
+      "parseable": true,
+      "missingCoverage": false,
+      "codes": [],
+      "correct": true,
+      "falsePositives": 0,
+      "missed": false
+    },
+    {
+      "case": "safe",
+      "auditFile": "child-284.jsonl",
+      "memoryIndexInjected": true,
+      "fullEntryRead": true,
+      "withMemory": true,
+      "resultKind": "result",
+      "parseable": true,
+      "missingCoverage": false,
+      "codes": [],
+      "correct": true,
+      "falsePositives": 0,
+      "missed": false
+    }
+  ],
+  "scores": {
+    "False": {
+      "correct": 4,
+      "total": 4,
+      "attempted": 4,
+      "missingCoverage": 0,
+      "falsePositives": 0
+    },
+    "True": {
+      "correct": 4,
+      "total": 4,
+      "attempted": 4,
+      "missingCoverage": 0,
+      "falsePositives": 0
+    }
+  },
+  "metadata": {
+    "image": "subagents-study:946c57ab4168e696",
+    "sourceSha256": "946c57ab4168e696013c641fe6f4a59786d42a9f4d9f4db9367726948d358ca1",
+    "model": {
+      "provider": "cli-proxy",
+      "model": "opencode/deepseek-v4.1-flash"
+    },
+    "started": "2026-10-07T08:03:53.063699+00:00",
+    "container": "21b4ac8b909b3b30d51bbea592e581bfaa3b9fd60b3e7c5ce32da6a80b17a6c0",
+    "parentHarnessSha256": {
+      "audit.ts": "442c82dc005a09740c3e09e6100b0548b04a826793269597f74d1514e8604e7a",
+      "parent-probe.py": "da16c23a952f6745ff6922bd0170f951cbb086dbafc5e7c5a393fc2e902ece8b"
+    },
+    "piVersion": "1.0.4",
+    "workspacePiVersions": {
+      "kit": "1.0.4",
+      "subagents": "1.0.4"
+    },
+    "exitCode": 0,
+    "parentExitCode": 0,
+    "requests": 79,
+    "transportErrors": 0
+  },
+  "parentTui": {
+    "prompt": "Use a temporary reviewer agent to review /work/heldout/delivery. No saved identity should be created for this one-off task. Delegate the review and wait for the automatically delivered result, then report the finding and finish your report with PARENT_REVIEW_DONE. Do not edit files or poll for the answer.",
+    "command": [
+      "pi",
+      "--approve",
+      "--no-session",
+      "--no-extensions",
+      "-e",
+      "/opt/study/packages/subagents/index.ts",
+      "-e",
+      "/opt/study/packages/subagents/tests/docker-study/audit.ts",
+      "--provider",
+      "cli-proxy",
+      "--model",
+      "opencode/deepseek-v4.1-flash",
+      "--thinking",
+      "off",
+      "--tools",
+      "read,agent_start,agent_input,agent_stop,agent_list",
+      "Use a temporary reviewer agent to review /work/heldout/delivery. No saved identity should be created for this one-off task. Delegate the review and wait for the automatically delivered result, then report the finding and finish your report with PARENT_REVIEW_DONE. Do not edit files or poll for the answer."
+    ],
+    "expandRepaintObserved": true,
+    "resizeRepaintObserved": true,
+    "markerObserved": true,
+    "phases": [
+      {
+        "kind": "temporary",
+        "attempt": 0,
+        "complete": true
+      },
+      {
+        "kind": "temporary",
+        "attempt": 1,
+        "complete": true
+      },
+      {
+        "kind": "temporary",
+        "attempt": 2,
+        "complete": true
+      },
+      {
+        "kind": "saved",
+        "complete": true
+      }
+    ]
+  },
+  "limitations": [
+    "Four synthetic review cases, with ceiling-level control scores.",
+    "Training explicitly requested a reusable capability, not autonomous learning.",
+    "No repeated-task identity creation policy was implemented.",
+    "No team-hosted execution or user-agent data was exercised."
+  ]
+}

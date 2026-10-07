@@ -1,0 +1,15 @@
+{
+  "evidence": "pre-diagnostic-runtime-source-preservation",
+  "baselineFiles": {
+    "jev-learning": {
+      "baseline": "packages/continual-learning/tests/fixtures/jev-learning-before-http-diagnostics.ts.txt",
+      "sha256": "cd71d97e34a9a26343cd541f477b8c5006d0ef7e1fafa82293977b1a21c985c8"
+    },
+    "learning-efficiency": {
+      "baseline": "packages/continual-learning/tests/fixtures/learning-efficiency-before-http-diagnostics.ts.txt",
+      "sha256": "4ec6a4f5a3c821bcd88b9954febcf9cec22ae418a6d124579cdf11b8bf3a7c74"
+    }
+  },
+  "frozenR12ImageUnaffected": true,
+  "scope": "Additive numeric diagnostics only; thresholds, retries, timeouts, frozen evidence and write permissions unchanged."
+}

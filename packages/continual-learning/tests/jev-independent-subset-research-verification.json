@@ -1,0 +1,61 @@
+{
+  "evidence": "offline-independent-memory-subset-research-verification-not-learning-quality",
+  "productionAdopted": false,
+  "productionCodeChanges": 0,
+  "writeAuthority": false,
+  "newRealMainCalls": 0,
+  "newRealJevCalls": 0,
+  "red": [
+    {
+      "case": "missing simulation module",
+      "failed": 5
+    },
+    {
+      "case": "malformed complete review",
+      "failed": 1
+    },
+    {
+      "case": "full privacy/bounds/window preflight",
+      "failed": 1
+    }
+  ],
+  "green": {
+    "focused": {
+      "passed": 15,
+      "seconds": 5.18
+    },
+    "completePackageSuite": {
+      "passed": 962,
+      "seconds": 363.91,
+      "exitCode": 0
+    }
+  },
+  "priorFullSuiteInterrupted": {
+    "passedBeforeInterrupt": 302,
+    "seconds": 143.15,
+    "exitCode": 2,
+    "reason": "review-driven correction changed research interface to asynchronous; stopped owned suite before final complete rerun"
+  },
+  "typecheck": {
+    "root": "passed",
+    "explicitResearchStrictNoUnused": "passed",
+    "initialDriverAttempt": "missing allowImportingTsExtensions flag; corrected",
+    "researchEntryShapeDiagnostic": "unknown evidence.entries; fixed with array guard"
+  },
+  "pack": {
+    "workspaceManifests": 19,
+    "workspaceCheck": "passed",
+    "targetDryRun": "passed",
+    "researchModuleIncluded": false
+  },
+  "freshReview": "jev-independent-subset-research-review.json",
+  "reviewSourceHashesMatchCurrent": true,
+  "runtimeFrozenFilesUnchanged": 43,
+  "limitations": [
+    "Synthetic tests verify control flow and bound proof handling only.",
+    "Existing complete review and pair judgments do not independently grant write permission.",
+    "No fresh labeled complete-batch inference or end-to-end learning comparison ran this turn.",
+    "Previous negative pair studies remain negative and unmodified.",
+    "Optional Jev whole-plugin quality benefit remains unproven."
+  ]
+}

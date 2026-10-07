@@ -33,30 +33,79 @@ def command(args: list[str], *, timeout: int = 900, sanitize: Callable[[str], st
     return sanitize(result.stdout) if sanitize else result.stdout
 
 
-def source_digest() -> str:
+def memory_policy_bytes(original: bytes, policy: str) -> bytes:
+    if policy == "default":
+        return original
+    if policy != "composed":
+        raise ValueError("Unknown Memory policy")
+    old = b"const jevJudge = createJevJudge();"
+    if original.count(old) != 1:
+        raise ValueError("Expected exactly one ordinary Jev constructor")
+    return original.replace(old, b"const jevJudge = createJevJudge({ independentMemoryApplication: true, composedMemoryApplication: true });")
+
+
+def prepare_memory_policy(package: Path, policy: str) -> dict[str, str]:
+    source = package / "extensions/inject-memory.ts"
+    original = source.read_bytes()
+    installed = memory_policy_bytes(original, policy)
+    if policy == "composed":
+        archive = package / "tests/fixtures/project-policy-original-inject-memory.ts.txt"
+        archive.parent.mkdir(parents=True, exist_ok=True)
+        archive.write_bytes(original)
+    source.write_bytes(installed)
+    manifest = {"memoryPolicy": policy, "originalSha256": hashlib.sha256(original).hexdigest(),
+                "installedSha256": hashlib.sha256(installed).hexdigest()}
+    (package / "tests").mkdir(exist_ok=True)
+    (package / "tests/project-policy-manifest.json").write_text(json.dumps(manifest, indent=2))
+    return manifest
+
+
+def verify_memory_policy(package: Path, policy: str) -> dict[str, str]:
+    installed = (package / "extensions/inject-memory.ts").read_bytes()
+    path = package / "tests/project-policy-manifest.json"
+    if not path.exists() and policy == "default":
+        assert b"const jevJudge = createJevJudge();" in installed, "Unexpected ordinary constructor"
+        return {"memoryPolicy": policy, "installedSha256": hashlib.sha256(installed).hexdigest()}
+    manifest = json.loads(path.read_text())
+    assert manifest["memoryPolicy"] == policy, "Image Memory policy differs from the requested policy"
+    assert manifest["installedSha256"] == hashlib.sha256(installed).hexdigest(), "Installed policy source changed"
+    original = installed if policy == "default" else (package / "tests/fixtures/project-policy-original-inject-memory.ts.txt").read_bytes()
+    assert hashlib.sha256(original).hexdigest() == manifest["originalSha256"], "Original policy source changed"
+    assert memory_policy_bytes(original, policy) == installed, "Unexpected policy instrumentation"
+    return manifest
+
+
+def source_digest(memory_policy: str = "default") -> str:
     digest = hashlib.sha256()
     for root in (PACKAGE / "extensions", PACKAGE / "prompts", REPO / "packages" / "kit" / "src"):
         for file in sorted(root.rglob("*")):
             if file.is_file():
                 digest.update(str(file.relative_to(REPO)).encode())
                 digest.update(b"\0")
-                digest.update(file.read_bytes())
+                contents = file.read_bytes()
+                if file == PACKAGE / "extensions/inject-memory.ts":
+                    contents = memory_policy_bytes(contents, memory_policy)
+                digest.update(contents)
     for file in (PACKAGE / "index.ts", PACKAGE / "package.json", REPO / "packages" / "kit" / "package.json", REPO / "packages" / "kit" / "index.ts",
                  PACKAGE / "tests" / "docker" / "Dockerfile", PACKAGE / "tests" / "docker_experiment.py",
                  PACKAGE / "tests" / "live_docker_projects.py", PACKAGE / "tests" / "live_smoke.py", PACKAGE / "tests" / "support.py"):
         digest.update(str(file.relative_to(REPO)).encode())
         digest.update(file.read_bytes())
+    catalog = PACKAGE / "tests" / "heldout_project_catalog.py"
+    digest.update(str(catalog.relative_to(REPO)).encode())
+    digest.update(catalog.read_bytes())
     return digest.hexdigest()
 
 
-def build_image() -> tuple[str, str]:
-    digest = source_digest()
+def build_image(memory_policy: str = "default") -> tuple[str, str]:
+    digest = source_digest(memory_policy)
     image = f"continual-learning-projects:{digest[:16]}"
     with tempfile.TemporaryDirectory(prefix="cl-docker-build-") as temporary:
         context = Path(temporary)
         for name in ("kit", "continual-learning"):
             shutil.copytree(REPO / "packages" / name, context / "packages" / name,
                             ignore=shutil.ignore_patterns("node_modules", "__pycache__", ".pytest_cache", ".memory", ".pi", ".git"))
+        prepare_memory_policy(context / "packages/continual-learning", memory_policy)
         (context / "package.json").write_text(json.dumps({
             "private": True, "type": "module", "packageManager": "pnpm@11.21.0",
             "dependencies": {"@earendil-works/pi-coding-agent": "1.0.2", "@earendil-works/pi-tui": "^1.0.0", "tsx": "4.19.0"},
@@ -70,12 +119,13 @@ def build_image() -> tuple[str, str]:
 class InferenceProxy:
     """Transparent streaming transport, not a provider fixture or model stub."""
 
-    def __init__(self, config_root: Path, *, jev_key: str | None = None, request_budget: int = 180) -> None:
+    def __init__(self, config_root: Path, *, jev_key: str | None = None, request_budget: int = 180,
+                 selection: dict[str, str] | None = None) -> None:
         self.request_budget = request_budget
         self.jev_requests = 0
         self.jev_usage: list[dict] = []
         self.jev_key = jev_key
-        self.selection = json.loads((config_root / "memory.json").read_text())
+        self.selection = dict(selection) if selection is not None else json.loads((config_root / "memory.json").read_text())
         provider = json.loads((config_root / "models.json").read_text())["providers"][self.selection["provider"]]
         self.upstream = urlsplit(provider["baseUrl"])
         if self.upstream.scheme not in {"http", "https"} or not self.upstream.hostname:
@@ -252,7 +302,8 @@ def run_project(image: str, digest: str, proxy: InferenceProxy, project: dict[st
         mode_args = ["--jev", "on" if jev_enabled else "off"] if jev_enabled is not None else []
         result = subprocess.run(["docker", "exec", *env_args, container, "python3",
             "/opt/experiment/packages/continual-learning/tests/live_docker_projects.py", "--container",
-            "--project", project["name"], "--source-digest", digest, *mode_args], capture_output=True, text=True, timeout=1800)
+            "--project", project["name"], "--cohort", project.get("cohort", "historical"),
+            "--memory-policy", project.get("memoryPolicy", "default"), "--source-digest", digest, *mode_args], capture_output=True, text=True, timeout=1800)
         (output / "runner-output.txt").write_text(redact_transport_credentials(result.stdout + result.stderr, proxy))
         report["containerExitCode"] = result.returncode
     except Exception as error:

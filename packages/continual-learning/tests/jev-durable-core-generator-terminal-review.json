@@ -1,0 +1,23 @@
+{
+  "evidence": "fresh-read-only-terminal-numerical-and-resource-review",
+  "reviewer": "durable_core_research_review",
+  "reportSha256": "71668b75faeb450ab0343b55f34732272d7e73e05b7db6ce52c595cc2340e6d8",
+  "rawEvidenceHashes": 97,
+  "providerRequests": 80,
+  "mainRequests": 32,
+  "jevRequests": 48,
+  "jevInputTokens": 50674,
+  "jevActualModel": "jev-1.13.0",
+  "knownClientEstimateUsd": 0.043907326,
+  "billingVerified": false,
+  "overlappingProxyUsageAdded": false,
+  "ownedContainersLiveInspectAbsent": 32,
+  "hostAndContainerProcessGroupsStopConfirmed": true,
+  "unrelatedContainersPreserved": true,
+  "originalR17Sha256": "6a287877f5981ae6759b49e6f30373af0b63aff8bea80ff4eae53e9c9f31a111",
+  "qualityReviewSeparatelyVerified": true,
+  "finalMetadataAndDecisionHashesRecheckedByRoot": true,
+  "limits": [
+    "Execution and accounting evidence, not full-workflow learning benefit."
+  ]
+}

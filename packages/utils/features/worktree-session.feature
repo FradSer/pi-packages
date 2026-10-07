@@ -116,7 +116,7 @@ Feature: EnterWorktree and ExitWorktree session switching
     Then the user is told to add `.pi/` to .gitignore
     And the extension does not write to the repository's .gitignore
 
-Scenario: Worktree transition tools render compact started lifecycle rows
+  Scenario: Worktree transition tools render compact started lifecycle rows
     Given the Pi extension is loaded in TUI mode
     When the model calls EnterWorktree or ExitWorktree
     Then each tool owns its shell rendering with an empty call row

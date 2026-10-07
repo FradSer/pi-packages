@@ -1,0 +1,25 @@
+{
+  "evidence": "independent-prepaid-review",
+  "manifestSha256": "c4e3ffccec847411a0f6e585fca12e74647bbaf88994bd1c15610c45ad42d512",
+  "requestCap": 20,
+  "retryCount": 0,
+  "timeoutMs": 5000,
+  "model": "jev-1.13.0",
+  "allHashesVerified": true,
+  "labelsAndCorpusUnchanged": true,
+  "preflight": {
+    "samples": 20,
+    "judgments": 96,
+    "externalRequests": 0,
+    "productionWrites": 0
+  },
+  "preflightOwnedContainerAbsent": true,
+  "remainingBlockers": [],
+  "summaryScriptSha256": "6524784ed6492c51bfc87fa3201789f57fc4eda960cce70429363bdadf0a868e",
+  "additionalConservativeDecisionRule": "Report per-requirement regressions as well as whole-row regressions; either prevents claiming improvement or promotion.",
+  "limits": [
+    "Manual requirements and development labels do not prove automatic extraction or plugin net benefit.",
+    "Same-batch arms cannot provide independent cost, latency or model-noise comparisons.",
+    "Local proxy termination cannot verify remote provider cancellation; missing usage is unknown."
+  ]
+}

@@ -9,7 +9,7 @@
  */
 
 import type { BoundaryResult, CustomMessageEntryDraft, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { notifyPi } from "@fradser/pi-kit";
+import { notifyPi, type PiWorkerProgressUpdate } from "@fradser/pi-kit";
 import { completionAdvice, runCompletionCheck, type CheckVerdict } from "./check.ts";
 import { runGoalResearch, type ResearchResult } from "./research.ts";
 import { collectGoalEvidence } from "./evidence.ts";
@@ -47,6 +47,18 @@ export interface PendingResearch {
   focus: string;
   findings: string;
   tokens: number;
+}
+
+/** The bound on the check report the ledger keeps.
+ *
+ * The report explains a decision, so it is worth keeping, but a verbose checker
+ * must not flood the ledger. A cut states itself, because a silently shortened
+ * report would read as the whole one. */
+const MAX_LEDGER_REPORT_CHARS = 4_000;
+
+function boundCheckReport(report: string): string {
+  if (report.length <= MAX_LEDGER_REPORT_CHARS) return report;
+  return `${report.slice(0, MAX_LEDGER_REPORT_CHARS)}\n…[truncated at ${MAX_LEDGER_REPORT_CHARS} characters.]`;
 }
 
 export class GoalCore {
@@ -132,8 +144,6 @@ export class GoalCore {
     return this.focusedGoalId;
   }
 
-  
-
   settings(ctx: ExtensionContext): GoalSettings {
     return loadGoalSettings(ctx.cwd);
   }
@@ -177,8 +187,6 @@ export class GoalCore {
     this.refreshUi(ctx);
     return true;
   }
-
-  
 
   private appendFocusEntry(goalId: string | null, reason: GoalFocusEntry["reason"]): void {
     const entry: GoalFocusEntry = { version: 1, focusedGoalId: goalId, reason };
@@ -313,25 +321,40 @@ export class GoalCore {
     this.pendingSetting = undefined;
   }
 
+  /** A revision under an accepted `/goal <text>` request. The user asked, but
+   * the revision is what lifted the pause, so the ledger records that. */
   activateRequestedRevision(goalId: string, ctx: ExtensionContext): boolean | undefined {
     if (this.activationGoalId !== goalId) return undefined;
     this.activationGoalId = undefined;
     const goal = this.goal;
     if (!goal || goal.id !== goalId) return false;
-    return this.scheduler.resume(goal, this.settings(ctx));
+    return this.scheduler.resume(goal, this.settings(ctx), "revision");
   }
 
   // ── research ────────────────────────────────────────────────────────
 
+  /** The model a child uses: the configured one, else the session's.
+   *
+   * A child given no model falls back to the persisted CLI default, which is a
+   * different model from the session's and may be unavailable. The settings
+   * already describe the configured model as used "instead of the session's", so
+   * an unset model means the session's. */
+  private childModel(
+    configuredProvider: string | undefined,
+    configuredModel: string | undefined,
+    session: { provider?: string; id?: string } | undefined,
+  ): string | undefined {
+    if (configuredProvider && configuredModel) return `${configuredProvider}/${configuredModel}`;
+    return session?.provider && session?.id ? `${session.provider}/${session.id}` : undefined;
+  }
+
   /** Hold the latest successful research for creation. A failed run keeps earlier findings.
    * A session boundary invalidates results from children that are still running. */
-  async research(focus: string, cwd: string, signal?: AbortSignal): Promise<ResearchResult> {
+  async research(focus: string, cwd: string, signal?: AbortSignal, onUpdate?: (update: PiWorkerProgressUpdate) => void, sessionModel?: { provider?: string; id?: string }): Promise<ResearchResult> {
     const settings = loadGoalSettings(cwd);
-    const model = settings.researchProvider && settings.researchModel
-      ? `${settings.researchProvider}/${settings.researchModel}`
-      : undefined;
+    const model = this.childModel(settings.researchProvider, settings.researchModel, sessionModel);
     const generation = ++this.researchGeneration;
-    const result = await this.runResearch({ focus, cwd, model, signal });
+    const result = await this.runResearch({ focus, cwd, model, signal, onUpdate });
     if (generation !== this.researchGeneration) {
       return { findings: "", usage: result.usage, error: "The research session changed. Run research again." };
     }
@@ -390,7 +413,7 @@ export class GoalCore {
     const generation = goal.scheduler?.generation;
     this.checkAbort = abort;
     this.checkProgress = { label: "Checking whether the goal is met" };
-    const model = settings.provider && settings.model ? `${settings.provider}/${settings.model}` : undefined;
+    const model = this.childModel(settings.provider, settings.model, ctx.model);
     const evidence = collectGoalEvidence(ctx.sessionManager.getBranch(), goal, this.owner());
     this.appendEvents(ctx, [{ type: "check_started", goalId: goal.id, model, at: nowIso() }]);
     this.refreshUi(ctx);
@@ -414,10 +437,11 @@ export class GoalCore {
         type: "check_result",
         goalId: goal.id,
         met: result.met,
-        // The report is why this decision was reached, so it is kept whole. A
-        // ledger record that cannot be appended is a diagnostic, not a reason to
-        // throw away the verdict just reached.
-        report: (result.report || result.error || "").slice(0, 4000),
+        // The report is why this decision was reached, so it is kept up to the
+        // ledger bound, and a cut states itself. A ledger record that cannot be
+        // appended is a diagnostic, not a reason to throw away the verdict just
+        // reached.
+        report: boundCheckReport(result.report || result.error || ""),
         at: nowIso(),
       }]);
       if (finalAttempt && !result.met && !result.error && !result.stale) {
@@ -524,7 +548,12 @@ export class GoalCore {
           }
         }
       }
-    } catch {}
+    } catch {
+      // The roster belongs to another extension and is reached through a global
+      // symbol, so a shape this code cannot read is not this runtime's failure.
+      // The probe is best-effort: it can confirm only background work it can
+      // read, and a confirmation it cannot read is reported as absence.
+    }
     return false;
   }
 

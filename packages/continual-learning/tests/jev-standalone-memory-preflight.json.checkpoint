@@ -1,0 +1,613 @@
+{
+  "requests": 32,
+  "rows": [
+    {
+      "id": "formatter-log-en",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 1,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "formatter-log-en",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 1,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "formatter-log-zh",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "formatter-log-zh",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "node-support-en",
+      "arm": "pair",
+      "expected": "conflict",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "node-support-en",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "node-support-zh",
+      "arm": "pair",
+      "expected": "conflict",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "node-support-zh",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "docs-telemetry-en",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "docs-telemetry-en",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "docs-telemetry-zh",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 1,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "docs-telemetry-zh",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 1,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "target-region-reference-en",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "target-region-reference-en",
+      "arm": "standalone",
+      "expected": "needsOther",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "target-region-reference-zh",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "target-region-reference-zh",
+      "arm": "standalone",
+      "expected": "needsOther",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "reverse-timeout-reference-en",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "reverse-timeout-reference-en",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "reverse-timeout-reference-zh",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "reverse-timeout-reference-zh",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "absent-exception-en",
+      "arm": "pair",
+      "expected": "unclear",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "absent-exception-en",
+      "arm": "standalone",
+      "expected": "unresolved",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "absent-exception-zh",
+      "arm": "pair",
+      "expected": "unclear",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "absent-exception-zh",
+      "arm": "standalone",
+      "expected": "unresolved",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "description-only-reference-en",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 1,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "description-only-reference-en",
+      "arm": "standalone",
+      "expected": "needsOther",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 1,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "description-only-reference-zh",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 1,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "description-only-reference-zh",
+      "arm": "standalone",
+      "expected": "needsOther",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "conditional-shared-value-en",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "conditional-shared-value-en",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "conditional-shared-value-zh",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "conditional-shared-value-zh",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 0,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "confidence": 1,
+      "probabilities": {
+        "selfContained": 1,
+        "needsOther": 0,
+        "unresolved": 0
+      }
+    }
+  ]
+}

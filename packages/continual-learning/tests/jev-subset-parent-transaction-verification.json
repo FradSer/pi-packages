@@ -1,0 +1,63 @@
+{
+  "evidence": "research-parent-protocol-plus-production-rollback-repair",
+  "sourceHashes": {
+    "subset-parent-transaction-research.ts": "4123f4e60232c020875eb252ed36de909857260bd2cefa9de91ccb893b484c46",
+    "test_jev_subset_parent_transaction_research.py": "bda457d8ac4479dcdee2258e2cdbbed7aff2876570c25ab5237deac771d1df51",
+    "../extensions/consolidation-run.ts": "53e5d5e638a1673c09264b86ea6bf95b7179aefe57d4641520cc17d2da3eff5e",
+    "../features/jev-subset-parent-transaction-research.feature": "3d978e1356f71e166da47aa7ad96294360d9c157343ea7cb4a1c3d6b38910c52"
+  },
+  "red": {
+    "moduleMissingFailures": 5,
+    "missingWriterResultConfirmationFailures": 1,
+    "actualPostWriteRollbackEisdirFailures": 1
+  },
+  "focused": {
+    "passed": 19,
+    "seconds": 7.65
+  },
+  "rootTypecheck": "passed",
+  "researchStrictNoUnusedTypecheck": "passed",
+  "workspacePackManifestsPassed": 19,
+  "targetPackDryRun": "passed",
+  "researchFilesBundled": false,
+  "nativeLinuxPi": "jev-subset-parent-native-rollback-results.json",
+  "freshReview": "jev-subset-parent-transaction-review.json",
+  "installCheck": {
+    "exitCode": 1,
+    "unrelatedMissingPackages": [
+      "agent-teams",
+      "bdd-jev",
+      "btw",
+      "context",
+      "keyboard",
+      "monitor",
+      "plan-mode",
+      "recap",
+      "skill-router",
+      "utils",
+      "vision"
+    ],
+    "targetMissing": false,
+    "globalSettingsChanged": false
+  },
+  "subsetProductionIntegrated": false,
+  "fullGoalComplete": false,
+  "realInferenceThisTurn": false,
+  "remaining": [
+    "Bounded runtime pair judgment transport and parent receipt/remaining-proposal integration.",
+    "Actual isolated project generation, application and recall quality comparison with cli-proxy / opencode/space-bunny-free."
+  ],
+  "packageSuite": {
+    "status": "passed",
+    "passed": 973,
+    "seconds": 366.96,
+    "command": "uv run --no-project --with pytest python -m pytest packages/continual-learning/tests/ -q"
+  },
+  "artifactReferences": "passed",
+  "runtimeDiffFromPreviousInferenceSnapshot": {
+    "path": "../extensions/consolidation-run.ts",
+    "inferenceSnapshotSha256": "4efb6e14e20d91f69b307e367fe75d7e588c4a494c43bdb27828ae08577594f6",
+    "currentSha256": "53e5d5e638a1673c09264b86ea6bf95b7179aefe57d4641520cc17d2da3eff5e",
+    "semanticInferenceRerun": false
+  }
+}

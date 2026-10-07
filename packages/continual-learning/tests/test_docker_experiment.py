@@ -15,6 +15,30 @@ from docker_experiment import InferenceProxy
 from live_docker_projects import full_memory_read, invokes_check, learned_block_result
 
 
+def test_explicit_main_selection_does_not_follow_or_modify_ambient_model(tmp_path: Path) -> None:
+    # Given an ambient alternate model, When selecting the requested model,
+    # Then temporary agent config uses the requested identity without host edits.
+    config = tmp_path / 'host'
+    config.mkdir()
+    (config / 'memory.json').write_text('{"provider":"cli-proxy","model":"ambient-other"}')
+    (config / 'models.json').write_text(json.dumps({'providers': {'cli-proxy': {
+        'apiKey': 'HOST_ONLY_FIXTURE', 'baseUrl': 'http://127.0.0.1:1/v1',
+        'api': 'openai-completions', 'models': [
+            {'id': 'ambient-other', 'maxTokens': 1000},
+            {'id': 'opencode/space-bunny-free', 'maxTokens': 2000},
+        ],
+    }}}))
+    before = {p.name: p.read_bytes() for p in config.iterdir()}
+    selection = {'provider': 'cli-proxy', 'model': 'opencode/space-bunny-free'}
+    with InferenceProxy(config, selection=selection) as proxy:
+        assert proxy.selection == selection and proxy.model['id'] == selection['model']
+        target = tmp_path / 'temporary-agent'
+        proxy.write_agent_config(target)
+        assert json.loads((target / 'memory.json').read_text()) == selection
+        assert proxy.requests == 0
+    assert {p.name: p.read_bytes() for p in config.iterdir()} == before
+
+
 def test_fresh_verification_rejects_echoes_and_partial_memory_reads() -> None:
     project = Path("/work/click")
     check = ["uv", "run", "--no-sync", "pytest", "-q"]

@@ -1,0 +1,8 @@
+{
+  "script": "/Users/FradSer/.cache/pi-continual-learning/docker/independent-effects-linux-20261006T144403Z/probe.py",
+  "scriptSha256": "b2d1637d9f29703b5af77bc77a52de33ad32f22e415541e6eff939fbe394f077",
+  "observerSourceSha256": "c349fb7d54b59b8c2c540c538bfa42ecbca8a066ee7fc4a2504e2fe4755b50fa",
+  "image": "continual-learning-projects:df60a6123748956b",
+  "network": "none",
+  "realModelCalls": 0
+}

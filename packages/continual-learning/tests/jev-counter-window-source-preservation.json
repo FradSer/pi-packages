@@ -1,0 +1,16 @@
+{
+  "evidence": "source-preservation-before-counter-window-diagnostics",
+  "priorManifest": "jev-actual-candidate-paired-study-manifest.json",
+  "exactPriorRuntimeBytes": {
+    "jev-learning.ts": {
+      "fixture": "fixtures/jev-counter-window-before-jev-learning.ts.txt",
+      "sha256": "965220940e50cf2bdfac3c283874615304907a296814b75025368b98d3d37d4c"
+    },
+    "learning-efficiency.ts": {
+      "fixture": "fixtures/jev-counter-window-before-learning-efficiency.ts.txt",
+      "sha256": "6b0bb68b3f2d9cae62e09999c371f8e34e1e8a96faaf1e6e4f1656638d52eaeb"
+    }
+  },
+  "priorQualityCriterionMet": false,
+  "qualityClaim": false
+}

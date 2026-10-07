@@ -1,0 +1,40 @@
+{
+  "evidence": "independent-effect-observation-local-verification",
+  "modifiedResearchSourceSha256": "c349fb7d54b59b8c2c540c538bfa42ecbca8a066ee7fc4a2504e2fe4755b50fa",
+  "productionExtensionsChangedThisTurn": false,
+  "regression": {
+    "red": "3 failed in 0.08s; missing observer",
+    "greenNewTests": "5 passed; independently rerun",
+    "affectedTests": "16 passed in 0.14s",
+    "fullPackage": "915 passed in 297.81s",
+    "fullPackageSession": 28163,
+    "fullPackageExitCode": 0
+  },
+  "typecheck": {
+    "session": 67824,
+    "exitCode": 0
+  },
+  "targetPack": {
+    "exitCode": 0
+  },
+  "workspacePackedManifests": {
+    "session": 58289,
+    "exitCode": 0,
+    "packages": 19
+  },
+  "offlineLinux": "jev-independent-effect-linux-results.json",
+  "originalGatePreservation": "jev-independent-effect-assertion-preservation.json",
+  "independentReview": {
+    "agent": "/root/independent_effect_observation_review",
+    "initialIssue": "Lost specific failure reasons",
+    "resolution": "Known stable check IDs; no arbitrary exception serialization; real workflow wiring regression added",
+    "final": "passed; 5 tests independently run"
+  },
+  "originalR17FinalReportSha256": "6a287877f5981ae6759b49e6f30373af0b63aff8bea80ff4eae53e9c9f31a111",
+  "goalComplete": false,
+  "limits": [
+    "No paid model calls this turn; no new real quality conclusion.",
+    "Offline Linux fixture is not native Pi hook or whole-learning evidence.",
+    "Earlier unconfigured bdd-jev install failure remains unrelated; no host config changed."
+  ]
+}

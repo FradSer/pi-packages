@@ -1,0 +1,16 @@
+{
+  "evidence": "independent-model-review-not-human-gold",
+  "resultSha256": "827bf0b18d70214198d4bbf1c7a3dafc7ac6da7ecc8c7e5d18cfb864ece5c24e",
+  "rowAndQuestionStatisticsRecomputed": true,
+  "indexedAnswerOrderVerified": true,
+  "apiUsageAndLatencyMatched": true,
+  "sensitiveSourceOrCredentialsFound": false,
+  "recommendation": "do-not-adopt",
+  "keyTradeoffs": [
+    "One additional definite omission detection was Chinese condition-missing.",
+    "English report placement unsafe complete became uncertain, not a definite detection.",
+    "Two complete rows recovered and two new complete holds appeared; both new holds are Chinese."
+  ],
+  "productionEffectsVerified": false,
+  "automaticExtractionVerified": false
+}

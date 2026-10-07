@@ -1,0 +1,118 @@
+{
+  "evidence": "once-only-real-jev-readonly-standalone-decision",
+  "adopted": false,
+  "decision": "continue-composed-readiness-research-do-not-replace-pair-or-enable-writes",
+  "report": "jev-standalone-memory-real-results.json",
+  "reportSha256": "00346c54609b17c27fce4800a0e4deaf8c5c377fa74ed8fae489b8d2d665360c",
+  "manifestSha256": "31179910c675c47156af7055f504e747ca16df6426a37b786f12f74bf98e4df6",
+  "actualModels": [
+    "jev-1.13.0"
+  ],
+  "externalRequests": 32,
+  "knownInputTokens": 31029,
+  "estimatedKnownInputCostUsd": 0.001303218,
+  "usageComplete": true,
+  "questionSpecificMetrics": {
+    "pair": {
+      "decisiveCorrect": 6,
+      "decisiveWrong": 0,
+      "held": 10,
+      "unsafeReadiness": 0,
+      "missedReadiness": 4
+    },
+    "standalone": {
+      "decisiveCorrect": 9,
+      "decisiveWrong": 0,
+      "held": 7,
+      "unsafeReadiness": 0,
+      "missedReadiness": 4
+    }
+  },
+  "targetMeaningProxyMetrics": {
+    "pair": {
+      "readyTargetMeaning": 2,
+      "missedTargetMeaning": 8,
+      "unsafeTargetMeaning": 0,
+      "readyIds": [
+        "conditional-shared-value-en",
+        "conditional-shared-value-zh"
+      ],
+      "missedIds": [
+        "formatter-log-en",
+        "formatter-log-zh",
+        "node-support-en",
+        "node-support-zh",
+        "docs-telemetry-en",
+        "docs-telemetry-zh",
+        "reverse-timeout-reference-en",
+        "reverse-timeout-reference-zh"
+      ],
+      "unsafeIds": []
+    },
+    "standalone": {
+      "readyTargetMeaning": 6,
+      "missedTargetMeaning": 4,
+      "unsafeTargetMeaning": 0,
+      "readyIds": [
+        "formatter-log-en",
+        "node-support-en",
+        "node-support-zh",
+        "docs-telemetry-en",
+        "docs-telemetry-zh",
+        "reverse-timeout-reference-en"
+      ],
+      "missedIds": [
+        "formatter-log-zh",
+        "reverse-timeout-reference-zh",
+        "conditional-shared-value-en",
+        "conditional-shared-value-zh"
+      ],
+      "unsafeIds": []
+    },
+    "exploratoryUnion": {
+      "readyTargetMeaning": 8,
+      "missedTargetMeaning": 2,
+      "unsafeTargetMeaning": 0,
+      "readyIds": [
+        "formatter-log-en",
+        "node-support-en",
+        "node-support-zh",
+        "docs-telemetry-en",
+        "docs-telemetry-zh",
+        "reverse-timeout-reference-en",
+        "conditional-shared-value-en",
+        "conditional-shared-value-zh"
+      ],
+      "missedIds": [
+        "formatter-log-zh",
+        "reverse-timeout-reference-zh"
+      ],
+      "unsafeIds": []
+    }
+  },
+  "medianRequestDurationMs": 328.0,
+  "policyRegressions": [
+    "conditional-shared-value-en",
+    "conditional-shared-value-zh"
+  ],
+  "postHocUnion": "derived after seeing answers, not preregistered or newly evaluated; standalone meaning only, not writing authority",
+  "boundary": [
+    "Both applied supported records still need conflict/dependency/redundancy review.",
+    "Uncertain or unavailable readiness remains held; no low-confidence acceptance.",
+    "Original support, counterevidence, privacy, frozen identity, permissions and final transaction remain required."
+  ],
+  "nextRequirements": [
+    "Preregister combined logic before fresh samples and inference.",
+    "Validate support-plus-standalone-plus-selected-pair composition on fresh independent reviewed examples, including dependent valid notes and contradictory valid notes.",
+    "Integrate only behind existing programmatic gate after regression tests and fresh review.",
+    "Run actual native parent and cli-proxy / opencode/space-bunny-free candidate-generation/application/recall acceptance before claiming net quality benefit."
+  ],
+  "limitations": [
+    "8 bilingual archetypes, not 16 independent domains.",
+    "Author-defined new labels independently reviewed, not blind independent labeling.",
+    "Host SDK inference; no Docker/main generation/production writes in this study.",
+    "Target-meaning proxy is not useful valid knowledge applied; no complete objective acceptance."
+  ],
+  "independentReview": "standalone_memory_readiness_review; labels and bounds reviewed before inference; raw response model/usage, all hashes, decision metrics and conclusion limits reviewed afterward",
+  "rawReportLimitationErratum": "The raw report retains its initial labels-unreviewed limitation text. Author-defined labels were independently reviewed BEFORE inference; they are not blind independent labels. Raw inference record and report hash are preserved unchanged."
+}

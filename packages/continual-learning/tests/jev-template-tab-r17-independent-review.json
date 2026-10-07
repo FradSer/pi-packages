@@ -1,0 +1,17 @@
+{
+  "evidence": "fresh-read-only-r17-runner-review",
+  "remainingRequiredFixes": 0,
+  "paidBeforeReview": false,
+  "checks": [
+    "fixed six arms and 60 per arm/360 aggregate",
+    "initial manifest SHA passed to worker",
+    "frozen source, config/model, image ID",
+    "exclusive reservation and pre-created container-name ledger",
+    "finally cleanup and process termination",
+    "private output root and unchanged workflow gates"
+  ],
+  "externalCalls": 0,
+  "limitations": [
+    "Remote provider cancellation remains unverified."
+  ]
+}

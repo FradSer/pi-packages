@@ -1,4 +1,5 @@
-import { createJevJudge, type JevJudge, type JevTelemetry } from "./jev-learning";
+import {partitionReviewedNewMemory} from "./independent-memory-partition";
+import { createJevJudge, jevRepairFailureHints, type JevJudge, type JevTelemetry } from "./jev-learning";
 /**
  * pi-continual-learning — native Pi /memory command.
  *
@@ -58,6 +59,7 @@ import {
   buildIncrementalMemoryConsolidatorPrompt,
   buildMemoryConsolidatorPrompt,
   learningPlannerArgs,
+  MEMORY_CITATION_GUIDANCE,
 } from "./planner-prompts";
 import { registerAutomaticLearning } from "./automatic-learning";
 import { buildLearningReceipt, formatLearningSummary, hasLearningInput, isLearningPipelineReceipt, learningSummaryDetails, learningSummarySubject, manualIncrementalScreen, screenLearningEntries, shouldRetryPlanner, snapshotEntries, writeLearningReceipt, type LearningAttempt, type LearningMode, type LearningPipelineReceipt, type LearningScreen } from "./learning-efficiency";
@@ -455,7 +457,8 @@ function parseFinalPlan(event: ChildJsonEvent): unknown {
     maxPlanBytes: MAX_PLAN_BYTES,
   });
   if (result.ok) return result.plan;
-  if (event.type !== "message_end" || event.message?.role !== "assistant") return undefined;
+  if (event.type !== "message_end" || event.message?.role !== "assistant"
+    || event.message.stopReason === "error" || event.message.stopReason === "aborted") return undefined;
   const content = event.message.content;
   const text = typeof content === "string"
     ? content
@@ -484,25 +487,26 @@ export function recordConsolidationEvent(evidence: ConsolidationEvidence, event:
       evidence.attemptUsage.totalTokens += usage.totalTokens ?? 0;
       evidence.attemptUsage.cost += usage.cost?.total ?? 0;
     }
-    if (event.message.stopReason === "error") {
+    if (event.message.stopReason === "error" || event.message.stopReason === "aborted") {
+      evidence.finalPlan = undefined;
+      evidence.planCount = 0;
+      evidence.attemptUsage = undefined;
       evidence.plannerModelError = (event.message.errorMessage || "planner model call failed").slice(-2_000);
-    } else if (typeof event.message.stopReason === "string") {
+    } else if (["stop", "length", "toolUse"].includes(String(event.message.stopReason))) {
       evidence.plannerModelError = undefined;
     }
   }
   if (event.type === "auto_retry_end") {
     if (event.success === false && typeof event.finalError === "string") {
+      evidence.attemptUsage = undefined;
       evidence.plannerModelError = event.finalError.slice(-2_000);
-    } else if (event.success === true) {
-      evidence.plannerModelError = undefined;
     }
   }
   if (event.type === "tool_execution_end" && event.isError) {
     evidence.lastJsonError = evidence.lastJsonError || "child tool execution failed";
   }
   const plan = parseFinalPlan(event);
-  if (plan !== undefined) {
-    evidence.plannerModelError = undefined;
+  if (plan !== undefined && !evidence.plannerModelError) {
     evidence.planCount += 1;
     evidence.finalPlan = plan;
   }
@@ -533,6 +537,38 @@ export function plannerFailureReason(
     return args.stderrDetail ? `${budget} (stderr: ${args.stderrDetail.slice(0, 200)})` : budget;
   }
   return args.stderrDetail || args.lastJsonError || `exit code ${args.exitCode}`;
+}
+
+/**
+ * Controlled receipt reason for a Memory attempt that stopped before any Jev
+ * judgment. The vocabulary is fixed on purpose: a receipt never carries worker
+ * stderr, model output, or any other uncontrolled text.
+ */
+export function memoryStopReason(args: {
+  timedOut: boolean;
+  outputLimit: boolean;
+  modelError: boolean;
+  verificationFailed: boolean;
+}): string {
+  if (args.verificationFailed) return "memory consolidation verification failed";
+  if (args.timedOut) return "memory planner timed out";
+  if (args.outputLimit) return "memory planner exceeded the output limit";
+  if (args.modelError) return "memory planner model error";
+  return "memory planner produced no usable plan";
+}
+
+/**
+ * Receipt diagnostic for a Memory attempt. A Jev judgment keeps its own
+ * reason. A controlled stop reason attaches only to a recorded failure, so a
+ * rejected, applied, proposed, noop, or cancelled attempt never carries one.
+ */
+export function memoryAttemptDiagnostic(args: {
+  outcome: string;
+  jev?: { status: string; reason: string } | undefined;
+  stopReason: string;
+}): string | undefined {
+  if (args.jev) return `Jev ${args.jev.status}: ${args.jev.reason}`;
+  return args.outcome === "failed" ? args.stopReason : undefined;
 }
 
 /** Keep the causal head of a rejection reason; truncate for the notification budget. */
@@ -575,6 +611,7 @@ function finalAssistantText(stdout: string): string {
     try {
       const event = JSON.parse(line) as ChildJsonEvent;
       if (event.type !== "message_end" || event.message?.role !== "assistant") continue;
+      if (event.message.stopReason === "error" || event.message.stopReason === "aborted") { latest = ""; continue; }
       const content = event.message.content;
       latest = typeof content === "string"
         ? content
@@ -675,7 +712,47 @@ function validateIncrementalRepairRetention(
       return `repair introduced an unexpected new Memory proposal: ${actualName}`;
     }
   }
+  const originalRecord = asRecord(rejectedPlan);
+  const repairedRecord = asRecord(repairedPlan);
+  for (const field of ["operations", "newMemories"] as const) {
+    const originals = Array.isArray(originalRecord?.[field]) ? originalRecord[field] : [];
+    const replacements = Array.isArray(repairedRecord?.[field]) ? repairedRecord[field] : [];
+    for (const value of originals) {
+      const original = asRecord(value);
+      if (!original || (original.classification !== "safe" && original.classification !== "private")) continue;
+      const replacement = replacements.map(asRecord).find(item => item?.name === original.name);
+      if (replacement && replacement.classification !== original.classification) {
+        return "repair changed an original Memory privacy classification";
+      }
+    }
+  }
   return undefined;
+}
+
+/** Bind repair context before a worker starts and recheck it before accepting output. */
+export async function loadFrozenMemoryRepairContext(input: {
+  snapshotPath: string; snapshotDigest: string;
+  dossierPath: string; dossierDigest: string; signal?: AbortSignal;
+}): Promise<{
+  context: NonNullable<IncrementalMemoryRepairInput["semanticContext"]>;
+  assertFrozen: () => Promise<void>;
+}> {
+  const readFrozen = async (): Promise<{ snapshot: Buffer; dossier: Buffer }> => {
+    input.signal?.throwIfAborted();
+    const snapshot = await fs.readFile(input.snapshotPath);
+    const dossier = await fs.readFile(input.dossierPath);
+    input.signal?.throwIfAborted();
+    if (sha256Digest(snapshot) !== input.snapshotDigest) throw new Error("Jev frozen evidence changed");
+    if (sha256Digest(dossier) !== input.dossierDigest) throw new Error("Jev frozen Memory dossier changed");
+    return { snapshot, dossier };
+  };
+  const { snapshot, dossier } = await readFrozen();
+  const parsed = JSON.parse(dossier.toString("utf8")) as import("./incremental-learning").LearningDossier;
+  if (!Array.isArray(parsed.selectedMemories)) throw new Error("Frozen repair dossier has no selected Memory");
+  return {
+    context: { frozenEvidence: JSON.parse(snapshot.toString("utf8")) as unknown, existingMemories: parsed.selectedMemories },
+    assertFrozen: async () => { await readFrozen(); },
+  };
 }
 
 export interface IncrementalMemoryRepairInput {
@@ -685,6 +762,7 @@ export interface IncrementalMemoryRepairInput {
   identity: { runId: string; scopeKey: string; scopeDigest: string; artifactHash: string; snapshotDigest: string };
   model?: string;
   signal?: AbortSignal;
+  structuralCorrection?: boolean;
   semanticContext?: { frozenEvidence: unknown; existingMemories: readonly import("./incremental-learning").SelectedMemory[] };
 }
 
@@ -710,22 +788,23 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
       name: "project_fact_example.md",
       kind: "project",
       classification: "safe",
-      content: "---\nname: project_fact\ndescription: A project fact grounded in shared evidence\ntype: project\n---\nThe project uses the documented workflow.\n",
+      content: "---\nname: project_fact\ndescription: The project uses the documented workflow.\ntype: project\n---\nThe project uses the documented workflow.\n",
       evidence: [{ index: 0, quote: "verbatim user or tool-result text" }],
     }],
   }, null, 2);
   const prompt = [
     "Task: repair one rejected incremental Memory delta plan.",
     "Return exactly one JSON object and no prose. Preserve the supplied identity and selected scope.",
-    "Change only fields needed to resolve every bounded validation error.",
+    input.semanticContext ? "Correct every bounded validation error and ground each retained claim in the supplied original evidence. Do not promote one-task instructions or temporary failures into durable preferences." : "Change only fields needed to resolve every bounded validation error.",
     "Use only the supplied JSON; do not request additional context or rerun planning.",
     "The repaired output MUST follow this exact incremental delta schema:",
     repairSchema,
+    "The schema example is not evidence: never copy its name, fact or citation into a real candidate. Write each index description as a concrete supported fact from that candidate, not an assurance that it is grounded or useful. Preserve material conditions and exceptions; the complete body remains authoritative and every description claim still needs original evidence.",
     'newMemories[].kind must be exactly "preference" or "project"; "project-fact" and every other alias are invalid.',
     "Each newMemories item requires name, kind, content, and non-empty evidence; classification is only safe or private, and evidence items use a snapshot index plus a verbatim user or tool-result quote.",
     "Operations may only use rewrite or delete for the supplied selected names; never add parent-derived fields such as selected, inventory, clusters, staleness, grounding, or report.",
     "Retain every recognizable original selected operation and new proposal by its exact name; preserve an original rewrite as rewrite and an original delete as delete. Correct invalid fields in place instead of dropping, renaming, or replacing an intent, and do not introduce new names or unrelated knowledge.",
-    ...(input.semanticContext ? ["This is a semantic correction: use only the supplied frozen evidence and existing Memory. Remove unsupported inferences while retaining the directly stated facts. A note or example does not establish an ongoing process or maintained institution. Preserve privacy classifications. Do not add claims of verification, ownership or scope absent from the evidence."] : []),
+    ...(input.semanticContext ? [MEMORY_CITATION_GUIDANCE, `${input.structuralCorrection ? "This is the existing structural correction slot" : "This is a semantic correction"}: use only the supplied frozen evidence and existing Memory. Remove unsupported inferences while retaining the directly stated facts. A note or example does not establish an ongoing process or maintained institution. Preserve privacy classifications. Do not add claims of verification, ownership or scope absent from the evidence.`] : []),
     JSON.stringify({
       identity: input.identity,
       selectedNames: [...input.selectedNames],
@@ -1145,6 +1224,8 @@ async function spawnAsyncConsolidation(
   let stdoutLineCount = 0;
   let stdoutCaptureOverflowed = false;
   let outputLimitReason = "";
+  // Parent-visible stop causes for this attempt; fixed phrases only.
+  let memoryStopFlags = { timedOut: false, outputLimit: false, modelError: false, verificationFailed: false };
   const activitySummary: string[] = [];
   const noteActivity = (entry: string): void => {
     activitySummary.push(entry);
@@ -1246,6 +1327,7 @@ async function spawnAsyncConsolidation(
   let appliedOperationCount = 0;
   let proposed = false;
   let jev: JevTelemetry | undefined;
+  let subsetPendingOperations = 0;
   let mutatedMemory = false;
   /** Full maintenance retains the existing fresh-planner retry. Incremental
    * runs never replay the dossier or selected Memory bodies. */
@@ -1259,6 +1341,7 @@ async function spawnAsyncConsolidation(
     await spawnAsyncConsolidation(ctx, state, { ...opts, attempt: attempt + 1, rejectionFeedback: reason });
   };
   const failWithPlannerModelError = (detail: string): void => {
+    memoryStopFlags.modelError = true;
     state.outcome = "failed";
     notifyPi(ctx.ui,
       `Memory dreaming failed: planner model error: ${clipRejectionReason(detail)}; the fresh-planner retry is skipped because it inherits the same failing model`,
@@ -1330,6 +1413,16 @@ async function spawnAsyncConsolidation(
               maxLineBytes: MAX_JSONL_LINE_BYTES,
               maxPlanBytes: MAX_PLAN_BYTES,
             });
+        if (!extracted.ok && "failure" in extracted && extracted.failure) {
+          await persistRunDiagnostics();
+          if (!ownsCurrentRun()) return;
+          if (extracted.failure === "cancelled") {
+            state.cancelled = true;
+            state.outcome = "failed";
+            notifyPi(ctx.ui, `Memory dreaming cancelled: ${extracted.error}`, "warning");
+          } else failWithPlannerModelError(extracted.error);
+          return;
+        }
         if (!extracted.ok) {
           evidence.finalPlan = undefined;
           evidence.planCount = 0;
@@ -1358,7 +1451,15 @@ async function spawnAsyncConsolidation(
         }
         if (incremental && rejectedPlan && !plan && incrementalError) {
           const originalError = originalIncrementalError ?? incrementalError;
+          const frozenRepair = opts.jevJudge?.enabled
+            ? await loadFrozenMemoryRepairContext({
+              snapshotPath: run.paths.snapshotFile, snapshotDigest: run.manifest.snapshotDigest,
+              dossierPath: opts.dossierPath!, dossierDigest: opts.dossierDigest!, signal: state.controller?.signal,
+            }) : undefined;
+          if (!ownsCurrentRun()) return;
           const repair = await repairIncrementalMemoryPlan({
+            structuralCorrection: true,
+            ...(frozenRepair ? { semanticContext: frozenRepair.context } : {}),
             rejectedPlan,
             errors: [incrementalError],
             selectedNames: selectedScope,
@@ -1379,7 +1480,10 @@ async function spawnAsyncConsolidation(
             durationMs: repair.durationMs,
             operations: 0,
             usage: repair.usage,
+            diagnostic: "Memory structural repair",
           };
+          if (!ownsCurrentRun()) return;
+          await frozenRepair?.assertFrozen();
           if (repair.outcome === "repaired" && repair.plan) {
             try {
               rawPlan = repair.plan;
@@ -1462,6 +1566,46 @@ async function spawnAsyncConsolidation(
             semanticProposal = verdict.decision === "propose";
             if (!ownsCurrentRun()) return;
             await assertSemanticInputsFrozen();
+            // Isolated evaluation gate stays off for ordinary configuration.
+            // Only pure new records are partitionable; selected rewrites/deletes
+            // keep the existing whole-plan repair/proposal contract.
+            if (semanticProposal && incremental && opts.applyChanges !== false && !repairAttempt
+              && opts.jevJudge.independentMemoryApplicationEnabled
+              && opts.jevJudge.reviewMemoryRelations && verdict.candidateReview
+              && !(candidate.operations?.length) && candidates.length > 1) {
+              const relations = await opts.jevJudge.reviewMemoryRelations(frozenEvidence, candidates, existing,
+                verdict.candidateReview, state.controller?.signal);
+              state.attempts?.push({phase: "memory", attempt: 0, outcome: "noop", durationMs: relations.telemetry.durationMs,
+                operations: 0, jev: relations.telemetry, diagnostic: `Jev relationships: ${relations.telemetry.reason}`});
+              if (!ownsCurrentRun()) return;
+              await assertSemanticInputsFrozen();
+              if (relations.readinessTelemetry) state.attempts?.push({phase: "memory", attempt: 0, outcome: "noop",
+                durationMs: relations.readinessTelemetry.durationMs, operations: 0, jev: relations.readinessTelemetry,
+                diagnostic: `Jev standalone: ${relations.readinessTelemetry.reason}`});
+              const partition = partitionReviewedNewMemory(frozenEvidence, candidates, existing, verdict.candidateReview, relations.review,
+                opts.jevJudge.composedMemoryApplicationEnabled ? relations.readiness : undefined);
+              if (partition.eligible.length && partition.held.length) {
+                const originalText = `${JSON.stringify(plan, null, 2)}\n`;
+                await recordLearningProposal(opts.cwd, "memory", {kind: "independent-memory-review", version: 1,
+                  originalPlan: plan, eligibleIndexes: partition.eligible, heldIndexes: partition.held});
+                if (!ownsCurrentRun()) return;
+                await assertSemanticInputsFrozen();
+                await fs.writeFile(path.join(run.manifest.runDir, "original-memory-plan.json"), originalText, {encoding: "utf8", mode: 0o600});
+                const subset = {...plan as Record<string, unknown>,
+                  newMemories: partition.eligible.map(index => candidate.newMemories![index])};
+                const subsetText = `${JSON.stringify(subset, null, 2)}\n`;
+                const subsetPath = path.join(run.manifest.runDir, "independent-memory-plan.json");
+                await fs.writeFile(subsetPath, subsetText, {encoding: "utf8", mode: 0o600});
+                await runConsolidationValidator(opts.pkgDir, run, subsetPath, "plan", preSelected);
+                if (!ownsCurrentRun()) return;
+                await assertSemanticInputsFrozen();
+                plan = subset;
+                planDigest = sha256Digest(subsetText);
+                await fs.writeFile(planPath, subsetText, {encoding: "utf8", mode: 0o600});
+                subsetPendingOperations = partition.held.length;
+                semanticProposal = false;
+              }
+            }
             if (semanticProposal && incremental && opts.applyChanges !== false && !repairAttempt
               && ["uncertain", "unsupported"].includes(verdict.telemetry.reason)) {
               semanticRepair = true;
@@ -1470,7 +1614,7 @@ async function spawnAsyncConsolidation(
               await fs.writeFile(path.join(run.manifest.runDir, "semantic-rejected-plan.json"), JSON.stringify(rawPlan), { encoding: "utf8", mode: 0o600 });
               try {
                 const repaired = await repairIncrementalMemoryPlan({ rejectedPlan: rawPlan,
-                  errors: [`Semantic verification: ${verdict.telemetry.reason}${verdict.telemetry.candidateIndex !== undefined && verdict.telemetry.dimension ? ` in candidate ${verdict.telemetry.candidateIndex} ${verdict.telemetry.dimension}` : ""}. Keep each body to the smallest durable fact or preference directly stated by the cited evidence. Prefer one plain sentence; retain explicit exceptions and privacy instructions. Remove uncited source-layout, dependency-resolution, execution-result and workflow claims. Do not infer a maintained process from a note or add contextual explanations.`],
+                  errors: [`Semantic verification: ${verdict.telemetry.reason}${verdict.telemetry.candidateIndex !== undefined && verdict.telemetry.dimension ? ` in candidate ${verdict.telemetry.candidateIndex} ${verdict.telemetry.dimension}` : ""}. Keep each body and index description to the smallest durable fact or preference directly stated by the cited evidence. Prefer one plain sentence; retain explicit exceptions and privacy instructions. Remove uncited source-layout, dependency-resolution, execution-result and workflow claims. Do not infer a maintained process from a note or add contextual explanations.`, ...jevRepairFailureHints(verdict.telemetry)],
                   selectedNames: preSelected,
                   identity: { runId: run.manifest.runId, scopeKey: run.manifest.scopeKey, scopeDigest: run.manifest.scopeDigest, artifactHash: run.manifest.snapshotDigest, snapshotDigest: run.manifest.snapshotDigest },
                   semanticContext: { frozenEvidence, existingMemories: existing }, model: opts.model, signal: state.controller?.signal });
@@ -1533,18 +1677,19 @@ async function spawnAsyncConsolidation(
           const mutationFiles = memoryMutationFiles(opts.cwd, [...(memoryPlan.operations ?? []), ...(memoryPlan.newMemories ?? [])].map(operation => operation.name));
           const applied = await recordLearningMutation(opts.cwd, "memory", mutationFiles, async () => {
             await assertSemanticInputsFrozen?.();
-            return applyConsolidationPlan(run, plan, ownsCurrentRun);
+            return applyConsolidationPlan(run, plan, ownsCurrentRun, async applied => {
+              const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest, applied.created, summarizeMemoryChanges(plan));
+              const receiptPath = await writeConsolidationReceipt(run, receipt);
+              if (!ownsCurrentRun()) throw new Error("Memory consolidation was cancelled during final verification.");
+              await runConsolidationValidator(opts.pkgDir, run, planPath, "plan,receipt,privacy", preSelected, receiptPath, mutationStartedAt);
+              await assertSemanticInputsFrozen?.();
+            });
           }, plan);
           mutatedMemory = true;
           const existingOperations = Array.isArray((plan as { operations?: unknown }).operations)
             ? (plan as { operations: unknown[] }).operations.length
             : 0;
           appliedOperationCount = existingOperations + applied.created.length;
-          if (!ownsCurrentRun()) return;
-          const receipt = createConsolidationReceipt(run.manifest, applied.selected, applied.finalState, planDigest, applied.created, summarizeMemoryChanges(plan));
-          const receiptPath = await writeConsolidationReceipt(run, receipt);
-          if (!ownsCurrentRun()) return;
-          await runConsolidationValidator(opts.pkgDir, run, planPath, "plan,receipt,privacy", preSelected, receiptPath, mutationStartedAt);
           if (!ownsCurrentRun()) return;
           evidence.completedToolWork = true;
           evidence.parentReceiptVerified = true;
@@ -1574,6 +1719,7 @@ async function spawnAsyncConsolidation(
           await retryPlanPhase(errReason, timedOut ? "timeout" : outputLimitReason ? "output-limit" : "other");
           return;
         }
+        memoryStopFlags = { ...memoryStopFlags, timedOut, outputLimit: Boolean(outputLimitReason) };
         state.outcome = "failed";
         notifyPi(ctx.ui, `Memory dreaming failed: ${clipRejectionReason(errReason)}`, "error");
       }
@@ -1586,6 +1732,7 @@ async function spawnAsyncConsolidation(
           await retryPlanPhase(message, /sources changed|snapshot/i.test(message) ? "stale" : "validation");
           return;
         }
+        memoryStopFlags.verificationFailed = true;
         state.outcome = "failed";
         notifyPi(ctx.ui, `Memory consolidation verification failed: ${message}`, "error");
       }
@@ -1601,16 +1748,20 @@ async function spawnAsyncConsolidation(
         await releaseConsolidationRun(run, { keepArtifacts: ownedNow });
         runModeById.delete(run.manifest.runId);
       } finally {
+        const attemptOutcome = semanticRepair ? state.cancelled ? "cancelled" : state.outcome === "completed" ? "proposed" : "failed" : repairAttempt
+          ? state.cancelled ? "cancelled" : "rejected"
+          : state.cancelled ? "cancelled" : state.outcome === "completed" ? appliedOperationCount > 0 ? "applied" : proposed ? "proposed" : "noop" : state.outcome === "unverified" ? "rejected" : "failed";
+        const attemptDiagnostic = memoryAttemptDiagnostic({ outcome: attemptOutcome, jev, stopReason: memoryStopReason(memoryStopFlags) });
         state.attempts?.push({
           phase: "memory",
           attempt,
-          outcome: semanticRepair ? state.cancelled ? "cancelled" : state.outcome === "completed" ? "proposed" : "failed" : repairAttempt
-            ? state.cancelled ? "cancelled" : "rejected"
-            : state.cancelled ? "cancelled" : state.outcome === "completed" ? proposed ? "proposed" : appliedOperationCount > 0 ? "applied" : "noop" : state.outcome === "unverified" ? "rejected" : "failed",
+          outcome: attemptOutcome,
           durationMs: Date.now() - attemptStartedAt,
           operations: repairAttempt ? 0 : appliedOperationCount,
+          ...(subsetPendingOperations && appliedOperationCount > 0 ? {pendingOperations: subsetPendingOperations} : {}),
           usage: evidence.attemptUsage,
-          ...(jev ? { jev, diagnostic: `Jev ${jev.status}: ${jev.reason}` } : {}),
+          ...(jev ? { jev } : {}),
+          ...(attemptDiagnostic ? { diagnostic: attemptDiagnostic } : {}),
         });
         if (repairAttempt) {
           if (state.cancelled || !semanticRepair || semanticRepairAccepted) repairAttempt.outcome = state.cancelled
@@ -1922,7 +2073,7 @@ async function startConsolidationPipeline(
       else if (screen.agents) setDreamingActivity("AGENTS.md delta");
       const harnessPromise = screen.harness
         ? planHarnessConsolidationPhase(frozenContext, { pkgDir: opts.pkgDir, cwd: opts.cwd, reason: opts.reason, availableSkills: opts.availableSkills, run: laterRun, ...exploration,
-          ...(jevJudge.enabled ? { validateSemantics: (snapshot: unknown, operations: readonly unknown[], citations?: unknown) => jevJudge.validate("harness", snapshot, operations, [], controller.signal, citations), semanticRepair: policies.harness === "apply" } : {}),
+          ...(jevJudge.enabled ? { validateSemantics: (snapshot: unknown, operations: readonly unknown[], citations?: unknown, parentScope?: import("./jev-learning").BoundScopeContext) => jevJudge.validate("harness", snapshot, operations, [], controller.signal, citations, parentScope), semanticRepair: policies.harness === "apply" } : {}),
           // The Harness phase must run on the same selected model as the Memory
           // phase, or "consolidation uses the configured model" is only half true
           // and the two phases can be different models on the same run.

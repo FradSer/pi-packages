@@ -1,0 +1,343 @@
+{
+  "productionPreflightMockRequests": 32,
+  "evidence": "real-jev-structured-new-memory-pair-research",
+  "split": "development",
+  "manifestSha256": "304d03dc8fb200f7b25f047aeea9579b9f0714968b92ac539e67a69a96de177d",
+  "codeHashes": {
+    "evaluate_jev_memory_pairs_structured.ts": "f56a41072cbefed77d1d7500e1dcf116be94eaee647b5aa51f1a504121cdf9d5",
+    "jev-memory-pair-structured.ts": "f1d87bfe67f0b24842ff4bc64bb07cb6c0928b4a4196480701f168ebfd1c7599",
+    "jev-memory-pair-judgment.ts": "ae105d296f4fcb6af6c3f4fddb0a9af30d635e2fffcbc1a5c53b08bab020ec15",
+    "frozen-research-manifest.ts": "dabd48c021dff53a2684d1436238b2bfcbacbaf2e33ff558bdd5fd4950724b28",
+    "../extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675",
+    "../extensions/jev-learning.ts": "965220940e50cf2bdfac3c283874615304907a296814b75025368b98d3d37d4c",
+    "../extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044"
+  },
+  "corpusSha256": "5046012616a5a84f2d4325f4dc1cfd732a0442afe028c62ff8535643aff142a7",
+  "externalRequests": 16,
+  "fixtureRequests": 0,
+  "requestBudget": 16,
+  "metrics": {
+    "correct": 8,
+    "wrong": 0,
+    "held": 8,
+    "unsafeIndependence": 0,
+    "missedIndependence": 0
+  },
+  "knownInputTokens": 16090,
+  "knownEstimatedCostUsd": 0.0006757800000000001,
+  "unpricedInputTokens": 0,
+  "usageComplete": true,
+  "results": [
+    {
+      "id": "same-topic-independent-en",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 0.98,
+      "probabilities": {
+        "independent": 0.99,
+        "duplicate": 0.01,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 864,
+      "model": "jev-1.13.0",
+      "inputTokens": 959,
+      "outputTokens": 58
+    },
+    {
+      "id": "same-topic-independent-zh",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 0.99,
+      "probabilities": {
+        "independent": 0.99,
+        "duplicate": 0.01,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 319,
+      "model": "jev-1.13.0",
+      "inputTokens": 1012,
+      "outputTokens": 58
+    },
+    {
+      "id": "self-contained-condition-en",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 0.94,
+      "probabilities": {
+        "independent": 0.95,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0.05,
+        "unclear": 0
+      },
+      "durationMs": 340,
+      "model": "jev-1.13.0",
+      "inputTokens": 996,
+      "outputTokens": 58
+    },
+    {
+      "id": "self-contained-condition-zh",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 0.93,
+      "probabilities": {
+        "independent": 0.95,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0.05,
+        "unclear": 0
+      },
+      "durationMs": 375,
+      "model": "jev-1.13.0",
+      "inputTokens": 1055,
+      "outputTokens": 58
+    },
+    {
+      "id": "paraphrase-duplicate-en",
+      "expected": "duplicate",
+      "status": "decided",
+      "relation": "duplicate",
+      "independenceObserved": false,
+      "confidence": 0.89,
+      "probabilities": {
+        "independent": 0.09,
+        "duplicate": 0.91,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 340,
+      "model": "jev-1.13.0",
+      "inputTokens": 967,
+      "outputTokens": 56
+    },
+    {
+      "id": "paraphrase-duplicate-zh",
+      "expected": "duplicate",
+      "status": "uncertain",
+      "relation": "duplicate",
+      "independenceObserved": false,
+      "confidence": 0.73,
+      "probabilities": {
+        "independent": 0.21,
+        "duplicate": 0.79,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 338,
+      "model": "jev-1.13.0",
+      "inputTokens": 1048,
+      "outputTokens": 56
+    },
+    {
+      "id": "scope-conflict-en",
+      "expected": "conflict",
+      "status": "uncertain",
+      "relation": "conflict",
+      "independenceObserved": false,
+      "confidence": 0.71,
+      "probabilities": {
+        "independent": 0.21,
+        "duplicate": 0,
+        "conflict": 0.77,
+        "dependent": 0,
+        "unclear": 0.02
+      },
+      "durationMs": 373,
+      "model": "jev-1.13.0",
+      "inputTokens": 973,
+      "outputTokens": 57
+    },
+    {
+      "id": "scope-conflict-zh",
+      "expected": "conflict",
+      "status": "uncertain",
+      "relation": "conflict",
+      "independenceObserved": false,
+      "confidence": 0.73,
+      "probabilities": {
+        "independent": 0.21,
+        "duplicate": 0,
+        "conflict": 0.78,
+        "dependent": 0,
+        "unclear": 0.01
+      },
+      "durationMs": 323,
+      "model": "jev-1.13.0",
+      "inputTokens": 981,
+      "outputTokens": 57
+    },
+    {
+      "id": "named-reference-en",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": "dependent",
+      "independenceObserved": false,
+      "confidence": 0.84,
+      "probabilities": {
+        "independent": 0.11,
+        "duplicate": 0.01,
+        "conflict": 0,
+        "dependent": 0.87,
+        "unclear": 0.01
+      },
+      "durationMs": 331,
+      "model": "jev-1.13.0",
+      "inputTokens": 989,
+      "outputTokens": 56
+    },
+    {
+      "id": "named-reference-zh",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "dependent",
+      "independenceObserved": false,
+      "confidence": 0.9,
+      "probabilities": {
+        "independent": 0.06,
+        "duplicate": 0.01,
+        "conflict": 0,
+        "dependent": 0.92,
+        "unclear": 0.01
+      },
+      "durationMs": 380,
+      "model": "jev-1.13.0",
+      "inputTokens": 1061,
+      "outputTokens": 56
+    },
+    {
+      "id": "condition-reference-en",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "dependent",
+      "independenceObserved": false,
+      "confidence": 0.98,
+      "probabilities": {
+        "independent": 0.01,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0.99,
+        "unclear": 0
+      },
+      "durationMs": 319,
+      "model": "jev-1.13.0",
+      "inputTokens": 1013,
+      "outputTokens": 56
+    },
+    {
+      "id": "condition-reference-zh",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "dependent",
+      "independenceObserved": false,
+      "confidence": 0.98,
+      "probabilities": {
+        "independent": 0.01,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0.99,
+        "unclear": 0
+      },
+      "durationMs": 336,
+      "model": "jev-1.13.0",
+      "inputTokens": 1095,
+      "outputTokens": 56
+    },
+    {
+      "id": "missing-context-en",
+      "expected": "unclear",
+      "status": "uncertain",
+      "relation": "independent",
+      "independenceObserved": false,
+      "confidence": 0.31,
+      "probabilities": {
+        "independent": 0.46,
+        "duplicate": 0.01,
+        "conflict": 0.01,
+        "dependent": 0.36,
+        "unclear": 0.16
+      },
+      "durationMs": 330,
+      "model": "jev-1.13.0",
+      "inputTokens": 995,
+      "outputTokens": 58
+    },
+    {
+      "id": "missing-context-zh",
+      "expected": "unclear",
+      "status": "uncertain",
+      "relation": "dependent",
+      "independenceObserved": false,
+      "confidence": 0.24,
+      "probabilities": {
+        "independent": 0.39,
+        "duplicate": 0,
+        "conflict": 0.03,
+        "dependent": 0.39,
+        "unclear": 0.19
+      },
+      "durationMs": 323,
+      "model": "jev-1.13.0",
+      "inputTokens": 1048,
+      "outputTokens": 56
+    },
+    {
+      "id": "description-conflict-en",
+      "expected": "conflict",
+      "status": "uncertain",
+      "relation": "conflict",
+      "independenceObserved": false,
+      "confidence": 0.39,
+      "probabilities": {
+        "independent": 0.47,
+        "duplicate": 0.01,
+        "conflict": 0.51,
+        "dependent": 0,
+        "unclear": 0.01
+      },
+      "durationMs": 334,
+      "model": "jev-1.13.0",
+      "inputTokens": 937,
+      "outputTokens": 57
+    },
+    {
+      "id": "description-conflict-zh",
+      "expected": "conflict",
+      "status": "uncertain",
+      "relation": "independent",
+      "independenceObserved": false,
+      "confidence": 0.55,
+      "probabilities": {
+        "independent": 0.64,
+        "duplicate": 0,
+        "conflict": 0.35,
+        "dependent": 0.01,
+        "unclear": 0
+      },
+      "durationMs": 324,
+      "model": "jev-1.13.0",
+      "inputTokens": 961,
+      "outputTokens": 58
+    }
+  ],
+  "productionWrites": 0,
+  "adopted": false,
+  "limitations": [
+    "Pair relations only; no proof of original candidate support, full counterevidence or parent permission.",
+    "No partial plan applies, no end-to-end quality claim.",
+    "Original complete candidate review and bound dossier still required."
+  ]
+}

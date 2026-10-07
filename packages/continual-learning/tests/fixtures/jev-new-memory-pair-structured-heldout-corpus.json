@@ -1,0 +1,940 @@
+[
+  {
+    "id": "orthogonal-cache-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The cache capacity is 100 entries."
+        },
+        {
+          "role": "user",
+          "content": "Cached entries expire after 60 seconds."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: The cache capacity is 100 entries.\ntype: project\n---\nThe cache capacity is 100 entries.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The cache capacity is 100 entries.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: Cached entries expire after 60 seconds.\ntype: project\n---\nCached entries expire after 60 seconds.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "Cached entries expire after 60 seconds.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "orthogonal-cache-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "缓存容量是 100 条。"
+        },
+        {
+          "role": "user",
+          "content": "缓存条目在 60 秒后过期。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: 缓存容量是 100 条。\ntype: project\n---\n缓存容量是 100 条。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "缓存容量是 100 条。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: 缓存条目在 60 秒后过期。\ntype: project\n---\n缓存条目在 60 秒后过期。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "缓存条目在 60 秒后过期。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "self-contained-timeout-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Requests have a 10 second timeout."
+        },
+        {
+          "role": "user",
+          "content": "If a request times out after 10 seconds, retry once."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: Requests have a 10 second timeout.\ntype: project\n---\nRequests have a 10 second timeout.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Requests have a 10 second timeout.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: If a request times out after 10 seconds, retry once.\ntype: project\n---\nIf a request times out after 10 seconds, retry once.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "If a request times out after 10 seconds, retry once.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "self-contained-timeout-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "请求超时为 10 秒。"
+        },
+        {
+          "role": "user",
+          "content": "如果请求在 10 秒后超时，重试一次。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: 请求超时为 10 秒。\ntype: project\n---\n请求超时为 10 秒。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "请求超时为 10 秒。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: 如果请求在 10 秒后超时，重试一次。\ntype: project\n---\n如果请求在 10 秒后超时，重试一次。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "如果请求在 10 秒后超时，重试一次。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "self-contained-exception-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Releases normally run verification."
+        },
+        {
+          "role": "user",
+          "content": "During an incident, verification may be skipped only when the incident commander approves."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: Releases normally run verification.\ntype: project\n---\nReleases normally run verification.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Releases normally run verification.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: During an incident, verification may be skipped only when the incident commander approves.\ntype: project\n---\nDuring an incident, verification may be skipped only when the incident commander approves.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "During an incident, verification may be skipped only when the incident commander approves.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "self-contained-exception-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "发布通常运行验证。"
+        },
+        {
+          "role": "user",
+          "content": "事故期间，只有事故指挥批准时才可以跳过验证。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: 发布通常运行验证。\ntype: project\n---\n发布通常运行验证。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "发布通常运行验证。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: 事故期间，只有事故指挥批准时才可以跳过验证。\ntype: project\n---\n事故期间，只有事故指挥批准时才可以跳过验证。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "事故期间，只有事故指挥批准时才可以跳过验证。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "disjoint-complete-conditions-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "When the feature flag is enabled, use the local cache."
+        },
+        {
+          "role": "user",
+          "content": "When the feature flag is disabled, fetch directly from the server."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: When the feature flag is enabled, use the local cache.\ntype: project\n---\nWhen the feature flag is enabled, use the local cache.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "When the feature flag is enabled, use the local cache.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: When the feature flag is disabled, fetch directly from the server.\ntype: project\n---\nWhen the feature flag is disabled, fetch directly from the server.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "When the feature flag is disabled, fetch directly from the server.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "disjoint-complete-conditions-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "功能开关开启时使用本地缓存。"
+        },
+        {
+          "role": "user",
+          "content": "功能开关关闭时直接从服务器获取。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: 功能开关开启时使用本地缓存。\ntype: project\n---\n功能开关开启时使用本地缓存。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "功能开关开启时使用本地缓存。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: 功能开关关闭时直接从服务器获取。\ntype: project\n---\n功能开关关闭时直接从服务器获取。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "功能开关关闭时直接从服务器获取。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "verification-paraphrase-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Before accepting a change, execute the unit tests."
+        },
+        {
+          "role": "user",
+          "content": "Run the unit test suite before a change is accepted."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: Before accepting a change, execute the unit tests.\ntype: project\n---\nBefore accepting a change, execute the unit tests.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Before accepting a change, execute the unit tests.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: Run the unit test suite before a change is accepted.\ntype: project\n---\nRun the unit test suite before a change is accepted.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "Run the unit test suite before a change is accepted.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "duplicate",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "verification-paraphrase-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "接受变更之前执行单元测试。"
+        },
+        {
+          "role": "user",
+          "content": "变更被接受前要运行单元测试套件。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: 接受变更之前执行单元测试。\ntype: project\n---\n接受变更之前执行单元测试。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "接受变更之前执行单元测试。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: 变更被接受前要运行单元测试套件。\ntype: project\n---\n变更被接受前要运行单元测试套件。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "变更被接受前要运行单元测试套件。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "duplicate",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "concurrent-limits-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The worker limit is exactly 3 concurrent workers."
+        },
+        {
+          "role": "user",
+          "content": "The worker limit is exactly 7 concurrent workers."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: The worker limit is exactly 3 concurrent workers.\ntype: project\n---\nThe worker limit is exactly 3 concurrent workers.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The worker limit is exactly 3 concurrent workers.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: The worker limit is exactly 7 concurrent workers.\ntype: project\n---\nThe worker limit is exactly 7 concurrent workers.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The worker limit is exactly 7 concurrent workers.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "conflict",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "concurrent-limits-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "工作进程的并发上限恰好是 3 个。"
+        },
+        {
+          "role": "user",
+          "content": "工作进程的并发上限恰好是 7 个。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: 工作进程的并发上限恰好是 3 个。\ntype: project\n---\n工作进程的并发上限恰好是 3 个。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "工作进程的并发上限恰好是 3 个。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: 工作进程的并发上限恰好是 7 个。\ntype: project\n---\n工作进程的并发上限恰好是 7 个。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "工作进程的并发上限恰好是 7 个。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "conflict",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "description-conflict-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Production verification is pytest."
+        },
+        {
+          "role": "user",
+          "content": "The project supports Linux only."
+        },
+        {
+          "role": "user",
+          "content": "The project supports Windows only."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: The project supports Windows only.\ntype: project\n---\nProduction verification is pytest.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Production verification is pytest.",
+            "role": "user"
+          },
+          {
+            "index": 2,
+            "quote": "The project supports Windows only.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: The project supports Linux only.\ntype: project\n---\nThe project supports Linux only.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The project supports Linux only.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "conflict",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "description-conflict-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "生产验证使用 pytest。"
+        },
+        {
+          "role": "user",
+          "content": "本项目仅支持 Linux。"
+        },
+        {
+          "role": "user",
+          "content": "本项目仅支持 Windows。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: 本项目仅支持 Windows。\ntype: project\n---\n生产验证使用 pytest。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "生产验证使用 pytest。",
+            "role": "user"
+          },
+          {
+            "index": 2,
+            "quote": "本项目仅支持 Windows。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: 本项目仅支持 Linux。\ntype: project\n---\n本项目仅支持 Linux。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "本项目仅支持 Linux。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "conflict",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "other-record-value-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Use the retry count specified in Memory b.md."
+        },
+        {
+          "role": "user",
+          "content": "The retry count is 2."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: Use the retry count specified in Memory b.md.\ntype: project\n---\nUse the retry count specified in Memory b.md.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Use the retry count specified in Memory b.md.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: The retry count is 2.\ntype: project\n---\nThe retry count is 2.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The retry count is 2.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "dependent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "other-record-value-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "使用 Memory b.md 中规定的重试次数。"
+        },
+        {
+          "role": "user",
+          "content": "重试次数是 2 次。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: 使用 Memory b.md 中规定的重试次数。\ntype: project\n---\n使用 Memory b.md 中规定的重试次数。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "使用 Memory b.md 中规定的重试次数。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: 重试次数是 2 次。\ntype: project\n---\n重试次数是 2 次。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "重试次数是 2 次。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "dependent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "other-record-exception-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Skip verification only under the exception in Memory b.md."
+        },
+        {
+          "role": "user",
+          "content": "Verification can be skipped only during an approved emergency."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: Skip verification only under the exception in Memory b.md.\ntype: project\n---\nSkip verification only under the exception in Memory b.md.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Skip verification only under the exception in Memory b.md.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: Verification can be skipped only during an approved emergency.\ntype: project\n---\nVerification can be skipped only during an approved emergency.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "Verification can be skipped only during an approved emergency.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "dependent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "other-record-exception-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "仅在 Memory b.md 规定的例外下跳过验证。"
+        },
+        {
+          "role": "user",
+          "content": "只有批准的紧急情况才可以跳过验证。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: 仅在 Memory b.md 规定的例外下跳过验证。\ntype: project\n---\n仅在 Memory b.md 规定的例外下跳过验证。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "仅在 Memory b.md 规定的例外下跳过验证。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: 只有批准的紧急情况才可以跳过验证。\ntype: project\n---\n只有批准的紧急情况才可以跳过验证。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "只有批准的紧急情况才可以跳过验证。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "dependent",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "unresolved-environment-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The build runs on the deployment platform specified in missing Memory c.md."
+        },
+        {
+          "role": "user",
+          "content": "The build runs only on macOS."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: The build runs on the deployment platform specified in missing Memory c.md.\ntype: project\n---\nThe build runs on the deployment platform specified in missing Memory c.md.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The build runs on the deployment platform specified in missing Memory c.md.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: The build runs only on macOS.\ntype: project\n---\nThe build runs only on macOS.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The build runs only on macOS.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "unclear",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  },
+  {
+    "id": "unresolved-environment-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "构建运行在缺失的 Memory c.md 指定的部署平台上。"
+        },
+        {
+          "role": "user",
+          "content": "构建仅在 macOS 上运行。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-0\ndescription: 构建运行在缺失的 Memory c.md 指定的部署平台上。\ntype: project\n---\n构建运行在缺失的 Memory c.md 指定的部署平台上。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "构建运行在缺失的 Memory c.md 指定的部署平台上。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fresh-1\ndescription: 构建仅在 macOS 上运行。\ntype: project\n---\n构建仅在 macOS 上运行。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "构建仅在 macOS 上运行。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "unclear",
+    "labelNote": "Pair relation only, not support or permission. Complete conditions preserve their meaning without another note. Contradictory description claims matter."
+  }
+]

@@ -1,0 +1,3504 @@
+{
+  "evidence": "offline-fixture-preflight",
+  "manifestSha256": "255675c115af46d01fb9c704f6e1dcc047453263eed50a0651f2fcc76cfeaedc",
+  "externalRequests": 0,
+  "fixtureRequests": 90,
+  "preflightFixtureRequests": 36,
+  "requestBudget": 90,
+  "metrics": {
+    "original": {
+      "usefulKnowledgeCases": 2,
+      "requiredKnowledgeHeldCases": 12,
+      "unsupportedFactSelections": 12,
+      "unsafeCandidateSelections": 18,
+      "incompatibleOrRedundantSelections": 2,
+      "originalSuccessesLost": 0
+    },
+    "composed": {
+      "usefulKnowledgeCases": 2,
+      "requiredKnowledgeHeldCases": 12,
+      "unsupportedFactSelections": 12,
+      "unsafeCandidateSelections": 18,
+      "incompatibleOrRedundantSelections": 2,
+      "originalSuccessesLost": 0
+    }
+  },
+  "incompleteInferenceCases": 0,
+  "knownInputTokens": 0,
+  "unpricedInputTokens": 0,
+  "estimatedKnownInputCostUsd": 0,
+  "usageComplete": true,
+  "remoteCompletionUnknown": false,
+  "requests": [
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 1,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 1,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 1,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 1,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 1,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 1,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "supported_0",
+        "supported_1",
+        "supported_description_0",
+        "supported_description_1"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "counter_0_0",
+        "counter_1_0",
+        "counter_description_0_0",
+        "counter_description_1_0"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "relation"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    },
+    {
+      "questionIds": [
+        "ready"
+      ],
+      "durationMs": 0,
+      "responseReceived": true,
+      "model": "jev-1.13.0",
+      "inputTokens": 0,
+      "outputTokens": 0
+    }
+  ],
+  "rows": [
+    {
+      "id": "black-upload-en",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0
+        ]
+      ],
+      "unsupportedFactIndexes": [
+        1
+      ],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "1bb46504e6a7f4333d76f514dd9ea29f31ef49ce156e30732a687189b1f76f3a",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "aeb384e1ab1bde785d3a1c0339734f3c786a48576285eab090b5769639a398fb",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "36f7dfc96d601aa620b25ce36d423ce08d86e7980ec11131ce3fad42f57720a7",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "e04f88008c0c8c07a6c42fedaf8f3865d2cc39d23569e7e07ada63dbd63781c3",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "1bb46504e6a7f4333d76f514dd9ea29f31ef49ce156e30732a687189b1f76f3a",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "aeb384e1ab1bde785d3a1c0339734f3c786a48576285eab090b5769639a398fb",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "36f7dfc96d601aa620b25ce36d423ce08d86e7980ec11131ce3fad42f57720a7",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "e04f88008c0c8c07a6c42fedaf8f3865d2cc39d23569e7e07ada63dbd63781c3",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "black-upload-zh",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0
+        ]
+      ],
+      "unsupportedFactIndexes": [
+        1
+      ],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "14118b81aa75aa0c139e20943f1d16a904b909852d46a7f09c2bf3fc98d0705f",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "8c83c0ee2209cce7edea64a5c4d250b94e894e5948bceafcbca38211fd6ef67f",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "af9c63ac659f8787d505719a8d3f6a83cbaf4c19fc0b19d5b8b68525e40535b8",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "0f924e923e00eddf1f7de4636f0cda4e1e23170bb27882f1703d6015323bb3b1",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "14118b81aa75aa0c139e20943f1d16a904b909852d46a7f09c2bf3fc98d0705f",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "8c83c0ee2209cce7edea64a5c4d250b94e894e5948bceafcbca38211fd6ef67f",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "af9c63ac659f8787d505719a8d3f6a83cbaf4c19fc0b19d5b8b68525e40535b8",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "0f924e923e00eddf1f7de4636f0cda4e1e23170bb27882f1703d6015323bb3b1",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "bun-runtime-en",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0
+        ]
+      ],
+      "unsupportedFactIndexes": [
+        1
+      ],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "294aa7657cffe91cf29828ee0bc86fa00029cc4cb6335325b17a3661df066a6d",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "ec2e4b22cb9f09cd117c22a15864572d3801e8f7ed27ce5e0744e0bdf8d54292",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "a0fef6d72efa1e5ef2c475096a39a458faba15f171411cdcc3c73e763e05804f",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "da9ef5b6c742af871395e3c95c719be4bc1442c757167d0526a4d2bf0c5e37c4",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "294aa7657cffe91cf29828ee0bc86fa00029cc4cb6335325b17a3661df066a6d",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "ec2e4b22cb9f09cd117c22a15864572d3801e8f7ed27ce5e0744e0bdf8d54292",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "a0fef6d72efa1e5ef2c475096a39a458faba15f171411cdcc3c73e763e05804f",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "da9ef5b6c742af871395e3c95c719be4bc1442c757167d0526a4d2bf0c5e37c4",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "bun-runtime-zh",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0
+        ]
+      ],
+      "unsupportedFactIndexes": [
+        1
+      ],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "42779f38cf65630a88dca078d877a6783f5ca66f3addfcd71f5c15df3fec345f",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "261d1c6b2dce9a01ea780ddc724af46e5693640d201076d76565f8254cba5551",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "2a7bc13c36210dc7c683ef11292a819d1d295af8ad58b38c1373582f03f803b7",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "11edfb217aa553a98632d495e389416253b086201cb0c50b0ad2d0c963e1d614",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "42779f38cf65630a88dca078d877a6783f5ca66f3addfcd71f5c15df3fec345f",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "261d1c6b2dce9a01ea780ddc724af46e5693640d201076d76565f8254cba5551",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "2a7bc13c36210dc7c683ef11292a819d1d295af8ad58b38c1373582f03f803b7",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "11edfb217aa553a98632d495e389416253b086201cb0c50b0ad2d0c963e1d614",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "budget-definition-en",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0
+        ]
+      ],
+      "unsupportedFactIndexes": [],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "22bc2423ad3669222d5ecf124dbb7f2508401c2df81e13bf9abdd0ba7e837cf2",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "0a6a3d08d246c411cda903f6dbefdfda218d6c97d8161b97db107e727400aae9",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "a093c972334f7175794532d98cca2167b78f26577c325916cac89ff2d044dcff",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "00e59dee9b77b660d561c02a46e38bc0fafc9752bd75bf603d9a85ac127b815b",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "22bc2423ad3669222d5ecf124dbb7f2508401c2df81e13bf9abdd0ba7e837cf2",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "0a6a3d08d246c411cda903f6dbefdfda218d6c97d8161b97db107e727400aae9",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "a093c972334f7175794532d98cca2167b78f26577c325916cac89ff2d044dcff",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "00e59dee9b77b660d561c02a46e38bc0fafc9752bd75bf603d9a85ac127b815b",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "budget-definition-zh",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0
+        ]
+      ],
+      "unsupportedFactIndexes": [],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "b9bcb492945cfb09cac888adad35d19477062b914af7f61a9c633bb2e1aff20c",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "119898962a84702fbdd5905fca04533cb08a04a9595574ecf65428e37af6d017",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "bc1c060fa7dfa110e00e3fa87715a9e890ae36e5d42f235e53bb5b922ee4d3b8",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "76dddd991fc697d2c0b41a1f4278bb75a4fd49d094dbaad238c6436f243b27c0",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "b9bcb492945cfb09cac888adad35d19477062b914af7f61a9c633bb2e1aff20c",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "119898962a84702fbdd5905fca04533cb08a04a9595574ecf65428e37af6d017",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "bc1c060fa7dfa110e00e3fa87715a9e890ae36e5d42f235e53bb5b922ee4d3b8",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "76dddd991fc697d2c0b41a1f4278bb75a4fd49d094dbaad238c6436f243b27c0",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "region-unconfirmed-en",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        []
+      ],
+      "unsupportedFactIndexes": [
+        1
+      ],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "6663769641b76c84d948f815001bd37b205226c0780185d934f45c2a500e7e31",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "8f9042833ace9c0daad346bba7c30110e19ca64e56c9207a042e34af623b9f07",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "7c7075a2cefaac232456eca77e0aa2d24df725b64a910dcb32be34705605d64e",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "b22fc85dc2016c2cc353f08b7406cb36e2db10ab29324f461edb15003dcd0f89",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "6663769641b76c84d948f815001bd37b205226c0780185d934f45c2a500e7e31",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "8f9042833ace9c0daad346bba7c30110e19ca64e56c9207a042e34af623b9f07",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "7c7075a2cefaac232456eca77e0aa2d24df725b64a910dcb32be34705605d64e",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "b22fc85dc2016c2cc353f08b7406cb36e2db10ab29324f461edb15003dcd0f89",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "region-unconfirmed-zh",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        []
+      ],
+      "unsupportedFactIndexes": [
+        1
+      ],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "e813bcbd8432189d1b6f015435da340c69a97ae687db42c1606f5e5e8986380d",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "1b92919e0c447d1325d4e24f79e0fb3cce1a4bcd87fa1f438ad63bc1efc43f78",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "3aa2fda065aad817f70e2acad81d17eff3f52ad473c1bbef8b41e6daa21910d5",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "ed07c36c6ef3b819933699345aa7e37e8873b3a2685f3d8513a7b77c14d19354",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "e813bcbd8432189d1b6f015435da340c69a97ae687db42c1606f5e5e8986380d",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "1b92919e0c447d1325d4e24f79e0fb3cce1a4bcd87fa1f438ad63bc1efc43f78",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "3aa2fda065aad817f70e2acad81d17eff3f52ad473c1bbef8b41e6daa21910d5",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "ed07c36c6ef3b819933699345aa7e37e8873b3a2685f3d8513a7b77c14d19354",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "description-budget-en",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          1
+        ]
+      ],
+      "unsupportedFactIndexes": [],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "1ac4906e85df760413d3d1fef8f1c1a078e20f70c4c028ea18a2b882de4829cd",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "a1c19fc3af667448e4b464878035f0810d11be050972aa6519334607d060cd89",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "385cde1b41336f55418e4ac538c3988f031586a05afb7eb0af707d02532a2f6a",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "a07e27fd5ad40aae4a1aff1b85e8ba668791f534dfbc5c64215fad0f1c97e7c6",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "1ac4906e85df760413d3d1fef8f1c1a078e20f70c4c028ea18a2b882de4829cd",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "a1c19fc3af667448e4b464878035f0810d11be050972aa6519334607d060cd89",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "385cde1b41336f55418e4ac538c3988f031586a05afb7eb0af707d02532a2f6a",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "a07e27fd5ad40aae4a1aff1b85e8ba668791f534dfbc5c64215fad0f1c97e7c6",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "description-budget-zh",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          1
+        ]
+      ],
+      "unsupportedFactIndexes": [],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "6d2fab34d5f9e67992cc158fc1cf1f0ad5854ccc4d2a57f7287881a3f9722ef8",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "bd2b45356bbfae498034276f6cac4b7a6b05ee8cc3b8248e13939cca7747259b",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "148d2c2a58316a470f2cc337f19f8732870c15e6f1542a8c7be92337c4488048",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "940912992adbea40d7342aeae7e05ee0d783dc1c96e799b80ea460cb2f5f0448",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "6d2fab34d5f9e67992cc158fc1cf1f0ad5854ccc4d2a57f7287881a3f9722ef8",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "bd2b45356bbfae498034276f6cac4b7a6b05ee8cc3b8248e13939cca7747259b",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "148d2c2a58316a470f2cc337f19f8732870c15e6f1542a8c7be92337c4488048",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "940912992adbea40d7342aeae7e05ee0d783dc1c96e799b80ea460cb2f5f0448",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "condition-heartbeat-en",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0,
+          1
+        ]
+      ],
+      "unsupportedFactIndexes": [],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "dbf208982e325619641408f2968801d85a18accc28cb29078d2726c15b03b0ca",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "94ba8a3b0377612b990accd995021877e0f53773fcd984d228b443776f5b1585",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "38a4a7efb391c25fa4c692e9b7ad6276c16fb1f04bca11ac0e96ff4722776da4",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "756c50d93376a10201fc9b4f933bb304491c63913bf27272066a3cbe790f3f61",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "dbf208982e325619641408f2968801d85a18accc28cb29078d2726c15b03b0ca",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "94ba8a3b0377612b990accd995021877e0f53773fcd984d228b443776f5b1585",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "38a4a7efb391c25fa4c692e9b7ad6276c16fb1f04bca11ac0e96ff4722776da4",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "756c50d93376a10201fc9b4f933bb304491c63913bf27272066a3cbe790f3f61",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "condition-heartbeat-zh",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0,
+          1
+        ]
+      ],
+      "unsupportedFactIndexes": [],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "59f6d725bed20593f8d07b9a479bd18c4d21e4080f3cbb75db6a5d580bafc87c",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "6dd22aafec399791cc1f58f61983624a74eef01e7a6dda0695d5b5021cb4fcfc",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "34e05d83e2aa7c1b6433d9377b14af36742d09c4be4b0b5b36eda972048c6611",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "b16c75baba636239908c2a8f6ece8d62c11b21977b047872340bdad6fdf60431",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "59f6d725bed20593f8d07b9a479bd18c4d21e4080f3cbb75db6a5d580bafc87c",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "6dd22aafec399791cc1f58f61983624a74eef01e7a6dda0695d5b5021cb4fcfc",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "34e05d83e2aa7c1b6433d9377b14af36742d09c4be4b0b5b36eda972048c6611",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "b16c75baba636239908c2a8f6ece8d62c11b21977b047872340bdad6fdf60431",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "duplicate-timeout-en",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "unsupportedFactIndexes": [],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "3399120457da6082624283452a8c9091e7ae6a44c6c65bc7d6adaa8f399325eb",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "2cd0f6a48a7da6bbf94d59bfbf93111981b19dd507ea951ad934d50a908f7f34",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "c6e9473b01a52d6e8994d01110ecc7b2bfc59741431e1cccdbaab1044c6be5d5",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "7f0384589ef691483d44a70bb0fda46e187d79578bca861dfba43b2ad91713ea",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "3399120457da6082624283452a8c9091e7ae6a44c6c65bc7d6adaa8f399325eb",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "2cd0f6a48a7da6bbf94d59bfbf93111981b19dd507ea951ad934d50a908f7f34",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "c6e9473b01a52d6e8994d01110ecc7b2bfc59741431e1cccdbaab1044c6be5d5",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "7f0384589ef691483d44a70bb0fda46e187d79578bca861dfba43b2ad91713ea",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "duplicate-timeout-zh",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0
+        ],
+        [
+          1
+        ]
+      ],
+      "unsupportedFactIndexes": [],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "8a56b26de50eedfd538811c000349e531044ef4a628bb2696c1f1c123e100b89",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "c012005e960f9db9153d81ac0d3d3a0095b7be76805950445552c6e7dce964ef",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "b3fa6b79a7856aff808abf828ff381e6daa1d04a2ed5c46dbc75256f9d95db49",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "e236769fb512c06746e50c6a5aa3692f22d7ad67d4e8dc84056df81afe3f9563",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "8a56b26de50eedfd538811c000349e531044ef4a628bb2696c1f1c123e100b89",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "c012005e960f9db9153d81ac0d3d3a0095b7be76805950445552c6e7dce964ef",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "b3fa6b79a7856aff808abf828ff381e6daa1d04a2ed5c46dbc75256f9d95db49",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "e236769fb512c06746e50c6a5aa3692f22d7ad67d4e8dc84056df81afe3f9563",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "recovered-faults-en",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        []
+      ],
+      "unsupportedFactIndexes": [
+        0,
+        1
+      ],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "cb8cff4619238897f9377895bcdc87b2feb0e51bcc7b6b38b51776d0c4dfed1b",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "1b4eac6ee802a60a2f9e15b53676652495913ebad847a941195f8f8875161f69",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "c2ec47d3b3743b960afa768d81be0741b369f55d2a786c7a9d8062f54bd46470",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "d58571797689c2bb04d50d59f8d5e064c03ff1b221cba6b69d6d2c508b9d990f",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 8,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "cb8cff4619238897f9377895bcdc87b2feb0e51bcc7b6b38b51776d0c4dfed1b",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "1b4eac6ee802a60a2f9e15b53676652495913ebad847a941195f8f8875161f69",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "c2ec47d3b3743b960afa768d81be0741b369f55d2a786c7a9d8062f54bd46470",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "d58571797689c2bb04d50d59f8d5e064c03ff1b221cba6b69d6d2c508b9d990f",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "recovered-faults-zh",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        []
+      ],
+      "unsupportedFactIndexes": [
+        0,
+        1
+      ],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "48e72ff3e4d97e0b007b447a91e5b719155e7c7d256d74ece4de7c553837227e",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "bf5da5c02fb294569838667dac8e5d6a1777b34816127a9d53509a1fcccd70ac",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "b614021e2e23c02283fbedff4887d2d5417ecf3e6775c4a8304aea61c44aabe7",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "c41334aaba5c463f40c86dbf5ff29bb87c104873771cb7be82e08cac36c8f9b7",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "48e72ff3e4d97e0b007b447a91e5b719155e7c7d256d74ece4de7c553837227e",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "bf5da5c02fb294569838667dac8e5d6a1777b34816127a9d53509a1fcccd70ac",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "b614021e2e23c02283fbedff4887d2d5417ecf3e6775c4a8304aea61c44aabe7",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "c41334aaba5c463f40c86dbf5ff29bb87c104873771cb7be82e08cac36c8f9b7",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "project-file-location-en",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0
+        ]
+      ],
+      "unsupportedFactIndexes": [
+        1
+      ],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "57d2e102cdd8ba3f5bb16227ab1b1ad35a744c0ab00694b908c8d4170c1702f7",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "27cbed76a097d15d0115e48716ce77d1c7127d71bfd1d99fdb0a6d0fd3c13da4",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "65b68111c9241def44eef8d49ee8ab5cfac01f1642f3ec1a296eb94142e337c6",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "ff6092124680a61c9e2fe7af94bea27acd104e5c37518c00ccd5ab61063b925f",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "57d2e102cdd8ba3f5bb16227ab1b1ad35a744c0ab00694b908c8d4170c1702f7",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "27cbed76a097d15d0115e48716ce77d1c7127d71bfd1d99fdb0a6d0fd3c13da4",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "65b68111c9241def44eef8d49ee8ab5cfac01f1642f3ec1a296eb94142e337c6",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "ff6092124680a61c9e2fe7af94bea27acd104e5c37518c00ccd5ab61063b925f",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "project-file-location-zh",
+      "completeInference": true,
+      "allowedUsefulSets": [
+        [
+          0
+        ]
+      ],
+      "unsupportedFactIndexes": [
+        1
+      ],
+      "original": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "independent-subset"
+      },
+      "composed": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          1
+        ],
+        "held": [],
+        "reason": "composed-readiness"
+      },
+      "support": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 1,
+        "coveredEntries": 1,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "candidateReview": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "6e44d7028ab83d8efe6429f702c270178c26425593211fbfd52ee010130e1496",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "77b9fbddd024f0a326af89b67a5191b0fb1c70eef23bb9db73f0bc955d4cbf98",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "51a894315c0d966e611ab33598e6e2e9c5259ecdf1dd0819b1649f0bae35cc7d",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "868ee94840fd7c655958aa41703b7a4548205c014877c998dd6a93ae69af6f03",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "relations": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "strategy": "same-batch-relations",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "standalone": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "model": "jev-1.13.0",
+        "evidenceDigest": "6e44d7028ab83d8efe6429f702c270178c26425593211fbfd52ee010130e1496",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "77b9fbddd024f0a326af89b67a5191b0fb1c70eef23bb9db73f0bc955d4cbf98",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "51a894315c0d966e611ab33598e6e2e9c5259ecdf1dd0819b1649f0bae35cc7d",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          },
+          {
+            "index": 1,
+            "candidateDigest": "868ee94840fd7c655958aa41703b7a4548205c014877c998dd6a93ae69af6f03",
+            "answer": {
+              "type": "choice",
+              "choice": "selfContained",
+              "confidence": 1,
+              "probabilities": {
+                "selfContained": 1,
+                "needsOther": 0,
+                "unresolved": 0
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "productionWrites": 0,
+  "adopted": false,
+  "limitations": [
+    "Actual semantic support/pair/readiness; read-only simulation, not application or recall.",
+    "Eight author-defined bilingual archetypes; independent review is not blind labeling.",
+    "Identical support/pair observations shared by both arms, not independent main model generations.",
+    "Offline fixture metrics are not real effectiveness."
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "evidence": "citation-generation-local-verification-and-active-real-workflow",
+  "fullTargetTests": {
+    "passed": 875,
+    "seconds": 265.73,
+    "exitCode": 0
+  },
+  "newRegressions": {
+    "redFailed": 2,
+    "redSeconds": 0.41,
+    "greenPassed": 2,
+    "greenSeconds": 0.38
+  },
+  "rootTypecheck": "passed",
+  "installationCheck": "17packages18settings passed",
+  "targetPackDryRun": "passed",
+  "rootPackedManifestCheck": "18packages passed",
+  "scopedDiffCheck": "passed",
+  "freshIndependentReview": "citation_generation_review no blockers;2tests independentpassed",
+  "nativePi": {
+    "version": "1.0.0",
+    "mode": "isolated--print-offlinefixture",
+    "exitCode": 0,
+    "externalRequests": 0,
+    "productionCandidateWrites": 0,
+    "qualityEvidence": false
+  },
+  "productionRuntimeChanged": true,
+  "jevThresholdsChanged": false,
+  "writeAuthorityChanged": false,
+  "realWorkflow": {
+    "status": "running",
+    "toolSessionId": 61811,
+    "sourceDigest": "beedbeebea1f64794d21d8339fb151fa3974ed3a4ad4735bc1dfe4b6cbe274df",
+    "output": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-citation-guidance-r14",
+    "plannedExecutions": 6,
+    "completedReports": 0,
+    "aggregateProviderRequestBudget": 360,
+    "billingAndQualityResults": "pending; notzero"
+  },
+  "qualityVerifiedForCurrentPrompt": false,
+  "goalComplete": false,
+  "fileSha256": {
+    "../extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899",
+    "../extensions/inject-memory.ts": "e4971e3beb16cdb332ff82004ea446b22d145ba02e04d0a5f95ff111d8ef1da6",
+    "test_jev_citation_generation.py": "cafe0daf97d59f571f631863462c8ff81da205c99d9c719b6708aff8be75bc00",
+    "native_citation_generation_probe.py": "0480b4adc82855a010bb5ddf1bd8545db88690b571c49f8b783d0d28531eae21",
+    "jev-citation-generation-native-print-evidence.json": "da6b16d10d4cbdf0ba65a73045c867c707d2493dc21faa4981bbbad74f97d21c",
+    "jev-citation-generation-before-source.json": "194ecd7f127e9215411c1673db736a486d70613ae7d38c0b55a888368304e225",
+    "jev-citation-guidance-r14-docker-manifest.json": "c090f21f7d55a7129e9a54dbb0f2640c00d606df2adccebb2e936ecbe907a822"
+  }
+}

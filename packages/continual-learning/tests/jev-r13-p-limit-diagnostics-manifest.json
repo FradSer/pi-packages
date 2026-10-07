@@ -1,0 +1,36 @@
+{
+  "evidence": "prospective-r13-p-limit-on-current-runtime-http-diagnostics",
+  "sourceDigest": "720269bdc080cfa64e92ddc2cf4e348e96c005c4460e50417e25844d79717f04",
+  "project": {
+    "name": "p-limit",
+    "repository": "https://github.com/sindresorhus/p-limit.git",
+    "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb"
+  },
+  "mode": "on",
+  "executions": 1,
+  "jobs": 1,
+  "aggregateProviderRequestBudget": 180,
+  "mainModel": "bailian/qwen3.8-flash",
+  "jevModel": "jev-1.13.0",
+  "jevTimeoutMs": 5000,
+  "jevRetryLimit": 0,
+  "output": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-r13-p-limit-http-diagnostics",
+  "command": [
+    "python3",
+    "packages/continual-learning/tests/live_docker_projects.py",
+    "--project",
+    "p-limit",
+    "--jev",
+    "on",
+    "--jobs",
+    "1"
+  ],
+  "purpose": "Actual current Docker/Pi pipeline: determine retained numeric HTTP status versus uncertain semantic failures; preserve original full-task pass/fail criteria.",
+  "authorization": "Prior explicit isolatedDocker/paid model authorization. No host config or credential transfer to image; ephemeral proxytoken only.",
+  "costBoundary": "180 total providerrequests hardcap; configuredmain tariff input.15/output.47/cacheRead.016/cacheWrite.2 perM, Jevinput.042/M. Actual billing unknown; not a dollar hardcap.",
+  "limitations": [
+    "Single current-runtime execution, not a pairedqualitycomparison against historical R12.",
+    "No claim optionalJev quality improved solely by diagnostics.",
+    "Original current runtime and taskverifier source frozen; no retry or assertion weakening."
+  ]
+}

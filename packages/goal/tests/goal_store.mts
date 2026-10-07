@@ -9,7 +9,7 @@
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { GoalStore, newGoalId } from "../src/store.ts";
@@ -327,6 +327,71 @@ await scenario("ledger append errorKind never leaks goal id or directory paths",
   assert.doesNotMatch(err, new RegExp(id));
   assert.doesNotMatch(err, new RegExp(root));
   assert.doesNotMatch(err, /->/);
+});
+
+await scenario("goals are refused inside Pi's own directories and left untouched there", () => {
+  // The real case: a session run from Pi's home writes to ~/.pi/.pi/goals, a
+  // second .pi inside Pi's own layout. HOME and the agent directory are set here
+  // rather than read from the machine, so the rule is what is measured.
+  const sandbox = mkdtempSync(join(tmpdir(), "goal-placement-"));
+  const previousHome = process.env.HOME;
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  // HOME is what pi's home directory is derived from, so the tree below is
+  // shaped exactly like the real one: <home>/.pi/agent.
+  const home = join(sandbox, "home");
+  const piHome = join(home, ".pi");
+  const agent = join(piHome, "agent");
+  mkdirSync(agent, { recursive: true });
+  process.env.HOME = home;
+  process.env.PI_CODING_AGENT_DIR = agent;
+  try {
+    const refused: { label: string; projectRoot: string }[] = [
+      { label: "Pi's home itself", projectRoot: piHome },
+      { label: "a directory inside the agent directory", projectRoot: join(agent, "config") },
+      { label: "the home directory", projectRoot: home },
+      { label: "a directory inside Pi's home", projectRoot: join(piHome, "workspace") },
+    ];
+    for (const row of refused) {
+      const store = new GoalStore({ projectRoot: row.projectRoot });
+      const created = store.create({ objective, owner: "session-a", id: newGoalId() });
+      assert.equal(created.ok, false, `${row.label}: creation must be refused`);
+      assert.match(created.ok ? "" : created.message, /\.pi\/goals/, `${row.label}: the message must name the path it refused`);
+      // The refusal has to happen before the write, or the doubled directory
+      // survives the refusal and the next run adopts it.
+      assert.ok(!existsSync(join(row.projectRoot, ".pi", "goals")), `${row.label}: no goals directory may be left behind`);
+    }
+    // A goal stored before this rule existed is never stranded by it: reads and
+    // mutations still work in place.
+    const legacyRoot = join(piHome, "legacy");
+    const legacy = new GoalStore({ projectRoot: legacyRoot });
+    mkdirSync(join(legacyRoot, ".pi", "goals", "goal_legacy_nested"), { recursive: true });
+    writeFileSync(join(legacyRoot, ".pi", "goals", "goal_legacy_nested", "record.json"), JSON.stringify({
+      version: 1,
+      goal: {
+        id: "goal_legacy_nested", threadId: "session-a", objective, status: "active", autoContinue: true,
+        usage: { tokensUsed: 0, activeSeconds: 0 }, createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(), revision: 0, scheduler: { owner: "session-a", phase: "idle", used: 0, idleRuns: 0, generation: "g" },
+      },
+    }));
+    assert.equal(legacy.readGoal("goal_legacy_nested")?.objective, objective, "an existing goal is still readable where it lives");
+    const applied = legacy.apply({ expectedGoalId: "goal_legacy_nested", mutate: (draft) => ({ ...draft, autoContinue: false }) });
+    assert.equal(applied.ok, true, applied.ok ? "" : applied.message);
+    assert.equal(legacy.readGoal("goal_legacy_nested")?.autoContinue, false, "and it still accepts outcomes in place");
+    // A project directory is unaffected, which is the ordinary case this rule
+    // must never touch.
+    const projectRoot = join(sandbox, "workspace-project");
+    mkdirSync(projectRoot, { recursive: true });
+    const project = new GoalStore({ projectRoot });
+    const made = project.create({ objective, owner: "session-a", id: newGoalId() });
+    assert.equal(made.ok, true, made.ok ? "" : made.message);
+    assert.ok(existsSync(goalRecordPath(projectRoot, made.ok ? made.goal.id : "missing")), "a project keeps its own .pi/goals");
+  } finally {
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    rmSync(sandbox, { recursive: true, force: true });
+  }
 });
 
 rmSync(root, { recursive: true, force: true });

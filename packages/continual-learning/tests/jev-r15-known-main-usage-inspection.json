@@ -1,0 +1,91 @@
+{
+  "terminalResultSha256": "953900f9b882cc7646a82351b943aa7eb728da6fe4ad29023b84a84398391b9b",
+  "arms": [
+    {
+      "project": "click",
+      "mode": "off",
+      "recordedParentAssistantUsage": 0,
+      "recordedWorkerAggregateUsage": 0,
+      "knownMainUsage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "knownMainEstimatedCostUsd": 0
+    },
+    {
+      "project": "click",
+      "mode": "on",
+      "recordedParentAssistantUsage": 15,
+      "recordedWorkerAggregateUsage": 3,
+      "knownMainUsage": {
+        "input": 81720,
+        "output": 22294,
+        "cacheRead": 242176,
+        "cacheWrite": 0
+      },
+      "knownMainEstimatedCostUsd": 0.026610995999999998
+    },
+    {
+      "project": "mitt",
+      "mode": "off",
+      "recordedParentAssistantUsage": 44,
+      "recordedWorkerAggregateUsage": 3,
+      "knownMainUsage": {
+        "input": 112434,
+        "output": 20140,
+        "cacheRead": 366848,
+        "cacheWrite": 0
+      },
+      "knownMainEstimatedCostUsd": 0.032200467999999996
+    },
+    {
+      "project": "mitt",
+      "mode": "on",
+      "recordedParentAssistantUsage": 14,
+      "recordedWorkerAggregateUsage": 3,
+      "knownMainUsage": {
+        "input": 81285,
+        "output": 30992,
+        "cacheRead": 241408,
+        "cacheWrite": 0
+      },
+      "knownMainEstimatedCostUsd": 0.030621517999999997
+    },
+    {
+      "project": "p-limit",
+      "mode": "off",
+      "recordedParentAssistantUsage": 28,
+      "recordedWorkerAggregateUsage": 2,
+      "knownMainUsage": {
+        "input": 90322,
+        "output": 14674,
+        "cacheRead": 159488,
+        "cacheWrite": 0
+      },
+      "knownMainEstimatedCostUsd": 0.022996888
+    },
+    {
+      "project": "p-limit",
+      "mode": "on",
+      "recordedParentAssistantUsage": 8,
+      "recordedWorkerAggregateUsage": 4,
+      "knownMainUsage": {
+        "input": 105704,
+        "output": 14609,
+        "cacheRead": 80128,
+        "cacheWrite": 0
+      },
+      "knownMainEstimatedCostUsd": 0.024003878
+    }
+  ],
+  "knownMainEstimatedCostUsd": 0.136433748,
+  "coverageCompleteVerified": false,
+  "accountBillingVerified": false,
+  "limits": [
+    "Worker aggregates can represent multiple requests; record count is not provider count.",
+    "Sum of recorded usage only; missing usage unknown notfree.",
+    "Configured tariffs, not account bill."
+  ]
+}

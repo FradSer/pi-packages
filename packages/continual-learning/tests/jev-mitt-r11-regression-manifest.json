@@ -1,0 +1,36 @@
+{
+  "id": "mitt-r11-memory-and-harness-uncertain",
+  "expectedAllow": null,
+  "productionWriteEligible": false,
+  "sourceDigest": "5888582df6c2fffbd88f7dc3354cbff37d3013c61e11e8b4b793f983bb708122",
+  "files": {
+    "report": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/mitt-on/report.json",
+      "sha256": "7b51a620e5cd3e1983c7cc0917986430aa4a95e8e7c2ca9fa84e4f4396b7f696"
+    },
+    "harnessHistory": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/mitt-on/memory/history/--work-mitt--/change_muvtqq33_5a9532204c0a1357.json",
+      "sha256": "4d8c43f7e792e20c6b43960082bce8d1132ce87c18e52cd748f73a16f8177234"
+    },
+    "harnessSnapshot": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/mitt-on/memory/runs/--work-mitt--/run_muvtnb70_962cbad4d4ed1ec9/snapshot.json",
+      "sha256": "55731a4af8a6bead91c3d0cb6ce471cf29ef0e39153ff47c2d55908b723a72ee"
+    },
+    "harnessManifest": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/mitt-on/memory/runs/--work-mitt--/run_muvtnb70_962cbad4d4ed1ec9/manifest.json",
+      "sha256": "d5522bbe6f7717c4b960e72a0e7e078069a5a3d1c68d5b6ef7b8d6da2df3ee8c"
+    },
+    "memoryHistory": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/mitt-on/memory/history/--work-mitt--/change_muvtnb6n_b90f4b555a80320f.json",
+      "sha256": "3b06018e5363d5ddb62a05b054cb2a259dba1c3f41edadf76173f6b346b7c0b8"
+    },
+    "memorySnapshot": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/mitt-on/memory/runs/--work-mitt--/run_muvtl296_3eb7514a3b109c4a/snapshot.json",
+      "sha256": "10590d8e0806f7f13452b4e490e7f2df3d909f7ddf27d104d389ccdad520c29b"
+    },
+    "memoryManifest": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/mitt-on/memory/runs/--work-mitt--/run_muvtl296_3eb7514a3b109c4a/manifest.json",
+      "sha256": "1f51e09323958a8a3c4027cf61522289fb7b6fd42831659e68fe2b3a3096ac62"
+    }
+  }
+}

@@ -1116,7 +1116,7 @@ async function planAgentsMdConsolidationPhaseInternal(
   if (!extracted.ok) {
     await writeFileAtomic(path.join(run.manifest.runDir, "agents-error.txt"), extracted.error.slice(-8_000)).catch(() => {});
     notifyPi(ctx.ui, `AGENTS.md consolidation finished without changes: ${extracted.error.slice(-300)}`, "warning");
-    return { outcome: "failed", durationMs: durationMs(), usage, detail: extracted.error };
+    return { outcome: extracted.failure === "cancelled" ? "cancelled" : "failed", durationMs: durationMs(), usage, detail: extracted.error };
   }
   const rawPlan = extracted.plan;
   const shape = validateAgentsMdPlan(rawPlan);

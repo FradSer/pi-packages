@@ -1,0 +1,47 @@
+{
+  "evidence": "linux-offline-observer-and-local-wrapper-not-learning-quality",
+  "scriptSha256": "b2d1637d9f29703b5af77bc77a52de33ad32f22e415541e6eff939fbe394f077",
+  "observerSourceSha256": "c349fb7d54b59b8c2c540c538bfa42ecbca8a066ee7fc4a2504e2fe4755b50fa",
+  "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+  "network": "none",
+  "readOnlyRoot": true,
+  "attempts": [
+    {
+      "tmpfs": "default /tmp",
+      "exitCode": 1,
+      "outcome": "Harness fixture callback failed; original run preserved"
+    },
+    {
+      "tmpfs": "/tmp:rw,exec",
+      "exitCode": 0,
+      "outcome": "Same frozen script passed"
+    }
+  ],
+  "calls": [
+    "memory",
+    "harness"
+  ],
+  "memoryGate": "failed",
+  "recall": "unverified; Memory prerequisite failed",
+  "harnessCallback": "passed; local wrapper marker observed",
+  "overallMemoryFailurePreserved": true,
+  "ownedContainers": [
+    {
+      "name": "cl-effects-offline-20261006t144403z",
+      "absent": true
+    },
+    {
+      "name": "cl-effects-offline-20261006t144403z-exec",
+      "absent": true
+    }
+  ],
+  "externalRequests": 0,
+  "realModelCalls": 0,
+  "nativePiHookTest": false,
+  "productionRuntimeChanged": false,
+  "limits": [
+    "Linux scheduling and local wrapper evidence only; no real model judgment or native Pi hook tested.",
+    "First offline failure retained; tmpfs execution capability changed before second run.",
+    "No overall learning-quality benefit conclusion."
+  ]
+}

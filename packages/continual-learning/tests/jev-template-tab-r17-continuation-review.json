@@ -1,0 +1,16 @@
+{
+  "evidence": "fresh-independent-r17-case-fix-and-continuation-review",
+  "remainingRequiredFixes": 0,
+  "offlineTestsPassed": 4,
+  "firstWorkflowOutcome": "passed",
+  "firstMainRequests": 33,
+  "firstJevRequests": 0,
+  "firstProcessMetadataUnavailable": true,
+  "remainingExecutions": 5,
+  "remainingRequestBudget": 300,
+  "knownAggregateRequestBound": 333,
+  "oldRunnerAndManifestAndFailurePreserved": true,
+  "newReservationAndSourceImageTasksFrozen": true,
+  "externalCallsByReviewer": 0,
+  "goalComplete": false
+}

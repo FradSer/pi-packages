@@ -30,7 +30,7 @@ Apply the **deletion test** to anything you suspect is shallow: would deleting i
 
 ### 2. Present candidates as an HTML report
 
-Write a self-contained HTML file to the OS temp directory so nothing lands in the repo. Resolve the temp dir from `$TMPDIR`, falling back to `/tmp` (or `%TEMP%` on Windows), and write to `<tmpdir>/architecture-review-<timestamp>.html` so each run gets a fresh file. Open it for the user — `xdg-open <path>` on Linux, `open <path>` on macOS, `start <path>` on Windows — and tell them the absolute path.
+Write a self-contained HTML file to the path the task names. When the task names none, write to the OS temp directory so nothing lands in the repo: resolve the temp dir from `$TMPDIR`, falling back to `/tmp` (or `%TEMP%` on Windows), and write to `<tmpdir>/architecture-review-<timestamp>.html` so each run gets a fresh file. The file is the deliverable: do not end the turn before it exists. Open it for the user — `xdg-open <path>` on Linux, `open <path>` on macOS, `start <path>` on Windows — and tell them the absolute path.
 
 The report uses **Tailwind via CDN** for layout and styling, and **Mermaid via CDN** for diagrams where a graph/flow/sequence reliably communicates the structure. Mix Mermaid with hand-crafted CSS/SVG visuals — use Mermaid when relationships are graph-shaped (call graphs, dependencies, sequences), and hand-built divs/SVG when you want something more editorial (mass diagrams, cross-sections, collapse animations). Each candidate gets a **before/after visualisation**. Be visual.
 
@@ -55,7 +55,7 @@ Do NOT propose interfaces yet. After the file is written, present the candidates
 
 ## CRITICAL: Scope before you scan — and never propose interfaces
 
-Decide where to look before looking: follow the user's direction, or walk the commit history for hot spots — YAGNI. The report surfaces candidates only: **do NOT propose interfaces yet** — present the report, ask directly in the conversation which candidate to explore, and wait for the reply before any design work.
+Decide where to look before looking: follow the user's direction, or walk the commit history for hot spots — YAGNI. The report surfaces candidates only: **do NOT propose interfaces yet** — present the report, ask directly in the conversation which candidate to explore, and wait for the reply before any design work. This step writes the report and nothing else: do not modify source files.
 
 ### 3. Grilling loop
 

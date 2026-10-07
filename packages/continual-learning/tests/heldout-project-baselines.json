@@ -1,0 +1,226 @@
+{
+  "evidence": "Real Docker pristine upstream tests, no inference or learning-quality evidence",
+  "attempts": [
+    {
+      "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/heldout-baseline-043d6ed255a0",
+      "manifestSha256": "147f7c015823441cf6cc846d2725735ecac66f3542a7b602a8c4b92bcacad5f7",
+      "resultSha256": "668d800b0a7532d00df2e2b7f8ada1e908e346ad225c858f7aa5c9e7ac56c429",
+      "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+      "ownedContainerInventoryEmpty": true,
+      "rows": [
+        {
+          "project": "yocto-queue",
+          "repository": "https://github.com/sindresorhus/yocto-queue.git",
+          "commit": "72a8fa96a9d389765cdf2bb9c6daba8302fc375d",
+          "status": "failed",
+          "testCommand": [
+            "pnpm",
+            "test"
+          ],
+          "testExitCode": null,
+          "testSeconds": null,
+          "testSummary": null,
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "suiteCommit": null,
+          "suiteTree": null,
+          "resultSha256": "ad492072d8a8c4421df5c046bf4e5609fa6bf47d68de6285f5779858cc6df8a8"
+        },
+        {
+          "project": "humanize",
+          "repository": "https://github.com/python-humanize/humanize.git",
+          "commit": "785e5dcc0d0308ad0dff3f6cc0faa7085ad0375b",
+          "status": "failed",
+          "testCommand": [
+            "uv",
+            "run",
+            "--no-sync",
+            "pytest",
+            "-q"
+          ],
+          "testExitCode": null,
+          "testSeconds": null,
+          "testSummary": null,
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "suiteCommit": null,
+          "suiteTree": null,
+          "resultSha256": "27a841b9a2b5088650879fcad12574480f900463f7b5e72bdbd4d0640c294925"
+        },
+        {
+          "project": "referencing",
+          "repository": "https://github.com/python-jsonschema/referencing.git",
+          "commit": "f6adc7b74af8347e2c59c45256be7b8a8030a3f5",
+          "status": "failed",
+          "testCommand": [
+            "uv",
+            "run",
+            "--no-sync",
+            "pytest",
+            "-q"
+          ],
+          "testExitCode": null,
+          "testSeconds": null,
+          "testSummary": null,
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "suiteCommit": null,
+          "suiteTree": null,
+          "resultSha256": "a3f7f7701b79a441efe193d97755bcffdc4f51eae54f7ce2194d45533af721c4"
+        }
+      ]
+    },
+    {
+      "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/heldout-baseline-bb316114d6a6",
+      "manifestSha256": "3b9257c0c3333c9a5d12763893d76f90f9daa1343cbdcaa5659316ed1f3cdac1",
+      "resultSha256": "46939a65bf3efe7fb0f196e487836d217e7f73687ff48d8ca282e0676b566cb9",
+      "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+      "ownedContainerInventoryEmpty": true,
+      "rows": [
+        {
+          "project": "yocto-queue",
+          "repository": "https://github.com/sindresorhus/yocto-queue.git",
+          "commit": "72a8fa96a9d389765cdf2bb9c6daba8302fc375d",
+          "status": "passed",
+          "testCommand": [
+            "pnpm",
+            "test"
+          ],
+          "testExitCode": 0,
+          "testSeconds": 2.539,
+          "testSummary": "7 tests passed",
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "suiteCommit": null,
+          "suiteTree": null,
+          "resultSha256": "b7f9afa0af3ce1dc6b1eb57a5efb62e5420e2734061a322d8ecd79a6127ee839"
+        },
+        {
+          "project": "humanize",
+          "repository": "https://github.com/python-humanize/humanize.git",
+          "commit": "785e5dcc0d0308ad0dff3f6cc0faa7085ad0375b",
+          "status": "passed",
+          "testCommand": [
+            "uv",
+            "run",
+            "--no-sync",
+            "pytest",
+            "-q"
+          ],
+          "testExitCode": 0,
+          "testSeconds": 6.667,
+          "testSummary": "744 passed, 112 skipped in 5.94s",
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "suiteCommit": null,
+          "suiteTree": null,
+          "resultSha256": "3d657eb9d29dee8b3684dd163bfad964881842be7d88227f88d7fc31e16e6881"
+        },
+        {
+          "project": "referencing",
+          "repository": "https://github.com/python-jsonschema/referencing.git",
+          "commit": "f6adc7b74af8347e2c59c45256be7b8a8030a3f5",
+          "status": "failed",
+          "testCommand": [
+            "uv",
+            "run",
+            "--no-sync",
+            "pytest",
+            "-q"
+          ],
+          "testExitCode": 2,
+          "testSeconds": 0.681,
+          "testSummary": null,
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "suiteCommit": null,
+          "suiteTree": null,
+          "resultSha256": "bf75ea576f9d7c7876f82d6b0ac0a68fcf0f546a784b27b7d8f9213ea4042b1e"
+        }
+      ]
+    },
+    {
+      "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/heldout-baseline-3a0447b44073",
+      "manifestSha256": "3433d0dc82cbe5b5a019fd5fe064440bde247799bbaca6725338ea2e1df489b4",
+      "resultSha256": "23b2a6afaa941ef69241fb122b5506367ef5a9f83b13c571b10b7bd5b1b287c7",
+      "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+      "ownedContainerInventoryEmpty": true,
+      "rows": [
+        {
+          "project": "referencing",
+          "repository": "https://github.com/python-jsonschema/referencing.git",
+          "commit": "f6adc7b74af8347e2c59c45256be7b8a8030a3f5",
+          "status": "failed",
+          "testCommand": [
+            "uv",
+            "run",
+            "--no-sync",
+            "pytest",
+            "-q"
+          ],
+          "testExitCode": 2,
+          "testSeconds": 0.669,
+          "testSummary": null,
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "suiteCommit": "8a502de2f75cd436ecf023b350c1bd0698f3a395",
+          "suiteTree": "160000 commit 8a502de2f75cd436ecf023b350c1bd0698f3a395\tsuite",
+          "resultSha256": "3f0f835a9a025b3b35924ec1f4c5a019110450b2c51143ab59f488bc65008b4b"
+        }
+      ]
+    },
+    {
+      "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/heldout-baseline-33f23eaf3fb3",
+      "manifestSha256": "940fb5236250b64dab34b8c8b2edf837af24654d9936d5cc473d5f0eddd9851c",
+      "resultSha256": "e441d82a9df1f3013f238c6e38ccefc5e2a37a21ca637d1eef8e8a7feab5bca5",
+      "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+      "ownedContainerInventoryEmpty": true,
+      "rows": [
+        {
+          "project": "referencing",
+          "repository": "https://github.com/python-jsonschema/referencing.git",
+          "commit": "f6adc7b74af8347e2c59c45256be7b8a8030a3f5",
+          "status": "passed",
+          "testCommand": [
+            "uv",
+            "run",
+            "--no-sync",
+            "pytest",
+            "-q",
+            "referencing"
+          ],
+          "testExitCode": 0,
+          "testSeconds": 1.03,
+          "testSummary": "503 passed, 132 xfailed, 406 subtests passed in 0.61s",
+          "trackedDiffEmpty": true,
+          "ownedContainerAbsent": true,
+          "suiteCommit": "8a502de2f75cd436ecf023b350c1bd0698f3a395",
+          "suiteTree": "160000 commit 8a502de2f75cd436ecf023b350c1bd0698f3a395\tsuite",
+          "resultSha256": "7ae47c10918b1833f306b7c162562302a0084d6bd35c69ab8f6386fb3240f485"
+        }
+      ]
+    }
+  ],
+  "realMainInference": false,
+  "realJevInference": false,
+  "finalPassingProjects": [
+    "yocto-queue",
+    "humanize",
+    "referencing"
+  ],
+  "environmentCorrections": [
+    "Writable explicit pnpm store and XDG cache/data directories in read-only containers",
+    "Executable tmpfs for uv managed Python 3.13",
+    "Referencing suite checked out at parent gitlink 8a502de2f75cd436ecf023b350c1bd0698f3a395",
+    "Referencing test target follows pinned upstream noxfile.py:72; standalone submodule sanity is not the project test target"
+  ],
+  "referencingCheckAuthority": "https://github.com/python-jsonschema/referencing/blob/f6adc7b74af8347e2c59c45256be7b8a8030a3f5/noxfile.py#L72",
+  "limitations": [
+    "Environment failures are retained and are not semantic failures",
+    "Passing upstream tests do not demonstrate plugin learning, candidate quality or knowledge use",
+    "Humanize retains 112 upstream skips; lint/build/type-check gates for these upstream projects were not run",
+    "No actual cli-proxy/opencode/space-bunny-free request was dispatched during the previously observed cooldown",
+    "Referencing retains 132 upstream expected failures; its 406 passing subtests are recorded separately from 503 passing tests."
+  ],
+  "completeGoalEvidence": false
+}

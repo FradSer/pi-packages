@@ -1,0 +1,15 @@
+{
+  "evidence": "fresh-read-only-prepaid-review",
+  "reviewer": "durable_core_research_review",
+  "runnerSha256": "eed19be904b966b9c0565b7a2d479fdfafd96af27e690e4866296f98c2b6f12f",
+  "targetTests": {
+    "passed": 10
+  },
+  "remainingCodeBlockers": [],
+  "cancellationEvidence": "jev-durable-core-generator-usage-cancellation.json",
+  "limits": [
+    "Synthetic development samples: 16 samples, 8 scenarios; no heldout or human gold labels.",
+    "No positive quality outcome required; Jev acceptance is not knowledge quality.",
+    "No production adoption or writes."
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "evidence": "interim-real-docker-arm-terminal",
+  "arm": "p-limit-off",
+  "roundComplete": false,
+  "reportSha256": "b5cf02d43102ac6ea9619151a7d9a6c8746337032c7f05fdf4406e3dfbd057cd",
+  "sourceDigest": "39848586e489d75df2ae4cac140594ee36a361f07e4f9433547534518a16adcc",
+  "status": "passed",
+  "stage": "complete",
+  "checks": {
+    "regressionChanged": true,
+    "privatePreference": true,
+    "safeFact": true,
+    "safeMirrorIdentical": true,
+    "baselinePrivateRecall": true,
+    "freshPrivateRecall": true,
+    "freshFullMemoryReads": true,
+    "freshVerifiedCommand": true,
+    "nativeBashBlocked": true,
+    "blockedSideEffectAbsent": true,
+    "unrelatedBashExecuted": true
+  },
+  "runtime": {
+    "pi": "1.0.2",
+    "node": "v22.23.2",
+    "python": "Python 3.11.2",
+    "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+  },
+  "learningSeconds": 175.83,
+  "phaseOperations": [
+    {
+      "phase": "selector",
+      "outcome": "applied",
+      "operations": 0
+    },
+    {
+      "phase": "memory",
+      "outcome": "applied",
+      "operations": 2
+    },
+    {
+      "phase": "harness",
+      "outcome": "applied",
+      "operations": 1
+    }
+  ],
+  "interpretation": "Original complete acceptance passed; this is Jev-off and does not prove Jev quality improvement."
+}

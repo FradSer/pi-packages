@@ -143,7 +143,10 @@
     "id": "cap-wizard",
     "expectSource": "wizard",
     "kind": "artifact",
-    "artifact": "wizard.sh",
+    "artifact": [
+      "wizard.sh",
+      "scripts/wizard.sh"
+    ],
     "keywords": [
       "TOTAL_STAGES",
       "STAGES"
@@ -341,5 +344,12 @@
     "routing": true,
     "sourceUnchanged": true,
     "prompt": "/matt-pocock I want to add discounts to receipts but have not decided the policy. Use matt-pocock's routing tool to select an appropriate workflow, inspect the local docs and ask the next required decision. Wait for my answer before implementing anything."
+  },
+  {
+    "id": "user-grill-me-model-routed",
+    "expectSource": "grill-me",
+    "kind": "pending",
+    "sourceUnchanged": true,
+    "prompt": "Grill me on whether receipts should round each line or only the final total. Use matt_pocock_workflow in mode user-capability for grill-me. Inspect discoverable repository facts first, then ask one concrete unresolved decision and wait for my answer. Do not implement."
   }
 ]

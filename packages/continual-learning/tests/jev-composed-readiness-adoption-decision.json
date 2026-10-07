@@ -1,0 +1,58 @@
+{
+  "evidence": "preregistered-real-jev-fresh-composed-readiness-study",
+  "report": "jev-composed-readiness-real-results.json",
+  "reportSha256": "d05cbc377273af4ff17a7d79cedfa1ea7e078314c7878e8740ecb42c4a95cab7",
+  "manifestSha256": "614a16210eaeed0dcc0392a8fb900a22ede84a56c0b6713c6d9b0f64e68cf2db",
+  "researchPromotionGatePassed": true,
+  "productionAdopted": false,
+  "decision": "proceed-to-programmatically-gated-native-parent-integration",
+  "metrics": {
+    "original": {
+      "usefulKnowledgeCases": 2,
+      "requiredKnowledgeHeldCases": 12,
+      "unsupportedFactSelections": 0,
+      "unsafeCandidateSelections": 0,
+      "incompatibleOrRedundantSelections": 0,
+      "originalSuccessesLost": 0
+    },
+    "composed": {
+      "usefulKnowledgeCases": 11,
+      "requiredKnowledgeHeldCases": 3,
+      "unsupportedFactSelections": 0,
+      "unsafeCandidateSelections": 0,
+      "incompatibleOrRedundantSelections": 0,
+      "originalSuccessesLost": 0
+    }
+  },
+  "usefulKnowledgeCaseNetIncrease": 9,
+  "remainingMisses": [
+    "budget-definition-zh",
+    "duplicate-timeout-en",
+    "duplicate-timeout-zh"
+  ],
+  "externalRequests": 90,
+  "actualModels": [
+    "jev-1.13.0"
+  ],
+  "knownInputTokens": 103902,
+  "estimatedKnownInputCostUsd": 0.004363884,
+  "usageComplete": true,
+  "medianRequestDurationMs": 334.0,
+  "coverageComplete": true,
+  "independentReview": "composed_readiness_review; labels, boundaries and API safety reviewed before inference; final raw responses, metrics, all frozen hashes, fees and limitations independently verified afterward",
+  "limitations": [
+    "Nine bilingual archetypes, not eighteen independent domains.",
+    "Fresh author-defined samples, labels independently reviewed, not blind independent labeling.",
+    "Same actual support/pair observations shared by arms; no independent main-model generation.",
+    "Recoverable indexes only: no durable writes or real recall in this study.",
+    "Original whole-plan treatment and Jev-off baseline not actual parent arms here.",
+    "No full objective completion or default activation."
+  ],
+  "nextRequiredEvidence": [
+    "Parent must freeze/bind standalone proof and enforce unchanged original schema, privacy, source/counterevidence, permissions and final write transaction.",
+    "Gated actual-native tests for original success, unsupported conflicting note, same-batch dependencies, unknown service and final rollback.",
+    "Actual cli-proxy / opencode/space-bunny-free generation/application/recall in projects, including projects not used in tuning.",
+    "Resolve or clearly retain duplicate knowledge loss and Chinese support false holds; never relabel them as safety successes."
+  ],
+  "requiredNonemptyKnowledgeCases": 14
+}

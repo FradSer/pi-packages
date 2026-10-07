@@ -1,0 +1,35 @@
+{
+  "evidence": "local-verification-with-real-semantic-inference-separated",
+  "tests": {
+    "command": "python3 -m pytest packages/continual-learning/tests/ -q",
+    "passed": 932,
+    "seconds": 310.12
+  },
+  "focusedTests": {
+    "passed": 7,
+    "redFailed": 1,
+    "redPassed": 6
+  },
+  "rootTypecheck": "passed",
+  "strictResearchWorkerTypecheck": "passed",
+  "packagePackDryRun": "passed",
+  "workspacePackedManifests": 19,
+  "documentationReferences": "passed",
+  "frozenHostSources": "matched",
+  "realInference": {
+    "requests": 80,
+    "actualModel": "jev-1.13.0",
+    "knownUsageResponses": 79,
+    "unknownUsageRequests": 1,
+    "processGroupStopConfirmed": true,
+    "ownedContainerAbsent": true
+  },
+  "productionRuntimeChangesThisPhase": false,
+  "newHostPiInstallCheckRun": false,
+  "liveMainModelProbe": "cli-proxy/opencode/space-bunny-free actual Pi marker observed",
+  "limits": [
+    "No full real project workflow, Memory storage/recall or Harness effects in this phase.",
+    "Earlier unrelated install-check bdd-jev configuration failure was not rerun or repaired in this research-only phase."
+  ],
+  "goalComplete": false
+}

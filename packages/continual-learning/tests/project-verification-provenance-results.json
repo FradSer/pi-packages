@@ -1,0 +1,108 @@
+{
+  "evidence": "verification-provenance-workflow-repair",
+  "runtimeProductionChanged": false,
+  "mainSelection": {
+    "provider": "cli-proxy",
+    "model": "opencode/deepseek-v4.1-flash"
+  },
+  "red": "1 failed, 1 passed before helper implementation",
+  "focused": "23 passed in 0.23s",
+  "independentReview": "41 related checks passed; provenance gate after all phase observations",
+  "localPipelineReproduction": {
+    "failedPipelineExit": 0,
+    "failedStandaloneExit": 1,
+    "externalCalls": 0
+  },
+  "sourceHashes": {
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_docker_projects.py": "9d58feb0725fc25481d261a0454992d2a6d74791fb9b97362ef1b0f4ed2d2a7a",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/test_project_verification_provenance.py": "03d8627e4634d45b48394c9739a9400953d54a67fa4a33561634cf8b74ced782",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/features/project-verification-provenance.feature": "057caa3524010e971dc0083f1b371431b9d60328031424589c3845624bead6eb"
+  },
+  "verification": {
+    "fullSuite": {
+      "state": "completed",
+      "result": "1078 passed in 424.01s"
+    },
+    "typecheck": "passed",
+    "packCheck": "19 workspace manifests passed",
+    "targetDryPack": "passed",
+    "diffCheck": "passed"
+  },
+  "prospectiveRealRun": {
+    "root": "/Users/FradSer/.cache/pi-continual-learning/docker/20261007T025543Z",
+    "sessionId": 1103,
+    "state": "terminal exit1: build failed resolving pinned uv image metadata with registry EOF; no project arms or inference started",
+    "plannedArms": 6,
+    "cohort": "heldout",
+    "jev": "paired",
+    "memoryPolicy": "composed, disposable test image only",
+    "jobs": 1,
+    "adoptionAllowed": false,
+    "acceptance": "Original requirements plus independently successful standalone learning command; observe Memory, Recall and Harness separately before aggregate failure. Preserve missing provenance and all failures.",
+    "externalModelCalls": 0
+  },
+  "historicalBoundary": "Earlier frozen observations and labels unchanged; no original process exit retained in two yocto learning pipelines. This does not prove actual test failure or Jev gain.",
+  "completeGoalEvidence": false,
+  "buildRecovery": {
+    "firstAttemptTerminal": true,
+    "firstAttemptModelCalls": 0,
+    "officialUvImagePulled": true,
+    "uvVersion": "0.8.22",
+    "uvRepoDigest": "sha256:9874eb7afe5ca16c363fe80b294fe700e460df29a55532bbfea234a0f12eddb1",
+    "secondAttempt": {
+      "root": "/Users/FradSer/.cache/pi-continual-learning/docker/20261007T025657Z",
+      "sessionId": 23790,
+      "state": "running: yocto off complete passed, corresponding on arm started",
+      "sourceDigest": "1af9118d7857e81542410e5f44dde74c2ba233cdc1baa6cbc6ed4d7d360758c0",
+      "observedContainer": "cl-project-yocto-queue-7c4bda9d",
+      "progressEvidence": "23790 live; checkout present, git preparation records present, dependency process present; results still unverified",
+      "diagnostic": "Read-only public npm registry fetch200, 1489ms; no configuration change.",
+      "interimNativeEvidence": {
+        "project": "yocto-queue",
+        "standalonePnpmTestCalls": 1,
+        "linkedToolResults": 1,
+        "linkedNonErrorResults": 1,
+        "completeArmResult": false,
+        "observationBoundary": "Read-only live session aggregate; no raw private evidence logged; does not establish Memory/Harness quality."
+      }
+    }
+  },
+  "partialRealResults": [
+    {
+      "project": "yocto-queue",
+      "jevMode": "off",
+      "status": "passed",
+      "learningSeconds": 371.14,
+      "checks": {
+        "learningCommandNativeSuccess": true,
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "phaseObservations": {
+        "memory": {
+          "status": "passed"
+        },
+        "recall": {
+          "status": "passed"
+        },
+        "harness": {
+          "status": "passed"
+        }
+      },
+      "sourceDigest": "1af9118d7857e81542410e5f44dde74c2ba233cdc1baa6cbc6ed4d7d360758c0",
+      "reportPath": "/Users/FradSer/.cache/pi-continual-learning/docker/20261007T025657Z/yocto-queue-off/report.json",
+      "reportSha256": "22bf43308550509a57708f4e67312f9a5bede72eb4399bf68194164d00b47f81",
+      "completePair": false
+    }
+  ],
+  "comparisonComplete": false
+}

@@ -42,7 +42,7 @@ function goalWith(extra: Partial<GoalRecord> = {}): GoalRecord {
   };
 }
 
-await scenario("the status row names each state in words, with no marker or goal id", () => {
+await scenario("the status row never carries the goal tag", () => {
   const theme = { fg: (_: string, text: string) => text, bg: (_: string, text: string) => text, bold: (text: string) => text };
   const row = (goal: GoalRecord): string => {
     let lines: string[] = [];
@@ -53,6 +53,9 @@ await scenario("the status row names each state in words, with no marker or goal
     refreshDashboard({ goal, checkProgress: undefined } as never, ctx as never);
     return lines.join("\n");
   };
+  // No state tags the row. Every verb already names the goal, so the tag would
+  // repeat it on every line below the editor. The transcript rows keep the tag,
+  // because there it says which work belongs to the goal.
   const cases: [GoalRecord, string][] = [
     [goalWith(), "Pursuing goal"],
     [goalWith({ autoContinue: false }), "Goal held"],
@@ -63,18 +66,20 @@ await scenario("the status row names each state in words, with no marker or goal
   for (const [goal, expected] of cases) {
     const text = row(goal);
     assert.match(text, new RegExp(expected), `${expected} expected in: ${text}`);
+    assert.doesNotMatch(text, /\[goal\]/, `no state tags the status row: ${text}`);
     assert.doesNotMatch(text, /goal_[a-z0-9]/, "the internal goal id must not be shown: " + text);
     for (const glyph of ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏", "○", "✓", "✗"]) {
       assert.ok(!text.includes(glyph), `the row must not carry the marker ${glyph}: ${text}`);
     }
   }
-  // A running completion check replaces the row entirely.
+  // The check row is a status row too, so it is untagged as well.
   let checking = "";
   const ctx = { mode: "tui", ui: { setWidget: (_key: string, factory: Function | undefined) => {
     if (!factory) return;
     checking = factory({ requestRender() {} }, theme).render(120).join("\n");
   } } };
   refreshDashboard({ goal: goalWith(), checkProgress: { label: "Checking whether the goal is met" } } as never, ctx as never);
+  assert.doesNotMatch(checking, /\[goal\]/, `the check row is untagged: ${checking}`);
   assert.match(checking, /Checking whether the goal is met/, `the check replaces the row: ${checking}`);
 });
 

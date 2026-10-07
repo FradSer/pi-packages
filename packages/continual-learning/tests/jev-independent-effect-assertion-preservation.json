@@ -1,0 +1,12 @@
+{
+  "evidence": "same-parser-exact-assertion-comparison-with-frozen-r17-image",
+  "oldAssertions": 20,
+  "currentAssertions": 20,
+  "exactMultisetEqual": true,
+  "externalRequests": 0,
+  "priorComparisonAttempts": "AST dumps and tokenizer representations were incompatible across Python 3.11/3.13; original fragments now parsed by the same host parser.",
+  "limits": [
+    "Exact predicates and messages preserved; scheduling separately tested.",
+    "Not real learning-quality evidence."
+  ]
+}

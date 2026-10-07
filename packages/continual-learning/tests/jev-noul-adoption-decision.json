@@ -1,0 +1,96 @@
+{
+  "decision": "do-not-adopt",
+  "experimentalSemanticPathAdopted": false,
+  "reason": "Small corpus lift has a new Chinese Memory hold; both R9 real failures unchanged.",
+  "totalRequests": 398,
+  "knownInputTokens": 482643,
+  "estimatedInputCostUsd": 0.020271006,
+  "splits": {
+    "development": {
+      "complete": true,
+      "metrics": {
+        "before": {
+          "evaluatedPlans": 62,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 8
+        },
+        "after": {
+          "evaluatedPlans": 62,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 7
+        }
+      },
+      "medianMs": {
+        "before": 346.5,
+        "after": 347.0
+      },
+      "perStage": {
+        "memory": {
+          "before": {
+            "falseHolds": 2,
+            "falseAccepts": 0
+          },
+          "after": {
+            "falseHolds": 3,
+            "falseAccepts": 0
+          }
+        },
+        "harness": {
+          "before": {
+            "falseHolds": 6,
+            "falseAccepts": 0
+          },
+          "after": {
+            "falseHolds": 4,
+            "falseAccepts": 0
+          }
+        }
+      }
+    },
+    "heldout": {
+      "complete": true,
+      "metrics": {
+        "before": {
+          "evaluatedPlans": 32,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 9
+        },
+        "after": {
+          "evaluatedPlans": 32,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 8
+        }
+      },
+      "medianMs": {
+        "before": 346.5,
+        "after": 352.5
+      },
+      "perStage": {
+        "memory": {
+          "before": {
+            "falseHolds": 4,
+            "falseAccepts": 0
+          },
+          "after": {
+            "falseHolds": 2,
+            "falseAccepts": 0
+          }
+        },
+        "harness": {
+          "before": {
+            "falseHolds": 5,
+            "falseAccepts": 0
+          },
+          "after": {
+            "falseHolds": 6,
+            "falseAccepts": 0
+          }
+        }
+      }
+    }
+  }
+}

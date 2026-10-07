@@ -1,0 +1,22 @@
+{
+  "evidence": "independent-prepaid-review",
+  "requestCap": 20,
+  "retryCount": 0,
+  "allHashesVerified": true,
+  "labelsAndCorpusUnchanged": true,
+  "preflight": {
+    "samples": 20,
+    "judgments": 98,
+    "externalRequests": 0,
+    "productionWrites": 0
+  },
+  "cleanup": {
+    "ownedContainerAbsent": true
+  },
+  "remainingBlockers": [],
+  "limits": [
+    "Request cap is attempts, not guaranteed successful model responses.",
+    "Worker timeout may leave an upstream request pending; missing usage remains unknown.",
+    "Exact source coverage does not prove semantic extraction."
+  ]
+}

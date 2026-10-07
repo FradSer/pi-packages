@@ -1,0 +1,8 @@
+{
+  "evidence": "actual-optimized-python-live-guard-denial",
+  "exitCode": 1,
+  "category": "PermissionError",
+  "scriptSha256": "965b913282643cbc822e111e25978823e51b000d29adf7818de43c42fe7a3d40",
+  "externalInferenceRequests": 0,
+  "reservationCreated": false
+}

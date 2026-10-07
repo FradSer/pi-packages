@@ -1,0 +1,97 @@
+{
+  "kind": "resumed-cohort-results-v2",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "run": {
+    "outputRoot": "~/.cache/pi-continual-learning/docker/20261007T042933Z",
+    "protocol": "packages/continual-learning/tests/resumed-cohort-protocol-2026-10-07-v2.md",
+    "sourceDigest": "966cbd2b4af8f66a33c9ab282030bfd7c7242417294a54bc9b7ca6af5321a12a",
+    "note": "This digest includes the connection-retry fix. It is not a controlled pair with the itsdangerous run, whose digest was 3714cfa6a5e81525d306f823fa3e762e6b7b385f2a375e0f599574b4a5a3f034.",
+    "cohort": "resumed",
+    "project": "iniconfig",
+    "commit": "316fbfaf2752d89326e1e75b45cd070f5b5ace9a",
+    "arms": ["iniconfig-off", "iniconfig-on"],
+    "batchExit": "one arm passed, one arm failed"
+  },
+  "armOff": {
+    "status": "passed",
+    "stage": "complete",
+    "learningSeconds": 146.97,
+    "checks": 12,
+    "jevJudgments": 0
+  },
+  "armOn": {
+    "status": "failed",
+    "stage": "native-harness-enforcement",
+    "learningSeconds": 227.42,
+    "checksPassed": ["learningCommandNativeSuccess", "regressionChanged"],
+    "phaseObservations": {
+      "memory": {"status": "failed", "failedCheck": "jev-memory-review-refused-preflight"},
+      "recall": {"status": "unverified", "reason": "memory-prerequisite-failed"},
+      "harness": {"status": "failed", "errorType": "FileNotFoundError", "failedCheck": "phase-callback-error"}
+    },
+    "attempts": [
+      {"phase": "selector", "outcome": "applied", "operations": 0, "durationMs": 7, "diagnostic": "empty Memory index; parent-routed explicit evidence"},
+      {"phase": "memory", "outcome": "proposed", "operations": 0, "durationMs": 53583, "diagnostic": "Jev propose: sensitive"},
+      {"phase": "harness", "outcome": "rejected", "operations": 0, "durationMs": 84017, "diagnostic": "Parent Harness validation: fixtures=2"},
+      {"phase": "harness", "outcome": "proposed", "operations": 0, "durationMs": 36745, "diagnostic": "Jev propose: sensitive"}
+    ],
+    "jevJudgments": [
+      {"stage": "memory", "status": "propose", "reason": "sensitive", "durationMs": 0, "requestCount": null, "completedRequests": null},
+      {"stage": "harness", "status": "propose", "reason": "sensitive", "durationMs": 0, "requestCount": null, "completedRequests": null}
+    ]
+  },
+  "sixMeasures": {
+    "effectivePersistence": {"off": "2 Memory items and 1 Harness rule", "on": "0 Memory items and 0 Harness rules", "direction": "Jev worse"},
+    "misrecording": {"off": "0 observed", "on": "0 observed", "direction": "no reduction; nothing was written"},
+    "falseHolds": {"off": 0, "on": "2 reviews refused before any judgment", "cause": "privacy preflight refusal, not a semantic hold", "direction": "Jev worse"},
+    "constraintExecution": {"off": "3 of 3 probes", "on": "not reached (harness proposal, runner probe error)", "direction": "Jev worse"},
+    "latency": {"offSeconds": 146.97, "onSeconds": 227.42, "direction": "Jev slower"},
+    "cost": {"onJevRequests": 0, "note": "no Jev spend because both reviews were refused before any request"}
+  },
+  "findings": [
+    {
+      "id": "false-positive-privacy-refusal",
+      "severity": "major",
+      "statement": "The Jev privacy preflight refused both the Memory and the Harness review with reason sensitive and zero requests, because the assigned-credential pattern matched a placeholder credential inside a toolResult from the project's own source.",
+      "evidence": [
+        "The dossier entry 6 is a toolResult; the shortest failing slice is 28 characters long and matches the assigned-credential pattern.",
+        "The masked slice reads as a passwd-style placeholder assignment of exactly the minimum length the pattern accepts.",
+        "Both reviews recorded reason sensitive with requestCount absent and durationMs 0, so no request left the process.",
+        "The off arm passed all 12 checks in the same project."
+      ],
+      "impact": "On any project whose tracked source, docs, or tests contain a placeholder credential assignment of eight or more characters, Jev is skipped entirely and both Memory and Harness learning are lost.",
+      "decisionNeeded": "Whether the preflight should treat credential-shaped placeholders inside tracked project source as sensitive. Narrowing a privacy guard changes privacy behaviour, so this needs an explicit product decision; it was not changed here."
+    },
+    {
+      "id": "harness-probe-file-not-found",
+      "severity": "major",
+      "statement": "The Harness effect probe aborted with FileNotFoundError after the Harness rule was rejected by parent validation.",
+      "evidence": [
+        "phaseObservations.harness errorType FileNotFoundError with failedCheck phase-callback-error.",
+        "The Harness attempt sequence is rejected (parent validation, fixtures=2) then proposed (Jev propose: sensitive)."
+      ],
+      "impact": "The probe cannot observe enforcement when no Harness rule is applied, so the arm reports a probe error instead of a clean not-applied result. This is a runner-side defect, separate from the Jev refusal."
+    },
+    {
+      "id": "retry-fix-unexercised",
+      "severity": "note",
+      "statement": "The connection-retry fix has still not been exercised by a real run: no connection-level failure occurred, and the second untuned project issued zero Jev requests.",
+      "evidence": ["No jevJudgments entry recorded failureKind or retriedRequests in this run."],
+      "impact": "The fix remains proven only by its controlled tests, not by live evidence."
+    },
+    {
+      "id": "label-preflight-refusal",
+      "severity": "note",
+      "statement": "The first version of the refined gate label reported this refusal as 'unavailable or incomplete', which conflated a privacy refusal with an availability failure.",
+      "evidence": ["The refined helper now returns 'Jev memory review was refused by a preflight guard' for the arm's recorded receipts."],
+      "status": "fixed, verified against the arm's own receipts and by controlled tests"
+    }
+  ],
+  "limitations": [
+    "One project per protocol, and the two projects are not a controlled pair because only the second ran with the retry fix.",
+    "Two untuned projects both ended with Jev losing Memory; neither run reached a Jev semantic judgment on a supported Memory candidate.",
+    "Net benefit remains unproven, so composed and independent stay default-off in production and the goal stays open.",
+    "The cost figures for this project are incomplete because no Jev request was issued and the main-model receipt usage flags remain false."
+  ]
+}

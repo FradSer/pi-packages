@@ -1,0 +1,4112 @@
+{
+  "evidence": "real-jev-memory-claim-only-paired-research",
+  "split": "heldout",
+  "productionWriteEligible": false,
+  "complete": true,
+  "samples": 32,
+  "labeledSamples": 32,
+  "corpusSha256": "1dc9d1612fe4ca133311a763fcae8f2a337f6daec9122c7e44f72aa03c5131b0",
+  "codeHashes": {
+    "../extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+    "../extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+    "../extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+    "../extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675",
+    "../extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+    "../extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+    "../extensions/inject-memory.ts": "9e7d8211dd2ed06a8b5c85ca5fc1ec5842918692ace48c0434df598f96a5fa11",
+    "../extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+    "../extensions/agents-md-consolidation.ts": "9ea854a4ed0ebdb5dbf0851430676c82eb572567900fe32046ea429021b8ea91",
+    "../extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+    "../extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "../extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+    "../extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+    "../extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+    "../extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+    "../extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+    "../extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+    "../extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+    "../extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+    "../extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+    "../extensions/harness-command-coverage.ts": "6a1f116085e6458e82fa52190d52bdea6e7d1786cf2429de06377e96025c84eb",
+    "../extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+    "../extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+    "../extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+    "../extensions/jev-learning.ts": "bd963c15b965c63c3dafb4d18c2b4b084447002a3b41d83b2c6d094e60c15bee",
+    "../extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+    "../extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+    "../extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "../extensions/learning-efficiency.ts": "8dce173ad5c671df2937324e173f42bb486bf06d86e326e12595808d10f7aa01",
+    "../extensions/planner-prompts.ts": "0f04882df2fa6411b2752e1ee32a377c3072aec70096cf37529d8fcd2092a56c",
+    "../extensions/harness-consolidation.ts": "531a9998669872f6747842266351218085b12666d72b8212994fe28c15c15cf7",
+    "./jev-controlled-diagnostics.ts": "bbbdee978f4b95957afb135ff985e50c638daab303af192e6f9707789d88f834",
+    "./jev-paired-metrics.ts": "6d2fc836b16f54add8dc2d9102d372cbf0c904469d63dfcb400d23d445784d2f",
+    "./jev-finite-authority-r9-regression-manifest.json": "43179ebcfafc966bff8c935b5c800bed73cb1d69c9714f93d449305418e91a39",
+    "./jev-counter-memory-r9-manifest.json": "c995e32ddd1da921dd9a0ce18e12382efeb8033f71b8aa4d302da074fc58f548",
+    "./evaluate_jev_counter_noul.ts": "c7e8bd4429a9511e86f465aa0d83e888413d850096430222863eb0187ea7dd43",
+    "./evaluate_jev_memory_claim.ts": "0039bd26ecc662696e39a22e19445330b7fa34410a908aa7be0cfcaaa3ed7934",
+    "./jev-memory-claim-shadow.ts": "1be8e39ec74975dde1f2f9aaf1bfa920609c5be4a109b0dd5c07a04cf4f212b7"
+  },
+  "outboundRequests": 128,
+  "requestBudget": 256,
+  "durationsMs": {
+    "before": [
+      849,
+      314,
+      337,
+      355,
+      332,
+      338,
+      342,
+      335,
+      367,
+      357,
+      323,
+      394,
+      311,
+      330,
+      362,
+      340,
+      343,
+      316,
+      312,
+      333,
+      323,
+      335,
+      363,
+      468,
+      371,
+      330,
+      333,
+      319,
+      445,
+      348,
+      395,
+      412
+    ],
+    "after": [
+      569,
+      337,
+      361,
+      340,
+      381,
+      333,
+      357,
+      315,
+      402,
+      391,
+      341,
+      310,
+      328,
+      318,
+      328,
+      339,
+      371,
+      337,
+      342,
+      312,
+      310,
+      326,
+      343,
+      347,
+      749,
+      349,
+      388,
+      486,
+      319,
+      331,
+      408,
+      669
+    ]
+  },
+  "metrics": {
+    "before": {
+      "evaluatedPlans": 32,
+      "skippedIncompletePlans": 0,
+      "falseAccepts": 0,
+      "falseHolds": 6
+    },
+    "after": {
+      "evaluatedPlans": 32,
+      "skippedIncompletePlans": 0,
+      "falseAccepts": 0,
+      "falseHolds": 5
+    }
+  },
+  "knownInputTokens": 81146,
+  "knownEstimatedCostUsd": 0.0034081319999999995,
+  "results": [
+    {
+      "id": "en-claim-fresh-01",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "f6f77600f59a2f92e3dfee4f8c8275337cf5a288659de155b3059861d30cf35d",
+      "planHash": "e48e95dfd3727675f1cfc19979d688d14a58c8155bce1c0095f5bf740d7353a3",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 849,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1237,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051954000000000004
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 569,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1299,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000054558
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-02",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "5060e46a0cfff7d89fc0b0e71f94ac85a78d976962df93463a0e030b1e2444cc",
+      "planHash": "93a6d28a7bf4627650d20f04dc863ba1540d3660a6615174afd616946a8d9256",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 314,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1230,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051660000000000003
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 337,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1292,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000054264
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-03",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "3b2fb86bad1b47f4fb2265aff9cf106c80a3b9fdc42eea3d7babb0bb5bed3c7a",
+      "planHash": "961290c1fa6e73de18fab7b2cec7607d44797fdbb00705094b4f0e07538dbf43",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 337,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1223,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005136600000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 361,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1285,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005397
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-04",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "4086da4781be83256f893bbf5816fd98416f8b3a2e29f98bf42ffd1e70dbd9f1",
+      "planHash": "5efb411a0c2bbb60c30e7458bbc30ca4dd4e07945dc9e6100f9e9a586402b136",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 355,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1215,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051030000000000004,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 340,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1277,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005363400000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-05",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "67d4b9513127697dfe1dee8cd2d5804db9ebfb2b89e89d44314d122c7b2e42d5",
+      "planHash": "b9d2d3842924670d559426cf189f0eb6f2b61dfd1f4c4b374cd296f63c23e18f",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 332,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1234,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051828000000000006
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 381,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1296,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000054432
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-06",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "aa862e41760d61917e6791e49a7a089a4846572d3a54d0068eb3b6d0429ed531",
+      "planHash": "961290c1fa6e73de18fab7b2cec7607d44797fdbb00705094b4f0e07538dbf43",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 338,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1220,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051240000000000004
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 333,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1282,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000053844
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-07",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "6256b0344451e73f1099cdabbb1c2cb2a573181ab0914de9e10dba88c4d8c620",
+      "planHash": "150d44504f1a29ec71a1fe6380de3caed5b20ab6fe83033a69492c89cce80d88",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 342,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1230,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051660000000000003
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 357,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1292,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005426400000000001
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-08",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "f8701f6155f2161bbd492daa5165571a745fc0b8e19fef4cee3e7565d74c5228",
+      "planHash": "92cefe72a0b17058778ce5a93b0f8f1a478b88f1b7a1a9ad3bceb2bdcc31adf4",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 335,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1223,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051366,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 315,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1285,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005397,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-09",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "dd138d84f5841cf9c89ff3c94e0d5edb575b53792ee5992cab18bb4dda6ac3a2",
+      "planHash": "5efb411a0c2bbb60c30e7458bbc30ca4dd4e07945dc9e6100f9e9a586402b136",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 367,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1212,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000050904000000000006,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 402,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1274,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000053508,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-10",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "a57de78864d462be3e1941a96fbd14e8394f9b6f9363e6924ddbc56fbedd2be1",
+      "planHash": "5efb411a0c2bbb60c30e7458bbc30ca4dd4e07945dc9e6100f9e9a586402b136",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 357,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1221,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000051282,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 391,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1283,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000053886000000000006,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-11",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "ca1d4037ff83cbca6d3a010d4dd7b55862c4a39d6d5ff02b998b15b3e5feda10",
+      "planHash": "961290c1fa6e73de18fab7b2cec7607d44797fdbb00705094b4f0e07538dbf43",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 323,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1222,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000051324,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 341,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1284,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000053928,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-12",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "699ced229076f099a87d15cc333d049c6ebe4bd54b62527e54748991e51443fe",
+      "planHash": "be5d036e7f2f6d2994bbabc9fd981805dde05b2137b24df70bbc4681bcfd904b",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 394,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1234,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000051828000000000006,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 310,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1296,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.00005443200000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-13",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "4d028ee3bd686ca730c4a07abcc9c0a72598a4a5c135012670e01ded28a0a600",
+      "planHash": "57832570ce8afbd1c389f67624abb7b982554607359fbfd81ff2352c56b41bd9",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 311,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1244,
+          "outputTokens": 110,
+          "estimatedCostUsd": 0.000052248000000000005,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 328,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1306,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005485200000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-14",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "3e0684afce04de44f72644e7c1f1fc352603bb4b1c4d1b2359aa56df81258189",
+      "planHash": "db44547fd689ee02d55c7a9466f8cec40ed900ed04603151bf22486648855dde",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 330,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1225,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051450000000000004,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 318,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1287,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000054054,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-15",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "43ce5a46f836f57753f18deeddf515261246478fc6cad9eb5c847c7014d88a7f",
+      "planHash": "20b6c66e3de7528e11900b6f6b7092e7756bce444faa91a79fc8385639e7fcf0",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 362,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1223,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000051366,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 328,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1285,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.00005397,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-16",
+      "language": "en",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "6f20f4e571eb1b9a9474e0d2e2630d1d8d8bc70e5c304298925739340920b032",
+      "planHash": "92cefe72a0b17058778ce5a93b0f8f1a478b88f1b7a1a9ad3bceb2bdcc31adf4",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 340,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1218,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000051156,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 339,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1280,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.00005376,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-01",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "4010ad976de0172791f7ced31ac45df8fca5f432d53c3e64a72c14c654946b0e",
+      "planHash": "3fb7c0f7c19f29deb8f284f24f8a3d864c6eb9b012f82f41af21aab0aa8cb388",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 343,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1260,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005292
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 371,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1322,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000055524000000000006
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-02",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "5ea5099f8c172908de33b3a3d471c61c7a085e058879f796b60b14e9a29f62d8",
+      "planHash": "f32834672ac880e426e32dbba8cfda8dc5eed625e927af2097e75f29609e2163",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 316,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1242,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000052164000000000004
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 337,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1304,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000054768
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-03",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "9ab18a43f00c09e21ad2ff259583d91ab90563e790deb3e8ca5305bea9c276ef",
+      "planHash": "f3c47436c99b611b125c103eb5713d35c0e53d88a4a91ed82405208ea4dd0c0b",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 312,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1251,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000052542,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 342,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1313,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000055146000000000004,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-04",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "5c8d49318b35fb27290b0ba8f99636471d7a8edb016339bdf6e1f0e9cc872a28",
+      "planHash": "0720ef17854d81ea82fc56c98d6b28c1bde510544f8620abd655918a10027d0d",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 333,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1222,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000051324,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 312,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1284,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000053928,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-05",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "265770eb94b3df7b1afd00f43f9ccee45d1906220aa27cf4c2f9200fe48ab98a",
+      "planHash": "6c2a2f8c819224f415992460a646ab3eb54e767284490a66ef1cf28e7e739680",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 323,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1250,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.0000525
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 310,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1312,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000055104000000000006
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-06",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "2101a63985ac22cf0edfc0ceb06db0da012ed1c483a9f733c674711807950003",
+      "planHash": "f3c47436c99b611b125c103eb5713d35c0e53d88a4a91ed82405208ea4dd0c0b",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 335,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1249,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000052458000000000005
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 326,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1311,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000055062
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-07",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "fe8aeebce3bd87d87a54a79e50e7bb13cb977c1efa5785b4173dfa799c5a23dd",
+      "planHash": "dcf3a1bb68b90650da70309b189a9242adee82f1dad8890a88f7a2f0ed65c0c3",
+      "before": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 363,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1245,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005229
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 343,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1307,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005489400000000001
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-08",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": true,
+      "snapshotHash": "2e9f28864b554c9a2d547f66cee6351f02034c308a3f61c422ca7bce72ebdcdc",
+      "planHash": "ebb5b8959bbc2f6f90c0c25a9c131d8d2fec424074cf2f928f7c291b4b05a861",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 468,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1269,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.000053298000000000004,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 347,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1331,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005590200000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-09",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "bafa1b364ac3e19bb06109c624c8b5be45b8f46b140b1b7eb48d2c8e3e6f6068",
+      "planHash": "0720ef17854d81ea82fc56c98d6b28c1bde510544f8620abd655918a10027d0d",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 371,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1219,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.00005119800000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 749,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1281,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000053802000000000004,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-10",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "31731c28395ddcee1b81ddc15db3aa78b35debfac2c56e970bd37932962e997f",
+      "planHash": "0720ef17854d81ea82fc56c98d6b28c1bde510544f8620abd655918a10027d0d",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 330,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1232,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000051744000000000005,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 349,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1294,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000054348,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-11",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "40d3044fc5983f9c85d8990016d2a45f567a2c60520c8fbfa9be15cce2a90be8",
+      "planHash": "f3c47436c99b611b125c103eb5713d35c0e53d88a4a91ed82405208ea4dd0c0b",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 333,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1255,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.00005271,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 388,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1317,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000055314,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-12",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "8bfb49d50b5e19ecc8d8ea0eb8f2c973ab0f3225c22d9a1cca772f647d9e7cbe",
+      "planHash": "1898122277896b6f7d9b07432705c4b3ca9598a220c2b4a84077c9e540366017",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 319,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1257,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000052794,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 486,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1319,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000055398,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-13",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "929b4c5c14407940891b94e4162010c1cfcb00550aecc16a4c0971d4db1c2327",
+      "planHash": "9b5a9814b2c52857fa751ca37bc02a8c46626b13556d8ae1e55e136e38acf578",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 445,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1261,
+          "outputTokens": 110,
+          "estimatedCostUsd": 0.000052962,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 319,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1323,
+          "outputTokens": 110,
+          "estimatedCostUsd": 0.000055566,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-14",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "f64f2002f33340e67053d6c29077c1ad56ce0db600c8d3dcd52e7e657b545051",
+      "planHash": "76bd500a01e5002904bf58ee6ab0b081c884dff757598eb798c6bd106a0b381b",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 348,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1253,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005262600000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 331,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1315,
+          "outputTokens": 109,
+          "estimatedCostUsd": 0.00005523,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-15",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "d5365f1df5695c43b1de1ee841210a2bdadb7e8e46877b2fb89f57591bd2c9f7",
+      "planHash": "a95bd148f1a6f90a690651844be476214679e49f576b75634a141e54f26a7ff5",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 395,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1246,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000052332,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 408,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1308,
+          "outputTokens": 108,
+          "estimatedCostUsd": 0.000054936000000000004,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-16",
+      "language": "zh",
+      "stage": "memory",
+      "expectedAllow": false,
+      "snapshotHash": "099b2ac0c52edd5297b9e38941e5f3cfe9b36c35e8cc4dc5478132249a39b09f",
+      "planHash": "ebb5b8959bbc2f6f90c0c25a9c131d8d2fec424074cf2f928f7c291b4b05a861",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 412,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1259,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000052878000000000004,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "conflict",
+          "durationMs": 669,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1321,
+          "outputTokens": 111,
+          "estimatedCostUsd": 0.000055482,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "conflict"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "id": "en-claim-fresh-01",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.95,
+          "probabilities": {
+            "grounded": 0.96,
+            "speculative": 0.01,
+            "transient": 0.01,
+            "unsupported": 0.01,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-01",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.99,
+          "probabilities": {
+            "compatible": 0.99,
+            "contradicts": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-01",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.97,
+          "probabilities": {
+            "compatible": 0.98,
+            "contradicts": 0.01,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-01",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.95,
+          "probabilities": {
+            "grounded": 0.95,
+            "speculative": 0.01,
+            "transient": 0.01,
+            "unsupported": 0.02,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-02",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 1,
+            "contradicts": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-02",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-02",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 1,
+            "contradicts": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-02",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-03",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.79,
+          "probabilities": {
+            "compatible": 0.86,
+            "contradicts": 0.12,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-03",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-03",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.98,
+          "probabilities": {
+            "grounded": 0.98,
+            "speculative": 0,
+            "transient": 0.01,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-03",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.99,
+          "probabilities": {
+            "compatible": 0.99,
+            "contradicts": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-04",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.51,
+          "probabilities": {
+            "compatible": 0.67,
+            "contradicts": 0.1,
+            "unclear": 0.23
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-04",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-04",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.74,
+          "probabilities": {
+            "compatible": 0.83,
+            "contradicts": 0.02,
+            "unclear": 0.15
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-04",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-05",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.86,
+          "probabilities": {
+            "compatible": 0.91,
+            "contradicts": 0.04,
+            "unclear": 0.05
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-05",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.95,
+          "probabilities": {
+            "grounded": 0.96,
+            "speculative": 0,
+            "transient": 0.01,
+            "unsupported": 0.03,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-05",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.97,
+          "probabilities": {
+            "compatible": 0.98,
+            "contradicts": 0,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-05",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.93,
+          "probabilities": {
+            "grounded": 0.94,
+            "speculative": 0,
+            "transient": 0.02,
+            "unsupported": 0.03,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-06",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 1,
+            "contradicts": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-06",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-06",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.99,
+          "probabilities": {
+            "compatible": 0.99,
+            "contradicts": 0,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-06",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-07",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-07",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.98,
+          "probabilities": {
+            "compatible": 0.99,
+            "contradicts": 0,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-07",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-07",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.99,
+          "probabilities": {
+            "compatible": 1,
+            "contradicts": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-08",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.97,
+          "probabilities": {
+            "grounded": 0.98,
+            "speculative": 0,
+            "transient": 0.01,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-08",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.31,
+          "probabilities": {
+            "compatible": 0.54,
+            "contradicts": 0.43,
+            "unclear": 0.03
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-08",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.97,
+          "probabilities": {
+            "grounded": 0.98,
+            "speculative": 0,
+            "transient": 0.01,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-08",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.6,
+          "probabilities": {
+            "compatible": 0.74,
+            "contradicts": 0.22,
+            "unclear": 0.04
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-09",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-09",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-09",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-09",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.99,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-10",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-10",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-10",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-10",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.98,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 0.99,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-11",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.98,
+          "probabilities": {
+            "grounded": 0.98,
+            "speculative": 0,
+            "transient": 0.01,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-11",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.99,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-11",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.95,
+          "probabilities": {
+            "compatible": 0.01,
+            "contradicts": 0.96,
+            "unclear": 0.03
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-11",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 0.99,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-12",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "unsupported",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-12",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-12",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "unsupported",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-12",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-13",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "speculative",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0.99,
+            "transient": 0,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-13",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.65,
+          "probabilities": {
+            "compatible": 0.16,
+            "contradicts": 0.77,
+            "unclear": 0.07
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-13",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "speculative",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0.99,
+            "transient": 0,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-13",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "unclear",
+          "confidence": 0.05,
+          "probabilities": {
+            "compatible": 0.32,
+            "contradicts": 0.31,
+            "unclear": 0.37
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-14",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "transient",
+          "confidence": 0.96,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0.01,
+            "transient": 0.97,
+            "unsupported": 0.02,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-14",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-14",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "transient",
+          "confidence": 0.95,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0.01,
+            "transient": 0.97,
+            "unsupported": 0.02,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-14",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-15",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-15",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "unsupported",
+          "confidence": 0.85,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0.1,
+            "transient": 0.02,
+            "unsupported": 0.87,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-15",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-15",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "unsupported",
+          "confidence": 0.86,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0.09,
+            "transient": 0.01,
+            "unsupported": 0.9,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-16",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.97,
+          "probabilities": {
+            "compatible": 0.02,
+            "contradicts": 0.98,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-16",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.97,
+          "probabilities": {
+            "grounded": 0.98,
+            "speculative": 0,
+            "transient": 0.01,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-16",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.97,
+          "probabilities": {
+            "grounded": 0.98,
+            "speculative": 0,
+            "transient": 0.01,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "en-claim-fresh-16",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.95,
+          "probabilities": {
+            "compatible": 0.02,
+            "contradicts": 0.96,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-01",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.99,
+          "probabilities": {
+            "compatible": 1,
+            "contradicts": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-01",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.95,
+          "probabilities": {
+            "grounded": 0.96,
+            "speculative": 0,
+            "transient": 0.01,
+            "unsupported": 0.02,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-01",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.98,
+          "probabilities": {
+            "compatible": 0.99,
+            "contradicts": 0,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-01",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.94,
+          "probabilities": {
+            "grounded": 0.96,
+            "speculative": 0,
+            "transient": 0.01,
+            "unsupported": 0.02,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-02",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-02",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 1,
+            "contradicts": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-02",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-02",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 1,
+            "contradicts": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-03",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-03",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.32,
+          "probabilities": {
+            "compatible": 0.4,
+            "contradicts": 0.55,
+            "unclear": 0.05
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-03",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-03",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.16,
+          "probabilities": {
+            "compatible": 0.44,
+            "contradicts": 0.38,
+            "unclear": 0.18
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-04",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-04",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.33,
+          "probabilities": {
+            "compatible": 0.55,
+            "contradicts": 0.21,
+            "unclear": 0.24
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-04",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-04",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.74,
+          "probabilities": {
+            "compatible": 0.83,
+            "contradicts": 0.04,
+            "unclear": 0.13
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-05",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-05",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.9,
+          "probabilities": {
+            "compatible": 0.93,
+            "contradicts": 0.03,
+            "unclear": 0.04
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-05",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.95,
+          "probabilities": {
+            "compatible": 0.97,
+            "contradicts": 0.01,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-05",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-06",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 0.99,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-06",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 1,
+            "contradicts": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-06",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-06",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 1,
+            "contradicts": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-07",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-07",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.99,
+          "probabilities": {
+            "compatible": 0.99,
+            "contradicts": 0,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-07",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.99,
+          "probabilities": {
+            "compatible": 1,
+            "contradicts": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-07",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-08",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.98,
+          "probabilities": {
+            "grounded": 0.99,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-08",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.38,
+          "probabilities": {
+            "compatible": 0.59,
+            "contradicts": 0.39,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-08",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.71,
+          "probabilities": {
+            "compatible": 0.8,
+            "contradicts": 0.17,
+            "unclear": 0.03
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-08",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.98,
+          "probabilities": {
+            "grounded": 0.99,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-09",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-09",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-09",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-09",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-10",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-10",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-10",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.97,
+          "probabilities": {
+            "compatible": 0.01,
+            "contradicts": 0.98,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-10",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-11",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-11",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.77,
+          "probabilities": {
+            "compatible": 0.13,
+            "contradicts": 0.85,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-11",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 1,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-11",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.73,
+          "probabilities": {
+            "compatible": 0.15,
+            "contradicts": 0.82,
+            "unclear": 0.03
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-12",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "unsupported",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-12",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-12",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "unsupported",
+          "confidence": 1,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-12",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-13",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "speculative",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0.99,
+            "transient": 0,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-13",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.74,
+          "probabilities": {
+            "compatible": 0.13,
+            "contradicts": 0.83,
+            "unclear": 0.04
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-13",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "speculative",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0.99,
+            "transient": 0,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-13",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.07,
+          "probabilities": {
+            "compatible": 0.26,
+            "contradicts": 0.38,
+            "unclear": 0.36
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-14",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-14",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "transient",
+          "confidence": 0.94,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0,
+            "transient": 0.96,
+            "unsupported": 0.04,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-14",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "transient",
+          "confidence": 0.95,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0,
+            "transient": 0.97,
+            "unsupported": 0.03,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-14",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-15",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "unsupported",
+          "confidence": 0.81,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0.05,
+            "transient": 0.1,
+            "unsupported": 0.85,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-15",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-15",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 1,
+          "probabilities": {
+            "compatible": 0,
+            "contradicts": 1,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-15",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "unsupported",
+          "confidence": 0.85,
+          "probabilities": {
+            "grounded": 0,
+            "speculative": 0.04,
+            "transient": 0.07,
+            "unsupported": 0.89,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-16",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.95,
+          "probabilities": {
+            "compatible": 0.03,
+            "contradicts": 0.96,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-16",
+      "arm": "before",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.99,
+          "probabilities": {
+            "grounded": 0.99,
+            "speculative": 0,
+            "transient": 0,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-16",
+      "arm": "after",
+      "answers": {
+        "supported_0": {
+          "choice": "grounded",
+          "confidence": 0.98,
+          "probabilities": {
+            "grounded": 0.98,
+            "speculative": 0,
+            "transient": 0.01,
+            "unsupported": 0.01,
+            "unclear": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-claim-fresh-16",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.96,
+          "probabilities": {
+            "compatible": 0.01,
+            "contradicts": 0.98,
+            "unclear": 0.01
+          }
+        }
+      }
+    }
+  ]
+}

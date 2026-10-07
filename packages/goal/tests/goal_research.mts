@@ -23,6 +23,7 @@ import {
   RESEARCH_TOOLS,
   buildResearchPrompt,
   runGoalResearch,
+  type RunResearchOptions,
 } from "../src/research.ts";
 import { GoalStore, newGoalId } from "../src/store.ts";
 import { readGoalLedger } from "../src/ledger.ts";
@@ -58,6 +59,18 @@ const mode = process.env.GOAL_RESEARCH_MODE ?? "report";
 const findings = process.env.GOAL_RESEARCH_REPORT ?? "export.ts writes the CSV.";
 if (mode === "fail") { process.stderr.write("research fixture failed\\n"); process.exit(2); }
 if (mode === "silent") process.exit(0);
+if (mode === "progress") {
+  const seq = [
+    JSON.stringify({ type: "tool_execution_start", toolName: "read", args: { path: "export.ts" } }),
+    JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "thinking_delta", delta: "checking test layout" } }),
+    JSON.stringify({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "export.ts builds the CSV" } }),
+    JSON.stringify({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "export.ts builds the CSV; tests live beside it." }],
+      usage: { input: 40, output: 10, cacheRead: 5, cacheWrite: 0, totalTokens: 55, cost: { total: 0 } } } }),
+  ];
+  let index = 0;
+  (function next() { if (index < seq.length) { process.stdout.write(seq[index++] + "\\n"); setTimeout(next, 60); } })();
+  return;
+}
 process.stdout.write(JSON.stringify({ type: "message_end", message: {
   role: "assistant", content: [{ type: "text", text: findings }],
   usage: { input: 40, output: 10, cacheRead: 5, cacheWrite: 0, totalTokens: 55, cost: { total: 0 } } } }) + "\\n");
@@ -91,6 +104,61 @@ await scenario("the configured research model reaches the child", async () => {
   assert.equal(args[modelAt + 1], "anthropic/claude-haiku");
 });
 
+await scenario("an unset research model falls back to the session model", async () => {
+  // No goal settings exist here, so the child must follow the session rather
+  // than the persisted CLI default, which is a different model, may be
+  // unavailable, and is what a bare `pi` child would otherwise pick up.
+  const agentDir = mkdtempSync(join(tmpdir(), "goal-research-agent-"));
+  const projectDir = mkdtempSync(join(tmpdir(), "goal-research-session-"));
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  const previousResearchModel = process.env.PI_GOAL_RESEARCH_MODEL;
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  delete process.env.PI_GOAL_RESEARCH_MODEL;
+  try {
+    const seen: (string | undefined)[] = [];
+    const core = new GoalCore({ appendEntry() {} } as never, projectDir, {
+      runResearch: (async (options: RunResearchOptions) => {
+        seen.push(options.model);
+        return { findings: "ok" };
+      }) as never,
+    });
+    await core.research("Where is the CSV built?", projectDir, undefined, undefined, {
+      provider: "cli-proxy", id: "bailian/deepseek-v4.1-flash",
+    });
+    assert.deepEqual(seen, ["cli-proxy/bailian/deepseek-v4.1-flash"], "the session model reaches the child");
+    core.shutdown();
+  } finally {
+    if (previousAgentDir !== undefined) process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    else delete process.env.PI_CODING_AGENT_DIR;
+    if (previousResearchModel !== undefined) process.env.PI_GOAL_RESEARCH_MODEL = previousResearchModel;
+  }
+});
+
+await scenario("a configured research model is used instead of the session's", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "goal-research-agent-"));
+  const projectDir = mkdtempSync(join(tmpdir(), "goal-research-configured-"));
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  try {
+    writeProjectSettings(projectDir, { researchProvider: "anthropic", researchModel: "claude-haiku" });
+    const seen: (string | undefined)[] = [];
+    const core = new GoalCore({ appendEntry() {} } as never, projectDir, {
+      runResearch: (async (options: RunResearchOptions) => {
+        seen.push(options.model);
+        return { findings: "ok" };
+      }) as never,
+    });
+    await core.research("focus", projectDir, undefined, undefined, {
+      provider: "cli-proxy", id: "bailian/deepseek-v4.1-flash",
+    });
+    assert.deepEqual(seen, ["anthropic/claude-haiku"], "the configured model wins over the session's");
+    core.shutdown();
+  } finally {
+    if (previousAgentDir !== undefined) process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    else delete process.env.PI_CODING_AGENT_DIR;
+  }
+});
+
 await scenario("the prompt carries the focus and returns bounded findings with usage", async () => {
   process.env.GOAL_RESEARCH_ARGS = argsFile;
   delete process.env.GOAL_RESEARCH_MODE;
@@ -101,6 +169,18 @@ await scenario("the prompt carries the focus and returns bounded findings with u
   assert.equal(result.usage?.totalTokens, 55, "the spend comes back so it can be charged to the goal");
   const args = JSON.parse(readFileSync(argsFile, "utf-8")) as string[];
   assert.ok(args[args.length - 1]?.includes("Where is the CSV export written?"), "the focus reaches the child");
+});
+
+await scenario("worker progress reaches the caller as tool, thinking, and answer activity", async () => {
+  process.env.GOAL_RESEARCH_MODE = "progress";
+  const seen: (string | undefined)[] = [];
+  const result = await runGoalResearch({ ...base, onUpdate: (update) => { seen.push(update.activity); } });
+  delete process.env.GOAL_RESEARCH_MODE;
+  assert.ok(seen.length >= 3, `the child reports changing activity, got ${JSON.stringify(seen)}`);
+  assert.ok(seen[0]?.includes("export.ts"), `newest-first starts with the tool read, got ${JSON.stringify(seen)}`);
+  assert.ok(seen.some((activity) => activity?.includes("checking test layout")), "thinking activity arrives");
+  assert.ok(seen[seen.length - 1]?.includes("CSV"), "the answer activity arrives last");
+  assert.match(result.findings, /CSV/, "findings still return alongside progress");
 });
 
 await scenario("the focus cannot close its own block in the prompt", () => {
@@ -250,6 +330,24 @@ await scenario("a goal without research is created as it always was", () => {
   assert.equal(store.readResearch(id), "", "there is no research file to read");
   assert.deepEqual(readGoalLedger(root, id).map((event) => event.type), ["goal_created"]);
   assert.equal(store.readGoal(id)?.usage.tokensUsed, 0, "and no cost was invented");
+});
+
+await scenario("the recorded research focus is not silently shortened", async () => {
+  // `research_goal` bounds the focus at 2000 characters in its schema, so the
+  // store records it whole. A second invisible bound here would cut provenance
+  // without saying so.
+  const cwd = mkdtempSync(join(tmpdir(), "goal-research-focus-"));
+  const id = newGoalId();
+  const store = new GoalStore({ projectRoot: cwd });
+  const focus = `Where is ${"x".repeat(1_400)} written?`;
+  const result = store.create({
+    id, owner: "session", objective: "Audit the package.",
+    research: { focus, text: "Findings.", tokens: 4 },
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const attached = readGoalLedger(cwd, id).find((event) => event.type === "research_attached");
+  assert.ok(attached, "the attach event is recorded");
+  assert.equal((attached as { focus?: string }).focus, focus, "the focus is recorded whole");
 });
 
 // ── settings: research model is settable on its own ─────────────────────────

@@ -1,0 +1,826 @@
+[
+  {
+    "id": "en-test-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "For this project, use pnpm test to verify changes."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: When verifying changes in this project\ntype: project\n---\nFor this project, use pnpm test to verify changes.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "For this project, use pnpm test to verify changes.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-test-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目验证修改时，使用 pnpm test。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 验证本项目修改时\ntype: project\n---\n本项目验证修改时，使用 pnpm test。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目验证修改时，使用 pnpm test。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-private-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "For my personal reports in this project, finish with SIGNOFF_FIXTURE."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "private",
+          "content": "---\nname: Fact\ndescription: When finishing a personal report for this project\ntype: project\n---\nFor my personal reports in this project, finish with SIGNOFF_FIXTURE.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "For my personal reports in this project, finish with SIGNOFF_FIXTURE.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-private-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目的私人报告以 SIGNOFF_FIXTURE 结尾。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "private",
+          "content": "---\nname: Fact\ndescription: 完成本项目私人报告时\ntype: project\n---\n本项目的私人报告以 SIGNOFF_FIXTURE 结尾。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目的私人报告以 SIGNOFF_FIXTURE 结尾。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-policy-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project in future tasks."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: When planning how changes in this project would be shared\ntype: project\n---\nNever run git push in this project in future tasks.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Never run git push in this project in future tasks.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-policy-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "以后任务中，永远不要在本项目运行 git push。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 规划本项目的修改如何分享时\ntype: project\n---\n以后任务中，永远不要在本项目运行 git push。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "以后任务中，永远不要在本项目运行 git push。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-supplement",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Testing",
+        "content": "This project has a test suite."
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm lint to check code quality."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: When checking code quality in this project\ntype: project\n---\nThis project uses pnpm lint to check code quality.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm lint to check code quality.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-supplement",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Testing",
+        "content": "本项目有测试套件。"
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目用 pnpm lint 检查代码质量。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 检查本项目代码质量时\ntype: project\n---\n本项目用 pnpm lint 检查代码质量。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目用 pnpm lint 检查代码质量。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-duplicate",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Existing fact",
+        "content": "This project uses pnpm test to verify changes."
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm test to verify changes."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: When verifying changes in this project\ntype: project\n---\nThis project uses pnpm test to verify changes.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm test to verify changes.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-duplicate",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Existing fact",
+        "content": "本项目用 pnpm test 验证修改。"
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目用 pnpm test 验证修改。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 验证本项目修改时\ntype: project\n---\n本项目用 pnpm test 验证修改。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目用 pnpm test 验证修改。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-conflict",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Existing fact",
+        "content": "This project uses npm."
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: When choosing this project package manager\ntype: project\n---\nThis project uses pnpm.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-conflict",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Existing fact",
+        "content": "本项目使用 npm。"
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 选择本项目包管理器时\ntype: project\n---\n本项目使用 pnpm。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 pnpm。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-invented-description",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm test."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: All tests always pass.\ntype: project\n---\nThis project uses pnpm test.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm test.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-invented-description",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm test。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 所有测试永远通过。\ntype: project\n---\n本项目使用 pnpm test。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 pnpm test。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-broader-cue",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Use pnpm test only in this project, never elsewhere."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: When verifying changes in any repository\ntype: project\n---\nUse pnpm test only in this project, never elsewhere.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Use pnpm test only in this project, never elsewhere.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-broader-cue",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "仅在本项目使用 pnpm test，其他仓库永远不要使用。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 验证任意仓库的修改时\ntype: project\n---\n仅在本项目使用 pnpm test，其他仓库永远不要使用。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "仅在本项目使用 pnpm test，其他仓库永远不要使用。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-transient",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The temporary network outage is blocking tests."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: When assuming tests are permanently blocked\ntype: project\n---\nThe temporary network outage is blocking tests.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "The temporary network outage is blocking tests.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-transient",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "临时网络故障阻塞了测试。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 认为测试永久受阻时\ntype: project\n---\n临时网络故障阻塞了测试。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "临时网络故障阻塞了测试。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-guess",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "I suspect this uses that package manager, but this has not been verified."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: When choosing the package manager\ntype: project\n---\nThis project uses pnpm.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "I suspect this uses that package manager, but this has not been verified.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-guess",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "我猜这里使用那个包管理器，但未经验证。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 选择包管理器时\ntype: project\n---\n本项目使用 pnpm。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "我猜这里使用那个包管理器，但未经验证。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-revoked",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm test."
+        },
+        {
+          "role": "user",
+          "content": "Correction: we stopped using that command; do not remember the old command as current."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: When verifying changes\ntype: project\n---\nThis project uses pnpm test.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project uses pnpm test.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-revoked",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm test。"
+        },
+        {
+          "role": "user",
+          "content": "更正：已停止使用那个命令，不要把旧命令记作当前命令。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 验证修改时\ntype: project\n---\n本项目使用 pnpm test。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目使用 pnpm test。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-body-laundering",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project has a test suite."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: When relying on guaranteed passing tests\ntype: project\n---\nAll tests in this project always pass.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project has a test suite.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-body-laundering",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目有测试套件。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 依赖保证通过的测试时\ntype: project\n---\n本项目的所有测试永远通过。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目有测试套件。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

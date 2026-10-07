@@ -110,6 +110,7 @@ def main() -> None:
             assert revised["scheduler"]["used"] == 1, revised
             assert b"revised and activated" in output, output.decode(errors="replace")[-4000:]
             assert b"Pursuing goal" in output, "the active row reads as a sentence"
+            assert b"[goal] Pursuing goal" not in output, "the pursuing row drops the goal tag"
             _seen = [ln for ln in output.decode(errors="replace").splitlines() if "goal" in ln.lower() or any(c in ln for c in "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏○✓✗")]
             # A goal id is `goal_<base36>_<base36>`. The fixture filename
             # `goal_offline_fixture.ts` also starts `goal_`, so match the id
@@ -127,6 +128,9 @@ def main() -> None:
             assert r["status"] == "paused", r
             send("/goal pause")
             assert record()["status"] == "paused"
+            drain(0.8)
+            assert b"Goal paused" in output, "the paused row reads as a sentence"
+            assert b"[goal] Goal paused" not in output, "no state tags the status row"
             send("/goal clear")
             os.write(master, b"\r")
             drain(0.8)

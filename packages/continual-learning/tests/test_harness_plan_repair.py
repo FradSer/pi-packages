@@ -238,7 +238,30 @@ def test_semantic_repair_cannot_shorten_a_retained_original_quote() -> None:
 
 def test_semantic_scope_repair_requests_quote_safe_command_matching() -> None:
     value = run('semantic-still')
-    assert value['repairAddressesQuoteScope']
+    assert value['repairAddressesQuoteScope'] and value['receivedFailureHints']
     assert value['spawned'] == value['semanticCalls'] == 2
     assert value['semanticDecision'] == 'propose'
     assert value['directApply']['outcome'] == 'rejected' and not value['targetExists']
+
+
+def test_parent_validation_rejections_explain_the_stop_without_candidate_text() -> None:
+    # Given initial and repaired rules that fail their executable cases,
+    # when the phase stops, both receipt attempts retain controlled reasons.
+    value = run('repair-also-fails')
+    assert not value['ok'] and value['spawned'] == 2
+    for attempt in value['attempts']:
+        assert attempt['diagnostic'].startswith('Parent Harness validation: fixtures=')
+        assert 'retired-compiler' not in attempt['diagnostic']
+    semantic = run('semantic-invalid-cases')
+    assert semantic['semanticDecision'] == 'propose'
+    assert 'fixtures=' in semantic['attempts'][-1]['diagnostic']
+    assert semantic['directApply']['outcome'] == 'rejected' and not semantic['targetExists']
+
+
+def test_semantic_scope_comes_from_frozen_parent_identity_on_both_attempts() -> None:
+    # Given a generated rule and a repair, When the parent invokes semantics,
+    # Then both calls receive the frozen cwd/run/scope/evidence binding.
+    value = run('semantic-repaired')
+    assert value['boundScopeChecks'] == [True, True]
+    assert value['semanticDecision'] == 'allow'
+    assert not value['targetExists']

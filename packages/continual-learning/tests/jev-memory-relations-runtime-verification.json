@@ -1,0 +1,57 @@
+{
+  "scope": "Bounded read-only runtime Memory relationship API; not activated for partial writes",
+  "sourceHashes": {
+    "../extensions/jev-learning.ts": "461a034f1345bd25531f91dd8650c2ce5d2f4c1cf153497d07d24d382924ec5f",
+    "../extensions/jev-memory-relations.ts": "bfb4030799a2d254174524887e4241d69223a7c355d7e06b6dc0fd568cbc5529",
+    "test_jev_memory_relations.py": "ba326ca8e2ef848b5721d3c860cbf46b1d0151e6baeee73d1028e704fc757f18",
+    "../features/jev-memory-relations.feature": "d08a6e45251cf83abf1a3097f67df6651cce1636dc83cf1476f88285711761be"
+  },
+  "red": {
+    "missingApiFailures": 7,
+    "providerExtraTextAndMutableReviewRegressionFailures": 1
+  },
+  "focused": {
+    "passed": 26,
+    "seconds": 11.24,
+    "scope": "14 relation tests + 3 candidate review tests + 9 subset transaction tests"
+  },
+  "rootTypecheck": "passed",
+  "strictNoUnusedTypecheck": "passed",
+  "workspacePackedManifestsPassed": 19,
+  "targetPackDryRun": "passed; new production helper included, research coordinator excluded",
+  "freshReview": "jev-memory-relations-runtime-review.json",
+  "nativePi": "jev-memory-relations-native-results.json",
+  "frozenNativeSourceManifest": "jev-memory-relations-native-source-manifest.json",
+  "packageSuite": {
+    "status": "passed",
+    "passed": 987,
+    "seconds": 377.74,
+    "command": "uv run --no-project --with pytest python -m pytest packages/continual-learning/tests/ -q"
+  },
+  "installCheck": {
+    "exitCode": 1,
+    "unrelatedMissingPackageCount": 11,
+    "continualLearningMissing": false,
+    "globalSettingsChanged": false
+  },
+  "newCommands": 0,
+  "newUserConfigurationFields": 0,
+  "parentPipelineRelationCallsEnabled": false,
+  "partialApplicationEnabled": false,
+  "realInferenceThisPhase": false,
+  "mainModelCalls": 0,
+  "productionMemoryWrites": 0,
+  "goalComplete": false,
+  "remaining": [
+    "Invoke bounded relation observations in the original parent phase with held-intent proposal and receipt integration.",
+    "Prospectively frozen true inference of complete integrated runtime, retaining earlier negatives and thresholds.",
+    "Real isolated project generation/application/recall comparison using cli-proxy / opencode/space-bunny-free."
+  ],
+  "officialReferences": [
+    "https://docs.typesafe.ai/sdk/javascript",
+    "https://docs.typesafe.ai/confidence",
+    "https://docs.typesafe.ai/patterns/fan-out"
+  ],
+  "documentationRetrieval": "Markdown endpoints unavailable, official normal pages accessible",
+  "artifactReferences": "passed"
+}

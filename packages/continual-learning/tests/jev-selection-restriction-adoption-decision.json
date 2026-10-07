@@ -1,0 +1,43 @@
+{
+  "evidence": "harness-selection-restriction-adoption-decision",
+  "adopted": false,
+  "reason": "Contract narrows lasting behavioral constraints to prohibitions/verification; positive mandatory behavior excluded. Fallback count also unchanged, failing declared lower-fallback condition.",
+  "manifestSha256": "25091d54bc31923507ddc897933f2324f23b83f289fce87ab75e5136ad75d1f9",
+  "reportSha256": "c60d7877d9a7af80a2e02275cd05e22f8fef3d65d1eade0890fe26d6bc411cac",
+  "originalEvaluator": {
+    "preservedPath": "packages/continual-learning/tests/fixtures/evaluate-jev-selection-restriction-before-frozen-manifest.ts.txt",
+    "sha256": "8bcfd4be735982ec7722cfdfab829541713c6812083ce4968386aa063af3ac15"
+  },
+  "currentEvaluatorSha256": "f31448bed3406f3c445b548aae43b0ba882ab3e6987e43b32cdde80c74c95e0f",
+  "postRunRepair": "New runs capture original manifest bytes/hash then verify unchanged manifest and code; original one-shot report/source preserved. Old manifest intentionally rejects changed current source; no rerun.",
+  "metrics": {
+    "before": {
+      "correct": 6,
+      "wrong": 2,
+      "fallback": 6,
+      "falseLearningDirections": 2,
+      "missedLearningDirections": 0,
+      "knownInputTokens": 6061,
+      "knownEstimatedCostUsd": 0.000254562
+    },
+    "after": {
+      "correct": 8,
+      "wrong": 0,
+      "fallback": 6,
+      "falseLearningDirections": 0,
+      "missedLearningDirections": 0,
+      "knownInputTokens": 7587,
+      "knownEstimatedCostUsd": 0.000318654
+    }
+  },
+  "externalRequests": 28,
+  "heldoutRequests": 0,
+  "productionWrites": 0,
+  "knownInputTokens": 13648,
+  "knownEstimatedCostUsd": 0.000573216,
+  "medianDurationMs": {
+    "before": 327.0,
+    "after": 359.0
+  },
+  "nextResearchRequirement": "All continuing mandatory behavior within original scope, with positive SQL/format obligations and matched preference/one-task negatives; no narrower acceptance contract."
+}

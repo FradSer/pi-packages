@@ -1,0 +1,61 @@
+{
+  "scope": "read-only composed candidate selection using actual production semantic reviews",
+  "productionCodeChanged": false,
+  "goalStatus": "active; actual parent writes and specified-main project learning/recall remain unproven",
+  "checks": {
+    "packagePytest": {
+      "passed": 1009,
+      "durationSeconds": 387.54,
+      "exitCode": 0,
+      "note": "collection preceded additional local HTTP redirect regression; all five focused tests separately passed"
+    },
+    "focusedComposedPytest": {
+      "passed": 5,
+      "durationSeconds": 2.16,
+      "exitCode": 0
+    },
+    "affectedEarlierPytest": {
+      "passed": 15,
+      "durationSeconds": 6.44,
+      "exitCode": 0
+    },
+    "researchStrictTypecheck": {
+      "exitCode": 0
+    },
+    "rootTypecheck": {
+      "exitCode": 0
+    },
+    "packedManifestCheck": {
+      "exitCode": 0,
+      "packages": 19
+    },
+    "targetPackDryRun": {
+      "exitCode": 0
+    },
+    "rootFullSuite": "not rerun this iteration"
+  },
+  "offlinePreflight": {
+    "fixtureRequests": 90,
+    "externalRequests": 0,
+    "qualityEvidence": false
+  },
+  "realStudy": {
+    "requests": 90,
+    "model": "jev-1.13.0",
+    "inferenceCompleteCases": 18,
+    "inputTokens": 103902,
+    "estimatedKnownInputCostUsd": 0.004363884,
+    "usageComplete": true,
+    "fullGoalComplete": false
+  },
+  "regressions": {
+    "composedPolicy": "four RED missing-module cases -> GREEN",
+    "redirectBoundary": "real local307 forwarded body beforefix; no destination request with redirect:error"
+  },
+  "decision": "jev-composed-readiness-adoption-decision.json",
+  "actualMainInference": false,
+  "requestedMainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  }
+}

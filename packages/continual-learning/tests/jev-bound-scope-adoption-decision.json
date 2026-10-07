@@ -1,0 +1,44 @@
+{
+  "variant": "parent-bound-scope-v2",
+  "adopted": true,
+  "evidence": "real-jev-paired-development-and-unqueried-heldout",
+  "productionWriteAuthority": "parent-only",
+  "development": {
+    "before": {
+      "evaluatedPlans": 24,
+      "skippedIncompletePlans": 0,
+      "falseAccepts": 0,
+      "falseHolds": 8
+    },
+    "after": {
+      "evaluatedPlans": 24,
+      "skippedIncompletePlans": 0,
+      "falseAccepts": 0,
+      "falseHolds": 0
+    }
+  },
+  "heldout": {
+    "before": {
+      "evaluatedPlans": 24,
+      "skippedIncompletePlans": 0,
+      "falseAccepts": 0,
+      "falseHolds": 8
+    },
+    "after": {
+      "evaluatedPlans": 24,
+      "skippedIncompletePlans": 0,
+      "falseAccepts": 0,
+      "falseHolds": 4
+    }
+  },
+  "limits": [
+    "12 bilingual scenario pairs per split",
+    "development reused after rejected V1",
+    "4 valid heldout restrictions remain uncertain",
+    "R10 replay is unlabeled and read-only",
+    "full-workflow superiority remains unverified"
+  ],
+  "outboundRequests": 198,
+  "knownInputTokens": 212482,
+  "knownEstimatedCostUsd": 0.008924244000000001
+}

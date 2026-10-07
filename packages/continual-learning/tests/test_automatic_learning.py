@@ -501,7 +501,10 @@ def test_failed_memory_gate_persists_receipt_and_skips_later_phases() -> None:
     assert result["selectorCalls"] == []
     assert result["receipt"]["screen"]["harness"] is True
     assert [(attempt["phase"], attempt["outcome"], attempt["operations"]) for attempt in result["receipt"]["attempts"]] == [("selector", "applied", 0), ("memory", "failed", 0)]
-    assert any("planner provider unavailable" in notice for notice in result["notices"])
+    assert any("child planner model failed before successful completion" in notice for notice in result["notices"])
+    assert all("planner provider unavailable" not in notice for notice in result["notices"])
+    assert result["receipt"]["usageAvailable"] is False
+    assert result["receipt"]["costAvailable"] is False
 
 
 def test_consolidate_full_skips_selector_and_uses_exhaustive_planner() -> None:

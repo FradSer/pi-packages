@@ -10,6 +10,7 @@
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { detailField, notifyPi } from "@fradser/pi-kit";
+import { GOAL_PROCEDURE_ENTRY } from "./procedure.ts";
 import type { GoalCore } from "./core.ts";
 import { describeUnmet } from "./check.ts";
 import { clearDashboard, refreshDashboard } from "./dashboard.ts";
@@ -129,7 +130,13 @@ export function registerGoalEvents(core: GoalCore): void {
   });
 
   pi.on("message_start", async (event, ctx) => {
-    const message = event.message as { details?: unknown; role?: unknown };
+    const message = event.message as { details?: unknown; role?: unknown; customType?: unknown; content?: unknown };
+    // Custom-message delivery never fires before_agent_start, so the /goal
+    // procedure row accepts here instead. The match is the same stored prompt
+    // against the delivered body; a mismatch still drops the intent silently.
+    if (message.customType === GOAL_PROCEDURE_ENTRY && typeof message.content === "string") {
+      core.acceptGoalSetting(message.content);
+    }
     if (!isCheckpointMessage(message)) {
       if (message.role !== "user") return;
       // Real user work supersedes an armed continuation: the user is here, so

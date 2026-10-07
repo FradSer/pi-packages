@@ -25,6 +25,7 @@ import {
 	listWorktrees,
 	mainWorktreeRoot,
 	managedWorktreesDir,
+	MANAGED_WORKTREES_SHELL_PATH,
 } from "./git/worktrees.ts";
 
 export interface WorktreeRoots {
@@ -84,7 +85,8 @@ export function suggestionToPath(value: string): string {
 }
 
 function isInsideManagedDir(candidate: string, root: string): boolean {
-	return isInside(candidate, canonicalizeBestEffort(path.join(root, ".pi", "worktrees")));
+	const managed = managedWorktreesDir(root);
+	return managed !== null && isInside(candidate, canonicalizeBestEffort(managed));
 }
 
 /** True when the suggestion resolves inside a non-current git worktree root or managed worktrees dir. */
@@ -280,7 +282,10 @@ function worktreeCompletionProvider(
 const SEARCH_TOOLS = new Set(["fffind", "ffgrep", "find", "grep"]);
 
 /** Exclude patterns every managed worktree directory is covered by. */
-const MANAGED_EXCLUDE_PATTERNS = [".pi/worktrees/**", ".pi/worktrees"];
+const MANAGED_EXCLUDE_PATTERNS = [
+	`${MANAGED_WORKTREES_SHELL_PATH}/**`,
+	MANAGED_WORKTREES_SHELL_PATH,
+];
 
 /**
  * True when the target tool actually declares an `exclude` parameter.

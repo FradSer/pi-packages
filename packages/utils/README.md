@@ -140,9 +140,9 @@ The name request asks for no reasoning. A reasoning model shares one response
 budget between its thinking and its answer, so a small budget would be spent
 before any name exists.
 
-The request is a bounded one-shot: no tools, at most 64 output tokens, no
-caching, and the current session id is forwarded so conversation-routing
-gateways accept the nested call.
+The request is a bounded one-shot: no tools, an output budget of at most 1024
+tokens that leaves room for reasoning, no caching, and the current session id is
+forwarded so conversation-routing gateways accept the nested call.
 
 ## npm publish guard
 

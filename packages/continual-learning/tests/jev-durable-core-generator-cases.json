@@ -1,0 +1,1074 @@
+{
+  "evidence": "prospective-bilingual-durable-core-generator-scenarios",
+  "independentScenarios": 8,
+  "languagePairs": 8,
+  "heldout": false,
+  "syntheticOnly": true,
+  "cases": [
+    {
+      "id": "stable-config-plus-run-history-en",
+      "scenario": "stable-config-plus-run-history",
+      "language": "en",
+      "identity": {
+        "runId": "research-stable-config-plus-run-history-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "4aa2de9a02d0209ad5f73ef14995da6dae847e45a81c359440201d2c7bb8cb05",
+        "snapshotDigest": "4aa2de9a02d0209ad5f73ef14995da6dae847e45a81c359440201d2c7bb8cb05"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-stable-config-plus-run-history-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Project Aurora uses pnpm test for future regression checks."
+          },
+          {
+            "role": "toolResult",
+            "content": "Observed package script: test = vitest run. This invocation passed 17 tests."
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-stable-config-plus-run-history-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "4aa2de9a02d0209ad5f73ef14995da6dae847e45a81c359440201d2c7bb8cb05",
+        "snapshotDigest": "4aa2de9a02d0209ad5f73ef14995da6dae847e45a81c359440201d2c7bb8cb05",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora uses pnpm test and this invocation passed 17 tests.\ntype: project\n---\nAurora uses pnpm test and this invocation passed 17 tests.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Project Aurora uses pnpm test for future regression checks."
+              },
+              {
+                "index": 1,
+                "quote": "Observed package script: test = vitest run. This invocation passed 17 tests."
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep the durable command and verified script.",
+        "The passing count is incidental, not explicitly requested lasting knowledge."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "stable-config-plus-run-history-zh",
+      "scenario": "stable-config-plus-run-history",
+      "language": "zh",
+      "identity": {
+        "runId": "research-stable-config-plus-run-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "b60b597d3cbe087a6ae24b57ce937866d48e4d8b49adb17f5f05ed344f652314",
+        "snapshotDigest": "b60b597d3cbe087a6ae24b57ce937866d48e4d8b49adb17f5f05ed344f652314"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-stable-config-plus-run-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Aurora 项目今后的回归验证使用 pnpm test。"
+          },
+          {
+            "role": "toolResult",
+            "content": "观察到项目脚本：test = vitest run。本次运行通过 17 项测试。"
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-stable-config-plus-run-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "b60b597d3cbe087a6ae24b57ce937866d48e4d8b49adb17f5f05ed344f652314",
+        "snapshotDigest": "b60b597d3cbe087a6ae24b57ce937866d48e4d8b49adb17f5f05ed344f652314",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 使用 pnpm test，本次运行通过 17 项测试。\ntype: project\n---\nAurora 使用 pnpm test，本次运行通过 17 项测试。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Aurora 项目今后的回归验证使用 pnpm test。"
+              },
+              {
+                "index": 1,
+                "quote": "观察到项目脚本：test = vitest run。本次运行通过 17 项测试。"
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep the durable command and verified script.",
+        "The passing count is incidental, not explicitly requested lasting knowledge."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "explicit-long-term-observed-result-en",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "identity": {
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "snapshotDigest": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Remember this release qualification result permanently: on Node 22.23.2, all 17 compatibility tests passed; preserve the exact version and count."
+          },
+          {
+            "role": "toolResult",
+            "content": "Verified release qualification on Node 22.23.2: 17 passed."
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-explicit-long-term-observed-result-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "snapshotDigest": "38ba9c6267f43d0a583e072709ea2205861c22c7d2bca05aa0e810d45235239a",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Release qualification: Node 22.23.2, 17 compatibility tests passed.\ntype: project\n---\nRelease qualification: Node 22.23.2, 17 compatibility tests passed.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Remember this release qualification result permanently: on Node 22.23.2, all 17 compatibility tests passed; preserve the exact version and count."
+              },
+              {
+                "index": 1,
+                "quote": "Verified release qualification on Node 22.23.2: 17 passed."
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep explicitly requested version, count, release context and verified result.",
+        "Do not discard historical facts merely because observed once."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "explicit-long-term-observed-result-zh",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "identity": {
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "snapshotDigest": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "请长期记住这个版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过；保留准确版本和数量。"
+          },
+          {
+            "role": "toolResult",
+            "content": "已验证此版本在 Node 22.23.2 上的验收结果：17 passed。"
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-explicit-long-term-observed-result-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "snapshotDigest": "d0884b73064d51bff5271064cee3345cadb0163d0774e895d2907a1ea6aa10b3",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: 此版本验收：Node 22.23.2，17 项兼容性测试通过。\ntype: project\n---\n此版本验收：Node 22.23.2，17 项兼容性测试通过。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "请长期记住这个版本的验收结果：在 Node 22.23.2 上，全部 17 项兼容性测试通过；保留准确版本和数量。"
+              },
+              {
+                "index": 1,
+                "quote": "已验证此版本在 Node 22.23.2 上的验收结果：17 passed。"
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep explicitly requested version, count, release context and verified result.",
+        "Do not discard historical facts merely because observed once."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "lasting-compatibility-exception-en",
+      "scenario": "lasting-compatibility-exception",
+      "language": "en",
+      "identity": {
+        "runId": "research-lasting-compatibility-exception-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "a2893ce702dea8790dd3a86ee0347d9ae17d731d33dd2af8e243f550776ac502",
+        "snapshotDigest": "a2893ce702dea8790dd3a86ee0347d9ae17d731d33dd2af8e243f550776ac502"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-lasting-compatibility-exception-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "For future Aurora builds retain this compatibility condition: use Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified."
+          },
+          {
+            "role": "toolResult",
+            "content": "The compatibility check passed with Node 18.19.0 and TypeScript 4.9 after the earlier failure."
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-lasting-compatibility-exception-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "a2893ce702dea8790dd3a86ee0347d9ae17d731d33dd2af8e243f550776ac502",
+        "snapshotDigest": "a2893ce702dea8790dd3a86ee0347d9ae17d731d33dd2af8e243f550776ac502",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Future Aurora builds use Node 18.19.0 with TypeScript 4.9 unless an upgraded compiler is verified compatible.\ntype: project\n---\nFuture Aurora builds use Node 18.19.0 with TypeScript 4.9 unless an upgraded compiler is verified compatible.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "For future Aurora builds retain this compatibility condition: use Node 18.19.0 with TypeScript 4.9, unless the compiler is upgraded and that compatibility is verified."
+              },
+              {
+                "index": 1,
+                "quote": "The compatibility check passed with Node 18.19.0 and TypeScript 4.9 after the earlier failure."
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep the lasting condition and upgrade exception.",
+        "A discovered ongoing condition is not incidental run history."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "lasting-compatibility-exception-zh",
+      "scenario": "lasting-compatibility-exception",
+      "language": "zh",
+      "identity": {
+        "runId": "research-lasting-compatibility-exception-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "c83ee227df88f2749e21bdfca70c39fd320de063bc976d57d0e575795671ac13",
+        "snapshotDigest": "c83ee227df88f2749e21bdfca70c39fd320de063bc976d57d0e575795671ac13"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-lasting-compatibility-exception-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Aurora 今后的构建要保留此兼容条件：TypeScript 4.9 配合 Node 18.19.0；除非编译器已升级并验证兼容性。"
+          },
+          {
+            "role": "toolResult",
+            "content": "之前失败后，Node 18.19.0 与 TypeScript 4.9 的兼容检查通过。"
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-lasting-compatibility-exception-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "c83ee227df88f2749e21bdfca70c39fd320de063bc976d57d0e575795671ac13",
+        "snapshotDigest": "c83ee227df88f2749e21bdfca70c39fd320de063bc976d57d0e575795671ac13",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 今后构建使用 Node 18.19.0 与 TypeScript 4.9，除非升级编译器后已验证兼容。\ntype: project\n---\nAurora 今后构建使用 Node 18.19.0 与 TypeScript 4.9，除非升级编译器后已验证兼容。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Aurora 今后的构建要保留此兼容条件：TypeScript 4.9 配合 Node 18.19.0；除非编译器已升级并验证兼容性。"
+              },
+              {
+                "index": 1,
+                "quote": "之前失败后，Node 18.19.0 与 TypeScript 4.9 的兼容检查通过。"
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep the lasting condition and upgrade exception.",
+        "A discovered ongoing condition is not incidental run history."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "only-transient-failure-en",
+      "scenario": "only-transient-failure",
+      "language": "en",
+      "identity": {
+        "runId": "research-only-transient-failure-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "703d42793cd71639d6c1b5eae9520f7e5b75cc52918434e33be63b7ae8b95118",
+        "snapshotDigest": "703d42793cd71639d6c1b5eae9520f7e5b75cc52918434e33be63b7ae8b95118"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-only-transient-failure-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "This task only: retry the registry request once; do not infer a lasting project limitation."
+          },
+          {
+            "role": "toolResult",
+            "content": "The registry returned HTTP 503 once and the retry succeeded."
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-only-transient-failure-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "703d42793cd71639d6c1b5eae9520f7e5b75cc52918434e33be63b7ae8b95118",
+        "snapshotDigest": "703d42793cd71639d6c1b5eae9520f7e5b75cc52918434e33be63b7ae8b95118",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora registry requests fail permanently; avoid the registry in future work.\ntype: project\n---\nAurora registry requests fail permanently; avoid the registry in future work.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "This task only: retry the registry request once; do not infer a lasting project limitation."
+              },
+              {
+                "index": 1,
+                "quote": "The registry returned HTTP 503 once and the retry succeeded."
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "No stable configuration fact is present.",
+        "Do not invent a durable core; any unresolved unsupported candidate must remain held."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "only-transient-failure-zh",
+      "scenario": "only-transient-failure",
+      "language": "zh",
+      "identity": {
+        "runId": "research-only-transient-failure-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "9cb473a48695d21f9125a9e57a61aa4631a783b36dfb35a1ed2cedc38a17a9bb",
+        "snapshotDigest": "9cb473a48695d21f9125a9e57a61aa4631a783b36dfb35a1ed2cedc38a17a9bb"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-only-transient-failure-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "仅本次任务：重试一次软件仓库请求；不要推导永久项目限制。"
+          },
+          {
+            "role": "toolResult",
+            "content": "软件仓库一次返回 HTTP 503，重试后成功。"
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-only-transient-failure-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "9cb473a48695d21f9125a9e57a61aa4631a783b36dfb35a1ed2cedc38a17a9bb",
+        "snapshotDigest": "9cb473a48695d21f9125a9e57a61aa4631a783b36dfb35a1ed2cedc38a17a9bb",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 软件仓库请求永久失败；今后工作避免使用软件仓库。\ntype: project\n---\nAurora 软件仓库请求永久失败；今后工作避免使用软件仓库。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "仅本次任务：重试一次软件仓库请求；不要推导永久项目限制。"
+              },
+              {
+                "index": 1,
+                "quote": "软件仓库一次返回 HTTP 503，重试后成功。"
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "No stable configuration fact is present.",
+        "Do not invent a durable core; any unresolved unsupported candidate must remain held."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "later-config-revocation-en",
+      "scenario": "later-config-revocation",
+      "language": "en",
+      "identity": {
+        "runId": "research-later-config-revocation-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "e265c05c4b98a79eae4cac009456fa2acabd5d1699dd85719bb19ef86bea2ce6",
+        "snapshotDigest": "e265c05c4b98a79eae4cac009456fa2acabd5d1699dd85719bb19ef86bea2ce6"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-later-config-revocation-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Correction for future work: Aurora now uses npm test, replacing the old pnpm test command."
+          },
+          {
+            "role": "toolResult",
+            "content": "Verified current package manager: npm. Earlier archived logs mention pnpm test."
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-later-config-revocation-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "e265c05c4b98a79eae4cac009456fa2acabd5d1699dd85719bb19ef86bea2ce6",
+        "snapshotDigest": "e265c05c4b98a79eae4cac009456fa2acabd5d1699dd85719bb19ef86bea2ce6",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora formerly used pnpm test and now uses npm test for future work.\ntype: project\n---\nAurora formerly used pnpm test and now uses npm test for future work.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Correction for future work: Aurora now uses npm test, replacing the old pnpm test command."
+              },
+              {
+                "index": 1,
+                "quote": "Verified current package manager: npm. Earlier archived logs mention pnpm test."
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep the current correction and replacement meaning.",
+        "Do not simplify back to the superseded fact."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "later-config-revocation-zh",
+      "scenario": "later-config-revocation",
+      "language": "zh",
+      "identity": {
+        "runId": "research-later-config-revocation-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "325c077cec4cae2b5e08bfc6adaa4e3511f7517db5c18952470b257157ad58cf",
+        "snapshotDigest": "325c077cec4cae2b5e08bfc6adaa4e3511f7517db5c18952470b257157ad58cf"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-later-config-revocation-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后工作请采用修正后的事实：Aurora 现在使用 npm test，替代旧的 pnpm test 命令。"
+          },
+          {
+            "role": "toolResult",
+            "content": "验证当前包管理器是 npm。较早归档日志提到 pnpm test。"
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-later-config-revocation-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "325c077cec4cae2b5e08bfc6adaa4e3511f7517db5c18952470b257157ad58cf",
+        "snapshotDigest": "325c077cec4cae2b5e08bfc6adaa4e3511f7517db5c18952470b257157ad58cf",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 以前使用 pnpm test，现在今后使用 npm test。\ntype: project\n---\nAurora 以前使用 pnpm test，现在今后使用 npm test。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "今后工作请采用修正后的事实：Aurora 现在使用 npm test，替代旧的 pnpm test 命令。"
+              },
+              {
+                "index": 1,
+                "quote": "验证当前包管理器是 npm。较早归档日志提到 pnpm test。"
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep the current correction and replacement meaning.",
+        "Do not simplify back to the superseded fact."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "private-conditional-preference-en",
+      "scenario": "private-conditional-preference",
+      "language": "en",
+      "identity": {
+        "runId": "research-private-conditional-preference-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "f05f20a63a6dd524cd1b7a0b6d59f36cc2fdc64ddeb3165eac998046b8dc8da1",
+        "snapshotDigest": "f05f20a63a6dd524cd1b7a0b6d59f36cc2fdc64ddeb3165eac998046b8dc8da1"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-private-conditional-preference-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Keep this preference private for future Aurora reports: finish with REPORT_DONE only for successful verification, never after an error; do not publish it into project Memory, Harness or AGENTS.md."
+          },
+          {
+            "role": "toolResult",
+            "content": "This successful verification report ended with REPORT_DONE."
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-private-conditional-preference-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "f05f20a63a6dd524cd1b7a0b6d59f36cc2fdc64ddeb3165eac998046b8dc8da1",
+        "snapshotDigest": "f05f20a63a6dd524cd1b7a0b6d59f36cc2fdc64ddeb3165eac998046b8dc8da1",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "preference",
+            "classification": "private",
+            "content": "---\nname: aurora_fact\ndescription: For future Aurora reports, privately use REPORT_DONE only on successful verification, never after an error; do not share\ntype: preference\n---\nFor future Aurora reports, privately use REPORT_DONE only on successful verification, never after an error; do not share it in project files.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Keep this preference private for future Aurora reports: finish with REPORT_DONE only for successful verification, never after an error; do not publish it into project Memory, Harness or AGENTS.md."
+              },
+              {
+                "index": 1,
+                "quote": "This successful verification report ended with REPORT_DONE."
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep private classification and all sharing exclusions.",
+        "Keep success-only condition and error exception."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "private-conditional-preference-zh",
+      "scenario": "private-conditional-preference",
+      "language": "zh",
+      "identity": {
+        "runId": "research-private-conditional-preference-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "d3b68e8cbbfc144c6832fba59d196db3aa1b7cc1a5450691d6543539576292eb",
+        "snapshotDigest": "d3b68e8cbbfc144c6832fba59d196db3aa1b7cc1a5450691d6543539576292eb"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-private-conditional-preference-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后 Aurora 报告保留此私有偏好：只在验证成功时以 REPORT_DONE 结尾，错误后不要使用；不要发布到项目 Memory、Harness 或 AGENTS.md。"
+          },
+          {
+            "role": "toolResult",
+            "content": "本次成功验证报告以 REPORT_DONE 结尾。"
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-private-conditional-preference-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "d3b68e8cbbfc144c6832fba59d196db3aa1b7cc1a5450691d6543539576292eb",
+        "snapshotDigest": "d3b68e8cbbfc144c6832fba59d196db3aa1b7cc1a5450691d6543539576292eb",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "preference",
+            "classification": "private",
+            "content": "---\nname: aurora_fact\ndescription: 今后 Aurora 报告私下只在验证成功时使用 REPORT_DONE，错误后不使用；不要共享到项目文件。\ntype: preference\n---\n今后 Aurora 报告私下只在验证成功时使用 REPORT_DONE，错误后不使用；不要共享到项目文件。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "今后 Aurora 报告保留此私有偏好：只在验证成功时以 REPORT_DONE 结尾，错误后不要使用；不要发布到项目 Memory、Harness 或 AGENTS.md。"
+              },
+              {
+                "index": 1,
+                "quote": "本次成功验证报告以 REPORT_DONE 结尾。"
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep private classification and all sharing exclusions.",
+        "Keep success-only condition and error exception."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "negative-verification-and-recovery-en",
+      "scenario": "negative-verification-and-recovery",
+      "language": "en",
+      "identity": {
+        "runId": "research-negative-verification-and-recovery-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "19d407ecc9162f05a0c6dc5ab55b94f252720709ceda91d844c47c7c66e646eb",
+        "snapshotDigest": "19d407ecc9162f05a0c6dc5ab55b94f252720709ceda91d844c47c7c66e646eb"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-negative-verification-and-recovery-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "For future Aurora regression checks, remember that the verified command is pnpm test."
+          },
+          {
+            "role": "toolResult",
+            "content": "pnpm test passed. Deliberately corrupting the fixture produced an expected failing test. Restoring it made pnpm test pass again."
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-negative-verification-and-recovery-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "19d407ecc9162f05a0c6dc5ab55b94f252720709ceda91d844c47c7c66e646eb",
+        "snapshotDigest": "19d407ecc9162f05a0c6dc5ab55b94f252720709ceda91d844c47c7c66e646eb",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora regression command is pnpm test; the deliberate negative check failed and restoration passed.\ntype: project\n---\nAurora regression command is pnpm test; the deliberate negative check failed and restoration passed.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "For future Aurora regression checks, remember that the verified command is pnpm test."
+              },
+              {
+                "index": 1,
+                "quote": "pnpm test passed. Deliberately corrupting the fixture produced an expected failing test. Restoring it made pnpm test pass again."
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep the durable command.",
+        "Expected negative verification and successful recovery do not revoke it."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "negative-verification-and-recovery-zh",
+      "scenario": "negative-verification-and-recovery",
+      "language": "zh",
+      "identity": {
+        "runId": "research-negative-verification-and-recovery-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "54a8a24407355218c54410b90e1c7a4e6a3e2d50efda4acf398306e8e8348667",
+        "snapshotDigest": "54a8a24407355218c54410b90e1c7a4e6a3e2d50efda4acf398306e8e8348667"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-negative-verification-and-recovery-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "今后 Aurora 回归验证请记住：经验证的命令是 pnpm test。"
+          },
+          {
+            "role": "toolResult",
+            "content": "pnpm test 通过。主动破坏 fixture 后测试按预期失败。恢复后 pnpm test 再次通过。"
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-negative-verification-and-recovery-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "54a8a24407355218c54410b90e1c7a4e6a3e2d50efda4acf398306e8e8348667",
+        "snapshotDigest": "54a8a24407355218c54410b90e1c7a4e6a3e2d50efda4acf398306e8e8348667",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora 回归命令是 pnpm test；主动负向检查失败，恢复后通过。\ntype: project\n---\nAurora 回归命令是 pnpm test；主动负向检查失败，恢复后通过。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "今后 Aurora 回归验证请记住：经验证的命令是 pnpm test。"
+              },
+              {
+                "index": 1,
+                "quote": "pnpm test 通过。主动破坏 fixture 后测试按预期失败。恢复后 pnpm test 再次通过。"
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep the durable command.",
+        "Expected negative verification and successful recovery do not revoke it."
+      ],
+      "labels": "Prospectively authored normative behavior contracts; not human semantic gold."
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history-en",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "language": "en",
+      "identity": {
+        "runId": "research-unrequested-durable-diagnostic-history-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "283121a6ff8cb475d3d48ae23ef10d4ca6ff5ab878e8cfad64ae48af235dcda9",
+        "snapshotDigest": "283121a6ff8cb475d3d48ae23ef10d4ca6ff5ab878e8cfad64ae48af235dcda9"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-unrequested-durable-diagnostic-history-en",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "Investigate the Aurora CI network failures and report verified findings."
+          },
+          {
+            "role": "toolResult",
+            "content": "Across three isolated checks, IPv6 connections failed because this CI environment has no IPv6 route; IPv4 connections succeeded in all three. The route configuration is unchanged and this condition remains until IPv6 routing is provisioned."
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-unrequested-durable-diagnostic-history-en",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "283121a6ff8cb475d3d48ae23ef10d4ca6ff5ab878e8cfad64ae48af235dcda9",
+        "snapshotDigest": "283121a6ff8cb475d3d48ae23ef10d4ca6ff5ab878e8cfad64ae48af235dcda9",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora CI has no IPv6 route; verified IPv4 success is useful diagnosis until IPv6 routing is provisioned.\ntype: project\n---\nAurora CI has no IPv6 route; verified IPv4 success is useful diagnosis until IPv6 routing is provisioned.\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "Investigate the Aurora CI network failures and report verified findings."
+              },
+              {
+                "index": 1,
+                "quote": "Across three isolated checks, IPv6 connections failed because this CI environment has no IPv6 route; IPv4 connections succeeded in all three. The route configuration is unchanged and this condition remains until IPv6 routing is provisioned."
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep independently verified ongoing route condition and IPv4 diagnostic observation.",
+        "Keep until-routing-provisioned boundary; do not turn it into a permanent IPv6 prohibition.",
+        "Explicit user request for long-term storage is not necessary for an established useful project fact."
+      ],
+      "labels": "Prospectively authored normative behavior contract; not human semantic gold."
+    },
+    {
+      "id": "unrequested-durable-diagnostic-history-zh",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "language": "zh",
+      "identity": {
+        "runId": "research-unrequested-durable-diagnostic-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "e5b0788fefed744dbe97a7528293e0ff090107068f3149556cd1f19121315854",
+        "snapshotDigest": "e5b0788fefed744dbe97a7528293e0ff090107068f3149556cd1f19121315854"
+      },
+      "snapshot": {
+        "contextEnabled": true,
+        "runId": "research-unrequested-durable-diagnostic-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "entries": [
+          {
+            "role": "user",
+            "content": "调查 Aurora CI 网络故障并报告已验证的发现。"
+          },
+          {
+            "role": "toolResult",
+            "content": "三个隔离检查中，IPv6 连接都因这个 CI 环境没有 IPv6 路由而失败；三个检查的 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前这个条件仍持续。"
+          }
+        ]
+      },
+      "existingMemories": [],
+      "rejectedPlan": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "research-unrequested-durable-diagnostic-history-zh",
+        "scopeKey": "synthetic-aurora",
+        "scopeDigest": "be88c509c6c415fc439d3658ec653b37829d396e9d45c545f5df1ed65d2e65cf",
+        "artifactHash": "e5b0788fefed744dbe97a7528293e0ff090107068f3149556cd1f19121315854",
+        "snapshotDigest": "e5b0788fefed744dbe97a7528293e0ff090107068f3149556cd1f19121315854",
+        "operations": [],
+        "newMemories": [
+          {
+            "name": "aurora_fact.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\nname: aurora_fact\ndescription: Aurora CI 没有 IPv6 路由；已验证 IPv4 成功，在配置 IPv6 路由前可用于诊断。\ntype: project\n---\nAurora CI 没有 IPv6 路由；已验证 IPv4 成功，在配置 IPv6 路由前可用于诊断。\n",
+            "evidence": [
+              {
+                "index": 0,
+                "quote": "调查 Aurora CI 网络故障并报告已验证的发现。"
+              },
+              {
+                "index": 1,
+                "quote": "三个隔离检查中，IPv6 连接都因这个 CI 环境没有 IPv6 路由而失败；三个检查的 IPv4 连接均成功。路由配置未变，在配置 IPv6 路由前这个条件仍持续。"
+              }
+            ]
+          }
+        ]
+      },
+      "errors": [
+        "Semantic verification: uncertain. Retain the smallest durable fact, exact conditions and privacy, using only the cited frozen evidence.",
+        "This bounded research comparison freezes every original candidate name, kind, classification, frontmatter name/type, and every original citation (index, quote), including their order. Do not add metadata. These common study checks do not grant write permission."
+      ],
+      "expectedRequirements": [
+        "Keep independently verified ongoing route condition and IPv4 diagnostic observation.",
+        "Keep until-routing-provisioned boundary; do not turn it into a permanent IPv6 prohibition.",
+        "Explicit user request for long-term storage is not necessary for an established useful project fact."
+      ],
+      "labels": "Prospectively authored normative behavior contract; not human semantic gold."
+    }
+  ],
+  "limits": [
+    "Designed from already known failure mechanisms, not independent heldout generalization.",
+    "Normative contracts require independent review before paid execution.",
+    "No real project, model outcome or production write represented.",
+    "Both arms receive the same stricter authored research-retention error; this is a controlled repair experiment, not unchanged production task generation."
+  ],
+  "samples": 16
+}

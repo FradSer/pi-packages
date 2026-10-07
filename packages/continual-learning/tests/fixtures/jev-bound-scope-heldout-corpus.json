@@ -1,0 +1,1554 @@
+[
+  {
+    "id": "en-durable",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-durable",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Adopt a permanent no-git-push policy for this repo; apply it on all subsequent work."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Adopt a permanent no-git-push policy for this repo; apply it on all subsequent work."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Adopt a permanent no-git-push policy for this repo; apply it on all subsequent work.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-durable",
+      "scopeKey": "project",
+      "evidenceDigest": "ac3403a9cffc8fd3792b4f4cc5555f18a312b1096263f55f538f13da12f1276b"
+    }
+  },
+  {
+    "id": "zh-durable",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-durable",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "为本仓库采用永久禁止 git push 的策略，所有后续工作都适用。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "为本仓库采用永久禁止 git push 的策略，所有后续工作都适用。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "为本仓库采用永久禁止 git push 的策略，所有后续工作都适用。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-durable",
+      "scopeKey": "project",
+      "evidenceDigest": "e21099ccbf129a41c570ce1ff419c817a1109792414ecf94a0923063ef0159f0"
+    }
+  },
+  {
+    "id": "en-anyargs",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-anyargs",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never execute git push here, regardless of arguments, even --dry-run."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never execute git push here, regardless of arguments, even --dry-run."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never execute git push here, regardless of arguments, even --dry-run.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-anyargs",
+      "scopeKey": "project",
+      "evidenceDigest": "3919635baf71e4b073f06e5b45ebc60d004f504d5f8061877f7a69fa68293d47"
+    }
+  },
+  {
+    "id": "zh-anyargs",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-anyargs",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "在这里永不执行 git push，无论参数是什么，连 --dry-run 也禁止。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "在这里永不执行 git push，无论参数是什么，连 --dry-run 也禁止。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "在这里永不执行 git push，无论参数是什么，连 --dry-run 也禁止。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-anyargs",
+      "scopeKey": "project",
+      "evidenceDigest": "ca51435f6b2f68c2ef23b2a73b8a7fb38d943333fde555d6033a369b12700b7b"
+    }
+  },
+  {
+    "id": "en-cwd",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-cwd",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "For this project now and later, block git push even after changing into the project with cd."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "For this project now and later, block git push even after changing into the project with cd."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "For this project now and later, block git push even after changing into the project with cd.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-cwd",
+      "scopeKey": "project",
+      "evidenceDigest": "245166eaa3e551db27c11e4cc8b6937b65282a4a6caffd9c584e8840ea9e259e"
+    }
+  },
+  {
+    "id": "zh-cwd",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-cwd",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目现在和以后都阻止 git push，即使先用 cd 进入项目也一样。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本项目现在和以后都阻止 git push，即使先用 cd 进入项目也一样。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本项目现在和以后都阻止 git push，即使先用 cd 进入项目也一样。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-cwd",
+      "scopeKey": "project",
+      "evidenceDigest": "1c4ff9af6bc4895362343c3cdc81c523ed4d3bdecd88af63472465201db8fada"
+    }
+  },
+  {
+    "id": "en-irrelevant",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-irrelevant",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Keep git push prohibited in this repo for future sessions."
+        },
+        {
+          "role": "user",
+          "content": "Use blue for the documentation diagrams."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Keep git push prohibited in this repo for future sessions."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Keep git push prohibited in this repo for future sessions.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-irrelevant",
+      "scopeKey": "project",
+      "evidenceDigest": "3e7b2e4637430be71737b58d133706a3f4ec71b9fbc23b7c816deb1a0e5ee379"
+    }
+  },
+  {
+    "id": "zh-irrelevant",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-irrelevant",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "以后会话继续禁止在本仓库运行 git push。"
+        },
+        {
+          "role": "user",
+          "content": "文档里的图使用蓝色。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "以后会话继续禁止在本仓库运行 git push。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "以后会话继续禁止在本仓库运行 git push。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-irrelevant",
+      "scopeKey": "project",
+      "evidenceDigest": "9d55df2aed5be534d52c9443d82f0bbc869c06e38096ff5b7304395a9599db44"
+    }
+  },
+  {
+    "id": "en-dryonly",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-dryonly",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "From now on block only git push --dry-run; actual pushes remain allowed."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "From now on block only git push --dry-run; actual pushes remain allowed."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "From now on block only git push --dry-run; actual pushes remain allowed.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-dryonly",
+      "scopeKey": "project",
+      "evidenceDigest": "94c494d5048ea1adf8f7e981e7cf16ad78a240be7788a0ca5f13243181a28b36"
+    }
+  },
+  {
+    "id": "zh-dryonly",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-dryonly",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "从现在起只阻止 git push --dry-run；真正的推送仍允许。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "从现在起只阻止 git push --dry-run；真正的推送仍允许。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "从现在起只阻止 git push --dry-run；真正的推送仍允许。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-dryonly",
+      "scopeKey": "project",
+      "evidenceDigest": "84afe9993a89b02133a08ef7f767158432cdc4e6854e72df137fceb17ce9ae6b"
+    }
+  },
+  {
+    "id": "en-remote",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-remote",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never push to upstream; pushes to origin are explicitly allowed."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never push to upstream; pushes to origin are explicitly allowed."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never push to upstream; pushes to origin are explicitly allowed.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-remote",
+      "scopeKey": "project",
+      "evidenceDigest": "700157d5d2c44a07df6a3f2b8929ec8f7a18fbdecf3ca5127e9c2139816546c0"
+    }
+  },
+  {
+    "id": "zh-remote",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-remote",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "永不推送到 upstream；明确允许推送到 origin。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "永不推送到 upstream；明确允许推送到 origin。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "永不推送到 upstream；明确允许推送到 origin。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-remote",
+      "scopeKey": "project",
+      "evidenceDigest": "6f6ff6a8bc1714969baa9bc6a9e1510969ac3306302a0b5c0d03b00d00aa1083"
+    }
+  },
+  {
+    "id": "en-today",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-today",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Avoid git push for today only; tomorrow this restriction expires."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Avoid git push for today only; tomorrow this restriction expires."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Avoid git push for today only; tomorrow this restriction expires.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-today",
+      "scopeKey": "project",
+      "evidenceDigest": "0f95d8b57274aa41ec350f43941411414cb8f0bd8d2802a22a315c2197214cbc"
+    }
+  },
+  {
+    "id": "zh-today",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-today",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "只在今天避免 git push；明天这条限制到期。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "只在今天避免 git push；明天这条限制到期。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "只在今天避免 git push；明天这条限制到期。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-today",
+      "scopeKey": "project",
+      "evidenceDigest": "c5d13d08f771881279484f89ab803ea479acb951945e9f1fa117490e7ae7daf6"
+    }
+  },
+  {
+    "id": "en-condition",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-condition",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Block git push only while the release freeze is active. Outside the freeze allow it."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Block git push only while the release freeze is active. Outside the freeze allow it."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Block git push only while the release freeze is active. Outside the freeze allow it.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-condition",
+      "scopeKey": "project",
+      "evidenceDigest": "afd31f8bd258befde02808d5e3da545eb5e632f8c500ecbf43c105016a3bd3f9"
+    }
+  },
+  {
+    "id": "zh-condition",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-condition",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "仅在发布冻结期间阻止 git push；冻结以外允许。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "仅在发布冻结期间阻止 git push；冻结以外允许。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "仅在发布冻结期间阻止 git push；冻结以外允许。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-condition",
+      "scopeKey": "project",
+      "evidenceDigest": "0f1beb5b673898a46cf982158362aeed76fa4cb777efdfc8b4c15793a4141c80"
+    }
+  },
+  {
+    "id": "en-othercwd",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-othercwd",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Disallow git push for /work/archived, not for the current /work/project repo."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Disallow git push for /work/archived, not for the current /work/project repo."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Disallow git push for /work/archived, not for the current /work/project repo.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-othercwd",
+      "scopeKey": "project",
+      "evidenceDigest": "cefff544aa1ba54c6fa0e6bae0473e297ac76238ccad90fe7d52e65dcacc17d1"
+    }
+  },
+  {
+    "id": "zh-othercwd",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-othercwd",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "/work/archived 不允许 git push，当前 /work/project 仓库允许。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "/work/archived 不允许 git push，当前 /work/project 仓库允许。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "/work/archived 不允许 git push，当前 /work/project 仓库允许。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-othercwd",
+      "scopeKey": "project",
+      "evidenceDigest": "4c557a88e1701f73fe87f0ec85e758adcc5d8417d82fdf97bbc24a895e8838e7"
+    }
+  },
+  {
+    "id": "en-factual",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-factual",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "The last git push succeeded; this is an observation, not a new restriction."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "The last git push succeeded; this is an observation, not a new restriction."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "The last git push succeeded; this is an observation, not a new restriction.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-factual",
+      "scopeKey": "project",
+      "evidenceDigest": "ccaeca36917f08d6bd88d0b5b7cf743c9e31fe3e3e5d8ad9e11229055bc55dad"
+    }
+  },
+  {
+    "id": "zh-factual",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-factual",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "上一次 git push 成功；这是观察结果，不是新增限制。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "上一次 git push 成功；这是观察结果，不是新增限制。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "上一次 git push 成功；这是观察结果，不是新增限制。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-factual",
+      "scopeKey": "project",
+      "evidenceDigest": "3c73d87a7329ebc59b2ce5b47c70899be3871647b4faef0b9757b843e2019073"
+    }
+  },
+  {
+    "id": "en-assistant",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-assistant",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "An assistant suggested banning git push permanently; I do not endorse that suggestion."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "An assistant suggested banning git push permanently; I do not endorse that suggestion."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "An assistant suggested banning git push permanently; I do not endorse that suggestion.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-assistant",
+      "scopeKey": "project",
+      "evidenceDigest": "dbfaad3ee4f437a4d6e955d29ba2dbcd60414ccdcf251e384f33b0fb37c53df3"
+    }
+  },
+  {
+    "id": "zh-assistant",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-assistant",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "助手建议永久禁止 git push；我并不认可这个建议。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "助手建议永久禁止 git push；我并不认可这个建议。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "助手建议永久禁止 git push；我并不认可这个建议。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-assistant",
+      "scopeKey": "project",
+      "evidenceDigest": "f0261b5660d501a3fbdcd2d498379e0f533ee4bebe2595716a4ff9ef74027786"
+    }
+  },
+  {
+    "id": "en-exception",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-en-exception",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Permanently ban git push in this project."
+        },
+        {
+          "role": "user",
+          "content": "Exception: allow git push when I approve that invocation."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Permanently ban git push in this project."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Permanently ban git push in this project.",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-en-exception",
+      "scopeKey": "project",
+      "evidenceDigest": "1dd1a504987cb544f63d3e1933ac165a70c6524836468ef18a582b06265dbf30"
+    }
+  },
+  {
+    "id": "zh-exception",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "bound-heldout-zh-exception",
+      "scopeKey": "project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "永久禁止本项目的 git push。"
+        },
+        {
+          "role": "user",
+          "content": "例外：我批准那次调用后允许 git push。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "no-push",
+            "bash": "^(?:cd[ \\t]+(?:/work/project|'/work/project'|\"/work/project\"|\\.)[ \\t]+&&[ \\t]+)?git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "永久禁止本项目的 git push。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "cd /work/project && git --no-pager push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git push"
+              },
+              {
+                "bash": "cd /work/other && git push"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "永久禁止本项目的 git push。",
+          "count": 1,
+          "eventIndex": 0
+        }
+      ]
+    },
+    "binding": {
+      "repoRoot": "/work/project",
+      "runId": "bound-heldout-zh-exception",
+      "scopeKey": "project",
+      "evidenceDigest": "13a1a9386742e7410194267b14c36900eb177b98238d9bef77ebf7c1526b0d8b"
+    }
+  }
+]

@@ -1,0 +1,37 @@
+{
+  "terminalResultSha256": "dafea760df2e3e3799c8a4c0607025037ff8099a5cf29a1eea4463502a7181cb",
+  "arms": [
+    {
+      "mode": "off",
+      "recordedParentUsage": 18,
+      "recordedWorkerAggregateUsage": 4,
+      "knownMainUsage": {
+        "input": 54191,
+        "output": 15501,
+        "cacheRead": 108288,
+        "cacheWrite": 0
+      },
+      "knownMainEstimatedCostUsd": 0.017146728
+    },
+    {
+      "mode": "on",
+      "recordedParentUsage": 7,
+      "recordedWorkerAggregateUsage": 3,
+      "knownMainUsage": {
+        "input": 79681,
+        "output": 19984,
+        "cacheRead": 67584,
+        "cacheWrite": 0
+      },
+      "knownMainEstimatedCostUsd": 0.022425974
+    }
+  ],
+  "knownMainEstimatedCostUsd": 0.039572702,
+  "coverageCompleteVerified": false,
+  "accountBillingVerified": false,
+  "limits": [
+    "Only recorded parent messages and child aggregates; unknown usage is notfree.",
+    "Worker aggregates are not request counts.",
+    "Configured tariffs, not account invoice."
+  ]
+}

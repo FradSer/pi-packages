@@ -1,0 +1,17 @@
+{
+  "evidence": "real-generated-parent-rejection-not-new-inference",
+  "sourceDigest": "909012fddcc15da55f93294ce548a44e32772598dfecc4df932daedf9a525790",
+  "failure": "git-global-options-before-push-positive-fixture-not-matched",
+  "operationIndex": 0,
+  "positiveCaseIndex": 3,
+  "controlledInitialErrors": [
+    "positive fixture did not match",
+    "positive fixture expected block but returned execute",
+    "report"
+  ],
+  "scopeLimit": "Existing five matcher probes do not test Git global options; no complete command-family coverage claim",
+  "repairTask": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-quote-scope-r7-final/click-on/memory/runs/--work-click--/run_muvhinb3_cec7601732666159/harness-repair.md",
+  "repairTaskHash": "b5ccff10083e74e10f59ab5f46d4ee6be3b7399ff42ca6fcde807ef3cfd436fc",
+  "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-quote-scope-r7-final/click-on/report.json",
+  "reportHash": "f1fca12ade32110f944f19d06f0e177f8044a1af8fd52aaecb6a26699609a369"
+}

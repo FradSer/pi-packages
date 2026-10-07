@@ -1,0 +1,96 @@
+{
+  "evidence": "r17-five-completed-arms-interim-not-final",
+  "rows": [
+    {
+      "arm": "click-off",
+      "status": "passed",
+      "stage": "complete",
+      "providerRequests": 33,
+      "jevRequests": 0,
+      "jevResponsesWithUsage": 0,
+      "providerErrors": 0,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": false,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "reportSha256": "8d44f65af01ea08e62b8d1110192e0d9102bd8d55c5c617fde72207203244c4f"
+    },
+    {
+      "arm": "click-on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "providerRequests": 30,
+      "jevRequests": 9,
+      "jevResponsesWithUsage": 8,
+      "providerErrors": 1,
+      "checks": {
+        "regressionChanged": true
+      },
+      "reportSha256": "98ce6806b70773dd98982a987e7998f151f3509575bff9bba0e50b01a9253333"
+    },
+    {
+      "arm": "p-limit-off",
+      "status": "passed",
+      "stage": "complete",
+      "providerRequests": 24,
+      "jevRequests": 0,
+      "jevResponsesWithUsage": 0,
+      "providerErrors": 0,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "reportSha256": "e70f478dc9542361188865e95aee3c6d8cfaea2abae709244c363b3e49ab5a4e"
+    },
+    {
+      "arm": "p-limit-on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "providerRequests": 28,
+      "jevRequests": 9,
+      "jevResponsesWithUsage": 9,
+      "providerErrors": 0,
+      "checks": {
+        "regressionChanged": true
+      },
+      "reportSha256": "7d88fbb95589715f22594e2b703795948bce77e6e9409ede010b56f7beadfc2b"
+    },
+    {
+      "arm": "mitt-off",
+      "status": "failed",
+      "stage": "setup",
+      "providerRequests": 0,
+      "jevRequests": 0,
+      "jevResponsesWithUsage": 0,
+      "providerErrors": 0,
+      "checks": {},
+      "reportSha256": "f0663ef4494b8919eccdc655ddcd78386fb97d3d56f1b9f24f00f24274b29d65"
+    }
+  ],
+  "remaining": [
+    "mitt-on"
+  ],
+  "limits": [
+    "Mitt off failed dependency setup before any provider call.",
+    "Original workflow gates unchanged; no favorable retry."
+  ],
+  "goalComplete": false
+}

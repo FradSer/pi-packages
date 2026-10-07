@@ -1,0 +1,62 @@
+{
+  "scope": "standalone Memory semantic research; no production integration",
+  "goalStatus": "active; net useful learning quality unproven",
+  "checks": {
+    "packagePytest": {
+      "passed": 1004,
+      "durationSeconds": 342.58,
+      "exitCode": 0,
+      "note": "collection preceded addition of forged-metadata guard test; focused three tests separately passed including that additional case"
+    },
+    "standaloneFocusedPytest": {
+      "passed": 3,
+      "durationSeconds": 1.16,
+      "exitCode": 0
+    },
+    "earlierAffectedPytest": {
+      "passed": 20,
+      "durationSeconds": 6.32,
+      "exitCode": 0
+    },
+    "researchTypecheck": {
+      "exitCode": 0
+    },
+    "rootTypecheck": {
+      "exitCode": 0
+    },
+    "packedManifestCheck": {
+      "exitCode": 0,
+      "packages": 19
+    },
+    "targetPackDryRun": {
+      "exitCode": 0
+    },
+    "rootFullSuite": "not rerun in this iteration"
+  },
+  "realInference": {
+    "requests": 32,
+    "model": "jev-1.13.0",
+    "inputTokens": 31029,
+    "estimatedInputCostUsd": 0.001303218,
+    "outputTokens": 1682,
+    "usageComplete": true
+  },
+  "offlinePreflight": {
+    "fixtureRequests": 32,
+    "externalRequests": 0,
+    "qualityEvidence": false
+  },
+  "regressions": {
+    "researchPrimitive": "RED missing module, then GREEN",
+    "metadataGuard": "forged SDK/retry/threshold metadata rejects before reservation or transport"
+  },
+  "productionWrites": 0,
+  "actualMainInference": false,
+  "requestedMainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "report": "jev-standalone-memory-real-results.json",
+  "decision": "jev-standalone-memory-adoption-decision.json",
+  "review": "standalone_memory_readiness_review"
+}

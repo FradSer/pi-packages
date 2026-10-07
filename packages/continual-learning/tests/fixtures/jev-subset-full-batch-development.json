@@ -1,0 +1,618 @@
+[
+  {
+    "id": "speculation-en",
+    "language": "en",
+    "archetype": "speculation",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "fixture-00",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "The verified project test command is pnpm test."
+        },
+        {
+          "role": "user",
+          "content": "Maybe the external image host requires WebP, but this is unverified."
+        },
+        {
+          "role": "toolResult",
+          "content": "The project license is MIT."
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "test-command.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: test-command\ndescription: The verified project test command is pnpm test.\ntype: project\n---\nThe verified project test command is pnpm test.\n",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "toolResult",
+            "quote": "The verified project test command is pnpm test."
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: The external image host requires WebP.\ntype: project\n---\nThe external image host requires WebP.\n",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "Maybe the external image host requires WebP, but this is unverified."
+          }
+        ]
+      },
+      {
+        "name": "license.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: license\ndescription: The project license is MIT.\ntype: project\n---\nThe project license is MIT.\n",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "toolResult",
+            "quote": "The project license is MIT."
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "goldRationale": "A and C are explicit verified enduring project facts. B removes uncertainty, overstates a temporary failure, contradicts a superseding command, or omits the definition required for standalone use.",
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    }
+  },
+  {
+    "id": "transient-en",
+    "language": "en",
+    "archetype": "transient",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "fixture-01",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "The verified project test command is pnpm test."
+        },
+        {
+          "role": "toolResult",
+          "content": "A registry request timed out once; a retry succeeded."
+        },
+        {
+          "role": "toolResult",
+          "content": "The project license is MIT."
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "test-command.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: test-command\ndescription: The verified project test command is pnpm test.\ntype: project\n---\nThe verified project test command is pnpm test.\n",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "toolResult",
+            "quote": "The verified project test command is pnpm test."
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: The registry is permanently unavailable.\ntype: project\n---\nThe registry is permanently unavailable.\n",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "toolResult",
+            "quote": "A registry request timed out once; a retry succeeded."
+          }
+        ]
+      },
+      {
+        "name": "license.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: license\ndescription: The project license is MIT.\ntype: project\n---\nThe project license is MIT.\n",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "toolResult",
+            "quote": "The project license is MIT."
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "goldRationale": "A and C are explicit verified enduring project facts. B removes uncertainty, overstates a temporary failure, contradicts a superseding command, or omits the definition required for standalone use.",
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    }
+  },
+  {
+    "id": "conflict-en",
+    "language": "en",
+    "archetype": "conflict",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "fixture-02",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "The verified project test command is pnpm test."
+        },
+        {
+          "role": "user",
+          "content": "The old command was npm test; use pnpm test now."
+        },
+        {
+          "role": "toolResult",
+          "content": "The project license is MIT."
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "test-command.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: test-command\ndescription: The verified project test command is pnpm test.\ntype: project\n---\nThe verified project test command is pnpm test.\n",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "toolResult",
+            "quote": "The verified project test command is pnpm test."
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: The current project test command is npm test.\ntype: project\n---\nThe current project test command is npm test.\n",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "The old command was npm test; use pnpm test now."
+          }
+        ]
+      },
+      {
+        "name": "license.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: license\ndescription: The project license is MIT.\ntype: project\n---\nThe project license is MIT.\n",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "toolResult",
+            "quote": "The project license is MIT."
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "goldRationale": "A and C are explicit verified enduring project facts. B removes uncertainty, overstates a temporary failure, contradicts a superseding command, or omits the definition required for standalone use.",
+    "expectedPairs": {
+      "0:1": "conflict",
+      "0:2": "independent",
+      "1:2": "independent"
+    }
+  },
+  {
+    "id": "dependency-en",
+    "language": "en",
+    "archetype": "dependency",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "fixture-03",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "The verified project test command is pnpm test."
+        },
+        {
+          "role": "user",
+          "content": "Use the verified project test command shown above."
+        },
+        {
+          "role": "toolResult",
+          "content": "The project license is MIT."
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "test-command.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: test-command\ndescription: The verified project test command is pnpm test.\ntype: project\n---\nThe verified project test command is pnpm test.\n",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "toolResult",
+            "quote": "The verified project test command is pnpm test."
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: Use the command shown above.\ntype: project\n---\nUse the command shown above.\n",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "Use the verified project test command shown above."
+          }
+        ]
+      },
+      {
+        "name": "license.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: license\ndescription: The project license is MIT.\ntype: project\n---\nThe project license is MIT.\n",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "toolResult",
+            "quote": "The project license is MIT."
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "goldRationale": "A and C are explicit verified enduring project facts. B removes uncertainty, overstates a temporary failure, contradicts a superseding command, or omits the definition required for standalone use.",
+    "expectedPairs": {
+      "0:1": "dependent",
+      "0:2": "independent",
+      "1:2": "independent"
+    }
+  },
+  {
+    "id": "speculation-zh",
+    "language": "zh",
+    "archetype": "speculation",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "fixture-04",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "已验证的项目测试命令是 pnpm test。"
+        },
+        {
+          "role": "user",
+          "content": "外部图片主机可能要求 WebP，但这尚未验证。"
+        },
+        {
+          "role": "toolResult",
+          "content": "项目许可证是 MIT。"
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "test-command.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: test-command\ndescription: 已验证的项目测试命令是 pnpm test。\ntype: project\n---\n已验证的项目测试命令是 pnpm test。\n",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "toolResult",
+            "quote": "已验证的项目测试命令是 pnpm test。"
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: 外部图片主机要求 WebP。\ntype: project\n---\n外部图片主机要求 WebP。\n",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "外部图片主机可能要求 WebP，但这尚未验证。"
+          }
+        ]
+      },
+      {
+        "name": "license.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: license\ndescription: 项目许可证是 MIT。\ntype: project\n---\n项目许可证是 MIT。\n",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "toolResult",
+            "quote": "项目许可证是 MIT。"
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "goldRationale": "A and C are explicit verified enduring project facts. B removes uncertainty, overstates a temporary failure, contradicts a superseding command, or omits the definition required for standalone use.",
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    }
+  },
+  {
+    "id": "transient-zh",
+    "language": "zh",
+    "archetype": "transient",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "fixture-05",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "已验证的项目测试命令是 pnpm test。"
+        },
+        {
+          "role": "toolResult",
+          "content": "一次软件源请求超时，重试成功。"
+        },
+        {
+          "role": "toolResult",
+          "content": "项目许可证是 MIT。"
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "test-command.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: test-command\ndescription: 已验证的项目测试命令是 pnpm test。\ntype: project\n---\n已验证的项目测试命令是 pnpm test。\n",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "toolResult",
+            "quote": "已验证的项目测试命令是 pnpm test。"
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: 这个软件源永久不可用。\ntype: project\n---\n这个软件源永久不可用。\n",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "toolResult",
+            "quote": "一次软件源请求超时，重试成功。"
+          }
+        ]
+      },
+      {
+        "name": "license.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: license\ndescription: 项目许可证是 MIT。\ntype: project\n---\n项目许可证是 MIT。\n",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "toolResult",
+            "quote": "项目许可证是 MIT。"
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "goldRationale": "A and C are explicit verified enduring project facts. B removes uncertainty, overstates a temporary failure, contradicts a superseding command, or omits the definition required for standalone use.",
+    "expectedPairs": {
+      "0:1": "independent",
+      "0:2": "independent",
+      "1:2": "independent"
+    }
+  },
+  {
+    "id": "conflict-zh",
+    "language": "zh",
+    "archetype": "conflict",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "fixture-06",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "已验证的项目测试命令是 pnpm test。"
+        },
+        {
+          "role": "user",
+          "content": "旧命令是 npm test；现在使用 pnpm test。"
+        },
+        {
+          "role": "toolResult",
+          "content": "项目许可证是 MIT。"
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "test-command.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: test-command\ndescription: 已验证的项目测试命令是 pnpm test。\ntype: project\n---\n已验证的项目测试命令是 pnpm test。\n",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "toolResult",
+            "quote": "已验证的项目测试命令是 pnpm test。"
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: 当前项目测试命令是 npm test。\ntype: project\n---\n当前项目测试命令是 npm test。\n",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "旧命令是 npm test；现在使用 pnpm test。"
+          }
+        ]
+      },
+      {
+        "name": "license.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: license\ndescription: 项目许可证是 MIT。\ntype: project\n---\n项目许可证是 MIT。\n",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "toolResult",
+            "quote": "项目许可证是 MIT。"
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "goldRationale": "A and C are explicit verified enduring project facts. B removes uncertainty, overstates a temporary failure, contradicts a superseding command, or omits the definition required for standalone use.",
+    "expectedPairs": {
+      "0:1": "conflict",
+      "0:2": "independent",
+      "1:2": "independent"
+    }
+  },
+  {
+    "id": "dependency-zh",
+    "language": "zh",
+    "archetype": "dependency",
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "fixture-07",
+      "scopeKey": "synthetic-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "已验证的项目测试命令是 pnpm test。"
+        },
+        {
+          "role": "user",
+          "content": "使用上面列出的已验证项目测试命令。"
+        },
+        {
+          "role": "toolResult",
+          "content": "项目许可证是 MIT。"
+        }
+      ]
+    },
+    "existing": [],
+    "candidates": [
+      {
+        "name": "test-command.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: test-command\ndescription: 已验证的项目测试命令是 pnpm test。\ntype: project\n---\n已验证的项目测试命令是 pnpm test。\n",
+        "evidence": [
+          {
+            "index": 0,
+            "role": "toolResult",
+            "quote": "已验证的项目测试命令是 pnpm test。"
+          }
+        ]
+      },
+      {
+        "name": "secondary.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: secondary\ndescription: 使用上面的命令。\ntype: project\n---\n使用上面的命令。\n",
+        "evidence": [
+          {
+            "index": 1,
+            "role": "user",
+            "quote": "使用上面列出的已验证项目测试命令。"
+          }
+        ]
+      },
+      {
+        "name": "license.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: license\ndescription: 项目许可证是 MIT。\ntype: project\n---\n项目许可证是 MIT。\n",
+        "evidence": [
+          {
+            "index": 2,
+            "role": "toolResult",
+            "quote": "项目许可证是 MIT。"
+          }
+        ]
+      }
+    ],
+    "eligible": [
+      true,
+      false,
+      true
+    ],
+    "goldRationale": "A and C are explicit verified enduring project facts. B removes uncertainty, overstates a temporary failure, contradicts a superseding command, or omits the definition required for standalone use.",
+    "expectedPairs": {
+      "0:1": "dependent",
+      "0:2": "independent",
+      "1:2": "independent"
+    }
+  }
+]

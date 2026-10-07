@@ -1,0 +1,14 @@
+{
+  "id": "mixed-task-zh",
+  "beforeDecision": "allow",
+  "afterDecision": "propose",
+  "identicalRequests": [
+    {
+      "beforeIndex": 1,
+      "afterIndex": 0,
+      "wireRequestSha256": "850b79aeca89cf1eb8d0eea740d4f30815fcf40229ed9c32dc820b42188f1b2d",
+      "judgmentsDiffer": true
+    }
+  ],
+  "limitation": "Same wire request with different numeric judgments demonstrates response variation for these calls; no population variance estimate or attribution of all arm effects."
+}

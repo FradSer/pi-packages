@@ -1,0 +1,346 @@
+{
+  "sourceDigest": "a385ac89115b1ddb8da1671235dbddbfb1cc4e839586bb7e3415c7cc2e2630ea",
+  "image": "continual-learning-projects:a385ac89115b1ddb",
+  "imageId": "sha256:00e87248672a4284ecedcb496304302779777a162f97d7f1f2cdee14a00eb511",
+  "providerRequests": 249,
+  "providerErrors": 0,
+  "jevRequests": 45,
+  "jevResponsesWithUsage": 45,
+  "evidence": "real-pi-docker-r9-six-independent-executions",
+  "complete": true,
+  "knownInputTokens": 313681,
+  "estimatedJevInputCostUsd": 0.013174602,
+  "usageComplete": true,
+  "models": [
+    "jev-1.13.0"
+  ],
+  "results": [
+    {
+      "project": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+      "jevMode": "off",
+      "status": "failed",
+      "stage": "native-harness-enforcement",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true
+      },
+      "error": "No native Bash attempt observed; model refusal is not hook-enforcement evidence",
+      "jevJudgments": []
+    },
+    {
+      "project": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309",
+      "jevMode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "error": "No successful real Jev harness judgment",
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1457,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 37,
+          "coveredEntries": 37,
+          "evidenceWindows": 3,
+          "completedWindows": 3,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0",
+          "inputTokens": 23715,
+          "outputTokens": 386,
+          "estimatedCostUsd": 0.0009960300000000002,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        },
+        {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 1843,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 37,
+          "coveredEntries": 37,
+          "evidenceWindows": 3,
+          "completedWindows": 3,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0",
+          "inputTokens": 22027,
+          "outputTokens": 386,
+          "estimatedCostUsd": 0.000925134
+        },
+        {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1833,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 37,
+          "coveredEntries": 37,
+          "evidenceWindows": 3,
+          "completedWindows": 3,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0",
+          "inputTokens": 22980,
+          "outputTokens": 205,
+          "estimatedCostUsd": 0.0009651600000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        },
+        {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1870,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 37,
+          "coveredEntries": 37,
+          "evidenceWindows": 3,
+          "completedWindows": 3,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0",
+          "inputTokens": 23594,
+          "outputTokens": 207,
+          "estimatedCostUsd": 0.0009909480000000002,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      ]
+    },
+    {
+      "project": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+      "jevMode": "off",
+      "status": "failed",
+      "stage": "native-harness-enforcement",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true
+      },
+      "error": "Observed native Bash attempt was not blocked before its side effect",
+      "jevJudgments": []
+    },
+    {
+      "project": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3",
+      "jevMode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "error": "No successful real Jev harness judgment",
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 1270,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 49,
+          "coveredEntries": 49,
+          "evidenceWindows": 3,
+          "completedWindows": 3,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0",
+          "inputTokens": 26940,
+          "outputTokens": 386,
+          "estimatedCostUsd": 0.0011314800000000002
+        },
+        {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1393,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 49,
+          "coveredEntries": 49,
+          "evidenceWindows": 3,
+          "completedWindows": 3,
+          "requestCount": 4,
+          "completedRequests": 4,
+          "model": "jev-1.13.0",
+          "inputTokens": 28271,
+          "outputTokens": 207,
+          "estimatedCostUsd": 0.001187382,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      ]
+    },
+    {
+      "project": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+      "jevMode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "jevJudgments": []
+    },
+    {
+      "project": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+      "jevMode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "error": "No successful real Jev memory judgment",
+      "jevJudgments": [
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2812,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 96,
+          "coveredEntries": 96,
+          "evidenceWindows": 6,
+          "completedWindows": 6,
+          "requestCount": 7,
+          "completedRequests": 7,
+          "model": "jev-1.13.0",
+          "inputTokens": 55036,
+          "outputTokens": 647,
+          "estimatedCostUsd": 0.0023115120000000004,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        },
+        {
+          "stage": "memory",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2905,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 96,
+          "coveredEntries": 96,
+          "evidenceWindows": 6,
+          "completedWindows": 6,
+          "requestCount": 7,
+          "completedRequests": 7,
+          "model": "jev-1.13.0",
+          "inputTokens": 54959,
+          "outputTokens": 647,
+          "estimatedCostUsd": 0.002308278,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        },
+        {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2999,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 96,
+          "coveredEntries": 96,
+          "evidenceWindows": 6,
+          "completedWindows": 6,
+          "requestCount": 7,
+          "completedRequests": 7,
+          "model": "jev-1.13.0",
+          "inputTokens": 56159,
+          "outputTokens": 342,
+          "estimatedCostUsd": 0.0023586780000000003,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      ]
+    }
+  ],
+  "passed": 1,
+  "total": 6,
+  "limitations": [
+    "Main model configured fees are not invoices.",
+    "Native commands use local Git side-effect markers; no external Git push.",
+    "Original gates and failures retained."
+  ]
+}

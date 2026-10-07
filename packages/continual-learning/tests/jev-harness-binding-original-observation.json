@@ -1,0 +1,39 @@
+{
+  "evidence": "bounded-original-input-repair-observation-not-overall-quality",
+  "originalReportSha256": "5b4b73ff65409217bf07e94c91a7bf81a3e6f88999980ece8c004518365341ec",
+  "cases": 1,
+  "mainModel": "cli-proxy/bailian/qwen3.8-flash",
+  "before": {
+    "parentCategory": "citation-mismatch",
+    "nativeSeconds": 149.786,
+    "jevRequested": 0
+  },
+  "after": {
+    "parentCategory": "ready",
+    "nativeSeconds": 42.24,
+    "jevRequested": 3,
+    "jevCompleted": 0,
+    "jevReason": "timeout",
+    "jevDecision": "propose",
+    "durationMs": 5042,
+    "actualJevModelVerified": false
+  },
+  "totalProviderRequests": 11,
+  "mainProviderRequests": 8,
+  "jevProviderRequests": 3,
+  "knownMainCostEstimateUsd": 0.006177361999999999,
+  "knownJevUsageRecords": 0,
+  "jevCostUnknown": true,
+  "accountBillingVerified": false,
+  "productionWrites": 0,
+  "containersRemoved": 2,
+  "sourceFrozen": true,
+  "goalComplete": false,
+  "limits": [
+    "One known historical input, one stochastic output per arm; no stable causal effect or heldout claim.",
+    "Parent binding checks improved in this observation; no complete real Jev semantic decision.",
+    "Exported project surfaces only; no full original repository reconstruction.",
+    "Elapsed difference includes stochastic main-model behavior, not demonstrated latency optimization.",
+    "No favorable retries, source changes, changed gold, gate weakening or apply."
+  ]
+}

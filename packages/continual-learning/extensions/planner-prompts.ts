@@ -1,3 +1,4 @@
+import { projectPushCoverage } from "./harness-command-coverage";
 import { readFileSync } from "node:fs";
 
 const PLACEHOLDER_PATTERN = /\{\{([A-Z][A-Z0-9_]*)\}\}/g;
@@ -65,6 +66,8 @@ const HARNESS_PROMPT = loadPrompt("harness-consolidator");
 const AGENTS_MD_PROMPT = loadPrompt("agents-md-consolidator");
 const PLANNER_SYSTEM_PROMPT = loadPrompt("planner-system");
 
+export const MEMORY_CITATION_GUIDANCE = `For each body and description claim, cite the relevant original user or tool-result source that establishes it. A future-task instruction does not prove a verified current state or successful execution. For current configuration or verification claims, include the actual configuration observation or successful tool result when present in the supplied frozen evidence; otherwise keep only the supported intended use and do not claim verification. Preserve later corrections, revocations and exceptions relevant to the same claim. Quotes must be verbatim with their original snapshot indexes. Do not attach all entries or unrelated observations to every candidate. Keep at most 8 evidence items per proposal and 2,000 characters per quote; select complete relevant quoted statements within those bounds, never invent or truncate away a condition. Preserve privacy classifications, candidate identity and independently grounded durable knowledge. Never quote secrets, infer success from missing evidence, add knowledge outside the requested scope or create Harness constraints. During semantic repair, an additional relevant original citation may resolve incomplete support without changing an already grounded fact; all parent structure, quote, privacy and full semantic checks still apply.`;
+
 export function learningPlannerArgs(): string[] {
   return ["--append-system-prompt", PLANNER_SYSTEM_PROMPT];
 }
@@ -107,7 +110,7 @@ export function buildIncrementalMemoryConsolidatorPrompt(
     ARTIFACT_HASH: bindings.artifactHash,
     SNAPSHOT_DIGEST: bindings.snapshotDigest,
     DOSSIER_PATH: bindings.dossierPath,
-  });
+  }) + "\n\n" + MEMORY_CITATION_GUIDANCE;
 }
 
 export interface MemoryConsolidatorPromptBindings {
@@ -149,7 +152,7 @@ export function buildMemoryConsolidatorPrompt(bindings: MemoryConsolidatorPrompt
     PUBLIC_DIR: bindings.publicDir,
     REPO_ROOT: bindings.repoRoot,
     PKG_DIR: bindings.pkgDir,
-  });
+  }) + "\n\n" + MEMORY_CITATION_GUIDANCE;
 }
 
 export interface HarnessConsolidatorPromptBindings {
@@ -176,7 +179,7 @@ export function buildHarnessConsolidatorPrompt(bindings: HarnessConsolidatorProm
     SNAPSHOT_PATH: bindings.snapshotPath,
     DOSSIER_PATH: bindings.dossierPath,
     REPO_ROOT: bindings.repoRoot,
-  });
+  }) + "\n\n" + projectPushCoverage(bindings.repoRoot);
 }
 
 export interface AgentsMdConsolidatorPromptBindings extends HarnessConsolidatorPromptBindings {

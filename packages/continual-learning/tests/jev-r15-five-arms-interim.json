@@ -1,0 +1,184 @@
+{
+  "evidence": "real-r15-five-original-arms-interim",
+  "sessionId": 50837,
+  "sourceDigest": "bacf936aaefbb9d601f32d9d07c14b29739af14f2c056e30566d40ed2f5d1afd",
+  "sourceMatches": true,
+  "rows": [
+    {
+      "project": "click",
+      "mode": "off",
+      "status": "failed",
+      "stage": "setup",
+      "learningSeconds": null,
+      "checks": {},
+      "independentCheckExitCode": null,
+      "attempts": []
+    },
+    {
+      "project": "click",
+      "mode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "learningSeconds": 389.93,
+      "checks": {
+        "regressionChanged": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 190375
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 116503
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 61242
+        }
+      ]
+    },
+    {
+      "project": "mitt",
+      "mode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "learningSeconds": 370.19,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": false,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "rejected",
+          "operations": 0,
+          "durationMs": 52154
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "applied",
+          "operations": 3,
+          "durationMs": 8896
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 79109
+        }
+      ]
+    },
+    {
+      "project": "p-limit",
+      "mode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "learningSeconds": 239.13,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 2,
+          "durationMs": 37485
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 51004
+        }
+      ]
+    },
+    {
+      "project": "p-limit",
+      "mode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "learningSeconds": 277.8,
+      "checks": {
+        "regressionChanged": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 80345
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "applied",
+          "operations": 2,
+          "durationMs": 48041
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 41080
+        },
+        {
+          "phase": "harness",
+          "attempt": 1,
+          "outcome": "rejected",
+          "operations": 0,
+          "durationMs": 47992
+        }
+      ]
+    }
+  ],
+  "completed": 5,
+  "planned": 6,
+  "offPassed": 2,
+  "offCompleted": 3,
+  "onPassed": 0,
+  "onCompleted": 2,
+  "wholeBatchTerminal": false,
+  "qualityUpliftProved": false,
+  "nextPaidResearchBlocked": true,
+  "goalComplete": false
+}

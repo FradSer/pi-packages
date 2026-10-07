@@ -1,0 +1,57 @@
+{
+  "evidence": "real-Jev-controlled-development-study-and-offline-verification",
+  "manifestSha256": "c4e3ffccec847411a0f6e585fca12e74647bbaf88994bd1c15610c45ad42d512",
+  "externalJevRequests": 20,
+  "externalMainRequests": 0,
+  "actualModelVersions": [
+    "jev-1.13.0"
+  ],
+  "clientUsageResponses": 20,
+  "proxyUsageResponses": 20,
+  "proxyUsageNotAddedToClientUsage": true,
+  "allHashesMatchFrozenSource": true,
+  "productionRuntimeChanged": false,
+  "productionWrites": 0,
+  "jevDefaultChanged": false,
+  "adopted": false,
+  "goalComplete": false,
+  "redTests": {
+    "failed": 3,
+    "cause": "new research module absent"
+  },
+  "focusedGreenTests": {
+    "passed": 7,
+    "seconds": 1.1
+  },
+  "researchTypecheck": "passed strict/noUnused",
+  "targetSuiteAndRootTypecheck": {
+    "targetPassed": 954,
+    "targetSeconds": 367.37,
+    "rootTypecheck": "passed"
+  },
+  "packedManifests": {
+    "passed": 19
+  },
+  "targetPackDryRun": "passed",
+  "independentPrepaidAndTerminalReview": "passed",
+  "ownedContainerAbsentVerified": true,
+  "localProxySocketsClosed": true,
+  "activeHandlersAtSnapshot": 0,
+  "remoteProviderCancellationVerified": false,
+  "billingVerified": false,
+  "fullRootSuiteRerunThisPhase": false,
+  "reasonForNoRootRerun": "Only unbundled research files, tests, features and README changed; production TypeScript bytes remain matched by frozen hashes. Previous unrelated root failures remain separately recorded.",
+  "previousRootFailureEvidence": "jev-failed-planner-output-verification.json",
+  "docs": [
+    "https://docs.typesafe.ai/model-jaggedness/jev-1.13",
+    "https://docs.typesafe.ai/models",
+    "https://docs.typesafe.ai/sdk/javascript/api/classes/TypeSafeClient"
+  ],
+  "limits": [
+    "Development manually anchored source spans; no heldout or independent human gold.",
+    "Shared batches do not establish causality or independent per-arm latency/cost.",
+    "No automatic candidate generation, apply, recall, or native Harness verification in this phase."
+  ],
+  "docReferencesAndPublicJson": "passed",
+  "prototypeExcludedFromProductionPack": true
+}

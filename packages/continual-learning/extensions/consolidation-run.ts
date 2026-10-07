@@ -852,7 +852,7 @@ export interface ChildPlanExtractionOptions<T = unknown> {
   maxPlanBytes?: number;
   validatePlan?: (value: unknown) => value is T;
 }
-export type ChildPlanExtractionResult<T = unknown> = { ok: true; plan: T; line: number } | { ok: false; error: string };
+export type ChildPlanExtractionResult<T = unknown> = { ok: true; plan: T; line: number } | { ok: false; error: string; failure?: "model-error" | "cancelled" };
 function messageText(value: unknown): string {
   if (typeof value === "string") return value;
   if (!Array.isArray(value)) return "";
@@ -928,7 +928,7 @@ function candidateFromEvent(event: unknown): unknown | undefined {
   if (value.type === "memory-consolidation-plan" || value.kind === "memory-consolidation-plan" || value.kind === "incremental-memory-plan") return value;
   if (value.type !== "message_end" || !value.message || typeof value.message !== "object") return undefined;
   const message = value.message as Record<string, unknown>;
-  if (message.role !== "assistant") return undefined;
+  if (message.role !== "assistant" || message.stopReason === "error" || message.stopReason === "aborted") return undefined;
   const text = messageText(message.content).trim();
   if (!text || text.length > MAX_PLAN_BYTES) return undefined;
   return parseJsonCandidate(text);
@@ -940,12 +940,32 @@ export function extractChildPlan<T = unknown>(stdout: string | Uint8Array, optio
   const lines = splitLines.at(-1) === "" ? splitLines.slice(0, -1) : splitLines;
   if (lines.length > (options.maxLines ?? MAX_JSONL_LINES)) return { ok: false, error: "child JSONL exceeded the line bound" };
   const candidates: Array<{ plan: unknown; line: number }> = [];
+  let terminalFailure: "model-error" | "cancelled" | undefined;
   const maxLineBytes = options.maxLineBytes ?? MAX_JSONL_LINE_BYTES;
   const maxPlanBytes = options.maxPlanBytes ?? MAX_PLAN_BYTES;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]; if (!line.trim()) continue;
     const overlong = Buffer.byteLength(line, "utf8") > maxLineBytes;
     let event: unknown; try { event = JSON.parse(line); } catch { continue; }
+    if (event && typeof event === "object" && !Array.isArray(event)) {
+      const record = event as Record<string, unknown>;
+      const message = record.message && typeof record.message === "object" && !Array.isArray(record.message)
+        ? record.message as Record<string, unknown> : undefined;
+      if (record.type === "message_end" && message?.role === "assistant") {
+        if (message.stopReason === "error" || message.stopReason === "aborted") {
+          terminalFailure = message.stopReason === "aborted" ? "cancelled" : "model-error";
+          candidates.length = 0;
+        } else if (["stop", "length", "toolUse"].includes(String(message.stopReason))) {
+          terminalFailure = undefined;
+        }
+      } else if (record.type === "auto_retry_end") {
+        if (record.success === false) {
+          if (terminalFailure !== "cancelled") terminalFailure = "model-error";
+          candidates.length = 0;
+        }
+      }
+    }
+    if (terminalFailure) continue;
     const plan = candidateFromEvent(event);
     // Streaming telemetry (thinking/tool deltas) can legitimately be larger
     // than one JSONL line bound. It is not a plan, so ignore it and continue
@@ -957,6 +977,8 @@ export function extractChildPlan<T = unknown>(stdout: string | Uint8Array, optio
     if (Buffer.byteLength(jsonText(plan), "utf8") > maxPlanBytes) return { ok: false, error: "consolidation plan exceeded the byte bound" };
     candidates.push({ plan, line: index + 1 });
   }
+  if (terminalFailure) return { ok: false, failure: terminalFailure, error: terminalFailure === "cancelled"
+    ? "child planner cancelled before successful completion" : "child planner model failed before successful completion" };
   if (!candidates.length) return { ok: false, error: "child output did not contain a structured consolidation plan" };
   if (options.expectedIdentity && candidates.some(({ plan }) => !validatePlanIdentityResult(plan, options.expectedIdentity!).ok)) return { ok: false, error: "child consolidation plan identity mismatch" };
   const matching = options.expectedIdentity ? candidates.filter(({ plan }) => validatePlanIdentityResult(plan, options.expectedIdentity!).ok) : candidates;
@@ -1324,7 +1346,9 @@ async function removeNewEmptyRoots(states: readonly MemoryRootSnapshot[]): Promi
       const identity = await assertMemoryRootStable(state.root);
       const entries = await fsp.readdir(state.root);
       if (entries.length === 0) {
-        await fsp.rm(state.root, { force: true });
+        // rmdir removes only an empty directory; rm without recursive rejects
+        // directories, while recursive removal could delete a concurrent file.
+        await fsp.rmdir(state.root);
         try { await assertMemoryRootStable(state.root, identity); } catch (error) {
           if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         }
@@ -1387,9 +1411,6 @@ export interface NewMemoryProposal {
 
 const SENSITIVE_MEMORY_PATTERNS: readonly RegExp[] = [
   /-----BEGIN [^-\r\n]*PRIVATE KEY-----/i,
-  // An assigned value must be long enough to be a credential: prose ("token is
-  // short-lived") assigns nothing, and URLs are not secrets.
-  /(?<![A-Za-z])(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=)\s*(?![^\s,;]*\/\/)[^\s,;]{8,}/i,
   // Provider formats keep their own separator and a body ordinary identifiers
   // never reach, so names like skills-host-agnostic or gh-pages stay ordinary.
   /\bsk-[A-Za-z0-9_-]{16,}\b/i,
@@ -1403,8 +1424,36 @@ const SENSITIVE_MEMORY_PATTERNS: readonly RegExp[] = [
   /\bAKIA[0-9A-Z]{16}\b/i,
 ];
 
+/** An assigned value must be long enough to be a credential: prose ("token is
+ * short-lived") assigns nothing, and URLs are not secrets. */
+const ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=)\s*(?![^\s,;]*\/\/)(?<value>[^\s,;]{8,})/gi;
+
+/** Documentation-style placeholders, so a tracked source sample or doc snippet
+ * does not refuse a whole review. A realistic assigned value stays sensitive. */
+const PLACEHOLDER_CREDENTIAL_VALUES = new Set([
+  "password", "passwd", "pass", "secret", "token", "credential", "credentials", "apikey", "apitoken",
+  "accesstoken", "clientsecret", "example", "dummy", "placeholder", "changeme", "redacted", "yourpassword",
+  "yourtoken", "notasecret", "string", "value", "none", "null", "undefined",
+]);
+
+function placeholderCredentialValue(key: string, assigned: string): boolean {
+  const value = assigned.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (!value) return true;
+  if (PLACEHOLDER_CREDENTIAL_VALUES.has(value)) return true;
+  if (new Set(value).size === 1) return true;
+  const keyWord = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value.startsWith(keyWord) && /^[0-9]*(?:value|string|here|example|placeholder)?$/.test(value.slice(keyWord.length));
+}
+
+function containsAssignedCredentialMaterial(value: string): boolean {
+  for (const match of value.matchAll(ASSIGNED_CREDENTIAL_PATTERN)) {
+    if (!placeholderCredentialValue(match.groups?.key ?? "", match.groups?.value ?? "")) return true;
+  }
+  return false;
+}
+
 export function containsSensitiveMemoryMaterial(value: string): boolean {
-  return SENSITIVE_MEMORY_PATTERNS.some((pattern) => pattern.test(value));
+  return SENSITIVE_MEMORY_PATTERNS.some((pattern) => pattern.test(value)) || containsAssignedCredentialMaterial(value);
 }
 
 function normalizeEvidenceText(value: string): string {
@@ -1601,11 +1650,18 @@ function newMemoryNames(value: readonly NewMemoryProposal[]): string[] {
   return value.map((proposal) => proposal.name).sort((left, right) => left.localeCompare(right));
 }
 
+export interface AppliedMemoryResult {
+  selected: string[];
+  created: string[];
+  finalState: { harness: MemoryHashes; public: MemoryHashes };
+}
+
 export async function applyConsolidationPlan(
   run: ConsolidationRun,
   plan: unknown,
   isActive?: () => boolean,
-): Promise<{ selected: string[]; created: string[]; finalState: { harness: MemoryHashes; public: MemoryHashes } }> {
+  verifyApplied?: (applied: AppliedMemoryResult) => Promise<void>,
+): Promise<AppliedMemoryResult> {
   const ensureActive = (): void => {
     if (isActive && !isActive()) throw new Error("Memory consolidation was cancelled before apply completed.");
   };
@@ -1767,11 +1823,16 @@ export async function applyConsolidationPlan(
       if (publicDir) await updateMemoryIndex(publicDir, new Set(), ensureActive);
     }
     ensureActive();
-    return {
+    const applied: AppliedMemoryResult = {
       selected: [...selected].sort(),
       created: newMemoryNames(newProposals),
       finalState: { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} },
     };
+    // Keep final parent verification inside the existing rollback boundary.
+    ensureActive();
+    await verifyApplied?.(applied);
+    ensureActive();
+    return applied;
   } catch (error) {
     try {
       await restoreMemoryFiles(snapshots);

@@ -1,0 +1,59 @@
+{
+  "kind": "preflight-false-positive-measurement",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "method": "read-only offline run of the exported containsSensitiveMemoryMaterial over every retained incremental-learning dossier; the shortest failing slice was located by bisection and matched against the pattern list; excerpts are masked, no full text is stored",
+  "totals": {
+    "dossiers": 6,
+    "entries": 123,
+    "trippingEntries": 2,
+    "armsAffected": 1
+  },
+  "byCohort": [
+    {
+      "cohort": "yocto-queue (on and off)",
+      "entries": 31,
+      "trippingEntries": 0,
+      "patterns": []
+    },
+    {
+      "cohort": "itsdangerous (on and off)",
+      "entries": 45,
+      "trippingEntries": 0,
+      "patterns": []
+    },
+    {
+      "cohort": "iniconfig (on and off)",
+      "entries": 47,
+      "trippingEntries": 2,
+      "patterns": [
+        "assigned-credential"
+      ]
+    }
+  ],
+  "trips": [
+    {
+      "dossier": "20261007T042933Z/iniconfig-off/.../run_muxm1mwt_0fa9d486c1ded8d4",
+      "entryIndex": 8,
+      "role": "toolResult",
+      "pattern": "assigned-credential",
+      "masked": "pas*****: <pas*****>",
+      "sliceLength": 28
+    },
+    {
+      "dossier": "20261007T042933Z/iniconfig-on/.../run_muxm5jkt_a66978e85cd0cae4",
+      "entryIndex": 6,
+      "role": "toolResult",
+      "pattern": "assigned-credential",
+      "masked": "pas*****: <pas*****>",
+      "sliceLength": 28
+    }
+  ],
+  "interpretation": {
+    "falsePositive": true,
+    "reason": "The matched text is a placeholder credential assignment inside the project's own tracked source, delivered by a tool result. No secret-shaped user data is involved. The off-arm dossier trips it too, so the trip is a property of the project content, and only the on arm loses learning because the guard gates Jev reviews.",
+    "impact": "On any project whose tracked source, docs, or tests hold a credential-shaped placeholder of at least the minimum accepted length, Jev is skipped entirely and both Memory and Harness learning are lost.",
+    "decision": "Whether to narrow the guard is a privacy-policy decision for the user. The guard was not changed.",
+    "sampleLimit": "Six dossiers and two trips cannot give a false-positive rate; the reading is rare but possible."
+  }
+}

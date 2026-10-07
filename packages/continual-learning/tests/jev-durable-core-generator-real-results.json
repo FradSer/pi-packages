@@ -1,0 +1,2000 @@
+{
+  "evidence": "completed-real-native-repair-and-jev-on-fixed-synthetic-development-cases",
+  "heldout": false,
+  "humanGold": false,
+  "independentScenarios": 8,
+  "languagePairs": 8,
+  "samples": 16,
+  "arms": 32,
+  "productionWrites": 0,
+  "productionAdoption": false,
+  "requestedMainModel": {
+    "provider": "cli-proxy",
+    "model": "bailian/qwen3.8-flash"
+  },
+  "mainUnderlyingVersionVerified": false,
+  "image": "continual-learning-projects:df60a6123748956b",
+  "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+  "manifestSha256": "29b0713695a849ffd5653d8f59d9a5dfdd6e013ecc9436bb4788e3514a80a0a5",
+  "sourceHashes": {
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-before/result.json": "69ef94eecc354258906c6d2307625389017fcb590647d4c65ccd37ed83f37a03",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-before/transport.json": "52d244aae0b42c5a1bffadd38435601126fbf1236b6bc4b5cc61789d7fb0ae29",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-after/result.json": "9e2d444802f054c926367a989ee60f6010806bdcd0268c2495df6ee1693b8868",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-after/transport.json": "ce6d9b7659afd03927c1794064087fd33f0e45b3f8834e6e54c5e4677eb20947",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-after/result.json": "04eaa3513e81f3cd5e9c699e2c2e59e00239902e91c76177c69f2948f06eaf5b",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-after/transport.json": "ae1f7a54ed5f0ff82e8d1cc807d50e8c8b903854194ff66357a28743be9df8dd",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-before/result.json": "0d60b4177df54a48171e3f5522862cb4d0ff43654760075fedcba65f48bbc1c6",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-before/transport.json": "93504d5c26a6cac5557f0751ccb4418183a88469b1b2dfddf023f25274dd0ab2",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-before/result.json": "f8b2477fd5be00004e6606873753b367d57202c14ebc93be6ea413b43e6aa106",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-before/transport.json": "095aa2d086edf4adf0ffbdd5b835ede84a826479b35608c2ad7da1ab80481c16",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-after/result.json": "c5b75176e303fc44fb4f3e38fb5973a8e26d57965cd4b3c4aeb952a7329e3c4e",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-after/transport.json": "1a1f880f7fb9ea56e2a69febcc656ab58309401c74f73457eee293d32d708d08",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-after/result.json": "41753ab5abed8a371568d08e1934ac9a087bc4aaac027d3d29843a9fbcb303a7",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-after/transport.json": "6d353ae28ff0604486dab627060d659d826ff861a31657b171cfff046469691c",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-before/result.json": "8490cde2a1b2f2f0c2eaed3baa88b0e11fda502efa10a73745a1f5a8d7aefde9",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-before/transport.json": "921d17a41c6fadd7d8394544bc903e493e3143eef16f89c1d61038e220825ecd",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-before/result.json": "836a5eca706a0ccb51e4c870f40c99128dea60a3015aa2327438b10e03bae638",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-before/transport.json": "331337a2f918f2cd31251e69a8915faeb94f1b0cf0cc5863d6b99afc18b95554",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-after/result.json": "4cc095177c8036429b201ea08f2f2c410f1b0c3a8a5051731df32bc9cca98071",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-after/transport.json": "1170fbb8c59997e539b4636907cd39ecced606d842bff6d3a5112697d038e0fc",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-after/result.json": "4738ce948b2445aed78615ae96f66c57d891965c13a1b79d9057a26ebf39420a",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-after/transport.json": "1de67d66a93f8bad989f579f1114248f10f1574bd2248f490d56742276fabf1e",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-before/result.json": "331b7f68995d521cca05f471d6b80ff5410a12e0ba10ad7e5ced7a3cd45409b8",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-before/transport.json": "972ccc4fcef9d4d6bb6e20680128c0dfaa11670626ca8b00d7bcba90e734d5e6",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-before/result.json": "222b9304b3fcaa7c2470a2534fa0a66890f794149ca20c2e8f1127c19b00e94c",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-before/transport.json": "125da64387ed050993933a8f42a942ceea8c175f386f7a629158709b139cc590",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-after/result.json": "c9c3b105b883c0be3d2dcbfddedf8ddef4a274e8483108cc9c4dfc5e6f5e5e42",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-after/transport.json": "76c2ffed6291d95e578253574a4231cff9cec8566e4d36e53509b2289dc0c32e",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-after/result.json": "23473f294cbd47384c2c4ff089651dbacc4b92aab6db7122cfcb70285f5ab7a9",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-after/transport.json": "4a3407441ccce32c05897b280734231427f3f0d0afc6106aa95fd12ea646a427",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-before/result.json": "de17aa7cfde4c0eafcc6de6315d4fc5c22c2ba38d3fc72f9b5c7f2b76229dfe0",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-before/transport.json": "383fdf0c2366b889c56efdfd025b81fa6ddf83e7138642ffdfefa479d033f0da",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-before/result.json": "a7d8ccf29143bb762866f2864f725f19d37346d4b1202522bec5fe0627f8737b",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-before/transport.json": "e7a6d8c5948a936867a16beb7f55f64bd16038aab8d25e6e1f6ebb54d83f967f",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-after/result.json": "857e6657c874e5657c474bfeaec896cc691ef89e50f563e4376e26f9f268d83f",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-after/transport.json": "926e2372f28820eb18f606e664a511329a0e8d612fe11182772fe840beb1d0db",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-after/result.json": "f68ee7a1bc28fe179820185507fda23a1205c496e0e372a441b89453e478be93",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-after/transport.json": "1c5c4c37eb01c0622bdc669707a47d9609d81faf9e361484240e380a35086a4f",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-before/result.json": "5954a9f09de0ed981f1572016a9e5f1770dfbd3e13689f08639da185e082bcd1",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-before/transport.json": "85b05bccadd4bf525124fcb33481ee6f12b6b8beb719d8e59c26e17998d5d5ae",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-before/result.json": "0c1ddb0266d2cf78b0fbe937e506fca167141b1d264275a015b7d04f07eacf16",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-before/transport.json": "8ff0e001a1fa5292ef3edcd2cc45be4c0be48166841e78f651825ff0d7b9d149",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-after/result.json": "f6b05d3a1bfef6a26b7e4a20743db0436693060b27d1ddfba4fde6ab8d2a751e",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-after/transport.json": "97381163c6e75a3d7415cb3262bd4960c5f60e4910e18dcde7e8fc31cb384534",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-after/result.json": "2ac1992d626abaa5a81499ecfe90655ac863dfaec67b911cb7c79f2df91d3ceb",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-after/transport.json": "9ad5b91df0f7915eec144082f0643d0aa464f79ba535ce4aecd74c0703ceb898",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-before/result.json": "d808cb68de700fabd5d97074d293d912245dae6de376fc03df77a166ef45052e",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-before/transport.json": "1393893ef3ed141670ec4a786f601ecceec926525b51f577e556dba3ea123e8a",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-before/result.json": "e043e102b6f039756899aa549675ab69c03dd2e63f537f734c2f9070b4e8bd3b",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-before/transport.json": "da5c5d3920d52472da78c93e975633c77a06ef1976356241b7ef8fd7052efc44",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-after/result.json": "074ef10c17a1eecb197504821ad933d966b9ff0a5743e0fb30b4b36a68d85a95",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-after/transport.json": "efcdc86137098a3a4937a616d812bf6b9dd48552a597fb51b5b5ab11bc30ed44",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-after/result.json": "718e47ffc6edd1adf0a06dbccd32a6aa8f60f21377dbc0cbf7ced86c23aebc38",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-after/transport.json": "eba4f2d97db6dbc3b8b035f16f7c95da830609e83a6fece7fe37ac49832c65d6",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-before/result.json": "26be1886b25d752a192964cd2036cf7a76e60c4c42a1155b2beb8d71a98de02c",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-before/transport.json": "05776c93ae65b21b811300028586b26401523494541cd6c0e427a275226433b5",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-before/result.json": "b9c0da4bbcdbe110f288a041d4a04179463c36d12d3819b39a6ffafeed9e06c3",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-before/transport.json": "ddb78c033aa57ac3aea2acf55cb70f280f0eba062e1f52380f763326d270090a",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-after/result.json": "7ec18d79cc334689650d88b71d799bae5ebbfe84057024f3d88a1a718e8237e0",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-after/transport.json": "746c8249670544e07ac721e35cb7309b9efa7126387cc26f0f8b80392bb13902",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-after/result.json": "23d2246f120283f3fd6bab0385afee476dd72965adc119f1be6c0122c62fb04f",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-after/transport.json": "306e4badfa1276aaca39a56b1c6698379f7acb9d013f698afb985e9ac9d98e9c",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-before/result.json": "89b2cba6b789ad6078c239261f00b8d6010319cc3744db682594b15a698553e5",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-before/transport.json": "a8cc505164c5b773761c1e01d0879f42bb6d93d17c0ec2e48d254ec957e82e50",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid-final-state.json": "4295d13093730392d60e7982ad65d72596e50a0230f6333942014128c9a99bac"
+  },
+  "summary": {
+    "before": {
+      "arms": 16,
+      "generationOutcomes": {
+        "repaired": 16
+      },
+      "parentCategories": {
+        "rejected": 5,
+        "ready": 11
+      },
+      "jevDecisions": {
+        "not-called": 5,
+        "allow": 11
+      },
+      "providerRequests": 38,
+      "jevRequests": 22,
+      "jevUsageResponses": 22,
+      "usageUnknownArms": 0,
+      "generationMeanMs": 33831.8125,
+      "generationMedianMs": 28534.5,
+      "jevDurationSumMs": 22367,
+      "knownMainClientEstimateUsd": 0.020094941999999998,
+      "knownJevClientEstimateUsd": 0.000986958,
+      "clientJevInputTokens": 23499,
+      "actualJevModels": [
+        "jev-1.13.0"
+      ]
+    },
+    "after": {
+      "arms": 16,
+      "generationOutcomes": {
+        "repaired": 16
+      },
+      "parentCategories": {
+        "ready": 13,
+        "rejected": 3
+      },
+      "jevDecisions": {
+        "allow": 13,
+        "not-called": 3
+      },
+      "providerRequests": 42,
+      "jevRequests": 26,
+      "jevUsageResponses": 26,
+      "usageUnknownArms": 0,
+      "generationMeanMs": 36687.4375,
+      "generationMedianMs": 31745.5,
+      "jevDurationSumMs": 28770,
+      "knownMainClientEstimateUsd": 0.021684075999999997,
+      "knownJevClientEstimateUsd": 0.00114135,
+      "clientJevInputTokens": 27175,
+      "actualJevModels": [
+        "jev-1.13.0"
+      ]
+    }
+  },
+  "rows": [
+    {
+      "caseId": "stable-config-plus-run-history-en",
+      "scenario": "stable-config-plus-run-history",
+      "language": "en",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 30945,
+      "mainUsage": {
+        "input": 2752,
+        "output": 2271,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 5023,
+        "cost": 0.0014801699999999998
+      },
+      "parentCategory": "rejected",
+      "jevDecision": "not-called",
+      "jevReason": null,
+      "jevTelemetry": {},
+      "providerRequests": 1,
+      "jevRequests": 0,
+      "jevUsageResponses": 0,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 33.889,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 32.524,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-before/result.json": "69ef94eecc354258906c6d2307625389017fcb590647d4c65ccd37ed83f37a03",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-before/transport.json": "52d244aae0b42c5a1bffadd38435601126fbf1236b6bc4b5cc61789d7fb0ae29",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "stable-config-plus-run-history-en",
+      "scenario": "stable-config-plus-run-history",
+      "language": "en",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 36199,
+      "mainUsage": {
+        "input": 827,
+        "output": 2029,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 4904,
+        "cost": 0.001110448
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1973,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1969,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.2698e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 41.378,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 39.996,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-after/result.json": "9e2d444802f054c926367a989ee60f6010806bdcd0268c2495df6ee1693b8868",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-after/transport.json": "ce6d9b7659afd03927c1794064087fd33f0e45b3f8834e6e54c5e4677eb20947",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "stable-config-plus-run-history-zh",
+      "scenario": "stable-config-plus-run-history",
+      "language": "zh",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 32552,
+      "mainUsage": {
+        "input": 1885,
+        "output": 2230,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 5139,
+        "cost": 0.0013472339999999999
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 3431,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2059,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.647800000000001e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 39.037,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 37.662,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-after/result.json": "04eaa3513e81f3cd5e9c699e2c2e59e00239902e91c76177c69f2948f06eaf5b",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-after/transport.json": "ae1f7a54ed5f0ff82e8d1cc807d50e8c8b903854194ff66357a28743be9df8dd",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "stable-config-plus-run-history-zh",
+      "scenario": "stable-config-plus-run-history",
+      "language": "zh",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 42314,
+      "mainUsage": {
+        "input": 738,
+        "output": 2815,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 5601,
+        "cost": 0.001466518
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2075,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2099,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.8158e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 47.178,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 45.92,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-before/result.json": "0d60b4177df54a48171e3f5522862cb4d0ff43654760075fedcba65f48bbc1c6",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-before/transport.json": "93504d5c26a6cac5557f0751ccb4418183a88469b1b2dfddf023f25274dd0ab2",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/stable-config-plus-run-history-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "explicit-long-term-observed-result-en",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 54368,
+      "mainUsage": {
+        "input": 1820,
+        "output": 3543,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 6387,
+        "cost": 0.001954594
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1876,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2042,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.5764e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 58.866,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 57.987,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-before/result.json": "f8b2477fd5be00004e6606873753b367d57202c14ebc93be6ea413b43e6aa106",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-before/transport.json": "095aa2d086edf4adf0ffbdd5b835ede84a826479b35608c2ad7da1ab80481c16",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "explicit-long-term-observed-result-en",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "en",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 28263,
+      "mainUsage": {
+        "input": 919,
+        "output": 1672,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 4639,
+        "cost": 0.0009564579999999999
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1969,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2042,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.5764e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 33.236,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 31.847,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-after/result.json": "c5b75176e303fc44fb4f3e38fb5973a8e26d57965cd4b3c4aeb952a7329e3c4e",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-after/transport.json": "1a1f880f7fb9ea56e2a69febcc656ab58309401c74f73457eee293d32d708d08",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "explicit-long-term-observed-result-zh",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 54355,
+      "mainUsage": {
+        "input": 1944,
+        "output": 3411,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 6379,
+        "cost": 0.0019111539999999998
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2231,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2171,
+        "outputTokens": 214,
+        "estimatedCostUsd": 9.118200000000001e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 59.281,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 58.216,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-after/result.json": "41753ab5abed8a371568d08e1934ac9a087bc4aaac027d3d29843a9fbcb303a7",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-after/transport.json": "6d353ae28ff0604486dab627060d659d826ff861a31657b171cfff046469691c",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "explicit-long-term-observed-result-zh",
+      "scenario": "explicit-long-term-observed-result",
+      "language": "zh",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 77316,
+      "mainUsage": {
+        "input": 797,
+        "output": 4211,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 7056,
+        "cost": 0.0021314879999999995
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2220,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2211,
+        "outputTokens": 214,
+        "estimatedCostUsd": 9.2862e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 82.134,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 81.105,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-before/result.json": "8490cde2a1b2f2f0c2eaed3baa88b0e11fda502efa10a73745a1f5a8d7aefde9",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-before/transport.json": "921d17a41c6fadd7d8394544bc903e493e3143eef16f89c1d61038e220825ecd",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/explicit-long-term-observed-result-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "lasting-compatibility-exception-en",
+      "scenario": "lasting-compatibility-exception",
+      "language": "en",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 29008,
+      "mainUsage": {
+        "input": 1812,
+        "output": 2127,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 4963,
+        "cost": 0.0012878739999999998
+      },
+      "parentCategory": "rejected",
+      "jevDecision": "not-called",
+      "jevReason": null,
+      "jevTelemetry": {},
+      "providerRequests": 1,
+      "jevRequests": 0,
+      "jevUsageResponses": 0,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 31.883,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 30.535,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-before/result.json": "836a5eca706a0ccb51e4c870f40c99128dea60a3015aa2327438b10e03bae638",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-before/transport.json": "331337a2f918f2cd31251e69a8915faeb94f1b0cf0cc5863d6b99afc18b95554",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "lasting-compatibility-exception-en",
+      "scenario": "lasting-compatibility-exception",
+      "language": "en",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 39742,
+      "mainUsage": {
+        "input": 911,
+        "output": 2811,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 5770,
+        "cost": 0.001490588
+      },
+      "parentCategory": "rejected",
+      "jevDecision": "not-called",
+      "jevReason": null,
+      "jevTelemetry": {},
+      "providerRequests": 1,
+      "jevRequests": 0,
+      "jevUsageResponses": 0,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 42.479,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 41.184,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-after/result.json": "4cc095177c8036429b201ea08f2f2c410f1b0c3a8a5051731df32bc9cca98071",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-after/transport.json": "1170fbb8c59997e539b4636907cd39ecced606d842bff6d3a5112697d038e0fc",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "lasting-compatibility-exception-zh",
+      "scenario": "lasting-compatibility-exception",
+      "language": "zh",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 52915,
+      "mainUsage": {
+        "input": 1957,
+        "output": 3463,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 6444,
+        "cost": 0.0019375439999999998
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2232,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2280,
+        "outputTokens": 214,
+        "estimatedCostUsd": 9.576e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 57.791,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 56.73,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-after/result.json": "4738ce948b2445aed78615ae96f66c57d891965c13a1b79d9057a26ebf39420a",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-after/transport.json": "1de67d66a93f8bad989f579f1114248f10f1574bd2248f490d56742276fabf1e",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "lasting-compatibility-exception-zh",
+      "scenario": "lasting-compatibility-exception",
+      "language": "zh",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 24118,
+      "mainUsage": {
+        "input": 810,
+        "output": 1456,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 4314,
+        "cost": 0.0008385879999999998
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1724,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2352,
+        "outputTokens": 214,
+        "estimatedCostUsd": 9.878400000000001e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 28.476,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 27.424,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-before/result.json": "331b7f68995d521cca05f471d6b80ff5410a12e0ba10ad7e5ced7a3cd45409b8",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-before/transport.json": "972ccc4fcef9d4d6bb6e20680128c0dfaa11670626ca8b00d7bcba90e734d5e6",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/lasting-compatibility-exception-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "only-transient-failure-en",
+      "scenario": "only-transient-failure",
+      "language": "en",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 15715,
+      "mainUsage": {
+        "input": 1750,
+        "output": 905,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 3679,
+        "cost": 0.000704234
+      },
+      "parentCategory": "rejected",
+      "jevDecision": "not-called",
+      "jevReason": null,
+      "jevTelemetry": {},
+      "providerRequests": 1,
+      "jevRequests": 0,
+      "jevUsageResponses": 0,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 18.554,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 17.228,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-before/result.json": "222b9304b3fcaa7c2470a2534fa0a66890f794149ca20c2e8f1127c19b00e94c",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-before/transport.json": "125da64387ed050993933a8f42a942ceea8c175f386f7a629158709b139cc590",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "only-transient-failure-en",
+      "scenario": "only-transient-failure",
+      "language": "en",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 26079,
+      "mainUsage": {
+        "input": 849,
+        "output": 1994,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 4891,
+        "cost": 0.001097298
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 3334,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2009,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.4378e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 31.699,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 30.839,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-after/result.json": "c9c3b105b883c0be3d2dcbfddedf8ddef4a274e8483108cc9c4dfc5e6f5e5e42",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-after/transport.json": "76c2ffed6291d95e578253574a4231cff9cec8566e4d36e53509b2289dc0c32e",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "only-transient-failure-zh",
+      "scenario": "only-transient-failure",
+      "language": "zh",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 30939,
+      "mainUsage": {
+        "input": 1865,
+        "output": 2215,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 5104,
+        "cost": 0.001337184
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1103,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2074,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.7108e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 34.846,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 33.575,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-after/result.json": "23473f294cbd47384c2c4ff089651dbacc4b92aab6db7122cfcb70285f5ab7a9",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-after/transport.json": "4a3407441ccce32c05897b280734231427f3f0d0afc6106aa95fd12ea646a427",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "only-transient-failure-zh",
+      "scenario": "only-transient-failure",
+      "language": "zh",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 23237,
+      "mainUsage": {
+        "input": 718,
+        "output": 1527,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 4293,
+        "cost": 0.0008581579999999998
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2740,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2116,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.887200000000001e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 28.674,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 27.606,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-before/result.json": "de17aa7cfde4c0eafcc6de6315d4fc5c22c2ba38d3fc72f9b5c7f2b76229dfe0",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-before/transport.json": "383fdf0c2366b889c56efdfd025b81fa6ddf83e7138642ffdfefa479d033f0da",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/only-transient-failure-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "later-config-revocation-en",
+      "scenario": "later-config-revocation",
+      "language": "en",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 37249,
+      "mainUsage": {
+        "input": 1720,
+        "output": 2655,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 5399,
+        "cost": 0.0015222339999999997
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1903,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1996,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.3832e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 42.052,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 40.656,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-before/result.json": "a7d8ccf29143bb762866f2864f725f19d37346d4b1202522bec5fe0627f8737b",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-before/transport.json": "e7a6d8c5948a936867a16beb7f55f64bd16038aab8d25e6e1f6ebb54d83f967f",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "later-config-revocation-en",
+      "scenario": "later-config-revocation",
+      "language": "en",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 45770,
+      "mainUsage": {
+        "input": 819,
+        "output": 2800,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 5667,
+        "cost": 0.001471618
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2064,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1976,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.2992e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 50.532,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 49.366,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-after/result.json": "857e6657c874e5657c474bfeaec896cc691ef89e50f563e4376e26f9f268d83f",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-after/transport.json": "926e2372f28820eb18f606e664a511329a0e8d612fe11182772fe840beb1d0db",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "later-config-revocation-zh",
+      "scenario": "later-config-revocation",
+      "language": "zh",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 29673,
+      "mainUsage": {
+        "input": 1869,
+        "output": 1691,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 4584,
+        "cost": 0.0010915039999999999
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2181,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2050,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.61e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 34.417,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 33.31,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-after/result.json": "f68ee7a1bc28fe179820185507fda23a1205c496e0e372a441b89453e478be93",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-after/transport.json": "1c5c4c37eb01c0622bdc669707a47d9609d81faf9e361484240e380a35086a4f",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "later-config-revocation-zh",
+      "scenario": "later-config-revocation",
+      "language": "zh",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 22040,
+      "mainUsage": {
+        "input": 722,
+        "output": 1473,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 4243,
+        "cost": 0.0008333779999999999
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2128,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2074,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.7108e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 26.758,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 25.582,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-before/result.json": "5954a9f09de0ed981f1572016a9e5f1770dfbd3e13689f08639da185e082bcd1",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-before/transport.json": "85b05bccadd4bf525124fcb33481ee6f12b6b8beb719d8e59c26e17998d5d5ae",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/later-config-revocation-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "private-conditional-preference-en",
+      "scenario": "private-conditional-preference",
+      "language": "en",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 36189,
+      "mainUsage": {
+        "input": 1771,
+        "output": 2700,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 5495,
+        "cost": 0.0015510339999999997
+      },
+      "parentCategory": "rejected",
+      "jevDecision": "not-called",
+      "jevReason": null,
+      "jevTelemetry": {},
+      "providerRequests": 1,
+      "jevRequests": 0,
+      "jevUsageResponses": 0,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 38.826,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 37.534,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-before/result.json": "0c1ddb0266d2cf78b0fbe937e506fca167141b1d264275a015b7d04f07eacf16",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-before/transport.json": "8ff0e001a1fa5292ef3edcd2cc45be4c0be48166841e78f651825ff0d7b9d149",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "private-conditional-preference-en",
+      "scenario": "private-conditional-preference",
+      "language": "en",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 28603,
+      "mainUsage": {
+        "input": 870,
+        "output": 2189,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 5107,
+        "cost": 0.001192098
+      },
+      "parentCategory": "rejected",
+      "jevDecision": "not-called",
+      "jevReason": null,
+      "jevTelemetry": {},
+      "providerRequests": 1,
+      "jevRequests": 0,
+      "jevUsageResponses": 0,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 31.317,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 30.037,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-after/result.json": "f6b05d3a1bfef6a26b7e4a20743db0436693060b27d1ddfba4fde6ab8d2a751e",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-after/transport.json": "97381163c6e75a3d7415cb3262bd4960c5f60e4910e18dcde7e8fc31cb384534",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "private-conditional-preference-zh",
+      "scenario": "private-conditional-preference",
+      "language": "zh",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 34073,
+      "mainUsage": {
+        "input": 1913,
+        "output": 2265,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 5202,
+        "cost": 0.0013678839999999998
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1339,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2201,
+        "outputTokens": 214,
+        "estimatedCostUsd": 9.244200000000001e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 37.769,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 36.898,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-after/result.json": "2ac1992d626abaa5a81499ecfe90655ac863dfaec67b911cb7c79f2df91d3ceb",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-after/transport.json": "9ad5b91df0f7915eec144082f0643d0aa464f79ba535ce4aecd74c0703ceb898",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "private-conditional-preference-zh",
+      "scenario": "private-conditional-preference",
+      "language": "zh",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 24947,
+      "mainUsage": {
+        "input": 766,
+        "output": 1756,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 4570,
+        "cost": 0.0009729879999999999
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1606,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2219,
+        "outputTokens": 214,
+        "estimatedCostUsd": 9.3198e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 29.312,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 28.109,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-before/result.json": "d808cb68de700fabd5d97074d293d912245dae6de376fc03df77a166ef45052e",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-before/transport.json": "1393893ef3ed141670ec4a786f601ecceec926525b51f577e556dba3ea123e8a",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/private-conditional-preference-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "negative-verification-and-recovery-en",
+      "scenario": "negative-verification-and-recovery",
+      "language": "en",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 56027,
+      "mainUsage": {
+        "input": 1774,
+        "output": 3512,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 6310,
+        "cost": 0.0019331239999999998
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2038,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2049,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.605800000000001e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 60.987,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 59.663,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-before/result.json": "e043e102b6f039756899aa549675ab69c03dd2e63f537f734c2f9070b4e8bd3b",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-before/transport.json": "da5c5d3920d52472da78c93e975633c77a06ef1976356241b7ef8fd7052efc44",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "negative-verification-and-recovery-en",
+      "scenario": "negative-verification-and-recovery",
+      "language": "en",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 17987,
+      "mainUsage": {
+        "input": 873,
+        "output": 1287,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 4208,
+        "cost": 0.0007686079999999999
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 3520,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 1979,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.311800000000001e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 24.25,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 22.978,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-after/result.json": "074ef10c17a1eecb197504821ad933d966b9ff0a5743e0fb30b4b36a68d85a95",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-after/transport.json": "efcdc86137098a3a4937a616d812bf6b9dd48552a597fb51b5b5ab11bc30ed44",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "negative-verification-and-recovery-zh",
+      "scenario": "negative-verification-and-recovery",
+      "language": "zh",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 28557,
+      "mainUsage": {
+        "input": 1915,
+        "output": 1861,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 4800,
+        "cost": 0.0011783039999999998
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1713,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2097,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.807400000000001e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 32.721,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 31.694,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-after/result.json": "718e47ffc6edd1adf0a06dbccd32a6aa8f60f21377dbc0cbf7ced86c23aebc38",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-after/transport.json": "eba4f2d97db6dbc3b8b035f16f7c95da830609e83a6fece7fe37ac49832c65d6",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "negative-verification-and-recovery-zh",
+      "scenario": "negative-verification-and-recovery",
+      "language": "zh",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 18995,
+      "mainUsage": {
+        "input": 768,
+        "output": 1256,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 4072,
+        "cost": 0.0007382879999999999
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 2163,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2047,
+        "outputTokens": 214,
+        "estimatedCostUsd": 8.597400000000001e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 23.722,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 22.672,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-before/result.json": "26be1886b25d752a192964cd2036cf7a76e60c4c42a1155b2beb8d71a98de02c",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-before/transport.json": "05776c93ae65b21b811300028586b26401523494541cd6c0e427a275226433b5",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/negative-verification-and-recovery-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "unrequested-durable-diagnostic-history-en",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "language": "en",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 20780,
+      "mainUsage": {
+        "input": 1778,
+        "output": 1394,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 4196,
+        "cost": 0.000938264
+      },
+      "parentCategory": "rejected",
+      "jevDecision": "not-called",
+      "jevReason": null,
+      "jevTelemetry": {},
+      "providerRequests": 1,
+      "jevRequests": 0,
+      "jevUsageResponses": 0,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 23.494,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 22.206,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-before/result.json": "b9c0da4bbcdbe110f288a041d4a04179463c36d12d3819b39a6ffafeed9e06c3",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-before/transport.json": "ddb78c033aa57ac3aea2acf55cb70f280f0eba062e1f52380f763326d270090a",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "unrequested-durable-diagnostic-history-en",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "language": "en",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 76741,
+      "mainUsage": {
+        "input": 877,
+        "output": 4485,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 7410,
+        "cost": 0.0022722679999999996
+      },
+      "parentCategory": "rejected",
+      "jevDecision": "not-called",
+      "jevReason": null,
+      "jevTelemetry": {},
+      "providerRequests": 1,
+      "jevRequests": 0,
+      "jevUsageResponses": 0,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 79.425,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 78.154,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-after/result.json": "7ec18d79cc334689650d88b71d799bae5ebbfe84057024f3d88a1a718e8237e0",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-after/transport.json": "746c8249670544e07ac721e35cb7309b9efa7126387cc26f0f8b80392bb13902",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-en-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "unrequested-durable-diagnostic-history-zh",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "language": "zh",
+      "arm": "after",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 24551,
+      "mainUsage": {
+        "input": 1959,
+        "output": 1795,
+        "cacheRead": 1024,
+        "cacheWrite": 0,
+        "totalTokens": 4778,
+        "cost": 0.0011538839999999998
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1680,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2268,
+        "outputTokens": 214,
+        "estimatedCostUsd": 9.5256e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 28.813,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 27.716,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-after/result.json": "23d2246f120283f3fd6bab0385afee476dd72965adc119f1be6c0122c62fb04f",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-after/transport.json": "306e4badfa1276aaca39a56b1c6698379f7acb9d013f698afb985e9ac9d98e9c",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-after/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    },
+    {
+      "caseId": "unrequested-durable-diagnostic-history-zh",
+      "scenario": "unrequested-durable-diagnostic-history",
+      "language": "zh",
+      "arm": "before",
+      "generationOutcome": "repaired",
+      "generationDurationMs": 28061,
+      "mainUsage": {
+        "input": 812,
+        "output": 1552,
+        "cacheRead": 2048,
+        "cacheWrite": 0,
+        "totalTokens": 4412,
+        "cost": 0.0008840079999999999
+      },
+      "parentCategory": "ready",
+      "jevDecision": "allow",
+      "jevReason": "supported",
+      "jevTelemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1894,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 2,
+        "coveredEntries": 2,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 2294,
+        "outputTokens": 214,
+        "estimatedCostUsd": 9.6348e-05
+      },
+      "providerRequests": 3,
+      "jevRequests": 2,
+      "jevUsageResponses": 2,
+      "usageUnknown": false,
+      "productionWrites": 0,
+      "hostWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 32.789,
+        "processGroupStopConfirmed": true
+      },
+      "containerWorker": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 31.436,
+        "processGroupStopConfirmed": true
+      },
+      "ownedContainerAbsent": true,
+      "sourceHashes": {
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-before/result.json": "89b2cba6b789ad6078c239261f00b8d6010319cc3744db682594b15a698553e5",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-before/transport.json": "a8cc505164c5b773761c1e01d0879f42bb6d93d17c0ec2e48d254ec957e82e50",
+        "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/paid/unrequested-durable-diagnostic-history-zh-before/cleanup.json": "29585b2ff8ad186aaf7e39a7bb68fd4d052f55b60e6db5c5ff3d738256f82322"
+      }
+    }
+  ],
+  "finalState": {
+    "billingVerified": false,
+    "armsStarted": 32,
+    "resultsAvailable": 32,
+    "processesCompletedSuccessfully": 32,
+    "timeouts": 0,
+    "usageUnknownArms": 0
+  },
+  "billingVerified": false,
+  "costPolicy": "Known client estimates only; proxy evidence overlaps and is not added. Missing usage remains unknown.",
+  "limits": [
+    "Synthetic development, 8 scenarios; translations are not independent scenarios.",
+    "One generation per arm; stochastic differences do not establish prompt causality.",
+    "Repair errors and retention criteria were authored, not actual production Jev rejection.",
+    "Forced candidate repair bypasses the production learning selector; no actual Memory write or later recall was exercised.",
+    "Research citation preservation is stricter than production; parent acceptance alone does not prove quality.",
+    "Jev accept rate is not learning quality; independent model review is not human gold.",
+    "No favorable reruns or threshold changes."
+  ],
+  "independentQualityReview": {
+    "file": "jev-durable-core-generator-independent-quality-review.json",
+    "sha256": "7b4a65d1f95b64d2c9023689cc671bddc2157fcefef763bb05cc3b839fffe946",
+    "reviewer": "independent model, not human gold",
+    "summary": {
+      "before": {
+        "generatedPlansReviewed": 16,
+        "requiredAtomsRetained": 45,
+        "requiredAtomsTotal": 48,
+        "allRequiredKnowledgeCases": 14,
+        "sourceQualityCleanCases": 9,
+        "casesWithUnsupportedAssertions": 0,
+        "casesWithPrivacyOrExceptionLoss": 1,
+        "privacyDisclosureOrSuccessErrorConditionLossCases": 0,
+        "incidentalHistoryCases": 7,
+        "longTermValueFailureCases": 2,
+        "transientCasesCorrectlyHeldAtGeneratedPlanLevel": 0,
+        "frozenCitationCompliant": 14,
+        "frozenCandidateMetadataCompliant": 16,
+        "parentReady": 11,
+        "jevAllow": 11,
+        "jevNotEvaluated": 5,
+        "productionWrites": 0
+      },
+      "after": {
+        "generatedPlansReviewed": 16,
+        "requiredAtomsRetained": 46,
+        "requiredAtomsTotal": 48,
+        "allRequiredKnowledgeCases": 14,
+        "sourceQualityCleanCases": 12,
+        "casesWithUnsupportedAssertions": 0,
+        "casesWithPrivacyOrExceptionLoss": 0,
+        "privacyDisclosureOrSuccessErrorConditionLossCases": 0,
+        "incidentalHistoryCases": 2,
+        "longTermValueFailureCases": 2,
+        "transientCasesCorrectlyHeldAtGeneratedPlanLevel": 0,
+        "frozenCitationCompliant": 16,
+        "frozenCandidateMetadataCompliant": 16,
+        "parentReady": 13,
+        "jevAllow": 13,
+        "jevNotEvaluated": 3,
+        "productionWrites": 0
+      }
+    }
+  }
+}

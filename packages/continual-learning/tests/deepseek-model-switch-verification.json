@@ -1,0 +1,60 @@
+{
+  "scope": "requested real-project main model switch, not proof of Jev net benefit",
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/deepseek-v4.1-flash"
+  },
+  "red": {
+    "failed": 2,
+    "passed": 4
+  },
+  "focused": {
+    "passed": 18
+  },
+  "packageSuite": {
+    "passed": 1045,
+    "seconds": 436.93
+  },
+  "rootTypecheck": {
+    "exitCode": 0
+  },
+  "workspacePack": {
+    "passed": 19
+  },
+  "targetPackDryRun": {
+    "exitCode": 0
+  },
+  "diffCheck": {
+    "exitCode": 0
+  },
+  "readiness": {
+    "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/deepseek-preflight-20261007T014722Z",
+    "status": 200,
+    "actualModel": "deepseek-v4.1-flash",
+    "inputTokens": 35,
+    "outputTokens": 4,
+    "billingVerified": false,
+    "jevRequests": 0
+  },
+  "projectComparison": {
+    "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261007T014740Z",
+    "sourceDigest": "b4407f3c1439953e22299a9a8399a7694d4ae1cb7a8c2739ba526afd551cba44",
+    "cohort": "heldout",
+    "jev": "paired",
+    "memoryPolicy": "composed",
+    "jobs": 1,
+    "state": "running-at-checkpoint",
+    "terminalResultsAtCheckpoint": {
+      "yocto-queue-off": "passed",
+      "yocto-queue-on": "failed-memory-project-command-not-learned"
+    }
+  },
+  "globalConfigurationChanged": false,
+  "completeGoalEvidence": false,
+  "limitations": [
+    "One bounded transport request proves readiness only.",
+    "The paired study is still running; this checkpoint is not its final result.",
+    "Passing package tests do not prove learning quality gains.",
+    "Recorded host pricing is configured metadata, not billed costs."
+  ]
+}

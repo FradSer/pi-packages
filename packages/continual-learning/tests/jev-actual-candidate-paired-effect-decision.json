@@ -1,0 +1,42 @@
+{
+  "evidence": "same-actual-candidate-current-gate-effect-decision",
+  "successRuleMet": false,
+  "productionChangeAdopted": false,
+  "report": "jev-actual-candidate-paired-real-results.json",
+  "reportSha256": "a1d70bb388f253de7fe33837d1edd512e277622a38b635324f786ca17ddd48dd",
+  "complete": true,
+  "plans": 4,
+  "repositories": 2,
+  "baseline": {
+    "plans": 4,
+    "falseAccepts": 3,
+    "falseHolds": 0
+  },
+  "current": {
+    "plans": 4,
+    "falseAccepts": 0,
+    "falseHolds": 1
+  },
+  "knownInputTokens": 110584,
+  "knownEstimatedCostUsd": 0.004644528,
+  "externalRequests": 19,
+  "conclusion": "Observed3riskyHarnessplans held,but1validMemoryplan3recordsheld. Frozen zero-false-hold criterion failed, no net fullworkflow quality claim.",
+  "validMemoryHold": {
+    "candidateIndex": 0,
+    "dimension": "counterevidence",
+    "reason": "uncertain"
+  },
+  "limitations": [
+    "Four known original generated plans:3unsafe Harness plans and1valid Memory plan containing3candidates, not7independent samples.",
+    "Disabled semantic gate is a local no-inference counterfactual on same candidates, not a second live generator or Docker workflow.",
+    "Unlabeled operations inside unsafe mixed plans cannot be counted as harmless accepted or correctly held; whole-plan hold may suppress valid intent.",
+    "No original candidate rewrites, source relabel, regeneration, model favorable retry or threshold change.",
+    "Candidate replay is not full-workflow quality superiority."
+  ],
+  "nextAction": "Retain controlled evidence window and original entry-range location for counterevidence failures before semantic repairs. Do not infer the failed window or cause from telemetry that never recorded it. Exact reason for this old request remains unknown.",
+  "paidProcess": {
+    "id": 40394,
+    "terminalExitCode": 0
+  },
+  "newProductionWrites": 0
+}

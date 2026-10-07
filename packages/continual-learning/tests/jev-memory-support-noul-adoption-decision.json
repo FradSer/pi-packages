@@ -1,0 +1,179 @@
+{
+  "evidence": "narrow-memory-support-noul-development-adoption-decision",
+  "adopted": false,
+  "successRuleMet": false,
+  "decision": "reject-added-valid-plan-hold",
+  "report": "jev-memory-support-noul-development-real-results.json",
+  "reportSha256": "110a3e41a6f4fa1ba433f207e0866ab3cebfde659ef197b57dc6d316b6ee169c",
+  "metrics": {
+    "before": {
+      "complete": 16,
+      "incomplete": 0,
+      "falseAccepts": 0,
+      "falseHolds": 1,
+      "correct": 15
+    },
+    "after": {
+      "complete": 16,
+      "incomplete": 0,
+      "falseAccepts": 0,
+      "falseHolds": 2,
+      "correct": 14
+    }
+  },
+  "medianDurationMs": {
+    "before": 535.0,
+    "after": 530.0
+  },
+  "inputTokensByArm": {
+    "before": 31013,
+    "after": 28229
+  },
+  "knownInputTokens": 59242,
+  "knownEstimatedCostUsd": 0.0024881639999999997,
+  "externalRequests": 64,
+  "actualModel": "jev-1.13.0",
+  "paidProcess": {
+    "id": 5217,
+    "terminalExitCode": 0
+  },
+  "productionWrites": 0,
+  "productionRuntimeChanged": false,
+  "freshHeldoutRequests": 0,
+  "controlledHoldObservations": [
+    {
+      "id": "replaced-toolchain-zh",
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "reason": "uncertain",
+          "dimension": "support",
+          "supportObservations": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "field": "body",
+              "type": "noul",
+              "probability": 0.66
+            },
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "field": "description",
+              "type": "noul",
+              "probability": 0.64
+            }
+          ]
+        },
+        "before": {
+          "decision": "propose",
+          "reason": "uncertain",
+          "dimension": "support",
+          "supportObservations": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "field": "body",
+              "type": "choice",
+              "choice": "grounded",
+              "confidence": 0.74,
+              "probabilities": {
+                "grounded": 0.79,
+                "speculative": 0.04,
+                "transient": 0.09,
+                "unsupported": 0.07,
+                "unclear": 0.01
+              }
+            },
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "field": "description",
+              "type": "choice",
+              "choice": "grounded",
+              "confidence": 0.88,
+              "probabilities": {
+                "grounded": 0.9,
+                "speculative": 0.01,
+                "transient": 0.05,
+                "unsupported": 0.03,
+                "unclear": 0.01
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "replaced-report-preference-en",
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "reason": "supported",
+          "dimension": null,
+          "supportObservations": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "field": "body",
+              "type": "choice",
+              "choice": "grounded",
+              "confidence": 1,
+              "probabilities": {
+                "grounded": 1,
+                "speculative": 0,
+                "transient": 0,
+                "unsupported": 0,
+                "unclear": 0
+              }
+            },
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "field": "description",
+              "type": "choice",
+              "choice": "grounded",
+              "confidence": 1,
+              "probabilities": {
+                "grounded": 1,
+                "speculative": 0,
+                "transient": 0,
+                "unsupported": 0,
+                "unclear": 0
+              }
+            }
+          ]
+        },
+        "after": {
+          "decision": "propose",
+          "reason": "uncertain",
+          "dimension": "support",
+          "supportObservations": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "field": "body",
+              "type": "noul",
+              "probability": 0.89
+            },
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "field": "description",
+              "type": "noul",
+              "probability": 0.89
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "nextSignal": "Check whether cited support covers all candidate tense/scope/verification claims. Original complete snapshot can establish a claim even when a selected quote alone does not; verify this hypothesis prospectively rather than infer old failure causes.",
+  "limitations": [
+    "Known16sample/8bilingual-pair development, not fresh heldout or full Docker quality.",
+    "Noul changes both body and description support; joint calibration is not guaranteed.",
+    "Observer exposes this run numerical distributions, not model reasoning or historical R13 cause.",
+    "Original gold labels and failed reports remain unchanged.",
+    "No lower threshold, favorable retries or production adoption."
+  ]
+}

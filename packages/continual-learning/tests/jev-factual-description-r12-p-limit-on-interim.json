@@ -1,0 +1,63 @@
+{
+  "evidence": "interim-real-docker-arm-terminal",
+  "arm": "p-limit-on",
+  "roundComplete": false,
+  "reportSha256": "ce5600a0515d607efaf2d86d494001f84b0553de3b06c5192bd3e59fd235187b",
+  "sourceDigest": "39848586e489d75df2ae4cac140594ee36a361f07e4f9433547534518a16adcc",
+  "status": "failed",
+  "stage": "real-regression-task",
+  "checks": {
+    "regressionChanged": true
+  },
+  "phaseAttempts": [
+    {
+      "phase": "selector",
+      "outcome": "applied",
+      "operations": 0,
+      "jev": null
+    },
+    {
+      "phase": "memory",
+      "outcome": "proposed",
+      "operations": 0,
+      "jev": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "unavailable",
+        "durationMs": 1016,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 17,
+        "coveredEntries": 7,
+        "evidenceWindows": 2,
+        "completedWindows": 1,
+        "requestCount": 3,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "knownInputTokens": 10393,
+        "knownEstimatedCostUsd": 0.000436506
+      }
+    },
+    {
+      "phase": "harness",
+      "outcome": "proposed",
+      "operations": 0,
+      "jev": {
+        "stage": "harness",
+        "status": "propose",
+        "reason": "unavailable",
+        "durationMs": 901,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 17,
+        "coveredEntries": 0,
+        "evidenceWindows": 2,
+        "completedWindows": 0,
+        "requestCount": 3,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "knownInputTokens": 1409,
+        "knownEstimatedCostUsd": 5.9178e-05
+      }
+    }
+  ],
+  "interpretation": "Both learning phases proposed because real Jev requests unavailable; response/evidence coverage incomplete. HTTP status is not retained, so do not infer rate limit, quota, capacity or semantic quality from unavailable. No successful Memory/Harness writes. Original failure unchanged."
+}

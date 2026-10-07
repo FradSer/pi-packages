@@ -1,0 +1,34 @@
+{
+  "evidence": "real-deadline-adoption-decision",
+  "originalReportSha256": "b2646632d7882e8b62b54a226a63321a09c820649269a66181f75b0f97705008",
+  "independentReviewSha256": "94a6e08cc76a9803c5dc9275f3424b0cc116f12deb24af2ed6e4283b4cc68160",
+  "adopted": false,
+  "productionDefaultTimeoutMs": 5000,
+  "reason": "No reduction in incomplete judgments, missed valid opportunities, or completed false holds on this known corpus.",
+  "metrics": {
+    "before": {
+      "complete": 24,
+      "incomplete": 0,
+      "falseAccepts": 0,
+      "falseHolds": 1,
+      "missedValid": 1,
+      "correctCompleted": 23,
+      "p50DurationMs": 447,
+      "p95DurationMs": 1681
+    },
+    "after": {
+      "complete": 24,
+      "incomplete": 0,
+      "falseAccepts": 0,
+      "falseHolds": 1,
+      "missedValid": 1,
+      "correctCompleted": 23,
+      "p50DurationMs": 525,
+      "p95DurationMs": 779
+    }
+  },
+  "knownInputTokens": 71564,
+  "knownEstimatedCostUsd": 0.003005688,
+  "accountBillingVerified": false,
+  "goalComplete": false
+}

@@ -87,6 +87,11 @@ test('the /live-sessions command is the capability entry point and never claims 
     const completions = (await command.getArgumentCompletions!('')) as { value: string }[];
     assert.equal(completions.length, 1);
     const target = completions[0].value;
+    // The prefix narrows the offered ids; a typed fragment does not list every session.
+    const nonMatching = (await command.getArgumentCompletions!('zzz-no-match')) as { value: string }[];
+    assert.equal(nonMatching.length, 0);
+    const matching = (await command.getArgumentCompletions!(target.slice(0, 4))) as { value: string }[];
+    assert.deepEqual(matching.map((item) => item.value), [target]);
 
     idle = true;
     const accepted: { message: string; level: string }[] = [];

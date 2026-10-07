@@ -1,0 +1,113 @@
+{
+  "evidence": "real-r13-p-limit-current-docker-pi-jev-inference",
+  "manifestSha256": "f0e96418c1b1704f83801044d6327174edf3f01b011a5fae46b2645d864083be",
+  "originalSummary": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-r13-p-limit-http-diagnostics/summary.json",
+  "originalSummarySha256": "47e9a0affe48e0156c822b20b515f2f770f42274f55bfcd2c7e05b3055205b9c",
+  "sourceDigest": "720269bdc080cfa64e92ddc2cf4e348e96c005c4460e50417e25844d79717f04",
+  "sourceVerifiedAtEnd": true,
+  "imageId": "sha256:d15717488ddb785cd98569adf24f91357429202c342364318bc56383fa3bba19",
+  "project": "p-limit",
+  "repository": "https://github.com/sindresorhus/p-limit.git",
+  "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb",
+  "status": "passed",
+  "stage": "complete",
+  "checks": {
+    "regressionChanged": true,
+    "realJevParticipation": true,
+    "privatePreference": true,
+    "safeFact": true,
+    "safeMirrorIdentical": true,
+    "baselinePrivateRecall": false,
+    "freshPrivateRecall": true,
+    "freshFullMemoryReads": true,
+    "freshVerifiedCommand": true,
+    "nativeBashBlocked": true,
+    "blockedSideEffectAbsent": true,
+    "unrelatedBashExecuted": true
+  },
+  "runtime": {
+    "pi": "1.0.2",
+    "node": "v22.23.2",
+    "python": "Python 3.11.2",
+    "platform": "Linux 7.0.14-orbstack-00380-ga7e0a2dc9535 aarch64"
+  },
+  "mainModel": "bailian/qwen3.8-flash",
+  "jevActualModels": [
+    "jev-1.13.0"
+  ],
+  "providerRequestsTotalIncludesJev": 37,
+  "mainProviderRequests": 29,
+  "providerErrors": 0,
+  "jevRequests": 8,
+  "jevResponsesWithUsage": 8,
+  "knownJevInputTokens": 49655,
+  "estimatedJevInputCostUsd": 0.00208551,
+  "actualBillingVerified": false,
+  "receipts": [
+    {
+      "attempts": [
+        {
+          "phase": "selector",
+          "outcome": "applied",
+          "operations": 0,
+          "jev": null
+        },
+        {
+          "phase": "memory",
+          "outcome": "applied",
+          "operations": 3,
+          "jev": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1082,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 22,
+            "coveredEntries": 22,
+            "evidenceWindows": 3,
+            "completedWindows": 3,
+            "requestCount": 4,
+            "completedRequests": 4,
+            "model": "jev-1.13.0",
+            "inputTokens": 27510,
+            "outputTokens": 1146,
+            "estimatedCostUsd": 0.00115542
+          }
+        },
+        {
+          "phase": "harness",
+          "outcome": "applied",
+          "operations": 1,
+          "jev": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1216,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 22,
+            "coveredEntries": 22,
+            "evidenceWindows": 3,
+            "completedWindows": 3,
+            "requestCount": 4,
+            "completedRequests": 4,
+            "model": "jev-1.13.0",
+            "inputTokens": 22145,
+            "outputTokens": 283,
+            "estimatedCostUsd": 0.00093009
+          }
+        }
+      ]
+    }
+  ],
+  "paidProcess": {
+    "id": 95480,
+    "terminalExitCode": 0
+  },
+  "newDockerExecutions": 1,
+  "limitations": [
+    "One current-runtime p-limit/on diagnostic, not paired whole-workflow quality uplift.",
+    "No failure reproduced; numeric HTTP diagnostics not exercised against real failure in this run.",
+    "R12 unavailable root cause remains unknown; later success cannot explain old failure.",
+    "V3pairNoul rejected and not imported by runtime."
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "rows": [
+    {
+      "arm": "before",
+      "nativeExitCode": 0,
+      "nativeOutcome": "completed",
+      "nativeSeconds": 149.786,
+      "evaluationExitCode": 0,
+      "evaluationOutcome": "completed",
+      "evaluation": {
+        "evidence": "real-native-repair-generation-and-jev-on-frozen-original",
+        "nativeOutputSha256": "3df58193fc67c6c3634de8f6890b4759fe2a7daa3cdd11e57112573a6230ab48",
+        "parentCategory": "citation-mismatch",
+        "mainUsage": {
+          "input": 2431,
+          "output": 6524,
+          "cacheRead": 12544,
+          "cacheWrite": 0,
+          "totalTokens": 21499,
+          "cost": 0.0036316339999999995
+        },
+        "productionWrites": 0,
+        "limits": [
+          "One known original input; not heldout or full-workflow quality.",
+          "Retention comparison follows existing contract independently; no parent mutation queue or apply invoked."
+        ]
+      }
+    },
+    {
+      "arm": "after",
+      "nativeExitCode": 0,
+      "nativeOutcome": "completed",
+      "nativeSeconds": 42.24,
+      "evaluationExitCode": 0,
+      "evaluationOutcome": "completed",
+      "evaluation": {
+        "evidence": "real-native-repair-generation-and-jev-on-frozen-original",
+        "nativeOutputSha256": "af830501eccc276a27dfa895c1e85716d592b2cdfd301e57b045d7e7b2de45a9",
+        "parentCategory": "ready",
+        "mainUsage": {
+          "input": 6247,
+          "output": 3353,
+          "cacheRead": 2048,
+          "cacheWrite": 0,
+          "totalTokens": 11648,
+          "cost": 0.0025457279999999997
+        },
+        "verdict": {
+          "decision": "propose",
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "timeout",
+            "durationMs": 5042,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 17,
+            "coveredEntries": 0,
+            "evidenceWindows": 2,
+            "completedWindows": 0,
+            "requestCount": 3,
+            "completedRequests": 0,
+            "knownInputTokens": 0,
+            "knownEstimatedCostUsd": 0
+          }
+        },
+        "productionWrites": 0,
+        "limits": [
+          "One known original input; not heldout or full-workflow quality.",
+          "Retention comparison follows existing contract independently; no parent mutation queue or apply invoked."
+        ]
+      }
+    }
+  ],
+  "requests": 11,
+  "jevRequests": 3,
+  "jevUsage": []
+}

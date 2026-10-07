@@ -1486,7 +1486,7 @@ export interface PiWorkerResult {
   usage?: PiWorkerUsage;
   exitCode: number;
   stderr: string;
-  /** True when the caller's signal was already or became aborted. */
+  /** True when the caller signal or the worker model reply was aborted. */
   cancelled?: boolean;
 }
 
@@ -1738,9 +1738,13 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
     child.on("close", (code) => {
       signal?.removeEventListener("abort", abortHandler);
 
-      const failed = code !== 0 || cancelled || failureReason !== undefined;
-      const { text, usage } = failed ? { text: "", usage: undefined } : parsePiWorkerOutput(stdout);
-      const diagnostic = [failureReason, stderr.trim()].filter(Boolean).join("\n");
+      const parsed = parsePiWorkerOutput(stdout);
+      if (parsed.failure === "cancelled") cancelled = true;
+      const failed = code !== 0 || cancelled || failureReason !== undefined || parsed.failure !== undefined;
+      const { text, usage } = failed ? { text: "", usage: undefined } : parsed;
+      const modelDiagnostic = parsed.failure === "cancelled" ? "Pi worker model reply was cancelled."
+        : parsed.failure ? "Pi worker model failed before successful completion." : undefined;
+      const diagnostic = [failureReason, modelDiagnostic, stderr.trim()].filter(Boolean).join("\n");
       resolve({
         text,
         usage,
@@ -1764,17 +1768,22 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
 
 /**
  * Parse the JSONL output of a `pi --print --mode json` worker run.
- * Returns the final assistant text and the last reported usage.
+ * Returns the final assistant text and last reported usage on successful runs.
+ * Failed replies invalidate text; recovered replies keep incomplete usage unknown.
  */
-export function parsePiWorkerOutput(stdout: string): { text: string; usage?: PiWorkerUsage } {
+export function parsePiWorkerOutput(stdout: string): { text: string; usage?: PiWorkerUsage; failure?: "model-error" | "cancelled" } {
   let text = "";
+  let failure: "model-error" | "cancelled" | undefined;
   let usage: PiWorkerUsage | undefined;
+  let failedUsageUnknown = false;
 
   for (const line of stdout.split("\n")) {
     if (!line.trim()) continue;
     let event: {
       type?: string;
+      success?: boolean;
       message?: {
+        stopReason?: string;
         role?: string;
         content?: Array<{ type?: string; text?: string }>;
         usage?: {
@@ -1792,13 +1801,28 @@ export function parsePiWorkerOutput(stdout: string): { text: string; usage?: PiW
     } catch {
       continue;
     }
+    if (event.type === "auto_retry_end") {
+      if (event.success === false) {
+        if (failure !== "cancelled") failure = "model-error";
+        text = ""; usage = undefined; failedUsageUnknown = true;
+      }
+    }
     if (event.type !== "message_end" || event.message?.role !== "assistant") continue;
+    if (event.message.stopReason === "error" || event.message.stopReason === "aborted") {
+      failure = event.message.stopReason === "aborted" ? "cancelled" : "model-error";
+      text = "";
+      usage = undefined;
+      failedUsageUnknown = true;
+      continue;
+    }
+    if (["stop", "length", "toolUse"].includes(String(event.message.stopReason))) failure = undefined;
+    if (failure) continue;
     const parts = (event.message.content ?? [])
       .filter((part) => part.type === "text" && typeof part.text === "string")
       .map((part) => part.text as string);
     if (parts.length > 0) text = parts.join("\n");
     const u = event.message.usage;
-    if (u) {
+    if (u && !failedUsageUnknown) {
       usage = {
         input: u.input ?? 0,
         output: u.output ?? 0,
@@ -1809,7 +1833,7 @@ export function parsePiWorkerOutput(stdout: string): { text: string; usage?: PiW
       };
     }
   }
-  return { text, usage };
+  return failure ? { text: "", failure } : { text, usage };
 }
 
 /**

@@ -1,0 +1,21 @@
+{
+  "evidence": "r17-case-fix-complete-local-gate",
+  "red": {
+    "failed": 2,
+    "passed": 2,
+    "seconds": 0.05
+  },
+  "green": {
+    "passed": 4,
+    "seconds": 0.04
+  },
+  "fullTarget": {
+    "passed": 910,
+    "seconds": 291.38
+  },
+  "runtimeUnchanged": true,
+  "freshReadOnlyReview": "passed; fixed remaining five arms, original first workflow and orchestrator failure preserved",
+  "installationUnrelatedFailure": "bdd-jev unconfigured; no host config write",
+  "externalCallsDuringFix": 0,
+  "goalComplete": false
+}

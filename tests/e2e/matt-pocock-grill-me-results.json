@@ -1,0 +1,30 @@
+{
+  "capability": "grill-me",
+  "closure": [
+    "grill-me",
+    "grilling"
+  ],
+  "cases": [
+    {
+      "entryPoint": "menu",
+      "capability": "grill-me",
+      "deliveredSources": [
+        "grill-me",
+        "grilling"
+      ],
+      "status": "completed"
+    },
+    {
+      "entryPoint": "model-gateway",
+      "mode": "user-capability",
+      "capability": "grill-me",
+      "autonomousModeRefused": true,
+      "deliveredSources": [
+        "grill-me",
+        "grilling"
+      ],
+      "status": "completed"
+    }
+  ],
+  "status": "completed"
+}

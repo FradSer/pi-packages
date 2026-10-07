@@ -1,0 +1,149 @@
+{
+  "evidence": "actual-r14-p-limit-paired-interim-failure",
+  "status": {
+    "off": "passed",
+    "on": "failed"
+  },
+  "sourceDigest": "beedbeebea1f64794d21d8339fb151fa3974ed3a4ad4735bc1dfe4b6cbe274df",
+  "wholeWorkflowGain": false,
+  "wholeWorkflowRegression": true,
+  "semanticSafetyGoldReviewed": true,
+  "transportOrEvidenceBoundsFailure": false,
+  "jevAllResponsesComplete": true,
+  "learningSeconds": {
+    "off": 276.16,
+    "on": 426.56
+  },
+  "jevRequests": 12,
+  "knownInputTokens": 81711,
+  "knownEstimatedCostUsd": 0.003431862,
+  "actualBillingVerified": false,
+  "controlledFailures": [
+    {
+      "stage": "memory",
+      "reason": "uncertain",
+      "failures": [
+        {
+          "candidateIndex": 2,
+          "dimension": "support",
+          "field": "description",
+          "reason": "uncertain"
+        },
+        {
+          "candidateIndex": 0,
+          "dimension": "counterevidence",
+          "reason": "uncertain",
+          "evidenceWindowIndex": 1,
+          "evidenceEntryStart": 7,
+          "evidenceEntryEnd": 24
+        },
+        {
+          "candidateIndex": 1,
+          "dimension": "counterevidence",
+          "reason": "uncertain",
+          "evidenceWindowIndex": 1,
+          "evidenceEntryStart": 7,
+          "evidenceEntryEnd": 24
+        }
+      ]
+    },
+    {
+      "stage": "harness",
+      "reason": "uncertain",
+      "failures": [
+        {
+          "candidateIndex": 0,
+          "dimension": "scope",
+          "reason": "uncertain"
+        }
+      ]
+    },
+    {
+      "stage": "harness",
+      "reason": "uncertain",
+      "failures": [
+        {
+          "candidateIndex": 0,
+          "dimension": "scope",
+          "reason": "uncertain"
+        }
+      ]
+    }
+  ],
+  "attempts": {
+    "off": [
+      {
+        "phase": "selector",
+        "attempt": 0,
+        "outcome": "applied",
+        "operations": 0
+      },
+      {
+        "phase": "memory",
+        "attempt": 0,
+        "outcome": "applied",
+        "operations": 2
+      },
+      {
+        "phase": "harness",
+        "attempt": 0,
+        "outcome": "applied",
+        "operations": 1
+      }
+    ],
+    "on": [
+      {
+        "phase": "selector",
+        "attempt": 0,
+        "outcome": "applied",
+        "operations": 0
+      },
+      {
+        "phase": "memory",
+        "attempt": 0,
+        "outcome": "rejected",
+        "operations": 0
+      },
+      {
+        "phase": "memory",
+        "attempt": 1,
+        "outcome": "proposed",
+        "operations": 0
+      },
+      {
+        "phase": "harness",
+        "attempt": 0,
+        "outcome": "proposed",
+        "operations": 0
+      },
+      {
+        "phase": "harness",
+        "attempt": 1,
+        "outcome": "proposed",
+        "operations": 0
+      }
+    ]
+  },
+  "reportSha256": {
+    "off": "a150ea63bb662a398e0fb3bb12f0fb2c7977e472e8329ad9fb2fd7dc4566625f",
+    "on": "d4eead732f5c76e6c78df5385c53fb164c326f497a1ceee716c8a0b1723b3392"
+  },
+  "limits": [
+    "Semantic unknown does not prove either unsafecandidate or falsehold without originalcontentreview.",
+    "Initial structural repair consumed existing sharedone-slot; aftercorrected structure wholeMemory held by Jev; no semanticrepair launched. Originalstructureerror missing, keep unknown.",
+    "Harnessscope uncertain evenafterexistingrepair; preserve bothresponses and originalrulecandidate.",
+    "4of6terminalruns, mittbotharms pending in same originalprocess61811. No favorable rerun or loweringthreshold."
+  ],
+  "goalComplete": false,
+  "independentContentReview": {
+    "reviewer": "citation_generation_review",
+    "candidate2": "unsupported settings-persistence description and promotion of one-task operational instruction to standing preference",
+    "candidate0and1": "no originalfact or privacy defect found; counterwindowuncertainty notinternalcauseproof",
+    "harness": "current anchored projecttemplate, no overbreadth found; scopeuncertainty notwrongtemplateproof",
+    "memoryRepair": "structural repair consumes sharedslot, then singleoriginalJev wholeplanproposal; not semanticrepairrejected",
+    "initialStructuralError": "not retained in durableartifacts; unknown, do not infer field",
+    "frozenQuotesAndBounds": "verified",
+    "appliedWrites": 0
+  },
+  "qualityTradeoff": "An actual unsupported addedcandidate was prevented, but2validrecords also notapplied; no observed overall workflowimprovement against offarm."
+}

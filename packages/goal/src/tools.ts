@@ -22,7 +22,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { bindLifecycleRenderers, emptyToolCall, setOwnedTools } from "@fradser/pi-kit";
+import { bindLifecycleRenderers, emptyToolCall, setOwnedTools, type PiWorkerProgressUpdate } from "@fradser/pi-kit";
 import { describeUnmet } from "./check.ts";
 import type { GoalCore } from "./core.ts";
 import { nowIso, type GoalRecord } from "./record.ts";
@@ -50,8 +50,8 @@ const rows = bindLifecycleRenderers({
  *
  * Typebox has no StringEnum here, so a union of literals is the same constraint
  * expressed the way the library supports. The schema and the TypeScript type are
- * both derived from the same tuple, so they cannot drift; the schema's contents
- * are asserted against the tuple in the tool-surface test.
+ * both derived from the same tuple, so they cannot drift: `closedSet` reads the
+ * tuple, and the type is read off it.
  *
  * No cast is involved: naming the literals once and reading the type off the
  * tuple keeps the schema honest, where recovering a typebox type would mean
@@ -78,19 +78,23 @@ export function registerGoalTools(core: GoalCore): void {
 /**
  * Re-assert which of this extension's tools are exposed.
  *
- * Reading the objective and recording an outcome are always possible; a goal that
- * has finished accepts neither.
+ * Creating and researching are always possible. Reading follows the record it
+ * would read, and recording an outcome needs a goal that can accept one.
  */
 export function refreshGoalToolSurface(core: GoalCore, _ctx: ExtensionContext): void {
   const goal = core.goal;
-  const live = !!goal && (goal.status === "active" || goal.status === "paused" || goal.status === "blocked");
+  const focused = !!goal;
+  const live = focused && (goal!.status === "active" || goal!.status === "paused" || goal!.status === "blocked");
   setOwnedTools(core.pi as unknown as Parameters<typeof setOwnedTools>[0], {
     owned: GOAL_TOOLS,
-    // Creating, reading, and researching are never withdrawn: a user must
-    // always be able to start a goal, a session with none focused still has to
-    // see what is open, and research precedes creation.
-    always: ["create_goal", "get_goal", "research_goal"],
-    toggled: live ? ["update_goal"] : [],
+    // Creating and researching are never withdrawn: a user must always be able to
+    // start a goal, and research precedes creation. Reading is withdrawn with the
+    // record, because a session with nothing focused has nothing to read: the
+    // tool could only answer "no goal", and declaring it spends the model's
+    // attention on a fact the capability note already states. A budget-limited
+    // goal has stopped but is still focused, so it stays readable.
+    always: ["create_goal", "research_goal"],
+    toggled: focused ? (live ? ["get_goal", "update_goal"] : ["get_goal"]) : [],
     enabled: true,
   });
 }
@@ -107,14 +111,18 @@ interface GoalRenderedResult extends AgentToolResult<unknown> {
 
 /** The shape every executor returns. A refusal is returned rather than thrown, so
  * a caller reads one shape whatever went wrong. */
-type GoalToolResult = AgentToolResult<{ subject: string; summary?: string; details?: string[] }>;
+type GoalToolResult = AgentToolResult<{ subject: string; summary?: string; details?: string[]; markdown?: boolean }>;
 
 /** pi-kit's band for one goal tool result. pi-kit owns the frame, the expansion
  * hint, the wrapping, and the error styling; this decides only which part of the
  * result is the subject, which is always visible, and which expands. */
 const goalResultBand = rows.result<GoalRenderedResult>((value) => {
-  const spec = (value.details ?? {}) as { subject?: string; summary?: string; details?: string[] };
-  const tool = value.tool ?? "goal";
+  const spec = (value.details ?? {}) as { subject?: string; summary?: string; details?: string[]; markdown?: boolean };
+  // Unified transcript tag: every goal tool row reads `[goal] ...`, with the
+  // per-tool verb carried by the subject/summary so `ctrl+o to expand` still
+  // applies via the shared band. The registered tool names stay distinct; only
+  // the rendered tag is unified.
+  const tool = "goal";
   const summary = spec.summary?.split("\n").filter((line) => line.length > 0) ?? [];
   const details = spec.details?.length ? spec.details : [];
   return {
@@ -122,6 +130,11 @@ const goalResultBand = rows.result<GoalRenderedResult>((value) => {
     kind: "event" as const,
     subject: spec.subject ?? tool,
     ...(summary.length > 0 ? { summary } : {}),
+    // pi-kit renders one markdown body when asked. A markdown summary is
+    // compacted to its first row while collapsed and rendered in full when
+    // expanded, so a long finding or a multi-line activity line cannot flood
+    // the transcript.
+    ...(spec.markdown ? { summaryFormat: "markdown" as const } : {}),
     ...(details.length > 0 ? { details } : {}),
   };
 });
@@ -129,16 +142,16 @@ const goalResultBand = rows.result<GoalRenderedResult>((value) => {
 /** The tool renders its own call and result, through pi-kit's shared band. */
 const renderShell = "self" as const;
 const renderCall = () => emptyToolCall();
-function renderGoalResultFor(tool: string) {
+function renderGoalResultFor() {
   return (
     result: AgentToolResult<unknown>,
     options: { expanded?: boolean; isPartial?: boolean },
     theme: Parameters<typeof goalResultBand>[2],
     context: { isError?: boolean },
-  ) => goalResultBand({ ...result, tool }, options, theme, context);
+  ) => goalResultBand({ ...result, tool: "goal" }, options, theme, context);
 }
 
-function result(spec: { subject: string; summary?: string; details?: string[] }, error = false): GoalToolResult {
+function result(spec: { subject: string; summary?: string; details?: string[]; markdown?: boolean }, error = false): GoalToolResult {
   const text = spec.summary ? `${spec.subject}\n\n${spec.summary}` : spec.subject;
   return {
     content: [{ type: "text", text }],
@@ -163,7 +176,7 @@ function goalGet(core: GoalCore) {
     }, { additionalProperties: false }),
     renderShell,
     renderCall,
-    renderResult: renderGoalResultFor("get_goal"),
+    renderResult: renderGoalResultFor(),
     async execute(_id, params: { section?: GoalSection; cursor?: string }, _signal, _onUpdate, ctx) {
       core.bindUi(ctx);
       const goal = core.goal;
@@ -197,7 +210,7 @@ function goalGet(core: GoalCore) {
         if (!research) {
           return result({ subject: "no research", summary: "No research was attached when this goal was created." });
         }
-        return bounded("research", research);
+        return bounded("research", research, true);
       }
       return bounded("summary", [
         `Goal — ${goal.status}`,
@@ -209,14 +222,18 @@ function goalGet(core: GoalCore) {
   });
 }
 
-function bounded(section: string, body: string) {
+/** Bound a result body, and state the cut when there is one.
+ *
+ * The subject names the section, with no character count: the length is not what
+ * the reader asked for, and a cut already says how much it dropped. No goal id
+ * appears either, because a session has one goal. */
+function bounded(section: string, body: string, markdown = false) {
   const cap = 4000;
-  // No goal id in the subject: a session has one goal, so its id is noise the
-  // reader must filter on every line.
-  if (body.length <= cap) return result({ subject: section, summary: body });
+  if (body.length <= cap) return result({ subject: section, summary: body, markdown });
   return result({
-    subject: `${section} (${body.length} chars)`,
+    subject: section,
     summary: `${body.slice(0, cap)}\n\n[truncated at ${cap} characters.]`,
+    markdown,
   });
 }
 
@@ -235,16 +252,21 @@ function goalCreate(core: GoalCore) {
       "Put a checkable requirement in verification_contract when the user gave one.",
     ],
     parameters: Type.Object({
-      objective: Type.String({ minLength: 1, maxLength: 4000, description: "What must be true when this goal is met." }),
+      objective: Type.String({ minLength: 1, description: "What must be true when this goal is met." }),
       verification_contract: Type.Optional(Type.String({ maxLength: 2000, description: "What evidence shows it is met." })),
+      supersedes: Type.Optional(Type.Boolean({ description: "Archive the goal this thread already has, so this one replaces it. Set it when the new request carries the earlier goal forward." })),
     }, { additionalProperties: false }),
     renderShell,
     renderCall,
-    renderResult: renderGoalResultFor("create_goal"),
-    async execute(_id, params: { objective: string; verification_contract?: string }, _signal, _onUpdate, ctx) {
+    renderResult: renderGoalResultFor(),
+    async execute(_id, params: { objective: string; verification_contract?: string; supersedes?: boolean }, _signal, _onUpdate, ctx) {
       core.bindUi(ctx);
-      if (core.goal) {
-        return result({ subject: "This thread already has a goal", summary: "Revise it with update_goal, or use /goal clear before creating another." }, true);
+      const existing = core.goal;
+      if (existing && !params.supersedes) {
+        return result({
+          subject: "This thread already has a goal",
+          summary: "Carry it into a new goal with `supersedes: true`, revise it with update_goal, or use /goal clear before creating another.",
+        }, true);
       }
       const objective = params.objective.trim();
       if (!objective) return result({ subject: "No objective", summary: "create_goal needs a nonempty objective." }, true);
@@ -263,12 +285,28 @@ function goalCreate(core: GoalCore) {
       });
       if (!created.ok) return result({ subject: "Goal creation failed", summary: created.message }, true);
       if (research) core.takePendingResearch();
+      // A goal that carries the earlier one forward still leaves one goal per
+      // thread. The earlier goal is archived only after the new record is
+      // durable, so a failed creation can never leave the thread with neither.
+      let supersededNote = "";
+      if (existing) {
+        core.abortCheck();
+        core.cancelContinuation(existing.id);
+        const released = core.store.apply({
+          expectedGoalId: existing.id, archive: true,
+          mutate: (draft) => ({ ...draft, status: "complete", autoContinue: false }),
+          ledger: [{ type: "goal_cleared", goalId: existing.id, reason: "superseded", at: nowIso() }],
+        });
+        supersededNote = released.ok
+          ? "\n\nThe goal this thread had is archived as superseded."
+          : `\n\nThe goal this thread had could not be archived: ${released.message}`;
+      }
       core.focus(created.goal.id, ctx, "created");
       core.scheduler.schedule(created.goal, core.settings(ctx));
       refreshGoalToolSurface(core, ctx);
       return result({
         subject: "Goal created and focused",
-        summary: `It now runs on its own until the completion check says it is met.${research ? " Read-only research gathered this session is attached." : ""}\n\n${objective}`,
+        summary: `It now runs on its own until the completion check says it is met.${research ? " Read-only research gathered this session is attached." : ""}${supersededNote}\n\n${objective}`,
       });
     },
   });
@@ -287,14 +325,14 @@ function goalUpdate(core: GoalCore) {
     parameters: Type.Object({
       status: Type.Optional(closedSet(GOAL_STATUSES)),
       reason: Type.Optional(Type.String({ maxLength: 2000, description: "Required for paused and blocked: the concrete reason." })),
-      objective: Type.Optional(Type.String({ maxLength: 4000, description: "Replace the objective. Use when the user refines this goal." })),
+      objective: Type.Optional(Type.String({ description: "Replace the objective. Use when the user refines this goal." })),
       verification_contract: Type.Optional(Type.String({ maxLength: 2000, description: "Replace the completion contract." })),
-      completion_summary: Type.Optional(Type.String({ maxLength: 4000, description: "What you did. An untrusted claim, never evidence." })),
+      completion_summary: Type.Optional(Type.String({ description: "What you did. An untrusted claim, never evidence. There is no length cap; the completion check reads a bounded prefix and the full text is recorded." })),
       next_action: Type.Optional(Type.String({ minLength: 1, maxLength: 2000, description: "Save the next action and end the turn." })),
     }, { additionalProperties: false }),
     renderShell,
     renderCall,
-    renderResult: renderGoalResultFor("update_goal"),
+    renderResult: renderGoalResultFor(),
     async execute(_id, params: {
         status?: GoalStatus;
         reason?: string;
@@ -477,22 +515,51 @@ function goalResearch(core: GoalCore) {
     }, { additionalProperties: false }),
     renderShell,
     renderCall,
-    renderResult: renderGoalResultFor("research_goal"),
-    async execute(_id, params: { focus: string }, signal, _onUpdate, ctx) {
+    renderResult: renderGoalResultFor(),
+    async execute(_id, params: { focus: string }, signal, onUpdate, ctx) {
       core.bindUi(ctx);
       const focus = params.focus.trim();
       if (!focus) return result({ subject: "No focus", summary: "research_goal needs a focus to investigate." }, true);
-      const research = await core.research(focus, ctx.cwd, signal);
+      // Research blocks until the child settles, so the waiting is already
+      // visible. Partial results update one transcript row in place. The final
+      // result is also sent before execute returns, so hosts that render tool
+      // updates before settling can replace the in-progress row with its outcome.
+      const update = (subject: string, summary: string, markdown = false): void => {
+        try {
+          (onUpdate as unknown as ((partial: unknown) => void) | undefined)?.({
+            content: [{ type: "text" as const, text: summary }],
+            details: { subject, summary, ...(markdown ? { markdown: true } : {}) },
+          });
+        } catch {
+          // Rendering must never take the research down.
+        }
+      };
+      const research = await core.research(focus, ctx.cwd, signal, (progress: PiWorkerProgressUpdate) => {
+        // The child's latest activity is what "progress" means here: its last
+        // tool, its thinking, or the text it is writing. The subject ends in an
+        // ellipsis so an in-progress row reads as in-progress, and pi-kit renders
+        // the activity as its own markdown row beneath the subject rather than
+        // beside it.
+        const summary = progress.activity ?? progress.text ?? "Working...";
+        update("Researching...", summary, true);
+        // The session model is the documented default, so the child follows the
+        // session instead of the persisted CLI default when none is configured.
+      }, ctx.model);
       if (research.error || !research.findings) {
-        return result({
+        const failed = {
           subject: "Research failed",
           summary: `${research.error ?? "No findings were returned."}\n\nNo new findings were saved. Earlier successful research, if any, still waits for creation. Retry research_goal if needed.`,
-        }, true);
+        };
+        update(failed.subject, failed.summary);
+        return result(failed, true);
       }
-      return result({
-        subject: `Research ready (${research.findings.length} chars)`,
+      const ready = {
+        subject: "Research ready",
         summary: `${research.findings}\n\nThese findings replace earlier research and attach to the next goal created in this session. They inform the objective; they are not evidence for the completion check.`,
-      });
+        markdown: true,
+      };
+      update(ready.subject, ready.summary, ready.markdown);
+      return result(ready);
     },
   });
 }

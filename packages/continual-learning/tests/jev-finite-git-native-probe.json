@@ -1,0 +1,80 @@
+{
+  "evidence": "real-pi-native-hook-with-fixture-provider",
+  "fixtureProvider": true,
+  "externalRequests": 0,
+  "networkIsolation": "docker-network-none",
+  "fixtureForwardedRequests": 0,
+  "piVersion": "1.0.2",
+  "fixtureRequests": 11,
+  "realInference": false,
+  "harnessSha256": "8ce669a822502535e0bef069fbbd36465dac828f48f34d38c20c0c1c5cafee46",
+  "nativeToolResults": 10,
+  "blockedCases": 5,
+  "allowedCases": 5,
+  "forbiddenSideEffects": 0,
+  "allPassed": true,
+  "cases": [
+    {
+      "id": "push-with-remote",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "push-dry-run",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "quoted-operator-print",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "plain-command-words-echo",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "unrelated-status",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "same-project-cwd-push",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-config-push",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-pager-push",
+      "expected": "block",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-option-print",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    },
+    {
+      "id": "global-option-echo",
+      "expected": "execute",
+      "observed": true,
+      "passed": true
+    }
+  ],
+  "sourceDigest": "a385ac89115b1ddb8da1671235dbddbfb1cc4e839586bb7e3415c7cc2e2630ea",
+  "probeSha256": "7547625baea3b9db476f63d47f49a03f43ba08a26d4f1526e51e953419578dc6"
+}

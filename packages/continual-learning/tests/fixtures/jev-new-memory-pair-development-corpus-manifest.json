@@ -1,0 +1,14 @@
+{
+  "evidence": "prospective-unqueried-new-memory-pair-development-labels",
+  "corpusSha256": "8f2d690b924b9c58713693c46a9f096a1830512883e3afe9b05346582388d048",
+  "samples": 8,
+  "paidRequests": 0,
+  "status": "Not implemented; no model inference or production application.",
+  "labels": [
+    "independent",
+    "duplicate",
+    "conflict",
+    "dependent"
+  ],
+  "limitation": "Development archetypes only, no fresh heldout or whole-workflow quality evidence; never substitute relation-only labels for original support/counter checks."
+}

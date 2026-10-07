@@ -1,0 +1,12 @@
+{
+  "evidence": "offline-synthetic-private-replay-check",
+  "syntheticPrivateCandidates": 1,
+  "generatorMatch": true,
+  "classificationUnchanged": true,
+  "hostPersonalMemoryRead": false,
+  "researchAllowPrivateMemory": true,
+  "productionDefaultPrivatePermissionChanged": false,
+  "planHash": "2d42a13904f9b0020b19cf4e4c360141521693bdd8f15b4c122336b694abbe42",
+  "generatorHash": "918444818613a0e6f26e9a908218c465ec49015d7d02a5ece5627607c6f7a9ef",
+  "limitation": "Research explicitly opts in to transmit isolated synthetic private preference; not the default production privacy policy."
+}

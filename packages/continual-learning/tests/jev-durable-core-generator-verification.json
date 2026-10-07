@@ -1,0 +1,32 @@
+{
+  "evidence": "local-regression-verification",
+  "targetPytest": {
+    "passed": 925,
+    "durationSeconds": 308.14,
+    "exitCode": 0
+  },
+  "rootTypecheck": {
+    "exitCode": 0
+  },
+  "targetPackDryRun": {
+    "exitCode": 0
+  },
+  "targetRegressions": {
+    "passed": 10,
+    "redBeforeFix": {
+      "transportModuleMissing": 6
+    }
+  },
+  "limits": [
+    "Unit tests and offline preflights are not real-model quality evidence.",
+    "Original unrelated install-check failure remains reported in previous evidence."
+  ],
+  "rootPackCheck": {
+    "exitCode": 0,
+    "workspacePackages": 19
+  },
+  "strictResearchWorkerTypecheck": {
+    "exitCode": 0
+  },
+  "paidStudy": "terminal completed, see separate real-results and independent-review evidence"
+}

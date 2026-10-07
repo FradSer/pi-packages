@@ -1,0 +1,25 @@
+{
+  "evidence": "offline-container-original-repair-preflight",
+  "preparationSha256": "956dbdeae5a6728e10705baed6fd4d7d9a1ccd8e79880f7b202693e4d8943624",
+  "codeHashes": {
+    "live_harness_binding_repair.py": "fff131d58608b55c6e1a87d39e0f81467a4c74c287377f6ad2f286d9215f6db0",
+    "evaluate_harness_binding_repair.ts": "e85395435d822cf42f7dae2338995a454c2a7b7e02c4ef612834de7faadc959e",
+    "harness-binding-repair-research.ts": "8a0c542ba4a1ba7581cbbe61d4d9952940a849df91eefc470e0da361abb28ec8"
+  },
+  "image": "continual-learning-projects:5818b1f6be33de6a",
+  "rows": [],
+  "originalProjectTreeSha256": "d6ce948da3f4542b4a8023449f23afd38e6afaa594bcd8d7f55399bd0f7b76b5",
+  "plannedArms": 2,
+  "allArmsEvaluated": false,
+  "totalRequests": 0,
+  "jevRequests": 0,
+  "providerErrors": 0,
+  "jevUsage": [],
+  "productionWrites": 0,
+  "goalComplete": false,
+  "limits": [
+    "One known historical input; no heldout/full-workflow quality claim.",
+    "Independent retention contract check precedes real Jev; no mutation queue/apply.",
+    "Original outputs preserved; no retries, output selection or changed source."
+  ]
+}

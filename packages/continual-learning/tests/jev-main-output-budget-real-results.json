@@ -1,0 +1,139 @@
+{
+  "evidence": "real-pi-output-budget-diagnostic-not-learning-quality",
+  "manifestSha256": "c93c4aa7c7a85aecb21740f3b888cc11c180991a43f081bef3e3aaf29770ae69",
+  "rows": [
+    {
+      "variant": "original",
+      "process": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 0.53,
+        "processGroupStopConfirmed": true
+      },
+      "proxyProcess": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 0.193,
+        "processGroupStopConfirmed": true
+      },
+      "providerRequests": 1,
+      "providerErrors": 1,
+      "requestMetadata": [
+        {
+          "model": "opencode/space-bunny-free",
+          "max_tokens": 524288,
+          "reasoning_effort": "medium",
+          "stream": true
+        }
+      ],
+      "upstreamStatuses": [
+        429
+      ],
+      "activeHandlersAtSnapshot": 0,
+      "unknownLateUsagePossible": false,
+      "remoteProviderWorkStoppedVerified": false,
+      "readyExact": false,
+      "assistantFailed": true,
+      "mainUsage": [],
+      "mainUsageUnknown": true,
+      "ownedContainerAbsent": true,
+      "cleanupErrors": [],
+      "failureCategory": null,
+      "creationSettled": true,
+      "localUpstreamSocketsClosed": true,
+      "billingVerified": false
+    },
+    {
+      "variant": "bounded",
+      "process": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 0.561,
+        "processGroupStopConfirmed": true
+      },
+      "proxyProcess": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 0.128,
+        "processGroupStopConfirmed": true
+      },
+      "providerRequests": 1,
+      "providerErrors": 1,
+      "requestMetadata": [
+        {
+          "model": "opencode/space-bunny-free",
+          "max_tokens": 8192,
+          "reasoning_effort": "medium",
+          "stream": true
+        }
+      ],
+      "upstreamStatuses": [
+        429
+      ],
+      "activeHandlersAtSnapshot": 0,
+      "unknownLateUsagePossible": false,
+      "remoteProviderWorkStoppedVerified": false,
+      "readyExact": false,
+      "assistantFailed": true,
+      "mainUsage": [],
+      "mainUsageUnknown": true,
+      "ownedContainerAbsent": true,
+      "cleanupErrors": [],
+      "failureCategory": null,
+      "creationSettled": true,
+      "localUpstreamSocketsClosed": true,
+      "billingVerified": false
+    }
+  ],
+  "productionWrites": 0,
+  "jevRequests": 0,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "limits": [
+    "Readiness does not verify learning generation, Memory writes, recall or Harness behavior.",
+    "Sequential arms are not randomized or replicated.",
+    "Failure usage is unknown, not zero or free.",
+    "Owned proxy process termination closes local sockets; remote provider cancellation remains unverified.",
+    "Both calls reported model_cooldown; this does not establish whether output caps affect a healthy available model."
+  ],
+  "rawResultSha256": "5349a3b02fa32273d7468dc8527b0c16a33ba7cbbf9eb566b50de007fc054aad",
+  "adopted": false,
+  "errorDiagnostics": [
+    {
+      "variant": "original",
+      "errorFlags": {
+        "rate limit": true,
+        "quota": false,
+        "cooldown": true,
+        "retry": false,
+        "token": false,
+        "no auth": false,
+        "429": true
+      },
+      "cooldownMetadata": {
+        "code": "model_cooldown",
+        "reset_seconds": 23752,
+        "reset_time": "6h35m51s"
+      }
+    },
+    {
+      "variant": "bounded",
+      "errorFlags": {
+        "rate limit": true,
+        "quota": false,
+        "cooldown": true,
+        "retry": false,
+        "token": false,
+        "no auth": false,
+        "429": true
+      },
+      "cooldownMetadata": {
+        "code": "model_cooldown",
+        "reset_seconds": 23750,
+        "reset_time": "6h35m50s"
+      }
+    }
+  ]
+}

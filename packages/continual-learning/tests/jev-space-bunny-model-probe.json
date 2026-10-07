@@ -1,0 +1,25 @@
+{
+  "evidence": "real-isolated-pi-model-availability-probe",
+  "provider": "cli-proxy",
+  "requestedModel": "opencode/space-bunny-free",
+  "underlyingModelVersionVerified": false,
+  "configuredTariffZeroNotBillingProof": true,
+  "process": {
+    "exitCode": 0,
+    "outcome": "completed",
+    "seconds": 1.578,
+    "processGroupStopConfirmed": true
+  },
+  "requests": 1,
+  "providerErrors": 0,
+  "ownedContainerAbsent": true,
+  "productionWrites": 0,
+  "learningQualityTest": false,
+  "billingVerified": false,
+  "expectedMarkerObserved": true,
+  "initialReceiptLogPathIncorrect": true,
+  "initialReceiptPreserved": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/probe-report.json",
+  "stdoutSha256": "dd4891b2389626ee49262b36384671cb41716a0b9783c08a8ca272340608ecbd",
+  "mainUsageUnknown": true,
+  "runnerSha256": "3e76e2d44bd6437e04c60758ce1c88ab4d12391bdb55a761f515d31d847440a3"
+}

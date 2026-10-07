@@ -1,0 +1,49 @@
+{
+  "kind": "preserved-negative-results-integrity",
+  "version": 1,
+  "checkedAt": "2026-10-07",
+  "method": "read-only SHA256 and file-count check of the recorded negative artifacts; no artifact was opened for writing, moved, or relabelled",
+  "repoArtifacts": [
+    {"path": "tests/goal-handoff-2026-10-07.md", "role": "handoff document", "sha256": "ce1185302d2fa79229708c4444a2bd1123ad31d3e5dd5cf8d2ad9a63aaa694a0"},
+    {"path": "tests/deepseek-heldout-comparison.md", "role": "DeepSeek six-arm cohort report", "sha256": "751c6c7090e0c54cae81aa59dc09d88f1f35a6c34809be5915e6d996b5fd39e5"},
+    {"path": "tests/deepseek-heldout-comparison-results.json", "role": "DeepSeek six-arm cohort results", "sha256": "258f09097e36577e3586b2f3fa8adaafe080a0cba49ff0cd702f21e150004cc7"},
+    {"path": "tests/description-counter-decomposition.md", "role": "rejected description study report", "sha256": "c6f805880126193b8a4bff06478da7e8ae11dbff11cbe431ee9f26e05b935ac3"},
+    {"path": "tests/description-counter-decomposition-results.json", "role": "rejected description study results", "sha256": "b402b0694d9b2c70b7786140d12eeb4b7b4b0296bc24c62a3c4aa1e878c836f9"},
+    {"path": "tests/evidence-structural-view-plan.md", "role": "rejected structural-view study report", "sha256": "273d8de6fc7f570241d60c126fb8c108048ae607db7a20bbc21a83cdf2db65ae"},
+    {"path": "tests/evidence-structural-view-results.json", "role": "rejected structural-view study results", "sha256": "0e27189c2318fe95ea65c1fa188c9d863fdec3a6907a0b066f4a2af00f7596d6"},
+    {"path": "tests/jev-cited-followup-evaluation.md", "role": "records raw off 2/3, on 0/3 and the offline correction", "sha256": "19e3589d8d09e3e786817f0c46f549372b269a964e4c87e1a2a9e8042cf498ff"},
+    {"path": "tests/jev-r12-final-independent-review.json", "role": "independent review of the original six-arm acceptance", "sha256": "44c33930c7b27044feab0a532aac64a62000aa794b5f3d75c721bf90bba3ec7b"},
+    {"path": "tests/jev-factual-description-r12-docker-results.json", "role": "R12 round record, raw off 2/3 on 0/3", "sha256": "c85b524ea331d263b663b6582d0ee34a1cfd5db74168acee7ac7c20dd918f204"},
+    {"path": "tests/jev-parent-bound-scope-r11-docker-results.json", "role": "R11 round record, raw off 2/3 on 1/3", "sha256": "6ab70080aff0801419f0e66655abfdae551a4fdc493ba0f9cba4fa1dd8c29bb0"},
+    {"path": "tests/jev-independent-description-r10-docker-results.json", "role": "R10 round record", "sha256": "10bebf48ff543a0e50a1a093f7859d6dcc990b18d1b7adcecfad4ed08d21a5e2"}
+  ],
+  "originalEighteenDockerArms": {
+    "rounds": [
+      {"round": "R10", "repoRecord": "tests/jev-independent-description-r10-docker-results.json", "rawRoot": "~/.cache/pi-continual-learning/docker/20261006-independent-description-r10-final", "arms": 6},
+      {"round": "R11", "repoRecord": "tests/jev-parent-bound-scope-r11-docker-results.json", "rawRoot": "~/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final", "arms": 6},
+      {"round": "R12", "repoRecord": "tests/jev-factual-description-r12-docker-results.json", "rawRoot": "~/.cache/pi-continual-learning/docker/20261006-factual-description-r12-final", "arms": 6}
+    ],
+    "totalArms": 18,
+    "projects": ["click", "mitt", "p-limit"],
+    "statusAtCheck": "all three raw roots present; each summary.json lists 6 arms",
+    "documentedOutcomes": {
+      "R11": "raw off 2/3, on 1/3",
+      "R12": "raw off 2/3, on 0/3",
+      "offlineCorrection": "click/off corrected to 3/3 for the same R12 execution; the original failed status is not rewritten"
+    }
+  },
+  "rawRoots": [
+    {"path": "~/.cache/pi-continual-learning/research/description-counter-20261007T023201Z", "files": 7},
+    {"path": "~/.cache/pi-continual-learning/research/structural-view-20261007T024511Z", "files": 7, "manifestV3": {"path": "manifest-v3.json", "sha256": "2f7256192f67fd87594e7bfa0556d0daed1128d9782c493f37d54edfa610981f", "handoffSha256": "2f7256192f67fd87594e7bfa0556d0daed1128d9782c493f37d54edfa610981f", "match": true}},
+    {"path": "~/.cache/pi-continual-learning/docker/20261007T014740Z", "files": 306, "summary": {"path": "summary.json", "sha256": "d4a927e493b9d72ec89863d982c76d73b504338b72f925b0b8dd14aea1a48997"}, "projects": "6 arms; yocto-queue-on failed at native-harness-enforcement, 5 of 6 passed", "providerRequests": 200, "jevRequests": 29},
+    {"path": "~/.cache/pi-continual-learning/docker/20261007T025657Z/handoff-retained-yocto-queue-on", "files": 33, "report": {"path": "report.json", "sha256": "2bbf0a3df4172a7a334c6d464024c795b592584aecbc3950c7293c58516c1555", "handoffSha256": "2bbf0a3df4172a7a334c6d464024c795b592584aecbc3950c7293c58516c1555", "match": true}},
+    {"path": "~/.cache/pi-continual-learning/docker/20261007T025657Z/yocto-queue-off", "files": 25, "report": {"path": "report.json", "sha256": "22bf43308550509a57708f4e67312f9a5bede72eb4399bf68194164d00b47f81", "handoffSha256": "22bf43308550509a57708f4e67312f9a5bede72eb4399bf68194164d00b47f81", "match": true}}
+  ],
+  "limitations": [
+    "The handoff gives one pair of counts (off 2/3, on 0/3) for the 18-arm set while the per-round records give R11 off 2/3 on 1/3 and R12 off 2/3 on 0/3. The per-round records are kept as written; no label was reconciled or rewritten.",
+    "The R10-R12 raw roots are matched to their rounds by directory name. No manifest in those roots states the round label, so the mapping is inferred from the name and the repo-side record.",
+    "Counts were read from each root's summary.json project statuses, not from per-arm re-verification.",
+    "No arm was re-run, and no failed status was corrected in place. The offline click/off correction stays a separate artifact."
+  ],
+  "preservation": {"modifiedArtifacts": [], "relabelledClaims": [], "reruns": []}
+}

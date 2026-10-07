@@ -1,0 +1,43 @@
+{
+  "evidence": "local-deadline-diagnostic-validation-not-model-quality",
+  "initialRed": {
+    "failed": 3,
+    "seconds": 0.1
+  },
+  "wireGuardRed": {
+    "failed": 1,
+    "passed": 3,
+    "seconds": 0.12
+  },
+  "finalFocusedGreen": {
+    "passed": 4,
+    "seconds": 0.1
+  },
+  "fullSuiteBeforeAdditionalWireGuardCase": {
+    "passed": 893,
+    "seconds": 298.18
+  },
+  "rootTypecheck": "passed",
+  "strictResearchTypecheck": "passed",
+  "targetPack": "passed",
+  "offlinePreflight": {
+    "externalRequests": 0,
+    "fixtureRequests": 96,
+    "exactPairedWireIdentity": true,
+    "reportSha256": "c81e5219dfbc2c85e995ef1a13ec96968af426da9a19c627011e86f130984464"
+  },
+  "independentReview": "P2 corrected; final4passed and no remaining blocker",
+  "modelRequested": "jev-1.13.0",
+  "sdkVersion": "0.6.0",
+  "requestBudget": 96,
+  "deadlinesMs": [
+    5000,
+    15000
+  ],
+  "retryLimit": 0,
+  "costTariffUsdPerMillionInput": 0.042,
+  "outputTariff": 0,
+  "accountBillingVerified": false,
+  "productionWrites": 0,
+  "goalComplete": false
+}

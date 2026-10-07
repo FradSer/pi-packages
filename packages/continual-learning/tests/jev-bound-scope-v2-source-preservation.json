@@ -1,0 +1,10 @@
+{
+  "jev-bound-scope-shadow.ts": {
+    "path": "fixtures/jev-bound-scope-v2-frozen-jev-bound-scope-shadow.ts.txt",
+    "sha256": "9133147df25836c04e68f8e75874a439598e5ecf58b28793a4e32dc5bea6c1bc"
+  },
+  "evaluate_jev_bound_scope.ts": {
+    "path": "fixtures/jev-bound-scope-v2-frozen-evaluate_jev_bound_scope.ts.txt",
+    "sha256": "ff5ef2d5f7b4d36e621002550f86ccaef164e2d6850abdd5a2ce372e0e0d0052"
+  }
+}

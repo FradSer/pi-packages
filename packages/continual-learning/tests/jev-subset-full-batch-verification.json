@@ -1,0 +1,47 @@
+{
+  "scope": "new offline research metrics and real Jev synthetic development evaluation",
+  "productionCodeChanges": 0,
+  "productionAdopted": false,
+  "red": {
+    "metricModuleMissingFailures": 2
+  },
+  "green": {
+    "focusedPassed": 10,
+    "focusedSeconds": 3.46,
+    "packagePassed": 964,
+    "packageSeconds": 361.45
+  },
+  "typecheck": {
+    "root": "passed",
+    "researchExplicitStrictNoUnused": "passed"
+  },
+  "pack": {
+    "workspaceManifestsPassed": 19,
+    "targetDryRun": "passed",
+    "researchToolsBundled": false
+  },
+  "offlinePreflight": {
+    "preparedBatches": 8,
+    "externalRequests": 0,
+    "actualModelComplete": false
+  },
+  "realInference": {
+    "requests": 40,
+    "model": "jev-1.13.0",
+    "actualModelComplete": true,
+    "usageComplete": true,
+    "developmentCriteriaMet": true,
+    "report": "jev-subset-full-batch-development-real-results.json",
+    "reportSha256": "64f8531832ef73e2de0ab2f9348da7eed3a383406d82c7bfe2264cc008d1aca8"
+  },
+  "freshPrepaidReview": "jev-subset-full-batch-prepaid-review.json",
+  "freshTerminalReview": "jev-subset-full-batch-terminal-review.json",
+  "wholeKnownInputTokensIncludedInTotal": true,
+  "mainModelCalls": 0,
+  "productionWrites": 0,
+  "limits": [
+    "Candidate metrics are authored synthetic development evidence.",
+    "No fresh heldout evaluation, parent subset transaction or real Pi/Docker learning acceptance this turn.",
+    "Prior root-wide unrelated failures were not rerun; no production code changed."
+  ]
+}

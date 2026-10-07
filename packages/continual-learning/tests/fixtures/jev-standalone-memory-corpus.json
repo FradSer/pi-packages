@@ -1,0 +1,706 @@
+[
+  {
+    "id": "formatter-log-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Use Biome for formatting. A log upload failed once and succeeded on retry."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: Use Biome for formatting.\ntype: project\n---\nUse Biome for formatting.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Use Biome for formatting. A log upload failed once and succeeded on retry.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: Log uploads are permanently unavailable.\ntype: project\n---\nLog uploads are permanently unavailable.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Use Biome for formatting. A log upload failed once and succeeded on retry.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "independent",
+    "expectedStandalone": "selfContained",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "formatter-log-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "格式化使用 Biome。一次日志上传失败后重试成功。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: 格式化使用 Biome。\ntype: project\n---\n格式化使用 Biome。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "格式化使用 Biome。一次日志上传失败后重试成功。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: 日志上传永久不可用。\ntype: project\n---\n日志上传永久不可用。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "格式化使用 Biome。一次日志上传失败后重试成功。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "independent",
+    "expectedStandalone": "selfContained",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "node-support-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The repository supports Node 22. A Node 22 download timed out once then succeeded."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: The repository supports Node 22.\ntype: project\n---\nThe repository supports Node 22.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The repository supports Node 22. A Node 22 download timed out once then succeeded.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: The repository never supports Node 22.\ntype: project\n---\nThe repository never supports Node 22.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The repository supports Node 22. A Node 22 download timed out once then succeeded.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "conflict",
+    "expectedStandalone": "selfContained",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "node-support-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "仓库支持 Node 22。一次 Node 22 下载超时后成功。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: 仓库支持 Node 22。\ntype: project\n---\n仓库支持 Node 22。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "仓库支持 Node 22。一次 Node 22 下载超时后成功。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: 仓库永远不支持 Node 22。\ntype: project\n---\n仓库永远不支持 Node 22。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "仓库支持 Node 22。一次 Node 22 下载超时后成功。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "conflict",
+    "expectedStandalone": "selfContained",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "docs-telemetry-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Public documentation uses British spelling. One telemetry submission failed then succeeded."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: Public documentation uses British spelling.\ntype: project\n---\nPublic documentation uses British spelling.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Public documentation uses British spelling. One telemetry submission failed then succeeded.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: Telemetry can never be submitted.\ntype: project\n---\nTelemetry can never be submitted.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Public documentation uses British spelling. One telemetry submission failed then succeeded.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "independent",
+    "expectedStandalone": "selfContained",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "docs-telemetry-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "公开文档使用英式拼写。一次遥测提交失败后成功。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: 公开文档使用英式拼写。\ntype: project\n---\n公开文档使用英式拼写。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "公开文档使用英式拼写。一次遥测提交失败后成功。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: 遥测永远无法提交。\ntype: project\n---\n遥测永远无法提交。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "公开文档使用英式拼写。一次遥测提交失败后成功。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "independent",
+    "expectedStandalone": "selfContained",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "target-region-reference-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Deploy to the region specified in regions.md. No deployment region has been confirmed."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: Deploy to the region specified in regions.md.\ntype: project\n---\nDeploy to the region specified in regions.md.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Deploy to the region specified in regions.md. No deployment region has been confirmed.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "regions.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: The deployment region is eu-north-1.\ntype: project\n---\nThe deployment region is eu-north-1.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Deploy to the region specified in regions.md. No deployment region has been confirmed.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "dependent",
+    "expectedStandalone": "needsOther",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "target-region-reference-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "部署到 regions.md 指定的区域。尚未确认部署区域。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: 部署到 regions.md 指定的区域。\ntype: project\n---\n部署到 regions.md 指定的区域。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "部署到 regions.md 指定的区域。尚未确认部署区域。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "regions.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: 部署区域是 eu-north-1。\ntype: project\n---\n部署区域是 eu-north-1。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "部署到 regions.md 指定的区域。尚未确认部署区域。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "dependent",
+    "expectedStandalone": "needsOther",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "reverse-timeout-reference-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The request timeout is 12 seconds. The uploader must use the request timeout specified in timeout.md."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "timeout.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: The request timeout is 12 seconds.\ntype: project\n---\nThe request timeout is 12 seconds.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The request timeout is 12 seconds. The uploader must use the request timeout specified in timeout.md.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: The uploader must use the request timeout specified in timeout.md.\ntype: project\n---\nThe uploader must use the request timeout specified in timeout.md.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The request timeout is 12 seconds. The uploader must use the request timeout specified in timeout.md.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "dependent",
+    "expectedStandalone": "selfContained",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "reverse-timeout-reference-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "请求超时是 12 秒。上传器必须使用 timeout.md 指定的请求超时。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "timeout.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: 请求超时是 12 秒。\ntype: project\n---\n请求超时是 12 秒。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "请求超时是 12 秒。上传器必须使用 timeout.md 指定的请求超时。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: 上传器必须使用 timeout.md 指定的请求超时。\ntype: project\n---\n上传器必须使用 timeout.md 指定的请求超时。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "请求超时是 12 秒。上传器必须使用 timeout.md 指定的请求超时。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "dependent",
+    "expectedStandalone": "selfContained",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "absent-exception-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Apply the retry exception described in missing-policy.md. The response content type is application/json."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: Apply the retry exception described in missing-policy.md.\ntype: project\n---\nApply the retry exception described in missing-policy.md.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Apply the retry exception described in missing-policy.md. The response content type is application/json.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: The response content type is application/json.\ntype: project\n---\nThe response content type is application/json.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Apply the retry exception described in missing-policy.md. The response content type is application/json.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "unclear",
+    "expectedStandalone": "unresolved",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "absent-exception-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "应用 missing-policy.md 中描述的重试例外。响应类型是 application/json。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: 应用 missing-policy.md 中描述的重试例外。\ntype: project\n---\n应用 missing-policy.md 中描述的重试例外。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "应用 missing-policy.md 中描述的重试例外。响应类型是 application/json。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: 响应类型是 application/json。\ntype: project\n---\n响应类型是 application/json。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "应用 missing-policy.md 中描述的重试例外。响应类型是 application/json。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "unclear",
+    "expectedStandalone": "unresolved",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "description-only-reference-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The retry budget is described in budgets.md. The request timeout is 12 seconds. The retry budget is three attempts."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: Use the timeout with the retry budget described in budgets.md.\ntype: project\n---\nThe request timeout is 12 seconds.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The retry budget is described in budgets.md. The request timeout is 12 seconds. The retry budget is three attempts.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "budgets.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: The retry budget is three attempts.\ntype: project\n---\nThe retry budget is three attempts.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The retry budget is described in budgets.md. The request timeout is 12 seconds. The retry budget is three attempts.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "dependent",
+    "expectedStandalone": "needsOther",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "description-only-reference-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "重试预算在 budgets.md 中说明。请求超时是 12 秒。重试预算是三次。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: 使用此超时及 budgets.md 中描述的重试预算。\ntype: project\n---\n请求超时是 12 秒。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "重试预算在 budgets.md 中说明。请求超时是 12 秒。重试预算是三次。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "budgets.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: 重试预算是三次。\ntype: project\n---\n重试预算是三次。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "重试预算在 budgets.md 中说明。请求超时是 12 秒。重试预算是三次。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "dependent",
+    "expectedStandalone": "needsOther",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "conditional-shared-value-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "When the endpoint returns 429, wait 12 seconds before retrying. The request timeout is 12 seconds."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: When the endpoint returns 429, wait 12 seconds before retrying.\ntype: project\n---\nWhen the endpoint returns 429, wait 12 seconds before retrying.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "When the endpoint returns 429, wait 12 seconds before retrying. The request timeout is 12 seconds.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: The request timeout is 12 seconds.\ntype: project\n---\nThe request timeout is 12 seconds.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "When the endpoint returns 429, wait 12 seconds before retrying. The request timeout is 12 seconds.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "independent",
+    "expectedStandalone": "selfContained",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  },
+  {
+    "id": "conditional-shared-value-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "端点返回 429 时，等待 12 秒再重试。请求超时是 12 秒。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-0\ndescription: 端点返回 429 时，等待 12 秒再重试。\ntype: project\n---\n端点返回 429 时，等待 12 秒再重试。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "端点返回 429 时，等待 12 秒再重试。请求超时是 12 秒。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: record-1\ndescription: 请求超时是 12 秒。\ntype: project\n---\n请求超时是 12 秒。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "端点返回 429 时，等待 12 秒再重试。请求超时是 12 秒。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "targetIndex": 0,
+    "expectedPairRelation": "independent",
+    "expectedStandalone": "selfContained",
+    "labelAuthority": "author-defined new synthetic sample; semantic standalone only, not support or permission"
+  }
+]

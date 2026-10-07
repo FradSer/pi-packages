@@ -1,0 +1,58 @@
+{
+  "evidence": "citation-completeness-development-fresh-heldout-final-verification",
+  "fullTargetTests": {
+    "passed": 873,
+    "seconds": 272.28,
+    "exitCode": 0
+  },
+  "newRegressions": {
+    "redFailed": 2,
+    "redSeconds": 0.07,
+    "greenPassed": 2,
+    "greenSeconds": 0.69
+  },
+  "rootTypecheck": "passed",
+  "strictBothRunnerTypecheck": "passed",
+  "targetPackDryRun": "passed",
+  "scopedDiffCheck": "passed",
+  "freshIndependentReview": "citation_research_review: pre-call bothsplits and post-real result hash/numeric/metrics review passed",
+  "externalRequests": 160,
+  "actualModel": "jev-1.13.0",
+  "knownInputTokens": 157404,
+  "knownEstimatedCostUsd": 0.006610968,
+  "actualBilledCostVerified": false,
+  "paidProcesses": [
+    {
+      "id": 14063,
+      "terminalExitCode": 0
+    },
+    {
+      "id": 42894,
+      "terminalExitCode": 0
+    }
+  ],
+  "newDockerExecutions": 0,
+  "newNativePiExecutions": 0,
+  "productionRuntimeChanged": false,
+  "productionCandidateWrites": 0,
+  "adopted": false,
+  "narrowQualityCriterionMet": true,
+  "goalComplete": false,
+  "limits": [
+    "Public synthetic40samples20bilingual scenario pairs, not real project workflow quality.",
+    "One run eachsplit, 1validheldout hold preserved; no thresholds lowered.",
+    "Next bounded generation/repair citation guidance still requires RED/GREEN plus actual Pi/Docker paired verification."
+  ],
+  "fileSha256": {
+    "jev-citation-repair-research.ts": "ccf554fcffb2e2ba110bb3a9c035fb2ff6ca4494d424fbd36d991528add489ff",
+    "evaluate_jev_citation_repair.ts": "8cc34848859742120110432146753d3d8ad6533d812ffa9c70b41c34929cc472",
+    "evaluate_jev_citation_repair_heldout.ts": "4dc67bb6c05072376cc88605e4326df2cce52816bab2eb864e796e89d44b0a5a",
+    "test_jev_citation_repair_research.py": "ccc3072f1ae639345edbc0874c9d1fcb78c5bafe9945c2d765a4ae536854fd2f",
+    "jev-citation-repair-development-study-manifest.json": "6378c44f3e31384cef4d8e138e8b9d2b0b0974425ed0c9aeb9b24a1b456ee224",
+    "jev-citation-repair-heldout-study-manifest.json": "28b9e8d8ec64463172bb9863573ee3a4081feb8737a61c2c20c86e97ab57ec77",
+    "jev-citation-repair-development-real-results.json": "5a340163436fc51971ba15bffcb99b3ed3b0db4fcbcaa533620dae7f95a000f2",
+    "jev-citation-repair-heldout-real-results.json": "fddc15aaa513cc73dd1d99608e28cae720b25e33b8ae04ea2b7cf244896a261b",
+    "jev-citation-repair-adoption-decision.json": "a68a3072e8d542c204264152a3d54734e6ff0bfa0c8b2bf91a11eaf981fe5249",
+    "jev-citation-generation-followup-plan.md": "d0cc838367c4ae4b5f6f589e1991c0c1f981882a4e8a73b8a429333d9b8cfa24"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "decision": "do-not-adopt",
+  "experimentalSemanticPathAdopted": false,
+  "reason": "Combined content/description question still allows eight unsupported summaries; split independent semantic checks next.",
+  "development": {
+    "complete": true,
+    "samples": 34,
+    "metrics": {
+      "before": {
+        "evaluatedPlans": 32,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 16,
+        "falseHolds": 2
+      },
+      "after": {
+        "evaluatedPlans": 32,
+        "skippedIncompletePlans": 0,
+        "falseAccepts": 8,
+        "falseHolds": 2
+      }
+    },
+    "remainingFalseAccepts": [
+      "en-description-dev-05",
+      "en-description-dev-08",
+      "en-description-dev-09",
+      "en-description-dev-10",
+      "zh-description-dev-05",
+      "zh-description-dev-08",
+      "zh-description-dev-09",
+      "zh-description-dev-10"
+    ],
+    "perStage": {
+      "memory": {
+        "before": {
+          "evaluatedPlans": 28,
+          "falseAccepts": 16,
+          "falseHolds": 0
+        },
+        "after": {
+          "evaluatedPlans": 28,
+          "falseAccepts": 8,
+          "falseHolds": 0
+        }
+      },
+      "harness": {
+        "before": {
+          "evaluatedPlans": 4,
+          "falseAccepts": 0,
+          "falseHolds": 2
+        },
+        "after": {
+          "evaluatedPlans": 4,
+          "falseAccepts": 0,
+          "falseHolds": 2
+        }
+      }
+    }
+  },
+  "heldout": {
+    "realInferenceVerified": false,
+    "outboundRequests": 0,
+    "samples": 32,
+    "semanticScenarios": 16,
+    "reasonNotCalled": "Development still misses eight description claims"
+  },
+  "outboundRequests": 150,
+  "knownInputTokens": 244723,
+  "estimatedInputCostUsd": 0.010278365999999999,
+  "durationsMedianMs": {
+    "before": 357.5,
+    "after": 365.5
+  },
+  "limitations": [
+    "Before is production original Jev, not disabled",
+    "Body and description considered together, not fully reliable per-field verification",
+    "No thresholds, permissions, full evidence, scope or privacy relaxed",
+    "Unchanged original full-workflow failures remain held"
+  ]
+}

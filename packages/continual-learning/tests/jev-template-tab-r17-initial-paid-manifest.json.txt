@@ -1,0 +1,149 @@
+{
+  "evidence": "prospective-r17-template-tabs-six-independent-docker-arms",
+  "paidExecutionAllowedNow": true,
+  "sourceDigest": "df60a6123748956bdd39e0b23ca70113aeb68e3be59b9dc56cfd51bf9f317acf",
+  "runner": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006T133554Z-template-tabs-r17/run.py",
+  "runnerSha256": "8f7832e8cbb98271058183353c646d048bec6db2956828e2882788d5c2e48c82",
+  "sourceHashes": {
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/inject-memory.ts": "d25ac54a23a581672f1b9b5e3377b39121acdc7aa74677c6135e4db92ff1aa62",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/agents-md-consolidation.ts": "9ea854a4ed0ebdb5dbf0851430676c82eb572567900fe32046ea429021b8ea91",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/harness-command-coverage.ts": "122b26c79364e4c82b41d96e819f0ecb916b4a7a01738b6b3f0002bfcce2de8c",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/jev-learning.ts": "446485d8037d3e07fad1affdaed7193cbabddab31c477892622a33998adc1cba",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-efficiency.ts": "21d41647f6d1256b62437b1cb1a65c3c49ab1226f4c76218c1d548197bdf0fe3",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/harness-consolidation.ts": "87965c7ca5e201a3ffd5fa6ff9c8b58dfa5cd08d41a595ef7c072834a0c4a077",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/evaluate_jev_deadline.ts": "b6c6966baf90904214061a88d7befc549f9440315f7ed7a8b9afbbc45104af9f",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/jev-deadline-research.ts": "b2c654fc28dd8733fc312e14c0da092763472cb558f74e747260dd2afebf214a",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/frozen-research-manifest.ts": "dabd48c021dff53a2684d1436238b2bfcbacbaf2e33ff558bdd5fd4950724b28",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/jev-harness-citation-anchor-research.ts": "61882a99c0a0e8dc1efc3d5a504aa51f26f6e5b9412fc26abe218fee6a741919",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/actual-candidate-replay.ts": "cef9719780cd758973b16f767eb7f8baba453457bc086906dce2bfacf7e77f09",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/package.json": "1e003a71b4902faab296a4f873e1e0a13e8abfdb003362d0721eb8888ce27b4f",
+    "/Users/FradSer/Developer/FradSer/pi-packages/pnpm-lock.yaml": "217a0ac104d6551be83ee2770aff0f715663e55cedab2e2f68cfbbf42fda62db",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/kit/index.ts": "8950f261c03b03d1474eb7a092ca892fd7b11f84d8e1d9ff6facb7844d685779",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/kit/tests/live-expansion-fixture.ts": "171ecc56f3339507d7329a85fcb9e6e4677106ef009cc991732b7449b2f581b8",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/kit/tests/activity-row-fixture.ts": "6dc08bf72b181ef950be58db76a7987059c284a6159c5d50ab8c8e9816ac7147",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/kit/tests/decision-surface-fixture.ts": "b1d3ed0787c17fbfd1c5a0469aaf67609adc92ee680fbafb20ed7466796cedf4",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/kit/src/index.ts": "a76b0c16f42f6c64a710fed5d34948483c9582c1560c7bf6c7717344022341b2",
+    "/Users/FradSer/Developer/FradSer/pi-packages/node_modules/.pnpm/@typesafe-ai+sdk@0.6.0/node_modules/@typesafe-ai/sdk/package.json": "b94bd1d862b166be53b0b91a36a2af27a0b14e397ffea8f0c53cbfcc9718c508",
+    "/Users/FradSer/Developer/FradSer/pi-packages/node_modules/.pnpm/@typesafe-ai+sdk@0.6.0/node_modules/@typesafe-ai/sdk/dist/index.mjs": "bbb851dfe375c586c5bee3c082a04ab71882813dde39df0e95eaa23f30ec7012",
+    "/Users/FradSer/Developer/FradSer/pi-packages/node_modules/.pnpm/@typesafe-ai+sdk@0.6.0/node_modules/@typesafe-ai/sdk/dist/index.d.mts": "e54673ef76353afcaea6f422cd80df658a7852c321ed3d5084ce4d0e063833a4",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/jev-original-transport-research.ts": "0dfe5e5d57ebdab343b3a3dfe207f68a4a6da0c0a41dc453868cad6b15a978da",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/evaluate_jev_original_transport.ts": "554fe45eac2c9907af422aa602748c3233fb4618dad4483e882d72677c2d0309",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_jev_original_transport.py": "3b9b2e08ad8e1f750d0ddba68a118f70ee4a6e0e1d992f58046ef0eee20e120a",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/docker_experiment.py": "a03b183d4f4af3d689aac09c53b4dae8e4e22948366a36e1e68b6d8e3218ea7b",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/harness-binding-repair-research.ts": "8a0c542ba4a1ba7581cbbe61d4d9952940a849df91eefc470e0da361abb28ec8",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/test_jev_original_transport_research.py": "a3d8471903ca08002048b613222d19a400a582b26686a73de615b6c543932f6f",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/features/jev-original-transport-research.feature": "fa5c48c2978c9d2074a26cea27a0defdec1a082f8f77eadeebd6a08bc495cb5a",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/jev_original_transport_proxy.py": "68536945a00b15888c7bfb4a0a2b187eddc96c64c9d81900926dd9ac043b49ee",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/jev-template-tab-final-verification.json": "ca28be15fad7cb42e4c18f5975fd7f58cc14c1c22d4be77e6f6fd655d141dd6d",
+    "/Users/FradSer/.pi/agent/memory.json": "fc0c23c76bf356830aed3e97fc8a442ec1280ed136ce7a607710c1e17f00443e",
+    "/Users/FradSer/.pi/agent/models.json": "f614ad304366f49f1b000980517ec5acb6e075a362cc12d11fd1bef9e627e6ac"
+  },
+  "projects": [
+    {
+      "name": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309"
+    },
+    {
+      "name": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb"
+    },
+    {
+      "name": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3"
+    }
+  ],
+  "arms": [
+    {
+      "project": "click",
+      "jev": "off"
+    },
+    {
+      "project": "click",
+      "jev": "on"
+    },
+    {
+      "project": "p-limit",
+      "jev": "off"
+    },
+    {
+      "project": "p-limit",
+      "jev": "on"
+    },
+    {
+      "project": "mitt",
+      "jev": "off"
+    },
+    {
+      "project": "mitt",
+      "jev": "on"
+    }
+  ],
+  "output": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006T133554Z-template-tabs-r17",
+  "requestBudgetPerArm": 60,
+  "requestBudget": 360,
+  "executions": 6,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "bailian/qwen3.8-flash"
+  },
+  "jevModel": "jev-1.13.0",
+  "jevTimeoutMs": 5000,
+  "jevRetryLimit": 0,
+  "credentialAvailable": true,
+  "isolation": "Each arm owns a separate host process, proxy, Docker container and agent directory. Confirm local process/container termination before next arm; remote provider cancellation unverified.",
+  "localPrerequisites": {
+    "fullTargetTests": 906,
+    "typecheck": "passed",
+    "targetPack": "passed",
+    "workspaceManifests": 19,
+    "nativePiTests": 3,
+    "independentTemplateReview": "passed"
+  },
+  "costBoundary": "360 aggregate requests maximum, 60 per arm; configured main and Jev tariff estimates, no verified invoice or currency hardcap. Existing user authorization.",
+  "limits": [
+    "Three known pinned projects and original task/gate; no favorable retry or relabel.",
+    "New stochastic full workflow cohort, not paired generator outputs or unseen semantic samples.",
+    "Missing triggers and incomplete provider usage remain missing evidence."
+  ],
+  "goalComplete": false,
+  "image": "continual-learning-projects:df60a6123748956b",
+  "configRoot": "/Users/FradSer/.pi/agent",
+  "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+  "mainCostPerMillion": {
+    "input": 0.15,
+    "output": 0.47,
+    "cacheRead": 0.016,
+    "cacheWrite": 0.2
+  },
+  "jevCostPerMillionInput": 0.042,
+  "preflightSha256": "7bc750cb57a65106d55930203ed6cc40f043fe425c2ec4eb8cfa09e806082af0",
+  "independentReviewSha256": "dc55a1859d780422ec968822bf7bf8888bbce4ba3458f61d4f1a6432011461eb"
+}

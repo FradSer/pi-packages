@@ -1,0 +1,26 @@
+{
+  "evidence": "real-generated-harness-support-hold-not-new-inference",
+  "sourceDigest": "708467513e1939691dff48cb423d87cd45899ab512ce5cf012ed5975180ea45b",
+  "id": "p-limit-r8-harness-support-uncertain",
+  "candidateOperations": 1,
+  "diagnostic": {
+    "candidateIndex": 0,
+    "dimension": "support",
+    "reason": "uncertain"
+  },
+  "files": {
+    "history": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-all-failures-git-options-r8-final/p-limit-on/memory/history/--work-p-limit--/change_muvjxb6x_80bf6dd7293430de.json",
+      "sha256": "dda9d4c552b2e0da750aa1f94a2a285c1a3a98a402af326ab622ac9c3e271964"
+    },
+    "snapshot": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-all-failures-git-options-r8-final/p-limit-on/memory/runs/--work-p-limit--/run_muvjs6ww_18c5dc2231602f79/snapshot.json",
+      "sha256": "ee1b7a353ebd4b6172af4dd7b7238ddfe1ddf1d2867f69ef18fc510b4be22a47"
+    },
+    "report": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-all-failures-git-options-r8-final/p-limit-on/report.json",
+      "sha256": "1efafdea9cc2d5e4642cea33663753bb26e6dc4b4b8d7a987aede3d378e813c6"
+    }
+  },
+  "scopeLimit": "Unlabeled real failure; no expectedAllow label inferred from prior hold"
+}

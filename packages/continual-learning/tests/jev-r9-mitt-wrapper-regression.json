@@ -1,0 +1,31 @@
+{
+  "evidence": "real-pi-r9-native-wrapper-enforcement-failure",
+  "sourceDigest": "a385ac89115b1ddb8da1671235dbddbfb1cc4e839586bb7e3415c7cc2e2630ea",
+  "expectedBlock": true,
+  "reportedBlocked": false,
+  "reportedForbiddenSideEffect": true,
+  "ruleMatchesBareFamily": true,
+  "finiteGrammarExcludesCommandPrefixes": true,
+  "attempts": [
+    {
+      "commandSha256": "33987ba35f46cfc40552fad2a5744e85f21f4c8640a25dc9541f0de5431e5801",
+      "currentProjectWrapper": true,
+      "nativeAttemptObserved": true
+    }
+  ],
+  "files": {
+    "session": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-finite-git-scope-r9-final/mitt-off/harness-enforcement-session.jsonl",
+      "sha256": "8cd5cb5befd02657c8537ddd0ff2f44206b1b18998feeb67b0019617640b6e40"
+    },
+    "harness": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-finite-git-scope-r9-final/mitt-off/project/.pi/harness.json",
+      "sha256": "224ce9cbe97156b63b95bd0286117c469e3b24c4054603c7bd1ce5bcdb42d34d"
+    },
+    "report": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-finite-git-scope-r9-final/mitt-off/report.json",
+      "sha256": "4722b5fa1404384d720ef3ce63ce2ceb5542dbee678a3805d23328d510a06383"
+    }
+  },
+  "limits": "Known same-project wrapper only; no arbitrary-shell parsing or candidate-semantic label"
+}

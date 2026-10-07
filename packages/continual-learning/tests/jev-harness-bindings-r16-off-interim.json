@@ -1,0 +1,45 @@
+{
+  "evidence": "actual-r16-p-limit-off-terminal-on-active",
+  "status": "passed",
+  "stage": "complete",
+  "checks": {
+    "regressionChanged": true,
+    "privatePreference": true,
+    "safeFact": true,
+    "safeMirrorIdentical": true,
+    "baselinePrivateRecall": true,
+    "freshPrivateRecall": true,
+    "freshFullMemoryReads": true,
+    "freshVerifiedCommand": true,
+    "nativeBashBlocked": true,
+    "blockedSideEffectAbsent": true,
+    "unrelatedBashExecuted": true
+  },
+  "reportSha256": "120a320e223d8db4ff4c5fb5dc04f746439f7484dfe886bb576bf1689a168dc2",
+  "sourceDigest": "5818b1f6be33de6acce0cd035e331d631ccf08c4178883466429a7df655e2967",
+  "jevOnResult": "pending",
+  "promptEffectVerified": false,
+  "goalComplete": false,
+  "independentReview": {
+    "frozenSnapshotsVerified": 3,
+    "memoryApplied": 2,
+    "harnessApplied": 1,
+    "memoryStructuralRepairs": 1,
+    "harnessStructuralRepairs": 1,
+    "jevJudgments": 0,
+    "canonicalPrivateEntries": 1,
+    "publicSafeEntries": 1,
+    "publicPrivateMarkerCount": 0,
+    "safeMirrorIdentical": true,
+    "exactCitationsVerified": 6,
+    "nativeBlockedErrorMatchesRule": true,
+    "blockedSideEffectAbsent": true,
+    "unrelatedNativeToolSucceeded": true,
+    "semanticRepairBindingsTriggered": false,
+    "limits": [
+      "Baseline recall/check already succeeded with same accessible filesystem; no independent causal memory gain.",
+      "Full factual entailment and command-family breadth not completely audited.",
+      "New semantic repair prompt not exercised in off structural repair."
+    ]
+  }
+}

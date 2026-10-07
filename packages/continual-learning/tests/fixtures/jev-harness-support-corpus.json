@@ -1,0 +1,916 @@
+[
+  {
+    "id": "en-support-faithful-ban",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project, including --dry-run, in future tasks."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never run git push in this project, including --dry-run, in future tasks.",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-support-faithful-paraphrase",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project, including --dry-run, in future tasks."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Do not run git push in this project."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never run git push in this project, including --dry-run, in future tasks.",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-support-faithful-confirm",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Every git push invocation in future project tasks needs my explicit approval."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "confirm",
+            "message": "Every git push invocation in future project tasks needs my explicit approval."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "confirm"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "confirm"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Every git push invocation in future project tasks needs my explicit approval.",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-support-invented-fact",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project, including --dry-run, in future tasks."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push because it permanently deletes all local source files."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never run git push in this project, including --dry-run, in future tasks.",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-support-removed-approval",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Every git push invocation in future project tasks needs my explicit approval."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Every git push invocation in future project tasks needs my explicit approval.",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-support-exact-only",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In future project tasks prohibit only exactly git push --dry-run. git push origin topic is allowed."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In future project tasks prohibit only exactly git push --dry-run. git push origin topic is allowed.",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-support-revoked",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never run git push in this project, including --dry-run, in future tasks."
+        },
+        {
+          "role": "user",
+          "content": "The earlier no-push restriction is withdrawn. git push is now allowed."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never run git push in this project, including --dry-run, in future tasks.",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-support-temporary-tool-fault",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Investigate why git push --dry-run failed today."
+        },
+        {
+          "role": "toolResult",
+          "toolName": "bash",
+          "content": "Temporary DNS lookup failure; retry succeeded."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never run git push in this project, including --dry-run, in future tasks."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Investigate why git push --dry-run failed today.",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-support-faithful-ban",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-support-faithful-paraphrase",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本项目不要执行 git push。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-support-faithful-confirm",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目今后的每一次 git push 都需要我的明确批准。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "confirm",
+            "message": "本项目今后的每一次 git push 都需要我的明确批准。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "confirm"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "confirm"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本项目今后的每一次 git push 都需要我的明确批准。",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-support-invented-fact",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "永远不要运行 git push，因为它会永久删除所有本地源文件。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-support-removed-approval",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目今后的每一次 git push 都需要我的明确批准。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本项目今后的每一次 git push 都需要我的明确批准。",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-support-exact-only",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目今后只禁止恰好 git push --dry-run；git push origin topic 可以运行。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本项目今后只禁止恰好 git push --dry-run；git push origin topic 可以运行。",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-support-revoked",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。"
+        },
+        {
+          "role": "user",
+          "content": "撤销之前的禁止 push 限制，现在允许 git push。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。",
+          "count": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-support-temporary-tool-fault",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "调查今天 git push --dry-run 为什么失败。"
+        },
+        {
+          "role": "toolResult",
+          "toolName": "bash",
+          "content": "Temporary DNS lookup failure; retry succeeded."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "在本项目今后的任务中，永远不要运行 git push，包括 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              },
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "echo git -C . push --dry-run"
+              },
+              {
+                "bash": "git status --short"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "调查今天 git push --dry-run 为什么失败。",
+          "count": 1
+        }
+      ]
+    }
+  }
+]

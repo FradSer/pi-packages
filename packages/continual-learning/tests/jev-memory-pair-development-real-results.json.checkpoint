@@ -1,0 +1,157 @@
+{
+  "requests": 8,
+  "rows": [
+    {
+      "id": "independent-en",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 994,
+      "model": "jev-1.13.0",
+      "inputTokens": 753,
+      "outputTokens": 58
+    },
+    {
+      "id": "independent-zh",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "independenceObserved": true,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 1,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 350,
+      "model": "jev-1.13.0",
+      "inputTokens": 783,
+      "outputTokens": 58
+    },
+    {
+      "id": "duplicate-en",
+      "expected": "duplicate",
+      "status": "uncertain",
+      "relation": "duplicate",
+      "independenceObserved": false,
+      "confidence": 0.73,
+      "probabilities": {
+        "independent": 0.21,
+        "duplicate": 0.79,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 363,
+      "model": "jev-1.13.0",
+      "inputTokens": 748,
+      "outputTokens": 56
+    },
+    {
+      "id": "duplicate-zh",
+      "expected": "duplicate",
+      "status": "uncertain",
+      "relation": "duplicate",
+      "independenceObserved": false,
+      "confidence": 0.65,
+      "probabilities": {
+        "independent": 0.27,
+        "duplicate": 0.73,
+        "conflict": 0,
+        "dependent": 0,
+        "unclear": 0
+      },
+      "durationMs": 395,
+      "model": "jev-1.13.0",
+      "inputTokens": 777,
+      "outputTokens": 56
+    },
+    {
+      "id": "conflict-en",
+      "expected": "conflict",
+      "status": "uncertain",
+      "relation": "conflict",
+      "independenceObserved": false,
+      "confidence": 0.84,
+      "probabilities": {
+        "independent": 0.08,
+        "duplicate": 0,
+        "conflict": 0.88,
+        "dependent": 0,
+        "unclear": 0.04
+      },
+      "durationMs": 353,
+      "model": "jev-1.13.0",
+      "inputTokens": 740,
+      "outputTokens": 57
+    },
+    {
+      "id": "conflict-zh",
+      "expected": "conflict",
+      "status": "uncertain",
+      "relation": "conflict",
+      "independenceObserved": false,
+      "confidence": 0.62,
+      "probabilities": {
+        "independent": 0.27,
+        "duplicate": 0.01,
+        "conflict": 0.69,
+        "dependent": 0,
+        "unclear": 0.03
+      },
+      "durationMs": 335,
+      "model": "jev-1.13.0",
+      "inputTokens": 757,
+      "outputTokens": 57
+    },
+    {
+      "id": "dependent-en",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": "independent",
+      "independenceObserved": false,
+      "confidence": 0.43,
+      "probabilities": {
+        "independent": 0.55,
+        "duplicate": 0,
+        "conflict": 0.01,
+        "dependent": 0.43,
+        "unclear": 0.01
+      },
+      "durationMs": 431,
+      "model": "jev-1.13.0",
+      "inputTokens": 768,
+      "outputTokens": 58
+    },
+    {
+      "id": "dependent-zh",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": "independent",
+      "independenceObserved": false,
+      "confidence": 0.61,
+      "probabilities": {
+        "independent": 0.69,
+        "duplicate": 0,
+        "conflict": 0.02,
+        "dependent": 0.28,
+        "unclear": 0.01
+      },
+      "durationMs": 333,
+      "model": "jev-1.13.0",
+      "inputTokens": 801,
+      "outputTokens": 58
+    }
+  ]
+}

@@ -1,0 +1,114 @@
+{
+  "kind": "decoy-misrecording-results",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "protocol": "packages/continual-learning/tests/decoy-misrecording-protocol-2026-10-07.md",
+  "run": {
+    "outputRoot": "~/.cache/pi-continual-learning/docker/20261007T073542Z",
+    "sourceDigest": "9bd23a29ba81e223e835dbc3e043b3c8fa3c6ac8ee22ba1f2085d35fcac06309",
+    "cohort": "resumed",
+    "project": "pluggy",
+    "taskVariant": "decoy-augmented (new task, not a rerun of the v3 arms)",
+    "decoys": [
+      "the project probably builds with make build",
+      "an earlier test run failed with a network timeout"
+    ],
+    "arms": [
+      "pluggy-off",
+      "pluggy-on"
+    ],
+    "batchExit": "both arms passed; batch exit 0"
+  },
+  "primaryMeasurement": {
+    "offArmDecoyItems": 0,
+    "onArmDecoyItems": 0,
+    "misrecordingsPrevented": 0,
+    "statement": "Neither arm recorded a decoy as durable knowledge. Both arms passed the new noDecoyMisrecording check, and the marker scan of every written Memory body found neither decoy on either arm."
+  },
+  "arms": {
+    "off": {
+      "status": "passed",
+      "learningSeconds": 436.38,
+      "checks": 13,
+      "jevJudgments": 0,
+      "noDecoyMisrecording": true
+    },
+    "on": {
+      "status": "passed",
+      "learningSeconds": 327.37,
+      "checks": 16,
+      "jevJudgments": 2,
+      "noDecoyMisrecording": true,
+      "memoryDiagnostic": "Jev decided: supported",
+      "harnessDiagnostic": "Jev decided: supported",
+      "memoryJudgment": {
+        "status": "decided",
+        "reason": "supported",
+        "requestCount": 5,
+        "completedRequests": 5,
+        "evidenceWindows": 4,
+        "completedWindows": 4
+      },
+      "harnessJudgment": {
+        "status": "decided",
+        "reason": "supported",
+        "requestCount": 5,
+        "completedRequests": 5,
+        "evidenceWindows": 4,
+        "completedWindows": 4
+      },
+      "participationFlags": [
+        "realJevMemoryParticipation",
+        "realJevHarnessParticipation",
+        "realJevParticipation"
+      ],
+      "transport": {
+        "failureKind": null,
+        "retriedRequests": null
+      }
+    }
+  },
+  "sixMeasures": {
+    "effectivePersistence": {
+      "off": "2 Memory items and 1 Harness rule",
+      "on": "2 Memory items and 1 Harness rule",
+      "direction": "parity"
+    },
+    "misrecording": {
+      "off": 0,
+      "on": 0,
+      "direction": "parity; the decoys were avoided by both paths"
+    },
+    "falseHolds": {
+      "off": 0,
+      "on": 0,
+      "direction": "parity"
+    },
+    "constraintExecution": {
+      "off": "3 of 3",
+      "on": "3 of 3",
+      "direction": "parity"
+    },
+    "latency": {
+      "offSeconds": 436.38,
+      "onSeconds": 327.37,
+      "direction": "on 25 percent faster on this task variant"
+    },
+    "cost": {
+      "note": "the on arm paid for 10 Jev requests across the two legs; the main-model totals are in each arm's receipt"
+    }
+  },
+  "verdict": {
+    "headline": "Jev prevented zero misrecordings, because the Jev-off path already avoided both decoys.",
+    "meaning": "The baseline of main model plus parent structural rules is already correct on this task class. With the two fixed defects landed, Jev now reaches parity on real untuned projects, and on this measurement it adds no error prevention to count.",
+    "netBenefit": "still not demonstrated as a gain",
+    "note": "This is the third consecutive measurement in which parity, not a gain, was the outcome. A zero is reported as a zero."
+  },
+  "limits": [
+    "One project and one task variant; a zero cannot show that the off path always avoids decoys.",
+    "The decoys were marked unverified in the task text, which itself discourages recording them; a subtler decoy could behave differently.",
+    "Both arms passed, so the run cannot separate a benefit from a neutral outcome.",
+    "No finished arm was rerun, and every failure record is preserved in the raw root."
+  ],
+  "writeAuthorized": false
+}

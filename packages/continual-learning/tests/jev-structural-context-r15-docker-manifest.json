@@ -1,0 +1,67 @@
+{
+  "evidence": "prospective-r15-frozen-first-structural-memory-repair-workflow-paired",
+  "sourceDigest": "bacf936aaefbb9d601f32d9d07c14b29739af14f2c056e30566d40ed2f5d1afd",
+  "projects": [
+    {
+      "name": "click",
+      "repository": "https://github.com/pallets/click.git",
+      "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309"
+    },
+    {
+      "name": "p-limit",
+      "repository": "https://github.com/sindresorhus/p-limit.git",
+      "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb"
+    },
+    {
+      "name": "mitt",
+      "repository": "https://github.com/developit/mitt.git",
+      "commit": "6b41670516ed8e8b738612f60491995470aa63b3"
+    }
+  ],
+  "modes": [
+    "off",
+    "on"
+  ],
+  "executions": 6,
+  "jobs": 1,
+  "aggregateProviderRequestBudget": 360,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "bailian/qwen3.8-flash"
+  },
+  "mainCostPerMillion": {
+    "input": 0.15,
+    "output": 0.47,
+    "cacheRead": 0.016,
+    "cacheWrite": 0.2
+  },
+  "jevModel": "jev-1.13.0",
+  "jevTimeoutMs": 5000,
+  "jevRetryLimit": 0,
+  "output": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-structural-context-r15",
+  "command": [
+    "uv",
+    "run",
+    "--no-project",
+    "python",
+    "packages/continual-learning/tests/live_docker_projects.py",
+    "--jev",
+    "paired",
+    "--jobs",
+    "1",
+    "--output",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-structural-context-r15"
+  ],
+  "purpose": "Actual current candidate generation and existing shared repair with optional Jev off/on. Prior R14 is retained; no causal before/after claim from stochastic workflow reruns.",
+  "rule": "Count all original whole-workflow outcomes, check factual scope and privacy, retain missing native enforcement as failure. Record whether first structural Memory repair actually occurred; absent trigger is missing coverage. No favorable retry, relabeling, partial write or weakened gate.",
+  "authorization": "Existing user isolated Docker/paid model authorization. No hostconfig writes/credentials in container; ephemeral proxy token.",
+  "costBoundary": "360 shared provider request hardcap, configured tariff metadata and Jev .042/M input; not a dollarhardcap; actualbilling unverified.",
+  "productionPromptEffectVerified": false,
+  "expectedStructuralRepairImprovement": "Frozen original context may correct unsupported scope while fixing syntax in the one shared slot; hypothesis, not guaranteed.",
+  "originalR14Result": "off2/3,on1/3;notuplift",
+  "preRunRequirements": [
+    "Final target tests/typecheck/install/pack/native integration/fresh independent review pass.",
+    "No concurrent paid process; source must match manifest before and after."
+  ],
+  "credentialAvailable": true
+}

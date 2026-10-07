@@ -50,20 +50,24 @@ def test_packed_package_resolves_workspace_dependency(packed_package: Path) -> N
 
 def test_gateway_schema_is_compact_and_catalog_backed() -> None:
     result = run_typescript(RUNTIME_HARNESS + """
-        import { modelStandaloneCapabilities } from "./packages/matt-pocock/src/catalog.ts";
+        import { modelStandaloneCapabilities, userStandaloneCapabilities } from "./packages/matt-pocock/src/catalog.ts";
         import { workflowRoutes } from "./packages/matt-pocock/src/workflow.ts";
         const variants = runtime().tools.get("matt_pocock_workflow").parameters.anyOf;
+        const byMode = Object.fromEntries(variants.map((item) => [item.properties.mode.const, item]));
         console.log(JSON.stringify({
           modes: variants.map((item) => item.properties.mode.const),
-          routes: variants[0].properties.route.enum,
-          capabilities: variants[1].properties.capability.enum,
+          routes: byMode.workflow.properties.route.enum,
+          capabilities: byMode.capability.properties.capability.enum,
+          userCapabilities: byMode["user-capability"].properties.capability.enum,
           expectedRoutes: workflowRoutes().map((item) => item.route),
           expectedCapabilities: modelStandaloneCapabilities().map((item) => item.id),
+          expectedUserCapabilities: userStandaloneCapabilities().map((item) => item.id),
         }));
     """)
-    assert result["modes"] == ["workflow", "capability", "reference"]
+    assert result["modes"] == ["workflow", "capability", "user-capability", "reference"]
     assert result["routes"] == result["expectedRoutes"]
     assert result["capabilities"] == result["expectedCapabilities"]
+    assert result["userCapabilities"] == result["expectedUserCapabilities"]
     assert "writing-for-agents" in result["capabilities"]
     assert "deslop" in result["capabilities"]
 

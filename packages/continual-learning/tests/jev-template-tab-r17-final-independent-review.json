@@ -1,0 +1,33 @@
+{
+  "evidence": "fresh-independent-read-only-r17-final-review",
+  "reportSha256": "6a287877f5981ae6759b49e6f30373af0b63aff8bea80ff4eae53e9c9f31a111",
+  "accepted": true,
+  "recomputed": {
+    "offPasses": 2,
+    "onPasses": 0,
+    "providerRequests": 153,
+    "mainRequests": 127,
+    "jevRequests": 26,
+    "proxyUsageResponses": 25,
+    "clientInputTokens": 179155,
+    "proxyInputTokens": 180561,
+    "proxyOutputTokens": 4267,
+    "learningPhaseMainEstimatedCostUsd": 0.054289022,
+    "proxyKnownJevEstimatedCostUsd": 0.007583562
+  },
+  "frozenSourcesVerified": 66,
+  "sourceAndImageVerified": true,
+  "ownedContainersAbsent": 6,
+  "ownedWorkersRemaining": 0,
+  "originalOrchestratorFailurePreserved": true,
+  "firstOriginalProcessMetadata": "unknown",
+  "durableCorePlanReview": "Original planned six bilingual pairs reviewed; later negative-verification/recovery seventh pair added by parent, not independently reviewed yet. Plan remains unexecuted and not adopted.",
+  "limitations": [
+    "Overlapping client/proxy usage not additive.",
+    "Known costs are partial estimates, not billing.",
+    "No semantic gold, heldout generalization or overall superiority."
+  ],
+  "externalCallsByReviewer": 0,
+  "productionWritesByReviewer": 0,
+  "goalComplete": false
+}

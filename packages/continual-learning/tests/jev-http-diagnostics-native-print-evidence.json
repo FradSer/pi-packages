@@ -1,0 +1,18 @@
+{
+  "evidence": "actual-native-pi-print-with-offline-loopback-transport-fixture",
+  "pi": "1.0.0",
+  "exitCode": 0,
+  "externalModelRequests": 0,
+  "fixtureProviderRequests": 1,
+  "checks": {
+    "sdk429StatusPreserved": true,
+    "proposalPreserved": true,
+    "receiptShowsNumericHttpStatus": true,
+    "rawErrorOmitted": true
+  },
+  "limitations": [
+    "Local native integration with mock HTTP failure, not real Jev inference or quality proof.",
+    "No TUI interaction or new Docker execution.",
+    "Frozen R12 real paid run does not include this diagnostic change."
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "evidence": "pair-development-source-preservation-and-review",
+  "originalManifestSha256": "38356a40e47cc26835bcbc1d23082a4ec1d15c0472eece184cc6d742a18592b3",
+  "originalResultsSha256": "e2a772c0cc2a6a82f6e7d63838f760b312d7525669240451ed527006f00091e6",
+  "preservedSources": {
+    "evaluate_jev_memory_pairs.ts": {
+      "path": "packages/continual-learning/tests/fixtures/evaluate-jev-memory-pairs-before-preflight.ts.txt",
+      "sha256": "0b800791f9e5ebda61ead89e0a73377278964b4d7222f0c889b78da93d898a58"
+    },
+    "jev-memory-pair-judgment.ts": {
+      "path": "packages/continual-learning/tests/fixtures/jev-memory-pair-judgment-before-preflight.ts.txt",
+      "sha256": "e45d1b2a7c4e7e0cea277e4a58800e2fc8c544077cf85cd158baea5afce6ab5c"
+    }
+  },
+  "preflightManifestDiffersFromReal": true,
+  "difference": "Estimated conservative cap corrected .01 to .03 before paid run; samples/source unchanged.",
+  "metrics": {
+    "correct": 2,
+    "wrong": 0,
+    "held": 6,
+    "unsafeIndependence": 0,
+    "missedIndependence": 0
+  },
+  "productionAdopted": false,
+  "nextStage": "Fresh heldout, only after full-state production privacy preflight/strict answer keys/unknown-model unpriced usage fixes reviewed.",
+  "limitations": [
+    "2 decisive independent cases and 6 holds do not prove multiclass classification accuracy.",
+    "Development has no real unclear case; only parser test.",
+    "No original candidate support or parent write permission."
+  ]
+}

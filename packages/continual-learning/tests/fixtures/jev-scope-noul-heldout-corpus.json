@@ -1,0 +1,1746 @@
+[
+  {
+    "id": "en-scope-fresh-01",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, permanently forbid all git push invocations, including global Git options."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "In this repository, permanently forbid all git push invocations, including global Git options."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git -C . push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In this repository, permanently forbid all git push invocations, including global Git options.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-02",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Permanently prohibit invoking all Git remote mutation commands in this repository, including every git push invocation with any arguments, even --dry-run."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Permanently prohibit invoking all Git remote mutation commands in this repository, including every git push invocation with any arguments, even --dry-run."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Permanently prohibit invoking all Git remote mutation commands in this repository, including every git push invocation with any arguments, even --dry-run.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-03",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never invoke any command used for publishing this repository to a remote, including every git push invocation with any arguments, even --dry-run."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never invoke any command used for publishing this repository to a remote, including every git push invocation with any arguments, even --dry-run."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never invoke any command used for publishing this repository to a remote, including every git push invocation with any arguments, even --dry-run.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-04",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Always prevent every local git push execution in this repository regardless of branch or remote."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Always prevent every local git push execution in this repository regardless of branch or remote."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push origin main"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Always prevent every local git push execution in this repository regardless of branch or remote.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-05",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, never execute git push --force in future maintenance."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git[ \\t]+push[ \\t]+--force(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "In this repository, never execute git push --force in future maintenance."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --force origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --force origin main"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In this repository, never execute git push --force in future maintenance.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-06",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, require approval before every future git push invocation."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "confirm",
+            "message": "In this repository, require approval before every future git push invocation."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "confirm"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In this repository, require approval before every future git push invocation.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-07",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, never execute git push origin in future maintenance."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git[ \\t]+push[ \\t]+origin(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "In this repository, never execute git push origin in future maintenance."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push origin main"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In this repository, never execute git push origin in future maintenance.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-08",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Never execute git push in future maintenance of this repository."
+        },
+        {
+          "role": "assistant",
+          "content": "I might want to push later; this is my speculation, not user permission."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Never execute git push in future maintenance of this repository."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Never execute git push in future maintenance of this repository.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-09",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, permanently forbid only git push --force. Ordinary pushes are allowed."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "In this repository, permanently forbid only git push --force. Ordinary pushes are allowed."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In this repository, permanently forbid only git push --force. Ordinary pushes are allowed.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-10",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, permanently forbid git push except --dry-run, which is allowed."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "In this repository, permanently forbid git push except --dry-run, which is allowed."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In this repository, permanently forbid git push except --dry-run, which is allowed.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-11",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, permanently forbid git push origin; pushes to other remotes are allowed."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "In this repository, permanently forbid git push origin; pushes to other remotes are allowed."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push upstream main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push upstream main"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In this repository, permanently forbid git push origin; pushes to other remotes are allowed.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-12",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, require approval before every future git push; approved invocations may run."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "In this repository, require approval before every future git push; approved invocations may run."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In this repository, require approval before every future git push; approved invocations may run.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-13",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Only during this current debugging task, do not execute git push."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Only during this current debugging task, do not execute git push."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Only during this current debugging task, do not execute git push.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-14",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Only in the separate archive repository, permanently forbid git push. This repository allows it."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "Only in the separate archive repository, permanently forbid git push. This repository allows it."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "Only in the separate archive repository, permanently forbid git push. This repository allows it.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-15",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, permanently forbid git push. Do not impose a restriction on git reset --hard."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git[ \\t]+reset[ \\t]+--hard(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "In this repository, permanently forbid git push. Do not impose a restriction on git reset --hard."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git reset --hard",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git reset --hard"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In this repository, permanently forbid git push. Do not impose a restriction on git reset --hard.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "en-scope-fresh-16",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, permanently forbid every git push."
+        },
+        {
+          "role": "user",
+          "content": "Correction: allow git push --dry-run from now on; preserve the ban on other pushes."
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "In this repository, permanently forbid every git push."
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "In this repository, permanently forbid every git push.",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-01",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "在本仓库永久禁止所有 git push 调用，包括带 Git 全局选项的调用。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "在本仓库永久禁止所有 git push 调用，包括带 Git 全局选项的调用。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git -C . push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git -C . push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "在本仓库永久禁止所有 git push 调用，包括带 Git 全局选项的调用。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-02",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "在本仓库永久禁止调用所有修改远端的 Git 命令，包括带任意参数的每次 git push 调用，即使带 --dry-run。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "在本仓库永久禁止调用所有修改远端的 Git 命令，包括带任意参数的每次 git push 调用，即使带 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "在本仓库永久禁止调用所有修改远端的 Git 命令，包括带任意参数的每次 git push 调用，即使带 --dry-run。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-03",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "禁止以后调用任何用于向远端发布本仓库的命令，包括带任意参数的每次 git push 调用，即使带 --dry-run。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "禁止以后调用任何用于向远端发布本仓库的命令，包括带任意参数的每次 git push 调用，即使带 --dry-run。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "禁止以后调用任何用于向远端发布本仓库的命令，包括带任意参数的每次 git push 调用，即使带 --dry-run。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-04",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "在本仓库始终阻止每次本地 git push 执行，无论分支或远端。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "在本仓库始终阻止每次本地 git push 执行，无论分支或远端。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push origin main"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "在本仓库始终阻止每次本地 git push 执行，无论分支或远端。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-05",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库以后的维护中禁止执行 git push --force。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git[ \\t]+push[ \\t]+--force(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本仓库以后的维护中禁止执行 git push --force。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --force origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --force origin main"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本仓库以后的维护中禁止执行 git push --force。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-06",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库以后每次执行 git push 前都必须获得批准。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "confirm",
+            "message": "本仓库以后每次执行 git push 前都必须获得批准。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "confirm"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本仓库以后每次执行 git push 前都必须获得批准。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-07",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库以后的维护中禁止执行 git push origin。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git[ \\t]+push[ \\t]+origin(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本仓库以后的维护中禁止执行 git push origin。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push origin main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push origin main"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本仓库以后的维护中禁止执行 git push origin。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-08",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库以后的维护中禁止执行 git push。"
+        },
+        {
+          "role": "assistant",
+          "content": "我猜测以后可能想推送，这只是我的推测，不是用户授权。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本仓库以后的维护中禁止执行 git push。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本仓库以后的维护中禁止执行 git push。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-09",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库永久只禁止 git push --force，允许普通推送。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本仓库永久只禁止 git push --force，允许普通推送。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本仓库永久只禁止 git push --force，允许普通推送。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-10",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库永久禁止 git push，但允许带 --dry-run 的调用。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本仓库永久禁止 git push，但允许带 --dry-run 的调用。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本仓库永久禁止 git push，但允许带 --dry-run 的调用。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-11",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库永久禁止 git push origin，允许推送到其他远端。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本仓库永久禁止 git push origin，允许推送到其他远端。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push upstream main",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push upstream main"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本仓库永久禁止 git push origin，允许推送到其他远端。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-12",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库以后每次 git push 都要先批准，获批的调用允许执行。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本仓库以后每次 git push 都要先批准，获批的调用允许执行。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本仓库以后每次 git push 都要先批准，获批的调用允许执行。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-13",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "只在当前这次调试任务中不要执行 git push。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "只在当前这次调试任务中不要执行 git push。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "只在当前这次调试任务中不要执行 git push。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-14",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "只在另一个归档仓库永久禁止 git push，本仓库允许。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "只在另一个归档仓库永久禁止 git push，本仓库允许。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "只在另一个归档仓库永久禁止 git push，本仓库允许。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-15",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库永久禁止 git push，不要限制 git reset --hard。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git[ \\t]+reset[ \\t]+--hard(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本仓库永久禁止 git push，不要限制 git reset --hard。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git reset --hard",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git reset --hard"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本仓库永久禁止 git push，不要限制 git reset --hard。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  },
+  {
+    "id": "zh-scope-fresh-16",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库永久禁止每次 git push。"
+        },
+        {
+          "role": "user",
+          "content": "更正：以后允许 git push --dry-run，保留对其他推送的禁止。"
+        }
+      ]
+    },
+    "plan": {
+      "kind": "harness-consolidation-plan",
+      "operations": [
+        {
+          "op": "addRule",
+          "rule": {
+            "id": "fixed-no-push",
+            "bash": "^git(?:[ \\t]+(?:-C[ \\t]+\\.|-c[ \\t]+core\\.quotePath=false|--no-pager))*[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))",
+            "action": "block",
+            "message": "本仓库永久禁止每次 git push。"
+          },
+          "cases": {
+            "positive": [
+              {
+                "bash": "git push --dry-run",
+                "expected": "block"
+              }
+            ],
+            "negative": [
+              {
+                "bash": "git status --short"
+              },
+              {
+                "bash": "echo git push --dry-run"
+              }
+            ]
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "index": 0,
+          "source": "user",
+          "quote": "本仓库永久禁止每次 git push。",
+          "count": 1
+        }
+      ]
+    },
+    "stage": "harness",
+    "existing": []
+  }
+]

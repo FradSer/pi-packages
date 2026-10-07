@@ -1,0 +1,29 @@
+{
+  "evidence": "independent-read-only-original-native-output-audit",
+  "originalReportSha256": "5b4b73ff65409217bf07e94c91a7bf81a3e6f88999980ece8c004518365341ec",
+  "operationsPerArm": 1,
+  "citationsPerArm": 1,
+  "identityAndOpPreservedBoth": true,
+  "before": {
+    "originalNonIndexCitationProperties": 5,
+    "retainedProperties": 4,
+    "category": "citation-mismatch"
+  },
+  "after": {
+    "originalNonIndexCitationProperties": 5,
+    "retainedProperties": 5,
+    "category": "ready",
+    "patternActionScopeAndPermissionsMatchOriginal": true,
+    "onlyRuleFieldChanged": "message"
+  },
+  "positiveCasesPreserved": 9,
+  "negativeCasesPreserved": 10,
+  "jevDecision": "propose",
+  "jevRequests": 3,
+  "jevCompleted": 0,
+  "productionWrites": 0,
+  "limits": [
+    "Message was rewritten; full semantic support/privacy entity judgment not independently established by exact quotes or existing cases.",
+    "No semantic allow or whole-workflow improvement claim."
+  ]
+}

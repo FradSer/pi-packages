@@ -1,0 +1,33 @@
+{
+  "evidence": "development-signal-only-not-production-adoption",
+  "manifestSha256": "d63592c05043e4111758115f02daa02c356c8146755a0f93b0d083c7138591e3",
+  "reportSha256": "64f8531832ef73e2de0ab2f9348da7eed3a383406d82c7bfe2264cc008d1aca8",
+  "developmentCriteriaMet": true,
+  "productionAdopted": false,
+  "goalComplete": false,
+  "metrics": {
+    "whole": {
+      "validAccepted": 4,
+      "erroneousAccepted": 2,
+      "validHeld": 12
+    },
+    "subset": {
+      "validAccepted": 11,
+      "erroneousAccepted": 2,
+      "validHeld": 5
+    },
+    "newErroneousAccepted": 0,
+    "newValidHolds": 0,
+    "recoveredValid": 7
+  },
+  "requestCount": 40,
+  "knownInputTokens": 64314,
+  "knownInputTariffEstimateUsd": 0.002701188,
+  "remaining": [
+    "Fresh heldout complete-batch evidence with no prompt tuning on results.",
+    "Existing incomplete-dependent whole-plan acceptance and dependency pair ambiguity need separate reporting.",
+    "Parent proposal persistence, permission, digest rebinding and rollback-backed subset transaction remain unimplemented.",
+    "Real isolated Pi/Docker project generation/Memory application/recall comparison using user-selected main model remains necessary."
+  ],
+  "nextAction": "Proceed to prospectively frozen new heldout batches; keep code, thresholds, all known failures and labels unchanged."
+}

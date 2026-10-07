@@ -44,7 +44,7 @@ await scenario('resume acquires this thread and delivers one authorized continua
   assert.ok(created.ok);
   f.core.store.apply({ expectedGoalId: 'goal-resume', mutate: g => { delete g.threadId; return g; } });
   f.restore('thread-a', 'goal-resume');
-  assert.equal(f.core.scheduler.resume(f.core.goal!, {}), true);
+  assert.equal(f.core.scheduler.resume(f.core.goal!, {}, "user"), true);
   await new Promise(resolve => setTimeout(resolve, 30));
   assert.equal(f.sent.length, 1, 'resume must deliver, not just report success');
   assert.equal(f.core.goal?.scheduler?.owner, 'thread-a');
@@ -70,9 +70,9 @@ await scenario('thread ownership, exact actions, pause and clear remain consiste
   const handler = f.commands.get('goal')!.handler;
   const seed = '全面优化 packages/matt-pocock，基于 Pi v1.0。\n完成条件：包测试、typecheck、打包检查和真实 Pi 离线交互验证通过。\n不发布、不提交、不修改其他包。';
   await handler(seed, f.ctx);
-  assert.ok(String(f.sent[0]).includes(seed), 'preserve multiline acceptance and boundaries');
+  assert.ok(String(((f.sent[0] as unknown as [{ content: string }])[0] as { content: string }).content).includes(seed), 'preserve multiline acceptance and boundaries');
   await handler('clear my schedule', f.ctx);
-  assert.ok(String(f.sent[1]).includes('clear my schedule'));
+  assert.ok(String(((f.sent[1] as unknown as [{ content: string }])[0] as { content: string }).content).includes('clear my schedule'));
   f.core.store.create({ id: 'owned', owner: 'thread-a', objective: 'Owned goal.' });
   f.restore('thread-a', 'owned');
   await handler('pause', f.ctx);
@@ -106,7 +106,7 @@ await scenario('a cancelled settled check cannot replace a resumed dispatch', as
   const settled = handlers.get('agent_before_settle')!({ outcome: 'completed' }, f.ctx);
   f.core.abortCheck();
   f.core.scheduler.pause(f.core.goal!, 'Paused', 'user');
-  f.core.scheduler.resume(f.core.goal!, {});
+  f.core.scheduler.resume(f.core.goal!, {}, "user");
   await new Promise(resolve => setTimeout(resolve, 30));
   assert.equal(f.sent.length, 1);
   const dispatch = f.core.goal!.scheduler!.dispatch!.id;
@@ -127,15 +127,37 @@ await scenario('explicit goal text activates revision but ordinary edits preserv
   await edit('Plain edit.');
   assert.equal(f.core.goal?.status, 'paused');
   await f.commands.get('goal')!.handler('New goal. Completion: E2E passes.', f.ctx);
-  f.core.acceptGoalSetting(String(f.sent.at(-1)));
+  f.core.acceptGoalSetting(((f.sent.at(-1) as unknown as [{ content: string }])[0].content) as string);
   await edit('New goal with E2E acceptance.');
   assert.equal(f.core.goal?.status, 'active', 'the explicit setting request activates its successful revision');
   assert.ok(f.core.scheduler.isArmed());
+  // Two actors resume a goal, and the ledger has to tell them apart: the user
+  // typed `/goal <text>` and the model revised, which is not the user typing
+  // `/goal resume`.
+  assert.equal(
+    f.core.store.readHistory('revised').events.filter(event => event.type === 'goal_resumed').at(-1)?.reason,
+    'revision',
+    'a revision under an accepted request records itself as a revision resume',
+  );
   f.core.scheduler.pause(f.core.goal!, 'Paused again', 'user');
   await f.commands.get('goal')!.handler('An abandoned request.', f.ctx);
+  // delivered row would accept via message_start in production; restore drops it like a boundary
   f.restore('thread-a', 'revised');
   await edit('Edit after a session boundary.');
   assert.equal(f.core.goal?.status, 'paused', 'a boundary drops activation intent');
+  f.core.shutdown();
+});
+await scenario('a resume names the actor that asked for it', async () => {
+  const f = fixture(); registerGoalCommands(f.core);
+  f.core.store.create({ id: 'actor', owner: 'thread-a', objective: 'Owned goal.' });
+  f.restore('thread-a', 'actor');
+  f.core.scheduler.pause(f.core.goal!, 'Paused', 'user');
+  await f.commands.get('goal')!.handler('resume', f.ctx);
+  assert.equal(
+    f.core.store.readHistory('actor').events.filter(event => event.type === 'goal_resumed').at(-1)?.reason,
+    'user',
+    'the management verb records the user, who is present',
+  );
   f.core.shutdown();
 });
 await scenario('rejected busy or failed delivery cannot activate an unrelated paused edit', async () => {
@@ -146,7 +168,7 @@ await scenario('rejected busy or failed delivery cannot activate an unrelated pa
     f.core.scheduler.pause(f.core.goal!, 'Paused', 'user');
     f.ctx.isIdle = () => mode !== 'busy';
     f.ctx.hasPendingMessages = () => mode === 'pending';
-    if (mode === 'throw') f.core.pi.sendUserMessage = () => { throw new Error('Agent is already processing.'); };
+    if (mode === 'throw') f.core.pi.sendMessage = () => { throw new Error('Agent is already processing.'); };
     try { await f.commands.get('goal')!.handler('Rejected request.', f.ctx); } catch { /* native host rejection */ }
     await f.tools.get('update_goal')!.execute('old-edit', { objective: 'Unrelated internal edit.' }, undefined, undefined, f.ctx);
     assert.equal(f.core.goal?.status, 'paused', mode);
@@ -177,7 +199,7 @@ await scenario('a void send rejected asynchronously grants no later activation',
   f.restore('thread-a', 'async-rejected');
   f.core.scheduler.pause(f.core.goal!, 'Paused', 'user');
   // Pi's extension send returns void even when its asynchronous preflight fails.
-  f.core.pi.sendUserMessage = () => {};
+  f.core.pi.sendMessage = (...args: unknown[]) => { (f.sent as unknown[]).push(args); };
   await f.commands.get('goal')!.handler('Never delivered.', f.ctx);
   await f.tools.get('update_goal')!.execute('unrelated', { objective: 'Unrelated old edit.' }, undefined, undefined, f.ctx);
   assert.equal(f.core.goal?.status, 'paused');

@@ -1,0 +1,26 @@
+{
+  "evidence": "real-generated-harness-support-hold-not-new-inference",
+  "sourceDigest": "708467513e1939691dff48cb423d87cd45899ab512ce5cf012ed5975180ea45b",
+  "id": "click-r8-harness-support-uncertain",
+  "candidateOperations": 1,
+  "diagnostic": {
+    "candidateIndex": 0,
+    "dimension": "support",
+    "reason": "uncertain"
+  },
+  "files": {
+    "history": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-all-failures-git-options-r8-final/click-on/memory/history/--work-click--/change_muvjakh9_c16709677db93e5b.json",
+      "sha256": "d02e0d1086f98ff6167b0b4d39b97ed294acddc83065d26925e3363fa772726c"
+    },
+    "snapshot": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-all-failures-git-options-r8-final/click-on/memory/runs/--work-click--/run_muvj6uf0_208b097c872da94d/snapshot.json",
+      "sha256": "d312e3a827fc527a07a6f743a98b5d54ddf5ee4234b29861b03beb72a51d09af"
+    },
+    "report": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-all-failures-git-options-r8-final/click-on/report.json",
+      "sha256": "444f784c6fafce07cdb72f2bc82cc3298e532bd5173c3664d361285ce826ee63"
+    }
+  },
+  "scopeLimit": "Current support judgment contains matcher and generated behaviorExamples as well as the message; prospective message-only support research must retain separate scope/counterevidence gates. No expectedAllow label inferred from this hold."
+}

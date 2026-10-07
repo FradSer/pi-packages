@@ -157,6 +157,19 @@ def test_dashboard_geometry_and_input_contracts() -> None:
     assert len(outcomes) >= 2, f"expected the dashboard contract, got {len(outcomes)}"
 
 
+def test_live_activity_and_procedure_rows() -> None:
+    """One blocking research transcript row and one /goal lifecycle row.
+
+    The count dropped from nine when research stopped mounting a widget: the
+    superseded-run token and the session-boundary clear only described that
+    widget's lifecycle. The requirements behind them, a stale run never
+    replacing newer findings and a boundary invalidating a running child, are
+    asserted at the core seam in goal_research.mts.
+    """
+    outcomes = assert_all_pass("goal_live.mts")
+    assert len(outcomes) >= 7, f"expected the live TUI contract, got {len(outcomes)}"
+
+
 def test_the_live_check_is_opt_in_and_gated() -> None:
     """Reserved for a live run against the real pi binary.
 

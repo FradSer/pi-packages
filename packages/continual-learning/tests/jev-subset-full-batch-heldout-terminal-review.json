@@ -1,0 +1,55 @@
+{
+  "reviewer": "fresh-readonly-subset_batch_prepaid_review",
+  "implementationHistory": false,
+  "manifestSha256": "1683ac55d14b6d97600e7df184b9ccfa64e9c0244a3d8167014f004b5eb1f1e8",
+  "codeSdkHashesMatched": 44,
+  "corpusAndDerivedEvaluatorHashesMatched": true,
+  "rawStructuredResponsesIndependentlyReplayed": true,
+  "allTwelveCandidateAndIndexResultsMatched": true,
+  "metrics": {
+    "whole": {
+      "validAccepted": 6,
+      "erroneousAccepted": 0,
+      "validHeld": 20
+    },
+    "subset": {
+      "validAccepted": 15,
+      "erroneousAccepted": 0,
+      "validHeld": 11
+    },
+    "recoveredValid": 9,
+    "newErroneousAccepted": 0,
+    "newValidHolds": 0
+  },
+  "actualModel": "jev-1.13.0",
+  "successfulResponses": 60,
+  "inputTokens": 104815,
+  "outputTokens": 11726,
+  "knownInputTariffEstimateUsd": 0.00440223,
+  "wholeInputTokens": 56009,
+  "extraPairInputTokens": 48806,
+  "summedWholeDurationMs": 5566,
+  "medianWholeDurationMs": 402.5,
+  "summedBatchDurationMs": 11579,
+  "medianBatchDurationMs": 795.5,
+  "process": {
+    "pid": 67550,
+    "pgid": 67550,
+    "exitCode": 0,
+    "seconds": 11.988,
+    "currentPidAndGroupAbsent": true
+  },
+  "blockingFindings": [],
+  "metadataCorrection": "Inherited development dependency B/C ambiguity limit does not apply to current heldout; original raw report preserved.",
+  "productionAdopted": false,
+  "mainModelCalls": 0,
+  "productionWrites": 0,
+  "limits": [
+    "Author-labeled synthetic heldout, not human gold.",
+    "Manual memory text is candidate semantics only, not native routing.",
+    "Host SDK real inference only; no Pi/Docker generation, Memory application or recall."
+  ],
+  "reviewerCalls": 0,
+  "reviewerCredentialReads": 0,
+  "reviewerEdits": 0
+}

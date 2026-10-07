@@ -1,0 +1,26 @@
+{
+  "evidence": "final-original-input-research-local-verification",
+  "fullTargetTests": {
+    "passed": 890,
+    "seconds": 299.91,
+    "exitCode": 0
+  },
+  "regressionTests": {
+    "passed": 5,
+    "redDemonstrated": true
+  },
+  "rootTypecheck": "passed",
+  "strictResearchTypecheck": "passed",
+  "offlineDockerPreflight": {
+    "requests": 0,
+    "removed": 2,
+    "reportSha256": "64b06392c076372011d6b699059dea27e26c78be2f36e2afd0bbcfb059c156a8"
+  },
+  "optimizedPythonPaidDenial": {
+    "exitCode": 1,
+    "runnerSha256": "7d6c2f7614213ab6e883f53e5eb3795951fa507621eb3cab613153064ef9711f"
+  },
+  "freshIndependentReview": "no remaining scoped paid prerequisite blocker",
+  "runtimeGates": "unchanged from jev-harness-bindings-local-verification.json",
+  "goalComplete": false
+}

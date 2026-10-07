@@ -1,0 +1,996 @@
+{
+  "evidence": "independent-model-review-not-human-gold",
+  "technicalBlockers": [],
+  "preflight": {
+    "process": {
+      "exitCode": 0,
+      "outcome": "completed",
+      "seconds": 1.407,
+      "processGroupStopConfirmed": true
+    },
+    "providerRequests": 0,
+    "jevRequests": 0,
+    "jevUsage": [],
+    "providerErrors": 0,
+    "usageUnknown": false,
+    "billingVerified": false
+  },
+  "cleanup": {
+    "ownedContainerAbsent": true
+  },
+  "focusedTests": {
+    "passed": 7,
+    "redFailed": 1,
+    "redPassed": 6
+  },
+  "labelReview": {
+    "reviewer": "independent model reviewer, not human annotation",
+    "reviewedAt": "2026-10-06T16:15:23.611936+00:00",
+    "paidCallsPerformed": 0,
+    "sourceFiles": {
+      "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/jev-memory-quality-cases.json": "15864e250c31a0f68488948dc7b74dbbcd6a60e9c969c534bb0511d1a4d9998b",
+      "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/memory-quality-research.ts": "e5383e158aed7f225842b3935e42bbc9830465bf3a92045357c8cd68bbc1849c",
+      "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/evaluate_memory_quality.ts": "acdfac719fedda202b23d2374d646aaccc12a04a5ec3265e3b92b47bc9e468c2",
+      "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/project-sources.json": "564bb110506c7c948305a2a87f0b427889b6f7f368ffe2552c39ad2da4cb4986"
+    },
+    "coverage": {
+      "rows": 48,
+      "knownOutputs": 32,
+      "freshAuthoredSamples": 16,
+      "freshScenarios": 8,
+      "heldout": false,
+      "humanGold": false,
+      "allLabelsAgreeUnderNarrowBoundary": true
+    },
+    "pinnedSources": [
+      {
+        "repo": "ai/nanoid",
+        "commit": "3167e108865702c0539d8e552365ed840ac9d8d9",
+        "readmeSha256": "7114152cd558eab8582ce671dc97aefd8cbf7fa1531fb670009e6ae679a15e00",
+        "readmePath": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/nanoid-README.md",
+        "url": "https://github.com/ai/nanoid/blob/3167e108865702c0539d8e552365ed840ac9d8d9/README.md",
+        "observedSha256": "7114152cd558eab8582ce671dc97aefd8cbf7fa1531fb670009e6ae679a15e00",
+        "shaMatches": true
+      },
+      {
+        "repo": "tinylibs/tinypool",
+        "commit": "2ed306417986823e7a7989fd392e9cbfeee1b0c1",
+        "readmeSha256": "dc9864095f94de4c9701eb437abed2c6952a69cbda6ef131d23c15fa869c334a",
+        "readmePath": "/Users/FradSer/.cache/pi-continual-learning/docker/memory-quality-20261006T155431Z/tinypool-README.md",
+        "url": "https://github.com/tinylibs/tinypool/blob/2ed306417986823e7a7989fd392e9cbfeee1b0c1/README.md",
+        "observedSha256": "dc9864095f94de4c9701eb437abed2c6952a69cbda6ef131d23c15fa869c334a",
+        "shaMatches": true
+      }
+    ],
+    "rows": [
+      {
+        "id": "stable-config-plus-run-history-en-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "At least regression command/script has future use; no explicit storage-request knowledge missing.",
+        "sourceResultSha256": "69ef94eecc354258906c6d2307625389017fcb590647d4c65ccd37ed83f37a03",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "stable-config-plus-run-history-en-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "At least regression command/script has future use; no explicit storage-request knowledge missing.",
+        "sourceResultSha256": "9e2d444802f054c926367a989ee60f6010806bdcd0268c2495df6ee1693b8868",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "stable-config-plus-run-history-zh-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "At least regression command/script has future use; no explicit storage-request knowledge missing.",
+        "sourceResultSha256": "04eaa3513e81f3cd5e9c699e2c2e59e00239902e91c76177c69f2948f06eaf5b",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "stable-config-plus-run-history-zh-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "At least regression command/script has future use; no explicit storage-request knowledge missing.",
+        "sourceResultSha256": "0d60b4177df54a48171e3f5522862cb4d0ff43654760075fedcba65f48bbc1c6",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "explicit-long-term-observed-result-en-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Explicit permanence request creates value for historical version/count/result; qualification purpose retained except ZH after.",
+        "sourceResultSha256": "f8b2477fd5be00004e6606873753b367d57202c14ebc93be6ea413b43e6aa106",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "explicit-long-term-observed-result-en-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Explicit permanence request creates value for historical version/count/result; qualification purpose retained except ZH after.",
+        "sourceResultSha256": "c5b75176e303fc44fb4f3e38fb5973a8e26d57965cd4b3c4aeb952a7329e3c4e",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "explicit-long-term-observed-result-zh-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "agreement": true,
+        "reason": "Explicit permanence request creates value for historical version/count/result; qualification purpose retained except ZH after.",
+        "sourceResultSha256": "41753ab5abed8a371568d08e1934ac9a087bc4aaac027d3d29843a9fbcb303a7",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "explicit-long-term-observed-result-zh-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Explicit permanence request creates value for historical version/count/result; qualification purpose retained except ZH after.",
+        "sourceResultSha256": "8490cde2a1b2f2f0c2eaed3baa88b0e11fda502efa10a73745a1f5a8d7aefde9",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "lasting-compatibility-exception-en-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Future compatibility condition and verified-upgrade exception retained; incidental chronology does not make at-least-one-useful-fact false.",
+        "sourceResultSha256": "836a5eca706a0ccb51e4c870f40c99128dea60a3015aa2327438b10e03bae638",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "lasting-compatibility-exception-en-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Future compatibility condition and verified-upgrade exception retained; incidental chronology does not make at-least-one-useful-fact false.",
+        "sourceResultSha256": "4cc095177c8036429b201ea08f2f2c410f1b0c3a8a5051731df32bc9cca98071",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "lasting-compatibility-exception-zh-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Future compatibility condition and verified-upgrade exception retained; incidental chronology does not make at-least-one-useful-fact false.",
+        "sourceResultSha256": "4738ce948b2445aed78615ae96f66c57d891965c13a1b79d9057a26ebf39420a",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "lasting-compatibility-exception-zh-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Future compatibility condition and verified-upgrade exception retained; incidental chronology does not make at-least-one-useful-fact false.",
+        "sourceResultSha256": "331b7f68995d521cca05f471d6b80ff5410a12e0ba10ad7e5ced7a3cd45409b8",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "only-transient-failure-en-before",
+        "independentExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Only task-scoped retry/transient history/instruction; no evidenced future use and no explicit storage request.",
+        "sourceResultSha256": "222b9304b3fcaa7c2470a2534fa0a66890f794149ca20c2e8f1127c19b00e94c",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "only-transient-failure-en-after",
+        "independentExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Only task-scoped retry/transient history/instruction; no evidenced future use and no explicit storage request.",
+        "sourceResultSha256": "c9c3b105b883c0be3d2dcbfddedf8ddef4a274e8483108cc9c4dfc5e6f5e5e42",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "only-transient-failure-zh-after",
+        "independentExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Only task-scoped retry/transient history/instruction; no evidenced future use and no explicit storage request.",
+        "sourceResultSha256": "23473f294cbd47384c2c4ff089651dbacc4b92aab6db7122cfcb70285f5ab7a9",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "only-transient-failure-zh-before",
+        "independentExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Only task-scoped retry/transient history/instruction; no evidenced future use and no explicit storage request.",
+        "sourceResultSha256": "de17aa7cfde4c0eafcc6de6315d4fc5c22c2ba38d3fc72f9b5c7f2b76229dfe0",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "later-config-revocation-en-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Current npm package-manager fact is future-useful even when npm test/replacement knowledge is missing; correction for future work is not an explicit request to remember under this narrower omission contract.",
+        "sourceResultSha256": "a7d8ccf29143bb762866f2864f725f19d37346d4b1202522bec5fe0627f8737b",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "later-config-revocation-en-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Current npm package-manager fact is future-useful even when npm test/replacement knowledge is missing; correction for future work is not an explicit request to remember under this narrower omission contract.",
+        "sourceResultSha256": "857e6657c874e5657c474bfeaec896cc691ef89e50f563e4376e26f9f268d83f",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "later-config-revocation-zh-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Current npm package-manager fact is future-useful even when npm test/replacement knowledge is missing; correction for future work is not an explicit request to remember under this narrower omission contract.",
+        "sourceResultSha256": "f68ee7a1bc28fe179820185507fda23a1205c496e0e372a441b89453e478be93",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "later-config-revocation-zh-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Current npm package-manager fact is future-useful even when npm test/replacement knowledge is missing; correction for future work is not an explicit request to remember under this narrower omission contract.",
+        "sourceResultSha256": "5954a9f09de0ed981f1572016a9e5f1770dfbd3e13689f08639da185e082bcd1",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "private-conditional-preference-en-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "agreement": true,
+        "reason": "Lasting future report preference useful; EN use lacks explicit future ending placement, ZH ending placement retained. Privacy metadata excluded from question visibility requires separate baseline boundary.",
+        "sourceResultSha256": "0c1ddb0266d2cf78b0fbe937e506fca167141b1d264275a015b7d04f07eacf16",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "private-conditional-preference-en-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "agreement": true,
+        "reason": "Lasting future report preference useful; EN use lacks explicit future ending placement, ZH ending placement retained. Privacy metadata excluded from question visibility requires separate baseline boundary.",
+        "sourceResultSha256": "f6b05d3a1bfef6a26b7e4a20743db0436693060b27d1ddfba4fde6ab8d2a751e",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "private-conditional-preference-zh-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Lasting future report preference useful; EN use lacks explicit future ending placement, ZH ending placement retained. Privacy metadata excluded from question visibility requires separate baseline boundary.",
+        "sourceResultSha256": "2ac1992d626abaa5a81499ecfe90655ac863dfaec67b911cb7c79f2df91d3ceb",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "private-conditional-preference-zh-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Lasting future report preference useful; EN use lacks explicit future ending placement, ZH ending placement retained. Privacy metadata excluded from question visibility requires separate baseline boundary.",
+        "sourceResultSha256": "d808cb68de700fabd5d97074d293d912245dae6de376fc03df77a166ef45052e",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "negative-verification-and-recovery-en-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Verified regression command useful; extra negative/recovery history does not negate useful-fact existence.",
+        "sourceResultSha256": "e043e102b6f039756899aa549675ab69c03dd2e63f537f734c2f9070b4e8bd3b",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "negative-verification-and-recovery-en-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Verified regression command useful; extra negative/recovery history does not negate useful-fact existence.",
+        "sourceResultSha256": "074ef10c17a1eecb197504821ad933d966b9ff0a5743e0fb30b4b36a68d85a95",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "negative-verification-and-recovery-zh-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Verified regression command useful; extra negative/recovery history does not negate useful-fact existence.",
+        "sourceResultSha256": "718e47ffc6edd1adf0a06dbccd32a6aa8f60f21377dbc0cbf7ced86c23aebc38",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "negative-verification-and-recovery-zh-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Verified regression command useful; extra negative/recovery history does not negate useful-fact existence.",
+        "sourceResultSha256": "26be1886b25d752a192964cd2036cf7a76e60c4c42a1155b2beb8d71a98de02c",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "unrequested-durable-diagnostic-history-en-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Established ongoing routing condition and useful IPv4 diagnostic observation have future use; no explicit storage request required.",
+        "sourceResultSha256": "b9c0da4bbcdbe110f288a041d4a04179463c36d12d3819b39a6ffafeed9e06c3",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "unrequested-durable-diagnostic-history-en-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Established ongoing routing condition and useful IPv4 diagnostic observation have future use; no explicit storage request required.",
+        "sourceResultSha256": "7ec18d79cc334689650d88b71d799bae5ebbfe84057024f3d88a1a718e8237e0",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "unrequested-durable-diagnostic-history-zh-after",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Established ongoing routing condition and useful IPv4 diagnostic observation have future use; no explicit storage request required.",
+        "sourceResultSha256": "23d2246f120283f3fd6bab0385afee476dd72965adc119f1be6c0122c62fb04f",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "unrequested-durable-diagnostic-history-zh-before",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Established ongoing routing condition and useful IPv4 diagnostic observation have future use; no explicit storage request required.",
+        "sourceResultSha256": "89b2cba6b789ad6078c239261f00b8d6010319cc3744db682594b15a698553e5",
+        "sourceHashMatches": true,
+        "originalGeneratedPlanMatches": true
+      },
+      {
+        "id": "nanoid-stable-default-en",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Pinned documentation default size is a reusable library fact; no explicit storage request."
+      },
+      {
+        "id": "nanoid-stable-default-zh",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Pinned documentation default size is a reusable library fact; no explicit storage request."
+      },
+      {
+        "id": "tinypool-stable-runtime-en",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Pinned supported runtimes is a reusable library fact; no explicit storage request."
+      },
+      {
+        "id": "tinypool-stable-runtime-zh",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Pinned supported runtimes is a reusable library fact; no explicit storage request."
+      },
+      {
+        "id": "transient-download-en",
+        "independentExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "One-off resolved download event alone has no evidenced future use; no user storage request."
+      },
+      {
+        "id": "transient-download-zh",
+        "independentExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            false
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "One-off resolved download event alone has no evidenced future use; no user storage request."
+      },
+      {
+        "id": "requested-release-complete-en",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Explicit historical retention purpose established; release purpose/version/count/result retained."
+      },
+      {
+        "id": "requested-release-complete-zh",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Explicit historical retention purpose established; release purpose/version/count/result retained."
+      },
+      {
+        "id": "requested-release-incomplete-en",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "agreement": true,
+        "reason": "Historical version/count/result has retention purpose, but release-acceptance purpose is omitted."
+      },
+      {
+        "id": "requested-release-incomplete-zh",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "agreement": true,
+        "reason": "Historical version/count/result has retention purpose, but release-acceptance purpose is omitted."
+      },
+      {
+        "id": "requested-split-existing-en",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "New TTL candidate useful; existing pool body plus TTL body fulfills whole explicit storage request."
+      },
+      {
+        "id": "requested-split-existing-zh",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "New TTL candidate useful; existing pool body plus TTL body fulfills whole explicit storage request."
+      },
+      {
+        "id": "requested-report-placement-en",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "agreement": true,
+        "reason": "Report preference useful, but begin-with placement explicitly requested is missing."
+      },
+      {
+        "id": "requested-report-placement-zh",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": true
+        },
+        "agreement": true,
+        "reason": "Report preference useful, but begin-with placement explicitly requested is missing."
+      },
+      {
+        "id": "ongoing-diagnostic-en",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Verified ongoing diagnostic condition has future usefulness until routing provisioned; omission false because no explicit request to remember."
+      },
+      {
+        "id": "ongoing-diagnostic-zh",
+        "independentExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "authoredExpected": {
+          "value": [
+            true
+          ],
+          "omission": false
+        },
+        "agreement": true,
+        "reason": "Verified ongoing diagnostic condition has future usefulness until routing provisioned; omission false because no explicit request to remember."
+      }
+    ],
+    "boundariesToFreezeBeforePaid": [
+      "Omission means explicit requests to store/remember only; future correction/use instructions without an explicit retention request are outside its scope. Consequently later-config-revocation-zh-before remains omission=false despite loss of current npm test and replacement meaning.",
+      "Privacy classification is absent from resultingMemoryContents. Freeze omission as text knowledge/condition/placement preservation, with classification/authorization evaluated independently by baseline; otherwise private ZH omission=false is ambiguous.",
+      "Candidate value asks existence of at least one useful fact, not absence of incidental history. Mixed useful/noisy candidates should remain value=true.",
+      "Whole resultingMemoryContents includes existing bodies and candidate frontmatter descriptions; candidate value input strips frontmatter. Existing split retention is intentional, not candidate incompleteness.",
+      "Explicitly requested release context and future marker placement are material requirements even if version/count/result or marker itself is kept. Equivalent phrasing is valid, but omitted purpose/placement is not equivalent."
+    ],
+    "limits": [
+      "No predictions or causal net gain from labels. Labels are prospective model-reviewed development expectations, not heldout or human gold.",
+      "Pinned README facts are narrow reusable-library checks, not end-to-end real Pi project tasks or generation/recall/harness/privacy acceptance.",
+      "32 baseline generator outputs are known prior observations, not concurrent reruns; 16 fresh authored samples cover 8 bilingual scenarios.",
+      "Current corpus has one candidate per row; multi-candidate at-least-one-useful-fact behavior and privacy metadata preservation are not measured.",
+      "No label, repository source, raw result or model invocation was modified/performed."
+    ]
+  },
+  "authorizedRequestBudget": 80,
+  "productionWrites": 0
+}

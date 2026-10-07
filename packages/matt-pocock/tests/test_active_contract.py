@@ -88,17 +88,20 @@ def test_delivered_state_contract_includes_terminal_calls() -> None:
     assert '{"action":"cancel","reason":"<why>"}' in text
 
 
-def test_catalog_guidance_supplies_exact_calls_for_every_model_entry() -> None:
+def test_catalog_guidance_supplies_exact_calls_for_every_entry() -> None:
     result = run_typescript('''
         import {availableWorkflowsGuidance} from "./packages/matt-pocock/src/workflow.ts";
-        import {modelStandaloneCapabilities,workflowRoutes} from "./packages/matt-pocock/src/catalog.ts";
+        import {modelStandaloneCapabilities,userStandaloneCapabilities,workflowRoutes} from "./packages/matt-pocock/src/catalog.ts";
         const guidance = availableWorkflowsGuidance();
         console.log(JSON.stringify({
           capabilities:modelStandaloneCapabilities().map(c=>guidance.includes(JSON.stringify({mode:"capability",capability:c.id}))),
+          userCapabilities:userStandaloneCapabilities().map(c=>guidance.includes(`- ${c.id}:`)),
+          userCapabilityCall:guidance.includes(JSON.stringify({mode:"user-capability",capability:"<id>"})),
           routes:workflowRoutes().map(r=>guidance.includes(JSON.stringify({mode:"workflow",route:r.route}))),
         }));
     ''')
     assert all(result['capabilities'])
+    assert all(result['userCapabilities'])
     assert all(result['routes'])
 
 
@@ -110,7 +113,7 @@ def test_operation_schemas_expose_all_choices_at_the_object_root() -> None:
         )));
     ''')
     for name,field,values in [
-        ('matt_pocock_workflow','mode',['workflow','capability','reference']),
+        ('matt_pocock_workflow','mode',['workflow','capability','user-capability','reference']),
         ('matt_pocock_active','action',['transition','load','complete','cancel']),
     ]:
         schema=result[name]

@@ -6,17 +6,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GoalCore, type GoalCoreOptions, GOAL_FOCUS_ENTRY } from "../src/core.ts";
 import { registerGoalEvents } from "../src/events.ts";
+import { normalizeGoalRecord } from "../src/record.ts";
+import { readGoalLedger } from "../src/ledger.ts";
 import { registerGoalTools } from "../src/tools.ts";
 import { goalPromptPath } from "../src/paths.ts";
 import { collectGoalEvidence, type GoalEvidence } from "../src/evidence.ts";
-import { buildCheckPrompt } from "../src/check.ts";
+import { buildCheckPrompt, type RunCheckOptions } from "../src/check.ts";
 
 const outcomes: string[] = [];
 async function scenario(name: string, body: () => Promise<void>) {
   try { await body(); outcomes.push(`ok ${name}`); }
   catch (error) { outcomes.push(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`); process.exitCode = 1; }
 }
-function fixture(runCheck: GoalCoreOptions["runCheck"]) {
+function fixture(runCheck: GoalCoreOptions["runCheck"], options: { sessionModel?: { provider?: string; id?: string } } = {}) {
   assert.ok(runCheck, "completion scenarios always inject a checker");
   const cwd = mkdtempSync(join(tmpdir(), "goal-completion-"));
   const events = new Map<string, Function>();
@@ -31,13 +33,14 @@ function fixture(runCheck: GoalCoreOptions["runCheck"]) {
     getActiveTools: () => [], getAllTools: () => [], setActiveTools() {},
   };
   const ctx = { cwd, mode: "print", ui: { notify() {}, setWidget() {} }, isIdle: () => false, hasPendingMessages: () => false,
+    ...(options.sessionModel ? { model: options.sessionModel } : {}),
     sessionManager: { getSessionId: () => "completion-thread", getBranch: () => branch } };
   const core = new GoalCore(pi as never, cwd, { runCheck });
   core.store.create({ id: "completion-goal", owner: "completion-thread", objective: "Export CSV and pass its E2E test.", contract: "The executed E2E passes and independent review has no blocker." });
   branch.push({ type: "custom", customType: GOAL_FOCUS_ENTRY, data: { focusedGoalId: "completion-goal" } });
   core.restore(ctx as never);
   registerGoalEvents(core); registerGoalTools(core);
-  return { core, ctx, branch, tools, events, sent };
+  return { core, ctx, branch, tools, events, sent, cwd };
 }
 await scenario("completion receives recorded executions and review separately from the executor claim", async () => {
   let observed: unknown;
@@ -80,7 +83,7 @@ await scenario("three no-work refusals stop empty continuation without false com
 });
 await scenario("a satisfied observed contract completes and cancels all further continuation", async () => {
   const f = fixture(async () => ({ met: true, report: "Observed E2E and review satisfy the contract." }));
-  f.core.scheduler.resume(f.core.goal!, {});
+  f.core.scheduler.resume(f.core.goal!, {}, "user");
   assert.ok(f.core.scheduler.isArmed());
   await f.tools.get("update_goal")!.execute("close", { status: "complete", completion_summary: "Verified." }, undefined, undefined, f.ctx);
   assert.equal(f.core.goal, undefined);
@@ -217,7 +220,7 @@ await scenario("cancelled checks do not count and explicit resume resets final f
   release!({ met: false, report: "Old refusal." });
   await waiting;
   assert.equal(f.core.goal?.completionFailures, 1, "cancelled verdict is not a final attempt");
-  f.core.scheduler.resume(f.core.goal!, {});
+  f.core.scheduler.resume(f.core.goal!, {}, "user");
   assert.equal(f.core.goal?.completionFailures, 0);
   f.core.shutdown();
 });
@@ -400,6 +403,126 @@ await scenario("active subagents prevent no-work pause and defer premature loop 
     assert.equal(f.core.goal?.scheduler?.idleRuns, 0, "idle runs must not accumulate while subagents are working");
   } finally {
     delete carrier[rosterKey];
+    f.core.shutdown();
+  }
+});
+
+await scenario("the completion claim is not length-capped in the tool schema", async () => {
+  // The user hit a 4000-character rejection on a real completion. The cap was in
+  // the tool schema, so the schema is where the removal is pinned. The bound now
+  // lives in check.ts, which states its truncation to the checker.
+  const f = fixture(async () => ({ met: false, report: "NOT MET" }));
+  try {
+    const tool = f.tools.get("update_goal") as unknown as {
+      parameters?: { properties?: Record<string, { maxLength?: number }> };
+    } | undefined;
+    assert.ok(tool, "update_goal is registered");
+    const summary = tool.parameters?.properties?.completion_summary;
+    assert.ok(summary, `completion_summary is a parameter, got ${JSON.stringify(Object.keys(tool.parameters?.properties ?? {}))}`);
+    assert.equal(summary.maxLength, undefined, "the summary must carry no length cap");
+  } finally {
+    f.core.shutdown();
+  }
+});
+
+await scenario("the objective is not length-capped in the schema or the record", async () => {
+  // The user's own goal update was rejected at 4000 characters, so the objective
+  // cap is removed where it was enforced: the tool schema and record
+  // normalization. The injected note and the check bound what they read instead.
+  const f = fixture(async () => ({ met: false, report: "NOT MET" }));
+  try {
+    for (const name of ["create_goal", "update_goal"]) {
+      const tool = f.tools.get(name) as unknown as {
+        parameters?: { properties?: Record<string, { maxLength?: number }> };
+      } | undefined;
+      assert.ok(tool, `${name} is registered`);
+      const objective = tool.parameters?.properties?.objective;
+      assert.ok(objective, `${name} declares objective`);
+      assert.equal(objective.maxLength, undefined, `${name} objective must carry no length cap`);
+    }
+    // Normalization must not quietly shorten what the schema now accepts.
+    const long = "z".repeat(9_000);
+    const stored = normalizeGoalRecord({
+      id: "long-objective", objective: long, status: "active", autoContinue: true,
+      usage: { tokensUsed: 0, activeSeconds: 0 },
+      createdAt: new Date(0).toISOString(), updatedAt: new Date(0).toISOString(), revision: 0,
+    });
+    assert.ok(stored, "the record normalizes");
+    assert.equal(stored.objective.length, long.length, "normalization must not truncate the objective");
+  } finally {
+    f.core.shutdown();
+  }
+});
+
+await scenario("an unset check model falls back to the session model", async () => {
+  // The settings already describe the configured model as used "instead of the
+  // session's", so an unset one means the session's. Left unset, the child picks
+  // up the persisted CLI default: a different, possibly unavailable model.
+  const seen: (string | undefined)[] = [];
+  const f = fixture((async (options: RunCheckOptions) => {
+    seen.push(options.model);
+    return { met: false, report: "NOT MET" };
+  }) as never, { sessionModel: { provider: "cli-proxy", id: "bailian/deepseek-v4.1-flash" } });
+  try {
+    await f.core.check(f.ctx as never, f.core.goal!, "Everything is finished.", {});
+    assert.deepEqual(seen, ["cli-proxy/bailian/deepseek-v4.1-flash"], "the session model reaches the check");
+  } finally {
+    f.core.shutdown();
+  }
+});
+
+await scenario("a configured check model is used instead of the session's", async () => {
+  const seen: (string | undefined)[] = [];
+  const f = fixture((async (options: RunCheckOptions) => {
+    seen.push(options.model);
+    return { met: false, report: "NOT MET" };
+  }) as never, { sessionModel: { provider: "cli-proxy", id: "bailian/deepseek-v4.1-flash" } });
+  try {
+    await f.core.check(f.ctx as never, f.core.goal!, "Everything is finished.", { provider: "anthropic", model: "claude-haiku" });
+    assert.deepEqual(seen, ["anthropic/claude-haiku"], "the configured model wins over the session's");
+  } finally {
+    f.core.shutdown();
+  }
+});
+
+await scenario("a long check report is recorded with its cut stated", async () => {
+  // The ledger keeps the report because it explains the decision, so a long one
+  // is cut at the ledger bound and says so. A silently shortened report would
+  // read as the whole one.
+  const long = "r".repeat(9_000);
+  const f = fixture(async () => ({ met: false, report: long }));
+  try {
+    await f.core.check(f.ctx as never, f.core.goal!, "Everything is finished.", {});
+    const recorded = readGoalLedger(f.cwd, "completion-goal").filter((event) => event.type === "check_result");
+    assert.equal(recorded.length, 1, `one check result is recorded, got ${recorded.length}`);
+    const report = (recorded[0] as { report?: string }).report ?? "";
+    assert.ok(report.length < 5_000, `the report is bounded, got ${report.length}`);
+    assert.match(report, /truncated at 4000 characters/, "the cut states itself");
+  } finally {
+    f.core.shutdown();
+  }
+});
+
+await scenario("a new goal supersedes the focused one", async () => {
+  // Verifiable here because this fixture drives the tools directly, with no SDK
+  // session: the SDK-driven harness needs a live model and is blocked when the
+  // persisted default is unavailable.
+  const f = fixture(async () => ({ met: false, report: "NOT MET" }));
+  try {
+    const tool = f.tools.get("create_goal") as unknown as {
+      execute: (id: string, params: unknown, signal: unknown, update: unknown, ctx: unknown) => Promise<{ isError?: boolean }>;
+    };
+    assert.ok(tool, "create_goal is registered");
+    // Without the marker the thread keeps its one goal.
+    const refused = await tool.execute("c1", { objective: "Another goal." }, undefined, undefined, f.ctx);
+    assert.equal(refused.isError, true, "an unmarked second creation is refused");
+    assert.equal(f.core.goal?.objective, "Export CSV and pass its E2E test.", "and the focused goal is untouched");
+    // With it, the new goal replaces the focused one and the earlier one leaves.
+    const created = await tool.execute("c2", { objective: "Carried forward, and now audited.", supersedes: true }, undefined, undefined, f.ctx);
+    assert.notEqual(created.isError, true, "a marked creation succeeds");
+    assert.equal(f.core.goal?.objective, "Carried forward, and now audited.", "the new goal is focused");
+    assert.equal(f.core.store.readGoal("completion-goal"), undefined, "the earlier goal left the open pool");
+  } finally {
     f.core.shutdown();
   }
 });

@@ -1,0 +1,370 @@
+[
+  {
+    "id": "independent-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm."
+        },
+        {
+          "role": "user",
+          "content": "The public API is written in TypeScript."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-0\ndescription: This project uses pnpm.\ntype: project\n---\nThis project uses pnpm.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "This project uses pnpm.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-1\ndescription: The public API is written in TypeScript.\ntype: project\n---\nThe public API is written in TypeScript.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The public API is written in TypeScript.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "expectedCurrentStage": "Relation-only gold label; original full candidate support is separately required. Contradictory evidence can hold a candidate before any partition."
+  },
+  {
+    "id": "independent-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm。"
+        },
+        {
+          "role": "user",
+          "content": "公开接口使用 TypeScript 编写。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-0\ndescription: 本项目使用 pnpm。\ntype: project\n---\n本项目使用 pnpm。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "本项目使用 pnpm。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-1\ndescription: 公开接口使用 TypeScript 编写。\ntype: project\n---\n公开接口使用 TypeScript 编写。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "公开接口使用 TypeScript 编写。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "independent",
+    "expectedCurrentStage": "Relation-only gold label; original full candidate support is separately required. Contradictory evidence can hold a candidate before any partition."
+  },
+  {
+    "id": "duplicate-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project uses pnpm."
+        },
+        {
+          "role": "user",
+          "content": "pnpm is the package manager for this project."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-0\ndescription: This project uses pnpm.\ntype: project\n---\nThis project uses pnpm.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "This project uses pnpm.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-1\ndescription: pnpm is the package manager for this project.\ntype: project\n---\npnpm is the package manager for this project.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "pnpm is the package manager for this project.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "duplicate",
+    "expectedCurrentStage": "Relation-only gold label; original full candidate support is separately required. Contradictory evidence can hold a candidate before any partition."
+  },
+  {
+    "id": "duplicate-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目使用 pnpm。"
+        },
+        {
+          "role": "user",
+          "content": "pnpm 是本项目的包管理器。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-0\ndescription: 本项目使用 pnpm。\ntype: project\n---\n本项目使用 pnpm。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "本项目使用 pnpm。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-1\ndescription: pnpm 是本项目的包管理器。\ntype: project\n---\npnpm 是本项目的包管理器。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "pnpm 是本项目的包管理器。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "duplicate",
+    "expectedCurrentStage": "Relation-only gold label; original full candidate support is separately required. Contradictory evidence can hold a candidate before any partition."
+  },
+  {
+    "id": "conflict-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The deployment target is Linux only."
+        },
+        {
+          "role": "user",
+          "content": "The deployment target is Windows only."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-0\ndescription: The deployment target is Linux only.\ntype: project\n---\nThe deployment target is Linux only.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The deployment target is Linux only.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-1\ndescription: The deployment target is Windows only.\ntype: project\n---\nThe deployment target is Windows only.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The deployment target is Windows only.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "conflict",
+    "expectedCurrentStage": "Relation-only gold label; original full candidate support is separately required. Contradictory evidence can hold a candidate before any partition."
+  },
+  {
+    "id": "conflict-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "部署目标仅限 Linux。"
+        },
+        {
+          "role": "user",
+          "content": "部署目标仅限 Windows。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-0\ndescription: 部署目标仅限 Linux。\ntype: project\n---\n部署目标仅限 Linux。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "部署目标仅限 Linux。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-1\ndescription: 部署目标仅限 Windows。\ntype: project\n---\n部署目标仅限 Windows。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "部署目标仅限 Windows。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "conflict",
+    "expectedCurrentStage": "Relation-only gold label; original full candidate support is separately required. Contradictory evidence can hold a candidate before any partition."
+  },
+  {
+    "id": "dependent-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "For the configuration values, follow the separate Memory b.md."
+        },
+        {
+          "role": "user",
+          "content": "The configured timeout is 30 seconds."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-0\ndescription: For the configuration values, follow the separate Memory b.md.\ntype: project\n---\nFor the configuration values, follow the separate Memory b.md.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "For the configuration values, follow the separate Memory b.md.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-1\ndescription: The configured timeout is 30 seconds.\ntype: project\n---\nThe configured timeout is 30 seconds.",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "The configured timeout is 30 seconds.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "dependent",
+    "expectedCurrentStage": "Relation-only gold label; original full candidate support is separately required. Contradictory evidence can hold a candidate before any partition."
+  },
+  {
+    "id": "dependent-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "配置取值请遵循单独的 Memory b.md。"
+        },
+        {
+          "role": "user",
+          "content": "配置的超时为 30 秒。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-0\ndescription: 配置取值请遵循单独的 Memory b.md。\ntype: project\n---\n配置取值请遵循单独的 Memory b.md。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "配置取值请遵循单独的 Memory b.md。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fixture-1\ndescription: 配置的超时为 30 秒。\ntype: project\n---\n配置的超时为 30 秒。",
+        "evidence": [
+          {
+            "index": 1,
+            "quote": "配置的超时为 30 秒。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "expectedPairRelation": "dependent",
+    "expectedCurrentStage": "Relation-only gold label; original full candidate support is separately required. Contradictory evidence can hold a candidate before any partition."
+  }
+]

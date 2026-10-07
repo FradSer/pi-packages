@@ -1,0 +1,11 @@
+{
+  "evidence": "pre-observational-candidate-review-source-preservation",
+  "baseline": "packages/continual-learning/tests/fixtures/jev-learning-before-candidate-review.ts.txt",
+  "baselineSha256": "12166999a9a26edb4bfa700bedcacb8dfb0dcba180522a1a3690a2d7bf04cc6b",
+  "currentSha256": "965220940e50cf2bdfac3c283874615304907a296814b75025368b98d3d37d4c",
+  "productionQuestionChanges": 0,
+  "writeDecisionChanges": 0,
+  "partialWriteAuthority": false,
+  "independentReview": "cited_memory_security_review",
+  "scope": "Read-only complete original-check observations. Parent never consumes these as write permission; same-batch independence still unproved."
+}

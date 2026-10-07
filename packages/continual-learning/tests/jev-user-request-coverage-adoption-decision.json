@@ -1,0 +1,48 @@
+{
+  "evidence": "development-comparison-adoption-decision",
+  "adopted": false,
+  "productionRuntimeChangedThisPhase": false,
+  "jevDefaultChanged": false,
+  "resultSha256": "f5c6e80770a9bd784d9b1924f884db6235cfea3b469f30f67c0dfda0637cd218",
+  "reason": "Automatic text coverage increases definite omission detection relative to whole judgment, but recognizes fewer complete outputs; no demonstrated net benefit.",
+  "aggregate": {
+    "whole": {
+      "definiteMissingDetected": 2,
+      "incompleteJudgedComplete": 1,
+      "incompleteUncertainOrUnavailable": 6,
+      "completeCorrectlyRecognized": 9,
+      "completeJudgedIncomplete": 0,
+      "completeUncertainOrUnavailable": 2
+    },
+    "manual": {
+      "definiteMissingDetected": 4,
+      "incompleteJudgedComplete": 0,
+      "incompleteUncertainOrUnavailable": 5,
+      "completeCorrectlyRecognized": 7,
+      "completeJudgedIncomplete": 0,
+      "completeUncertainOrUnavailable": 4
+    },
+    "automatic": {
+      "definiteMissingDetected": 4,
+      "incompleteJudgedComplete": 0,
+      "incompleteUncertainOrUnavailable": 5,
+      "completeCorrectlyRecognized": 6,
+      "completeJudgedIncomplete": 0,
+      "completeUncertainOrUnavailable": 5
+    }
+  },
+  "limits": [
+    "Development samples reuse unchanged labels; not heldout or human gold.",
+    "Automatic spans cover all selected original user text, not atomic semantic requirements or durable relevance.",
+    "All three methods run in a joint batch; per-method cost and latency are not measured.",
+    "Automatic per-span labels do not exist; only whole-output completeness is compared.",
+    "No main generation, Memory application, recall or native Harness execution.",
+    "Raw source and credentials excluded from this receipt; billing estimate is not an invoice."
+  ],
+  "nextEvidence": [
+    "Generate validated atomic source-backed requirements without manual labels or selective omissions.",
+    "Measure context-preserving requirement relevance separately from text coverage.",
+    "Verify actual main generation, safe application, recall and existing Harness execution on new projects."
+  ],
+  "goalComplete": false
+}

@@ -1,0 +1,39 @@
+{
+  "id": "click-r11-memory-description-uncertain",
+  "stage": "memory",
+  "expectedAllow": null,
+  "productionWriteEligible": false,
+  "sourceDigest": "5888582df6c2fffbd88f7dc3354cbff37d3013c61e11e8b4b793f983bb708122",
+  "failures": [
+    {
+      "candidateIndex": 1,
+      "dimension": "support",
+      "field": "description",
+      "reason": "uncertain"
+    },
+    {
+      "candidateIndex": 2,
+      "dimension": "counterevidence",
+      "field": "description",
+      "reason": "uncertain"
+    }
+  ],
+  "files": {
+    "history": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/click-on/memory/history/--work-click--/change_muvsupaf_edeb35cba627cd9a.json",
+      "sha256": "e8fbbe2994ee54a8ff55ef1cb6fd16b7de8fcc556f2ceaef762e86aa5546ea1b"
+    },
+    "snapshot": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/click-on/memory/runs/--work-click--/run_muvsth7w_2b236ec802413118/snapshot.json",
+      "sha256": "4cc13cef21c29b653a8d0fc4cc15991cb285027ffd9641c7f39c269e7bd86184"
+    },
+    "parentManifest": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/click-on/memory/runs/--work-click--/run_muvsth7w_2b236ec802413118/manifest.json",
+      "sha256": "cc12e24e6ed90bc863cd06cea6102991ce2984288534fcfd405423b72cfe54c4"
+    },
+    "report": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/click-on/report.json",
+      "sha256": "11c56128a29de3450ccac163dbf46a0a861d1e1f857504ebdf80d367caea187b"
+    }
+  }
+}

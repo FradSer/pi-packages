@@ -1,0 +1,1 @@
+{"manifestSha256": "1589c5f07f70ca224b3b19220b1691fc6ccb20b08430384a7cc71af8b900d033", "requestBudget": 12, "arms": ["direct-5s", "proxy-15s", "proxy-5s", "direct-15s"]}

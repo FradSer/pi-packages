@@ -1,0 +1,20 @@
+{
+  "evidence": "native-pi-print-offline-structural-context-fixture",
+  "piVersion": "1.0.0",
+  "exitCode": 0,
+  "externalRequests": 0,
+  "fixtureProviderRequests": 1,
+  "decision": "propose",
+  "field": "description",
+  "evidenceWindowIndex": 1,
+  "evidenceEntryStart": 1,
+  "evidenceEntryEnd": 1,
+  "completeEvidenceWindows": 3,
+  "productionCandidateWrites": 0,
+  "citationGuidanceInBothPrompts": true,
+  "repairContextVerified": true,
+  "limitations": [
+    "Mocked judgment integration, not real Jev quality.",
+    "No TUI, actual generation or real Jev quality in this offline probe."
+  ]
+}

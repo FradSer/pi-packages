@@ -903,14 +903,21 @@ def validate_case(
     events: list[dict[str, Any]],
 ) -> list[str]:
     errors: list[str] = []
-    for artifact in relative_artifacts(case):
-        path = safe_artifact_path(project, artifact)
-        if path is None:
+    # A list of artifacts means any one of them satisfies the case, because the
+    # delivered procedure may allow more than one location for the same output.
+    # A single artifact must exist. An absolute candidate is rejected outright.
+    candidates = relative_artifacts(case)
+    for artifact in candidates:
+        if not artifact or Path(artifact).is_absolute():
             errors.append(f"unsafe or missing artifact: {artifact}")
+    resolvable = [item for item in candidates if item and not Path(item).is_absolute()]
+    present = [item for item in resolvable if safe_artifact_path(project, item) is not None]
+    if resolvable and not present:
+        errors.append(f"unsafe or missing artifact: {' or '.join(resolvable)}")
     keywords = case.get("keywords", [])
     if isinstance(keywords, list):
         texts: list[str] = []
-        for artifact in relative_artifacts(case):
+        for artifact in present:
             path = safe_artifact_path(project, artifact)
             if path is not None:
                 texts.append(path.read_text(encoding="utf-8", errors="replace"))
@@ -971,15 +978,18 @@ def validate_case(
         if not set(expected_ids).issubset(source_ids):
             errors.append(f"missing model context sources: {', '.join(expected_ids)}")
     prompt_text = str(case.get("prompt", ""))
-    if "mode capability" in prompt_text:
+    # "mode user-capability" does not contain "mode capability", so both gates are safe.
+    for gateway_mode in ("capability", "user-capability"):
+        if f"mode {gateway_mode}" not in prompt_text:
+            continue
         capability_seen = any(
             row.get("isError") is not True
-            and row_args(row).get("mode") == "capability"
-            and row_args(row).get("capability") in expected_ids
+            and row_args(row).get("mode") == gateway_mode
+            and (not expected_ids or row_args(row).get("capability") in expected_ids)
             for row in matt_workflow
         )
         if not capability_seen:
-            errors.append("capability case did not record the expected gateway capability call")
+            errors.append(f"{gateway_mode} case did not record the expected gateway {gateway_mode} call")
     if case.get("routing"):
         branch_routes = {
             entry["state"].get("route")

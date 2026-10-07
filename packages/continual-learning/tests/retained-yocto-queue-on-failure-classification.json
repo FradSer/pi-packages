@@ -1,0 +1,91 @@
+{
+  "kind": "retained-run-failure-classification",
+  "version": 1,
+  "checkedAt": "2026-10-07",
+  "runRoot": "~/.cache/pi-continual-learning/docker/20261007T025657Z",
+  "sourceDigest": "1af9118d7857e81542410e5f44dde74c2ba233cdc1baa6cbc6ed4d7d360758c0",
+  "retainedArtifacts": [
+    {
+      "path": "handoff-retained-yocto-queue-on/report.json",
+      "sha256": "2bbf0a3df4172a7a334c6d464024c795b592584aecbc3950c7293c58516c1555",
+      "handoffSha256": "2bbf0a3df4172a7a334c6d464024c795b592584aecbc3950c7293c58516c1555",
+      "match": true
+    },
+    {
+      "path": "handoff-retained-yocto-queue-on/failure.txt",
+      "sha256": "10d4a661a17120746466d39890cd5fa8fbef49cb8077fd5be32fb96b19e1f3b0"
+    },
+    {
+      "path": "yocto-queue-off/report.json",
+      "sha256": "22bf43308550509a57708f4e67312f9a5bede72eb4399bf68194164d00b47f81",
+      "handoffSha256": "22bf43308550509a57708f4e67312f9a5bede72eb4399bf68194164d00b47f81",
+      "match": true
+    }
+  ],
+  "onArmReport": {
+    "status": "failed",
+    "stage": "native-harness-enforcement",
+    "learningSeconds": 55.04,
+    "error": "Learning effect acceptance failed: memory, harness",
+    "checks": {"learningCommandNativeSuccess": true, "regressionChanged": true},
+    "phaseObservations": {
+      "memory": {"status": "failed", "errorType": "AssertionError", "failedCheck": "missing-supported-memory-judgment"},
+      "recall": {"status": "unverified", "reason": "memory-prerequisite-failed"},
+      "harness": {"status": "failed", "errorType": "AssertionError", "failedCheck": "phase-callback-error"}
+    },
+    "jevJudgments": [],
+    "memoryAttempt": {"outcome": "failed", "durationMs": 26984, "operations": 0, "reasonFieldPresent": false},
+    "usageAvailable": false,
+    "costAvailable": false
+  },
+  "classification": {
+    "realJevCall": false,
+    "missingReceipt": false,
+    "pipelineDefect": "gate conflation and missing receipt reason; see gaps",
+    "testParticipationDefect": false,
+    "primaryCause": "main-model transport failure in the candidate generator child",
+    "category": "service-unavailable",
+    "evidence": [
+      "memory/runs/--work-yocto-queue--/run_muxj3apt_04a4b8187e38ec86/stdout.jsonl: auto_retry_start attempt 1, errorMessage Stream ended without finish_reason",
+      "three agent_end records with stopReason error, errorMessage Connection error., zero usage",
+      "auto_retry_end success false, attempt 3, finalError Connection error., then agent_settled",
+      "learning-pipeline-receipt.json: memory outcome failed, 0 operations, zero totals"
+    ]
+  },
+  "gaps": [
+    {
+      "id": "receipt-missing-stop-reason",
+      "statement": "The failed memory attempt records no stop or fallback reason, but the requirement asks a receipt to state it.",
+      "ownerTask": "trace-every-original-acceptance-condition-to-cur"
+    },
+    {
+      "id": "gate-id-conflation",
+      "statement": "failedCheck missing-supported-memory-judgment fires when no candidate exists, so its ID does not distinguish a generator failure from a Jev judgment failure.",
+      "ownerTask": "trace-every-original-acceptance-condition-to-cur"
+    }
+  ],
+  "unrunArms": {
+    "ordered": ["yocto-queue-off", "yocto-queue-on", "humanize-off", "humanize-on", "referencing-off", "referencing-on"],
+    "completed": ["yocto-queue-off"],
+    "startedNotExported": ["yocto-queue-on"],
+    "neverDispatched": ["humanize-off", "humanize-on", "referencing-off", "referencing-on"],
+    "cause": "host batch process ended during or after the on-arm container verification, before export and cleanup; a failed arm alone would not stop the batch",
+    "evidence": [
+      "yocto-queue-on host directory exists and is empty",
+      "container cl-project-yocto-queue-8cf61da7 still runs sleep infinity, started 2026-10-07T03:06:29Z",
+      "no summary.json in the batch output root",
+      "docker_experiment.py run_project writes runner-output.txt and removes the container in finally",
+      "live_docker_projects.py experiment() catches per-arm exceptions and continues"
+    ]
+  },
+  "limitations": [
+    "No host proxy counters survive for the on arm; summary.json is absent.",
+    "The exact instant of the host process end is not recorded.",
+    "The container-side run record holds no parent-level error reason."
+  ],
+  "preservation": {
+    "modifiedArtifacts": [],
+    "containerAction": "read-only inspection; container kept",
+    "writeAuthorized": false
+  }
+}

@@ -458,8 +458,11 @@ under the existing parent-owned validation contract.
 The default injection budget is 6,000 characters. Entry bodies are not injected.
 Each body root is declared once and every entry row names its filename, so the
 budget reaches relevance metadata instead of repeating an absolute read path per
-entry. Descriptions should begin with when the entry is relevant and fit one line
-of at most 120 characters; detail belongs in the body. Existing longer descriptions
+entry. New descriptions should front-load a concise evidence-backed fact or
+preference, naming its subject and applicable project/context, in one line of at
+most 120 characters. A bare relevance trigger is insufficient: preserve material
+conditions and exceptions in the summarized claim, with full detail in the body.
+Existing longer descriptions
 are retained when they fit, or shortened with a single-line marker rather than
 silently losing a late trigger. Under budget pressure every listed entry stays
 reachable and cues give way before entries do.
@@ -613,6 +616,14 @@ Jev is optional. It is enabled by a `jev` section in `~/.pi/agent/continual-lear
 
 The model and scopes are optional overrides; `"jev": true` or `"jev": {}` opts in with defaults. Authentication uses `TYPESAFE_API_KEY` or the section's optional `apiKey`; prefer the environment so credentials stay out of configuration files. `"jev": false` or `"jev":{"enabled":false}` explicitly disables Jev even when the environment key is present. Other unified configuration sections are ignored by this reader and never modified. Invalid, oversized or symlinked configuration disables the feature with a diagnosis.
 
+For one exactly recognized finite Git push matcher, code supplies the proven matching language to scope and complete counterevidence questions. Support still receives the original candidate. Unknown, disabled and non-add rules retain the original path; this syntax proof never supplies authorization or lowers a decision threshold. Fixed real cited-path and heldout comparisons reduced supported-candidate holds (6→3 and 8→5), with zero unsafe accepts in those samples; full-workflow superiority remains unverified. See @tests/jev-cited-followup-evaluation.md. Later R9 full-workflow results remained off 1/3 and on 0/3. A separate finite-authority experiment worsened new-sample holds and was not adopted. Planner proposals now include bounded parent-root cd-wrapper coverage when shell spelling is safe; existing rules are not rewritten and unknown regexes retain general Jev judgment.
+
+For a new blocking rule exactly matching the canonical project push template, the parent supplies its frozen directory/run/scope/evidence binding. Code proves matching syntax; Jev still independently checks lasting user authorization, argument scope and every original counterevidence window. Missing or mismatched bindings, edits to existing rules and confirmation rules keep the general path. The original confidence thresholds and write permissions are unchanged. Fixed V2 real development and previously unqueried heldout samples reduced valid-rule holds (8→0 and 8→4), with zero unsafe accepts among sixteen negative plans per split. Each split contains twelve English/Chinese scenario pairs. Four heldout valid restrictions remained uncertain; this is bounded semantic evidence, not proof of full-workflow superiority. See @tests/jev-cited-followup-evaluation.md.
+
+Complete new-Memory reviews can expose an internal `candidateReview` observation bound to evidence, existing Memory, and candidate digests. It lists each original check as passed or held. This is diagnostic only: it does not establish independence between new candidates or permit partial writes. Incomplete requests, changed inputs, and legacy plans produce no observation; whole-plan holds remain in force.
+
+Memory generation and the existing single semantic-repair attempt now ask for relevant original citations for each body and description claim. Future-task intent alone does not establish verified current state; verification/configuration claims need their actual supporting observations. Later corrections and exceptions remain relevant, and unrelated entries are not attached automatically. Original quote, privacy, retained-identity and full-plan Jev checks still decide application. A read-only original-judge citation study improved known development from 15/16 to 16/16 and fresh heldout from 15/24 to 23/24, with zero unsafe accepts in either arm; these public synthetic results do not prove the production prompt or full workflow improves. The six real isolated Pi/Docker follow-ups finished: Jev off passed 2/3 and on passed 1/3. This did not establish workflow improvement: one on plan contained an unsupported extra claim, valid knowledge and canonical Harness rules were also held, and one off run lacked a real prohibited-command attempt. See @tests/jev-citation-guidance-r14-final-results.json. See @tests/jev-citation-repair-adoption-decision.json and @tests/jev-citation-guidance-r14-docker-manifest.json.
+
 Scopes grant participation in semantic stages, never file-write permission. Omit a stage from `scopes` to retain its legacy behavior. Pin a version for reproducibility; `jev-latest` and `jev-preview` are accepted, with the actual returned version recorded. `/memory status` reports effective model, scopes and credential availability without revealing the key. There is no `/jev` command, and command syntax and phase permissions are unchanged.
 
 Enabling a scope sends bounded frozen task evidence and permitted Memory content to TypeSafe. Private Memory metadata, bodies and candidates require the separate `allowPrivateMemory` permission; absent permission falls back in selection and preserves candidates as proposals. This never changes storage classification. Recognized credentials prevent a request. Existing privacy checks still govern every write.
@@ -623,9 +634,9 @@ After parent structure, identity and frozen-quote validation, another batch chec
 
 Requests are limited to 64,000 serialized UTF-8 wire bytes and 32 questions; cited evidence windows prefer 24,000 bytes. Oversized evidence is not silently truncated: selection falls back, candidates become proposals. Requests have a 5-second timeout, zero SDK retries, cancellation propagation and disabled SDK body logging. Starting thresholds are Noul ≤0.1 / ≥0.9. Memory relation acceptance uses P(unrelated or supplement) ≥0.9; general Harness scope uses P(same or narrower) ≥0.9. Ambiguity between these compatible classes is acceptable; this does not require high confidence in one class. Memory grounding, literal-command authorization and message fidelity require confidence ≥0.8 and winning probability ≥0.9. Harness review includes parent-validated blocked/allowed examples, with frozen evidence remaining the sole source of authorization. Metadata uses P(level 2 or 3) ≥0.9 to select and ≤0.1 to omit on a 0–3 rubric; intermediate probability falls back. These are conservative policy parameters, **not calibrated accuracy claims**. Validate them on your workload before relying on the integration, especially for Chinese.
 
-For an apply-policy Harness plan or incremental Memory plan, an unsupported or uncertain semantic hold may use the existing single read-only repair slot, shared with structural repair. Memory correction uses frozen evidence and already-read bodies, preserves names, intents and privacy classifications, and retains the original proposal if correction remains held. Duplicate, conflict and service failure do not trigger another correction. A semantic Harness repair may omit unsupported operations, but their exact original evidence is reindexed and saved as private pending proposals. Retained rule identities and citations must stay unchanged apart from operation indexes; an empty or replacement repair retains the original proposal. Repaired candidates repeat parent validation and Jev judgment; service failures do not cause retries, and unresolved candidates remain proposals. Frozen evidence is checked after each judgment and again in the mutation queue before writing. A direct apply cannot bypass a semantic proposal.
+For an apply-policy Harness plan or incremental Memory plan, an unsupported or uncertain semantic hold may use the existing single read-only repair slot, shared with structural repair. With Jev enabled, the first incremental Memory structural repair also receives the original hash-checked snapshot and selected Memory dossier; it must not turn one-task instructions into lasting preferences. Both files are rechecked after repair, valid original privacy classifications must remain unchanged, and a rejected completed call still retains its usage. This does not add a second repair slot or relax subsequent validation. Memory correction uses frozen evidence and already-read bodies, preserves names, intents and privacy classifications, and retains the original proposal if correction remains held. Duplicate, conflict and service failure do not trigger another correction. A semantic Harness repair may omit unsupported operations, but their exact original evidence is reindexed and saved as private pending proposals. Semantic repair receives an explicit table of the original operation kind, rule identity and complete evidence objects. Retained rule identities and all citation properties must stay unchanged apart from operation indexes; an empty or replacement repair retains the original proposal. Repaired candidates repeat parent validation and Jev judgment; service failures do not cause retries, and unresolved candidates remain proposals. Frozen evidence is checked after each judgment and again in the mutation queue before writing. A direct apply cannot bypass a semantic proposal. Memory index descriptions receive independent support, existing-Memory relationship and full-evidence checks alongside the original body checks. A duplicate description can accompany a body that adds supported knowledge; duplicate bodies and conflicting descriptions remain proposals. All additional questions fit the existing request limits before any call; budget exhaustion retains a proposal.
 
-Receipts show directions, selected filenames, phase outcomes, controlled fallback/proposal reasons, Jev latency, actual model version and returned tokens. Cited judgments also report complete reviewed entries and windows; coverage does not itself establish semantic accuracy. `estimatedCostUsd` uses the published `jev-1.13.0` input-token tariff; it is separate from worker totals and is not an invoice. Failed requests without usage have unknown cost. Multi-request failures retain known input/cost lower bounds and completed request counts without claiming a complete total. A held judgment may identify a controlled candidate index and judgment dimension to explain correction; it does not include candidate text. Sensitive evidence, SDK errors and raw responses are not added to the receipt.
+Receipts show directions, selected filenames, phase outcomes, controlled fallback/proposal reasons, Jev latency, actual model version and returned tokens. Cited judgments also report complete reviewed entries and windows; coverage does not itself establish semantic accuracy. `estimatedCostUsd` uses the published `jev-1.13.0` input-token tariff; it is separate from worker totals and is not an invoice. Failed requests without usage have unknown cost. Multi-request failures retain known input/cost lower bounds and completed request counts without claiming a complete total. A held judgment may identify a controlled candidate index, judgment dimension and optional `field: "description"` to explain correction; it does not include candidate text. After complete responses, `candidateFailures` records the first failure on each held candidate and supplies bounded repair hints; it never grants partial application permission. Complete counterevidence failures additionally report a zero-based evidence window and inclusive original entry range; the range is captured before transport and shown in bounded repair hints. Missing, cancelled or inconsistent responses never infer a failure window from coverage. Persisted location fields are rendered only as validated nonnegative safe integers, with no evidence text. Incomplete service responses do not produce this list. Parent Harness rejections report fixed validation categories and counts. Rejected semantic repairs distinguish identity, citation, structure and omitted-plan validation mismatches without revealing their content. A service failure may include `httpStatus` (400–599) from the first failed SDK request; multi-request receipts keep that status without treating partial responses as acceptance. It does not reveal error bodies, headers or the request URL. Sensitive evidence, SDK error text and raw responses are not added to the receipt.
 
 Official references: [JavaScript SDK](https://docs.typesafe.ai/sdk/javascript), [primitives](https://docs.typesafe.ai/primitives), [models and limits](https://docs.typesafe.ai/models), [confidence](https://docs.typesafe.ai/confidence), [known model limitations](https://docs.typesafe.ai/model-jaggedness/jev-1.13).
 
@@ -647,3 +658,220 @@ inference evidence, fees, rejected trials and reproduction.
 
 Expanded real bilingual and isolated Docker verification is documented in @tests/jev-expanded-evaluation.md.
 Read-only frozen-input design comparisons and the remaining evidence-coverage requirements are documented in @tests/jev-learning-design-reflection.md.
+
+The subsequent R15 original Docker cohort finished off 2/3 and on 0/3; one off-arm setup failed at GitHub DNS. Jev-enabled first structural Memory repair never triggered, so that increment still lacks real trigger coverage. A separate 96-request Harness citation-anchor study increased valid holds from 1 to 2 on completed cases, with one timeout in each arm, and was rejected. These results do not establish overall Jev improvement. See @tests/jev-structural-context-r15-final-results.json and @tests/jev-harness-citation-anchor-adoption-decision.json.
+
+The focused R16 p-limit pair finished off 1/1 and on 0/1. The on arm passed its independent project test and applied Harness, but Jev timed out on Memory and retained both candidates as a proposal. No semantic Harness repair triggered, so the new binding prompt has no real effect evidence yet. Recorded Jev costs remain partial lower bounds. See @tests/jev-harness-bindings-r16-final-results.json.
+
+The same-original-input native Docker repair comparison then reproduced citation-property loss in the baseline (4/5 original properties), while the binding prompt preserved all 5/5 and unchanged pattern/action/scope/permissions. Both original outputs were retained and independently checked. The improved candidate still became a proposal: all three real Jev requests timed out at the unchanged five-second budget, with zero completed semantic judgments and unknown Jev usage. This is one known-input generator observation, not heldout or overall Jev improvement. See @tests/jev-harness-binding-original-real-results.json and @tests/jev-harness-binding-original-independent-review.json.
+
+A subsequent 96-request real Jev deadline comparison used the same known 24-case English/Chinese corpus and exact paired request bodies. Five- and fifteen-second budgets both completed 24/24, with zero unsafe accepts and the same one valid candidate held for authority uncertainty. Longer deadlines were not adopted; the production default remains five seconds. All 96 responses verified Jev 1.13, with 71,564 input tokens and approximately $0.003005688 estimated cost, excluding unverified account billing. This direct SDK small-corpus result does not explain the earlier Docker/large-evidence timeout. See @tests/jev-deadline-real-results.json and @tests/jev-deadline-adoption-decision.json.
+
+A same-host large-original-input diagnostic completed all twelve Jev requests across direct/forwarded and five/fifteen-second arms. Every arm covered all seventeen entries and both counter windows, but all retained the candidate for uncertainty. This run did not reproduce the historical timeout or justify increasing the default deadline. See @tests/jev-original-transport-real-results.json and @tests/jev-original-transport-adoption-decision.json.
+
+The original generator used literal tabs in the exact parent-bound project push template. Matching proof now recognizes those tabs and escaped tabs as equivalent spelling, without rewriting the rule or accepting other regex changes. All existing authority, argument-scope, explanation, privacy and full counterevidence checks remain. A subsequent three-request real replay of the same candidate and snapshot allowed the candidate, with full coverage, Jev 1.13, 1.725 seconds and approximately $0.000726558 estimated cost. This is one known-input observation compared with preserved earlier results, not randomized, heldout or full-workflow superiority. See @tests/jev-template-tab-original-real-results.json.
+
+
+The R17 six-arm isolated Docker cohort preserved the original tasks and gates:
+Jev off passed 2/3, Jev on passed 0/3. The mitt off arm failed dependency setup
+before inference. All three on arms lacked an accepted Memory judgment; p-limit
+and mitt applied Harness, but their early Memory gate stopped fresh recall and
+native enforcement checks. Click had an unavailable Memory repair request and a
+Harness timeout; p-limit and mitt had complete semantic requests with uncertainty.
+There were 153 provider requests (127 main, 26 Jev), with usage recorded for 25 Jev
+responses. Client-known Jev cost is approximately $0.00752451 and known main
+learning-phase cost $0.054289022; both are lower bounds, not a bill. Proxy usage
+is overlapping evidence and must not be added to client usage. All six owned
+containers and five recorded continuation process groups stopped; the unrelated
+container was preserved. Source and image hashes remained frozen. The initial
+orchestrator cleanup-case failure is retained separately from the successful
+Click off workflow. See @tests/jev-template-tab-r17-final-results.json.
+
+Source review found additional task-result claims in Click and a mix of stable
+configuration and single-run lint history in p-limit. These findings do not label
+all uncertain judgments as false holds. The next prospective repair study compares
+retaining stable facts in the same original candidate against the current prompt,
+while explicitly testing knowledge loss, requested historical results, privacy and
+exceptions. It is planned, not executed or adopted. The batch remains atomic. See
+@tests/jev-durable-core-research-plan.json.
+
+Research acceptance is governed by @tests/jev-learning-quality-charter.md: reliable useful learning and preserved constraints, not a higher Jev allow rate. New phase-effect observations and unseen-project evaluation must be frozen separately; original cohort results remain unchanged. No positive outcome is required, and Jev stays optional with the existing default.
+
+
+New project-study reports carry `effectObservationVersion: 1` and separately
+record `phaseObservations` for Memory, recall and Harness. A failed Memory gate
+skips dependent recall but no longer masks a safe native Harness probe; a failed
+recall also no longer masks Harness. All original acceptance assertions remain,
+and any failed effect still fails the workflow. Stable failure-check IDs preserve
+diagnostics without serializing arbitrary exception text. Auto-learning is disabled
+before these probes. Historical reports are unchanged; observation and cost coverage
+differs from the earlier early-exit protocol and must not be compared as equivalent.
+Offline control-flow and network-disabled Linux evidence verifies scheduling and a
+local wrapper, not real-model learning gains or new native Pi hook coverage. See
+@tests/jev-independent-effect-linux-results.json and
+@tests/jev-independent-effect-assertion-preservation.json.
+
+
+The bounded durable-core generator pilot now freezes 16 synthetic English/Chinese
+samples representing eight scenarios, with 32 independently isolated before/after
+arms and at most 128 provider requests. These are authored development scenarios,
+not heldout projects or human gold labels. Both arms receive identical frozen
+retention requirements; only the after arm appends the bounded clarification.
+Original candidate identity, privacy, frontmatter and quote/index pairs must pass
+code checks before Jev evaluates full evidence. Outputs are never applied.
+The stricter research citation guard does not change production behavior.
+Thirty-two network-disabled preflights passed without model calls. A real local
+SIGTERM probe verified owned process/container cleanup for the final runner.
+Missing, partial or multiply requested main-model usage and incomplete Jev usage
+remain unknown rather than zero cost. The paid pilot completed all 32 arms: 80 provider requests (32 main, 48 Jev),
+zero timeouts, missing-usage arms or production writes. Actual Jev was 1.13;
+known client estimates total $0.043907326, without adding overlapping proxy
+usage or claiming verified billing. Independent model review observed complete
+knowledge in 14/16 samples in both arms, history noise in 7 versus 2, and a new
+requested-history context omission. Two transient-only candidates remained
+unsuitable for lasting memory in both arms. Jev allow increased from 11 to 13,
+but this does not establish net learning benefit. The clarification was not
+adopted; Jev remains optional with its existing default. No heldout project or
+actual learning/recall effect was tested here. See @tests/jev-durable-core-generator-manifest.json,
+@tests/jev-durable-core-generator-prepaid-review.json and
+@tests/jev-durable-core-generator-usage-cancellation.json.
+
+Completed results and the no-adoption decision: @tests/jev-durable-core-generator-real-results.json,
+@tests/jev-durable-core-generator-independent-quality-review.json and
+@tests/jev-durable-core-generator-adoption-decision.json.
+
+A separate research-only Memory quality pilot froze 48 authored development samples:
+32 preserved generator outputs plus 16 newly authored samples, including facts
+from pinned Nanoid and Tinypool READMEs. These are neither heldout project workflows
+nor human gold labels. Each candidate received a lasting-value Noul and the whole
+resulting Memory received an explicit-request omission Noul. Baseline proposals
+remained proposals; thresholds and write permissions were unchanged. Raw create
+plans, source quotes, exact resulting bodies and case-insensitive inventory
+identity were checked before any inference. Transport helpers and runtime bytes
+were frozen and reviewed; the final network-disabled preflight made zero calls.
+
+The real study made 80 Jev 1.13 requests in 99.654 seconds, with one quality timeout
+and 79 known usage responses. Known estimates total $0.002963268; total cost remains
+unknown and billing unverified. Against fixed development labels, combining the
+new quality check reduced unsuitable allows from 4 to 1, but also reduced eligible
+allows from 20 to 10. Among seven labeled omissions, the omission question definitely detected none:
+two were missed and five remained uncertain. The ten new eligible holds were
+nine uncertain decisions and one timeout, not ten demonstrated semantic errors. All 16 fresh baselines were proposals, with generic
+metadata descriptions causing support uncertainty, so that cohort cannot establish
+an improvement in completed learning. These failures are retained, not repaired
+retrospectively by changing labels or retrying inference. The new gate is not
+adopted; default Jev behavior remains unchanged. No actual Memory writes, recall
+or Harness execution occurred in this semantic pilot.
+
+Subsequent Pi generation and project experiments use the user-selected
+`cli-proxy / opencode/space-bunny-free`. One isolated real Pi availability probe
+returned the expected marker; this does not establish learning quality or verified
+cost. Host global configuration was not changed. See
+@tests/jev-space-bunny-model-probe.json,
+@tests/jev-memory-quality-manifest.json,
+@tests/jev-memory-quality-real-results.json and
+@tests/jev-memory-quality-adoption-decision.json.
+
+The incremental repair schema example now uses the same concrete fact in its
+index description and body, and explicitly forbids treating the example as
+candidate evidence. Original citations, identities, privacy, repair count and
+Jev checks remain unchanged. A dynamic worker-prompt regression reproduced the
+previous mismatch before the fix. This is a local prompt correction, not a
+verified model quality gain.
+
+An eight-arm isolated native comparison using `cli-proxy/opencode/space-bunny-free`
+attempted both versions on four fixed bilingual Nanoid/Tinypool development
+samples. All eight main requests failed upstream, so no candidates or Jev
+judgments were available and the quality comparison is unverified. All owned
+containers and process groups were stopped; failed-response usage remains unknown.
+A separate two-call Pi diagnostic received HTTP 429 with both default thinking
+and thinking off; this is not a learning experiment or proof of the earlier
+failure's exact cause. Earlier simple model availability does not establish
+current workflow availability. See @tests/jev-repair-schema-real-results.json,
+@tests/jev-repair-schema-model-diagnostic.json and
+@tests/jev-repair-schema-verification.json. No favorable retries or missing-result
+zero scores are used to claim improvement.
+
+A subsequent read-only completeness pilot used 20 fixed development outputs:
+four real generator outputs, eight previously authored samples and eight new
+controls, spanning five request contexts in English and Chinese. Forty-eight
+requirements were manually anchored to exact original user spans and independently
+model-reviewed before inference. Both the whole omission question and each
+requirement-preservation Noul received identical resulting Memory bodies with
+frontmatter removed. Unknown responses never become complete; no completeness
+answer grants extraction, privacy or write authority. Extra requirement fields
+are rejected so evaluation labels cannot enter questions.
+
+Twenty real Jev 1.13 calls completed in 32.003 seconds, with all usage known and
+no writes. The joint batch estimate is $0.001129002, billing unverified; separate
+method costs and latency were not measured. Against the authored labels, definite
+omission detection increased from 3 to 4 of 9, and one unsafe complete judgment
+became uncertain. Of 11 complete samples, both methods recognized 8, but two
+improvements were offset by two new holds, both Chinese; Chinese recognition fell
+from 4 to 3. The 48 item judgments included 38 decisive correct answers and 10
+uncertain answers, including five missing requirements still not definitely
+identified. This is a local safety signal, not a production learning benefit:
+manual requirement extraction, bilingual regressions and actual workflow effects
+remain unresolved. The new method is not adopted and Jev defaults are unchanged.
+
+An initial execution preparation failed before any model call because the proxy
+read an unfrozen task-local configuration path. Original zero-call failure
+artifacts are retained. The final runner checks the actual configuration paths;
+an offline regression and renewed network-disabled preflight confirmed the fix
+before real inference. See @tests/jev-request-completeness-real-results.json,
+@tests/jev-request-completeness-adoption-decision.json and
+@tests/jev-request-completeness-verification.json.
+
+A subsequent automatic text-coverage pilot preserves every selected original
+user character in 30 source spans, without manually selecting the 48 known
+requirements. On the same 20 development outputs in a new joint batch,
+whole/manual/automatic judgment detected 2/4/4 of 9 incomplete outputs, but
+recognized 9/7/6 of 11 complete outputs; Chinese complete recognition was 4/3/2.
+All 20 real Jev calls completed with known usage. Text coverage does not establish
+atomic semantic extraction, durable relevance or write permission. This pilot
+is not adopted because net benefit is unproven. See
+@tests/jev-user-request-coverage-real-results.json and
+@tests/jev-user-request-coverage-adoption-decision.json.
+
+A separate two-call readiness diagnostic kept cli-proxy/opencode/space-bunny-free
+and compared actual output caps of 524,288 and 8,192. Both calls returned HTTP 429
+with `model_cooldown` (roughly 6h36m remaining when tested), so generation and any
+output-cap effect on a healthy model remain unverified. No host configuration
+change was adopted. CLI exit 0 was separated from assistant failure, and failed
+usage remains unknown. See @tests/jev-main-output-budget-real-results.json and
+@tests/jev-main-output-budget-adoption-decision.json. The diagnostic's local proxy
+sockets and owned containers were closed; remote cancellation is unverified.
+
+Failed or aborted planner replies cannot supply Memory, Harness or AGENTS.md
+candidates, even when Pi exits with zero or their partial text contains valid
+JSON. They stop before repair, Jev judgment and application. Retry bookkeeping
+does not clear cancellation; only a successful fresh reply restores completion.
+This also applies to Memory repair through pi-kit. Receipts report missing
+worker usage and cost as unavailable, with known subtotals when present, rather
+than treating failed calls as free. Legacy v1 receipts remain readable. These
+failure-handling checks establish safety behavior, not overall Jev quality gains.
+The network-disabled native Docker check loaded the extension with Pi 1.0.2,
+observed `stopReason: "error"` with CLI exit zero, rejected the plan and returned
+a failed pi-kit worker with empty text and unavailable usage. It used a local
+fault transport rather than external inference. A second local transport sent
+valid plan-like JSON before a stream error: native Pi retained that JSON with
+`stopReason: "error"` and exit zero, while both extractors rejected it. Grounded
+full-plan application safety is covered by regression fixtures. See
+@tests/jev-failed-planner-native-results.json.
+
+The fixed requirement-indirection comparison used the same 20 development
+samples, original user spans, full frozen state, resulting Memory bodies,
+criteria and 0.9/0.1 thresholds. Flattening `requirement.quote` into a direct
+`requestedFragment` recognized complete outputs in 11/11 cases versus 9/11
+for the nested form in this run, but incomplete outputs judged complete also
+rose from 0 to 1; definite
+omission detection remained 4/9. The new false acceptance involved a Chinese
+requested purpose. It is not adopted, and no favorable retry or heldout run
+followed that regression. All 20 real Jev 1.13.0 calls returned usage: 36,840
+input and 2,096 output tokens, with known input-tariff estimate $0.00154728.
+Both arms share each batch, so their latency and cost cannot be compared
+independently; total reported request duration was 21,980 ms. There were no
+main-model calls, writes, recall or Harness executions. This does not establish
+plugin learning net benefit. See @tests/jev-focused-requirement-manifest.json,
+@tests/jev-focused-requirement-real-results.json and
+@tests/jev-focused-requirement-adoption-decision.json.

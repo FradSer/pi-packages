@@ -12,6 +12,7 @@ import { registerGoalCommands } from "./commands.ts";
 import { registerGoalEvents } from "./events.ts";
 import { registerGoalTools } from "./tools.ts";
 import { refreshDashboard } from "./dashboard.ts";
+import { registerGoalProcedureRenderer } from "./procedure.ts";
 
 /**
  * Dependencies are injectable so a test harness can supply its own verdict and
@@ -21,6 +22,7 @@ import { refreshDashboard } from "./dashboard.ts";
 export default function goalExtension(pi: ExtensionAPI, dependencies: GoalCoreOptions = {}): void {
   const core = new GoalCore(pi, dependencies.projectRoot ?? process.cwd(), dependencies);
   core.onRefresh = (ctx) => refreshDashboard(core, ctx);
+  registerGoalProcedureRenderer(pi);
   registerGoalTools(core);
   registerGoalCommands(core);
   registerGoalEvents(core);
@@ -28,5 +30,4 @@ export default function goalExtension(pi: ExtensionAPI, dependencies: GoalCoreOp
   // module internals. Read-only hook; no behavior depends on it.
   (pi as unknown as { _goalCore?: GoalCore })._goalCore = core;
 }
-
 

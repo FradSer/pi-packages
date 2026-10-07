@@ -1,0 +1,30 @@
+{
+  "evidence": "complete-candidate-observation-final-verification",
+  "scope": "Observations only, no partition or semantic quality claim.",
+  "fullTargetTests": {
+    "passed": 858,
+    "seconds": 258.3,
+    "processExitCode": 0
+  },
+  "targetedTests": 3,
+  "rootTypecheck": "passed",
+  "installCheck": {
+    "packages": 17,
+    "settings": 18,
+    "passed": true
+  },
+  "targetPackDryRun": "passed",
+  "rootPackedManifests": 18,
+  "independentReview": "passed - cited_memory_security_review",
+  "nativePi": "1.0.0",
+  "externalInferenceRequests": 0,
+  "productionCandidateWrites": 0,
+  "sameBatchIndependenceProven": false,
+  "goalComplete": false,
+  "fileSha256": {
+    "../extensions/jev-learning.ts": "965220940e50cf2bdfac3c283874615304907a296814b75025368b98d3d37d4c",
+    "test_jev_candidate_review.py": "482e76ac5b18e52f8e1df6ee06daa9422c7cd0ca5929879ec8dcba843de7ec50",
+    "jev-candidate-review-native-print-evidence.json": "594b9e030b0ceae7254429b97395aa2d6769db0080e0e402178aba0fdbe4d9a0",
+    "jev-candidate-review-source-preservation.json": "909bfed24f45d5d60e81e2554e1f7f0d3e569a03df1bbb49e14fb39af0454199"
+  }
+}

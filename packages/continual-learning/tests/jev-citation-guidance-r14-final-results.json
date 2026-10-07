@@ -1,0 +1,71 @@
+{
+  "evidence": "real-six-isolated-Docker-workflows",
+  "terminalExitCode": 1,
+  "sourceDigest": "beedbeebea1f64794d21d8339fb151fa3974ed3a4ad4735bc1dfe4b6cbe274df",
+  "image": "continual-learning-projects:beedbeebea1f6479",
+  "imageId": "sha256:7360e2f1d42e7cbf4562f47adfb17a57f4909619ac279dfcf0622b9a15d92bec",
+  "summarySha256": "5cc5e84ba5b69007096b1a1b122471e118b774eb9867ffece59982d13c570541",
+  "providerRequestsTotal": 199,
+  "mainProviderRequests": 166,
+  "jevRequests": 33,
+  "providerErrors": 0,
+  "jevUsageComplete": true,
+  "actualJevModels": [
+    "jev-1.13.0"
+  ],
+  "jevInputTokens": 209107,
+  "jevEstimatedCostUsd": 0.008782494,
+  "knownMainEstimatedCostUsd": 0.1261419,
+  "mainUsageCoverageCompleteVerified": false,
+  "accountBillingVerified": false,
+  "results": [
+    {
+      "project": "click",
+      "mode": "off",
+      "status": "passed",
+      "stage": "complete"
+    },
+    {
+      "project": "click",
+      "mode": "on",
+      "status": "passed",
+      "stage": "complete"
+    },
+    {
+      "project": "mitt",
+      "mode": "off",
+      "status": "failed",
+      "stage": "native-harness-enforcement"
+    },
+    {
+      "project": "mitt",
+      "mode": "on",
+      "status": "failed",
+      "stage": "real-regression-task"
+    },
+    {
+      "project": "p-limit",
+      "mode": "off",
+      "status": "passed",
+      "stage": "complete"
+    },
+    {
+      "project": "p-limit",
+      "mode": "on",
+      "status": "failed",
+      "stage": "real-regression-task"
+    }
+  ],
+  "offPassed": 2,
+  "onPassed": 1,
+  "goalComplete": false,
+  "qualityUpliftProved": false,
+  "limits": [
+    "Paired Jev on/off compares this prompt; no pre-prompt generation arm.",
+    "p-limit on contains one independently unsupported extra candidate; two valid records also withheld.",
+    "mitt off lacked actual prohibited Bash attempt; missing hook evidence is retained as failure.",
+    "Shared structural/semantic repair quota unchanged.",
+    "Jev costs are configured tariff estimates; main costs cover recorded usage only.",
+    "Baseline agent sometimes manually discovered private Memory; recall gain not established."
+  ]
+}

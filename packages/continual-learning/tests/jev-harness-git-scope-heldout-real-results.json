@@ -1,0 +1,2754 @@
+{
+  "evidence": "real-jev-proven-git-scope-cited-heldout-paired-research",
+  "productionWriteEligible": false,
+  "change": "Only exact finite Git matcher syntax is replaced by code-proven matching descriptions in scope/counter questions; support, evidence, criteria, thresholds and bounds remain unchanged",
+  "complete": true,
+  "samples": 20,
+  "labeledSamples": 20,
+  "corpusSha256": "59e2ef2be30419e49d5880fe14ebbd105163ebcd69fd741d1d8b849fd473d225",
+  "codeHashes": {
+    "./jev-harness-support-shadow.ts": "72e5c1bf2cf2e97a4e360b9b2fa506d98d3bdfe8567b924c208b88fe34897993",
+    "./jev-controlled-diagnostics.ts": "bbbdee978f4b95957afb135ff985e50c638daab303af192e6f9707789d88f834",
+    "./jev-paired-metrics.ts": "6d2fc836b16f54add8dc2d9102d372cbf0c904469d63dfcb400d23d445784d2f",
+    "../extensions/agents-md-consolidation.ts": "9ea854a4ed0ebdb5dbf0851430676c82eb572567900fe32046ea429021b8ea91",
+    "../extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+    "../extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+    "../extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675",
+    "../extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+    "../extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "../extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+    "../extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+    "../extensions/harness-consolidation.ts": "531a9998669872f6747842266351218085b12666d72b8212994fe28c15c15cf7",
+    "../extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+    "../extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+    "../extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+    "../extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+    "../extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+    "../extensions/inject-memory.ts": "9e7d8211dd2ed06a8b5c85ca5fc1ec5842918692ace48c0434df598f96a5fa11",
+    "../extensions/jev-learning.ts": "c1bdb286d62c227b0f89e37ee85e391c7ce2d40e1c38be1133c35c71f578cd53",
+    "../extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+    "../extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+    "../extensions/learning-efficiency.ts": "8dce173ad5c671df2937324e173f42bb486bf06d86e326e12595808d10f7aa01",
+    "../extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+    "../extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+    "../extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+    "../extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+    "../extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+    "../extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "../extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+    "../extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+    "../extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+    "../extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+    "../extensions/planner-prompts.ts": "dc85de75a31251315cfc0bc0b269993acb0c4020ec62e55a0ad4ff8028309068",
+    "./jev-harness-support-r8-regression-manifest.json": "3d58a3f8dcf09540577ea39be868a22973cb11bf9c58bf3f4fbc080ab0cb918d",
+    "./jev-harness-support-p-limit-r8-regression-manifest.json": "cd941c8b639d51d7e40af3e0d8a7e064a274796689ffa9c5fb7668920748fcc6",
+    "./jev-harness-git-scope-shadow.ts": "1156c7f1f7b61583c1fd6b248cf3782042d72f51ffc1a862f6e75de782c3346b",
+    "./jev-harness-research-validation.ts": "3efaa21f8cf5f70b1da3eb690e6cb9bf397ed720094a0fbaf56094a410b30e7e",
+    "./evaluate_jev_harness_git_scope_heldout.ts": "ac3eeffe9fa448793b28571a8013c641aab65843398296afb86597bd2c40f484"
+  },
+  "outboundRequests": 80,
+  "requestBudget": 144,
+  "requests": {
+    "before": 40,
+    "after": 40
+  },
+  "durationsMs": {
+    "before": [
+      2430,
+      406,
+      505,
+      737,
+      415,
+      438,
+      493,
+      476,
+      940,
+      437,
+      408,
+      698,
+      436,
+      424,
+      815,
+      755,
+      420,
+      568,
+      483,
+      459
+    ],
+    "after": [
+      398,
+      401,
+      418,
+      401,
+      718,
+      413,
+      704,
+      511,
+      420,
+      433,
+      420,
+      1106,
+      405,
+      647,
+      858,
+      417,
+      1175,
+      408,
+      523,
+      692
+    ]
+  },
+  "metrics": {
+    "before": {
+      "evaluatedPlans": 20,
+      "skippedIncompletePlans": 0,
+      "falseAccepts": 0,
+      "falseHolds": 8
+    },
+    "after": {
+      "evaluatedPlans": 20,
+      "skippedIncompletePlans": 0,
+      "falseAccepts": 0,
+      "falseHolds": 5
+    }
+  },
+  "knownInputTokens": 81748,
+  "knownEstimatedCostUsd": 0.0034334159999999995,
+  "results": [
+    {
+      "id": "en-heldout-repository-wide-ban",
+      "language": "en",
+      "expectedAllow": true,
+      "snapshotHash": "afe3d71a2405f78d8804ffe8f40c672ffd492101a2e0d8c5558774b44215b8c5",
+      "planHash": "5f218e6cbee56cb058f56d32936c9e52cf937a905bdf23b68563691c3d46c48f",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 2430,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1934,
+          "outputTokens": 115,
+          "estimatedCostUsd": 0.000081228,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 398,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2076,
+          "outputTokens": 117,
+          "estimatedCostUsd": 0.000087192,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-heldout-ban-with-irrelevant-fault",
+      "language": "en",
+      "expectedAllow": true,
+      "snapshotHash": "291eaa3282b375d8886acbc5350c9a4861886ec8f5c166c30187b08e27586b83",
+      "planHash": "bb25576e9a92cf93b4faf8af516112f7190b36ba4f45cda414d16819f72a5e15",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 406,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1962,
+          "outputTokens": 115,
+          "estimatedCostUsd": 0.000082404,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 401,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2104,
+          "outputTokens": 117,
+          "estimatedCostUsd": 0.000088368
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-each-time",
+      "language": "en",
+      "expectedAllow": true,
+      "snapshotHash": "e5988eb6fd96101e059ac603142b9a5ed4c41c916d9e07dc215b8059d71c9e55",
+      "planHash": "c06678b4374e9c8f456b2999b7e98cd7a5f769c71ad10768ad15da79fe5798dc",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 505,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1958,
+          "outputTokens": 115,
+          "estimatedCostUsd": 0.00008223600000000002,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 418,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2100,
+          "outputTokens": 117,
+          "estimatedCostUsd": 0.0000882,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-repeat",
+      "language": "en",
+      "expectedAllow": true,
+      "snapshotHash": "805c3accae49a84a97ac90a75eaca831bfc6e15dacf04aaba2e8ed447512d2ea",
+      "planHash": "fe11b4f2698a9a5fa5da4a2ccc4681a62ab2817b51d2c5992b28f30f6dce3100",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 737,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1952,
+          "outputTokens": 116,
+          "estimatedCostUsd": 0.000081984,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 401,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2094,
+          "outputTokens": 117,
+          "estimatedCostUsd": 0.000087948
+        }
+      }
+    },
+    {
+      "id": "en-heldout-single-branch",
+      "language": "en",
+      "expectedAllow": false,
+      "snapshotHash": "7f062c7fdf8f0d2945a813ac4e545aa2d5199a322be5742f67290a3b5a803bcc",
+      "planHash": "2e9f0006837a6cbc978f6869ff1324edcd3d077d85c4f433b8a6188cc9e4c8f2",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 415,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1928,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.000080976,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 718,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2070,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008694,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-heldout-single-task",
+      "language": "en",
+      "expectedAllow": false,
+      "snapshotHash": "14e99e5bdad2de8c9dcb3a4ad9f0b89d067ccd7376834cb974924334e1fe36e6",
+      "planHash": "670338d022eeb454aa3c8876f68967f91fe6616b99a35ceae90dcc9f7746dc87",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 438,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1925,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008085000000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 413,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2067,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.000086814,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-heldout-other-project",
+      "language": "en",
+      "expectedAllow": false,
+      "snapshotHash": "b3e20ed9a5af07815a309a2b9a65adc2774c4ba53cf5bf42345c323772c6503c",
+      "planHash": "bc4bc4d55098dce2d143e548256a6348b29d2da681f87696b1daae4b6022aca0",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 493,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1928,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.000080976,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 704,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2070,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008694,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-exception",
+      "language": "en",
+      "expectedAllow": false,
+      "snapshotHash": "c3d14cd21f91845bc7ac916ce51c4c469cb041a12a5cf24f221fe380fa04b710",
+      "planHash": "c3c1cb9fb6ead1d0748e79d4095a7eb12dc49f8d02da16a4a3bf14290f23e42b",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 476,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1931,
+          "outputTokens": 116,
+          "estimatedCostUsd": 0.000081102,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 511,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2073,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008706600000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "en-heldout-later-rescind",
+      "language": "en",
+      "expectedAllow": false,
+      "snapshotHash": "413267413b91b9ccdd58ff89d586c3eb292d4fce48f4d08fea9269c6e88812f0",
+      "planHash": "42f0d2a6b956a5258e85439bfa3390a00b9f62e9337e6a7a60af8e7e215dc6f8",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 940,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1943,
+          "outputTokens": 117,
+          "estimatedCostUsd": 0.000081606,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 420,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2085,
+          "outputTokens": 119,
+          "estimatedCostUsd": 0.00008757,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      }
+    },
+    {
+      "id": "en-heldout-confirm-weakens-ban",
+      "language": "en",
+      "expectedAllow": false,
+      "snapshotHash": "f0e86f617ee027916796b2347c6cf96845ad7ba0695cbb8bb70f79a33c2c2e42",
+      "planHash": "b452c10c714a83d1104d3c8d219bc5440202508d05252647e3cc7c7b4bef269d",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 437,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1943,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008160599999999999,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 433,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2085,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008757,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-repository-wide-ban",
+      "language": "zh",
+      "expectedAllow": true,
+      "snapshotHash": "b50a4935905c58e472eaaf993ba2434d261ac85fea53e8d9eaf329f63cbd3296",
+      "planHash": "f05f31c19efbf6cd7ae6a78ccfa88e456d33e20e185738b3f3266b3d22f79c86",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 408,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2006,
+          "outputTokens": 115,
+          "estimatedCostUsd": 0.000084252,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 420,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2148,
+          "outputTokens": 117,
+          "estimatedCostUsd": 0.000090216,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-ban-with-irrelevant-fault",
+      "language": "zh",
+      "expectedAllow": true,
+      "snapshotHash": "c98f3e290e8fefaa97d82be3a7cfb7dd006f65db97ab1064213fe982e4fd8793",
+      "planHash": "b9b355fe066d73437631c7dad026be09d65874cb31cff8991be9995be56856eb",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 698,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2041,
+          "outputTokens": 115,
+          "estimatedCostUsd": 0.000085722,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1106,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2183,
+          "outputTokens": 117,
+          "estimatedCostUsd": 0.000091686,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "counterevidence",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "counterevidence"
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-each-time",
+      "language": "zh",
+      "expectedAllow": true,
+      "snapshotHash": "6cdd90d78ca56d2a4a92b52b9362dfc964d24d81920b8d9f067d435326a145b4",
+      "planHash": "f36de72baa67df645a3d2c4b6c4093c5718a25b4f58c259dcf37ac5d76ee95fa",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 436,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2084,
+          "outputTokens": 115,
+          "estimatedCostUsd": 0.000087528,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "scope",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "scope"
+        }
+      },
+      "after": {
+        "decision": "allow",
+        "telemetry": {
+          "stage": "harness",
+          "status": "decided",
+          "reason": "supported",
+          "durationMs": 405,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2226,
+          "outputTokens": 117,
+          "estimatedCostUsd": 0.000093492
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-repeat",
+      "language": "zh",
+      "expectedAllow": true,
+      "snapshotHash": "d497553200da517dc75d630345d4fbec9c9e5a0e1f23a0718b80b4f2bcc5c3e8",
+      "planHash": "0295bf886ab29323a78c1d831a83174fc73368dd34afaefb13d5c4d97a3ef2db",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 424,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2007,
+          "outputTokens": 115,
+          "estimatedCostUsd": 0.000084294,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 647,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2149,
+          "outputTokens": 117,
+          "estimatedCostUsd": 0.00009025800000000002,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-single-branch",
+      "language": "zh",
+      "expectedAllow": false,
+      "snapshotHash": "668694d481b34d6a12a1f66f76cbb80b582115933c439e5ab5a31ef4e2f571f2",
+      "planHash": "d0b77a5bf5e78a9e8e7eb329338812eed71a1ef7f9ef2472e09aa6ea8e96097e",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 815,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1982,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.000083244,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 858,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2124,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.000089208,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-single-task",
+      "language": "zh",
+      "expectedAllow": false,
+      "snapshotHash": "55b19d527c51371c28aff4d0cb5468e5c0e8ee74530ed4b74878417b50344d12",
+      "planHash": "ba423048a9b30b36440ba2a3b0f3282d043c9618879c698ddf82b7ba1aae720c",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 755,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1976,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008299200000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 417,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2118,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008895600000000001,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-other-project",
+      "language": "zh",
+      "expectedAllow": false,
+      "snapshotHash": "55aa5adbc5051a92a77ed7f076fad674f6d16ebfc2eab572d3773e81db448649",
+      "planHash": "f66007fc4c47382a2d3a0947364076983b0c486d4a7f72c2fbc7f0cb7b277269",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 420,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1973,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.000082866,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 1175,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2115,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008883,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-exception",
+      "language": "zh",
+      "expectedAllow": false,
+      "snapshotHash": "8fdc57ed59bf97b7434e35c83108f87d98b7cde3e2c6769a172c73be0380c98c",
+      "planHash": "bf7b1b997c1abbcca05f8cbbe8e40f5efb0e35449296397b34ad18a025a24422",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 568,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1997,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.000083874,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 408,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2139,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008983799999999999,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-later-rescind",
+      "language": "zh",
+      "expectedAllow": false,
+      "snapshotHash": "0662c2e750614a15cc9b9a7bccdcafcee8b8fa8e934d78a6dec2780836a456b6",
+      "planHash": "6863c355f370de0fea3eb9b54470602433861bd155a8fd334ed94f77dc220ce1",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 483,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1996,
+          "outputTokens": 117,
+          "estimatedCostUsd": 0.000083832,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "uncertain",
+          "durationMs": 523,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 2,
+          "coveredEntries": 2,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2138,
+          "outputTokens": 119,
+          "estimatedCostUsd": 0.000089796,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "uncertain"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-confirm-weakens-ban",
+      "language": "zh",
+      "expectedAllow": false,
+      "snapshotHash": "163b11be28dcf95e6808ebe98a71957100e9afd937e63f9fa843cd5afbefca99",
+      "planHash": "d179a8a514e992630ae121b936daac0cdb6c6c5cabd5336b413e86e55c9b232c",
+      "before": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 459,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 1988,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.000083496,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      },
+      "after": {
+        "decision": "propose",
+        "telemetry": {
+          "stage": "harness",
+          "status": "propose",
+          "reason": "unsupported",
+          "durationMs": 692,
+          "strategy": "cited-support-full-review",
+          "evidenceEntries": 1,
+          "coveredEntries": 1,
+          "evidenceWindows": 1,
+          "completedWindows": 1,
+          "requestCount": 2,
+          "completedRequests": 2,
+          "model": "jev-1.13.0",
+          "inputTokens": 2130,
+          "outputTokens": 118,
+          "estimatedCostUsd": 0.00008946,
+          "candidateFailures": [
+            {
+              "candidateIndex": 0,
+              "dimension": "support",
+              "reason": "unsupported"
+            }
+          ],
+          "candidateIndex": 0,
+          "dimension": "support"
+        }
+      }
+    }
+  ],
+  "diagnostics": [
+    {
+      "id": "en-heldout-repository-wide-ban",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "same",
+          "confidence": 0.27,
+          "probabilities": {
+            "same": 0.45,
+            "narrower": 0.18,
+            "broader": 0.36,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.86
+        }
+      }
+    },
+    {
+      "id": "en-heldout-repository-wide-ban",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.67,
+          "probabilities": {
+            "compatible": 0.78,
+            "contradicts": 0.15,
+            "unclear": 0.07
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-repository-wide-ban",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.71,
+          "probabilities": {
+            "compatible": 0.8,
+            "contradicts": 0.12,
+            "unclear": 0.08
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-repository-wide-ban",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "narrower",
+          "confidence": 0.83,
+          "probabilities": {
+            "same": 0.04,
+            "narrower": 0.88,
+            "broader": 0.08,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.87
+        }
+      }
+    },
+    {
+      "id": "en-heldout-ban-with-irrelevant-fault",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "same",
+          "confidence": 0.47,
+          "probabilities": {
+            "same": 0.61,
+            "narrower": 0.19,
+            "broader": 0.19,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.94
+        }
+      }
+    },
+    {
+      "id": "en-heldout-ban-with-irrelevant-fault",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.94,
+          "probabilities": {
+            "compatible": 0.96,
+            "contradicts": 0.02,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-ban-with-irrelevant-fault",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "narrower",
+          "confidence": 0.93,
+          "probabilities": {
+            "same": 0.02,
+            "narrower": 0.96,
+            "broader": 0.02,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.94
+        }
+      }
+    },
+    {
+      "id": "en-heldout-ban-with-irrelevant-fault",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.85,
+          "probabilities": {
+            "compatible": 0.9,
+            "contradicts": 0.06,
+            "unclear": 0.04
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-each-time",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.92,
+          "probabilities": {
+            "compatible": 0.95,
+            "contradicts": 0.02,
+            "unclear": 0.03
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-each-time",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "same",
+          "confidence": 0.6,
+          "probabilities": {
+            "same": 0.69,
+            "narrower": 0.13,
+            "broader": 0.17,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.93
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-each-time",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.82,
+          "probabilities": {
+            "compatible": 0.88,
+            "contradicts": 0.05,
+            "unclear": 0.07
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-each-time",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "narrower",
+          "confidence": 0.95,
+          "probabilities": {
+            "same": 0.02,
+            "narrower": 0.96,
+            "broader": 0.02,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.93
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-repeat",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.97,
+          "probabilities": {
+            "compatible": 0.98,
+            "contradicts": 0.01,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-repeat",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.44,
+          "probabilities": {
+            "same": 0.35,
+            "narrower": 0.06,
+            "broader": 0.58,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.91
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-repeat",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "narrower",
+          "confidence": 0.86,
+          "probabilities": {
+            "same": 0.04,
+            "narrower": 0.89,
+            "broader": 0.06,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.92
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-repeat",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.93,
+          "probabilities": {
+            "compatible": 0.96,
+            "contradicts": 0.02,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-single-branch",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.99,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0,
+            "broader": 1,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.18
+        }
+      }
+    },
+    {
+      "id": "en-heldout-single-branch",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.38,
+          "probabilities": {
+            "compatible": 0.33,
+            "contradicts": 0.58,
+            "unclear": 0.09
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-single-branch",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.95,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0.03,
+            "broader": 0.97,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.16
+        }
+      }
+    },
+    {
+      "id": "en-heldout-single-branch",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.32,
+          "probabilities": {
+            "compatible": 0.35,
+            "contradicts": 0.54,
+            "unclear": 0.11
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-single-task",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.85,
+          "probabilities": {
+            "compatible": 0.06,
+            "contradicts": 0.9,
+            "unclear": 0.04
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-single-task",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 1,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0,
+            "broader": 1,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.06
+        }
+      }
+    },
+    {
+      "id": "en-heldout-single-task",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.98,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0.02,
+            "broader": 0.98,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.06
+        }
+      }
+    },
+    {
+      "id": "en-heldout-single-task",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.87,
+          "probabilities": {
+            "compatible": 0.05,
+            "contradicts": 0.91,
+            "unclear": 0.04
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-other-project",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.16,
+          "probabilities": {
+            "compatible": 0.38,
+            "contradicts": 0.45,
+            "unclear": 0.17
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-other-project",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.94,
+          "probabilities": {
+            "same": 0.01,
+            "narrower": 0.03,
+            "broader": 0.96,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.09
+        }
+      }
+    },
+    {
+      "id": "en-heldout-other-project",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.88,
+          "probabilities": {
+            "same": 0.01,
+            "narrower": 0.08,
+            "broader": 0.91,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.09
+        }
+      }
+    },
+    {
+      "id": "en-heldout-other-project",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.29,
+          "probabilities": {
+            "compatible": 0.31,
+            "contradicts": 0.53,
+            "unclear": 0.16
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-exception",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.99,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0.01,
+            "broader": 0.99,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.37
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-exception",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.22,
+          "probabilities": {
+            "compatible": 0.48,
+            "contradicts": 0.47,
+            "unclear": 0.05
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-exception",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.35,
+          "probabilities": {
+            "compatible": 0.38,
+            "contradicts": 0.5599999999999999,
+            "unclear": 0.06
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-approval-exception",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.95,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0.04,
+            "broader": 0.96,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.38
+        }
+      }
+    },
+    {
+      "id": "en-heldout-later-rescind",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "same",
+          "confidence": 0.63,
+          "probabilities": {
+            "same": 0.73,
+            "narrower": 0.03,
+            "broader": 0.24,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.91
+        }
+      }
+    },
+    {
+      "id": "en-heldout-later-rescind",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.94,
+          "probabilities": {
+            "compatible": 0.03,
+            "contradicts": 0.96,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-later-rescind",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "narrower",
+          "confidence": 0.61,
+          "probabilities": {
+            "same": 0.15,
+            "narrower": 0.71,
+            "broader": 0.13,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.92
+        }
+      }
+    },
+    {
+      "id": "en-heldout-later-rescind",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.95,
+          "probabilities": {
+            "compatible": 0.03,
+            "contradicts": 0.96,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-confirm-weakens-ban",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.9,
+          "probabilities": {
+            "same": 0.01,
+            "narrower": 0.07,
+            "broader": 0.92,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.06
+        }
+      }
+    },
+    {
+      "id": "en-heldout-confirm-weakens-ban",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.88,
+          "probabilities": {
+            "compatible": 0.07,
+            "contradicts": 0.92,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-confirm-weakens-ban",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.94,
+          "probabilities": {
+            "compatible": 0.03,
+            "contradicts": 0.96,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "en-heldout-confirm-weakens-ban",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.75,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0.18,
+            "broader": 0.8200000000000001,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.08
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-repository-wide-ban",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.87,
+          "probabilities": {
+            "compatible": 0.92,
+            "contradicts": 0.03,
+            "unclear": 0.05
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-repository-wide-ban",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "same",
+          "confidence": 0.43,
+          "probabilities": {
+            "same": 0.58,
+            "narrower": 0.22,
+            "broader": 0.19,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.94
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-repository-wide-ban",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "narrower",
+          "confidence": 0.93,
+          "probabilities": {
+            "same": 0.03,
+            "narrower": 0.95,
+            "broader": 0.02,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.94
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-repository-wide-ban",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.8,
+          "probabilities": {
+            "compatible": 0.86,
+            "contradicts": 0.06,
+            "unclear": 0.08
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-ban-with-irrelevant-fault",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "same",
+          "confidence": 0.32,
+          "probabilities": {
+            "same": 0.49,
+            "narrower": 0.35,
+            "broader": 0.15,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.93
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-ban-with-irrelevant-fault",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.92,
+          "probabilities": {
+            "compatible": 0.94,
+            "contradicts": 0.02,
+            "unclear": 0.04
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-ban-with-irrelevant-fault",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.84,
+          "probabilities": {
+            "compatible": 0.89,
+            "contradicts": 0.05,
+            "unclear": 0.06
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-ban-with-irrelevant-fault",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "narrower",
+          "confidence": 0.93,
+          "probabilities": {
+            "same": 0.03,
+            "narrower": 0.95,
+            "broader": 0.02,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.93
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-each-time",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.95,
+          "probabilities": {
+            "compatible": 0.97,
+            "contradicts": 0.01,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-each-time",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "same",
+          "confidence": 0.52,
+          "probabilities": {
+            "same": 0.64,
+            "narrower": 0.15,
+            "broader": 0.2,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.94
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-each-time",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "narrower",
+          "confidence": 0.93,
+          "probabilities": {
+            "same": 0.03,
+            "narrower": 0.95,
+            "broader": 0.02,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.94
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-each-time",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.9,
+          "probabilities": {
+            "compatible": 0.93,
+            "contradicts": 0.03,
+            "unclear": 0.04
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-repeat",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.97,
+          "probabilities": {
+            "compatible": 0.98,
+            "contradicts": 0.01,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-repeat",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "same",
+          "confidence": 0.49,
+          "probabilities": {
+            "same": 0.62,
+            "narrower": 0.07,
+            "broader": 0.3,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.89
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-repeat",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "narrower",
+          "confidence": 0.83,
+          "probabilities": {
+            "same": 0.06,
+            "narrower": 0.87,
+            "broader": 0.06,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.89
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-repeat",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "compatible",
+          "confidence": 0.93,
+          "probabilities": {
+            "compatible": 0.95,
+            "contradicts": 0.02,
+            "unclear": 0.03
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-single-branch",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.29,
+          "probabilities": {
+            "compatible": 0.32,
+            "contradicts": 0.53,
+            "unclear": 0.15
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-single-branch",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.99,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0,
+            "broader": 1,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.22
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-single-branch",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.26,
+          "probabilities": {
+            "compatible": 0.31,
+            "contradicts": 0.51,
+            "unclear": 0.18
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-single-branch",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.92,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0.06,
+            "broader": 0.94,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.21
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-single-task",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.91,
+          "probabilities": {
+            "compatible": 0.04,
+            "contradicts": 0.94,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-single-task",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 1,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0,
+            "broader": 1,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.06
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-single-task",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.95,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0.03,
+            "broader": 0.97,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.07
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-single-task",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.94,
+          "probabilities": {
+            "compatible": 0.02,
+            "contradicts": 0.96,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-other-project",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.11,
+          "probabilities": {
+            "compatible": 0.29,
+            "contradicts": 0.41,
+            "unclear": 0.3
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-other-project",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.91,
+          "probabilities": {
+            "same": 0.04,
+            "narrower": 0.02,
+            "broader": 0.93,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.23
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-other-project",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.19,
+          "probabilities": {
+            "compatible": 0.25,
+            "contradicts": 0.46,
+            "unclear": 0.29
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-other-project",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.82,
+          "probabilities": {
+            "same": 0.02,
+            "narrower": 0.1,
+            "broader": 0.87,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.21
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-exception",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.86,
+          "probabilities": {
+            "compatible": 0.08,
+            "contradicts": 0.91,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-exception",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.99,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0.01,
+            "broader": 0.99,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.2
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-exception",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.92,
+          "probabilities": {
+            "compatible": 0.04,
+            "contradicts": 0.95,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-approval-exception",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.94,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0.05,
+            "broader": 0.95,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.18
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-later-rescind",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.97,
+          "probabilities": {
+            "compatible": 0.01,
+            "contradicts": 0.98,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-later-rescind",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "same",
+          "confidence": 0.38,
+          "probabilities": {
+            "same": 0.54,
+            "narrower": 0.02,
+            "broader": 0.43,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.87
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-later-rescind",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "narrower",
+          "confidence": 0.51,
+          "probabilities": {
+            "same": 0.14,
+            "narrower": 0.63,
+            "broader": 0.22,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.88
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-later-rescind",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.96,
+          "probabilities": {
+            "compatible": 0.01,
+            "contradicts": 0.98,
+            "unclear": 0.01
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-confirm-weakens-ban",
+      "arm": "before",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.72,
+          "probabilities": {
+            "same": 0.01,
+            "narrower": 0.2,
+            "broader": 0.79,
+            "unclear": 0
+          }
+        },
+        "supported_0": {
+          "noul": 0.09
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-confirm-weakens-ban",
+      "arm": "before",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.88,
+          "probabilities": {
+            "compatible": 0.06,
+            "contradicts": 0.92,
+            "unclear": 0.02
+          }
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-confirm-weakens-ban",
+      "arm": "after",
+      "answers": {
+        "expands_0": {
+          "choice": "broader",
+          "confidence": 0.55,
+          "probabilities": {
+            "same": 0,
+            "narrower": 0.33,
+            "broader": 0.66,
+            "unclear": 0.01
+          }
+        },
+        "supported_0": {
+          "noul": 0.09
+        }
+      }
+    },
+    {
+      "id": "zh-heldout-confirm-weakens-ban",
+      "arm": "after",
+      "answers": {
+        "counter_0_0": {
+          "choice": "contradicts",
+          "confidence": 0.93,
+          "probabilities": {
+            "compatible": 0.04,
+            "contradicts": 0.95,
+            "unclear": 0.01
+          }
+        }
+      }
+    }
+  ]
+}

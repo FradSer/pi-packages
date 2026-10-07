@@ -1,0 +1,66 @@
+{
+  "scope": "Programmatic-only independent new Memory subset parent integration; ordinary configuration off",
+  "sourceHashes": {
+    "../extensions/independent-memory-partition.ts": "85c7b8b3c24e79a45be81cf323cbdc2dc1bddf41c54f3c1bda8d5c0b2cfe1c9a",
+    "../extensions/inject-memory.ts": "f2acc91d0f527cb9b8737c73db1bb07f1ce0bc40baabadd8717c29cf70db3cc4",
+    "../extensions/jev-learning.ts": "348ca3a03ce3c303368595b1c8e8040002545970ac53927e9ee7533e98c6b948",
+    "../extensions/learning-efficiency.ts": "419b791f40d94d2c94fe7b3aae7a8a8be3c3e1f6b46d81122f479fe4333daab7",
+    "test_independent_memory_parent_pipeline.py": "a7e042aeedf896180663a6dad035f09e56134b93a7beab669f0c481e437de07c",
+    "test_independent_memory_partition.py": "8d768231e015c00e6e99842a5ceac0c13308f7118b6cd896e93b24a364e48a0b",
+    "learning-policy-harness.ts": "0dd2ba622d44845eec35215ae6880a57ec9c2d6fe7e80914347925b92052b16e",
+    "test_learning_efficiency.py": "6059af76124ea8340501c18bdb0a6f8b54ae57d673d781e0efe0521670867f70",
+    "../features/jev-independent-memory-application.feature": "09a3a0c850f4174fa9f82cbe34381b6029fcf571063af85cd9b6d55be0196176"
+  },
+  "red": {
+    "partitionMissingModuleFailures": 4,
+    "disconnectedParentIntegrationFailures": 1,
+    "prematureProposalReceiptFailures": 1,
+    "missingPendingReceiptFailures": 1
+  },
+  "packageSuite": {
+    "status": "passed",
+    "passed": 995,
+    "seconds": 380.03,
+    "command": "uv run --no-project --with pytest python -m pytest packages/continual-learning/tests -q"
+  },
+  "rootTypecheck": "passed",
+  "workspacePackedManifestsPassed": 19,
+  "targetPackDryRun": "passed",
+  "installCheck": {
+    "exitCode": 1,
+    "unrelatedMissingPackageCount": 11,
+    "continualLearningMissing": false
+  },
+  "freshReview": {
+    "agent": "subset_application_review",
+    "newFinding": "Relationship observation outcome proposed before proposal persistence; fixed to noop; parent regression RED then GREEN",
+    "remainingSharedFinding": "Post-write receipt validator is outside writer rollback scope; fails without automatic rollback",
+    "nativeEvidenceFollowup": "passed: both fixture runs identical source/probe/manifest; inspected rerun network none, read-only mounts, Linux arm64 image; no inference or parent-write claim"
+  },
+  "nativePiEvidence": "jev-independent-memory-parent-native-results.json",
+  "realMainInferenceCalls": 0,
+  "realJevInferenceCalls": 0,
+  "ordinaryUserConfigurationEnabled": false,
+  "newUserCommands": 0,
+  "newUserConfigurationFields": 0,
+  "productionMemoryWrites": 0,
+  "goalComplete": false,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free",
+    "globalSettingsChanged": false,
+    "newExternalProbe": false,
+    "reason": "Earlier known provider cooldown has not elapsed; no repeated inference attempt or replacement model"
+  },
+  "remaining": [
+    "Final receipt validator failure rollback regression and repair",
+    "Prospectively frozen real integrated parent generation/application/recall comparison after main provider cooldown",
+    "Independent evaluation of net gains including false writes, false holds, latency and cost; do not upgrade mocked/native fixture results into quality evidence"
+  ],
+  "focused": {
+    "passed": 41,
+    "seconds": 20.19,
+    "scope": "partition, parent pipeline, relationships, receipts"
+  },
+  "diffCheck": "passed"
+}

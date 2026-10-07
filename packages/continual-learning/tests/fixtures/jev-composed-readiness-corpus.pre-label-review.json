@@ -1,0 +1,772 @@
+[
+  {
+    "id": "black-upload-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Formatting uses Black. One asset upload timed out and succeeded on retry."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: Formatting uses Black.\ntype: project\n---\nFormatting uses Black.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Formatting uses Black. One asset upload timed out and succeeded on retry.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: Asset uploads are permanently unavailable.\ntype: project\n---\nAsset uploads are permanently unavailable.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Formatting uses Black. One asset upload timed out and succeeded on retry.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        0
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": [
+      1
+    ]
+  },
+  {
+    "id": "black-upload-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "格式化使用 Black。一次资源上传超时后重试成功。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: 格式化使用 Black。\ntype: project\n---\n格式化使用 Black。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "格式化使用 Black。一次资源上传超时后重试成功。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: 资源上传永久不可用。\ntype: project\n---\n资源上传永久不可用。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "格式化使用 Black。一次资源上传超时后重试成功。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        0
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": [
+      1
+    ]
+  },
+  {
+    "id": "bun-runtime-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The runtime is Bun 1.4. A Bun download failed once then succeeded."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: The runtime is Bun 1.4.\ntype: project\n---\nThe runtime is Bun 1.4.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The runtime is Bun 1.4. A Bun download failed once then succeeded.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: Bun can never run in this project.\ntype: project\n---\nBun can never run in this project.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The runtime is Bun 1.4. A Bun download failed once then succeeded.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        0
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": [
+      1
+    ]
+  },
+  {
+    "id": "bun-runtime-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "运行时是 Bun 1.4。一次 Bun 下载失败后成功。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: 运行时是 Bun 1.4。\ntype: project\n---\n运行时是 Bun 1.4。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "运行时是 Bun 1.4。一次 Bun 下载失败后成功。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: Bun 永远无法在本项目运行。\ntype: project\n---\nBun 永远无法在本项目运行。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "运行时是 Bun 1.4。一次 Bun 下载失败后成功。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        0
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": [
+      1
+    ]
+  },
+  {
+    "id": "budget-definition-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The retry budget is five attempts. Apply the retry budget defined in limits.md to uploads."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "limits.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: The retry budget is five attempts.\ntype: project\n---\nThe retry budget is five attempts.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The retry budget is five attempts. Apply the retry budget defined in limits.md to uploads.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: Apply the retry budget defined in limits.md to uploads.\ntype: project\n---\nApply the retry budget defined in limits.md to uploads.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The retry budget is five attempts. Apply the retry budget defined in limits.md to uploads.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        0
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": []
+  },
+  {
+    "id": "budget-definition-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "重试预算是五次。上传使用 limits.md 定义的重试预算。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "limits.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: 重试预算是五次。\ntype: project\n---\n重试预算是五次。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "重试预算是五次。上传使用 limits.md 定义的重试预算。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: 上传使用 limits.md 定义的重试预算。\ntype: project\n---\n上传使用 limits.md 定义的重试预算。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "重试预算是五次。上传使用 limits.md 定义的重试预算。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        0
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": []
+  },
+  {
+    "id": "region-unconfirmed-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Deploy using the region defined in region.md. No region value has been confirmed."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: Deploy using the region defined in region.md.\ntype: project\n---\nDeploy using the region defined in region.md.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Deploy using the region defined in region.md. No region value has been confirmed.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "region.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: The deployment region is ap-south-2.\ntype: project\n---\nThe deployment region is ap-south-2.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Deploy using the region defined in region.md. No region value has been confirmed.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      []
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": [
+      1
+    ]
+  },
+  {
+    "id": "region-unconfirmed-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "部署使用 region.md 定义的区域。尚未确认区域值。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: 部署使用 region.md 定义的区域。\ntype: project\n---\n部署使用 region.md 定义的区域。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "部署使用 region.md 定义的区域。尚未确认区域值。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "region.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: 部署区域是 ap-south-2。\ntype: project\n---\n部署区域是 ap-south-2。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "部署使用 region.md 定义的区域。尚未确认区域值。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      []
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": [
+      1
+    ]
+  },
+  {
+    "id": "description-budget-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The upload timeout is nine seconds. Its index description refers to the retry budget in retry-budget.md. The retry budget is five attempts."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: Use the upload timeout with the retry budget defined in retry-budget.md.\ntype: project\n---\nThe upload timeout is nine seconds.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The upload timeout is nine seconds. Its index description refers to the retry budget in retry-budget.md. The retry budget is five attempts.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "retry-budget.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: The retry budget is five attempts.\ntype: project\n---\nThe retry budget is five attempts.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The upload timeout is nine seconds. Its index description refers to the retry budget in retry-budget.md. The retry budget is five attempts.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        1
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": []
+  },
+  {
+    "id": "description-budget-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "上传超时是九秒。其索引描述引用 retry-budget.md 中的重试预算。重试预算是五次。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: 使用上传超时及 retry-budget.md 定义的重试预算。\ntype: project\n---\n上传超时是九秒。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "上传超时是九秒。其索引描述引用 retry-budget.md 中的重试预算。重试预算是五次。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "retry-budget.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: 重试预算是五次。\ntype: project\n---\n重试预算是五次。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "上传超时是九秒。其索引描述引用 retry-budget.md 中的重试预算。重试预算是五次。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        1
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": []
+  },
+  {
+    "id": "condition-heartbeat-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "When HTTP 503 is returned, wait nineteen seconds before retrying. Heartbeats are sent every nineteen seconds."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: When HTTP 503 is returned, wait nineteen seconds before retrying.\ntype: project\n---\nWhen HTTP 503 is returned, wait nineteen seconds before retrying.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "When HTTP 503 is returned, wait nineteen seconds before retrying. Heartbeats are sent every nineteen seconds.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: Heartbeats are sent every nineteen seconds.\ntype: project\n---\nHeartbeats are sent every nineteen seconds.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "When HTTP 503 is returned, wait nineteen seconds before retrying. Heartbeats are sent every nineteen seconds.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        0,
+        1
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": []
+  },
+  {
+    "id": "condition-heartbeat-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "返回 HTTP 503 时，等待十九秒再重试。每十九秒发送一次心跳。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: 返回 HTTP 503 时，等待十九秒再重试。\ntype: project\n---\n返回 HTTP 503 时，等待十九秒再重试。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "返回 HTTP 503 时，等待十九秒再重试。每十九秒发送一次心跳。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: 每十九秒发送一次心跳。\ntype: project\n---\n每十九秒发送一次心跳。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "返回 HTTP 503 时，等待十九秒再重试。每十九秒发送一次心跳。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        0,
+        1
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": []
+  },
+  {
+    "id": "duplicate-timeout-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "The connect timeout is seven seconds."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: The connect timeout is seven seconds.\ntype: project\n---\nThe connect timeout is seven seconds.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The connect timeout is seven seconds.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: Connections time out after seven seconds.\ntype: project\n---\nConnections time out after seven seconds.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "The connect timeout is seven seconds.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        0
+      ],
+      [
+        1
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": []
+  },
+  {
+    "id": "duplicate-timeout-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "连接超时是七秒。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: 连接超时是七秒。\ntype: project\n---\n连接超时是七秒。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "连接超时是七秒。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: 连接等待超过七秒就超时。\ntype: project\n---\n连接等待超过七秒就超时。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "连接超时是七秒。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      [
+        0
+      ],
+      [
+        1
+      ]
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": []
+  },
+  {
+    "id": "recovered-faults-en",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "One manifest download timed out then succeeded. One archive copy failed once then succeeded."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: Manifest downloads are permanently impossible.\ntype: project\n---\nManifest downloads are permanently impossible.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "One manifest download timed out then succeeded. One archive copy failed once then succeeded.",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: Archives are permanently corrupted.\ntype: project\n---\nArchives are permanently corrupted.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "One manifest download timed out then succeeded. One archive copy failed once then succeeded.",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      []
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": [
+      0,
+      1
+    ]
+  },
+  {
+    "id": "recovered-faults-zh",
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "一次清单下载超时后成功。一次归档复制失败后成功。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "a.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-0\ndescription: 清单下载永久不可能成功。\ntype: project\n---\n清单下载永久不可能成功。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "一次清单下载超时后成功。一次归档复制失败后成功。",
+            "role": "user"
+          }
+        ]
+      },
+      {
+        "name": "b.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact-1\ndescription: 归档永久损坏。\ntype: project\n---\n归档永久损坏。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "一次清单下载超时后成功。一次归档复制失败后成功。",
+            "role": "user"
+          }
+        ]
+      }
+    ],
+    "allowedUsefulSets": [
+      []
+    ],
+    "labelAuthority": "new author-defined synthetic labels; independent review pending; not blind independent labeling",
+    "unsupportedFactIndexes": [
+      0,
+      1
+    ]
+  }
+]

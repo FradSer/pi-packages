@@ -1,0 +1,3143 @@
+{
+  "evidence": "offline-forced-answer-narrow-memory-support-preflight",
+  "split": "development",
+  "manifestSha256": "2d758849d6d4304511cbe333358b7abb758e6dc21c47e7aa0519319e793d59c0",
+  "codeHashes": {
+    "evaluate_jev_memory_support_noul.ts": "b1da97a0a489c9037b076b79407116a9238253b2d9b0d19f135b07949cf8e50a",
+    "jev-memory-support-research.ts": "944e307fbc1a972558bf17ffa07b0171e126c0d4395542e0f7fec2c36198354e",
+    "actual-candidate-replay.ts": "cef9719780cd758973b16f767eb7f8baba453457bc086906dce2bfacf7e77f09",
+    "frozen-research-manifest.ts": "dabd48c021dff53a2684d1436238b2bfcbacbaf2e33ff558bdd5fd4950724b28",
+    "fixtures/jev-learning-before-memory-support-noul.ts.txt": "c66ae21b112581ae3e8f4e75f078fb6445f7ae237f0206f22b23a341f08dab28",
+    "../extensions/agents-md-consolidation.ts": "9ea854a4ed0ebdb5dbf0851430676c82eb572567900fe32046ea429021b8ea91",
+    "../extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+    "../extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+    "../extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675",
+    "../extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+    "../extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "../extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+    "../extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+    "../extensions/harness-command-coverage.ts": "6a1f116085e6458e82fa52190d52bdea6e7d1786cf2429de06377e96025c84eb",
+    "../extensions/harness-consolidation.ts": "5d1fd9f69d6d5e6c0cbe13ecd9c25973321d342d874d77a298e48d1f725d3507",
+    "../extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+    "../extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+    "../extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+    "../extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+    "../extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+    "../extensions/inject-memory.ts": "1724f33408f7c0c1628bdbc893120f92bf0f519744dbafa51d76befa79033080",
+    "../extensions/jev-learning.ts": "c66ae21b112581ae3e8f4e75f078fb6445f7ae237f0206f22b23a341f08dab28",
+    "../extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+    "../extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+    "../extensions/learning-efficiency.ts": "21d41647f6d1256b62437b1cb1a65c3c49ab1226f4c76218c1d548197bdf0fe3",
+    "../extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+    "../extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+    "../extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+    "../extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+    "../extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+    "../extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "../extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+    "../extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+    "../extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+    "../extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+    "../extensions/planner-prompts.ts": "0f04882df2fa6411b2752e1ee32a377c3072aec70096cf37529d8fcd2092a56c"
+  },
+  "corpusSha256": "cef7ed206ff1f1a88a80c6e31ab3ccbc7ceb9a2cc4417b37ce9901379ba9b247",
+  "sourceSha256": "c66ae21b112581ae3e8f4e75f078fb6445f7ae237f0206f22b23a341f08dab28",
+  "patchedSha256": "305df0da2aee4d272dfe5fdcab0396d7b6238bb188600e23e60907c72abdebde",
+  "preflight": {
+    "before": [
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      }
+    ],
+    "after": [
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      }
+    ]
+  },
+  "externalRequests": 0,
+  "fixtureRequests": 64,
+  "requestBudget": 64,
+  "metrics": {
+    "before": {
+      "complete": 16,
+      "incomplete": 0,
+      "falseAccepts": 8,
+      "falseHolds": 0,
+      "correct": 8
+    },
+    "after": {
+      "complete": 16,
+      "incomplete": 0,
+      "falseAccepts": 8,
+      "falseHolds": 0,
+      "correct": 8
+    }
+  },
+  "successRuleMet": false,
+  "knownInputTokens": 0,
+  "knownEstimatedCostUsd": 0,
+  "unpricedInputTokens": 0,
+  "unverifiedJudgeEstimatedCostUsd": 0,
+  "rows": [
+    {
+      "id": "recovered-verification-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "7831e7da993764fb35ed2706b2e703a3abb4abbb6bcaf0d4f20002fe20a52284"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "941e7110d995e82b74e03305f7f87e8c06bcb7d8a9ab573209244709682d8cfa"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "4d8a4480e942b5c2fb3b0d36ac9371b60919e979831cd56942d318124f3d4433"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "941e7110d995e82b74e03305f7f87e8c06bcb7d8a9ab573209244709682d8cfa"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "recovered-verification-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "8e1e1ac1d657431cfe08b76bc3ca5f159ffa92f18eeafc6d76100ebc50adc509"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "58d15cd0b0bf477c4ba9fd1a8e48c7f73becf8cdc074690c9e33078624c729b0"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "7397a87fa08595b2f69434aff495c8bba3b7e907001b93bbe36fe9546ecb6a74"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "58d15cd0b0bf477c4ba9fd1a8e48c7f73becf8cdc074690c9e33078624c729b0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "replaced-toolchain-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "e0d355d9bb802aea203ea7aed8eaeebc48c0b120b416584b250c4ee2fca59bd7"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "3c8ca46cd2c7d0828b5326d1cca0e73c4f3200fb939b403dd90e2610f8a68a31"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "711bc5b59f8a3763c19f0ca7227594870953ab24fe729d1e1b679badc3a41aa7"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "3c8ca46cd2c7d0828b5326d1cca0e73c4f3200fb939b403dd90e2610f8a68a31"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "replaced-toolchain-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "6c9984fed5838ebb57abc2a90760a76f71ea3e4ff4cba43751a7f16f531c697d"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "c4540ebb8924c6b0c28ccb27f9548c92c96661bd984aca153d567c09a433d4e0"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "359f614c85ede93fc50f8f07ff3396084cd8ea7893117d95ba3a9df582a6f4b6"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "c4540ebb8924c6b0c28ccb27f9548c92c96661bd984aca153d567c09a433d4e0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "replaced-report-preference-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "a9ab0443bcd0e3a5b7a275b67593ad84ac576977e086e7687bfe538418603ad8"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "11d24bf545109c676193974fb2f99bc14b2cc8f893a5e4e1a437218ea761ceca"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "1622e30e86ccb064f8f85e36b1e9f668240ea2978b9a575dc7219768621cadc0"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "11d24bf545109c676193974fb2f99bc14b2cc8f893a5e4e1a437218ea761ceca"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "replaced-report-preference-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "f48e54aabcce46b2ba022265f083792bc920bbb9a20172cc64290b636822f5c2"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "22aa22a798f2d11725e6946109bbaafddec5f18d5c70239cc309d1827dd10ce1"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "ca939f906dd961a941fc270597f8dc81296216b409afabd16beced332e14a68f"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "22aa22a798f2d11725e6946109bbaafddec5f18d5c70239cc309d1827dd10ce1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "different-target-failure-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "4cc45153630ed6bebe1d152a465a06085723ed330724b98d94906a10ddc5307c"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "9eb1d02f0c8414158d471929adc379b8e01d444982cd1a62dd32b0ebc02f2abc"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "7d375fc540c2fabdcac8b3d8ca6e59d68ca67d293c0b9643e1a1f8b4f0194bc6"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "9eb1d02f0c8414158d471929adc379b8e01d444982cd1a62dd32b0ebc02f2abc"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "different-target-failure-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "09bb172f103ec6ad6f51f79fc657cb67dfdb9fb4206fe86a59b5f83c6ee87137"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "05cc3ff5315c28ea23a6b3dc982bc7eb4c0360d59c50b6b7ae3602c631d8f90b"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "b53bf44569bc18ce943458a24e3a144b022804c39cfa685df33f191a6b21aa77"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "05cc3ff5315c28ea23a6b3dc982bc7eb4c0360d59c50b6b7ae3602c631d8f90b"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "later-revocation-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "16f388b9daab8808a030e0ca1d3f230d971be2563cf724f2474782afbb66dcbf"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "a7a029bf9058bee8d4663191a45156f7e2fcc50a39da44965fa128241f603c2a"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "2a2b7543f9843e3a7be2e5487925bc277f6ed77a4db5ed8cdbe29755de7c284a"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "a7a029bf9058bee8d4663191a45156f7e2fcc50a39da44965fa128241f603c2a"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "later-revocation-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "20219b5fc89c9d123d5dc8d02e040c6c81e24717efe67596e6e1289dcebd4498"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "68afce9ce86521815793f2cbc1abb202799463f5d0b197a5a2493aabe8610a5a"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 2,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "07f531da3d93c957a70d679d89657ac8690fef81853187565c3064d120347e4a"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "68afce9ce86521815793f2cbc1abb202799463f5d0b197a5a2493aabe8610a5a"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "later-factual-correction-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "12e26c8cef57befd3350d7b54b4d3906ca6e56c6c34770304ac8441185980158"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "f418b81fe8e5c1a58b1a6c4b7b4307316cd268fd5525864c8363599ece0099b1"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "943cbe8351c2371847a7c99c73f3a872d734ef668cffb978bc67cbd2dc906cfa"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "f418b81fe8e5c1a58b1a6c4b7b4307316cd268fd5525864c8363599ece0099b1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "later-factual-correction-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "16852686705dd1bba94a549c55714269666507cabac7b6fa658c82a51e4893f1"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "e9010da51bf2da3b20ef6d247d720e75c8dfb7c6101eab927a17fc05e749334d"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "498e203d64886572662046c2b62266f14d941505dc4c3cbfee9522cfec44f277"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "e9010da51bf2da3b20ef6d247d720e75c8dfb7c6101eab927a17fc05e749334d"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "unverified-success-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "5304679a9fe569a89478e551b487fd71c1a752464d5c9d7614e386d7eb434f6e"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "ed2491037077a60d94597c6e4cffe96f3ff531532b873ce354105da235ea067e"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "b76e311b325c8cc5aa3367b0bda04ee082871f00822b7f2d418f90625753520c"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "ed2491037077a60d94597c6e4cffe96f3ff531532b873ce354105da235ea067e"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "unverified-success-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "3eabffb797632b02fd849f472c9a479de4cdaff8d04eb3fa43aaa6e33348eaff"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "3e1d40443c1903c59a44564f39ed192c3c9c206f2bc00ec350c054b84e0b7afd"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 3,
+            "coveredEntries": 3,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "c39fce5443750324e29c549c487e84e954431e7ac3d1273279d3f69e79bd1b1c"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "3e1d40443c1903c59a44564f39ed192c3c9c206f2bc00ec350c054b84e0b7afd"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "later-port-change-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "c59e3e8326e9152ca7c2e2bbe504950cde39c886d9371bdeee230fdeffdba3c1"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "f646fd680c5019a032fc6d0b1cb87e6fad9aa1840fa77a46d4a218fd8255b594"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "f7fe0fe29a6c69bae0bb9508460538a274d80ccba074c35c66e49645674da932"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "f646fd680c5019a032fc6d0b1cb87e6fad9aa1840fa77a46d4a218fd8255b594"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "later-port-change-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "noul",
+                  "probability": 0.99
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "noul",
+                  "probability": 0.99
+                }
+              ],
+              "wireRequestSha256": "42d7df6c014e2229bb0e5275a5773013a7df66ded8201a58e803ecb45ef6b9d7"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "baf4fb53c6704cf44627c15aca92d3e5e68f6bf54209178ce9611367f65ef3b0"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "memory",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 0,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 0,
+            "outputTokens": 0,
+            "estimatedCostUsd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "body",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "support",
+                  "field": "description",
+                  "type": "choice",
+                  "choice": "grounded",
+                  "confidence": 1,
+                  "probabilities": {
+                    "grounded": 1,
+                    "speculative": 0,
+                    "transient": 0,
+                    "unsupported": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "060e93095950b8291303373d2a4be0ac650be59bdea665d1f089c4dfe7c9d372"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "body",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                },
+                {
+                  "candidateIndex": 0,
+                  "dimension": "counter",
+                  "field": "description",
+                  "windowIndex": 0,
+                  "type": "choice",
+                  "choice": "compatible",
+                  "confidence": 1,
+                  "probabilities": {
+                    "compatible": 1,
+                    "contradicts": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "baf4fb53c6704cf44627c15aca92d3e5e68f6bf54209178ce9611367f65ef3b0"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "productionWrites": 0,
+  "adopted": false,
+  "limitations": [
+    "Known16bilingual temporal cases reused as development, not fresh heldout or Docker quality.",
+    "Fully cited new Memory body and description support only: Noul .9yes/.1no, no separate confidence. Other original gates/fields retained.",
+    "Forced offline answers prove complete preflight only, not model accuracy.",
+    "One paid run, alternating arm order, no favorable retries, relabels, partial writes or automatic adoption.",
+    "Unknown/failed usage is a lower bound, tariff estimates are not actual account billing."
+  ]
+}

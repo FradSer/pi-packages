@@ -1,0 +1,19 @@
+{
+  "id": "p-limit-r9-memory-counter-uncertain",
+  "stage": "memory",
+  "expectedAllow": null,
+  "files": {
+    "snapshot": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-finite-git-scope-r9-final/p-limit-on/memory/runs/--work-p-limit--/run_muvm9dqf_f9bf284303af71b0/snapshot.json",
+      "sha256": "101655f308c09f119c5a8326f60eb323728327bc17c02f84426983045e566036"
+    },
+    "plan": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-finite-git-scope-r9-final/p-limit-on/memory/runs/--work-p-limit--/run_muvm9dqf_f9bf284303af71b0/semantic-repair-plan.json",
+      "sha256": "2d42a13904f9b0020b19cf4e4c360141521693bdd8f15b4c122336b694abbe42"
+    },
+    "dossier": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-finite-git-scope-r9-final/p-limit-on/memory/runs/--work-p-limit--/run_muvm9dov_4a445fdd18ef3138/incremental-learning-dossier.json",
+      "sha256": "abb3069dfed294429bbd9e922cc99bcb1658abfbdcd75700c33f7a640d0870c8"
+    }
+  }
+}

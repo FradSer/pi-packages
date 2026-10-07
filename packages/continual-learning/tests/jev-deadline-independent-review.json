@@ -1,0 +1,21 @@
+{
+  "evidence": "independent-real-deadline-result-audit",
+  "originalReportSha256": "b2646632d7882e8b62b54a226a63321a09c820649269a66181f75b0f97705008",
+  "frozenHashesMatch": true,
+  "labelsMatchOriginalCorpus": true,
+  "wireRequestsMatched": 96,
+  "http200Responses": 96,
+  "numericJudgmentsPreserved": 672,
+  "nonIntegerNumericJudgments": 488,
+  "responseModelVerified": "jev-1.13.0",
+  "knownInputTokens": 71564,
+  "knownEstimatedCostUsd": 0.003005688,
+  "validHoldIdBoth": "example-zh",
+  "holdCause": "authority uncertainty",
+  "productionWrites": 0,
+  "accountBillingVerified": false,
+  "limits": [
+    "Known direct SDK small corpus does not explain or exclude original Docker/large-evidence timeouts.",
+    "No actual billing or overall learning quality superiority claim."
+  ]
+}

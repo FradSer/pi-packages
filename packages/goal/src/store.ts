@@ -44,6 +44,7 @@ import {
   goalRecordPath,
   goalResearchPath,
   goalsRoot,
+  goalsPlacementRefusal,
   isInside,
   safeGoalId,
 } from "./paths.ts";
@@ -187,6 +188,12 @@ export class GoalStore {
     id: string;
     research?: { focus: string; text: string; tokens: number };
   }): GoalMutationOutcome {
+    // Refused before anything is written, so a nested placement leaves no
+    // directory behind for a later run to adopt. Reads and an already stored
+    // goal are untouched, which is what keeps a goal created under an earlier
+    // version running where it already lives.
+    const refusal = goalsPlacementRefusal(this.projectRoot);
+    if (refusal) return { ok: false, message: refusal, diagnostics: [] };
     const at = nowIso();
     const goal: GoalRecord = {
       id: input.id,
@@ -224,7 +231,10 @@ export class GoalStore {
         events.push({
           type: "research_attached",
           goalId: goal.id,
-          focus: input.research.focus.slice(0, 200),
+          // Recorded whole: `research_goal` already bounds the focus at 2000
+          // characters in its schema, and a second invisible bound here would
+          // cut provenance without saying so.
+          focus: input.research.focus,
           tokens: Math.max(0, input.research.tokens),
           at,
         });

@@ -6,7 +6,7 @@ Turn something the user can't answer alone into a **questionnaire** — a Markdo
 
 2. **What do you need back?** Ask, in one exchange, the specific decisions or facts the user can't resolve alone and needs from this person. Done when you have a concrete list of what the user must walk away able to do or decide.
 
-3. **Write the questionnaire.** Draft questions aimed at the gap from steps 1–2, following the Document structure below. Write it to `to-questionnaire-<slug>.md` in the current directory (slug from the topic) and report the path. Done when the file exists and every item the user named in step 2 is covered by a question.
+3. **Write the questionnaire.** Draft questions aimed at the gap from steps 1–2, following the Document structure below. Write it to the path the task names; when the task names none, write `to-questionnaire-<slug>.md` in the current directory (slug from the topic). The file is the deliverable: do not end the turn before it exists. Report the path. Done when the file exists and every item the user named in step 2 is covered by a question.
 
 ## Document structure
 

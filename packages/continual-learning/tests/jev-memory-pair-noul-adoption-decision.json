@@ -1,0 +1,27 @@
+{
+  "evidence": "pair-noul-v3-adoption-decision",
+  "adopted": false,
+  "decision": "reject-development-no-independent-case-recognized",
+  "report": "jev-memory-pair-noul-development-real-results.json",
+  "reportSha256": "449dc23909d3efc2e0f642b8857d5a57a4f4420fedb16f659bf61fc6cefbe20e",
+  "metrics": {
+    "correct": 1,
+    "wrong": 0,
+    "held": 19,
+    "unsafeIndependence": 0,
+    "missedIndependence": 8
+  },
+  "externalRequests": 20,
+  "knownInputTokens": 22377,
+  "knownEstimatedCostUsd": 0.0009398340000000001,
+  "medianDurationMs": 345.0,
+  "productionWrites": 0,
+  "productionRelationIntegration": false,
+  "freshHeldoutRequests": 0,
+  "limitations": [
+    "Known V2 heldout is reused development, not fresh evaluation.",
+    "Noul decomposition new decision rule, no separate confidence or joint calibration guarantee.",
+    "8valid independent cases allheld; zero unsafe acceptance is not improvement.",
+    "No threshold relaxation, relabel or favorable retry."
+  ]
+}

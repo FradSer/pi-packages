@@ -1,0 +1,75 @@
+{
+  "scope": "Bounded real Jev native Pi comparison and test transport hardening",
+  "results": "composed-native-real-results.json",
+  "preregisteredProtocol": "composed-native-real-study-plan.md",
+  "packageSuite": {
+    "command": "uv run --no-project --python /opt/homebrew/bin/python3 python -m pytest packages/continual-learning/tests -q",
+    "passed": 1029,
+    "seconds": 402.94,
+    "exitCode": 0
+  },
+  "postSuiteWhitespaceCleanup": {
+    "file": "live_docker_projects.py",
+    "behaviorChanged": false,
+    "affectedTestsPassed": 23,
+    "seconds": 2.27
+  },
+  "transportAndOwnershipFocusedTests": {
+    "passed": 9,
+    "seconds": 3.25,
+    "independentReviewerReran": true
+  },
+  "redReproductions": [
+    "HTTP 302 redirect forwarded the host-only fixture bearer token to a local destination before redirect rejection was implemented.",
+    "Wrapped user evidence accepted a sibling private content field before closed mutually exclusive entry shapes were implemented.",
+    "Duplicate JSON fields bypassed parsed request checks before strict duplicate rejection was implemented."
+  ],
+  "rootTypecheck": "passed",
+  "workspacePackedManifestsPassed": 19,
+  "targetPackDryRun": "passed",
+  "packageDiffCheck": "passed",
+  "installation": {
+    "exitCode": 1,
+    "unrelatedMissingPackages": [
+      "agent-teams", "bdd-jev", "btw", "context", "keyboard", "monitor",
+      "plan-mode", "recap", "skill-router", "utils", "vision"
+    ],
+    "continualLearningMissing": false,
+    "globalSettingsChanged": false
+  },
+  "freshReview": {
+    "agent": "composed_paid_native_proxy_review",
+    "blockingFindingsRemaining": 0,
+    "beforeInferenceReviewed": true,
+    "afterInferenceReviewed": true,
+    "verified": [
+      "61 source hashes, preflight request proof, image ID and SDK 0.6.0 runtime bytes match.",
+      "28 completed HTTP 200 responses returned Jev 1.13.0 within the approved request set.",
+      "Actual valid writes were 1 versus 4 with zero invalid writes; subsequent Memory context injection matched.",
+      "Harness was not written, AGENTS was unchanged, request scope binding held, all owned containers and runners were absent.",
+      "Raw artifact hashes and published usage, cost and limitations match."
+    ]
+  },
+  "finalFrozenSourceRecheck": {
+    "matched": 61,
+    "mismatches": 0
+  },
+  "realJevInference": true,
+  "realMainInference": false,
+  "requestedMainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free",
+    "substituted": false,
+    "reprobedDuringKnownCooldown": false
+  },
+  "productionDefaultActivated": false,
+  "productionMemoryWrites": 0,
+  "completeGoalEvidence": false,
+  "decision": "Continue independent real main-model project evaluation; do not activate the production default or infer general superiority from this bounded result.",
+  "limitations": [
+    "Actual Jev inference and container-local writes used fixed main generation and one reused synthetic scenario in two languages.",
+    "Arms used separate Jev responses; recovery does not isolate a causal policy effect.",
+    "Context injection is verified, but actual main-model semantic recall is not.",
+    "Historical negative project evidence remains; real specified main-model generation, application, knowledge use, errors, constraint behavior, latency and cost remain required."
+  ]
+}

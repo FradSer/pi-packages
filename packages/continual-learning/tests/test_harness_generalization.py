@@ -37,3 +37,21 @@ def test_semantic_guidance_does_not_claim_universal_enforcement(guidance: str) -
     assert "not global interception" in guidance
     assert "report the limitation" in guidance.lower()
     assert any(text in guidance for text in ("preserve existing rules unchanged", "do not add a rule"))
+
+
+def test_consolidation_does_not_claim_bare_git_matcher_covers_global_options() -> None:
+    # Given a whole-family authorization, when generating a restriction, retain
+    # legitimate global-option positives instead of weakening the test cases.
+    prompt = (PKG_DIR / "prompts" / "harness-consolidator.md").read_text()
+    assert "git -C . push --dry-run" in prompt
+    assert "git --no-pager push --dry-run" in prompt
+    assert "does not establish whole-family coverage" in prompt
+    assert "Do not delete valid positive cases" in prompt
+    assert "echo git -C . push --dry-run" in prompt
+
+
+def test_git_template_preserves_bounded_coverage_and_requires_authorization() -> None:
+    prompt = (PKG_DIR / 'prompts' / 'harness-consolidator.md').read_text(encoding='utf-8')
+    assert r'^git(?:[ \t]+(?:-C[ \t]+\.|-c[ \t]+core\.quotePath=false|--no-pager))*[ \t]+push(?:[ \t]|$(?![\s\S]))' in prompt
+    assert 'only a bounded subset of Git invocations' in prompt
+    assert 'never infer authorization from the template' in prompt

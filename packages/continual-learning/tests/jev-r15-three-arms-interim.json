@@ -1,0 +1,176 @@
+{
+  "evidence": "actual-r15-interim-not-terminal",
+  "sessionId": 50837,
+  "sourceMatches": true,
+  "sourceDigest": "bacf936aaefbb9d601f32d9d07c14b29739af14f2c056e30566d40ed2f5d1afd",
+  "rows": [
+    {
+      "project": "click",
+      "mode": "off",
+      "status": "failed",
+      "stage": "setup",
+      "learningSeconds": null,
+      "checks": {},
+      "independentCheckExitCode": null,
+      "attempts": []
+    },
+    {
+      "project": "click",
+      "mode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "learningSeconds": 389.93,
+      "checks": {
+        "regressionChanged": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 190375,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "uncertain",
+            "status": "propose",
+            "candidateFailures": [
+              {
+                "candidateIndex": 2,
+                "dimension": "support",
+                "field": "description",
+                "reason": "uncertain"
+              },
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "uncertain",
+                "evidenceWindowIndex": 2,
+                "evidenceEntryStart": 4,
+                "evidenceEntryEnd": 28
+              },
+              {
+                "candidateIndex": 1,
+                "dimension": "counterevidence",
+                "field": "description",
+                "reason": "uncertain",
+                "evidenceWindowIndex": 3,
+                "evidenceEntryStart": 29,
+                "evidenceEntryEnd": 35
+              }
+            ],
+            "model": "jev-1.13.0",
+            "requestCount": 5,
+            "completedRequests": 5,
+            "evidenceEntries": 36,
+            "coveredEntries": 36,
+            "inputTokens": 33060,
+            "estimatedCostUsd": 0.00138852
+          }
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 116503,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "uncertain",
+            "status": "propose",
+            "candidateFailures": [
+              {
+                "candidateIndex": 2,
+                "dimension": "support",
+                "field": "description",
+                "reason": "uncertain"
+              }
+            ],
+            "model": "jev-1.13.0",
+            "requestCount": 5,
+            "completedRequests": 5,
+            "evidenceEntries": 36,
+            "coveredEntries": 36,
+            "inputTokens": 31345,
+            "estimatedCostUsd": 0.00131649
+          }
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 61242,
+          "structuralMemoryRepair": false,
+          "jev": {
+            "reason": "supported",
+            "status": "decided",
+            "model": "jev-1.13.0",
+            "requestCount": 5,
+            "completedRequests": 5,
+            "evidenceEntries": 36,
+            "coveredEntries": 36,
+            "inputTokens": 24597,
+            "estimatedCostUsd": 0.0010330740000000001
+          }
+        }
+      ]
+    },
+    {
+      "project": "p-limit",
+      "mode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "learningSeconds": 239.13,
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "independentCheckExitCode": 0,
+      "attempts": [
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 2,
+          "durationMs": 37485,
+          "structuralMemoryRepair": false,
+          "jev": {}
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 51004,
+          "structuralMemoryRepair": false,
+          "jev": {}
+        }
+      ]
+    }
+  ],
+  "clickOnIndependentContentReview": {
+    "frozenHashesVerified": 3,
+    "entries": 36,
+    "allQuotedSourcesMatch": true,
+    "firstStructuralRepairTriggered": false,
+    "MemoryApplied": 0,
+    "HarnessApplied": 1,
+    "nativeEnforcementProven": false,
+    "candidate2DurableScopeGoldVerified": false,
+    "limitation": "Quote/index/position checks do not complete a content-entailment review. No unsafe-accept or false-hold gold assigned."
+  },
+  "goalComplete": false,
+  "qualityUpliftProved": false,
+  "newPaidResearchStarted": false
+}

@@ -1,0 +1,108 @@
+{
+  "evidence": "offline-provenance-audit-of-complete-real-research-results",
+  "outboundRequests": 0,
+  "remainingHeldoutHolds": [
+    {
+      "id": "en-counter-new-memory-assistant-does-not-correct",
+      "stage": "memory",
+      "reason": "uncertain",
+      "dimension": "counterevidence",
+      "sourceRoles": {
+        "user": 1,
+        "assistant": 1
+      }
+    },
+    {
+      "id": "en-counter-new-harness-assistant-not-revocation",
+      "stage": "harness",
+      "reason": "uncertain",
+      "dimension": "counterevidence",
+      "sourceRoles": {
+        "user": 1,
+        "assistant": 1
+      }
+    },
+    {
+      "id": "zh-counter-new-memory-assistant-does-not-correct",
+      "stage": "memory",
+      "reason": "uncertain",
+      "dimension": "counterevidence",
+      "sourceRoles": {
+        "user": 1,
+        "assistant": 1
+      }
+    },
+    {
+      "id": "zh-counter-new-harness-assistant-not-revocation",
+      "stage": "harness",
+      "reason": "uncertain",
+      "dimension": "counterevidence",
+      "sourceRoles": {
+        "user": 1,
+        "assistant": 1
+      }
+    }
+  ],
+  "realMemory": {
+    "id": "p-limit-r9-memory-counter-uncertain",
+    "expectedAllow": null,
+    "snapshotHash": "101655f308c09f119c5a8326f60eb323728327bc17c02f84426983045e566036",
+    "evidenceEntries": 96,
+    "evidenceWindows": [
+      {
+        "index": 0,
+        "count": 11,
+        "sourceRoles": {
+          "user": 1,
+          "assistant": 5,
+          "toolResult": 5
+        }
+      },
+      {
+        "index": 1,
+        "count": 19,
+        "sourceRoles": {
+          "assistant": 10,
+          "toolResult": 9
+        }
+      },
+      {
+        "index": 2,
+        "count": 19,
+        "sourceRoles": {
+          "toolResult": 10,
+          "assistant": 9
+        }
+      },
+      {
+        "index": 3,
+        "count": 27,
+        "sourceRoles": {
+          "assistant": 14,
+          "toolResult": 13
+        }
+      },
+      {
+        "index": 4,
+        "count": 16,
+        "sourceRoles": {
+          "toolResult": 8,
+          "assistant": 8
+        }
+      },
+      {
+        "index": 5,
+        "count": 4,
+        "sourceRoles": {
+          "toolResult": 2,
+          "assistant": 2
+        }
+      }
+    ]
+  },
+  "limitations": [
+    "Source roles are provenance, not a truth or quality label.",
+    "No original content is recorded; full frozen evidence remains authoritative.",
+    "Repeated assistant-claim cases identify a research direction, not causal proof."
+  ]
+}

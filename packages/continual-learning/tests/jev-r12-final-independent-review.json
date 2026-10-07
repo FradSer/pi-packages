@@ -1,0 +1,21 @@
+{
+  "evidence": "independent-final-evidence-review",
+  "reviewer": "description_atomic_review",
+  "passed": true,
+  "checkedSha256": {
+    "jev-factual-description-r12-docker-results.json": "c85b524ea331d263b663b6582d0ee34a1cfd5db74168acee7ac7c20dd918f204",
+    "jev-transport-r12-followup-manifest.json": "119da93c6821189cf053b49a1a501d2ecd2739c870f4507f7046399564888043",
+    "jev-transport-r12-followup-real-results.json": "46084e408e5f87be0b75e439544725e3356473a0b72516a300c8429ec8784054",
+    "diagnose_jev_transport.ts": "ba36fa03ee0662cec20d4e04947ff009e29cb31466897827eeec43de5e4b38d8"
+  },
+  "findings": [
+    "Original six Docker acceptance off 2/3, on 0/3; offline same-execution correction off 3/3 distinct.",
+    "24 Jev requests, 20 usage responses, 155937 known tokens, 0.006549354 USD lower bound.",
+    "Three preserved baselines normalize exact frozen R12 runtime.",
+    "Transport study max 3 serial calls, read only, no evidence/error/key output; unchanged 5s and zero retries."
+  ],
+  "limitations": [
+    "One-shot diagnostic writes final output only on completion. Missing output is not authorization to restart after interruption. Current sole live process completed and output exists; never rerun these samples.",
+    "Current HTTP 200 transport does not diagnose old unavailable failures or establish improved learning quality."
+  ]
+}

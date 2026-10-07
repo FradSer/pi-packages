@@ -1,0 +1,39 @@
+{
+  "reviewer": "fresh-readonly-runtime_relations_review",
+  "implementationHistory": false,
+  "blockingFindings": [],
+  "initialRelationsTestsPassed": 11,
+  "initialRelationsSeconds": 4.7,
+  "finalAdditionalCasesReviewed": [
+    "existing-checklist-and-body-digest",
+    "mixed-actual-models",
+    "candidate-and-existing-mutation",
+    "multi-batch-cancellation"
+  ],
+  "checks": [
+    "Every request state deep-copied before first await",
+    "Original evidence/candidates/existing/review identity rechecked after transport",
+    "All original data privacy and all pair request bounds preflight",
+    "Pinned unique actual model metadata",
+    "Provider extra text stripped from output",
+    "Partial failure usage retained as lower bound",
+    "No write permission or partial application"
+  ],
+  "initialNativeSourceIdentityGap": "Initial native directory lacked source manifest; followed up with independent hashed run.",
+  "externalCalls": 0,
+  "credentialReads": 0,
+  "edits": 0,
+  "limits": [
+    "Unit/fixture runtime tests do not prove model quality or fees.",
+    "Current parent learning pipeline does not call relationship method."
+  ],
+  "nativeSourceIdentityResolved": {
+    "prospectivelyFrozenSourceFiles": 33,
+    "manifestContainerBeforeAfterAndCurrentHostMatched": true,
+    "privatePublicManifestByteIdentical": true,
+    "sameProbesBothRuns": true,
+    "bothSessionsNormalStop": true,
+    "bothOwnedContainersAbsent": true,
+    "reviewerScope": "Independent read-only manifest/results/current host hash checks. No model, network or credential calls."
+  }
+}

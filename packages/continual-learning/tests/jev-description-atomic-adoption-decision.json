@@ -1,0 +1,117 @@
+{
+  "decision": "adopt-index-description-judgments",
+  "experimentalSemanticPathAdopted": true,
+  "reason": "Independent description judgments remove unsupported indexed claims in reused development and previously unqueried heldout without new supported holds; original full-workflow failures remain unresolved.",
+  "splits": {
+    "development": {
+      "complete": true,
+      "samples": 42,
+      "labeledSamples": 40,
+      "outboundRequests": 182,
+      "metrics": {
+        "before": {
+          "evaluatedPlans": 40,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 18,
+          "falseHolds": 2
+        },
+        "after": {
+          "evaluatedPlans": 40,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 2
+        }
+      },
+      "knownInputTokens": 287300,
+      "knownEstimatedCostUsd": 0.012066599999999999,
+      "medianDurationMs": {
+        "before": 355.0,
+        "after": 347.0
+      },
+      "actualModels": [
+        "jev-1.13.0"
+      ],
+      "originalUnlabeled": [
+        {
+          "id": "click-r9-finite-scope-uncertain",
+          "before": "uncertain"
+        },
+        {
+          "id": "click-r9-finite-scope-uncertain",
+          "after": "uncertain"
+        },
+        {
+          "id": "p-limit-r9-memory-counter-uncertain",
+          "before": "uncertain"
+        },
+        {
+          "id": "p-limit-r9-memory-counter-uncertain",
+          "after": "uncertain"
+        }
+      ],
+      "perArmUsage": {
+        "before": {
+          "inputTokens": 132446,
+          "estimatedCostUsd": 0.005562732,
+          "requests": 91
+        },
+        "after": {
+          "inputTokens": 154854,
+          "estimatedCostUsd": 0.006503868,
+          "requests": 91
+        }
+      }
+    },
+    "heldout": {
+      "complete": true,
+      "samples": 32,
+      "labeledSamples": 32,
+      "outboundRequests": 128,
+      "metrics": {
+        "before": {
+          "evaluatedPlans": 32,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 16,
+          "falseHolds": 0
+        },
+        "after": {
+          "evaluatedPlans": 32,
+          "skippedIncompletePlans": 0,
+          "falseAccepts": 0,
+          "falseHolds": 0
+        }
+      },
+      "knownInputTokens": 94592,
+      "knownEstimatedCostUsd": 0.003972864,
+      "medianDurationMs": {
+        "before": 346.0,
+        "after": 338.5
+      },
+      "actualModels": [
+        "jev-1.13.0"
+      ],
+      "originalUnlabeled": [],
+      "perArmUsage": {
+        "before": {
+          "inputTokens": 38670,
+          "estimatedCostUsd": 0.00162414,
+          "requests": 64
+        },
+        "after": {
+          "inputTokens": 55922,
+          "estimatedCostUsd": 0.002348724,
+          "requests": 64
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Before is original production Jev, not disabled",
+    "Heldout 32 samples are 16 bilingual semantic scenarios; no existing Memory in heldout",
+    "Existing-Memory relationship only verified in eight new development samples",
+    "Original R9 artifacts remain unlabeled and held; no end-to-end superiority claim",
+    "Costs are published-tariff estimates, not billed amount",
+    "No change in permissions, privacy, evidence coverage, thresholds or request caps"
+  ],
+  "productionSourceSha256": "168eeeb7855ea08456e7c8cf59fa21492f971d01c8488e064542f6385528e36e"
+}

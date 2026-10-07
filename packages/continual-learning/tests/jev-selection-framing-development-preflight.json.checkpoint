@@ -1,0 +1,845 @@
+{
+  "requests": 28,
+  "results": [
+    {
+      "id": "fact-en",
+      "arm": "before",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 8,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "fact-en",
+      "arm": "after",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "fact-zh",
+      "arm": "before",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "fact-zh",
+      "arm": "after",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "preference-en",
+      "arm": "before",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "preference-en",
+      "arm": "after",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "preference-zh",
+      "arm": "before",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "preference-zh",
+      "arm": "after",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "both-en",
+      "arm": "before",
+      "expected": {
+        "memory": true,
+        "harness": true
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "both-en",
+      "arm": "after",
+      "expected": {
+        "memory": true,
+        "harness": true
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "both-zh",
+      "arm": "before",
+      "expected": {
+        "memory": true,
+        "harness": true
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "both-zh",
+      "arm": "after",
+      "expected": {
+        "memory": true,
+        "harness": true
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "guess-en",
+      "arm": "before",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "guess-en",
+      "arm": "after",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "guess-zh",
+      "arm": "before",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "guess-zh",
+      "arm": "after",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "fault-en",
+      "arm": "before",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "fault-en",
+      "arm": "after",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "fault-zh",
+      "arm": "before",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "fault-zh",
+      "arm": "after",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "task-en",
+      "arm": "before",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "task-en",
+      "arm": "after",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "task-zh",
+      "arm": "before",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "task-zh",
+      "arm": "after",
+      "expected": {
+        "memory": false,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "manual-en",
+      "arm": "before",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": false,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "manual-en",
+      "arm": "after",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": false,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "manual-zh",
+      "arm": "before",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": false,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    },
+    {
+      "id": "manual-zh",
+      "arm": "after",
+      "expected": {
+        "memory": true,
+        "harness": false
+      },
+      "selection": {
+        "memory": true,
+        "harness": false,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 0,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      },
+      "answers": {
+        "memory": 0.99,
+        "harness": 0.99
+      },
+      "wireStatus": 200
+    }
+  ]
+}

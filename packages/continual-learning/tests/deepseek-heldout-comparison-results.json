@@ -1,0 +1,932 @@
+{
+  "evidence": "actual-main-and-real-Jev-heldout-project-comparison",
+  "mainModel": {
+    "provider": "cli-proxy",
+    "requestedModel": "opencode/deepseek-v4.1-flash",
+    "readinessReturnedModel": "deepseek-v4.1-flash"
+  },
+  "jevModel": "jev-1.13.0",
+  "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261007T014740Z",
+  "rawSummarySha256": "d4a927e493b9d72ec89863d982c76d73b504338b72f925b0b8dd14aea1a48997",
+  "image": "continual-learning-projects:b4407f3c1439953e",
+  "imageId": "sha256:f8adc9a8c0b4c7e1727495459e73e6c14e77f8bf0d43ebeb0f5c92ac9be4290e",
+  "sourceDigest": "b4407f3c1439953e22299a9a8399a7694d4ae1cb7a8c2739ba526afd551cba44",
+  "currentSourceDigestMatches": true,
+  "memoryPolicy": "composed",
+  "providerRequests": 200,
+  "providerErrors": 0,
+  "jevRequests": 29,
+  "jevResponsesWithUsage": 29,
+  "jevUsage": [
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 2038,
+      "output_tokens": 249
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 8911,
+      "output_tokens": 173
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 7890,
+      "output_tokens": 58
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 7838,
+      "output_tokens": 47
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 7863,
+      "output_tokens": 47
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 1138,
+      "output_tokens": 95
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 7914,
+      "output_tokens": 45
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 3985,
+      "output_tokens": 173
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 13009,
+      "output_tokens": 173
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 8800,
+      "output_tokens": 173
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 2081,
+      "output_tokens": 249
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 8241,
+      "output_tokens": 173
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 2937,
+      "output_tokens": 45
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 7752,
+      "output_tokens": 45
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 1135,
+      "output_tokens": 95
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 11961,
+      "output_tokens": 45
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 7193,
+      "output_tokens": 45
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 1820,
+      "output_tokens": 249
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 4516,
+      "output_tokens": 173
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 8489,
+      "output_tokens": 173
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 8147,
+      "output_tokens": 173
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 10086,
+      "output_tokens": 173
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 9388,
+      "output_tokens": 173
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 1139,
+      "output_tokens": 95
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 3729,
+      "output_tokens": 45
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 7360,
+      "output_tokens": 45
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 7702,
+      "output_tokens": 45
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 9299,
+      "output_tokens": 45
+    },
+    {
+      "model": "jev-1.13.0",
+      "input_tokens": 8601,
+      "output_tokens": 45
+    }
+  ],
+  "jevKnownInputTokens": 190962,
+  "jevKnownOutputTokens": 3364,
+  "jevEstimatedInputCostUsd": 0.008020404,
+  "rows": [
+    {
+      "arm": "humanize-off",
+      "status": "passed",
+      "phaseObservations": {
+        "memory": {
+          "status": "passed"
+        },
+        "recall": {
+          "status": "passed"
+        },
+        "harness": {
+          "status": "passed"
+        }
+      },
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "learningSeconds": 260.36,
+      "recallComparison": {
+        "baselineSeconds": 52.3,
+        "freshSeconds": 13.14,
+        "baselineToolCalls": 10,
+        "freshToolCalls": 3,
+        "baselineScope": "Separate empty agent configuration, same project and user filesystem; manual Memory discovery is allowed"
+      },
+      "parentSessionUsage": {
+        "learning": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 14,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 40401,
+            "output": 7805,
+            "cacheRead": 222976,
+            "cacheWrite": 0,
+            "totalTokens": 271182
+          },
+          "estimatedCostUsd": 0.022824155999999998
+        },
+        "baseline-recall": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 7,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 14862,
+            "output": 1601,
+            "cacheRead": 26240,
+            "cacheWrite": 0,
+            "totalTokens": 42703
+          },
+          "estimatedCostUsd": 0.00653724
+        },
+        "fresh-recall": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 3,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 13651,
+            "output": 309,
+            "cacheRead": 3712,
+            "cacheWrite": 0,
+            "totalTokens": 17672
+          },
+          "estimatedCostUsd": 0.004488372
+        },
+        "harness-enforcement": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 3,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 1034,
+            "output": 297,
+            "cacheRead": 3584,
+            "cacheWrite": 0,
+            "totalTokens": 4915
+          },
+          "estimatedCostUsd": 0.000688104
+        }
+      },
+      "learningChildUsage": {
+        "tokens": {
+          "input": 78130,
+          "output": 10441,
+          "cacheRead": 97280,
+          "cacheWrite": 0,
+          "totalTokens": 185851
+        },
+        "estimatedCostUsd": 0.036551879999999995,
+        "allUsageAvailable": false,
+        "allCostAvailable": false
+      },
+      "jevReportedDurationMs": 0,
+      "jevReportedInputTokens": 0,
+      "jevReportedEstimatedCostUsd": 0,
+      "ownedContainerAbsent": true,
+      "reportSha256": "a8c35328d126f4f47a0549cca680a9e1b359f5fd2163e874f9cf4968a278b64e",
+      "cleanupEvidence": {
+        "inspectReturnCode": 1,
+        "stdoutEmptyArray": true,
+        "stderr": "error: no such object: 1bd4dbcb13941bec9808932843e60ca5a0829559800a3ece6649b0bd1c3561ee"
+      }
+    },
+    {
+      "arm": "humanize-on",
+      "status": "passed",
+      "phaseObservations": {
+        "memory": {
+          "status": "passed"
+        },
+        "recall": {
+          "status": "passed"
+        },
+        "harness": {
+          "status": "passed"
+        }
+      },
+      "checks": {
+        "regressionChanged": true,
+        "realJevMemoryParticipation": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true,
+        "realJevHarnessParticipation": true,
+        "realJevParticipation": true
+      },
+      "learningSeconds": 416.55,
+      "recallComparison": {
+        "baselineSeconds": 41.14,
+        "freshSeconds": 12.71,
+        "baselineToolCalls": 12,
+        "freshToolCalls": 3,
+        "baselineScope": "Separate empty agent configuration, same project and user filesystem; manual Memory discovery is allowed"
+      },
+      "parentSessionUsage": {
+        "learning": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 12,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 30077,
+            "output": 12230,
+            "cacheRead": 186624,
+            "cacheWrite": 0,
+            "totalTokens": 228931
+          },
+          "estimatedCostUsd": 0.024818844
+        },
+        "baseline-recall": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 8,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 24818,
+            "output": 1840,
+            "cacheRead": 60288,
+            "cacheWrite": 0,
+            "totalTokens": 86946
+          },
+          "estimatedCostUsd": 0.010015128
+        },
+        "fresh-recall": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 3,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 13115,
+            "output": 238,
+            "cacheRead": 4224,
+            "cacheWrite": 0,
+            "totalTokens": 17577
+          },
+          "estimatedCostUsd": 0.004245444
+        },
+        "harness-enforcement": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 3,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 612,
+            "output": 1117,
+            "cacheRead": 4608,
+            "cacheWrite": 0,
+            "totalTokens": 6337
+          },
+          "estimatedCostUsd": 0.001551648
+        }
+      },
+      "learningChildUsage": {
+        "tokens": {
+          "input": 69983,
+          "output": 15978,
+          "cacheRead": 62464,
+          "cacheWrite": 0,
+          "totalTokens": 148425
+        },
+        "estimatedCostUsd": 0.040543284,
+        "allUsageAvailable": false,
+        "allCostAvailable": false
+      },
+      "jevReportedDurationMs": 6997,
+      "jevReportedInputTokens": 67094,
+      "jevReportedEstimatedCostUsd": 0.002817948,
+      "ownedContainerAbsent": true,
+      "reportSha256": "31dd55173e9019138173da7fdee4808c7d06cafe5813dec7cce9051038c89610",
+      "cleanupEvidence": {
+        "inspectReturnCode": 1,
+        "stdoutEmptyArray": true,
+        "stderr": "error: no such object: 81c47ae25bc7065dde7c197b432d18f6d7b4ec87da5fb3d0891d74feb77da117"
+      }
+    },
+    {
+      "arm": "referencing-off",
+      "status": "passed",
+      "phaseObservations": {
+        "memory": {
+          "status": "passed"
+        },
+        "recall": {
+          "status": "passed"
+        },
+        "harness": {
+          "status": "passed"
+        }
+      },
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "learningSeconds": 135.1,
+      "recallComparison": {
+        "baselineSeconds": 47.84,
+        "freshSeconds": 13.38,
+        "baselineToolCalls": 9,
+        "freshToolCalls": 4,
+        "baselineScope": "Separate empty agent configuration, same project and user filesystem; manual Memory discovery is allowed"
+      },
+      "parentSessionUsage": {
+        "learning": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 9,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 10653,
+            "output": 2403,
+            "cacheRead": 50304,
+            "cacheWrite": 0,
+            "totalTokens": 63360
+          },
+          "estimatedCostUsd": 0.006381324
+        },
+        "baseline-recall": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 7,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 7910,
+            "output": 1353,
+            "cacheRead": 17280,
+            "cacheWrite": 0,
+            "totalTokens": 26543
+          },
+          "estimatedCostUsd": 0.0041002799999999996
+        },
+        "fresh-recall": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 3,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 2382,
+            "output": 287,
+            "cacheRead": 5504,
+            "cacheWrite": 0,
+            "totalTokens": 8173
+          },
+          "estimatedCostUsd": 0.001092024
+        },
+        "harness-enforcement": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 2,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 1478,
+            "output": 954,
+            "cacheRead": 1664,
+            "cacheWrite": 0,
+            "totalTokens": 4096
+          },
+          "estimatedCostUsd": 0.0015981839999999999
+        }
+      },
+      "learningChildUsage": {
+        "tokens": {
+          "input": 50585,
+          "output": 8560,
+          "cacheRead": 3200,
+          "cacheWrite": 0,
+          "totalTokens": 62345
+        },
+        "estimatedCostUsd": 0.025466699999999995,
+        "allUsageAvailable": false,
+        "allCostAvailable": false
+      },
+      "jevReportedDurationMs": 0,
+      "jevReportedInputTokens": 0,
+      "jevReportedEstimatedCostUsd": 0,
+      "ownedContainerAbsent": true,
+      "reportSha256": "e3e2d774a85d284e3718dbe60d051e25c24e7f2dae1799a4ddb3af91060032fa",
+      "cleanupEvidence": {
+        "inspectReturnCode": 1,
+        "stdoutEmptyArray": true,
+        "stderr": "error: no such object: a85c4e0a33ee72b2108d80e62039d034a7c3c1058a4ded1a0ace09f435212a88"
+      }
+    },
+    {
+      "arm": "referencing-on",
+      "status": "passed",
+      "phaseObservations": {
+        "memory": {
+          "status": "passed"
+        },
+        "recall": {
+          "status": "passed"
+        },
+        "harness": {
+          "status": "passed"
+        }
+      },
+      "checks": {
+        "regressionChanged": true,
+        "realJevMemoryParticipation": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true,
+        "realJevHarnessParticipation": true,
+        "realJevParticipation": true
+      },
+      "learningSeconds": 379.59,
+      "recallComparison": {
+        "baselineSeconds": 29.82,
+        "freshSeconds": 10.7,
+        "baselineToolCalls": 13,
+        "freshToolCalls": 3,
+        "baselineScope": "Separate empty agent configuration, same project and user filesystem; manual Memory discovery is allowed"
+      },
+      "parentSessionUsage": {
+        "learning": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 22,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 34823,
+            "output": 13017,
+            "cacheRead": 449664,
+            "cacheWrite": 0,
+            "totalTokens": 497504
+          },
+          "estimatedCostUsd": 0.028765284
+        },
+        "baseline-recall": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 7,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 20304,
+            "output": 1842,
+            "cacheRead": 50432,
+            "cacheWrite": 0,
+            "totalTokens": 72578
+          },
+          "estimatedCostUsd": 0.008604192
+        },
+        "fresh-recall": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 3,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 1856,
+            "output": 309,
+            "cacheRead": 5632,
+            "cacheWrite": 0,
+            "totalTokens": 7797
+          },
+          "estimatedCostUsd": 0.0009613919999999999
+        },
+        "harness-enforcement": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 2,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 2446,
+            "output": 521,
+            "cacheRead": 768,
+            "cacheWrite": 0,
+            "totalTokens": 3735
+          },
+          "estimatedCostUsd": 0.001363608
+        }
+      },
+      "learningChildUsage": {
+        "tokens": {
+          "input": 43220,
+          "output": 13428,
+          "cacheRead": 130304,
+          "cacheWrite": 0,
+          "totalTokens": 186952
+        },
+        "estimatedCostUsd": 0.029861423999999998,
+        "allUsageAvailable": false,
+        "allCostAvailable": false
+      },
+      "jevReportedDurationMs": 7123,
+      "jevReportedInputTokens": 80276,
+      "jevReportedEstimatedCostUsd": 0.003371592,
+      "ownedContainerAbsent": true,
+      "reportSha256": "6ac3d23f5cc6bfcc77c9cfce0d3e9c28ce46823e7b8e8b68132db866b0159339",
+      "cleanupEvidence": {
+        "inspectReturnCode": 1,
+        "stdoutEmptyArray": true,
+        "stderr": "error: no such object: 41114f0a741d9b9c2a6ed5f106191a25beb63de4c4ec7329fadad8e0ed739172"
+      }
+    },
+    {
+      "arm": "yocto-queue-off",
+      "status": "passed",
+      "phaseObservations": {
+        "memory": {
+          "status": "passed"
+        },
+        "recall": {
+          "status": "passed"
+        },
+        "harness": {
+          "status": "passed"
+        }
+      },
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "learningSeconds": 79.21,
+      "recallComparison": {
+        "baselineSeconds": 23.81,
+        "freshSeconds": 9.72,
+        "baselineToolCalls": 11,
+        "freshToolCalls": 3,
+        "baselineScope": "Separate empty agent configuration, same project and user filesystem; manual Memory discovery is allowed"
+      },
+      "parentSessionUsage": {
+        "learning": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 8,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 8261,
+            "output": 2160,
+            "cacheRead": 38448,
+            "cacheWrite": 0,
+            "totalTokens": 48869
+          },
+          "estimatedCostUsd": 0.0053009879999999995
+        },
+        "baseline-recall": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 5,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 9246,
+            "output": 1366,
+            "cacheRead": 13824,
+            "cacheWrite": 0,
+            "totalTokens": 24436
+          },
+          "estimatedCostUsd": 0.004495944
+        },
+        "fresh-recall": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 3,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 1738,
+            "output": 412,
+            "cacheRead": 5376,
+            "cacheWrite": 0,
+            "totalTokens": 7526
+          },
+          "estimatedCostUsd": 0.0010480560000000001
+        },
+        "harness-enforcement": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 3,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 1614,
+            "output": 707,
+            "cacheRead": 3200,
+            "cacheWrite": 0,
+            "totalTokens": 5521
+          },
+          "estimatedCostUsd": 0.0013518
+        }
+      },
+      "learningChildUsage": {
+        "tokens": {
+          "input": 31578,
+          "output": 7830,
+          "cacheRead": 10544,
+          "cacheWrite": 0,
+          "totalTokens": 49952
+        },
+        "estimatedCostUsd": 0.018932664,
+        "allUsageAvailable": false,
+        "allCostAvailable": false
+      },
+      "jevReportedDurationMs": 0,
+      "jevReportedInputTokens": 0,
+      "jevReportedEstimatedCostUsd": 0,
+      "ownedContainerAbsent": true,
+      "reportSha256": "5d2678d0b24109031de20994569fb573da072af33cea397cafe82e8efaf2fcab",
+      "cleanupEvidence": {
+        "inspectReturnCode": 1,
+        "stdoutEmptyArray": true,
+        "stderr": "error: no such object: 9bccb7ec93a724276a1a26f1b51596a7be8446ad9b449db31949b18c6fed5247"
+      }
+    },
+    {
+      "arm": "yocto-queue-on",
+      "status": "failed",
+      "phaseObservations": {
+        "memory": {
+          "status": "failed",
+          "errorType": "AssertionError",
+          "failedCheck": "project-command-not-learned"
+        },
+        "recall": {
+          "status": "unverified",
+          "reason": "memory-prerequisite-failed"
+        },
+        "harness": {
+          "status": "passed"
+        }
+      },
+      "checks": {
+        "regressionChanged": true,
+        "realJevMemoryParticipation": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true,
+        "realJevHarnessParticipation": true,
+        "realJevParticipation": true
+      },
+      "learningSeconds": 132.65,
+      "recallComparison": null,
+      "parentSessionUsage": {
+        "learning": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 7,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 12759,
+            "output": 1633,
+            "cacheRead": 19072,
+            "cacheWrite": 0,
+            "totalTokens": 33464
+          },
+          "estimatedCostUsd": 0.005901731999999999
+        },
+        "baseline-recall": {
+          "executed": false
+        },
+        "fresh-recall": {
+          "executed": false
+        },
+        "harness-enforcement": {
+          "executed": true,
+          "assistantCompletionsWithUsage": 2,
+          "missingOrFailedCompletions": 0,
+          "tokens": {
+            "input": 1512,
+            "output": 745,
+            "cacheRead": 1536,
+            "cacheWrite": 0,
+            "totalTokens": 3793
+          },
+          "estimatedCostUsd": 0.0013568159999999998
+        }
+      },
+      "learningChildUsage": {
+        "tokens": {
+          "input": 25869,
+          "output": 7204,
+          "cacheRead": 10880,
+          "cacheWrite": 0,
+          "totalTokens": 43953
+        },
+        "estimatedCostUsd": 0.01647078,
+        "allUsageAvailable": false,
+        "allCostAvailable": false
+      },
+      "jevReportedDurationMs": 4209,
+      "jevReportedInputTokens": 43592,
+      "jevReportedEstimatedCostUsd": 0.0018308640000000002,
+      "ownedContainerAbsent": true,
+      "reportSha256": "c91d18904bdb182fafaad97cf2bf9cb2dd62ea37e8d05acceac08552b1a89399",
+      "cleanupEvidence": {
+        "inspectReturnCode": 1,
+        "stdoutEmptyArray": true,
+        "stderr": "error: no such object: 85ab6efb1013272f9e750c642f1d5793b64ac00efefb212a4cf1aa25ed6ea488"
+      }
+    }
+  ],
+  "totals": {
+    "off": {
+      "passed": 3,
+      "arms": 3,
+      "learningSeconds": 474.67,
+      "parentSessionEstimatedCostUsd": 0.059906471999999995,
+      "learningChildEstimatedCostUsd": 0.08095124399999999,
+      "learningParentKnownEstimatedCostUsd": 0.034506468,
+      "learningKnownEstimatedCostUsdIncludingJev": 0.11545771199999999,
+      "jevReportedDurationMs": 0,
+      "expectedMemoryItemsObserved": 6,
+      "missingExpectedMemoryItems": 0,
+      "harnessEnforcementPassed": 3,
+      "falseWritesRateEstablished": false,
+      "falseBlocksRateEstablished": false
+    },
+    "on": {
+      "passed": 2,
+      "arms": 3,
+      "learningSeconds": 928.79,
+      "parentSessionEstimatedCostUsd": 0.08758408799999999,
+      "learningChildEstimatedCostUsd": 0.086875488,
+      "learningParentKnownEstimatedCostUsd": 0.059485859999999995,
+      "learningKnownEstimatedCostUsdIncludingJev": 0.154381752,
+      "jevReportedDurationMs": 18329,
+      "expectedMemoryItemsObserved": 5,
+      "missingExpectedMemoryItems": 1,
+      "harnessEnforcementPassed": 3,
+      "falseWritesRateEstablished": false,
+      "falseBlocksRateEstablished": false
+    }
+  },
+  "billingVerified": false,
+  "netLearningQualityImprovementProven": false,
+  "productionDefaultActivated": false,
+  "completeGoalEvidence": false,
+  "limitations": [
+    "Sequential arms use separately generated candidates, so duration and cost differences are not isolated Jev overhead.",
+    "The cohort mainly probes positive durable requirements; adversarial false-write rates are not established.",
+    "Baseline recall shares the project and filesystem and can manually discover saved Memory.",
+    "One observed command omission occurs after uncertain description counterevidence; raw answer probabilities were not retained by this collector.",
+    "Configured model prices provide estimates, not invoiced billing.",
+    "Source files and image identities remain frozen; failed arms are retained.",
+    "Receipts mark usageAvailable and costAvailable false; recorded child totals are known estimates, not proof of complete billed usage. Some deterministic selector and Jev-only telemetry attempts have no main-model usage record.",
+    "Historical providerRequests is a combined transport counter; main model requests = providerRequests - jevRequests. The explicit mainModelRequests field disambiguates it."
+  ],
+  "allOwnedContainersAbsent": true,
+  "semanticReviewStatus": "independent-readonly-review-complete",
+  "totalTransportRequests": 200,
+  "mainModelRequests": 171,
+  "verification": {
+    "packageSuite": {
+      "passed": 1045,
+      "seconds": 436.93
+    },
+    "rootTypecheckExitCode": 0,
+    "workspacePackedManifestsPassed": 19,
+    "targetPackDryRunExitCode": 0,
+    "packageDiffCheckExitCode": 0,
+    "installationCheck": {
+      "exitCode": 1,
+      "continualLearningMissing": false,
+      "unrelatedMissing": [
+        "agent-teams",
+        "bdd-jev",
+        "btw",
+        "context",
+        "keyboard",
+        "monitor",
+        "plan-mode",
+        "recap",
+        "skill-router",
+        "utils",
+        "vision"
+      ]
+    }
+  },
+  "independentReview": {
+    "reviewer": "deepseek_heldout_evidence_review",
+    "candidateMemoryMistakesObserved": 0,
+    "extraMemoryGeneralizationsObserved": 0,
+    "expectedMemoryItems": {
+      "off": 6,
+      "on": 5
+    },
+    "harnessExpansionObserved": false,
+    "regressionTestsExerciseRealImplementation": true,
+    "parentChildCostDuplicationObserved": false,
+    "sourceAndCleanupVerified": true,
+    "counterEvidenceProbabilityMissing": true,
+    "completeGoalEvidence": false
+  },
+  "falseWriteObservationScope": "Manual review of the eleven written Memory items in these positive scenarios; does not establish adversarial false-write rate.",
+  "failedCaseDiagnostic": {
+    "arm": "yocto-queue-on",
+    "missingFact": "verified project regression command",
+    "stoppedDimension": "counterevidence",
+    "stoppedField": "description",
+    "reason": "uncertain",
+    "frozenEvidenceEntries": 16,
+    "toolErrorFlaggedEntries": 0,
+    "testSuccessEntryIndexes": [
+      8,
+      12
+    ],
+    "historicalTestFailureCauseEstablished": false,
+    "rawProbabilitiesRecorded": false
+  },
+  "priceSource": "https://docs.typesafe.ai/models"
+}

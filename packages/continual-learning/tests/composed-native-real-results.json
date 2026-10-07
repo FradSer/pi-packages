@@ -1,0 +1,139 @@
+{
+  "evidence": "real Jev inference with native Pi parent and actual durable writes; fixed local main planner",
+  "rawRoot": "/Users/FradSer/.cache/pi-continual-learning/docker/composed-native-real-20261006T221102Z",
+  "rawManifestSha256": "ef3d1932adab1719e906320c4c118116c6945dc2ccba7df87d97c02c97f8a201",
+  "rawResultsSha256": "39afa73bfb66f8324feaacd5b45efec531a4e1577888afdd3547e431145a5eec",
+  "rawProxyResultsSha256": "99eb54199320f9043f4fc0f1cc28017547f3efb7b8ef75e6f5d3093ae2c2e22c",
+  "frozenSourceCount": 61,
+  "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+  "requestProofSha256": "dac8675e7b1c3960eb203b1eaf6f0f67edba928f9896af38fd1f50a475bf50a1",
+  "metrics": {
+    "jev-composed-original": {
+      "validApplied": 1,
+      "invalidApplied": 0,
+      "validHeld": 3,
+      "wallMs": 14473
+    },
+    "jev-composed": {
+      "validApplied": 4,
+      "invalidApplied": 0,
+      "validHeld": 0,
+      "wallMs": 15559
+    }
+  },
+  "validRecoveryObserved": 3,
+  "rows": [
+    {
+      "language": "en",
+      "arm": "jev-composed-original",
+      "exitCode": 0,
+      "wallDurationMs": 6593,
+      "applied": [
+        "license.md"
+      ],
+      "eligibleApplied": 1,
+      "ineligibleApplied": 0,
+      "eligibleHeld": 1,
+      "operations": 1,
+      "pipelineContextInjectionVerified": true
+    },
+    {
+      "language": "en",
+      "arm": "jev-composed",
+      "exitCode": 0,
+      "wallDurationMs": 7720,
+      "applied": [
+        "license.md",
+        "tools.md"
+      ],
+      "eligibleApplied": 2,
+      "ineligibleApplied": 0,
+      "eligibleHeld": 0,
+      "operations": 2,
+      "pipelineContextInjectionVerified": true
+    },
+    {
+      "language": "zh",
+      "arm": "jev-composed-original",
+      "exitCode": 0,
+      "wallDurationMs": 7880,
+      "applied": [],
+      "eligibleApplied": 0,
+      "ineligibleApplied": 0,
+      "eligibleHeld": 2,
+      "operations": 0,
+      "pipelineContextInjectionVerified": true
+    },
+    {
+      "language": "zh",
+      "arm": "jev-composed",
+      "exitCode": 0,
+      "wallDurationMs": 7839,
+      "applied": [
+        "license.md",
+        "tools.md"
+      ],
+      "eligibleApplied": 2,
+      "ineligibleApplied": 0,
+      "eligibleHeld": 0,
+      "operations": 2,
+      "pipelineContextInjectionVerified": true
+    }
+  ],
+  "externalRequests": 28,
+  "actualModels": [
+    "jev-1.13.0"
+  ],
+  "usageComplete": true,
+  "knownInputTokens": 39886,
+  "unpricedKnownInputTokens": 0,
+  "estimatedInputCostUsd": 0.0016752120000000001,
+  "remoteCompletionUnknown": false,
+  "wallDurationMs": 30164,
+  "summedRequestDurationMs": 27396,
+  "medianRequestDurationMs": 937.0,
+  "cleanup": [
+    {
+      "case": "en-jev-composed-original",
+      "ownedContainersAbsent": true,
+      "parentFinalAbsenceProven": true,
+      "resultSha256": "35abc5fe3e6aef7f4138a664542743b164db89a9655fd3263ec32eabe17ef97e",
+      "studySha256": "8934166ec57552a1cfeddda35711bc64733f2bb335bc6ab3d115a6ec12e54820",
+      "parentCleanupSha256": "25008f307ce723c0f9f7421f5e2b2c68646f0ad5a4221e56b6cefcab6dd0043d"
+    },
+    {
+      "case": "en-jev-composed",
+      "ownedContainersAbsent": true,
+      "parentFinalAbsenceProven": true,
+      "resultSha256": "a9fc4b7e94ad4475c21b2a10018980233d2346b36a37fa15b82d121548642ba7",
+      "studySha256": "1af0a57605181b605e7ea43449a04cd6ac23b4dd787f55502329d48ee0b6cf6b",
+      "parentCleanupSha256": "0b13e9846d7857cf272511d33773b033768ddcd4bfcab7c6a3f745d93f63cb0e"
+    },
+    {
+      "case": "zh-jev-composed-original",
+      "ownedContainersAbsent": true,
+      "parentFinalAbsenceProven": true,
+      "resultSha256": "3c6aee4992d958eca69393b93a438d1ccee73b1245c62d806ca3f7d77ae28917",
+      "studySha256": "c3a83750333bdd484476badc7e7a5d4ebd59c987fcab0796aaa97a683d8ce000",
+      "parentCleanupSha256": "f88a41cd45b58480f6081343f5e2cfcc50bc77be5352d2fc3ff65f14f82683bd"
+    },
+    {
+      "case": "zh-jev-composed",
+      "ownedContainersAbsent": true,
+      "parentFinalAbsenceProven": true,
+      "resultSha256": "00d945b8bbf7a0c2c338970a347c11eb6524600ed0c9c4fcd41bfa5c93434851",
+      "studySha256": "eac9ff00b1f78aec87e92f769859751c565c7b45a72fceb5e225a57fb6c30119",
+      "parentCleanupSha256": "e718951a97f4f85fa2c6fe64452a5f678f51e07cb94fc69593b611e1efef66de"
+    }
+  ],
+  "productionDefaultActivated": false,
+  "mainModelInference": false,
+  "fullGoalComplete": false,
+  "limitations": [
+    "One reused public synthetic scenario in two languages, not unseen projects or blind labels.",
+    "Main candidate generation and final response use fixed local fixtures; actual main model generation and semantic recall are unverified.",
+    "Arms use separate actual model responses; observed recovery is not an isolated causal estimate of partition policy.",
+    "Old negative project evidence remains valid historical evidence.",
+    "No default activation or general learning-quality superiority claim."
+  ]
+}

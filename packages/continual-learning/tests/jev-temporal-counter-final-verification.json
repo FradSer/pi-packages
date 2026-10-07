@@ -1,0 +1,48 @@
+{
+  "evidence": "temporal-counter-development-final-verification",
+  "fullTargetTests": {
+    "passed": 868,
+    "seconds": 262.9,
+    "exitCode": 0
+  },
+  "newRegression": {
+    "red": "missing research helper",
+    "green": "1 passed"
+  },
+  "rootTypecheck": "passed",
+  "strictRunnerTypecheck": "passed",
+  "targetPackDryRun": "passed",
+  "scopedDiffCheck": "passed",
+  "freshIndependentReview": "temporal_research_review: pre-call and final source/corpus/report checks passed",
+  "externalRequests": 64,
+  "actualModel": "jev-1.13.0",
+  "knownInputTokens": 66866,
+  "knownEstimatedCostUsd": 0.002808372,
+  "actualBilledCostVerified": false,
+  "paidProcess": {
+    "id": 86341,
+    "terminalExitCode": 0
+  },
+  "newDockerExecutions": 0,
+  "newNativePiExecutions": 0,
+  "productionRuntimeChanged": false,
+  "productionCandidateWrites": 0,
+  "adopted": false,
+  "qualityCriterionMet": false,
+  "goalComplete": false,
+  "limitations": [
+    "16 synthetic bilingual cases are8scenario pairs, not16independent open-source workflows.",
+    "Before and after both have1valid support hold; no measured gain.",
+    "Raw request hashes and answer probabilities were not captured; no old-cause or confidence explanation inferred.",
+    "Single-window variant preflight must be strengthened before a different multi-window study."
+  ],
+  "fileSha256": {
+    "evaluate_jev_temporal_counter.ts": "97da70a4d89692191b1b6a84e034e79918e266e678cf7bd9efd40c7a45fe7ca3",
+    "jev-temporal-counter-research.ts": "007d8fe6299d80fd330a383b8df927b7cc3108f5c76324a949273ba5ca325adb",
+    "test_jev_temporal_counter.py": "1978915917b89d14ffee41f6557cc65cfbdf26d7b373aeafa88cfa2be1119601",
+    "jev-temporal-counter-development-study-manifest.json": "68a3bd1c3f67180f83b0cb8ff49b8c94c6cd4660d9dcc123b766049086934b16",
+    "jev-temporal-counter-development-real-results.json": "62e776af2a81f1c260cdc8c8eb88b4e82c0ee1cf0bf5fb48c801f84670d38008",
+    "jev-temporal-counter-adoption-decision.json": "b026b58b128907a8089e628486b9ff72927d8aa5b566f694e40e242008a2bb15",
+    "jev-support-followup-plan.md": "483120e78b5f4ef1ea875b48902d525650402d033dc5a107f0306e7a5eb8bff7"
+  }
+}

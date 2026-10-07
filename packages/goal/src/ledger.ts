@@ -33,6 +33,10 @@ export type GoalLedgerEvent =
   | { type: "goal_focused"; goalId: string; reason: string; at: string }
   | { type: "goal_unfocused"; goalId: string | null; at: string }
   | { type: "goal_paused"; goalId: string; reason: string; stopReason: StopReason; at: string }
+  /** `reason` names the actor for a resume: the management verb writes "user",
+   * a revision under an accepted request writes "revision". It stays a string
+   * because an older ledger line, or a hand-written one, carries whatever text it
+   * carried, and the reader must keep ignoring it. */
   | { type: "goal_resumed"; goalId: string; reason: string; at: string }
   | { type: "goal_claimed"; goalId: string; dispatchId: string; run: number; at: string }
   | { type: "goal_blocked"; goalId: string; reason: string; at: string }

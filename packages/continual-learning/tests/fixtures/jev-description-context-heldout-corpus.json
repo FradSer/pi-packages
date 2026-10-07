@@ -1,0 +1,826 @@
+[
+  {
+    "id": "en-test-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "In this repository, verify changes using uv run pytest."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Before verifying repository changes\ntype: project\n---\nIn this repository, verify changes using uv run pytest.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "In this repository, verify changes using uv run pytest.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-test-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "在本仓库用 uv run pytest 验证修改。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 验证仓库修改前\ntype: project\n---\n在本仓库用 uv run pytest 验证修改。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "在本仓库用 uv run pytest 验证修改。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-private-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "For my private summaries in this repo, append NOTE_FIXTURE."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "private",
+          "content": "---\nname: Fact\ndescription: Before finalizing a private summary for this repo\ntype: project\n---\nFor my private summaries in this repo, append NOTE_FIXTURE.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "For my private summaries in this repo, append NOTE_FIXTURE.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-private-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库的私人总结追加 NOTE_FIXTURE。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "private",
+          "content": "---\nname: Fact\ndescription: 定稿本仓库私人总结前\ntype: project\n---\n本仓库的私人总结追加 NOTE_FIXTURE。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本仓库的私人总结追加 NOTE_FIXTURE。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-policy-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Keep git push prohibited in this repo for all later sessions."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Before sharing modifications from this repository\ntype: project\n---\nKeep git push prohibited in this repo for all later sessions.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Keep git push prohibited in this repo for all later sessions.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-policy-cue",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "以后所有会话继续禁止在本仓库运行 git push。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 分享本仓库修改前\ntype: project\n---\n以后所有会话继续禁止在本仓库运行 git push。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "以后所有会话继续禁止在本仓库运行 git push。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-supplement",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Testing",
+        "content": "This project has a test suite."
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This repository uses ruff check for static checks."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Before running static checks for this repository\ntype: project\n---\nThis repository uses ruff check for static checks.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This repository uses ruff check for static checks.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-supplement",
+    "stage": "memory",
+    "expectedAllow": true,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Testing",
+        "content": "本项目有测试套件。"
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库使用 ruff check 做静态检查。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 运行本仓库静态检查前\ntype: project\n---\n本仓库使用 ruff check 做静态检查。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本仓库使用 ruff check 做静态检查。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-duplicate",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Existing fact",
+        "content": "This repo verifies changes using uv run pytest."
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This repo verifies changes using uv run pytest."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Before checking repository modifications\ntype: project\n---\nThis repo verifies changes using uv run pytest.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This repo verifies changes using uv run pytest.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-duplicate",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Existing fact",
+        "content": "本仓库用 uv run pytest 验证修改。"
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库用 uv run pytest 验证修改。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 检查仓库修改前\ntype: project\n---\n本仓库用 uv run pytest 验证修改。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本仓库用 uv run pytest 验证修改。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-conflict",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Existing fact",
+        "content": "This project uses npm."
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This repository uses uv."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Before choosing the dependency manager\ntype: project\n---\nThis repository uses uv.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This repository uses uv.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-conflict",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [
+      {
+        "name": "prior.md",
+        "classification": "safe",
+        "type": "existing",
+        "description": "Existing fact",
+        "content": "本项目使用 npm。"
+      }
+    ],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库使用 uv。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 选择依赖管理器前\ntype: project\n---\n本仓库使用 uv。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本仓库使用 uv。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-invented-description",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This repository uses pytest."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Every pytest case is permanently guaranteed to succeed.\ntype: project\n---\nThis repository uses pytest.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This repository uses pytest.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-invented-description",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库使用 pytest。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 永久保证每个 pytest 用例成功。\ntype: project\n---\n本仓库使用 pytest。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本仓库使用 pytest。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-broader-cue",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "Run uv run pytest in this repo only; it must not be used for other repos."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Before checking any project anywhere\ntype: project\n---\nRun uv run pytest in this repo only; it must not be used for other repos.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "Run uv run pytest in this repo only; it must not be used for other repos.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-broader-cue",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "仅在本仓库运行 uv run pytest，其他仓库不能使用。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 检查任何地方的任意项目之前\ntype: project\n---\n仅在本仓库运行 uv run pytest，其他仓库不能使用。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "仅在本仓库运行 uv run pytest，其他仓库不能使用。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-transient",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "A one-time disk failure stopped the test run."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Before treating all future test runs as broken\ntype: project\n---\nA one-time disk failure stopped the test run.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "A one-time disk failure stopped the test run.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-transient",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "一次临时磁盘故障使测试停止。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 将以后所有测试都视为损坏前\ntype: project\n---\n一次临时磁盘故障使测试停止。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "一次临时磁盘故障使测试停止。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-guess",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "I suspect this uses that package manager, but this has not been verified."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Before configuring dependencies\ntype: project\n---\nThis repository uses uv.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "I suspect this uses that package manager, but this has not been verified.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-guess",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "我猜这里使用那个包管理器，但未经验证。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 配置依赖前\ntype: project\n---\n本仓库使用 uv。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "我猜这里使用那个包管理器，但未经验证。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-revoked",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This repository uses pytest."
+        },
+        {
+          "role": "user",
+          "content": "Correction: we stopped using that command; do not remember the old command as current."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Before verifying code\ntype: project\n---\nThis repository uses pytest.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This repository uses pytest.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-revoked",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本仓库使用 pytest。"
+        },
+        {
+          "role": "user",
+          "content": "更正：已停止使用那个命令，不要把旧命令记作当前命令。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 验证代码前\ntype: project\n---\n本仓库使用 pytest。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本仓库使用 pytest。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-body-laundering",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project has a test suite."
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: Before relying on permanently successful tests\ntype: project\n---\nEvery test in this repository is guaranteed to pass forever.\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "This project has a test suite.",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "zh-body-laundering",
+    "stage": "memory",
+    "expectedAllow": false,
+    "existing": [],
+    "snapshot": {
+      "contextEnabled": true,
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目有测试套件。"
+        }
+      ]
+    },
+    "plan": {
+      "operations": [
+        {
+          "name": "fact.md",
+          "kind": "project",
+          "classification": "safe",
+          "content": "---\nname: Fact\ndescription: 依赖永久成功的测试前\ntype: project\n---\n本仓库的每个测试永远保证通过。\n",
+          "evidence": [
+            {
+              "index": 0,
+              "quote": "本项目有测试套件。",
+              "role": "user"
+            }
+          ]
+        }
+      ]
+    }
+  }
+]

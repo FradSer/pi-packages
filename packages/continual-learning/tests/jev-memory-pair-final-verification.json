@@ -1,0 +1,26 @@
+{
+  "evidence": "v1-memory-pair-final-local-verification",
+  "files": {
+    "jev-memory-pair-adoption-decision.json": "dbef5e8d235477f6425ad215314799febe3da9e6342efdb1d8575d3fdfcc9a18",
+    "jev-memory-pair-development-real-results.json": "e2a772c0cc2a6a82f6e7d63838f760b312d7525669240451ed527006f00091e6",
+    "jev-memory-pair-heldout-real-results.json": "c9bdd3da6ba2e3911038d097efff8555c7f2527f2f321ddde9cf298a83cc52bf"
+  },
+  "fullPackageTests": {
+    "passed": 860,
+    "durationSeconds": 256.79,
+    "exitCode": 0
+  },
+  "rootTypecheck": {
+    "exitCode": 0
+  },
+  "strictResearchTypecheck": {
+    "exitCode": 0
+  },
+  "targetPackDryRun": {
+    "exitCode": 0
+  },
+  "independentReview": "cited_memory_security_review: source hashes,24 requests,18695 input,0.000785190 estimate and no-adoption confirmed",
+  "newProductionWrites": 0,
+  "newDockerExecutions": 0,
+  "workflowQualityImprovementProven": false
+}

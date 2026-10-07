@@ -147,3 +147,16 @@ Feature: Shared worker-runtime primitives
       When the binding is read
       Then the result is undefined
       And a partially configured child is treated as not a worker
+
+  Scenario: A Pi CLI succeeds while the model fails
+    Given the CLI exits with zero after a failed or aborted assistant reply
+    When a one-shot worker completes
+    Then partial assistant text is not returned as a successful result
+    And failure usage is unavailable rather than reported as zero
+    And model failure or cancellation is exposed without sensitive provider text
+
+  Scenario: A successful reply follows a failed request with unknown usage
+    Given a failed request provides no authoritative usage
+    When the worker recovers with a successful assistant reply
+    Then the recovered text is returned
+    And the complete worker usage remains unavailable

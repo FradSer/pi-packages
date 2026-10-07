@@ -19,7 +19,7 @@
  * waiting for the model to remember to ask.
  */
 
-import { budgetReached, nowIso, randomToken, type GoalRecord } from "./record.ts";
+import { budgetReached, nowIso, randomToken, type GoalRecord, type ResumeReason } from "./record.ts";
 import type { GoalLedgerEvent } from "./ledger.ts";
 import type { GoalSettings } from "./settings.ts";
 import type { GoalMutationOutcome } from "./store.ts";
@@ -473,8 +473,11 @@ export class GoalScheduler {
     return outcome.ok;
   }
 
-  /** Explicit user resume starts a new allowance period. */
-  resume(goal: GoalRecord, settings: GoalSettings): boolean {
+  /** A resume starts a new allowance period. The actor is recorded because the
+   * two routes are different facts: the management verb has the user in front
+   * of it, while a revision under an accepted `/goal <text>` request is the
+   * runtime lifting a pause on the user's behalf. */
+  resume(goal: GoalRecord, settings: GoalSettings, reason: ResumeReason): boolean {
     this.lastSettings = settings;
     this.inRun = false;
     this.denied = false;
@@ -499,7 +502,7 @@ export class GoalScheduler {
           ? { ...draft.scheduler, owner: this.host.readOwner(), phase: "ready", used: 0, idleRuns: 0, dispatch: undefined, generation: randomToken() }
           : { owner: this.host.readOwner(), phase: "ready", used: 0, idleRuns: 0, generation: randomToken() },
       }),
-      ledger: [{ type: "goal_resumed", goalId: goal.id, reason: "user", at: nowIso() }],
+      ledger: [{ type: "goal_resumed", goalId: goal.id, reason, at: nowIso() }],
     });
     if (!outcome.ok) {
       this.host.notify(outcome.message, "warning");
@@ -520,8 +523,6 @@ export class GoalScheduler {
         draft.scheduler ? { ...draft, scheduler: { ...draft.scheduler, phase: "idle", dispatch: undefined, generation: randomToken() } } : undefined,
     });
   }
-
-  
 
   shutdown(): void {
     this.armedGeneration = undefined;

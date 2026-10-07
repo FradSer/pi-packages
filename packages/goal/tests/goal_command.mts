@@ -35,6 +35,7 @@ async function runCommand(objective: string, status: GoalRecord["status"], busy:
   goal: GoalRecord | undefined;
   projectRoot: string;
   id: string;
+  sent: { message: unknown; options: unknown }[];
 }> {
   const store = new GoalStore({ projectRoot: root });
   const id = newGoalId();
@@ -59,13 +60,17 @@ async function runCommand(objective: string, status: GoalRecord["status"], busy:
 
   let handler: ((args: string, ctx: unknown) => Promise<void>) | undefined;
   const notifications: string[] = [];
+  const sent: { message: unknown; options: unknown }[] = [];
   const core = {
     pi: {
       registerCommand: (_name: string, spec: { handler: typeof handler }) => { handler = spec.handler; },
+      sendMessage: (message: unknown, options: unknown) => { sent.push({ message, options }); },
     },
     bindUi: () => {},
     cancelGoalActivation: () => {},
+    requestGoalActivation: (_prompt: string) => {},
     abortCheck: () => {},
+    settings: () => ({}),
     goal,
     store,
   };
@@ -77,7 +82,7 @@ async function runCommand(objective: string, status: GoalRecord["status"], busy:
     hasPendingMessages: () => busy,
     ui: { notify: (line: string) => notifications.push(line) },
   });
-  return { notifications, goal: store.readGoal(id), projectRoot: root, id };
+  return { notifications, goal: store.readGoal(id), projectRoot: root, id, sent };
 }
 
 await scenario("a /goal objective revises a goal that is being pursued", async () => {

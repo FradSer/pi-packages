@@ -1,0 +1,1782 @@
+{
+  "evidence": "real-jev-complete-batch-subset-research-no-writes",
+  "manifestSha256": "d63592c05043e4111758115f02daa02c356c8146755a0f93b0d083c7138591e3",
+  "corpusSha256": "df90e20a4e121ff28d9188af8a184b98a3a37cc560960c1db625dbf1953b5383",
+  "rows": [
+    {
+      "id": "speculation-en",
+      "language": "en",
+      "archetype": "speculation",
+      "eligible": [
+        true,
+        false,
+        true
+      ],
+      "whole": [],
+      "subset": [
+        0,
+        2
+      ],
+      "simulation": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          2
+        ],
+        "held": [
+          1
+        ],
+        "reason": "independent-subset"
+      },
+      "review": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "ec9248c4980ba1add4357051e3dc3ce2a2fbf6a12ae994320e57a796fbf73e35",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "549a121e29be4c97fedf2369b4591ae09dc8a03ec8c84024e1cd550a0fd0df8e",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "e4b4519763db40d364ab6194ce1865efc2c64eee613c513290382d52c341a692",
+            "outcome": "held",
+            "passedChecks": [],
+            "heldChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ]
+          },
+          {
+            "index": 2,
+            "candidateDigest": "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_2",
+              "supported_description_2",
+              "counter_2_0",
+              "counter_description_2_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "uncertain",
+        "durationMs": 1137,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 3,
+        "coveredEntries": 3,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 4090,
+        "outputTokens": 632,
+        "estimatedCostUsd": 0.00017178,
+        "candidateFailures": [
+          {
+            "candidateIndex": 1,
+            "dimension": "support",
+            "reason": "uncertain"
+          }
+        ],
+        "candidateIndex": 1,
+        "dimension": "support"
+      },
+      "pairs": [
+        {
+          "a": 0,
+          "b": 1,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "ec9248c4980ba1add4357051e3dc3ce2a2fbf6a12ae994320e57a796fbf73e35",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "549a121e29be4c97fedf2369b4591ae09dc8a03ec8c84024e1cd550a0fd0df8e",
+          "candidateDigests": [
+            "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "e4b4519763db40d364ab6194ce1865efc2c64eee613c513290382d52c341a692"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.99,
+            "probabilities": {
+              "dependent": 0,
+              "independent": 0.99,
+              "conflict": 0.01,
+              "unclear": 0,
+              "duplicate": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 0,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "ec9248c4980ba1add4357051e3dc3ce2a2fbf6a12ae994320e57a796fbf73e35",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "549a121e29be4c97fedf2369b4591ae09dc8a03ec8c84024e1cd550a0fd0df8e",
+          "candidateDigests": [
+            "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 1,
+            "probabilities": {
+              "conflict": 0,
+              "unclear": 0,
+              "dependent": 0,
+              "independent": 1,
+              "duplicate": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "ec9248c4980ba1add4357051e3dc3ce2a2fbf6a12ae994320e57a796fbf73e35",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "549a121e29be4c97fedf2369b4591ae09dc8a03ec8c84024e1cd550a0fd0df8e",
+          "candidateDigests": [
+            "e4b4519763db40d364ab6194ce1865efc2c64eee613c513290382d52c341a692",
+            "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.99,
+            "probabilities": {
+              "duplicate": 0,
+              "unclear": 0,
+              "conflict": 0.01,
+              "independent": 0.99,
+              "dependent": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        }
+      ],
+      "wholeDurationMs": 1138,
+      "durationMs": 2185
+    },
+    {
+      "id": "transient-en",
+      "language": "en",
+      "archetype": "transient",
+      "eligible": [
+        true,
+        false,
+        true
+      ],
+      "whole": [],
+      "subset": [
+        2
+      ],
+      "simulation": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          2
+        ],
+        "held": [
+          0,
+          1
+        ],
+        "reason": "independent-subset"
+      },
+      "review": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "6697eab4dbbede3709b9d84a07874445d9b59eb52e4963daa6ad1607d39cd5a4",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "ca0bf2b6707fd35f82587103ffb7e09296a2be6299d979db775b50543a1b5bde",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "41f01131ff800a6ad0a761bcf57b936d78ac4a96085c72cec0c81e6ed483b4be",
+            "outcome": "held",
+            "passedChecks": [],
+            "heldChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ]
+          },
+          {
+            "index": 2,
+            "candidateDigest": "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_2",
+              "supported_description_2",
+              "counter_2_0",
+              "counter_description_2_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "unsupported",
+        "durationMs": 488,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 3,
+        "coveredEntries": 3,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 4073,
+        "outputTokens": 630,
+        "estimatedCostUsd": 0.00017106600000000002,
+        "candidateFailures": [
+          {
+            "candidateIndex": 1,
+            "dimension": "support",
+            "reason": "unsupported"
+          }
+        ],
+        "candidateIndex": 1,
+        "dimension": "support"
+      },
+      "pairs": [
+        {
+          "a": 0,
+          "b": 1,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "6697eab4dbbede3709b9d84a07874445d9b59eb52e4963daa6ad1607d39cd5a4",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "ca0bf2b6707fd35f82587103ffb7e09296a2be6299d979db775b50543a1b5bde",
+          "candidateDigests": [
+            "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "41f01131ff800a6ad0a761bcf57b936d78ac4a96085c72cec0c81e6ed483b4be"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.75,
+            "probabilities": {
+              "dependent": 0,
+              "independent": 0.8,
+              "duplicate": 0.01,
+              "unclear": 0,
+              "conflict": 0.19
+            }
+          },
+          "status": "uncertain",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 0,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "6697eab4dbbede3709b9d84a07874445d9b59eb52e4963daa6ad1607d39cd5a4",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "ca0bf2b6707fd35f82587103ffb7e09296a2be6299d979db775b50543a1b5bde",
+          "candidateDigests": [
+            "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 1,
+            "probabilities": {
+              "dependent": 0,
+              "duplicate": 0,
+              "independent": 1,
+              "conflict": 0,
+              "unclear": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "6697eab4dbbede3709b9d84a07874445d9b59eb52e4963daa6ad1607d39cd5a4",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "ca0bf2b6707fd35f82587103ffb7e09296a2be6299d979db775b50543a1b5bde",
+          "candidateDigests": [
+            "41f01131ff800a6ad0a761bcf57b936d78ac4a96085c72cec0c81e6ed483b4be",
+            "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.87,
+            "probabilities": {
+              "conflict": 0.1,
+              "independent": 0.9,
+              "dependent": 0,
+              "unclear": 0,
+              "duplicate": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        }
+      ],
+      "wholeDurationMs": 488,
+      "durationMs": 951
+    },
+    {
+      "id": "conflict-en",
+      "language": "en",
+      "archetype": "conflict",
+      "eligible": [
+        true,
+        false,
+        true
+      ],
+      "whole": [],
+      "subset": [],
+      "simulation": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [],
+        "held": [
+          0,
+          1,
+          2
+        ],
+        "reason": "no-independent-subset"
+      },
+      "review": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "991f5c04b80003317fefee54f149f1a0bd487cbdfbbbab6917cbc8a12b6b3448",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "2c9d0385b5d74488c7d3d8229f5dfe8f754b7a5d6a6248c723587bff574507a1",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "925a04e974999e8b4a04bea27e5c22619899c2af18ac6ae0fbfa33782fc30f45",
+            "outcome": "held",
+            "passedChecks": [],
+            "heldChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ]
+          },
+          {
+            "index": 2,
+            "candidateDigest": "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_2",
+              "supported_description_2",
+              "counter_2_0",
+              "counter_description_2_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "unsupported",
+        "durationMs": 467,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 3,
+        "coveredEntries": 3,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 4085,
+        "outputTokens": 628,
+        "estimatedCostUsd": 0.00017157,
+        "candidateFailures": [
+          {
+            "candidateIndex": 1,
+            "dimension": "support",
+            "reason": "unsupported"
+          }
+        ],
+        "candidateIndex": 1,
+        "dimension": "support"
+      },
+      "pairs": [
+        {
+          "a": 0,
+          "b": 1,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "991f5c04b80003317fefee54f149f1a0bd487cbdfbbbab6917cbc8a12b6b3448",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "2c9d0385b5d74488c7d3d8229f5dfe8f754b7a5d6a6248c723587bff574507a1",
+          "candidateDigests": [
+            "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "925a04e974999e8b4a04bea27e5c22619899c2af18ac6ae0fbfa33782fc30f45"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "conflict",
+            "confidence": 0.91,
+            "probabilities": {
+              "unclear": 0,
+              "conflict": 0.93,
+              "independent": 0.07,
+              "dependent": 0,
+              "duplicate": 0
+            }
+          },
+          "status": "decided",
+          "expected": "conflict",
+          "relation": "conflict"
+        },
+        {
+          "a": 0,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "991f5c04b80003317fefee54f149f1a0bd487cbdfbbbab6917cbc8a12b6b3448",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "2c9d0385b5d74488c7d3d8229f5dfe8f754b7a5d6a6248c723587bff574507a1",
+          "candidateDigests": [
+            "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 1,
+            "probabilities": {
+              "duplicate": 0,
+              "independent": 1,
+              "dependent": 0,
+              "conflict": 0,
+              "unclear": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "991f5c04b80003317fefee54f149f1a0bd487cbdfbbbab6917cbc8a12b6b3448",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "2c9d0385b5d74488c7d3d8229f5dfe8f754b7a5d6a6248c723587bff574507a1",
+          "candidateDigests": [
+            "925a04e974999e8b4a04bea27e5c22619899c2af18ac6ae0fbfa33782fc30f45",
+            "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.85,
+            "probabilities": {
+              "unclear": 0,
+              "independent": 0.89,
+              "dependent": 0,
+              "conflict": 0.11,
+              "duplicate": 0
+            }
+          },
+          "status": "uncertain",
+          "expected": "independent",
+          "relation": "independent"
+        }
+      ],
+      "wholeDurationMs": 467,
+      "durationMs": 989
+    },
+    {
+      "id": "dependency-en",
+      "language": "en",
+      "archetype": "dependency",
+      "eligible": [
+        true,
+        false,
+        true
+      ],
+      "whole": [
+        0,
+        1,
+        2
+      ],
+      "subset": [
+        0,
+        1,
+        2
+      ],
+      "simulation": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [],
+        "held": [
+          0,
+          1,
+          2
+        ],
+        "reason": "no-independent-subset"
+      },
+      "review": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "a0a9f2c5c70ba5bf6063ee153eb8a4d16da03e2efd96135146ede2e3adbfd1ef",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "5c4899c30e582d748ad96669e54a164c2e1c607646416e2c85fb98a442d1043b",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "5be5f09fee875e6971c9bf006ad39ad93f939e68ee0d6aeb1b07c0c28d1a6dcd",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 2,
+            "candidateDigest": "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_2",
+              "supported_description_2",
+              "counter_2_0",
+              "counter_description_2_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "telemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 490,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 3,
+        "coveredEntries": 3,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 4061,
+        "outputTokens": 630,
+        "estimatedCostUsd": 0.00017056200000000002
+      },
+      "pairs": [
+        {
+          "a": 0,
+          "b": 1,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "a0a9f2c5c70ba5bf6063ee153eb8a4d16da03e2efd96135146ede2e3adbfd1ef",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "5c4899c30e582d748ad96669e54a164c2e1c607646416e2c85fb98a442d1043b",
+          "candidateDigests": [
+            "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "5be5f09fee875e6971c9bf006ad39ad93f939e68ee0d6aeb1b07c0c28d1a6dcd"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "dependent",
+            "confidence": 0.88,
+            "probabilities": {
+              "duplicate": 0,
+              "unclear": 0.01,
+              "dependent": 0.91,
+              "conflict": 0,
+              "independent": 0.08
+            }
+          },
+          "status": "decided",
+          "expected": "dependent",
+          "relation": "dependent"
+        },
+        {
+          "a": 0,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "a0a9f2c5c70ba5bf6063ee153eb8a4d16da03e2efd96135146ede2e3adbfd1ef",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "5c4899c30e582d748ad96669e54a164c2e1c607646416e2c85fb98a442d1043b",
+          "candidateDigests": [
+            "d72435e299923d4390d12c19d4bfebd2d86eac592dc1dff36ffe508209b0f4b3",
+            "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 1,
+            "probabilities": {
+              "duplicate": 0,
+              "unclear": 0,
+              "conflict": 0,
+              "independent": 1,
+              "dependent": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "a0a9f2c5c70ba5bf6063ee153eb8a4d16da03e2efd96135146ede2e3adbfd1ef",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "5c4899c30e582d748ad96669e54a164c2e1c607646416e2c85fb98a442d1043b",
+          "candidateDigests": [
+            "5be5f09fee875e6971c9bf006ad39ad93f939e68ee0d6aeb1b07c0c28d1a6dcd",
+            "74aa06a7aa57a344eea62ec6fe1b5c61064aa02bcecdae8110d1dd3bbbc44067"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "dependent",
+            "confidence": 0.72,
+            "probabilities": {
+              "independent": 0.19,
+              "unclear": 0.03,
+              "duplicate": 0,
+              "conflict": 0,
+              "dependent": 0.78
+            }
+          },
+          "status": "uncertain",
+          "expected": "independent",
+          "relation": "dependent"
+        }
+      ],
+      "wholeDurationMs": 490,
+      "durationMs": 955
+    },
+    {
+      "id": "speculation-zh",
+      "language": "zh",
+      "archetype": "speculation",
+      "eligible": [
+        true,
+        false,
+        true
+      ],
+      "whole": [],
+      "subset": [
+        0,
+        2
+      ],
+      "simulation": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          2
+        ],
+        "held": [
+          1
+        ],
+        "reason": "independent-subset"
+      },
+      "review": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "f2ea0e59386ecc7a0267897158cb35b2df9148aba59b37c47d613ebf8a853262",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "7e18ec8357d6e8778829684e79887a84f492ae2ed26d9710078735f9bcfc3936",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "14945e44463b6f751197381b6dc0c27a394c9915422c9fbd28cf3a39592967ef",
+            "outcome": "held",
+            "passedChecks": [],
+            "heldChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ]
+          },
+          {
+            "index": 2,
+            "candidateDigest": "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_2",
+              "supported_description_2",
+              "counter_2_0",
+              "counter_description_2_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "unsupported",
+        "durationMs": 499,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 3,
+        "coveredEntries": 3,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 4169,
+        "outputTokens": 632,
+        "estimatedCostUsd": 0.000175098,
+        "candidateFailures": [
+          {
+            "candidateIndex": 1,
+            "dimension": "support",
+            "reason": "unsupported"
+          }
+        ],
+        "candidateIndex": 1,
+        "dimension": "support"
+      },
+      "pairs": [
+        {
+          "a": 0,
+          "b": 1,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "f2ea0e59386ecc7a0267897158cb35b2df9148aba59b37c47d613ebf8a853262",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "7e18ec8357d6e8778829684e79887a84f492ae2ed26d9710078735f9bcfc3936",
+          "candidateDigests": [
+            "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "14945e44463b6f751197381b6dc0c27a394c9915422c9fbd28cf3a39592967ef"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.92,
+            "probabilities": {
+              "conflict": 0.06,
+              "unclear": 0,
+              "independent": 0.9400000000000001,
+              "duplicate": 0,
+              "dependent": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 0,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "f2ea0e59386ecc7a0267897158cb35b2df9148aba59b37c47d613ebf8a853262",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "7e18ec8357d6e8778829684e79887a84f492ae2ed26d9710078735f9bcfc3936",
+          "candidateDigests": [
+            "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 1,
+            "probabilities": {
+              "dependent": 0,
+              "unclear": 0,
+              "independent": 1,
+              "conflict": 0,
+              "duplicate": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "f2ea0e59386ecc7a0267897158cb35b2df9148aba59b37c47d613ebf8a853262",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "7e18ec8357d6e8778829684e79887a84f492ae2ed26d9710078735f9bcfc3936",
+          "candidateDigests": [
+            "14945e44463b6f751197381b6dc0c27a394c9915422c9fbd28cf3a39592967ef",
+            "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.98,
+            "probabilities": {
+              "conflict": 0.02,
+              "unclear": 0,
+              "dependent": 0,
+              "independent": 0.98,
+              "duplicate": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        }
+      ],
+      "wholeDurationMs": 499,
+      "durationMs": 1035
+    },
+    {
+      "id": "transient-zh",
+      "language": "zh",
+      "archetype": "transient",
+      "eligible": [
+        true,
+        false,
+        true
+      ],
+      "whole": [],
+      "subset": [
+        0,
+        2
+      ],
+      "simulation": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [
+          0,
+          2
+        ],
+        "held": [
+          1
+        ],
+        "reason": "independent-subset"
+      },
+      "review": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "ea484474c7cde1958937979ff0d556aff9ab68ff992076095013b6fb3fc31c86",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "9d63d6d501f7120168571879853200fe62b0b6ae1fa30611574fde2f526d12bd",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "a11d6c5e52fc3e97e4e300af9ee7424daadaff749005f25e20c043b22a0e429c",
+            "outcome": "held",
+            "passedChecks": [],
+            "heldChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ]
+          },
+          {
+            "index": 2,
+            "candidateDigest": "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_2",
+              "supported_description_2",
+              "counter_2_0",
+              "counter_description_2_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "unsupported",
+        "durationMs": 534,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 3,
+        "coveredEntries": 3,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 4160,
+        "outputTokens": 630,
+        "estimatedCostUsd": 0.00017472,
+        "candidateFailures": [
+          {
+            "candidateIndex": 1,
+            "dimension": "support",
+            "field": "description",
+            "reason": "unsupported"
+          }
+        ],
+        "candidateIndex": 1,
+        "dimension": "support",
+        "field": "description"
+      },
+      "pairs": [
+        {
+          "a": 0,
+          "b": 1,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "ea484474c7cde1958937979ff0d556aff9ab68ff992076095013b6fb3fc31c86",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "9d63d6d501f7120168571879853200fe62b0b6ae1fa30611574fde2f526d12bd",
+          "candidateDigests": [
+            "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "a11d6c5e52fc3e97e4e300af9ee7424daadaff749005f25e20c043b22a0e429c"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.91,
+            "probabilities": {
+              "duplicate": 0,
+              "independent": 0.9400000000000001,
+              "conflict": 0.06,
+              "unclear": 0,
+              "dependent": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 0,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "ea484474c7cde1958937979ff0d556aff9ab68ff992076095013b6fb3fc31c86",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "9d63d6d501f7120168571879853200fe62b0b6ae1fa30611574fde2f526d12bd",
+          "candidateDigests": [
+            "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 1,
+            "probabilities": {
+              "duplicate": 0,
+              "unclear": 0,
+              "conflict": 0,
+              "dependent": 0,
+              "independent": 1
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "ea484474c7cde1958937979ff0d556aff9ab68ff992076095013b6fb3fc31c86",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "9d63d6d501f7120168571879853200fe62b0b6ae1fa30611574fde2f526d12bd",
+          "candidateDigests": [
+            "a11d6c5e52fc3e97e4e300af9ee7424daadaff749005f25e20c043b22a0e429c",
+            "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.94,
+            "probabilities": {
+              "duplicate": 0,
+              "conflict": 0.04,
+              "dependent": 0,
+              "unclear": 0,
+              "independent": 0.96
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        }
+      ],
+      "wholeDurationMs": 534,
+      "durationMs": 1037
+    },
+    {
+      "id": "conflict-zh",
+      "language": "zh",
+      "archetype": "conflict",
+      "eligible": [
+        true,
+        false,
+        true
+      ],
+      "whole": [],
+      "subset": [],
+      "simulation": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [],
+        "held": [
+          0,
+          1,
+          2
+        ],
+        "reason": "no-independent-subset"
+      },
+      "review": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "163ed4b83278cfb0baa2bda52b2b842d83f20c6d2aecd72013865bb2b892edfb",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "2bd7c278385c47079f447de8e19307cdda2298525ebaf71e32ce85dcf2cacb20",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "1d4a72ac830b824488b047c529620c8322390cccf1bcbecfadd204abd7600a14",
+            "outcome": "held",
+            "passedChecks": [],
+            "heldChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ]
+          },
+          {
+            "index": 2,
+            "candidateDigest": "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_2",
+              "supported_description_2",
+              "counter_2_0",
+              "counter_description_2_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "telemetry": {
+        "stage": "memory",
+        "status": "propose",
+        "reason": "unsupported",
+        "durationMs": 520,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 3,
+        "coveredEntries": 3,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 4158,
+        "outputTokens": 628,
+        "estimatedCostUsd": 0.000174636,
+        "candidateFailures": [
+          {
+            "candidateIndex": 1,
+            "dimension": "support",
+            "reason": "unsupported"
+          }
+        ],
+        "candidateIndex": 1,
+        "dimension": "support"
+      },
+      "pairs": [
+        {
+          "a": 0,
+          "b": 1,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "163ed4b83278cfb0baa2bda52b2b842d83f20c6d2aecd72013865bb2b892edfb",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "2bd7c278385c47079f447de8e19307cdda2298525ebaf71e32ce85dcf2cacb20",
+          "candidateDigests": [
+            "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "1d4a72ac830b824488b047c529620c8322390cccf1bcbecfadd204abd7600a14"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "conflict",
+            "confidence": 0.89,
+            "probabilities": {
+              "unclear": 0,
+              "conflict": 0.92,
+              "duplicate": 0,
+              "dependent": 0,
+              "independent": 0.08
+            }
+          },
+          "status": "decided",
+          "expected": "conflict",
+          "relation": "conflict"
+        },
+        {
+          "a": 0,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "163ed4b83278cfb0baa2bda52b2b842d83f20c6d2aecd72013865bb2b892edfb",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "2bd7c278385c47079f447de8e19307cdda2298525ebaf71e32ce85dcf2cacb20",
+          "candidateDigests": [
+            "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.99,
+            "probabilities": {
+              "independent": 1,
+              "dependent": 0,
+              "unclear": 0,
+              "duplicate": 0,
+              "conflict": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "163ed4b83278cfb0baa2bda52b2b842d83f20c6d2aecd72013865bb2b892edfb",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "2bd7c278385c47079f447de8e19307cdda2298525ebaf71e32ce85dcf2cacb20",
+          "candidateDigests": [
+            "1d4a72ac830b824488b047c529620c8322390cccf1bcbecfadd204abd7600a14",
+            "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 0.84,
+            "probabilities": {
+              "dependent": 0,
+              "independent": 0.88,
+              "duplicate": 0,
+              "conflict": 0.12,
+              "unclear": 0
+            }
+          },
+          "status": "uncertain",
+          "expected": "independent",
+          "relation": "independent"
+        }
+      ],
+      "wholeDurationMs": 520,
+      "durationMs": 1050
+    },
+    {
+      "id": "dependency-zh",
+      "language": "zh",
+      "archetype": "dependency",
+      "eligible": [
+        true,
+        false,
+        true
+      ],
+      "whole": [
+        0,
+        1,
+        2
+      ],
+      "subset": [
+        0,
+        1,
+        2
+      ],
+      "simulation": {
+        "purpose": "research-only",
+        "writeAuthorized": false,
+        "recoverable": [],
+        "held": [
+          0,
+          1,
+          2
+        ],
+        "reason": "no-independent-subset"
+      },
+      "review": {
+        "version": 1,
+        "purpose": "diagnostic-only",
+        "complete": true,
+        "sameBatchIndependenceReviewed": false,
+        "evidenceDigest": "1ac1f626f3a173f1db2da10da281e1f8fbc5ebe85ea98af3ed5405eeffb5899d",
+        "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "candidatesDigest": "737f64ae34f6c46ef2503a1a9e5866243582b4925c015c895d497daaa3a8f7e5",
+        "model": "jev-1.13.0",
+        "candidates": [
+          {
+            "index": 0,
+            "candidateDigest": "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_0",
+              "supported_description_0",
+              "counter_0_0",
+              "counter_description_0_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 1,
+            "candidateDigest": "b920bb48f1e4389973fe7767de9d1e5a4c6e0c9ba724458377eaf1f7800a9d85",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_1",
+              "supported_description_1",
+              "counter_1_0",
+              "counter_description_1_0"
+            ],
+            "heldChecks": []
+          },
+          {
+            "index": 2,
+            "candidateDigest": "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba",
+            "outcome": "passed",
+            "passedChecks": [
+              "supported_2",
+              "supported_description_2",
+              "counter_2_0",
+              "counter_description_2_0"
+            ],
+            "heldChecks": []
+          }
+        ]
+      },
+      "telemetry": {
+        "stage": "memory",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 519,
+        "strategy": "cited-support-full-review",
+        "evidenceEntries": 3,
+        "coveredEntries": 3,
+        "evidenceWindows": 1,
+        "completedWindows": 1,
+        "requestCount": 2,
+        "completedRequests": 2,
+        "model": "jev-1.13.0",
+        "inputTokens": 4148,
+        "outputTokens": 630,
+        "estimatedCostUsd": 0.000174216
+      },
+      "pairs": [
+        {
+          "a": 0,
+          "b": 1,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "1ac1f626f3a173f1db2da10da281e1f8fbc5ebe85ea98af3ed5405eeffb5899d",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "737f64ae34f6c46ef2503a1a9e5866243582b4925c015c895d497daaa3a8f7e5",
+          "candidateDigests": [
+            "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "b920bb48f1e4389973fe7767de9d1e5a4c6e0c9ba724458377eaf1f7800a9d85"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "dependent",
+            "confidence": 0.91,
+            "probabilities": {
+              "unclear": 0.01,
+              "duplicate": 0,
+              "independent": 0.06,
+              "conflict": 0,
+              "dependent": 0.93
+            }
+          },
+          "status": "decided",
+          "expected": "dependent",
+          "relation": "dependent"
+        },
+        {
+          "a": 0,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "1ac1f626f3a173f1db2da10da281e1f8fbc5ebe85ea98af3ed5405eeffb5899d",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "737f64ae34f6c46ef2503a1a9e5866243582b4925c015c895d497daaa3a8f7e5",
+          "candidateDigests": [
+            "8accca330fd4c17ed9d6fdba6b815eb489d0ad2c6119fa08e37cd55987ad31e9",
+            "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "independent",
+            "confidence": 1,
+            "probabilities": {
+              "duplicate": 0,
+              "independent": 1,
+              "dependent": 0,
+              "conflict": 0,
+              "unclear": 0
+            }
+          },
+          "status": "decided",
+          "expected": "independent",
+          "relation": "independent"
+        },
+        {
+          "a": 1,
+          "b": 2,
+          "model": "jev-1.13.0",
+          "evidenceDigest": "1ac1f626f3a173f1db2da10da281e1f8fbc5ebe85ea98af3ed5405eeffb5899d",
+          "existingDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "candidatesDigest": "737f64ae34f6c46ef2503a1a9e5866243582b4925c015c895d497daaa3a8f7e5",
+          "candidateDigests": [
+            "b920bb48f1e4389973fe7767de9d1e5a4c6e0c9ba724458377eaf1f7800a9d85",
+            "3b805a054a51bf4dd21ecde9b5a58e2530ccc76220850338c3742659d90323ba"
+          ],
+          "answer": {
+            "type": "choice",
+            "choice": "dependent",
+            "confidence": 0.66,
+            "probabilities": {
+              "independent": 0.22,
+              "duplicate": 0,
+              "conflict": 0,
+              "unclear": 0.05,
+              "dependent": 0.73
+            }
+          },
+          "status": "uncertain",
+          "expected": "independent",
+          "relation": "dependent"
+        }
+      ],
+      "wholeDurationMs": 519,
+      "durationMs": 1045
+    }
+  ],
+  "metrics": {
+    "whole": {
+      "validAccepted": 4,
+      "erroneousAccepted": 2,
+      "validHeld": 12
+    },
+    "subset": {
+      "validAccepted": 11,
+      "erroneousAccepted": 2,
+      "validHeld": 5
+    },
+    "newErroneousAccepted": 0,
+    "newValidHolds": 0,
+    "recoveredValid": 7
+  },
+  "externalRequests": 40,
+  "localPreflightRequests": 16,
+  "preparedBatches": 8,
+  "responseMetadata": [
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1968,
+      "outputTokens": 370
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 2122,
+      "outputTokens": 262
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1269,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1285,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1263,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 2112,
+      "outputTokens": 262
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1961,
+      "outputTokens": 368
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1259,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1264,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1242,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 2118,
+      "outputTokens": 262
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1967,
+      "outputTokens": 366
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1282,
+      "outputTokens": 57
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1260,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1265,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1957,
+      "outputTokens": 372
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 2104,
+      "outputTokens": 258
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1252,
+      "outputTokens": 56
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1251,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1230,
+      "outputTokens": 56
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 2167,
+      "outputTokens": 262
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 2002,
+      "outputTokens": 370
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1383,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1362,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1346,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 2161,
+      "outputTokens": 262
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1999,
+      "outputTokens": 368
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1374,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1356,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1337,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1999,
+      "outputTokens": 366
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 2159,
+      "outputTokens": 262
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1337,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1354,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1374,
+      "outputTokens": 57
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1993,
+      "outputTokens": 372
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 2155,
+      "outputTokens": 258
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1319,
+      "outputTokens": 56
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1350,
+      "outputTokens": 58
+    },
+    {
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 1356,
+      "outputTokens": 56
+    }
+  ],
+  "knownInputTokens": 64314,
+  "knownInputTariffEstimateUsd": 0.002701188,
+  "unpricedInputTokens": 0,
+  "actualModelComplete": true,
+  "usageComplete": true,
+  "productionWrites": 0,
+  "mainModelCalls": 0,
+  "humanGold": false,
+  "heldout": false,
+  "adopted": false,
+  "limits": [
+    "New synthetic authored development batches, not human gold or open-source workflows.",
+    "Dependency B/C pair labels are ambiguous because B references A; pair labels are diagnostic and are not used in candidate recovery success criteria.",
+    "Whole-plan and subset arms reuse exactly the same real complete-candidate judgments.",
+    "Already allowed whole plans keep their original result; only held plans can gain an independent subset.",
+    "Independent relations are extra requests; arm cost and latency are not identical.",
+    "No threshold relaxation, source relabeling or favorable retries.",
+    "Known tariff estimate is not an invoice; incomplete usage is unknown, not free."
+  ],
+  "runtimeScope": "host Bun SDK real TypeSafe API; not Docker or Pi workflow",
+  "process": {
+    "exitCode": 0,
+    "outcome": "completed",
+    "seconds": 9.704,
+    "processGroupStopConfirmed": true
+  },
+  "developmentCriteriaMet": true,
+  "wholeKnownInputTokens": 32944,
+  "wholeInputTariffEstimateUsd": 0.0013836480000000001,
+  "incrementalKnownInputTokens": 31370,
+  "wholeRequestDurationSumMs": 4655,
+  "fullBatchDurationSumMs": 9247,
+  "wholeDurationMedianMs": 509.0,
+  "fullBatchDurationMedianMs": 1036.0,
+  "actualModels": [
+    "jev-1.13.0"
+  ],
+  "sameSampleErrorRemains": "Both whole/subset arms accept the two authored ineligible incomplete-dependent candidates. No claim that fact truth is newly worsened; this is standalone Memory quality under fixed synthetic labels.",
+  "billingVerified": false,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "sourceAndLabelsUnchanged": true
+}

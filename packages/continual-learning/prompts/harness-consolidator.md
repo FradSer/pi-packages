@@ -95,6 +95,23 @@ The complete rule carries a stable, non-empty `id` (at most 128 chars), optional
   strings as negative cases, rather than treating a semicolon or pipe as proof of
   an invocation. A broader unproved matcher must not add false restrictions;
   existing rules must not be weakened to pass these examples.
+  The bare-command example does not establish whole-family coverage. Git permits
+  global options before its subcommand. For a cited project-wide push-family
+  prohibition, retain same-project positive cases such as `git -C . push --dry-run`,
+  `git -c core.quotePath=false push --dry-run` and `git --no-pager push --dry-run`.
+  Keep `echo git -C . push --dry-run` and `printf '%s' 'git -C . push --dry-run'`
+  negative. Do not delete valid positive cases to fit a simpler matcher, use a
+  greedy wildcard over arbitrary command text, or extend a project restriction to
+  other repositories. Derive coverage from the actual authorization and cases;
+  exact-only restrictions must retain their exact limits. These examples do not
+  bypass parent validation or Jev scope verification.
+  A code-recognized same-project template for those three option forms is
+  `^git(?:[ \t]+(?:-C[ \t]+\.|-c[ \t]+core\.quotePath=false|--no-pager))*[ \t]+push(?:[ \t]|$(?![\s\S]))`.
+  It covers only a bounded subset of Git invocations; never infer authorization from the template.
+  Use it only when the cited general restriction supports every matched call and
+  all required cases fit. Other paths/options/quoting require their own validated
+  coverage, not a claim that this template intercepts every possible push.
+  Never substitute it for an exact-only or branch-specific restriction.
 - `text`: non-empty JavaScript regex over retained conversation fragments;
   `instructions`: topic-specific guidance. A cited quote must match the actual
   text scope. Match fragments independently; guidance is not semantic enforcement.

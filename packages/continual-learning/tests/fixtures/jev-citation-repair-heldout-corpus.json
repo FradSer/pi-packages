@@ -1,0 +1,938 @@
+[
+  {
+    "id": "asset-path-en",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-asset-path-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "Before migration the static assets lived in public/."
+        },
+        {
+          "role": "toolResult",
+          "content": "Migration completed: static assets now live in assets/static/."
+        },
+        {
+          "role": "user",
+          "content": "For future tasks use assets/static/ for static assets."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: Static assets in this project live in assets/static/.\ntype: project\n---\nStatic assets in this project live in assets/static/.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "For future tasks use assets/static/ for static assets.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "asset-path-zh",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-asset-path-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "迁移之前静态资源在 public/。"
+        },
+        {
+          "role": "toolResult",
+          "content": "迁移已完成：静态资源现在位于 assets/static/。"
+        },
+        {
+          "role": "user",
+          "content": "今后任务使用 assets/static/ 存放静态资源。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 这个项目的静态资源位于 assets/static/。\ntype: project\n---\n这个项目的静态资源位于 assets/static/。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "今后任务使用 assets/static/ 存放静态资源。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "compile-command-en",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-compile-command-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "make verify failed before the missing header was restored."
+        },
+        {
+          "role": "toolResult",
+          "content": "After restoring the header, make verify exited 0 and checked the full project."
+        },
+        {
+          "role": "user",
+          "content": "For later work the verified project check command is make verify."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: The verified project check command is make verify.\ntype: project\n---\nThe verified project check command is make verify.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "For later work the verified project check command is make verify.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "compile-command-zh",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-compile-command-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "补回缺失头文件之前 make verify 失败。"
+        },
+        {
+          "role": "toolResult",
+          "content": "补回头文件后 make verify 退出码为 0，并检查了完整项目。"
+        },
+        {
+          "role": "user",
+          "content": "后续工作使用已经验证的项目检查命令 make verify。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 已经验证的项目检查命令是 make verify。\ntype: project\n---\n已经验证的项目检查命令是 make verify。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "后续工作使用已经验证的项目检查命令 make verify。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "branch-name-en",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-branch-name-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "The old integration branch was develop."
+        },
+        {
+          "role": "toolResult",
+          "content": "Repository migration completed; the current integration branch is trunk."
+        },
+        {
+          "role": "user",
+          "content": "In future tasks target trunk as the integration branch."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: The project integration branch is trunk.\ntype: project\n---\nThe project integration branch is trunk.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "In future tasks target trunk as the integration branch.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "branch-name-zh",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-branch-name-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "旧的集成分支是 develop。"
+        },
+        {
+          "role": "toolResult",
+          "content": "仓库迁移已完成；当前集成分支是 trunk。"
+        },
+        {
+          "role": "user",
+          "content": "今后任务以 trunk 作为集成分支。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 项目的集成分支是 trunk。\ntype: project\n---\n项目的集成分支是 trunk。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "今后任务以 trunk 作为集成分支。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "docs-format-en",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-docs-format-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "Project release notes previously used plain text."
+        },
+        {
+          "role": "toolResult",
+          "content": "All project release note templates were converted to Markdown."
+        },
+        {
+          "role": "user",
+          "content": "Future release notes for this repository must use Markdown."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: Project release notes use Markdown.\ntype: project\n---\nProject release notes use Markdown.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "Future release notes for this repository must use Markdown.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "docs-format-zh",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-docs-format-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "项目发布说明之前使用纯文本。"
+        },
+        {
+          "role": "toolResult",
+          "content": "项目发布说明模板已全部转换为 Markdown。"
+        },
+        {
+          "role": "user",
+          "content": "今后这个仓库的发布说明必须使用 Markdown。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 项目发布说明使用 Markdown。\ntype: project\n---\n项目发布说明使用 Markdown。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "今后这个仓库的发布说明必须使用 Markdown。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unrelated-network-en",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-unrelated-network-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "Fetching a remote badge failed because of a temporary DNS outage."
+        },
+        {
+          "role": "toolResult",
+          "content": "The local formatter configuration selects tabs for indentation."
+        },
+        {
+          "role": "user",
+          "content": "Preserve the existing tab indentation in future edits."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: The project formatter uses tabs for indentation.\ntype: project\n---\nThe project formatter uses tabs for indentation.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "Preserve the existing tab indentation in future edits.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unrelated-network-zh",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-unrelated-network-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "获取远程徽章因临时 DNS 故障失败。"
+        },
+        {
+          "role": "toolResult",
+          "content": "本地格式化配置选择制表符缩进。"
+        },
+        {
+          "role": "user",
+          "content": "今后编辑保持现有制表符缩进。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 项目格式化工具使用制表符缩进。\ntype: project\n---\n项目格式化工具使用制表符缩进。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "今后编辑保持现有制表符缩进。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "package-manager-en",
+    "language": "en",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-package-manager-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "The obsolete setup instructions used npm."
+        },
+        {
+          "role": "toolResult",
+          "content": "Migration verified: packageManager is yarn@4.9.0 and yarn install completed successfully."
+        },
+        {
+          "role": "user",
+          "content": "For future tasks this project uses Yarn 4."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: This project uses Yarn 4.\ntype: project\n---\nThis project uses Yarn 4.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "For future tasks this project uses Yarn 4.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "package-manager-zh",
+    "language": "zh",
+    "expectedAllow": true,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-package-manager-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "过时的安装说明使用 npm。"
+        },
+        {
+          "role": "toolResult",
+          "content": "迁移已验证：packageManager 为 yarn@4.9.0，yarn install 成功完成。"
+        },
+        {
+          "role": "user",
+          "content": "今后任务中这个项目使用 Yarn 4。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 这个项目使用 Yarn 4。\ntype: project\n---\n这个项目使用 Yarn 4。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "今后任务中这个项目使用 Yarn 4。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "revoked-policy-en",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-revoked-policy-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "Every project change requires a screenshot."
+        },
+        {
+          "role": "toolResult",
+          "content": "Later update: screenshot evidence is required only for visible interface changes."
+        },
+        {
+          "role": "user",
+          "content": "The later narrower screenshot rule is the current project policy."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: Every project change requires a screenshot.\ntype: project\n---\nEvery project change requires a screenshot.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Every project change requires a screenshot.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "revoked-policy-zh",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-revoked-policy-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "项目每次修改都需要截图。"
+        },
+        {
+          "role": "toolResult",
+          "content": "后续更新：只有可见界面修改需要截图证据。"
+        },
+        {
+          "role": "user",
+          "content": "后续较窄的截图规则是项目当前政策。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 项目每次修改都需要截图。\ntype: project\n---\n项目每次修改都需要截图。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "项目每次修改都需要截图。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unverified-build-en",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-unverified-build-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "The build has not been run after the dependency upgrade."
+        },
+        {
+          "role": "toolResult",
+          "content": "No successful build result exists for this revision."
+        },
+        {
+          "role": "user",
+          "content": "Investigate whether make release works for this revision."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: make release is a verified build command for this revision.\ntype: project\n---\nmake release is a verified build command for this revision.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "Investigate whether make release works for this revision.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unverified-build-zh",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-unverified-build-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "依赖升级后尚未运行构建。"
+        },
+        {
+          "role": "toolResult",
+          "content": "这个版本没有成功构建的结果。"
+        },
+        {
+          "role": "user",
+          "content": "调查 make release 在这个版本是否有效。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: make release 是这个版本已经验证的构建命令。\ntype: project\n---\nmake release 是这个版本已经验证的构建命令。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "调查 make release 在这个版本是否有效。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "temporary-cache-en",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-temporary-cache-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "The cache server was unavailable during this single test run."
+        },
+        {
+          "role": "toolResult",
+          "content": "A retry succeeded without changing the cache configuration."
+        },
+        {
+          "role": "user",
+          "content": "Continue using the existing cache settings."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: The project cache server is permanently unavailable.\ntype: project\n---\nThe project cache server is permanently unavailable.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "Continue using the existing cache settings.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "temporary-cache-zh",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-temporary-cache-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "缓存服务器在这一次测试中不可用。"
+        },
+        {
+          "role": "toolResult",
+          "content": "未修改缓存配置的重试成功了。"
+        },
+        {
+          "role": "user",
+          "content": "继续使用现有缓存设置。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 项目缓存服务器永久不可用。\ntype: project\n---\n项目缓存服务器永久不可用。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "继续使用现有缓存设置。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "retracted-path-en",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-retracted-path-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "This project writes logs to var/log/."
+        },
+        {
+          "role": "toolResult",
+          "content": "Correction: that message concerned another repository; this project writes logs to runtime/logs/."
+        },
+        {
+          "role": "user",
+          "content": "Use runtime/logs/ for this project."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: This project writes logs to var/log/.\ntype: project\n---\nThis project writes logs to var/log/.",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "This project writes logs to var/log/.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "retracted-path-zh",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-retracted-path-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "user",
+          "content": "本项目日志写到 var/log/。"
+        },
+        {
+          "role": "toolResult",
+          "content": "更正：该消息指另一个仓库；本项目日志写到 runtime/logs/。"
+        },
+        {
+          "role": "user",
+          "content": "本项目使用 runtime/logs/。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 本项目日志写到 var/log/。\ntype: project\n---\n本项目日志写到 var/log/。",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "本项目日志写到 var/log/。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "speculative-db-en",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-speculative-db-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "The database type has not been inspected."
+        },
+        {
+          "role": "toolResult",
+          "content": "No repository file or executed query identifies the database engine."
+        },
+        {
+          "role": "user",
+          "content": "Consider whether the project might use SQLite; this is only a hypothesis."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: This project uses SQLite.\ntype: project\n---\nThis project uses SQLite.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "Consider whether the project might use SQLite; this is only a hypothesis.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "speculative-db-zh",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-speculative-db-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "尚未检查数据库类型。"
+        },
+        {
+          "role": "toolResult",
+          "content": "没有仓库文件或执行的查询确认数据库引擎。"
+        },
+        {
+          "role": "user",
+          "content": "考虑项目是否可能使用 SQLite；这只是猜测。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: 这个项目使用 SQLite。\ntype: project\n---\n这个项目使用 SQLite。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "考虑项目是否可能使用 SQLite；这只是猜测。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "scope-command-en",
+    "language": "en",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-scope-command-en",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "cargo test passed in the examples/demo subdirectory only."
+        },
+        {
+          "role": "toolResult",
+          "content": "The root workspace test command was not executed."
+        },
+        {
+          "role": "user",
+          "content": "Use the demo result only as evidence about examples/demo."
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: cargo test has verified the entire root workspace.\ntype: project\n---\ncargo test has verified the entire root workspace.",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "Use the demo result only as evidence about examples/demo.",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "scope-command-zh",
+    "language": "zh",
+    "expectedAllow": false,
+    "snapshot": {
+      "contextEnabled": true,
+      "runId": "synthetic-citation-heldout-scope-command-zh",
+      "scopeKey": "synthetic-public-project",
+      "entries": [
+        {
+          "role": "toolResult",
+          "content": "cargo test 只在 examples/demo 子目录通过。"
+        },
+        {
+          "role": "toolResult",
+          "content": "未执行根工作区测试命令。"
+        },
+        {
+          "role": "user",
+          "content": "示例结果只作为 examples/demo 的证据。"
+        }
+      ]
+    },
+    "candidates": [
+      {
+        "name": "fact.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: fact\ndescription: cargo test 已验证整个根工作区。\ntype: project\n---\ncargo test 已验证整个根工作区。",
+        "evidence": [
+          {
+            "index": 2,
+            "quote": "示例结果只作为 examples/demo 的证据。",
+            "role": "user"
+          }
+        ]
+      }
+    ]
+  }
+]

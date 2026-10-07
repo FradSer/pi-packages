@@ -1,0 +1,28 @@
+{
+  "reviewer": "fresh-readonly-subset_parent_transaction_review",
+  "implementationHistory": false,
+  "initialFinding": "Cancellation at check2 did not reach first write; check3 revealed EISDIR in newly created empty root cleanup.",
+  "resolution": "Regression observes first created file at check3, rejects rollback failed diagnostics, verifies both new roots removed and full original proposal retained. Production cleanup uses non-recursive rmdir.",
+  "finalBlockingFindings": [],
+  "finalTransactionTestsPassed": 9,
+  "finalTransactionSeconds": 4.42,
+  "concurrencyAssessment": "rmdir only removes an empty directory. A concurrent addition after the emptiness check prevents removal with ENOTEMPTY, preserving the file and reporting cleanup failure.",
+  "reviewerEdits": 0,
+  "externalCalls": 0,
+  "productionAdoptedSubset": false,
+  "limits": [
+    "Offline parent protocol and actual writer rollback only; no inference or full learning pipeline.",
+    "Earlier real inference uses its frozen pre-cleanup runtime hash."
+  ],
+  "nativeIndependentReview": {
+    "originalResultsAndSummaryMatched": true,
+    "bothPiTerminalStop": true,
+    "sameProbeHash": true,
+    "onlyRmdirBehaviorDifference": true,
+    "currentRuntimeHashMatched": true,
+    "bothContainerIdsAbsent": true,
+    "fixedBeforeFailedAfterPassed": true,
+    "noQualityClaim": true,
+    "limit": "Removed containers cannot independently expose runtime network/read-only configuration; those settings are preserved invocation evidence."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "evidence": "prospective-new-memory-pair-development-inference",
+  "corpus": "fixtures/jev-new-memory-pair-development-corpus.json",
+  "corpusSha256": "8f2d690b924b9c58713693c46a9f096a1830512883e3afe9b05346582388d048",
+  "model": "jev-1.13.0",
+  "requestBudget": 8,
+  "paidRuns": 1,
+  "jobs": 1,
+  "timeoutMs": 5000,
+  "retryLimit": 0,
+  "estimatedInputCostCeilingUsd": 0.03,
+  "codeHashes": {
+    "evaluate_jev_memory_pairs.ts": "0b800791f9e5ebda61ead89e0a73377278964b4d7222f0c889b78da93d898a58",
+    "jev-memory-pair-judgment.ts": "e45d1b2a7c4e7e0cea277e4a58800e2fc8c544077cf85cd158baea5afce6ab5c",
+    "frozen-research-manifest.ts": "dabd48c021dff53a2684d1436238b2bfcbacbaf2e33ff558bdd5fd4950724b28",
+    "../extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675"
+  },
+  "adoptionRule": "No unsafe independence, all independent cases recognized, no wrong relation. Even if development passes, require fresh heldout and complete parent/independence/application verification.",
+  "authorization": "Existing explicit authorization for paid real inference; environment credential only.",
+  "expectedOutcome": "No prescribed pass; retain all service and semantic failures.",
+  "costBasis": "8 requests each capped at 64000 UTF-8 wire bytes; conservative byte-based estimate plus overhead at 0.042 USD per million input tokens. Actual billing unavailable; expected tiny corpus cost is far below this."
+}

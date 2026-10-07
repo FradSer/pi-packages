@@ -1,0 +1,50 @@
+{
+  "evidence": "offline-revalidation-of-original-real-native-execution",
+  "project": "mitt",
+  "jevMode": "off",
+  "originalStatus": "failed",
+  "originalStage": "native-harness-enforcement",
+  "revalidatedStatus": "passed",
+  "outboundRequests": 0,
+  "checks": {
+    "nativeBashBlocked": true,
+    "blockedSideEffectAbsent": true,
+    "unrelatedBashExecuted": true
+  },
+  "files": {
+    "report": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/mitt-off/report.json",
+      "sha256": "fe6fc4f503e1b315355892c0854ea0b25584494487b73595e60529f9710f8adf"
+    },
+    "session": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/mitt-off/harness-enforcement-session.jsonl",
+      "sha256": "1fe2916b9b0a036d5844b5d3e08146bb29c0bf1bf71e1ed26faaecaac8ac3be1"
+    },
+    "rules": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-parent-bound-scope-r11-final/mitt-off/project/.pi/harness.json",
+      "sha256": "5bec5df337e3fc1562dafe44fad1305187d651e6bf27894432c5378d008f16c4"
+    }
+  },
+  "frozenDockerSourceDigest": "5888582df6c2fffbd88f7dc3354cbff37d3013c61e11e8b4b793f983bb708122",
+  "currentDigest": "7a6f24aa944822f30e670f0193b8d59c2182f83a3bdb780956c1f858c646e6e4",
+  "normalization": {
+    "onlyChangedExecutionFile": "packages/continual-learning/tests/live_docker_projects.py",
+    "beforeSha256": "918444818613a0e6f26e9a908218c465ec49015d7d02a5ece5627607c6f7a9ef",
+    "afterSha256": "cb4d4c846dff0c1923fba7f579b0787e56932562b6a0ae365c8c23f714263c11"
+  },
+  "limits": [
+    "original report remains failed and unchanged",
+    "corrected parser did not execute inside the R11 image",
+    "no inference rerun or new native execution",
+    "all prior required original checks remain true except optional baselinePrivateRecall comparison"
+  ],
+  "priorRequiredChecks": {
+    "regressionChanged": true,
+    "privatePreference": true,
+    "safeFact": true,
+    "safeMirrorIdentical": true,
+    "freshPrivateRecall": true,
+    "freshFullMemoryReads": true,
+    "freshVerifiedCommand": true
+  }
+}

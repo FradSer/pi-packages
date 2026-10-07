@@ -1,0 +1,202 @@
+{
+  "evidence": "real-r16-two-original-p-limit-workflows-terminal",
+  "terminalExitCode": 1,
+  "sourceDigest": "5818b1f6be33de6acce0cd035e331d631ccf08c4178883466429a7df655e2967",
+  "sourceMatches": true,
+  "image": "continual-learning-projects:5818b1f6be33de6a",
+  "imageId": "sha256:3d0fed9860b3f9444db5de8b92f2412b39d014a09b310a05d71504e9062489ae",
+  "summarySha256": "1c5a806ab26d78437aaa492eb52a5729ce73af456c5ce5cc0fa474ed87b216be",
+  "providerRequestsTotal": 44,
+  "mainProviderRequests": 38,
+  "jevRequests": 6,
+  "providerErrors": 1,
+  "jevResponsesWithUsage": 5,
+  "actualJevModels": [
+    "jev-1.13.0"
+  ],
+  "proxyKnownJevInputTokens": 31414,
+  "proxyKnownJevEstimatedCostUsd": 0.0013193880000000001,
+  "receiptKnownJevInputTokens": 21572,
+  "accountBillingVerified": false,
+  "outcomes": {
+    "off": {
+      "passed": 1,
+      "total": 1
+    },
+    "on": {
+      "passed": 0,
+      "total": 1
+    }
+  },
+  "rows": [
+    {
+      "mode": "off",
+      "status": "passed",
+      "stage": "complete",
+      "checks": {
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true,
+        "baselinePrivateRecall": true,
+        "freshPrivateRecall": true,
+        "freshFullMemoryReads": true,
+        "freshVerifiedCommand": true,
+        "nativeBashBlocked": true,
+        "blockedSideEffectAbsent": true,
+        "unrelatedBashExecuted": true
+      },
+      "learningSeconds": 275.59,
+      "independentCheckExitCode": 0,
+      "harnessRepairTasks": 1,
+      "bindingTasks": 0,
+      "attempts": [
+        {
+          "phase": "selector",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 0,
+          "durationMs": 5,
+          "diagnostic": "empty Memory index; parent-routed explicit evidence"
+        },
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "rejected",
+          "operations": 0,
+          "durationMs": 69951
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "applied",
+          "operations": 2,
+          "durationMs": 26305,
+          "diagnostic": "Memory structural repair"
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "rejected",
+          "operations": 0,
+          "durationMs": 42606,
+          "diagnostic": "Parent Harness validation: fixtures=2"
+        },
+        {
+          "phase": "harness",
+          "attempt": 1,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 59975
+        }
+      ],
+      "reportSha256": "120a320e223d8db4ff4c5fb5dc04f746439f7484dfe886bb576bf1689a168dc2"
+    },
+    {
+      "mode": "on",
+      "status": "failed",
+      "stage": "real-regression-task",
+      "checks": {
+        "regressionChanged": true
+      },
+      "learningSeconds": 348.88,
+      "independentCheckExitCode": 0,
+      "harnessRepairTasks": 0,
+      "bindingTasks": 0,
+      "attempts": [
+        {
+          "phase": "selector",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 0,
+          "durationMs": 6,
+          "diagnostic": "empty Memory index; parent-routed explicit evidence"
+        },
+        {
+          "phase": "memory",
+          "attempt": 0,
+          "outcome": "rejected",
+          "operations": 0,
+          "durationMs": 153468,
+          "diagnostic": "Jev propose: timeout",
+          "jev": {
+            "status": "propose",
+            "reason": "timeout",
+            "model": "jev-1.13.0",
+            "durationMs": 5023,
+            "requestCount": 3,
+            "completedRequests": 1,
+            "evidenceEntries": 16,
+            "coveredEntries": 0,
+            "evidenceWindows": 2,
+            "completedWindows": 0,
+            "knownInputTokens": 3873,
+            "knownEstimatedCostUsd": 0.000162666
+          }
+        },
+        {
+          "phase": "memory",
+          "attempt": 1,
+          "outcome": "proposed",
+          "operations": 0,
+          "durationMs": 119035,
+          "diagnostic": "Memory structural repair"
+        },
+        {
+          "phase": "harness",
+          "attempt": 0,
+          "outcome": "applied",
+          "operations": 1,
+          "durationMs": 78645,
+          "diagnostic": "Jev decided: supported",
+          "jev": {
+            "status": "decided",
+            "reason": "supported",
+            "model": "jev-1.13.0",
+            "durationMs": 3165,
+            "requestCount": 3,
+            "completedRequests": 3,
+            "evidenceEntries": 16,
+            "coveredEntries": 16,
+            "evidenceWindows": 2,
+            "completedWindows": 2,
+            "inputTokens": 17699,
+            "estimatedCostUsd": 0.0007433580000000001
+          }
+        }
+      ],
+      "reportSha256": "b822fa8cc53eb19fe8a134ccba4faf9066180d108ed0acc25402373f91ef807f"
+    }
+  ],
+  "promptRealTriggerCount": 0,
+  "promptEffectVerified": false,
+  "goalComplete": false,
+  "limits": [
+    "No Harness semantic repair triggered; missing prompt effect coverage.",
+    "On Memory first structural repair occurred; final real Jev timeout retains proposal, not no opportunity.",
+    "5 of6 proxy responses have usage; receipt only4 completed requests, proxy late-response usage is not semantic completion.",
+    "Historical R15 is not a controlled generator baseline; no favorable retry.",
+    "Known costs are lower bounds; missing usage unknown, actual billing unverified."
+  ],
+  "independentOnReview": {
+    "frozenSnapshotsVerified": 3,
+    "memoryStructuralRepairRecorded": true,
+    "actualRepairRequestRetained": false,
+    "memoryProposalMatchesFinalPlan": true,
+    "proposedSafeEntries": 1,
+    "proposedPrivateEntries": 1,
+    "memoryExactCitationsVerified": 6,
+    "memoryApplied": 0,
+    "harnessApplied": 1,
+    "harnessPostReceiptHashVerified": true,
+    "originalHarnessPlanRetained": false,
+    "publicPrivateMarkerCount": 0,
+    "freshRecallAndNativeEnforcementCoverage": false,
+    "bindingPromptRealTriggerCount": 0,
+    "limits": [
+      "Frozen-context execution path inspected; original structural repair request not retained, so exact model request cannot be independently checked.",
+      "Harness receipt/post hash verified; original plan absent, preventing independent citation audit.",
+      "No full semantic gold or on-arm fresh effects verification."
+    ]
+  }
+}

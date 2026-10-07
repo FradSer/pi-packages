@@ -1,0 +1,100 @@
+{
+  "evidence": "offline-mock-transport-preflight",
+  "externalRequests": 0,
+  "fixtureRequests": 3,
+  "requestBudget": 3,
+  "knownInputTokens": 0,
+  "knownEstimatedCostUsd": 0,
+  "wire": [
+    {
+      "sample": "english-small",
+      "bytes": 892,
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 0
+    },
+    {
+      "sample": "chinese-small",
+      "bytes": 873,
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 0
+    },
+    {
+      "sample": "public-long",
+      "bytes": 24449,
+      "status": 200,
+      "model": "jev-1.13.0",
+      "inputTokens": 0
+    }
+  ],
+  "results": [
+    {
+      "id": "english-small",
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 7,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      }
+    },
+    {
+      "id": "chinese-small",
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      }
+    },
+    {
+      "id": "public-long",
+      "selection": {
+        "memory": true,
+        "harness": true,
+        "selected": []
+      },
+      "telemetry": {
+        "stage": "selection",
+        "status": "decided",
+        "reason": "supported",
+        "durationMs": 1,
+        "requestCount": 1,
+        "completedRequests": 1,
+        "model": "jev-1.13.0",
+        "inputTokens": 0,
+        "outputTokens": 0,
+        "estimatedCostUsd": 0
+      }
+    }
+  ],
+  "productionWrites": 0,
+  "limitations": [
+    "Transport diagnostic only; no causal learning-quality comparison.",
+    "A current success cannot determine the cause of old R12 failures.",
+    "Synthetic public text; not replayed private project evidence.",
+    "Cancelled or failed responses may have unreported billable usage."
+  ]
+}

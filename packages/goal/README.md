@@ -97,8 +97,9 @@ Example settings:
 
 Environment overrides include `PI_GOAL_MAX_RUNS`, `PI_GOAL_MODEL`,
 `PI_GOAL_PROVIDER`, `PI_GOAL_RESEARCH_MODEL`, and `PI_GOAL_RESEARCH_PROVIDER`.
-Model overrides accept `provider/model`. An unset child model uses its CLI default,
-which can differ from the current session model.
+Model overrides accept `provider/model`. An unset model means the session's model, so a
+check or research child follows the session it runs in. It never falls back to the
+persisted CLI default, which is a different model and can be unavailable.
 
 ## Research and completion
 
@@ -108,8 +109,16 @@ findings; failed research preserves them. Session boundaries invalidate pending
 findings and late child results. Creation attaches findings once as `research.md`
 and attributes their tokens to the goal.
 
+Research blocks until the child settles. One `[goal] Researching...` transcript row
+reports that the work is in progress, and the child's latest activity is rendered on
+its own row beneath it through markdown. The result row reads `Research ready` with
+no character count. Read the findings through `get_goal(section="research")`: pi's TUI
+does not repaint an extension tool row after its call completes, so a research call's
+result row is not on screen.
+
 The completion check uses a separate fresh process with no tools.
 It receives the objective, completion contract, bounded runtime observations, and the executor's untrusted claim.
+The objective and `completion_summary` have no length cap; the check reads a bounded prefix of each and states the truncation, while the record keeps the full text. The injected note bounds the objective with a retrieve hint.
 Tool receipts include their recorded call input, output, outcome, entry ID, and time.
 Monitor terminals and attributed independent results come from extension records, not user-supplied text.
 The checker evaluates coverage and results rather than rejecting observations merely because it cannot repeat them.
@@ -117,6 +126,7 @@ Observed output remains untrusted data and cannot instruct the checker to approv
 The latest requirement revision excludes earlier observations.
 Research files never become check input. Only a final-line `MET` approves completion.
 Failure, missing output, cancellation, or a changed goal rejects completion.
+A child that exits successfully with no answer names the model that produced nothing, so a silent model is not mistaken for an unmet goal.
 The checker cannot independently inspect files or execute tests.
 Run the required checks in the current thread before requesting completion.
 Self-written PASS text, claims, or research files are not runtime execution receipts.
@@ -142,8 +152,13 @@ compaction; it does not treat compaction summaries as executed observations.
 | --- | --- |
 | `research_goal` | Gather read-only facts before creation. |
 | `create_goal` | Create this thread's one goal and attach research. |
-| `get_goal` | Read the current objective, contract, research, or history. |
+| `get_goal` | Read the current objective, contract, research, or history. Offered while a goal is focused. |
 | `update_goal` | Revise requirements, record an outcome, or save the next action. |
+
+`research_goal` and `create_goal` are always offered. `get_goal` and
+`update_goal` appear once a goal is focused, and `update_goal` disappears again
+when no goal can accept an outcome, so a session with nothing in flight does not
+pay for tools it cannot use.
 
 ## Storage and boundaries
 
@@ -161,7 +176,18 @@ research file access. This is not an OS sandbox against concurrent directory rep
 Failed creation can leave prose files without an active record.
 Atomic replacements do not use `fsync`; host crashes can lose the newest write.
 
+The goals directory is project state, so the project root decides its whole
+path. Goal creation is refused when that path would land inside Pi's own home
+or agent directory, which is what produces a second `.pi` inside Pi's layout
+(`~/.pi/.pi/goals`) or a goals directory beside Pi's own sessions. Nothing is
+written in that case. A goal already stored there keeps running. Start Pi from
+a project directory to create goals.
+
 The passive widget mounts below the input editor through `ui.setWidget`.
+The row reads `<verb> · <elapsed>`, for example `Pursuing goal · 12m` or
+`Goal paused · 12m`, and never carries a `[goal]` tag: every verb already names
+the goal, so the tag would repeat it on every line below the editor. The
+transcript rows keep the tag. The row never prints the goal id.
 Elapsed time scales with the run: whole minutes below an hour, then hours and
 minutes, then days and hours (for example `0m`, `1m`, `2h 15m`, `1d 1h`).
 The passive widget uses the current goal state. `/goal` displays a compact summary

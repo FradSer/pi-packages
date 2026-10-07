@@ -1,0 +1,35 @@
+{
+  "evidence": "fresh-read-only-independent-review-of-offline-research-simulation",
+  "reviewer": "independent_subset_research_review",
+  "initialFindings": [
+    {
+      "scope": "research classification only",
+      "issue": "complete original evidence/dossier privacy and bounds preflight missing",
+      "resolved": true
+    },
+    {
+      "scope": "research classification only",
+      "issue": "counter-window count trusted caller instead of actual production construction",
+      "resolved": true
+    }
+  ],
+  "reReview": "No further actionable issues in scoped re-review. Actual production local-only preflight and full original window-count checks verified.",
+  "reviewerTests": {
+    "passed": 8
+  },
+  "sourceHashes": {
+    "tests/independent-memory-subset-research.ts": "29fed0392b8a422c3f3ecf4ec213a043d63a9c225dde95906e48ee7d756c48da",
+    "tests/test_jev_independent_subset_research.py": "0e7f0d5ad09e3cdb0d4c60d10b0fa4f900a8d6484a64c262352e407032ecdcb1",
+    "features/jev-independent-subset-research.feature": "a514508b527c56826493a07695e3aa135078b5b039b6592ec4d517185191da78",
+    "tests/jev-independent-new-memory-research-plan.md": "b7d5cc0a9eb90238f3f26dd9be9cecfe8517cfd445cef2657247231b7ebe3368"
+  },
+  "writesByReviewer": 0,
+  "externalCallsByReviewer": 0,
+  "productionPathImported": false,
+  "packageTestsExcluded": true,
+  "limits": [
+    "Fresh review examines research control flow only.",
+    "No real inference or learning-quality effect is established.",
+    "Typecheck/full-suite/pack evidence is supplied separately by primary agent."
+  ]
+}

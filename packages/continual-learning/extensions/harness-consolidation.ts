@@ -10,6 +10,7 @@
  * any failure here never touches already-applied memory results.
  */
 
+import { jevRepairFailureHints, type BoundScopeContext } from "./jev-learning";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { ChildProcess } from "node:child_process";
@@ -697,7 +698,7 @@ export interface HarnessConsolidationPhaseOptions {
   availableSkills?: readonly string[];
   skipPlanner?: boolean;
   /** Parent semantic gate; no candidate may grant its own authority. */
-  validateSemantics?: (snapshot: unknown, operations: readonly unknown[], citations?: unknown) => Promise<{ decision: "allow" | "propose"; telemetry: NonNullable<LearningAttempt["jev"]> }>;
+  validateSemantics?: (snapshot: unknown, operations: readonly unknown[], citations?: unknown, parentScope?: BoundScopeContext) => Promise<{ decision: "allow" | "propose"; telemetry: NonNullable<LearningAttempt["jev"]> }>;
   /** Shares the single existing repair slot with structural recovery. */
   semanticRepair?: boolean;
   run?: ConsolidationRun;
@@ -737,13 +738,13 @@ export type HarnessConsolidationApplyResult =
 
 /** Parent-validated plans only. A semantic repair may omit, not replace, rules.
  * Reindex exact original evidence; a missing opportunity stays in review. */
-function semanticRepairRemainder(original: HarnessConsolidationPlan, repaired: HarnessConsolidationPlan): HarnessConsolidationPlan | "invalid" | undefined {
-  if (!Array.isArray(original.operations) || !Array.isArray(repaired.operations)) return "invalid";
+function semanticRepairRemainder(original: HarnessConsolidationPlan, repaired: HarnessConsolidationPlan): HarnessConsolidationPlan | "structure-mismatch" | "identity-mismatch" | "citation-mismatch" | undefined {
+  if (!Array.isArray(original.operations) || !Array.isArray(repaired.operations)) return "structure-mismatch";
   const identity = (operation: unknown): string | undefined => isRecord(operation) && typeof operation.op === "string"
     && isRecord(operation.rule) && ruleIdValid(operation.rule.id) ? `${operation.op}:${operation.rule.id}` : undefined;
   const originalIds = new Set(original.operations.map(identity));
   const keptIds = new Set(repaired.operations.map(identity));
-  if (originalIds.has(undefined) || keptIds.has(undefined) || [...keptIds].some(id => !originalIds.has(id))) return "invalid";
+  if (originalIds.has(undefined) || keptIds.has(undefined) || [...keptIds].some(id => !originalIds.has(id))) return "identity-mismatch";
   // Semantic repair starts with valid citations; it may reindex, never replace them.
   const citationsAt = (values: unknown, index: number): string => JSON.stringify(
     (Array.isArray(values) ? values : []).filter(value => isRecord(value) && value.index === index)
@@ -752,7 +753,7 @@ function semanticRepairRemainder(original: HarnessConsolidationPlan, repaired: H
   );
   for (const [index, operation] of repaired.operations.entries()) {
     const previous = original.operations.findIndex(value => identity(value) === identity(operation));
-    if (citationsAt(original.evidence, previous) !== citationsAt(repaired.evidence, index)) return "invalid";
+    if (citationsAt(original.evidence, previous) !== citationsAt(repaired.evidence, index)) return "citation-mismatch";
   }
   const omitted = original.operations.map((operation, index) => ({ operation, index }))
     .filter(({ operation }) => !keptIds.has(identity(operation)));
@@ -885,6 +886,8 @@ async function repairHarnessPlan(input: {
 }): Promise<{ ok: true; plan: HarnessConsolidationPlan } | { ok: false; detail: string }> {
   const taskFile = path.join(input.run.manifest.runDir, "harness-repair.md");
   const missingOutput = input.missingOutput === true;
+  const rejected = isRecord(input.rejected) ? input.rejected : undefined;
+  const originalEvidence = rejected && Array.isArray(rejected.evidence) ? rejected.evidence : [];
   const taskText = [
     input.taskText,
     "",
@@ -892,6 +895,10 @@ async function repairHarnessPlan(input: {
     input.allowOmissions
       ? "Return exactly one JSON object and no prose. Preserve the supplied identity, retained rule identities and their exact evidence quotes. Omit an unsupported operation rather than invent lasting authorization; reindex retained evidence/report. The parent retains omissions for review. Do not add a new rule identity."
       : "Return exactly one JSON object and no prose. Preserve the supplied identity and every cited evidence quote.",
+    ...(input.allowOmissions ? [
+      "Copy each retained operation's op and rule.id verbatim from immutableRetainedBindings. Do not derive or rename identities.",
+      "All evidence properties other than index must remain unchanged. Copy the complete original evidence objects, including source, quote, count and eventIndex where supplied; only reindex index to the retained operation's new position. Do not shorten quotes or omit citation properties.",
+    ] : []),
     ...(missingOutput ? [
       "The prior child emitted no structured plan. Its raw stdout is intentionally unavailable and must not be requested, echoed, summarized, or treated as evidence.",
       "Reconstruct only from the bound snapshot and dossier paths in the supplied protocol. Do not perform independent exploration or use any other files.",
@@ -906,6 +913,14 @@ async function repairHarnessPlan(input: {
         scopeDigest: input.run.manifest.scopeDigest,
         artifactHash: input.run.manifest.snapshotDigest,
       },
+      ...(input.allowOmissions && rejected && Array.isArray(rejected.operations) ? {
+        immutableRetainedBindings: rejected.operations.map((operation: unknown, originalIndex: number) => ({
+          originalIndex,
+          ...(isRecord(operation) ? { op: operation.op,
+            ruleId: isRecord(operation.rule) ? operation.rule.id : undefined } : {}),
+          evidence: originalEvidence.filter((value: unknown) => isRecord(value) && value.index === originalIndex),
+        })),
+      } : {}),
       errors: input.errors.map((error) => error.slice(0, 400)).slice(0, 24),
       ...(input.rejected === undefined ? {} : { rejectedPlan: input.rejected }),
     }),
@@ -952,11 +967,24 @@ async function repairHarnessPlan(input: {
     maxPlanBytes: MAX_PLAN_BYTES,
   });
   if (!extracted.ok) {
-    recordAttempt("rejected");
+    recordAttempt(extracted.failure === "cancelled" ? "cancelled" : extracted.failure ? "failed" : "rejected");
     return { ok: false, detail: extracted.error };
   }
   recordAttempt("noop");
   return { ok: true, plan: extracted.plan };
+}
+
+/** Receipts use controlled categories, never validation text containing ids or evidence. */
+function parentValidationDiagnostic(errors: readonly string[]): string {
+  const counts = new Map<string, number>();
+  for (const error of errors) {
+    const category = /^operations\[\d+\]\.cases/.test(error) ? "fixtures"
+      : /^(?:evidence|operations\[\d+\] has no evidence)/.test(error) ? "evidence"
+      : /^(?:runId|scopeDigest|artifactHash|version|schemaVersion|kind)/.test(error) ? "protocol"
+      : "structure";
+    counts.set(category, (counts.get(category) ?? 0) + 1);
+  }
+  return `Parent Harness validation: ${[...counts].map(([category, count]) => `${category}=${count}`).join(", ")}`;
 }
 
 export async function planHarnessConsolidationPhase(
@@ -1071,7 +1099,7 @@ export async function planHarnessConsolidationPhase(
     let initialAttempt = -1;
     let recoveryAttempt = -1;
     if (!extracted.ok) {
-      initialAttempt = recordInitialAttempt("rejected");
+      initialAttempt = recordInitialAttempt(extracted.failure === "cancelled" ? "cancelled" : extracted.failure ? "failed" : "rejected");
       if (extracted.error !== MISSING_PLAN_ERROR) return fail(extracted.error);
       if (!current()) return fail("harness planner cancelled");
       const recovery = await repairHarnessPlan({
@@ -1140,10 +1168,14 @@ export async function planHarnessConsolidationPhase(
     const errors = initialValidation.errors;
     if (errors.length) {
       attempts[initialAttempt].outcome = "rejected";
+      attempts[initialAttempt].diagnostic = parentValidationDiagnostic(errors);
       // A missing structured output already consumed the single recovery slot.
       // Do not turn a recovered-but-invalid plan into a second repair attempt.
       if (!extracted.ok) {
-        if (recoveryAttempt >= 0) attempts[recoveryAttempt].outcome = "rejected";
+        if (recoveryAttempt >= 0) {
+          attempts[recoveryAttempt].outcome = "rejected";
+          attempts[recoveryAttempt].diagnostic = parentValidationDiagnostic(errors);
+        }
         return fail(errors.join("; ").slice(-600));
       }
       // One bounded repair, mirroring the Memory delta path. A planner that emits
@@ -1175,7 +1207,10 @@ export async function planHarnessConsolidationPhase(
       const repairedValidation = validateCandidate(repair.plan);
       const repairedErrors = repairedValidation.errors;
       if (repairedErrors.length) {
-        if (repairAttempt >= 0) attempts[repairAttempt].outcome = "rejected";
+        if (repairAttempt >= 0) {
+          attempts[repairAttempt].outcome = "rejected";
+          attempts[repairAttempt].diagnostic = parentValidationDiagnostic(repairedErrors);
+        }
         return fail(repairedErrors.join("; ").slice(-600));
       }
       if (repairAttempt < 0) return fail("harness repair did not record an attempt");
@@ -1185,9 +1220,10 @@ export async function planHarnessConsolidationPhase(
     let deferredPlan: HarnessConsolidationPlan | undefined;
     if (opts.validateSemantics && Array.isArray(plan.operations) && plan.operations.length) {
       const semanticManifest = run.manifest;
+      const parentScope: BoundScopeContext = Object.freeze({ repoRoot: semanticManifest.cwd, runId: semanticManifest.runId, scopeKey: semanticManifest.scopeKey, evidenceDigest: sha256Digest(JSON.stringify(snapshot)) });
       const judge = async (candidate: HarnessConsolidationPlan) => {
         const attempt = attempts.at(-1)!;
-        const verdict = await opts.validateSemantics!(snapshot, candidate.operations as unknown[], candidate.evidence);
+        const verdict = await opts.validateSemantics!(snapshot, candidate.operations as unknown[], candidate.evidence, parentScope);
         // Returned usage belongs to this attempt even if cancellation won the race.
         attempt.jev = verdict.telemetry;
         attempt.diagnostic = `Jev ${verdict.telemetry.status}: ${verdict.telemetry.reason}`;
@@ -1210,7 +1246,9 @@ export async function planHarnessConsolidationPhase(
             "For one exact command, use absolute literal matching and reject appended CR/NBSP; no scripts, variations or approval requirement may be invented.",
             "Scope repair: For a new command-family rule, only if quoted user evidence prohibits the whole family, prefer the documented anchored ASCII family matcher over operator-prefix searches.",
             "A semicolon or pipe inside a quoted printf argument does not execute that command. Include negative cases for quoted command strings containing operators and arguments.",
+            "Git family coverage: retain same-project global-option positives (git -C . push, git -c core.quotePath=false push, git --no-pager push). Echo and quoted printf of those strings remain negative. Do not delete valid cases, use greedy wildcard matching, or broaden exact-only/project limits.",
             "Preserve exact-only limits and approval exceptions, and do not weaken existing rules.",
+            ...jevRepairFailureHints(verdict.telemetry),
           ],
           taskText, timeoutMs, current, ...(opts.model ? { model: opts.model } : {}), onChild: hooks.onChild,
           onUsage: value => { usage = addPiWorkerUsage(usage, value); },
@@ -1225,12 +1263,12 @@ export async function planHarnessConsolidationPhase(
           // An empty repair must not silently erase the original opportunity.
           if (repairedErrors.length || !Array.isArray(repair.plan.operations) || !repair.plan.operations.length) {
             attempts.at(-1)!.outcome = "rejected";
-            attempts.at(-1)!.diagnostic = "Semantic repair failed parent validation; original proposal retained";
+            attempts.at(-1)!.diagnostic = `${repairedErrors.length ? parentValidationDiagnostic(repairedErrors) : "Parent Harness validation: empty-plan"}; original proposal retained`;
           } else {
             const remainder = semanticRepairRemainder(plan, repairedValidation.candidate);
-            if (remainder === "invalid" || (remainder && validateHarnessPlan(remainder, validationOptions).length)) {
+            if (typeof remainder === "string" || (remainder && validateHarnessPlan(remainder, validationOptions).length)) {
               attempts.at(-1)!.outcome = "rejected";
-              attempts.at(-1)!.diagnostic = "Semantic repair changed rule identities or original citations; original proposal retained";
+              attempts.at(-1)!.diagnostic = `Semantic repair changed rule identities or original citations; cause=${typeof remainder === "string" ? remainder : "remainder-validation"}; original proposal retained`;
             } else {
               if (remainder) {
                 await recordLearningProposal(run.manifest.cwd, "harness", remainder);

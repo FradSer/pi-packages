@@ -1,0 +1,23 @@
+{
+  "evidence": "ongoing-r17-status-not-final-quality-result",
+  "completedWorkflowArms": 1,
+  "completedArm": "click-off",
+  "completedOutcome": "passed",
+  "mainRequestsObserved": 33,
+  "jevRequestsObservedInCompletedArm": 0,
+  "originalOrchestratorFailurePreserved": true,
+  "failure": "Case-sensitive Docker absence check; fixed by exact owned-name helper with regression.",
+  "fullTargetTests": {
+    "passed": 910,
+    "seconds": 291.38
+  },
+  "remainingWorkerSession": 37855,
+  "currentArm": "click-on",
+  "currentContainer": "cl-project-click-c5feda3f",
+  "currentArmVerifiedLiveThisTurn": true,
+  "remainingExecutions": 5,
+  "remainingProviderRequestCap": 300,
+  "runtimeFrozen": true,
+  "finalQualityComparison": "pending",
+  "goalComplete": false
+}

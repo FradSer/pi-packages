@@ -1,0 +1,28 @@
+{
+  "evidence": "independent-model-review-not-human-gold",
+  "resultSha256": "edbf4cc35a7758a9c0753c221769adb838d11fe41f05be5a236589c0f64330fb",
+  "aggregateRecomputed": true,
+  "rowClassificationRecomputed": true,
+  "transportAndUsageMatched": true,
+  "sensitiveOriginalTextFound": false,
+  "recommendation": "do-not-adopt",
+  "omissionMisses": [
+    {
+      "id": "explicit-long-term-observed-result-zh-after",
+      "probability": 0.09,
+      "combinedDecision": "allow"
+    },
+    {
+      "id": "requested-report-placement-en",
+      "probability": 0.09,
+      "combinedDecision": "propose"
+    }
+  ],
+  "freshBaselineLimit": "All 16 have a description support hold; five also have other holds, so description is not the sole reason for every proposal.",
+  "productionEffectsVerified": false,
+  "omissionDetectionLimit": "No definite omissions detected among seven labeled omissions: two false negatives, five uncertain.",
+  "newEligibleHoldCauses": {
+    "timeout": 1,
+    "uncertain": 9
+  }
+}

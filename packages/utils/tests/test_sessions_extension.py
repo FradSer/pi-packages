@@ -425,7 +425,7 @@ writeSessionInfo({{
 }});
 writeSessionInfo({{
   sessionId: "111", pid: sleeper.pid, cwd: tmpCwd,
-  startedAt: now - 600_000, updatedAt: now - 10_000, status: "running",
+  startedAt: now - 300_000, updatedAt: now - 10_000, status: "running",
 }});
 // Bare glow record owned by THIS process under a foreign id convention.
 writeSessionInfo({{
@@ -522,6 +522,56 @@ console.log(JSON.stringify({{ afterParentStart, bothRegistered, parentRemoved, w
         self.assertTrue(data["bothRegistered"])
         self.assertTrue(data["parentRemoved"])
         self.assertTrue(data["worktreeRemoved"])
+
+    def test_session_start_registers_the_session_file(self) -> None:
+        # The feature says the session registers its file, PID, cwd, and status.
+        script = f"""
+import ext, {{ getDirectoryRegistryPath }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const cwd = path.join(os.tmpdir(), "register-file-" + Date.now());
+fs.mkdirSync(cwd, {{ recursive: true }});
+const handlers = {{}};
+const pi = {{
+  registerTool() {{}}, registerCommand() {{}},
+  on(name, handler) {{ handlers[name] = handler; }},
+  getActiveTools() {{ return []; }},
+  setActiveTools() {{}},
+}};
+ext(pi);
+const sessionFile = "/tmp/pi-sessions/2026-01-01T00-00-00-000Z_session.jsonl";
+await handlers.session_start({{}}, {{ cwd, sessionManager: {{ getSessionFile: () => sessionFile }} }});
+const record = JSON.parse(fs.readFileSync(path.join(getDirectoryRegistryPath(cwd), "2026-01-01T00-00-00-000Z_session.json"), "utf-8"));
+fs.rmSync(getDirectoryRegistryPath(cwd), {{ recursive: true, force: true }});
+fs.rmSync(cwd, {{ recursive: true, force: true }});
+console.log(JSON.stringify({{ file: record.sessionFile, status: record.status }}));
+"""
+        data = run_typescript(script)
+        self.assertEqual(data["file"], "/tmp/pi-sessions/2026-01-01T00-00-00-000Z_session.jsonl")
+        self.assertEqual(data["status"], "idle")
+
+    def test_display_recap_omits_the_prompt_untrusted_framing(self) -> None:
+        # /sessions is a human listing, so it must not carry the model prompt's
+        # untrusted-peer framing; the default remains the prompt form.
+        script = f"""
+import {{ formatCrossSessionRecap }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+const peer = {{
+  sessionId: "sess-peer", sessionName: "Peer", pid: 999, cwd: "/app/test-project",
+  startedAt: Date.now() - 60000, updatedAt: Date.now() - 5000, status: "running",
+  latestGoal: "Fix login",
+}};
+console.log(JSON.stringify({{
+  display: formatCrossSessionRecap([peer], {{ forPrompt: false }}),
+  prompt: formatCrossSessionRecap([peer]),
+}}));
+"""
+        data = run_typescript(script)
+        self.assertIn("### Directory Sessions", data["display"])
+        self.assertNotIn("Untrusted peer-session text", data["display"])
+        self.assertNotIn("avoid conflicting edits", data["display"])
+        self.assertIn("Untrusted peer-session text", data["prompt"])
 
 
 if __name__ == "__main__":

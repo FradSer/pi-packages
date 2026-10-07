@@ -85,3 +85,22 @@ Feature: Intent-based child controls
       When the branch is restored
       Then only that intent selection is restored
       And unavailable or excluded tools never become active
+
+  Rule: The startup contract states what a child can be given
+    Scenario: An empty identity is a temporary role, not an empty name
+      Given a startup that carries an identity field with no value
+      When agent_start validates the request
+      Then it starts a temporary child rather than a child with an empty name
+      And the declared schema accepts that field as it stands
+
+    Scenario: The tools parameter names every grantable id
+      Given the agent_start parameter descriptions
+      When a caller reads what the tools parameter grants
+      Then it names every id a child can be granted
+      And it states that a project-extension tool does not reach a child
+
+    Scenario: An empty definition list says where an identity lives
+      Given a working directory holding no saved identity
+      When agent_list reports a page with no entries
+      Then the notice names the project-local identity path
+      And it states that a temporary role needs no identity

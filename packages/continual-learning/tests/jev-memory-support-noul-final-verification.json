@@ -1,0 +1,53 @@
+{
+  "evidence": "narrow-memory-support-noul-final-verification",
+  "fullTargetTests": {
+    "passed": 871,
+    "seconds": 268.15,
+    "exitCode": 0
+  },
+  "newRegressions": {
+    "redFailed": 3,
+    "greenPassed": 3,
+    "greenSeconds": 0.7
+  },
+  "rootTypecheck": "passed",
+  "strictRunnerTypecheck": "passed",
+  "strictGeneratedResearchJudgeTypecheck": "passed",
+  "targetPackDryRun": "passed",
+  "scopedDiffCheck": "passed",
+  "freshIndependentReview": "memory_support_research_review - pre-call and post-result source/corpus/report/observer checks passed",
+  "externalRequests": 64,
+  "actualModel": "jev-1.13.0",
+  "knownInputTokens": 59242,
+  "knownEstimatedCostUsd": 0.002488164,
+  "actualBilledCostVerified": false,
+  "paidProcess": {
+    "id": 5217,
+    "terminalExitCode": 0
+  },
+  "newDockerExecutions": 0,
+  "newNativePiExecutions": 0,
+  "productionRuntimeChanged": false,
+  "productionCandidateWrites": 0,
+  "adopted": false,
+  "qualityCriterionMet": false,
+  "goalComplete": false,
+  "limitations": [
+    "Known16development samples comprise8bilingual pairs, not independent real project workflows.",
+    "After adds1valid hold: reject Noul rather than lower original .9 threshold.",
+    "A citation gap is observed in a synthetic source; model causal reasoning and historical R13 cause remain unknown.",
+    "No fresh heldout or production adoption.",
+    "Abrupt process termination could lose a current-pair detail before checkpoint; reservation still prevents favorable rerun."
+  ],
+  "fileSha256": {
+    "jev-memory-support-research.ts": "944e307fbc1a972558bf17ffa07b0171e126c0d4395542e0f7fec2c36198354e",
+    "evaluate_jev_memory_support_noul.ts": "b1da97a0a489c9037b076b79407116a9238253b2d9b0d19f135b07949cf8e50a",
+    "test_jev_memory_support_research.py": "cf1841678f02e306b82a011cf50618f30d2c86f0d1da9aa70e9b7b2a6f830e5c",
+    "fixtures/jev-learning-before-memory-support-noul.ts.txt": "c66ae21b112581ae3e8f4e75f078fb6445f7ae237f0206f22b23a341f08dab28",
+    "jev-memory-support-noul-development-study-manifest.json": "2d758849d6d4304511cbe333358b7abb758e6dc21c47e7aa0519319e793d59c0",
+    "jev-memory-support-noul-development-real-results.json": "110a3e41a6f4fa1ba433f207e0866ab3cebfde659ef197b57dc6d316b6ee169c",
+    "jev-memory-support-noul-adoption-decision.json": "a461b75f6e66b7efb58aa5759ef8b2e1f3ae67d17ee2e184c2f02321de28b2bb",
+    "jev-memory-support-citation-coverage-inspection.json": "f18e1555ddad5b845713f9e0c76011855d2522b1a8e09adac82d26e1b484bbb7",
+    "jev-citation-completeness-followup-plan.md": "e41d353e0c95993551717840b1067a6e629533bea8ba15701c83edf76e07c484"
+  }
+}

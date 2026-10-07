@@ -67,14 +67,17 @@ console.log(JSON.stringify(results));
 
 
 def test_direct_continuation_reports_async_delivery_failure() -> None:
+    # The feature says the command reports the failure, so a rejected host
+    # delivery becomes a user notification instead of an unhandled rejection.
     report = run_typescript(HARNESS + """
 ctx.sessionManager.getBranch = () => [{ type: "message", message: { role: "assistant", stopReason: "error" } }];
 pi.sendMessage = async () => { throw new Error("Delivery failed"); };
-let error;
-try { await run(); } catch (failure) { error = failure.message; }
-console.log(JSON.stringify({ error }));
+await run();
+console.log(JSON.stringify({ notices }));
 """)
-    assert report == {"error": "Delivery failed"}
+    assert report == {
+        "notices": [{"message": "Continuation delivery failed: Delivery failed", "type": "error"}]
+    }
 
 
 def test_keyword_routing_preserves_idle_and_busy_delivery() -> None:
@@ -159,6 +162,7 @@ const results = [];
 for (const mode of ["known", "unseen", "delivery failure"]) {{
   const known = mode === "known";
   messages.length = 0;
+  notices.length = 0;
   ctx.sessionManager.getEntry = () => known ? {{ id: "disk-tip" }} : undefined;
   ctx.sessionManager.getBranch = () => [{{ type: "message", message: {{ role: "assistant", stopReason: "error" }} }}];
   let reloaded = false;
@@ -170,14 +174,21 @@ for (const mode of ["known", "unseen", "delivery failure"]) {{
       sessionManager: {{ getBranch: () => [{{ type: "message", message: {{ role: "assistant", stopReason: mode === "delivery failure" ? "error" : "stop" }} }}] }},
     }});
   }};
-  let error;
-  try {{ await run(); }} catch (failure) {{ error = failure.message; }}
-  results.push({{ reloaded, kind: messages[0]?.kind, error }});
+  await run();
+  results.push({{ reloaded, kind: messages[0]?.kind, notices: [...notices] }});
 }}
 console.log(JSON.stringify(results));
 """)
         assert report == [
-            {"reloaded": False, "kind": "custom"},
-            {"reloaded": True, "kind": "user"},
-            {"reloaded": True, "error": "Replacement delivery failed"},
+            {"reloaded": False, "kind": "custom", "notices": []},
+            {"reloaded": True, "kind": "user", "notices": []},
+            {
+                "reloaded": True,
+                "notices": [
+                    {
+                        "message": "Continuation delivery failed: Replacement delivery failed",
+                        "type": "error",
+                    }
+                ],
+            },
         ]

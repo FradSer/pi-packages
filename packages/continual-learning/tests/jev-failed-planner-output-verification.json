@@ -1,0 +1,148 @@
+{
+  "evidence": "production-failure-safety-regressions-and-offline-native-Pi",
+  "goalComplete": false,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "externalMainRequestsThisPhase": 0,
+  "realJevRequestsThisPhase": 0,
+  "productionWritesInTests": 0,
+  "hostConfigurationChanged": false,
+  "redScenarios": [
+    "failed or aborted valid planner JSON",
+    "failed terminal invalidates earlier plan",
+    "Pi retry bookkeeping cannot clear abort",
+    "failure usage unknown in Memory and receipt",
+    "failed-state legacy plan cannot survive empty recovery",
+    "recovered worker text does not restore missing total usage"
+  ],
+  "verification": {
+    "earlierCombinedTargetSuite": {
+      "passed": 1050,
+      "seconds": 392.97,
+      "includesFinalAddedScenarios": false
+    },
+    "latestKitAndFailedPlannerSuite": {
+      "passed": 111,
+      "seconds": 23.67
+    },
+    "finalContinualLearningSuite": {
+      "passed": 951,
+      "seconds": 370.65
+    },
+    "typecheck": "passed",
+    "packedManifestCheck": {
+      "passed": 19
+    },
+    "targetDryPacks": [
+      "pi-continual-learning",
+      "@fradser/pi-kit"
+    ],
+    "freshReview": "passed",
+    "rootSuite": {
+      "command": "pnpm test",
+      "passed": 2997,
+      "failed": 7,
+      "seconds": 2060.44,
+      "collectedBeforeFinalRegressionAndAssertionUpdates": true,
+      "resolvedByCurrentTargetVerification": [
+        {
+          "test": "packages/continual-learning/tests/test_automatic_learning.py::test_failed_memory_gate_persists_receipt_and_skips_later_phases",
+          "reason": "Old assertion expected raw provider error text; now controlled message and unknown usage are checked."
+        },
+        {
+          "test": "packages/kit/tests/test_failed_worker_output.py::test_worker_recovery_does_not_reuse_failed_text_or_failed_usage",
+          "reason": "Old assertion treated auto_retry_end success as a completed reply; now requires actual successful assistant reply."
+        }
+      ],
+      "resolvedTestsFreshRerun": {
+        "passed": 2,
+        "seconds": 0.68,
+        "includedUnrelatedFailures": 2
+      },
+      "remainingUnrelatedFailures": [
+        {
+          "test": "packages/agent-teams/tests/test_tool_param_schema.py",
+          "reason": "TASK_UPDATE_PARAMS accepts misspelled handOff in tasks context"
+        },
+        {
+          "test": "packages/plan-mode/tests/test_plan_live.py::test_live_native_tui_requires_implementation_choice[False]",
+          "reason": "TUI command sent while Startup is still in progress; no model requests"
+        },
+        {
+          "test": "packages/plan-mode/tests/test_plan_live.py::test_live_native_tui_requires_implementation_choice[True]",
+          "reason": "Same Pi startup race; no model requests"
+        },
+        {
+          "test": "tests/test_package_root_entry.py::test_git_agent_scopes_cover_the_current_package_layout",
+          "reason": "Pre-existing bdd-jev package missing from git-agent scopes"
+        },
+        {
+          "test": "tests/test_release_ordering.py::test_every_workspace_package_is_in_the_publish_scope",
+          "reason": "Pre-existing @fradser/pi-bdd-jev package missing from PUBLISH_SCOPE"
+        }
+      ]
+    },
+    "installationCheck": {
+      "exitCode": 1,
+      "missingUnrelatedSources": [
+        "agent-teams",
+        "bdd-jev",
+        "btw",
+        "context",
+        "keyboard",
+        "monitor",
+        "plan-mode",
+        "recap",
+        "skill-router",
+        "utils",
+        "vision"
+      ]
+    },
+    "scopedDiffWhitespaceCheck": "passed",
+    "independentUnrelatedFailureReproductions": [
+      {
+        "test": "packages/agent-teams/tests/test_tool_param_schema.py",
+        "failure": "task payload with a misspelled handoff accepted",
+        "boundary": "TASK_UPDATE_PARAMS from @fradser/pi-tasks; no worker or learning execution"
+      },
+      {
+        "test": "packages/plan-mode/tests/test_plan_live.py::test_live_native_tui_requires_implementation_choice[False]",
+        "failure": "Startup is still in progress",
+        "seconds": 30.64,
+        "boundary": "Zero model requests; command delivered before Pi native startup finished"
+      }
+    ],
+    "finalKitSuite": {
+      "passed": 101,
+      "verifiedWithin": "111-test kit plus 10 failed-planner regressions suite",
+      "combinedSeconds": 23.67
+    },
+    "goalScopeTestsPassed": 1052,
+    "nativeSourceHashesMatchFinalTypeScript": true,
+    "freshNativeRawEvidenceReview": "passed: raw SHA matches, actual error retains valid JSON, both final parsers reject, controlled public receipt omits raw content",
+    "nativeScenarios": [
+      "HTTP400 empty model failure",
+      "SSE valid plan-like JSON followed by model error"
+    ],
+    "fullRootSuiteReRunAfterFix": false,
+    "rootTerminalOutputSha256": "496d113598131ea4e1c77cf17df7d2d528adf538a6d44bcfc7a7046c8e8cfad1"
+  },
+  "nativeEvidence": "jev-failed-planner-native-results.json",
+  "priorMainAvailabilityEvidence": "jev-main-output-budget-real-results.json",
+  "limits": [
+    "Native Docker fault transport is offline; it establishes actual Pi failure-event handling, not successful main-model inference or Jev quality.",
+    "Prior real cli-proxy calls returned model_cooldown; no paid or external retry was made during the known cooldown.",
+    "This phase does not prove net learning benefit; prior negative quality findings remain unchanged.",
+    "No new interactive TUI acceptance in this phase."
+  ],
+  "codeHashes": {
+    "packages/continual-learning/extensions/consolidation-run.ts": "4efb6e14e20d91f69b307e367fe75d7e588c4a494c43bdb27828ae08577594f6",
+    "packages/continual-learning/extensions/inject-memory.ts": "c353d3e574f39b90416ddfd20b3ac7a8ebccb33922164c60337ea8d853657fe5",
+    "packages/continual-learning/extensions/harness-consolidation.ts": "a35441ddfbf3c8c3be27dbcfee3dd89dc0daaadf2f9e1e7e5b42ce247ef49c47",
+    "packages/continual-learning/extensions/agents-md-consolidation.ts": "d3a8541e169a760b37526597411bdb923534e9412ec5c60e84f501a9b47440dc",
+    "packages/continual-learning/extensions/learning-efficiency.ts": "c8cd94ff71a0efebf8caf8c9c494fe4a132538dccaefa5e408c18899a706e013",
+    "packages/kit/src/index.ts": "f55c52433a1e86c7fef4df4385935be72111af456dc596d344fe86e350800a18"
+  }
+}

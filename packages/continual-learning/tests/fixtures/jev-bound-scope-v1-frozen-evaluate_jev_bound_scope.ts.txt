@@ -1,0 +1,63 @@
+/** Frozen paired inference on synthetic public restrictions. No write API. */
+import fs from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {createJevJudge, type JevJudge} from '../extensions/jev-learning';
+import {validateHarnessPlan} from '../extensions/harness-consolidation';
+import {loadBoundScopeJudge, type BoundScopeContext} from './jev-bound-scope-shadow';
+import {controlledJevAnswers} from './jev-controlled-diagnostics';
+import {pairedPlanMetrics,pairedPlansComplete} from './jev-paired-metrics';
+const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
+const live=process.argv.includes('--live');
+if(live===process.argv.includes('--preflight-only'))throw Error('Exactly one research mode required');
+const split=process.argv.includes('--heldout')?'heldout':'development';
+const study=JSON.parse(await fs.readFile(new URL(`./jev-bound-scope-${split}-study-manifest.json`,import.meta.url),'utf8')) as {corpusSha256:string;patchedSha256:string;codeHashes:Record<string,string>};
+async function verifyCode(){for(const [file,digest]of Object.entries(study.codeHashes))if(hash(await fs.readFile(new URL(file,import.meta.url),'utf8'))!==digest)throw Error('Frozen research source changed');}
+await verifyCode();
+const corpusText=await fs.readFile(new URL(`./fixtures/jev-bound-scope-${split}-corpus.json`,import.meta.url),'utf8');
+if(hash(corpusText)!==study.corpusSha256)throw Error('Frozen corpus changed');
+interface Input {id:string;expectedAllow:boolean|null;snapshot:unknown;plan:{operations:unknown[];evidence:unknown};binding:BoundScopeContext}
+const inputs:Input[]=JSON.parse(corpusText);
+if(split==='development'){
+ const manifest=JSON.parse(await fs.readFile(new URL('./jev-parent-bound-wrapper-r10-manifest.json',import.meta.url),'utf8'));
+ const texts:Record<string,string>={};
+ for(const [key,v]of Object.entries(manifest.files as Record<string,{path:string;sha256:string}>)){
+  texts[key]=await fs.readFile(v.path,'utf8');if(hash(texts[key])!==v.sha256)throw Error('Frozen real artifact changed');
+ }
+ const parent=JSON.parse(texts.parentManifest),snapshot=JSON.parse(texts.snapshot),history=JSON.parse(texts.history);
+ if(parent.snapshotDigest!==hash(texts.snapshot)||history.proposal.runId!==snapshot.runId)throw Error('Parent binding mismatch');
+ inputs.push({id:manifest.id,expectedAllow:null,snapshot,plan:history.proposal,binding:{repoRoot:parent.cwd,runId:snapshot.runId,scopeKey:snapshot.scopeKey,evidenceDigest:hash(JSON.stringify(snapshot))}});
+}
+for(const row of inputs){if(!row.plan.operations.length||validateHarnessPlan(row.plan,{snapshot:row.snapshot,snapshotText:JSON.stringify(row.snapshot),automatic:true,requireEvidence:true,requireCases:true}).length)throw Error('Parent Harness validation failed');}
+const outputIndex=process.argv.indexOf('--output'),output=process.argv[outputIndex+1];
+if(live){if(!process.env.TYPESAFE_API_KEY||outputIndex<0||!output)throw Error('Live research requires credential and output');const f=await fs.open(output,'wx');await f.writeFile('{"complete":false,"evidence":"research-started-incomplete"}\n');await f.close();}
+const research=await loadBoundScopeJudge();
+if(research.sourceSha256!==study.codeHashes['../extensions/jev-learning.ts']||research.patchedSha256!==study.patchedSha256){await research.dispose();throw Error('Patched digest mismatch');}
+const MAX_REQUESTS=320;let outboundRequests=0,fixtureRequests=0;
+type Verdict=Awaited<ReturnType<JevJudge['validate']>>;
+const results:{id:string;expectedAllow:boolean|null;snapshotHash:string;planHash:string;before:Verdict;after:Verdict}[]=[];
+const diagnostics:{id:string;arm:string;answers:Record<string,unknown>}[]=[];
+try {
+ for(const row of inputs){const verdicts:Verdict[]=[];
+  for(const arm of ['before','after']as const){
+   const config={enabled:true,apiKey:live?process.env.TYPESAFE_API_KEY:'fixture',defaultModel:'jev-1.13.0',scopes:['harness'] as ('harness')[],fetch:async(url:RequestInfo|URL,init?:RequestInit)=>{
+    const request=JSON.parse(String(init?.body));if(Buffer.byteLength(JSON.stringify(request))>64_000)throw Error('Wire cap exceeded');
+    if(!live){fixtureRequests++;const answers:Record<string,unknown>={};for(const [key,q]of Object.entries(request.questions as Record<string,{type:string;criteria:Record<string,unknown>}>)){
+     if(q.type==='noul')answers[key]={type:'noul',noul:.99};else{const label=['compatible','same','lasting','faithful','authorized'].find(l=>Object.hasOwn(q.criteria,l));if(!label)throw Error('Unknown fixture question');answers[key]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(l=>[l,l===label?1:0]))};}
+    }return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:0,output_tokens:0}}));}
+    if(outboundRequests>=MAX_REQUESTS)throw Error('Study budget exhausted');outboundRequests++;
+    const response=await fetch(url,init);if(response.ok)diagnostics.push({id:row.id,arm,answers:controlledJevAnswers(await response.clone().json(),request.questions)});return response;
+   }};
+   const judge=createJevJudge(config);
+   verdicts.push(arm==='after'?await research.createJevJudge(config).validate('harness',row.snapshot,row.plan.operations,[],undefined,row.plan.evidence,row.binding):await judge.validate('harness',row.snapshot,row.plan.operations,[],undefined,row.plan.evidence));
+  }
+  results.push({id:row.id,expectedAllow:row.expectedAllow,snapshotHash:hash(JSON.stringify(row.snapshot)),planHash:hash(JSON.stringify(row.plan)),before:verdicts[0],after:verdicts[1]});
+ }
+}finally{await research.dispose();}
+await verifyCode();
+const labeled=results.filter((r):r is typeof r&{expectedAllow:boolean}=>r.expectedAllow!==null);
+const complete=pairedPlansComplete(results.map(r=>({...r,expectedAllow:r.expectedAllow??false})));
+const telemetry=results.flatMap(r=>[r.before.telemetry,r.after.telemetry]);
+const report={evidence:live?'real-jev-bound-scope-paired-research':'offline-bound-scope-fixture',split,productionWriteEligible:false,complete,samples:results.length,labeledSamples:labeled.length,corpusSha256:hash(corpusText),codeHashes:study.codeHashes,outboundRequests,fixtureRequests,requestBudget:MAX_REQUESTS,metrics:{before:pairedPlanMetrics(labeled,'before'),after:pairedPlanMetrics(labeled,'after')},knownInputTokens:telemetry.reduce((n,r)=>n+(r.inputTokens??r.knownInputTokens??0),0),knownEstimatedCostUsd:telemetry.reduce((n,r)=>n+(r.estimatedCostUsd??r.knownEstimatedCostUsd??0),0),results,diagnostics};
+if(live)await fs.writeFile(output,JSON.stringify(report,null,2)+'\n');
+console.log(JSON.stringify({complete,samples:results.length,labeledSamples:labeled.length,outboundRequests,fixtureRequests,metrics:report.metrics,knownInputTokens:report.knownInputTokens,knownEstimatedCostUsd:report.knownEstimatedCostUsd}));
+if(!complete)process.exitCode=1;

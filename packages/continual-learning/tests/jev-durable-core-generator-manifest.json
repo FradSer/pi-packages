@@ -1,0 +1,284 @@
+{
+  "evidence": "prospective-synthetic-durable-core-native-generation-pilot",
+  "paidExecutionAllowedNow": true,
+  "productionAdoption": false,
+  "runner": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/run.py",
+  "runnerSha256": "eed19be904b966b9c0565b7a2d479fdfafd96af27e690e4866296f98c2b6f12f",
+  "output": "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z",
+  "configRoot": "/Users/FradSer/.pi/agent",
+  "configHashes": {
+    "/Users/FradSer/.pi/agent/memory.json": "fc0c23c76bf356830aed3e97fc8a442ec1280ed136ce7a607710c1e17f00443e",
+    "/Users/FradSer/.pi/agent/models.json": "f614ad304366f49f1b000980517ec5acb6e075a362cc12d11fd1bef9e627e6ac"
+  },
+  "hostHashes": {
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/durable-core-generator-research.ts": "e2d768203d3749a75864b5fc1d79c589788b969f0d697812abb71d28d560e8b3",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/evaluate_durable_core_generation.ts": "65c6fa8f1d401ddc72cdebadbb107f375452c92da502b3c0a48d43b1ce1c925b",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/jev-durable-core-generator-cases.json": "eae81ebdc8e987c101d47133373c69c46870dc5852dcbdce9ca93fa4d0d24860",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/docker_experiment.py": "a03b183d4f4af3d689aac09c53b4dae8e4e22948366a36e1e68b6d8e3218ea7b",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/docker_resource_state.py": "67dffe92746f4823e3776325a7d275b4412dfbe2c04a905c6f0809690c07b1ed",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/live_jev_original_transport.py": "3b9b2e08ad8e1f750d0ddba68a118f70ee4a6e0e1d992f58046ef0eee20e120a",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/runtime-hashes.json": "3714acc61f6fb35b989ffd52e41b403d5181a9af768a84944e99e948bcd49f0d",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/preflight.json": "3a3f255150e94123f1a870fb9691dcb0ac340d9eb670a57209675a52d481bf0b",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/durable-core-generator-20261006T150409Z/preparation-fixed-cleanup.json": "28a0af6deec40296821ef2f4b8c2b0371625db00fbe4d1586d082c8d48d48243",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/kit/src/index.ts": "a76b0c16f42f6c64a710fed5d34948483c9582c1560c7bf6c7717344022341b2",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/agents-md-consolidation.ts": "9ea854a4ed0ebdb5dbf0851430676c82eb572567900fe32046ea429021b8ea91",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/harness-command-coverage.ts": "122b26c79364e4c82b41d96e819f0ecb916b4a7a01738b6b3f0002bfcce2de8c",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/harness-consolidation.ts": "87965c7ca5e201a3ffd5fa6ff9c8b58dfa5cd08d41a595ef7c072834a0c4a077",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/inject-memory.ts": "d25ac54a23a581672f1b9b5e3377b39121acdc7aa74677c6135e4db92ff1aa62",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/jev-learning.ts": "446485d8037d3e07fad1affdaed7193cbabddab31c477892622a33998adc1cba",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-efficiency.ts": "21d41647f6d1256b62437b1cb1a65c3c49ab1226f4c76218c1d548197bdf0fe3",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/prompts/agents-md-consolidator.md": "e1cc26fffe47b223cecd591c03498fcd8cbce5aad7d83b4522fecf2310459eb0",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/prompts/harness-consolidator.md": "8c7352804deeb48b93b69fcd91824bf2a0bfd7b290e53e7ca5f0f5baa0c14f42",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/prompts/incremental-memory-consolidator.md": "6b53319bd780b6f95ffdc4184b6587132817c38fa47a124d1b20af43957bbe8e",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/prompts/memory-consolidator.md": "ed4952aea941c2ca1c639ebc7b929bd49fd6b66e4f5aa2d29c6817a90422fd52",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/prompts/memory-selector.md": "38cb06f883236a205613ac7d1694a631e6c9f344f5afd45b90432cfe52321534",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/prompts/planner-system.md": "03100948725b676669adde04c0d2b4a1841d6866430505276cb5ef7a704fe392",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/kit/index.ts": "8950f261c03b03d1474eb7a092ca892fd7b11f84d8e1d9ff6facb7844d685779",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/kit/package.json": "47f30bad436aa88ddcc5ddefe611055d6af3c3fd271806025d0259a4c1fd043d",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/index.ts": "1ab8302e9b46799be439f84a3c0d49a113d96261084c3d2e96478313d09b061e",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/package.json": "1e003a71b4902faab296a4f873e1e0a13e8abfdb003362d0721eb8888ce27b4f",
+    "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/durable_core_transport.py": "96cab09d439f96fc26c32320cb932f31aee96919ad688d69735d13963e9cec48"
+  },
+  "runtimeHashes": {
+    "/opt/experiment/packages/kit/src/index.ts": "a76b0c16f42f6c64a710fed5d34948483c9582c1560c7bf6c7717344022341b2",
+    "/opt/experiment/packages/continual-learning/extensions/agents-md-consolidation.ts": "9ea854a4ed0ebdb5dbf0851430676c82eb572567900fe32046ea429021b8ea91",
+    "/opt/experiment/packages/continual-learning/extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+    "/opt/experiment/packages/continual-learning/extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+    "/opt/experiment/packages/continual-learning/extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675",
+    "/opt/experiment/packages/continual-learning/extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+    "/opt/experiment/packages/continual-learning/extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "/opt/experiment/packages/continual-learning/extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+    "/opt/experiment/packages/continual-learning/extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+    "/opt/experiment/packages/continual-learning/extensions/harness-command-coverage.ts": "122b26c79364e4c82b41d96e819f0ecb916b4a7a01738b6b3f0002bfcce2de8c",
+    "/opt/experiment/packages/continual-learning/extensions/harness-consolidation.ts": "87965c7ca5e201a3ffd5fa6ff9c8b58dfa5cd08d41a595ef7c072834a0c4a077",
+    "/opt/experiment/packages/continual-learning/extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+    "/opt/experiment/packages/continual-learning/extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+    "/opt/experiment/packages/continual-learning/extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+    "/opt/experiment/packages/continual-learning/extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+    "/opt/experiment/packages/continual-learning/extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+    "/opt/experiment/packages/continual-learning/extensions/inject-memory.ts": "d25ac54a23a581672f1b9b5e3377b39121acdc7aa74677c6135e4db92ff1aa62",
+    "/opt/experiment/packages/continual-learning/extensions/jev-learning.ts": "446485d8037d3e07fad1affdaed7193cbabddab31c477892622a33998adc1cba",
+    "/opt/experiment/packages/continual-learning/extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+    "/opt/experiment/packages/continual-learning/extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+    "/opt/experiment/packages/continual-learning/extensions/learning-efficiency.ts": "21d41647f6d1256b62437b1cb1a65c3c49ab1226f4c76218c1d548197bdf0fe3",
+    "/opt/experiment/packages/continual-learning/extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+    "/opt/experiment/packages/continual-learning/extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+    "/opt/experiment/packages/continual-learning/extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+    "/opt/experiment/packages/continual-learning/extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+    "/opt/experiment/packages/continual-learning/extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+    "/opt/experiment/packages/continual-learning/extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "/opt/experiment/packages/continual-learning/extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+    "/opt/experiment/packages/continual-learning/extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+    "/opt/experiment/packages/continual-learning/extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+    "/opt/experiment/packages/continual-learning/extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+    "/opt/experiment/packages/continual-learning/extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899",
+    "/opt/experiment/packages/continual-learning/prompts/agents-md-consolidator.md": "e1cc26fffe47b223cecd591c03498fcd8cbce5aad7d83b4522fecf2310459eb0",
+    "/opt/experiment/packages/continual-learning/prompts/harness-consolidator.md": "8c7352804deeb48b93b69fcd91824bf2a0bfd7b290e53e7ca5f0f5baa0c14f42",
+    "/opt/experiment/packages/continual-learning/prompts/incremental-memory-consolidator.md": "6b53319bd780b6f95ffdc4184b6587132817c38fa47a124d1b20af43957bbe8e",
+    "/opt/experiment/packages/continual-learning/prompts/memory-consolidator.md": "ed4952aea941c2ca1c639ebc7b929bd49fd6b66e4f5aa2d29c6817a90422fd52",
+    "/opt/experiment/packages/continual-learning/prompts/memory-selector.md": "38cb06f883236a205613ac7d1694a631e6c9f344f5afd45b90432cfe52321534",
+    "/opt/experiment/packages/continual-learning/prompts/planner-system.md": "03100948725b676669adde04c0d2b4a1841d6866430505276cb5ef7a704fe392",
+    "/opt/experiment/node_modules/.pnpm/@typesafe-ai+sdk@0.6.0/node_modules/@typesafe-ai/sdk/dist/index.cjs": "c81509e8ba986a579cfcd6c05e3623c852a534322ba257fe7b39e7a00d7fa9e4",
+    "/opt/experiment/node_modules/.pnpm/@typesafe-ai+sdk@0.6.0/node_modules/@typesafe-ai/sdk/dist/index.cjs.map": "2c070ece745dbb1b61347583836774daa4640812024a6c4d0d792cb84f644bb7",
+    "/opt/experiment/node_modules/.pnpm/@typesafe-ai+sdk@0.6.0/node_modules/@typesafe-ai/sdk/dist/index.d.cts": "91d772cf50c4521e90c9808169fd54e9e54a4b3c6828b645c67f23684825233a",
+    "/opt/experiment/node_modules/.pnpm/@typesafe-ai+sdk@0.6.0/node_modules/@typesafe-ai/sdk/dist/index.d.mts": "e54673ef76353afcaea6f422cd80df658a7852c321ed3d5084ce4d0e063833a4",
+    "/opt/experiment/node_modules/.pnpm/@typesafe-ai+sdk@0.6.0/node_modules/@typesafe-ai/sdk/dist/index.mjs": "bbb851dfe375c586c5bee3c082a04ab71882813dde39df0e95eaa23f30ec7012",
+    "/opt/experiment/node_modules/.pnpm/@typesafe-ai+sdk@0.6.0/node_modules/@typesafe-ai/sdk/dist/index.mjs.map": "ec4cc45bc159b9f8da510827455e25dca4e3fa67ee96431d243442243b50cef2",
+    "/opt/experiment/node_modules/.pnpm/@typesafe-ai+sdk@0.6.0/node_modules/@typesafe-ai/sdk/package.json": "b94bd1d862b166be53b0b91a36a2af27a0b14e397ffea8f0c53cbfcc9718c508",
+    "/opt/experiment/packages/kit/index.ts": "8950f261c03b03d1474eb7a092ca892fd7b11f84d8e1d9ff6facb7844d685779",
+    "/opt/experiment/packages/kit/package.json": "47f30bad436aa88ddcc5ddefe611055d6af3c3fd271806025d0259a4c1fd043d",
+    "/opt/experiment/packages/continual-learning/index.ts": "1ab8302e9b46799be439f84a3c0d49a113d96261084c3d2e96478313d09b061e",
+    "/opt/experiment/packages/continual-learning/package.json": "1e003a71b4902faab296a4f873e1e0a13e8abfdb003362d0721eb8888ce27b4f",
+    "/opt/experiment/packages/continual-learning/tests/durable-core-generator-research.ts": "e2d768203d3749a75864b5fc1d79c589788b969f0d697812abb71d28d560e8b3",
+    "/opt/experiment/packages/continual-learning/tests/evaluate_durable_core_generation.ts": "65c6fa8f1d401ddc72cdebadbb107f375452c92da502b3c0a48d43b1ce1c925b",
+    "/home/node/research/cases.json": "eae81ebdc8e987c101d47133373c69c46870dc5852dcbdce9ca93fa4d0d24860"
+  },
+  "image": "continual-learning-projects:df60a6123748956b",
+  "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "bailian/qwen3.8-flash"
+  },
+  "mainTariffPerMillion": {
+    "input": 0.15,
+    "output": 0.47,
+    "cacheRead": 0.016,
+    "cacheWrite": 0.2
+  },
+  "jevModel": "jev-1.13.0",
+  "jevInputTariffPerMillion": 0.042,
+  "jevTimeoutMs": 5000,
+  "jevRetries": 0,
+  "samples": 16,
+  "independentScenarios": 8,
+  "languagePairs": 8,
+  "arms": [
+    {
+      "caseId": "stable-config-plus-run-history-en",
+      "arm": "before"
+    },
+    {
+      "caseId": "stable-config-plus-run-history-en",
+      "arm": "after"
+    },
+    {
+      "caseId": "stable-config-plus-run-history-zh",
+      "arm": "after"
+    },
+    {
+      "caseId": "stable-config-plus-run-history-zh",
+      "arm": "before"
+    },
+    {
+      "caseId": "explicit-long-term-observed-result-en",
+      "arm": "before"
+    },
+    {
+      "caseId": "explicit-long-term-observed-result-en",
+      "arm": "after"
+    },
+    {
+      "caseId": "explicit-long-term-observed-result-zh",
+      "arm": "after"
+    },
+    {
+      "caseId": "explicit-long-term-observed-result-zh",
+      "arm": "before"
+    },
+    {
+      "caseId": "lasting-compatibility-exception-en",
+      "arm": "before"
+    },
+    {
+      "caseId": "lasting-compatibility-exception-en",
+      "arm": "after"
+    },
+    {
+      "caseId": "lasting-compatibility-exception-zh",
+      "arm": "after"
+    },
+    {
+      "caseId": "lasting-compatibility-exception-zh",
+      "arm": "before"
+    },
+    {
+      "caseId": "only-transient-failure-en",
+      "arm": "before"
+    },
+    {
+      "caseId": "only-transient-failure-en",
+      "arm": "after"
+    },
+    {
+      "caseId": "only-transient-failure-zh",
+      "arm": "after"
+    },
+    {
+      "caseId": "only-transient-failure-zh",
+      "arm": "before"
+    },
+    {
+      "caseId": "later-config-revocation-en",
+      "arm": "before"
+    },
+    {
+      "caseId": "later-config-revocation-en",
+      "arm": "after"
+    },
+    {
+      "caseId": "later-config-revocation-zh",
+      "arm": "after"
+    },
+    {
+      "caseId": "later-config-revocation-zh",
+      "arm": "before"
+    },
+    {
+      "caseId": "private-conditional-preference-en",
+      "arm": "before"
+    },
+    {
+      "caseId": "private-conditional-preference-en",
+      "arm": "after"
+    },
+    {
+      "caseId": "private-conditional-preference-zh",
+      "arm": "after"
+    },
+    {
+      "caseId": "private-conditional-preference-zh",
+      "arm": "before"
+    },
+    {
+      "caseId": "negative-verification-and-recovery-en",
+      "arm": "before"
+    },
+    {
+      "caseId": "negative-verification-and-recovery-en",
+      "arm": "after"
+    },
+    {
+      "caseId": "negative-verification-and-recovery-zh",
+      "arm": "after"
+    },
+    {
+      "caseId": "negative-verification-and-recovery-zh",
+      "arm": "before"
+    },
+    {
+      "caseId": "unrequested-durable-diagnostic-history-en",
+      "arm": "before"
+    },
+    {
+      "caseId": "unrequested-durable-diagnostic-history-en",
+      "arm": "after"
+    },
+    {
+      "caseId": "unrequested-durable-diagnostic-history-zh",
+      "arm": "after"
+    },
+    {
+      "caseId": "unrequested-durable-diagnostic-history-zh",
+      "arm": "before"
+    }
+  ],
+  "requestBudgetPerArm": 4,
+  "requestBudget": 128,
+  "primaryEvaluation": "Independent source review of support, lasting value and required facts/conditions/privacy retained; Jev allowance is auxiliary.",
+  "limits": [
+    "Authored synthetic repair errors; not observed production rejection, heldout or human gold.",
+    "Pilot freezes quotes more strictly than production, equally in both arms.",
+    "No apply path; source-valid output is not full mutation-queue validation.",
+    "Fresh real projects and independent phase effects still needed before overall superiority.",
+    "Real main requested model is transport checked; underlying service version may remain unknown.",
+    "Missing usage is unknown; client/proxy overlap not additive.",
+    "Remote cloud cancellation and account bill unverified."
+  ],
+  "goalComplete": false,
+  "authorization": "Existing explicit authorization for network and paid isolated real-model research."
+}

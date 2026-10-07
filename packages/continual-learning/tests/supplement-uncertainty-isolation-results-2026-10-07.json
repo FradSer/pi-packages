@@ -1,0 +1,89 @@
+{
+  "kind": "supplement-uncertainty-isolation-results",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "protocol": "packages/continual-learning/tests/supplement-uncertainty-isolation-protocol-2026-10-07.md",
+  "rawRoot": "~/.cache/pi-continual-learning/research/adversarial-negative-2026-10-07/supplement-isolation",
+  "corpus": {
+    "file": "cases-v4.json",
+    "sha256": "e1dfadb0ea99dadfb69b8ca0873436b89bb8dd66adcd09d26cc2a24e0feb24fe",
+    "cases": 2
+  },
+  "requests": 2,
+  "newSamples": [
+    {
+      "id": "supplement-noexisting-en",
+      "existingMemory": "none",
+      "expected": "allow",
+      "decision": "propose",
+      "reason": "uncertain",
+      "candidateFailure": {
+        "dimension": "support",
+        "reason": "uncertain"
+      }
+    },
+    {
+      "id": "supplement-noexisting-zh",
+      "existingMemory": "none",
+      "expected": "allow",
+      "decision": "propose",
+      "reason": "uncertain",
+      "candidateFailure": {
+        "dimension": "support",
+        "reason": "uncertain"
+      }
+    }
+  ],
+  "recordedComparator": [
+    {
+      "id": "supplement-pure-en",
+      "existingMemory": "package-manager fact",
+      "expected": "allow",
+      "decision": "propose",
+      "reason": "uncertain",
+      "source": "cases-v2.json results, not rerun"
+    },
+    {
+      "id": "supplement-pure-zh",
+      "existingMemory": "package-manager fact",
+      "expected": "allow",
+      "decision": "propose",
+      "reason": "uncertain",
+      "source": "cases-v2.json results, not rerun"
+    }
+  ],
+  "preRegisteredRuleApplied": "empty-existing allowed and present-existing held would mean an interaction with existing Memory; both held means intrinsic to the support question. Both held.",
+  "conclusion": {
+    "statement": "The support-uncertain over-hold is intrinsic to the support question for a verified tool observation. It is not caused by existing Memory, by phrasing, or by language.",
+    "evidence": "Eight of eight samples across three phrasings, two languages, and with and without existing Memory returned propose with dimension support and reason uncertain. Zero allows."
+  },
+  "mechanism": {
+    "known": "The judge reports the controlled failure dimension and reason only.",
+    "unknown": "Whether the support question classifies the claim as not grounded, or grounds it below the confidence or probability gate.",
+    "why": "A held judgment returns no answers object, and no production diagnostic was added to expose the margin."
+  },
+  "consequenceForTheGoal": "The Memory direction, which is the primary purpose of the goal, systematically holds the very knowledge the task contract says to remember after a successful tool result. This explains the recorded DeepSeek cohort Memory hold and the Memory losses in the untuned on arms whose review completed.",
+  "decisionsNeeded": [
+    {
+      "id": "privacy-preflight-false-positive",
+      "question": "Should the sensitive-material preflight stop refusing a whole Jev review because a tracked project file contains a credential-shaped placeholder?",
+      "measuredEvidence": "2 of 123 retained evidence entries trip it; both are one placeholder in iniconfig's own source; both of its reviews were refused with zero requests.",
+      "ifYes": "Narrow the guard's input scope, keep the refusal for real secrets, and re-run an untuned project.",
+      "ifNo": "Record the learning loss as accepted privacy cost and keep Jev disabled on such projects."
+    },
+    {
+      "id": "support-gate-for-verified-observations",
+      "question": "Should the support judgment accept a verified tool observation as grounding for a command fact, so a grounded supplement is not held as uncertain?",
+      "measuredEvidence": "8 of 8 verified-observation samples held with support: uncertain across phrasings, languages, and existing-Memory states.",
+      "ifYes": "Change the support question criteria or the acceptance threshold, prove it with a RED then GREEN test, then re-measure with a new frozen corpus.",
+      "ifNo": "Keep the composed and independent strategies default-off, and report the goal as unproven with this defect named."
+    }
+  ],
+  "limits": [
+    "Fixed author labels measure judgment behaviour only, not net-benefit.",
+    "Eight samples cannot give a rate; they show the behaviour is stable across the tested variations.",
+    "No production diagnostic was added, so the uncertainty margin stays unknown.",
+    "No gate, threshold, or guard was changed."
+  ],
+  "writeAuthorized": false
+}

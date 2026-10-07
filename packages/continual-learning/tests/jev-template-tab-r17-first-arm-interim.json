@@ -1,0 +1,30 @@
+{
+  "evidence": "r17-first-arm-interim-and-runner-failure",
+  "firstArm": "click-off",
+  "status": "passed",
+  "providerRequests": 33,
+  "jevRequests": 0,
+  "sourceDigest": "df60a6123748956bdd39e0b23ca70113aeb68e3be59b9dc56cfd51bf9f317acf",
+  "workflowChecks": {
+    "regressionChanged": true,
+    "privatePreference": true,
+    "safeFact": true,
+    "safeMirrorIdentical": true,
+    "baselinePrivateRecall": false,
+    "freshPrivateRecall": true,
+    "freshFullMemoryReads": true,
+    "freshVerifiedCommand": true,
+    "nativeBashBlocked": true,
+    "blockedSideEffectAbsent": true,
+    "unrelatedBashExecuted": true
+  },
+  "orchestratorStatus": "failed-after-first-arm",
+  "reason": "Case-sensitive absence message check rejected lowercase Docker message after completed first arm; initial artifacts and runner preserved, no first-arm rerun.",
+  "originalProcessMetadataRecorded": false,
+  "remainingArmsNotRun": 5,
+  "helperRegression": {
+    "red": "2failed2passed0.05s",
+    "green": "4passed0.04s"
+  },
+  "goalComplete": false
+}

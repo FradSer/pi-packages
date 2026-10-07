@@ -66,7 +66,12 @@ Read @features/pi-kit.feature when changing this contract and run `python3 -m py
 - `runPiWorker(options)` — runs a one-shot JSONL worker with pre-cancel checks. Set `minimal: true` to use those shared minimal arguments; omit `tools` for the canonical set or pass one for an explicit allowlist. Only an explicit empty array grants no tools: an empty string counts as omitted in every mode. It also provides close-observed cancellation and byte limits of 16 MiB for stdout, 8 MiB for
   stderr, and 8 MiB for each JSONL line. The line bound leaves room for normal
   inline image payloads plus their JSON envelope. Limit failures terminate the
-  child and return no assistant text.
+  child and return no assistant text. A failed or aborted assistant reply is also
+  a failed worker even when the Pi CLI exits with zero: partial text is discarded,
+  failed usage remains unavailable, and an abort reports cancellation. Retry
+  bookkeeping alone cannot restore success; a successful assistant reply must
+  follow. Usage remains unavailable after such recovery because the failed
+  request prevents a complete total. Controlled errors omit provider response text.
 - `getDirectorySessionKey(cwd)` — SHA-256 of the canonical directory path;
   existing paths use realpath and missing paths use an absolute path.
 - `isSameDirectory(left, right)` — compares those canonical directory paths.

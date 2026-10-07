@@ -1,0 +1,29 @@
+{
+  "evidence": "local-checks-and-real-jev-research-separated",
+  "tests": {
+    "command": "python3 -m pytest packages/continual-learning/tests/ -q",
+    "passed": 940,
+    "seconds": 363.42,
+    "collectionNote": "Collected before adding the fourth new delimiter regression; that regression passed in the later focused run."
+  },
+  "focusedTests": {
+    "passed": 8,
+    "initialRedFailed": 3,
+    "delimiterRedFailed": 1,
+    "delimiterRedPassed": 3
+  },
+  "strictResearchWorkerTypecheck": "passed",
+  "rootTypecheck": "passed",
+  "workspacePackedManifests": 19,
+  "targetPackDryRun": "passed-after-documentation",
+  "realJevRequests": 20,
+  "knownUsageResponses": 20,
+  "apiReportedModel": "jev-1.13.0",
+  "productionWrites": 0,
+  "processGroupStopConfirmed": true,
+  "ownedContainerAbsent": true,
+  "mainModelCalled": false,
+  "newHostInstallCheck": false,
+  "reasonNoInstallCheck": "Research-only files; no production runtime or installed path change in this phase.",
+  "goalComplete": false
+}

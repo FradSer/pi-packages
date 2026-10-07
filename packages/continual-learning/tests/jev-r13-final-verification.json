@@ -1,0 +1,38 @@
+{
+  "evidence": "v3-research-and-r13-real-runtime-final-verification",
+  "files": {
+    "jev-r13-p-limit-diagnostics-manifest.json": "f0e96418c1b1704f83801044d6327174edf3f01b011a5fae46b2645d864083be",
+    "jev-r13-p-limit-diagnostics-real-results.json": "dc5a9035041f90cebb0de38f801552bbca9647abc30eefaf8ad935cf866d7b2f",
+    "jev-memory-pair-noul-final-verification.json": "12276254dc7b1f58ebdb3121e185cce5b56c60119d506f93398ec15b7df10b01",
+    "jev-memory-pair-noul-adoption-decision.json": "9a486f2b4dfef3e10e9b940060c84063fa1058f5d0a2d55f1bd668ab77d2c29d"
+  },
+  "fullPackageTests": {
+    "passed": 863,
+    "durationSeconds": 258.86,
+    "exitCode": 0
+  },
+  "rootTypecheckExitCode": 0,
+  "strictResearchTypesExitCode": 0,
+  "targetPackDryRunExitCode": 0,
+  "scopedDiffCheckExitCode": 0,
+  "independentFinalReviews": [
+    "V3faileddevelopment retained,notadopted/nojointcalibration",
+    "R13originalsummary/sourcebound/singlecurrentruntimepassed,noqualityclaim"
+  ],
+  "newPaidResearchRequests": 20,
+  "newRealDockerExecutions": 1,
+  "newRealDockerJevRequests": 8,
+  "newRealDockerMainRequests": 29,
+  "knownJevInputTokens": 72032,
+  "estimatedJevInputCostUsd": 0.003025344,
+  "actualBillingVerified": false,
+  "allPaidProcessesTerminal": true,
+  "paidProcessExitCodes": {
+    "13084": 0,
+    "95480": 0
+  },
+  "productionCodeChangesThisIncrement": false,
+  "pairNoulAdopted": false,
+  "wholeWorkflowOptionalJevQualityImprovementProven": false,
+  "goalStatus": "active"
+}

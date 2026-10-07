@@ -21,7 +21,7 @@
  * beside it.
  */
 
-import { runPiWorker, type PiWorkerUsage } from "@fradser/pi-kit";
+import { runPiWorker, type PiWorkerProgressUpdate, type PiWorkerUsage } from "@fradser/pi-kit";
 
 /** The read-only grant. An explicit set, so an omitted-list default can never
  * widen it, and a set with no shell in it. */
@@ -48,6 +48,8 @@ export interface RunResearchOptions {
   model?: string;
   /** Abort signal to cancel the child. */
   signal?: AbortSignal;
+  /** Live worker activity. Forwarded to runPiWorker. */
+  onUpdate?: (update: PiWorkerProgressUpdate) => void;
 }
 
 /**
@@ -102,6 +104,7 @@ export async function runGoalResearch(options: RunResearchOptions): Promise<Rese
     model: options.model,
     signal: options.signal,
     minimal: true,
+    onUpdate: options.onUpdate,
   });
   if (result.exitCode !== 0) {
     const stderr = result.stderr.trim();

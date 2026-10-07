@@ -1,0 +1,15 @@
+{
+  "evidence": "direct-parser-reproduction-not-model-or-application-proof",
+  "module": "extensions/consolidation-run.ts",
+  "function": "extractChildPlan",
+  "harnessConsolidationJsonInAssistantContent": true,
+  "results": {
+    "stop": "accepted",
+    "error": "accepted",
+    "aborted": "accepted"
+  },
+  "externalCalls": 0,
+  "productionWrites": 0,
+  "scope": "Shared parser accepts JSON from failed/aborted assistant terminal events; call-site write consequence and required rejection semantics still need regression verification.",
+  "nextAction": "Add Given/When/Then regressions and inspect all extraction consumers before a fail-closed fix."
+}

@@ -1,0 +1,33 @@
+{
+  "red": {
+    "failed": 2,
+    "seconds": 0.42
+  },
+  "focusedGreen": {
+    "passed": 12,
+    "seconds": 3.75
+  },
+  "independentOfflineReview": {
+    "passed": 58
+  },
+  "fullSuite": {
+    "passed": 906,
+    "seconds": 305.19
+  },
+  "nativePiFixture": {
+    "passed": 3,
+    "seconds": 9.04,
+    "realPiCli": true,
+    "realModelInference": false
+  },
+  "typecheck": "passed",
+  "targetPack": "passed",
+  "workspacePack": {
+    "passed": 19
+  },
+  "installationCheck": "unrelated bdd-jev missing from configured package sources; no host configuration write",
+  "runtimeTimeoutMs": 5000,
+  "preflightExternalCalls": 0,
+  "realAfterInference": "not yet run",
+  "goalComplete": false
+}

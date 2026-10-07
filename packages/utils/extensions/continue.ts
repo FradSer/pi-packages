@@ -202,17 +202,24 @@ async function performContinuation(
     return;
   }
 
-  if (target.isDirectContinuation) {
-    await sendDirectContinuation(host);
-    return;
-  }
+  // The command reports a rejected delivery. The host may or may not surface a
+  // rejected handler promise, so the error is not left to the host alone.
+  try {
+    if (target.isDirectContinuation) {
+      await sendDirectContinuation(host);
+      return;
+    }
 
-  // A user message that arrives while the agent is streaming is only queued when the
-  // delivery says how, and without it Pi drops the message: the request vanishes and
-  // whoever sent it is left believing the work was handed over. An idle session runs
-  // the message at once, so the delivery only matters while work is running.
-  const delivery = ctx.isIdle() ? undefined : ({ deliverAs: "followUp" } as const);
-  await host.sendUserMessage(target.promptText, delivery);
+    // A user message that arrives while the agent is streaming is only queued when the
+    // delivery says how, and without it Pi drops the message: the request vanishes and
+    // whoever sent it is left believing the work was handed over. An idle session runs
+    // the message at once, so the delivery only matters while work is running.
+    const delivery = ctx.isIdle() ? undefined : ({ deliverAs: "followUp" } as const);
+    await host.sendUserMessage(target.promptText, delivery);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    notifyPi(ctx.ui, `Continuation delivery failed: ${detail}`, "error");
+  }
 }
 
 export async function runContinuation(args: string, ctx: ExtensionCommandContext, pi: ExtensionAPI): Promise<void> {

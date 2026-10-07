@@ -13,7 +13,9 @@ import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 
+const boundScopeChecks: boolean[] = [];
 const scenario = process.argv[2] ?? "repaired";
 const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "jev-harness-repair-")));
 const rawAgent = path.join(root, "agent");
@@ -129,6 +131,16 @@ mock.module("../../kit/src/index.ts", () => ({
       const repair = text.includes("repair ONE rejected harness consolidation plan") || text.includes("recover ONE missing harness consolidation plan");
       const childUsage = usageFor(spawned);
       const usageLine = JSON.stringify({ type: "message_end", message: { role: "assistant", usage: jsonlUsage(childUsage), content: [{ type: "text", text: "usage checkpoint" }] } });
+      if (scenario === "initial-failed-json" || scenario === "initial-aborted-json" || scenario === "initial-aborted-retry-json") {
+        const stopReason = scenario === "initial-failed-json" ? "error" : "aborted";
+        const event = { type: "message_end", message: { role: "assistant", stopReason,
+          errorMessage: "PRIVATE-PROVIDER-ERROR", content: [{ type: "text", text: JSON.stringify(goodPlan(identity)) }] } };
+        const events = scenario === "initial-aborted-retry-json"
+          ? [{ type: "message_end", message: { role: "assistant", stopReason: "error", content: [] } }, event, { type: "auto_retry_end", success: true }] : [event];
+        stdout.emit("data", Buffer.from(`${events.map(value => JSON.stringify(value)).join("\n")}\n`, "utf8"));
+        child.emit("close", 0);
+        return;
+      }
       if (scenario === "initial-timeout" || (scenario === "recovery-timeout" && repair)) {
         stdout.emit("data", Buffer.from(`${usageLine}\n`, "utf8"));
         return;
@@ -167,7 +179,7 @@ mock.module("../../kit/src/index.ts", () => ({
       } else if (scenario === "ambiguous-plan") {
         body = [jsonlPlan(goodPlan(identity), identity, childUsage), jsonlPlan(goodPlan(identity), identity, childUsage)].join("\n");
       } else {
-        const plan = scenario.startsWith("semantic-") && scenario !== "semantic-exhausted" ? (repair && scenario === "semantic-empty" ? {...goodPlan(identity),operations:[]} : goodPlan(identity)) : scenario === "snapshot-missing"
+        const plan = scenario.startsWith("semantic-") && scenario !== "semantic-exhausted" ? (repair && scenario === "semantic-invalid-cases" ? brokenPlan(identity) : repair && scenario === "semantic-empty" ? {...goodPlan(identity),operations:[]} : goodPlan(identity)) : scenario === "snapshot-missing"
           ? goodPlan(identity)
           : !repair || scenario === "repair-also-fails" || scenario === "never-repairs" ? brokenPlan(identity) : goodPlan(identity);
         body = jsonlPlan(scenario === "semantic-report" && repair ? {...plan,report:[{summary:"x".repeat(401)}]} : plan, identity, childUsage);
@@ -208,10 +220,12 @@ try {
       },
     } as never,
     { pkgDir: path.resolve("packages/continual-learning"), cwd, reason: "repaired", availableSkills: [],
-      ...(scenario.startsWith("semantic-") ? {semanticRepair: scenario !== "semantic-off", validateSemantics: async () => {
+      ...(scenario.startsWith("semantic-") ? {semanticRepair: scenario !== "semantic-off", validateSemantics: async (snapshot: unknown, _operations: readonly unknown[], _citations: unknown, parentScope: import("../extensions/jev-learning").BoundScopeContext | undefined) => {
+        const evidence = snapshot as { runId: string; scopeKey: string };
+        boundScopeChecks.push(!!parentScope && Object.isFrozen(parentScope) && parentScope.repoRoot === cwd && parentScope.runId === evidence.runId && parentScope.scopeKey === evidence.scopeKey && parentScope.evidenceDigest === createHash("sha256").update(JSON.stringify(snapshot)).digest("hex"));
         semanticCalls++; if (scenario === "semantic-cancel") cancelled = true;
         if (scenario === "semantic-judge-tamper" && semanticCalls === 2) fs.rmSync(path.join(path.dirname(taskFiles.at(-1)!.slice(1)),"snapshot.json")); const allow = semanticCalls > 1 && scenario !== "semantic-still" && scenario !== "semantic-pruned-still";
-        return {decision:allow ? "allow" : "propose",telemetry:{stage:"harness",status:allow?"decided":"propose",reason:allow?"supported":scenario==="semantic-unavailable"?"unavailable":"uncertain",durationMs:1,model:"jev-1.13.0",inputTokens:10,outputTokens:2,estimatedCostUsd:0.00000042}};
+        return {decision:allow ? "allow" : "propose",telemetry:{stage:"harness",status:allow?"decided":"propose",reason:allow?"supported":scenario==="semantic-unavailable"?"unavailable":"uncertain",durationMs:1,model:"jev-1.13.0",inputTokens:10,outputTokens:2,estimatedCostUsd:0.00000042,...(!allow ? {candidateFailures:[{candidateIndex:0,dimension:"support",reason:"uncertain"}]} : {})}};
       }} : {}),
       ...( ["repair-model", "missing-model"].includes(scenario) ? { model: "provider/frozen" } : {}),
       ...(["initial-timeout", "recovery-timeout"].includes(scenario) ? { timeoutMs: 10 } : {}),
@@ -226,11 +240,17 @@ try {
       scenario,
       spawned,
       semanticCalls,
+      boundScopeChecks,
       directApply,
       semanticDecision: result.ok ? result.value.semanticDecision : undefined,
       deferredPlan: result.ok ? result.value.deferredPlan : undefined,
       storedProposals: (await listLearningHistory(cwd)).filter(entry => entry.phase === "harness" && entry.status === "proposed").map(entry => entry.proposal),
+      receivedFailureHints: taskTexts.slice(1).some(task => task.includes("Candidate failures: 0:support:uncertain")),
       repairAddressesQuoteScope: taskTexts.slice(1).some(task => task.includes("Scope repair:") && task.includes("quoted command strings containing operators and arguments")),
+      repairHasImmutableBindings: taskTexts.slice(1).some(task => {
+        try { const payload=JSON.parse(task.split("\n").at(-1)!);return Array.isArray(payload.immutableRetainedBindings) && payload.immutableRetainedBindings.length===payload.rejectedPlan.operations.length && payload.immutableRetainedBindings.every((binding: {originalIndex:number;op:string;ruleId:string;evidence:unknown[]}, index:number) => binding.originalIndex===index && binding.op===payload.rejectedPlan.operations[index].op && binding.ruleId===payload.rejectedPlan.operations[index].rule.id && JSON.stringify(binding.evidence)===JSON.stringify(payload.rejectedPlan.evidence.filter((entry:{index:number})=>entry.index===index))); } catch { return false; }
+      }),
+      repairLocksCitationFields: taskTexts.slice(1).some(task=>task.includes("All evidence properties other than index must remain unchanged")),
       repairCanOmitUnsupported: taskTexts.slice(1).some(task => task.includes("Omit an unsupported operation")),
       hasReport: result.ok && result.value.plan.report !== undefined,
       targetExists: fs.existsSync(path.join(cwd,".pi","harness.json")),

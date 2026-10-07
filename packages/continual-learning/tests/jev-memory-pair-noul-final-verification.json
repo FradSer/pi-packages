@@ -1,0 +1,33 @@
+{
+  "evidence": "pair-noul-v3-final-local-verification",
+  "files": {
+    "jev-memory-pair-noul-development-real-results.json": "449dc23909d3efc2e0f642b8857d5a57a4f4420fedb16f659bf61fc6cefbe20e",
+    "jev-memory-pair-noul-development-study-manifest.json": "8b29f4520859bc3d970f5add1fc06274396b2a7a27fa95c1f6c4383cc8db56b3",
+    "jev-memory-pair-noul-adoption-decision.json": "9a486f2b4dfef3e10e9b940060c84063fa1058f5d0a2d55f1bd668ab77d2c29d",
+    "jev-memory-pair-noul.ts": "ed9f376c26ebe3a0a6e934e52b7e0e45757c2d4f7b0584022c7b07d5fd5f27be",
+    "evaluate_jev_memory_pairs_noul.ts": "541314a451184b01855cb96678a4bd971917bccb65b579acc765e9367ea732fd",
+    "test_jev_memory_pair_noul.py": "a9816e878c97f209b49d46a23409ae180f7b1b2152a34bf959b7c99e8ef99abb"
+  },
+  "fullPackageTests": {
+    "passed": 863,
+    "durationSeconds": 258.86,
+    "exitCode": 0
+  },
+  "rootTypecheckExitCode": 0,
+  "strictStandaloneTypesExitCode": 0,
+  "targetPackDryRunExitCode": 0,
+  "independentReview": "cited_memory_security_review confirmed frozen sources,20requests,missed8/8,decisionnotadopted",
+  "paidProcess": {
+    "id": 13084,
+    "terminalExitCode": 0
+  },
+  "externalRequests": 20,
+  "actualModel": "jev-1.13.0",
+  "knownInputTokens": 22377,
+  "estimatedInputCostUsd": 0.000939834,
+  "actualBillingVerified": false,
+  "productionCodeChangesThisIncrement": false,
+  "adopted": false,
+  "freshHeldoutRequests": 0,
+  "wholeWorkflowQualityProven": false
+}

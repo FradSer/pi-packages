@@ -1,0 +1,24 @@
+{
+  "evidence": "post-real-verification-not-whole-workflow-quality",
+  "productionSourceUnchangedDuringRealReplay": true,
+  "originalCandidateIdentityUnchanged": true,
+  "originalEvidenceIdentityUnchanged": true,
+  "beforeOriginalReportsPreserved": true,
+  "fullSuite": {
+    "passed": 906,
+    "seconds": 305.19
+  },
+  "typecheck": "passed",
+  "targetPack": "passed",
+  "workspaceManifestCount": 19,
+  "nativePiTests": {
+    "passed": 3,
+    "seconds": 9.04,
+    "externalModel": false
+  },
+  "sourceGuardAfterRun": "passed",
+  "scopedWhitespace": "passed",
+  "accountBillingVerified": false,
+  "productionWrites": 0,
+  "goalComplete": false
+}

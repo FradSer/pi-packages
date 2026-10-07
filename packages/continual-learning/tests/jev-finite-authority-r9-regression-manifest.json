@@ -1,0 +1,24 @@
+{
+  "evidence": "real-generated-r9-scope-hold-unlabeled",
+  "id": "click-r9-finite-scope-uncertain",
+  "sourceDigest": "a385ac89115b1ddb8da1671235dbddbfb1cc4e839586bb7e3415c7cc2e2630ea",
+  "expectedAllow": null,
+  "files": {
+    "history": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-finite-git-scope-r9-final/click-on/memory/history/--work-click--/change_muvln0cz_ee0ebbf8f5d33860.json",
+      "sha256": "01c9d54abd50c05b4844af290ea48b78696ea88237e4f6e2c2b33a4f3e6a73a5"
+    },
+    "snapshot": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-finite-git-scope-r9-final/click-on/memory/runs/--work-click--/run_muvlkt8a_dfa1dd21ff57d909/snapshot.json",
+      "sha256": "5c5da5297300621ec188e8253087f7a5ef096d87957788295b1dc39273b401a0"
+    },
+    "report": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-finite-git-scope-r9-final/click-on/report.json",
+      "sha256": "eded4bd7bfd4d80e4e61edea7ee99efde46c55b0d8d9452cc4844be6522a0d2d"
+    },
+    "pipelineReceipt": {
+      "path": "/Users/FradSer/.cache/pi-continual-learning/docker/20261006-finite-git-scope-r9-final/click-on/memory/runs/--work-click--/run_muvlkt8a_dfa1dd21ff57d909/learning-pipeline-receipt.json",
+      "sha256": "0404d0e9d81e7dd830471d4c8e6f6045c180428a04264fa030d862e5c5565070"
+    }
+  }
+}

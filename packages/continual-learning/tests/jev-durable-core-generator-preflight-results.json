@@ -1,0 +1,13 @@
+{
+  "evidence": "network-disabled-isolated-linux-preflight",
+  "arms": 32,
+  "externalRequests": 0,
+  "modelCalls": 0,
+  "preflightSha256": "3a3f255150e94123f1a870fb9691dcb0ac340d9eb670a57209675a52d481bf0b",
+  "runtimeFilesFrozen": 52,
+  "ownedContainerAbsent": true,
+  "originalPreparationFailurePreserved": true,
+  "limits": [
+    "Scheduling, evidence/quote validation and runtime source freeze only. No inference quality or native learning effects verified."
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "evidence": "real-pi-call-shape-diagnostic-not-learning-test",
+  "rows": [
+    {
+      "mode": "default",
+      "process": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 0.556,
+        "processGroupStopConfirmed": true
+      },
+      "providerRequests": 1,
+      "providerErrors": 1,
+      "statuses": [
+        {
+          "status": 429
+        }
+      ],
+      "requestMetadata": [
+        {
+          "model": "opencode/space-bunny-free",
+          "max_tokens": 524288,
+          "reasoning_effort": "medium",
+          "stream": true
+        }
+      ],
+      "ownedContainerAbsent": true,
+      "mainUsageUnknown": true,
+      "billingVerified": false
+    },
+    {
+      "mode": "thinking-off",
+      "process": {
+        "exitCode": 0,
+        "outcome": "completed",
+        "seconds": 0.584,
+        "processGroupStopConfirmed": true
+      },
+      "providerRequests": 1,
+      "providerErrors": 1,
+      "statuses": [
+        {
+          "status": 429
+        }
+      ],
+      "requestMetadata": [
+        {
+          "model": "opencode/space-bunny-free",
+          "max_tokens": 524288,
+          "reasoning_effort": "low",
+          "stream": true
+        }
+      ],
+      "ownedContainerAbsent": true,
+      "mainUsageUnknown": true,
+      "billingVerified": false
+    }
+  ],
+  "productionWrites": 0
+}

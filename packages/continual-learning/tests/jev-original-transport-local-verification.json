@@ -1,0 +1,47 @@
+{
+  "evidence": "local-original-transport-validation-not-model-quality",
+  "initialRed": {
+    "failed": 6,
+    "seconds": 0.19
+  },
+  "wholeSetAndCleanupRed": {
+    "failed": 2,
+    "passed": 6,
+    "seconds": 0.24
+  },
+  "manifestRed": {
+    "failed": 1,
+    "passed": 8,
+    "seconds": 0.2
+  },
+  "focusedGreen": {
+    "passed": 10,
+    "seconds": 1.79
+  },
+  "fullSuite": {
+    "passed": 904,
+    "seconds": 298.74
+  },
+  "rootTypecheck": "passed",
+  "strictResearchTypecheck": "passed",
+  "targetPack": "passed",
+  "freshIndependentReview": "no scoped blocker; 10 passed in 1.76s",
+  "offlinePreflight": {
+    "fixtureRequests": 12,
+    "preSendFixtureRequests": 12,
+    "externalRequests": 0,
+    "fullEntries": 17,
+    "fullWindows": 2,
+    "allOwnedProcessesStopped": true
+  },
+  "localSocketFixture": "blocked local socket closed by owned worker exit; no external inference and remote cancellation unverified",
+  "productionRuntimeUnchanged": true,
+  "productionTimeoutMs": 5000,
+  "requestBudget": 12,
+  "model": "jev-1.13.0",
+  "sdkVersion": "0.6.0",
+  "credentialAvailable": true,
+  "accountBillingVerified": false,
+  "productionWrites": 0,
+  "goalComplete": false
+}

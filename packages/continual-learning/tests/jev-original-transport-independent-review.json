@@ -1,0 +1,25 @@
+{
+  "evidence": "independent-original-large-transport-review",
+  "reportSha256": "78ed7d4ba6508f02f3bfa11d1265dd21cf7376598661ac9c4eb3281db9fa7ead",
+  "completeArms": 4,
+  "actualProviderRequests": 12,
+  "directRequests": 6,
+  "forwardedRequests": 6,
+  "clientCountsAlreadyIncludeForwarded": true,
+  "inputTokens": 78280,
+  "outputTokens": 640,
+  "knownEstimatedCostUsd": 0.00328776,
+  "accountBillingVerified": false,
+  "processGroupsStopped": true,
+  "privateDirectoryMode": "0700",
+  "privateFilesMode": "28 files 0600; controlled final-state 0644 protected by directory",
+  "semanticGoldEstablished": false,
+  "adopted": false,
+  "productionWrites": 0,
+  "observedReason": "all complete; three first scope uncertainty, one first support uncertainty",
+  "limits": [
+    "No historical timeout reproduced in this run.",
+    "One known candidate, fixed order, no heldout/Docker VM isolation or workflow superiority.",
+    "Cannot classify these proposals as false holds without semantic gold."
+  ]
+}

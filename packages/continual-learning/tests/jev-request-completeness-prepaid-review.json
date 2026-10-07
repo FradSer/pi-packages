@@ -1,0 +1,245 @@
+{
+  "evidence": "independent-model-prepaid-review-not-human-gold",
+  "technicalBlockers": [],
+  "preflight": {
+    "process": {
+      "exitCode": 0,
+      "outcome": "completed",
+      "seconds": 1.928,
+      "processGroupStopConfirmed": true
+    },
+    "providerRequests": 0,
+    "jevRequests": 0,
+    "jevUsage": [],
+    "providerErrors": 0,
+    "usageUnknown": false,
+    "billingVerified": false
+  },
+  "cleanup": {
+    "ownedContainerAbsent": true
+  },
+  "labelReview": {
+    "reviewer": "independent model reviewer, not human annotation",
+    "status": "final clarification verified",
+    "reviewedAt": "2026-10-06T16:52:25.047590+00:00",
+    "originalReviewPath": "/Users/FradSer/.cache/pi-continual-learning/docker/request-completeness-20261006T164551Z/independent-model-review.json",
+    "originalReviewSha256": "06af0d482fe82312279eb7aa1ca9fa52b40c9b5f9730330788bb592a00cac60a",
+    "originalCorpusSnapshotPath": "/Users/FradSer/.cache/pi-continual-learning/docker/request-completeness-20261006T164551Z/before-coverage-fix-jev-request-completeness-cases.json",
+    "originalCorpusSha256": "8e6682224a0824962797247385d1d5cacf42c0a509d012b9dc8dc8b976223e11",
+    "originalCorpusMatchesPriorReviewedHash": true,
+    "finalCorpusPath": "/Users/FradSer/Developer/FradSer/pi-packages/packages/continual-learning/tests/jev-request-completeness-cases.json",
+    "finalCorpusSha256": "e8873ed2a7202d2771a13a408b5e155d055ae7a930a4b1713543db3476292bf2",
+    "runnerSha256": "b1b5bd2df5ee571c0e4d6935c521b31f91404e9de9d2737d9669de79ef440118",
+    "questionCodeSha256": "ce82f35020552e87618e076dda87c7d924c5969e177f6bc34deeba6e94ca0c0b",
+    "manifestSha256": "89b730be101ff6cea792230638eb9afc86525526d74483deca7c295db73550c1",
+    "manifestPaidAllowed": false,
+    "manifestCorpusHashMatches": true,
+    "newOriginsAccurate": true,
+    "otherTopLevelFieldsUnchanged": true,
+    "coverage": {
+      "rows": 20,
+      "requirements": 48,
+      "allSpansValid": true,
+      "allOnlyAllowedChanges": true,
+      "allLabelsUnchanged": true,
+      "expandedRows": [
+        "requested-release-complete-en",
+        "requested-release-complete-zh",
+        "requested-release-incomplete-en",
+        "requested-release-incomplete-zh"
+      ]
+    },
+    "rows": [
+      {
+        "id": "explicit-long-term-observed-result-en-before",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "explicit-long-term-observed-result-en-after",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "explicit-long-term-observed-result-zh-after",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "explicit-long-term-observed-result-zh-before",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "requested-release-complete-en",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": true,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": true
+      },
+      {
+        "id": "requested-release-complete-zh",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": true,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": true
+      },
+      {
+        "id": "requested-release-incomplete-en",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": true,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": true
+      },
+      {
+        "id": "requested-release-incomplete-zh",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": true,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": true
+      },
+      {
+        "id": "requested-split-existing-en",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "requested-split-existing-zh",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "requested-report-placement-en",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "requested-report-placement-zh",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "marker-complete-en",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "marker-complete-zh",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "condition-complete-en",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "condition-complete-zh",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "condition-missing-en",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "condition-missing-zh",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "marker-reversed-en",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      },
+      {
+        "id": "marker-reversed-zh",
+        "allSpansAnchored": true,
+        "expandedSpanCoversCompletion": null,
+        "onlyPermittedSpanChanged": true,
+        "expectedPreservedUnchanged": true,
+        "expectedOmissionUnchanged": true,
+        "coverageClarificationResolved": false
+      }
+    ],
+    "bodyQuestionParity": "Runner builds whole resulting inventory once, strips frontmatter on every content, and uses the same contents for whole_omission and every anchored-preserved question.",
+    "conclusion": "Four completion-result span coverage ambiguities are resolved without changing labels, plans, snapshots, existing bodies, changes or other requirement spans. No further observed label or requirements coverage issue under the frozen body-only scope.",
+    "limits": [
+      "Complete means preservation of supplied manually reviewed requirements, not automatic extraction completeness.",
+      "Four actual generator outputs, eight previous authored development samples, eight new authored controls; not heldout or human gold.",
+      "No privacy classification/sharing authorization or actual persistence/recall proof.",
+      "No model calls or repository modifications by reviewer; paidAllowed remains false."
+    ]
+  },
+  "requestBudget": 20,
+  "productionWrites": 0
+}

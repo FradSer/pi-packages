@@ -1,0 +1,90 @@
+{
+  "scope": "Bind composed Memory policy to real-project test images without changing host or production default",
+  "sourceHashes": {
+    "tests/docker_experiment.py": "865eb94b03a5f7fc327387481fa0ef75e614268a4d78aa05bfaee0109d4cf9f0",
+    "tests/live_docker_projects.py": "d57046fdbf0af96832d1c3e4994ea1074b39e5f279f406614da2b4900628508c",
+    "tests/test_project_composed_policy.py": "bdd452aeb76b1779cde1bcb4b00489516a53b3e8dcf2c9366f30bd025d66d090",
+    "tests/test_heldout_project_cohort.py": "5402cecf6e2b5f268254d8d8df5ad1e3cc24388843ffe684486d5f4fbdf9677f",
+    "features/project-composed-policy.feature": "ba686d71a3a9500f49d5b00362bd1c640603d787c38695930316cdfcc39896ed"
+  },
+  "sourceDigests": {
+    "default": "c18a761d3a7e5539201888553a71ebacd73ee1aa64c42749ae7ed4d72a85cca6",
+    "composed": "2f876ecfb25d50198d95c922821f8c1a01f1bc8ea020f38dce6d8f9fcf3afca1"
+  },
+  "nativeEvidence": "project-composed-policy-native-results.json",
+  "red": {
+    "newPolicyBehaviorTestsFailed": 3
+  },
+  "focused": {
+    "passed": 39,
+    "seconds": 3.31
+  },
+  "packageSuite": {
+    "passed": 1045,
+    "seconds": 402.58,
+    "exitCode": 0,
+    "command": "uv run --no-project --python /opt/homebrew/bin/python3 python -m pytest packages/continual-learning/tests -q"
+  },
+  "rootTypecheck": "passed",
+  "workspacePackedManifestsPassed": 19,
+  "targetPackDryRun": "passed",
+  "packageDiffCheck": "passed",
+  "freshReview": {
+    "agent": "project_composed_policy_review",
+    "blockingFindings": 0,
+    "offlinePassed": 10,
+    "nativeFinalArtifactsReviewed": true
+  },
+  "newDockerExecutions": 4,
+  "successfulFinalNativeCases": 2,
+  "ownedContainersRemaining": 0,
+  "hostSourceUnchanged": true,
+  "productionDefaultActivated": false,
+  "globalSettingsChanged": false,
+  "newExternalInferenceRequests": 0,
+  "realMainInference": false,
+  "realJevInference": false,
+  "piSessionStarted": false,
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free",
+    "configuredCost": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0
+    },
+    "costMetadataIsNotBillingEvidence": true
+  },
+  "priorRealJevFrozenSourcesStillMatch": 61,
+  "completeGoalEvidence": false,
+  "realComparisonInvocation": [
+    "uv",
+    "run",
+    "--no-project",
+    "--python",
+    "/opt/homebrew/bin/python3",
+    "python",
+    "packages/continual-learning/tests/live_docker_projects.py",
+    "--cohort",
+    "heldout",
+    "--jev",
+    "paired",
+    "--memory-policy",
+    "composed",
+    "--jobs",
+    "1"
+  ],
+  "invocationExecuted": false,
+  "remaining": [
+    "After the earlier service cooldown expires, verify the specified main model with a recorded bounded actual request",
+    "Prospectively freeze and execute actual-main generation, application, knowledge use and constraint behavior on the fixed heldout projects with Jev off/on",
+    "Compare useful knowledge, false writes/holds, latency and cost while retaining all failures, negatives and separately sampled generation differences"
+  ],
+  "limitations": [
+    "Native preflight validates installed source identity, module import and factory flags, not full Pi learning",
+    "No actual model version was returned because no inference occurred",
+    "An ESM probe entry loading failure is retained before the successful .mts entry; no product or threshold change was used to make it pass",
+    "Passing tests and opt-in routing do not establish general Jev learning-quality improvement"
+  ]
+}

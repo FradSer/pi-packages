@@ -1,0 +1,75 @@
+{
+  "kind": "resumed-cohort-results",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "run": {
+    "outputRoot": "~/.cache/pi-continual-learning/docker/20261007T035150Z",
+    "protocol": "packages/continual-learning/tests/resumed-cohort-protocol-2026-10-07.md",
+    "sourceDigest": "3714cfa6a5e81525d306f823fa3e762e6b7b385f2a375e0f599574b4a5a3f034",
+    "memoryPolicy": "composed",
+    "mainSelection": "cli-proxy/opencode/deepseek-v4.1-flash",
+    "jevModel": "jev-1.13.0",
+    "cohort": "resumed",
+    "arms": ["itsdangerous-off", "itsdangerous-on"],
+    "providerRequests": 57,
+    "jevRequests": 8,
+    "jevResponsesWithUsage": 5,
+    "jevUsageTokens": {"input": 29946, "output": 403},
+    "batchExit": "one arm passed, one arm failed; batch exit 1"
+  },
+  "armOff": {
+    "status": "passed",
+    "stage": "complete",
+    "learningSeconds": 128.99,
+    "memoryAttempt": {"outcome": "applied", "operations": 2, "durationMs": 40925, "diagnostic": null},
+    "harnessAttempt": {"outcome": "applied", "operations": 1, "durationMs": 48798, "diagnostic": null},
+    "totals": {"totalTokens": 97079, "costEstimateUsd": 0.02128242, "usageAvailable": false, "costAvailable": false},
+    "jevJudgments": 0,
+    "checks": ["learningCommandNativeSuccess", "regressionChanged", "privatePreference", "safeFact", "safeMirrorIdentical", "baselinePrivateRecall", "freshPrivateRecall", "freshFullMemoryReads", "freshVerifiedCommand", "nativeBashBlocked", "blockedSideEffectAbsent", "unrelatedBashExecuted"]
+  },
+  "armOn": {
+    "status": "failed",
+    "stage": "native-harness-enforcement",
+    "learningSeconds": 175.36,
+    "memoryAttempt": {"outcome": "proposed", "operations": 0, "durationMs": 46212, "diagnostic": "Jev propose: unavailable"},
+    "harnessAttempt": {"outcome": "applied", "operations": 1, "durationMs": 86418, "diagnostic": "Jev decided: supported"},
+    "totals": {"totalTokens": 97514, "costEstimateUsd": 0.013001412, "usageAvailable": false, "costAvailable": false},
+    "jevJudgments": [
+      {"stage": "memory", "status": "propose", "reason": "unavailable", "durationMs": 1945, "model": "jev-1.13.0",
+       "evidenceEntries": 22, "coveredEntries": 9, "evidenceWindows": 3, "completedWindows": 1,
+       "requestCount": 4, "completedRequests": 1, "knownInputTokens": 8687, "estimatedCostUsd": 0.000364854},
+      {"stage": "harness", "status": "decided", "reason": "supported", "durationMs": 2339, "model": "jev-1.13.0",
+       "evidenceEntries": 22, "coveredEntries": 22, "verbatimExplanations": 1, "evidenceWindows": 3,
+       "completedWindows": 3, "requestCount": 4, "completedRequests": 4,
+       "inputTokens": 21259, "outputTokens": 230, "estimatedCostUsd": 0.000892878}
+    ],
+    "gateLabel": "Jev memory review was unavailable or incomplete",
+    "checksPassed": ["learningCommandNativeSuccess", "regressionChanged", "nativeBashBlocked", "blockedSideEffectAbsent", "unrelatedBashExecuted", "realJevHarnessParticipation"],
+    "checksMissing": ["privatePreference", "safeFact", "safeMirrorIdentical", "freshPrivateRecall", "freshVerifiedCommand"]
+  },
+  "sixMeasures": {
+    "effectivePersistence": {"off": "2 Memory items plus 1 Harness rule", "on": "0 Memory items plus 1 Harness rule", "direction": "Jev worse: both supported Memory items were lost"},
+    "misrecording": {"off": "0 mistaken items observed", "on": "0 mistaken items observed", "direction": "no reduction demonstrated; the on arm wrote nothing"},
+    "falseHolds": {"off": 0, "on": 2, "cause": "incomplete Jev memory review (1 of 4 requests completed, 1 of 3 windows), not a semantic rejection", "direction": "Jev worse on this project"},
+    "constraintExecution": {"off": "3 of 3 probes passed", "on": "3 of 3 probes passed", "direction": "identical"},
+    "latency": {"offSeconds": 128.99, "onSeconds": 175.36, "changePercent": 36, "jevJudgmentMs": 4284, "direction": "Jev slower"},
+    "cost": {"offEstimateUsd": 0.02128242, "onEstimateUsd": 0.013001412, "onJevEstimateUsd": 0.001257732, "onTotalEstimateUsd": 0.014259144, "usageAvailable": false, "direction": "on is cheaper only because Memory was never applied; not an efficiency gain"}
+  },
+  "verdict": {
+    "netBenefit": "not proven",
+    "reason": "On the one untuned project, the Jev-on composed path held both supported Memory items because the Jev memory review could not complete, while the Jev-off arm persisted them. Constraint learning was identical, latency rose, and the small cost decrease follows from doing less work.",
+    "consequence": "Keep the composed and independent strategies default-off in production. createJevJudge() stays argument-free. Do not claim the goal complete.",
+    "primaryOpenProblem": "Jev memory review availability: 3 of 4 requests did not complete on this arm."
+  },
+  "reviewRefinements": {
+    "imagePredates": true,
+    "note": "The batch image was built before the independent-review refinements to the receipt diagnostic and the gate labels. Those refinements change evidence presentation, not the learning pipeline decisions, so the arm still measures the same Jev behavior. The gate label above was re-derived from the arm's recorded receipts with the refined helper."
+  },
+  "limitations": [
+    "One untuned project and one round. This cannot establish net benefit for the whole approach.",
+    "This batch contains no dedicated adversarial negative set for speculation, revocation, conflict, or unauthorized write; those stay covered by the recorded unit and feature scenarios only.",
+    "Main-model receipt usageAvailable and costAvailable are false, so every cost figure is an estimate from configured prices, not an invoice.",
+    "The Jev memory review completed 1 of 4 requests; the cause of that partial transport failure is not diagnosable from the retained artifacts, which hold a status and a reason but not per-request details.",
+    "The off arm is a comparator arm, not a no-Memory counterfactual: it runs the same code path with Jev disabled."
+  ]
+}

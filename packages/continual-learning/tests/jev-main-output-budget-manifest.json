@@ -1,0 +1,45 @@
+{
+  "evidence": "prospective-real-pi-output-budget-diagnostic",
+  "paidAllowed": true,
+  "requestBudget": 2,
+  "requestBudgetPerArm": 1,
+  "variants": [
+    {
+      "name": "original",
+      "maxTokens": 524288
+    },
+    {
+      "name": "bounded",
+      "maxTokens": 8192
+    }
+  ],
+  "mainModel": {
+    "provider": "cli-proxy",
+    "model": "opencode/space-bunny-free"
+  },
+  "image": "continual-learning-projects:df60a6123748956b",
+  "imageId": "sha256:f9645fab3977c25926d4940a4be2546fa0f15434dfefa15cd03fb794d4567c5e",
+  "configHashes": {
+    "/Users/FradSer/.cache/pi-continual-learning/docker/main-output-budget-20261006T171729Z/original/config/models.json": "b514653bb02d84fa6319f9b439ff5dfce1bd753b17317002d90d06dfae65e582",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/main-output-budget-20261006T171729Z/original/config/memory.json": "ca642c89dd215c2a548e6e5e4ad6b4ac9ca0890e058fa04ff69aef1960250252",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/main-output-budget-20261006T171729Z/bounded/config/models.json": "9c77a556494b591e2a7d7c0159e89b0b326b213a3662885b3ba3e405d52ab1a4",
+    "/Users/FradSer/.cache/pi-continual-learning/docker/main-output-budget-20261006T171729Z/bounded/config/memory.json": "ca642c89dd215c2a548e6e5e4ad6b4ac9ca0890e058fa04ff69aef1960250252"
+  },
+  "helperHashes": {
+    "docker_experiment.py": "a03b183d4f4af3d689aac09c53b4dae8e4e22948366a36e1e68b6d8e3218ea7b",
+    "live_jev_original_transport.py": "3b9b2e08ad8e1f750d0ddba68a118f70ee4a6e0e1d992f58046ef0eee20e120a",
+    "docker_resource_state.py": "67dffe92746f4823e3776325a7d275b4412dfbe2c04a905c6f0809690c07b1ed"
+  },
+  "runnerSha256": "b8360b2f32d412da119adba7ffc51ea3fcc9ddf1e5c75df3fe4ab08b72677df5",
+  "prompt": "Return exactly {\"ready\":true}.",
+  "productionWrites": 0,
+  "jevRequests": 0,
+  "limits": [
+    "No host global configuration change.",
+    "Readiness diagnostic only; not a claim of supported provider output limits or learning improvement.",
+    "Two once-only sequential calls; no favorable retries.",
+    "Usage and billing on failed calls remain unknown."
+  ],
+  "proxySha256": "e76682c533815256826bc08e4b88c27c2d91d25258658df1c2cefc2ea8e5a55e",
+  "ownershipId": "bd4710485b31cf70"
+}

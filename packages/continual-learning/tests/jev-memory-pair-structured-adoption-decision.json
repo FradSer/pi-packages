@@ -1,0 +1,62 @@
+{
+  "evidence": "structured-memory-pair-v2-adoption-decision",
+  "adopted": false,
+  "decision": "reject-readiness-fresh-self-contained-timeout-misses",
+  "reports": {
+    "development": {
+      "path": "jev-memory-pair-structured-development-real-results.json",
+      "sha256": "77f5f4ce95d92c6925102a0edfb99f4c34e7317090472fcd1b42a017ac61a905",
+      "metrics": {
+        "correct": 8,
+        "wrong": 0,
+        "held": 8,
+        "unsafeIndependence": 0,
+        "missedIndependence": 0
+      },
+      "rawLabelCorrect": 13,
+      "rawLabelWrong": 3,
+      "medianDurationMs": 335.0,
+      "knownInputTokens": 16090,
+      "knownEstimatedCostUsd": 0.0006757800000000001,
+      "usageComplete": true
+    },
+    "heldout": {
+      "path": "jev-memory-pair-structured-heldout-real-results.json",
+      "sha256": "8bf01cb0276d6d8c521d30dd7bab300558cde2a781a9fb52fc7418fc1869a625",
+      "metrics": {
+        "correct": 13,
+        "wrong": 0,
+        "held": 7,
+        "unsafeIndependence": 0,
+        "missedIndependence": 2
+      },
+      "rawLabelCorrect": 18,
+      "rawLabelWrong": 2,
+      "medianDurationMs": 341.5,
+      "knownInputTokens": 20257,
+      "knownEstimatedCostUsd": 0.0008507940000000001,
+      "usageComplete": true
+    }
+  },
+  "externalRequests": 36,
+  "knownInputTokens": 36347,
+  "knownEstimatedCostUsd": 0.001526574,
+  "developmentIndependentRecognized": "4/4",
+  "freshHeldoutIndependentRecognized": "6/8",
+  "freshHeldoutMisses": [
+    "self-contained-timeout-en",
+    "self-contained-timeout-zh"
+  ],
+  "productionWrites": 0,
+  "productionRelationIntegration": false,
+  "limitations": [
+    "V1 heldout reused as known V2 development, not fresh evaluation.",
+    "Historical same16 comparison V1correct4 held12 missed2; V2correct8 held8 missed0. Not contemporaneous randomized paired inference.",
+    "Fresh V2held20 is10bilingual scenarios, not20independent archetypes.",
+    "Uncertain is held, never correct decisive or write authority.",
+    "Original support/full counterevidence/parent permission unverified by pair relation.",
+    "Actual billing unavailable, input tariff estimate only.",
+    "Full-workflow optional Jev improvement still unproven."
+  ],
+  "nextResearchSignal": "Self-contained shared-value conditional continues to spread probability; pair relation should not become a silent veto without validated uncertainty escalation. Any new decomposition/escalation needs preregistration, full original evidence/privacy, explicit permission and fresh samples."
+}

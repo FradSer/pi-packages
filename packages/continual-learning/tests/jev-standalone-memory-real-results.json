@@ -1,0 +1,645 @@
+{
+  "evidence": "real-jev-readonly-standalone-comparison",
+  "manifestSha256": "31179910c675c47156af7055f504e747ca16df6426a37b786f12f74bf98e4df6",
+  "externalRequests": 32,
+  "fixtureRequests": 0,
+  "preflightFixtureRequests": 32,
+  "requestBudget": 32,
+  "metrics": {
+    "pair": {
+      "decisiveCorrect": 6,
+      "decisiveWrong": 0,
+      "held": 10,
+      "unsafeReadiness": 0,
+      "missedReadiness": 4
+    },
+    "standalone": {
+      "decisiveCorrect": 9,
+      "decisiveWrong": 0,
+      "held": 7,
+      "unsafeReadiness": 0,
+      "missedReadiness": 4
+    }
+  },
+  "knownInputTokens": 31029,
+  "estimatedKnownInputCostUsd": 0.001303218,
+  "usageComplete": true,
+  "rows": [
+    {
+      "id": "formatter-log-en",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": "independent",
+      "readyObserved": false,
+      "durationMs": 948,
+      "model": "jev-1.13.0",
+      "inputTokens": 944,
+      "outputTokens": 58,
+      "confidence": 0.51,
+      "probabilities": {
+        "independent": 0.62,
+        "duplicate": 0,
+        "conflict": 0.38,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "formatter-log-en",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 947,
+      "model": "jev-1.13.0",
+      "inputTokens": 856,
+      "outputTokens": 48,
+      "confidence": 0.93,
+      "probabilities": {
+        "selfContained": 0.96,
+        "needsOther": 0.04,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "formatter-log-zh",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": "conflict",
+      "readyObserved": false,
+      "durationMs": 316,
+      "model": "jev-1.13.0",
+      "inputTokens": 996,
+      "outputTokens": 57,
+      "confidence": 0.6,
+      "probabilities": {
+        "independent": 0.31,
+        "duplicate": 0,
+        "conflict": 0.6900000000000001,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "formatter-log-zh",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "uncertain",
+      "relation": "selfContained",
+      "readyObserved": false,
+      "durationMs": 313,
+      "model": "jev-1.13.0",
+      "inputTokens": 915,
+      "outputTokens": 48,
+      "confidence": 0.8,
+      "probabilities": {
+        "selfContained": 0.86,
+        "needsOther": 0.13,
+        "unresolved": 0.01
+      }
+    },
+    {
+      "id": "node-support-en",
+      "arm": "pair",
+      "expected": "conflict",
+      "status": "decided",
+      "relation": "conflict",
+      "readyObserved": false,
+      "durationMs": 463,
+      "model": "jev-1.13.0",
+      "inputTokens": 976,
+      "outputTokens": 57,
+      "confidence": 1,
+      "probabilities": {
+        "independent": 0,
+        "duplicate": 0,
+        "conflict": 1,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "node-support-en",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 440,
+      "model": "jev-1.13.0",
+      "inputTokens": 892,
+      "outputTokens": 48,
+      "confidence": 0.98,
+      "probabilities": {
+        "selfContained": 0.99,
+        "needsOther": 0.01,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "node-support-zh",
+      "arm": "pair",
+      "expected": "conflict",
+      "status": "decided",
+      "relation": "conflict",
+      "readyObserved": false,
+      "durationMs": 316,
+      "model": "jev-1.13.0",
+      "inputTokens": 1013,
+      "outputTokens": 57,
+      "confidence": 0.99,
+      "probabilities": {
+        "independent": 0,
+        "duplicate": 0,
+        "conflict": 1,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "node-support-zh",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 334,
+      "model": "jev-1.13.0",
+      "inputTokens": 934,
+      "outputTokens": 48,
+      "confidence": 0.95,
+      "probabilities": {
+        "selfContained": 0.97,
+        "needsOther": 0.03,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "docs-telemetry-en",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": "conflict",
+      "readyObserved": false,
+      "durationMs": 328,
+      "model": "jev-1.13.0",
+      "inputTokens": 944,
+      "outputTokens": 57,
+      "confidence": 0.4,
+      "probabilities": {
+        "independent": 0.48,
+        "duplicate": 0,
+        "conflict": 0.52,
+        "dependent": 0,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "docs-telemetry-en",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 315,
+      "model": "jev-1.13.0",
+      "inputTokens": 856,
+      "outputTokens": 48,
+      "confidence": 0.99,
+      "probabilities": {
+        "selfContained": 0.99,
+        "needsOther": 0.01,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "docs-telemetry-zh",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": "independent",
+      "readyObserved": false,
+      "durationMs": 358,
+      "model": "jev-1.13.0",
+      "inputTokens": 1007,
+      "outputTokens": 58,
+      "confidence": 0.45,
+      "probabilities": {
+        "independent": 0.56,
+        "duplicate": 0,
+        "conflict": 0.43,
+        "dependent": 0,
+        "unclear": 0.01
+      }
+    },
+    {
+      "id": "docs-telemetry-zh",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 319,
+      "model": "jev-1.13.0",
+      "inputTokens": 932,
+      "outputTokens": 48,
+      "confidence": 0.88,
+      "probabilities": {
+        "selfContained": 0.92,
+        "needsOther": 0.07,
+        "unresolved": 0.01
+      }
+    },
+    {
+      "id": "target-region-reference-en",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "dependent",
+      "readyObserved": false,
+      "durationMs": 313,
+      "model": "jev-1.13.0",
+      "inputTokens": 973,
+      "outputTokens": 56,
+      "confidence": 0.9,
+      "probabilities": {
+        "independent": 0.05,
+        "duplicate": 0,
+        "conflict": 0.01,
+        "dependent": 0.93,
+        "unclear": 0.01
+      }
+    },
+    {
+      "id": "target-region-reference-en",
+      "arm": "standalone",
+      "expected": "needsOther",
+      "status": "decided",
+      "relation": "needsOther",
+      "readyObserved": false,
+      "durationMs": 319,
+      "model": "jev-1.13.0",
+      "inputTokens": 891,
+      "outputTokens": 48,
+      "confidence": 0.88,
+      "probabilities": {
+        "selfContained": 0.02,
+        "needsOther": 0.92,
+        "unresolved": 0.06
+      }
+    },
+    {
+      "id": "target-region-reference-zh",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "decided",
+      "relation": "dependent",
+      "readyObserved": false,
+      "durationMs": 350,
+      "model": "jev-1.13.0",
+      "inputTokens": 1021,
+      "outputTokens": 56,
+      "confidence": 0.88,
+      "probabilities": {
+        "independent": 0.04,
+        "duplicate": 0,
+        "conflict": 0.03,
+        "dependent": 0.91,
+        "unclear": 0.02
+      }
+    },
+    {
+      "id": "target-region-reference-zh",
+      "arm": "standalone",
+      "expected": "needsOther",
+      "status": "uncertain",
+      "relation": "needsOther",
+      "readyObserved": false,
+      "durationMs": 325,
+      "model": "jev-1.13.0",
+      "inputTokens": 950,
+      "outputTokens": 48,
+      "confidence": 0.76,
+      "probabilities": {
+        "selfContained": 0.06,
+        "needsOther": 0.84,
+        "unresolved": 0.1
+      }
+    },
+    {
+      "id": "reverse-timeout-reference-en",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": "dependent",
+      "readyObserved": false,
+      "durationMs": 317,
+      "model": "jev-1.13.0",
+      "inputTokens": 995,
+      "outputTokens": 56,
+      "confidence": 0.47,
+      "probabilities": {
+        "independent": 0.4,
+        "duplicate": 0.01,
+        "conflict": 0.01,
+        "dependent": 0.57,
+        "unclear": 0.01
+      }
+    },
+    {
+      "id": "reverse-timeout-reference-en",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "decided",
+      "relation": "selfContained",
+      "readyObserved": true,
+      "durationMs": 303,
+      "model": "jev-1.13.0",
+      "inputTokens": 913,
+      "outputTokens": 48,
+      "confidence": 0.86,
+      "probabilities": {
+        "selfContained": 0.9,
+        "needsOther": 0.09,
+        "unresolved": 0.01
+      }
+    },
+    {
+      "id": "reverse-timeout-reference-zh",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": "dependent",
+      "readyObserved": false,
+      "durationMs": 376,
+      "model": "jev-1.13.0",
+      "inputTokens": 1074,
+      "outputTokens": 56,
+      "confidence": 0.52,
+      "probabilities": {
+        "independent": 0.36,
+        "duplicate": 0.01,
+        "conflict": 0,
+        "dependent": 0.62,
+        "unclear": 0.01
+      }
+    },
+    {
+      "id": "reverse-timeout-reference-zh",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "uncertain",
+      "relation": "selfContained",
+      "readyObserved": false,
+      "durationMs": 352,
+      "model": "jev-1.13.0",
+      "inputTokens": 1001,
+      "outputTokens": 48,
+      "confidence": 0.82,
+      "probabilities": {
+        "selfContained": 0.88,
+        "needsOther": 0.11,
+        "unresolved": 0.01
+      }
+    },
+    {
+      "id": "absent-exception-en",
+      "arm": "pair",
+      "expected": "unclear",
+      "status": "uncertain",
+      "relation": "independent",
+      "readyObserved": false,
+      "durationMs": 322,
+      "model": "jev-1.13.0",
+      "inputTokens": 975,
+      "outputTokens": 58,
+      "confidence": 0.71,
+      "probabilities": {
+        "independent": 0.77,
+        "duplicate": 0,
+        "conflict": 0.01,
+        "dependent": 0.08,
+        "unclear": 0.14
+      }
+    },
+    {
+      "id": "absent-exception-en",
+      "arm": "standalone",
+      "expected": "unresolved",
+      "status": "uncertain",
+      "relation": "unresolved",
+      "readyObserved": false,
+      "durationMs": 364,
+      "model": "jev-1.13.0",
+      "inputTokens": 895,
+      "outputTokens": 49,
+      "confidence": 0.85,
+      "probabilities": {
+        "selfContained": 0.03,
+        "needsOther": 0.07,
+        "unresolved": 0.9
+      }
+    },
+    {
+      "id": "absent-exception-zh",
+      "arm": "pair",
+      "expected": "unclear",
+      "status": "uncertain",
+      "relation": "independent",
+      "readyObserved": false,
+      "durationMs": 343,
+      "model": "jev-1.13.0",
+      "inputTokens": 1015,
+      "outputTokens": 58,
+      "confidence": 0.62,
+      "probabilities": {
+        "independent": 0.69,
+        "duplicate": 0.01,
+        "conflict": 0.01,
+        "dependent": 0.13,
+        "unclear": 0.16
+      }
+    },
+    {
+      "id": "absent-exception-zh",
+      "arm": "standalone",
+      "expected": "unresolved",
+      "status": "uncertain",
+      "relation": "unresolved",
+      "readyObserved": false,
+      "durationMs": 374,
+      "model": "jev-1.13.0",
+      "inputTokens": 946,
+      "outputTokens": 49,
+      "confidence": 0.51,
+      "probabilities": {
+        "selfContained": 0.06,
+        "needsOther": 0.27,
+        "unresolved": 0.67
+      }
+    },
+    {
+      "id": "description-only-reference-en",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": "dependent",
+      "readyObserved": false,
+      "durationMs": 338,
+      "model": "jev-1.13.0",
+      "inputTokens": 994,
+      "outputTokens": 56,
+      "confidence": 0.69,
+      "probabilities": {
+        "independent": 0.22,
+        "duplicate": 0.01,
+        "conflict": 0.01,
+        "dependent": 0.75,
+        "unclear": 0.01
+      }
+    },
+    {
+      "id": "description-only-reference-en",
+      "arm": "standalone",
+      "expected": "needsOther",
+      "status": "decided",
+      "relation": "needsOther",
+      "readyObserved": false,
+      "durationMs": 328,
+      "model": "jev-1.13.0",
+      "inputTokens": 915,
+      "outputTokens": 48,
+      "confidence": 0.92,
+      "probabilities": {
+        "selfContained": 0.04,
+        "needsOther": 0.95,
+        "unresolved": 0.01
+      }
+    },
+    {
+      "id": "description-only-reference-zh",
+      "arm": "pair",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": "dependent",
+      "readyObserved": false,
+      "durationMs": 300,
+      "model": "jev-1.13.0",
+      "inputTokens": 1046,
+      "outputTokens": 56,
+      "confidence": 0.66,
+      "probabilities": {
+        "independent": 0.25,
+        "duplicate": 0.01,
+        "conflict": 0.01,
+        "dependent": 0.71,
+        "unclear": 0.02
+      }
+    },
+    {
+      "id": "description-only-reference-zh",
+      "arm": "standalone",
+      "expected": "needsOther",
+      "status": "decided",
+      "relation": "needsOther",
+      "readyObserved": false,
+      "durationMs": 310,
+      "model": "jev-1.13.0",
+      "inputTokens": 979,
+      "outputTokens": 48,
+      "confidence": 0.88,
+      "probabilities": {
+        "selfContained": 0.05,
+        "needsOther": 0.92,
+        "unresolved": 0.03
+      }
+    },
+    {
+      "id": "conditional-shared-value-en",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 437,
+      "model": "jev-1.13.0",
+      "inputTokens": 1045,
+      "outputTokens": 58,
+      "confidence": 0.98,
+      "probabilities": {
+        "independent": 0.99,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0.01,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "conditional-shared-value-en",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "uncertain",
+      "relation": "selfContained",
+      "readyObserved": false,
+      "durationMs": 306,
+      "model": "jev-1.13.0",
+      "inputTokens": 983,
+      "outputTokens": 48,
+      "confidence": 0.77,
+      "probabilities": {
+        "selfContained": 0.85,
+        "needsOther": 0.15,
+        "unresolved": 0
+      }
+    },
+    {
+      "id": "conditional-shared-value-zh",
+      "arm": "pair",
+      "expected": "independent",
+      "status": "decided",
+      "relation": "independent",
+      "readyObserved": true,
+      "durationMs": 313,
+      "model": "jev-1.13.0",
+      "inputTokens": 1102,
+      "outputTokens": 58,
+      "confidence": 0.95,
+      "probabilities": {
+        "independent": 0.97,
+        "duplicate": 0,
+        "conflict": 0,
+        "dependent": 0.03,
+        "unclear": 0
+      }
+    },
+    {
+      "id": "conditional-shared-value-zh",
+      "arm": "standalone",
+      "expected": "selfContained",
+      "status": "uncertain",
+      "relation": "selfContained",
+      "readyObserved": false,
+      "durationMs": 358,
+      "model": "jev-1.13.0",
+      "inputTokens": 1051,
+      "outputTokens": 48,
+      "confidence": 0.83,
+      "probabilities": {
+        "selfContained": 0.88,
+        "needsOther": 0.11,
+        "unresolved": 0.01
+      }
+    }
+  ],
+  "productionWrites": 0,
+  "adopted": false,
+  "limitations": [
+    "Different semantic questions, not interchangeable decisions.",
+    "Standalone meaning does not prove support, durability, privacy, pair compatibility or write permission.",
+    "No main generation, application, recall or complete quality acceptance.",
+    "New author-defined synthetic cases; not independent labels until separately reviewed."
+  ]
+}

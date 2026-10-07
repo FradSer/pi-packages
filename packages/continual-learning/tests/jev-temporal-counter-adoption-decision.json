@@ -1,0 +1,56 @@
+{
+  "evidence": "temporal-counter-development-adoption-decision",
+  "adopted": false,
+  "successRuleMet": false,
+  "decision": "reject-no-measured-reduction-in-valid-plan-holds",
+  "report": "jev-temporal-counter-development-real-results.json",
+  "reportSha256": "62e776af2a81f1c260cdc8c8eb88b4e82c0ee1cf0bf5fb48c801f84670d38008",
+  "metrics": {
+    "before": {
+      "complete": 16,
+      "incomplete": 0,
+      "falseAccepts": 0,
+      "falseHolds": 1,
+      "correct": 15
+    },
+    "after": {
+      "complete": 16,
+      "incomplete": 0,
+      "falseAccepts": 0,
+      "falseHolds": 1,
+      "correct": 15
+    }
+  },
+  "medianDurationMs": {
+    "before": 353.0,
+    "after": 359.0
+  },
+  "inputTokensByArm": {
+    "before": 31013,
+    "after": 35853
+  },
+  "knownInputTokens": 66866,
+  "knownEstimatedCostUsd": 0.002808372,
+  "externalRequests": 64,
+  "actualModel": "jev-1.13.0",
+  "paidProcess": {
+    "id": 86341,
+    "terminalExitCode": 0
+  },
+  "productionWrites": 0,
+  "productionRuntimeChanged": false,
+  "freshHeldoutRequests": 0,
+  "nextSignal": {
+    "case": "replaced-toolchain-zh",
+    "bothArmsReason": "uncertain",
+    "bothArmsDimension": "support",
+    "failedCounterWindow": null
+  },
+  "limitations": [
+    "Fresh synthetic development does not explain historical R13 uncertainty or prove full Docker learning quality.",
+    "Both groups have one Chinese support hold; causation from language or changed toolchain wording is not established.",
+    "No original answer probabilities were captured; do not infer which probability or criterion caused the hold.",
+    "No favorable retries, new labels, threshold relaxation or production adoption.",
+    "Before/after request order alternates, not a statistical randomized replicated trial."
+  ]
+}

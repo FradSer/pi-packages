@@ -1,0 +1,15 @@
+{
+  "evidence": "independent-model-review-not-human-gold",
+  "resultSha256": "a363134d1eede35d7d9b47c3d6ab89a43304f08b07f5eeed8bb5e129c75fda64",
+  "statisticsMatchPrivateResults": true,
+  "manifestMatches": true,
+  "ownedContainersConfirmedAbsent": true,
+  "processStopRecordsConfirmed": true,
+  "unknownCostPreserved": true,
+  "diagnosticNotMergedWithStudy": true,
+  "localPromptCorrectionReviewed": true,
+  "realGenerationEffectVerified": false,
+  "overallLearningBenefitVerified": false,
+  "rootFailuresRetained": true,
+  "goalComplete": false
+}

@@ -1,0 +1,345 @@
+{
+  "requests": 20,
+  "rows": [
+    {
+      "id": "orthogonal-cache-en",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.16,
+        "conflict": 0.05,
+        "dependent": 0.08,
+        "duplicate": 0.03
+      },
+      "durationMs": 899,
+      "model": "jev-1.13.0",
+      "inputTokens": 1076,
+      "outputTokens": 72
+    },
+    {
+      "id": "orthogonal-cache-zh",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.2,
+        "conflict": 0.05,
+        "dependent": 0.08,
+        "duplicate": 0.03
+      },
+      "durationMs": 359,
+      "model": "jev-1.13.0",
+      "inputTokens": 1141,
+      "outputTokens": 72
+    },
+    {
+      "id": "self-contained-timeout-en",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.15,
+        "conflict": 0.05,
+        "dependent": 0.11,
+        "duplicate": 0.04
+      },
+      "durationMs": 340,
+      "model": "jev-1.13.0",
+      "inputTokens": 1100,
+      "outputTokens": 72
+    },
+    {
+      "id": "self-contained-timeout-zh",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.15,
+        "conflict": 0.08,
+        "dependent": 0.15,
+        "duplicate": 0.06
+      },
+      "durationMs": 336,
+      "model": "jev-1.13.0",
+      "inputTokens": 1163,
+      "outputTokens": 72
+    },
+    {
+      "id": "self-contained-exception-en",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.16,
+        "conflict": 0.05,
+        "dependent": 0.1,
+        "duplicate": 0.04
+      },
+      "durationMs": 346,
+      "model": "jev-1.13.0",
+      "inputTokens": 1092,
+      "outputTokens": 72
+    },
+    {
+      "id": "self-contained-exception-zh",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.18,
+        "conflict": 0.06,
+        "dependent": 0.13,
+        "duplicate": 0.05
+      },
+      "durationMs": 385,
+      "model": "jev-1.13.0",
+      "inputTokens": 1157,
+      "outputTokens": 72
+    },
+    {
+      "id": "disjoint-complete-conditions-en",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.15,
+        "conflict": 0.08,
+        "dependent": 0.09,
+        "duplicate": 0.04
+      },
+      "durationMs": 359,
+      "model": "jev-1.13.0",
+      "inputTokens": 1113,
+      "outputTokens": 72
+    },
+    {
+      "id": "disjoint-complete-conditions-zh",
+      "expected": "independent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.16,
+        "conflict": 0.1,
+        "dependent": 0.08,
+        "duplicate": 0.04
+      },
+      "durationMs": 374,
+      "model": "jev-1.13.0",
+      "inputTokens": 1153,
+      "outputTokens": 72
+    },
+    {
+      "id": "verification-paraphrase-en",
+      "expected": "duplicate",
+      "status": "decided",
+      "relation": "duplicate",
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.09,
+        "conflict": 0.08,
+        "dependent": 0.05,
+        "duplicate": 0.93
+      },
+      "durationMs": 385,
+      "model": "jev-1.13.0",
+      "inputTokens": 1089,
+      "outputTokens": 72
+    },
+    {
+      "id": "verification-paraphrase-zh",
+      "expected": "duplicate",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.11,
+        "conflict": 0.08,
+        "dependent": 0.06,
+        "duplicate": 0.91
+      },
+      "durationMs": 320,
+      "model": "jev-1.13.0",
+      "inputTokens": 1146,
+      "outputTokens": 72
+    },
+    {
+      "id": "concurrent-limits-en",
+      "expected": "conflict",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.17,
+        "conflict": 0.85,
+        "dependent": 0.07,
+        "duplicate": 0.04
+      },
+      "durationMs": 328,
+      "model": "jev-1.13.0",
+      "inputTokens": 1081,
+      "outputTokens": 72
+    },
+    {
+      "id": "concurrent-limits-zh",
+      "expected": "conflict",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.18,
+        "conflict": 0.86,
+        "dependent": 0.06,
+        "duplicate": 0.04
+      },
+      "durationMs": 344,
+      "model": "jev-1.13.0",
+      "inputTokens": 1189,
+      "outputTokens": 72
+    },
+    {
+      "id": "description-conflict-en",
+      "expected": "conflict",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.18,
+        "conflict": 0.89,
+        "dependent": 0.1,
+        "duplicate": 0.06
+      },
+      "durationMs": 331,
+      "model": "jev-1.13.0",
+      "inputTokens": 1060,
+      "outputTokens": 72
+    },
+    {
+      "id": "description-conflict-zh",
+      "expected": "conflict",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.16,
+        "conflict": 0.87,
+        "dependent": 0.11,
+        "duplicate": 0.05
+      },
+      "durationMs": 350,
+      "model": "jev-1.13.0",
+      "inputTokens": 1102,
+      "outputTokens": 72
+    },
+    {
+      "id": "other-record-value-en",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.15,
+        "conflict": 0.07,
+        "dependent": 0.65,
+        "duplicate": 0.09
+      },
+      "durationMs": 333,
+      "model": "jev-1.13.0",
+      "inputTokens": 1063,
+      "outputTokens": 72
+    },
+    {
+      "id": "other-record-value-zh",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.15,
+        "conflict": 0.09,
+        "dependent": 0.67,
+        "duplicate": 0.1
+      },
+      "durationMs": 343,
+      "model": "jev-1.13.0",
+      "inputTokens": 1123,
+      "outputTokens": 72
+    },
+    {
+      "id": "other-record-exception-en",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.41,
+        "conflict": 0.23,
+        "dependent": 0.82,
+        "duplicate": 0.23
+      },
+      "durationMs": 358,
+      "model": "jev-1.13.0",
+      "inputTokens": 1090,
+      "outputTokens": 72
+    },
+    {
+      "id": "other-record-exception-zh",
+      "expected": "dependent",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.34,
+        "conflict": 0.22,
+        "dependent": 0.76,
+        "duplicate": 0.21
+      },
+      "durationMs": 367,
+      "model": "jev-1.13.0",
+      "inputTokens": 1175,
+      "outputTokens": 72
+    },
+    {
+      "id": "unresolved-environment-en",
+      "expected": "unclear",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.52,
+        "conflict": 0.35,
+        "dependent": 0.36,
+        "duplicate": 0.07
+      },
+      "durationMs": 327,
+      "model": "jev-1.13.0",
+      "inputTokens": 1093,
+      "outputTokens": 72
+    },
+    {
+      "id": "unresolved-environment-zh",
+      "expected": "unclear",
+      "status": "uncertain",
+      "relation": null,
+      "independenceObserved": false,
+      "probabilities": {
+        "missingContext": 0.57,
+        "conflict": 0.33,
+        "dependent": 0.26,
+        "duplicate": 0.07
+      },
+      "durationMs": 326,
+      "model": "jev-1.13.0",
+      "inputTokens": 1171,
+      "outputTokens": 72
+    }
+  ]
+}

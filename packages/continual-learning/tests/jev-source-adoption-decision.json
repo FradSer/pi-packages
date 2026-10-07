@@ -1,0 +1,69 @@
+{
+  "decision": "do-not-adopt",
+  "experimentalSemanticPathAdopted": false,
+  "completeDevelopment": true,
+  "development": {
+    "before": {
+      "evaluatedPlans": 62,
+      "skippedIncompletePlans": 0,
+      "falseAccepts": 0,
+      "falseHolds": 8
+    },
+    "after": {
+      "evaluatedPlans": 62,
+      "skippedIncompletePlans": 0,
+      "falseAccepts": 0,
+      "falseHolds": 13
+    }
+  },
+  "heldoutStatus": "not-run-preserved-before-inference",
+  "reason": "Adding source identity increased supported-candidate holds from 8 to 13; both real R9 failures remain held.",
+  "outboundRequests": 270,
+  "knownInputTokens": 390996,
+  "estimatedInputCostUsd": 0.016421832000000004,
+  "durationsMedianMs": {
+    "before": 372.0,
+    "after": 384.5
+  },
+  "actualModels": [
+    "jev-1.13.0"
+  ],
+  "newRegressions": [
+    {
+      "id": "en-authority-heldout-network-fault-not-revocation",
+      "stage": "harness",
+      "language": "en",
+      "dimension": "counterevidence"
+    },
+    {
+      "id": "zh-authority-heldout-unrelated-later-task",
+      "stage": "harness",
+      "language": "zh",
+      "dimension": "support"
+    },
+    {
+      "id": "zh-authority-heldout-network-fault-not-revocation",
+      "stage": "harness",
+      "language": "zh",
+      "dimension": "counterevidence"
+    },
+    {
+      "id": "zh-counter-new-harness-unrelated-fault",
+      "stage": "harness",
+      "language": "zh",
+      "dimension": "support"
+    },
+    {
+      "id": "zh-counter-new-harness-unrelated-task",
+      "stage": "harness",
+      "language": "zh",
+      "dimension": "counterevidence"
+    }
+  ],
+  "limitations": [
+    "Research opt-in allows isolated synthetic private Memory; production default permissions unchanged.",
+    "Additional role metadata does not necessarily improve semantic quality.",
+    "32 new frozen samples have not been queried; no heldout effect claim.",
+    "Real artifacts remain unlabeled and excluded from accuracy."
+  ]
+}

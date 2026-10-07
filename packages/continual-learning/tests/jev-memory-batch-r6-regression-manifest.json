@@ -1,0 +1,15 @@
+{
+  "evidence": "frozen-real-plan-not-new-inference",
+  "sourceDigest": "d70610bbf869bb0d5a54096c2e73046d79461b4abf2fadacab5d6683c790b4f0",
+  "failure": "repair-held-on-additional-code-fact-counterevidence",
+  "candidateIndex": 1,
+  "scope": "independent new Memory creates; any future change must retain full evidence, privacy and proposals; no write permission from Jev",
+  "proposal": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/mitt-on/memory/history/--work-mitt--/change_muvhcsar_e30ddf29c28c1ba1.json",
+  "proposalHash": "8ba790a5fd94f1e828734f588134c7a349a3d6ebc97186a8479ccc6536a34448",
+  "correctedPlan": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/mitt-on/memory/runs/--work-mitt--/run_muvhauj9_70fe3f61639b8a64/semantic-repair-plan.json",
+  "correctedPlanHash": "3c77903660f80765f80167fe030948966d7ca6b0d1a75e578230501cd443af58",
+  "snapshot": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/mitt-on/memory/runs/--work-mitt--/run_muvhauj9_70fe3f61639b8a64/snapshot.json",
+  "snapshotHash": "cc2078f76c6ed2c4456c08250842ff7dfe298a09d2fc0502f2fa67d45a826819",
+  "report": "/Users/FradSer/.cache/pi-continual-learning/docker/20261005-support-body-r6-final/mitt-on/report.json",
+  "reportHash": "26d6871aa859ec84016999b84d6a8e959f23b1e80c85390d0432c81df388cb48"
+}

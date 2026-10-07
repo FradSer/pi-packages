@@ -1,0 +1,59 @@
+{
+  "evidence": "actual-r14-click-off-generated-citation-inspection",
+  "sourceDigest": "beedbeebea1f64794d21d8339fb151fa3974ed3a4ad4735bc1dfe4b6cbe274df",
+  "reportSha256": "448b47d89a6f239965e8667afc39779b88379549df5eab630f71987e8f7ee28e",
+  "rows": [
+    {
+      "candidateIndex": 0,
+      "kind": "project",
+      "classification": "safe",
+      "citations": [
+        {
+          "index": 0,
+          "role": "user",
+          "quoteExact": true,
+          "quoteChars": 126,
+          "successfulToolResult": false
+        },
+        {
+          "index": 14,
+          "role": "toolResult",
+          "quoteExact": true,
+          "quoteChars": 61,
+          "successfulToolResult": true
+        }
+      ]
+    },
+    {
+      "candidateIndex": 1,
+      "kind": "preference",
+      "classification": "private",
+      "citations": [
+        {
+          "index": 0,
+          "role": "user",
+          "quoteExact": true,
+          "quoteChars": 182,
+          "successfulToolResult": false
+        },
+        {
+          "index": 0,
+          "role": "user",
+          "quoteExact": true,
+          "quoteChars": 84,
+          "successfulToolResult": false
+        }
+      ]
+    }
+  ],
+  "rawSensitiveTextStored": false,
+  "wholeWorkflowPassed": true,
+  "pairedWorkflowComplete": false,
+  "jevQualityImprovementVerified": false,
+  "limitations": [
+    "One actual off-arm generated plan; not a causal prompt-before/after study.",
+    "Original manifest snapshot digest and exact quotes validated; citation existence alone is not semantic support.",
+    "Private preference contents and names omitted.",
+    "On-arm and other projects still running in original process61811."
+  ]
+}

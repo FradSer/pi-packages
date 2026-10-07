@@ -28,3 +28,10 @@ Feature: Generalize Harness lessons without changing semantic scope
     Then it reads that exact path and assesses expressibility
     And only a supported complete candidate is written once and read back
     And no preliminary empty file is created
+
+  Scenario: Current-project directory wrappers retain push-family coverage
+    Given an explicit durable prohibition of the current project's push family
+    When the planner receives a parent-bound project root
+    Then its bounded template covers bare and same-project cd wrappers
+    And printed command strings and other-project wrappers remain unmatched
+    And the template does not establish authorization or rewrite existing rules

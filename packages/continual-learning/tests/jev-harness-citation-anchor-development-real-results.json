@@ -1,0 +1,4028 @@
+{
+  "evidence": "real-jev-paired-Harness-citation-anchor-research",
+  "split": "development",
+  "manifestSha256": "a30ae9cf1467410d6d65ceceb67f65c3048776e19db0a7144f5821a28376f849",
+  "codeHashes": {
+    "evaluate_jev_harness_citation_anchor.ts": "eb52893c676f4b15fcf3f83e92df7b66db744bad4dd6ed6aad34228e77a0dde9",
+    "jev-harness-citation-anchor-research.ts": "61882a99c0a0e8dc1efc3d5a504aa51f26f6e5b9412fc26abe218fee6a741919",
+    "frozen-research-manifest.ts": "dabd48c021dff53a2684d1436238b2bfcbacbaf2e33ff558bdd5fd4950724b28",
+    "actual-candidate-replay.ts": "cef9719780cd758973b16f767eb7f8baba453457bc086906dce2bfacf7e77f09",
+    "../extensions/agents-md-consolidation.ts": "9ea854a4ed0ebdb5dbf0851430676c82eb572567900fe32046ea429021b8ea91",
+    "../extensions/automatic-learning.ts": "45114cd86d1c509b59cb4da837759decb1283c56fc180eb7c9b4915b71e708d7",
+    "../extensions/config.ts": "5af1414ef7c2e2eb2f523f4c46b85d69e0c4772211d49c982c6dd446cdb8c044",
+    "../extensions/consolidation-run.ts": "02039e178572366dd0d0adf76a2c2033aeed811fc42d0970e430761c950ed675",
+    "../extensions/guardrail-config.ts": "63abe758dc0151e93d1778aca70760f82b739c58e0c23985b518f6c5fe24b1b3",
+    "../extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
+    "../extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
+    "../extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
+    "../extensions/harness-command-coverage.ts": "6a1f116085e6458e82fa52190d52bdea6e7d1786cf2429de06377e96025c84eb",
+    "../extensions/harness-consolidation.ts": "5d1fd9f69d6d5e6c0cbe13ecd9c25973321d342d874d77a298e48d1f725d3507",
+    "../extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
+    "../extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
+    "../extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
+    "../extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
+    "../extensions/incremental-memory-plan.ts": "1de04c1fa1e2164eb7163bba6f489be1b08842e084e539f603326e87bec7badb",
+    "../extensions/inject-memory.ts": "d25ac54a23a581672f1b9b5e3377b39121acdc7aa74677c6135e4db92ff1aa62",
+    "../extensions/jev-learning.ts": "c66ae21b112581ae3e8f4e75f078fb6445f7ae237f0206f22b23a341f08dab28",
+    "../extensions/learning-backlog.ts": "a6cc21f0bff19b40fc844bf7b2b047ec1274afc5a5b379103c509c971fe506a5",
+    "../extensions/learning-controls.ts": "ca7495ec4bd7141aa471f9324fdc4aead1edc6f52a801b93136494cb3011bfa1",
+    "../extensions/learning-efficiency.ts": "21d41647f6d1256b62437b1cb1a65c3c49ab1226f4c76218c1d548197bdf0fe3",
+    "../extensions/learning-evaluation.ts": "9555b518566478a0217dfcff22341a63e03a8e22611b6682ffaf254f174df3f7",
+    "../extensions/learning-history.ts": "b9ce5398c8b6729909587cf0aeec235d1755cc3a06cd9a0cd58aebce600ded85",
+    "../extensions/learning-input.ts": "2457884a11af1e0a9a6fa513a37d621685ae8908fb4d113613dc5902692e71cb",
+    "../extensions/learning-management.ts": "2d36997d154ae9502ab1c8b63fef51d3fb3da6943d9fbdf3a562c1ec4077845d",
+    "../extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
+    "../extensions/legacy-harness.ts": "3c68d908089dbac09992f56e727af9781b13ee203e152a647354afc356d4137c",
+    "../extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
+    "../extensions/memory-menu.ts": "b045ae9fc4f4b0d54d9ba39720353f6fb8a09149e548de903dde2d6aa441d413",
+    "../extensions/memory-paths.ts": "67d900e2f4287b9d5574867652e9f847bbb2c33e7910672fafee0c4976742e18",
+    "../extensions/output-checks.ts": "dec362cdd344d4144710234e46256a25486fe9338ff95cb90235e00943a880d9",
+    "../extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899"
+  },
+  "corpusSha256": "b32f442ec1881718b91cb45d00d5d90eeb725a70969c5d739d10d39096612988",
+  "preflight": {
+    "before": [
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      }
+    ],
+    "after": [
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      },
+      {
+        "requests": 2,
+        "windows": 1
+      }
+    ]
+  },
+  "externalRequests": 96,
+  "fixtureRequests": 0,
+  "requestBudget": 96,
+  "metrics": {
+    "before": {
+      "complete": 23,
+      "incomplete": 1,
+      "falseAccepts": 0,
+      "falseHolds": 1,
+      "correct": 22
+    },
+    "after": {
+      "complete": 23,
+      "incomplete": 1,
+      "falseAccepts": 0,
+      "falseHolds": 2,
+      "correct": 21
+    }
+  },
+  "newlyHeldValid": 1,
+  "successRuleMet": false,
+  "knownInputTokens": 69318,
+  "knownEstimatedCostUsd": 0.002911356,
+  "unpricedInputTokens": 0,
+  "unverifiedJudgeEstimatedCostUsd": 0,
+  "rows": [
+    {
+      "id": "general-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": false,
+          "modelVerified": false,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "timeout",
+            "durationMs": 5006,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 0,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 0,
+            "requestCount": 2,
+            "completedRequests": 0,
+            "knownInputTokens": 0,
+            "knownEstimatedCostUsd": 0
+          },
+          "observations": []
+        },
+        "after": {
+          "decision": "propose",
+          "complete": false,
+          "modelVerified": false,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "timeout",
+            "durationMs": 5014,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 0,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 0,
+            "requestCount": 2,
+            "completedRequests": 0,
+            "knownInputTokens": 0,
+            "knownEstimatedCostUsd": 0
+          },
+          "observations": []
+        }
+      }
+    },
+    {
+      "id": "general-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 1151,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1509,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000063378,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.86,
+                  "probabilities": {
+                    "compatible": 0.91,
+                    "contradicts": 0.05,
+                    "unclear": 0.04
+                  }
+                }
+              ],
+              "wireRequestSha256": "79235d81d8233f558b17db27b10eb4f6fe2824cec87e132508c075d682954e79"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.94,
+                  "probabilities": {
+                    "lasting": 0.95,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.05
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "95928a8a42aeb2c7d9bb572124f8c3caa98b8a0e4376a3dcde5c56e85039a74e"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 425,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1479,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000062118,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.85,
+                  "probabilities": {
+                    "compatible": 0.9,
+                    "contradicts": 0.06,
+                    "unclear": 0.04
+                  }
+                }
+              ],
+              "wireRequestSha256": "79235d81d8233f558b17db27b10eb4f6fe2824cec87e132508c075d682954e79"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "lasting": 0.98,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "7e96dc8f36866a639097ac7eeb0426cfa5f035f2badedff710a0d7ab6302ef5c"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "example-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 450,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1487,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006245400000000001,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.93,
+                  "probabilities": {
+                    "compatible": 0.95,
+                    "contradicts": 0.03,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "0c21c42ff6ceab1b050034446959a486a91adf63de7f1af2b0bc37e5c088a367"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.94,
+                  "probabilities": {
+                    "authorized": 0.96,
+                    "extra": 0.04,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "afe434f64b8fd832a1c2236535b11342082baa8a5c4a8e0855aa7742fd39e074"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 523,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1519,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000063798,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.92,
+                  "probabilities": {
+                    "compatible": 0.94,
+                    "contradicts": 0.04,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "0c21c42ff6ceab1b050034446959a486a91adf63de7f1af2b0bc37e5c088a367"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "lasting": 0.98,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "bcf29e9e20af18371d1a03c664fb2cd31f4d85300b33b804a3e63f901cf26f92"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "example-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 524,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1524,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006400800000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.74,
+                  "probabilities": {
+                    "compatible": 0.83,
+                    "contradicts": 0.07,
+                    "unclear": 0.1
+                  }
+                }
+              ],
+              "wireRequestSha256": "1356a28d83546540aba3cda4b455156fe8008c7900a1040d72d9857101d1914d"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.74,
+                  "probabilities": {
+                    "lasting": 0.81,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.19
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.95,
+                  "probabilities": {
+                    "authorized": 0.97,
+                    "extra": 0.03,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "1f18e8e22e16dfa9f1cd6fcc48ad2ed4e0af7bc7b3cf7676b6824c2d804335f5"
+            }
+          ]
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 520,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1491,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006262200000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.76,
+                  "probabilities": {
+                    "lasting": 0.8200000000000001,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.18
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.74,
+                  "probabilities": {
+                    "authorized": 0.82,
+                    "extra": 0.17,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "e88e728fb3d3fe855767a8db96a40e087ce447b159c7b83a9c82859f00bd8b16"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.78,
+                  "probabilities": {
+                    "compatible": 0.85,
+                    "contradicts": 0.07,
+                    "unclear": 0.08
+                  }
+                }
+              ],
+              "wireRequestSha256": "1356a28d83546540aba3cda4b455156fe8008c7900a1040d72d9857101d1914d"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "mixed-task-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 880,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1501,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000063042,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "1ea277167ee3c7871a7c513c8f394261bf979746e27cb5c48d37eb3af8c3a4c5"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.94,
+                  "probabilities": {
+                    "compatible": 0.96,
+                    "contradicts": 0.02,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "c0f65c660b41b47b0e247a537ea71a152185ad8f47ba91c526dcbdf51f48df46"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 495,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1526,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000064092,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.94,
+                  "probabilities": {
+                    "compatible": 0.96,
+                    "contradicts": 0.02,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "c0f65c660b41b47b0e247a537ea71a152185ad8f47ba91c526dcbdf51f48df46"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "d6dd11ba4c2d5c26bf9c98a40c34d7bfc319b27f39ec65c7ab5db3f2568266f6"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "mixed-task-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 525,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1566,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000065772,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "uncertain",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 0
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 0,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.84,
+                  "probabilities": {
+                    "compatible": 0.89,
+                    "contradicts": 0.05,
+                    "unclear": 0.06
+                  }
+                }
+              ],
+              "wireRequestSha256": "850b79aeca89cf1eb8d0eea740d4f30815fcf40229ed9c32dc820b42188f1b2d"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.94,
+                  "probabilities": {
+                    "lasting": 0.96,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.04
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "fdc0f63ac62d57d20d5f38048da3c404640a252906d8665722225f99b8a321a9"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 521,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1536,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006451200000000001,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.93,
+                  "probabilities": {
+                    "lasting": 0.95,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.05
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "5262a431c889b7505f7f6d3111210e2bbf8b99059cb6f0d18bf41180f8ba0b36"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.87,
+                  "probabilities": {
+                    "compatible": 0.92,
+                    "contradicts": 0.04,
+                    "unclear": 0.04
+                  }
+                }
+              ],
+              "wireRequestSha256": "850b79aeca89cf1eb8d0eea740d4f30815fcf40229ed9c32dc820b42188f1b2d"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "inline-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 526,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1487,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006245400000000001,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "lasting": 1,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "authorized": 0.98,
+                    "extra": 0.02,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "feff269bdb321ed32e340b6884fe8aa84ad6965b30066e63caa9961c84b77387"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.95,
+                  "probabilities": {
+                    "compatible": 0.97,
+                    "contradicts": 0.02,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "17550df86e81bc508f2823ac0e6ca9ddfe3a5df86b34bc1293b457de04c24156"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 531,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1519,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000063798,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.95,
+                  "probabilities": {
+                    "compatible": 0.97,
+                    "contradicts": 0.02,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "17550df86e81bc508f2823ac0e6ca9ddfe3a5df86b34bc1293b457de04c24156"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 1,
+                  "probabilities": {
+                    "lasting": 1,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "beeb8d35fe89dc4d9df1f89b6eb0d0185cf0d503a96df56b7fb756bd7045c757"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "inline-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 744,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1534,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000064428,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.98,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "3ee4aeec8b88ac35791a5080da71119fd471021234919e48ebdceeb9a79eac0d"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.88,
+                  "probabilities": {
+                    "compatible": 0.92,
+                    "contradicts": 0.04,
+                    "unclear": 0.04
+                  }
+                }
+              ],
+              "wireRequestSha256": "be071884c16ac7484b87639fffae56e0992e34b02ff6cf847730e26633a93d20"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 501,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1499,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000062958,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.89,
+                  "probabilities": {
+                    "compatible": 0.93,
+                    "contradicts": 0.04,
+                    "unclear": 0.03
+                  }
+                }
+              ],
+              "wireRequestSha256": "be071884c16ac7484b87639fffae56e0992e34b02ff6cf847730e26633a93d20"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "lasting": 0.98,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.92,
+                  "probabilities": {
+                    "authorized": 0.95,
+                    "extra": 0.05,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "26cb9feaa1bc0f5c1f34cc4f75edc3a840cda72968231e35d30ef3988c8ac247"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "observation-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 509,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1480,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006216000000000001,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "compatible": 0.98,
+                    "contradicts": 0.01,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "fbf7de77d88a4eaf5cfa49a0c224fbb56e85a3ffa4fe52c634a217e10b07badd"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "8c8ce34338051438a8aa26be6627018f76ba0e6cefdee2c236fdedf966938086"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 524,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1505,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006321,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "compatible": 0.99,
+                    "contradicts": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "fbf7de77d88a4eaf5cfa49a0c224fbb56e85a3ffa4fe52c634a217e10b07badd"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "lasting": 0.98,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "bfcc8af465b31d50cecb670304740742ac6fa8a596d962a62bc88caf71728a83"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "observation-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 436,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1533,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000064386,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.94,
+                  "probabilities": {
+                    "compatible": 0.96,
+                    "contradicts": 0.02,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "48f87d9241bbfd5cc05dfc7675ca97d5a27e01d4bf7283e6a9a0133b51147ae1"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "lasting": 0.98,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "00817c2c9ea10e506da070d7e0c94cbaf9c7958b98bbcc42417eddc1afe543ef"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 511,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1503,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000063126,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "lasting": 0.98,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "308fc09d8c0b257a73f4e58954217b9c283c012949141af002ad53dcce604a0e"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.94,
+                  "probabilities": {
+                    "compatible": 0.96,
+                    "contradicts": 0.02,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "48f87d9241bbfd5cc05dfc7675ca97d5a27e01d4bf7283e6a9a0133b51147ae1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "separate-command-en",
+      "language": "en",
+      "expectedAllow": true,
+      "arms": {
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 623,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1486,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000062412,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 1,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "d7236892202bb8a43409b57faea1c223d0f37ae83391484ccf84dc0bb08bc561"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.96,
+                  "probabilities": {
+                    "compatible": 0.98,
+                    "contradicts": 0.01,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "656421826f5da3e6cf07b67be815a77c32702ea1bd39aff690b8d178078bc613"
+            }
+          ]
+        },
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 516,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1511,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000063462,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 1,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "06dd023433869ab81af253c0e53efab8a6a20ad08b503920d9a8f98e3d97e810"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "compatible": 0.98,
+                    "contradicts": 0.01,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "656421826f5da3e6cf07b67be815a77c32702ea1bd39aff690b8d178078bc613"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "separate-command-zh",
+      "language": "zh",
+      "expectedAllow": true,
+      "arms": {
+        "after": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 519,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1539,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000064638,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "5ba0409b3a75b803f58a7f16bb41e08865fec319dd59ceb83c1c42553e520938"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.9,
+                  "probabilities": {
+                    "compatible": 0.93,
+                    "contradicts": 0.03,
+                    "unclear": 0.04
+                  }
+                }
+              ],
+              "wireRequestSha256": "92c1e6d76addc2a6b88fe765d0917c64a8406ff858e6d18c03bd41fcb34ca755"
+            }
+          ]
+        },
+        "before": {
+          "decision": "allow",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "decided",
+            "reason": "supported",
+            "durationMs": 521,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1509,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000063378,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "lasting": 0.98,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "8f0c53a12a606391bf132cd8fec9afaf25a94ac4aa47fedd5a8bd6949dd0c3ce"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.9,
+                  "probabilities": {
+                    "compatible": 0.9299999999999999,
+                    "contradicts": 0.03,
+                    "unclear": 0.04
+                  }
+                }
+              ],
+              "wireRequestSha256": "92c1e6d76addc2a6b88fe765d0917c64a8406ff858e6d18c03bd41fcb34ca755"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "same-entry-exception-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 437,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1489,
+            "outputTokens": 142,
+            "estimatedCostUsd": 0.000062538,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "scope",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "scope",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0.01,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "extra",
+                  "confidence": 0.46,
+                  "probabilities": {
+                    "authorized": 0.36,
+                    "extra": 0.64,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "f00a30c5360907940999facd0f848791ac303464903813c33bc13c8a8f72cff2"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.64,
+                  "probabilities": {
+                    "compatible": 0.21,
+                    "contradicts": 0.76,
+                    "unclear": 0.03
+                  }
+                }
+              ],
+              "wireRequestSha256": "2a5acf6a9833375cd6a4f50ed071b37d59216e49d62144a8148740bf4bdb90e1"
+            }
+          ]
+        },
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 507,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1514,
+            "outputTokens": 142,
+            "estimatedCostUsd": 0.000063588,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "scope",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "scope",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.57,
+                  "probabilities": {
+                    "compatible": 0.26,
+                    "contradicts": 0.72,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "2a5acf6a9833375cd6a4f50ed071b37d59216e49d62144a8148740bf4bdb90e1"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "lasting": 1,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "extra",
+                  "confidence": 0.28,
+                  "probabilities": {
+                    "authorized": 0.47,
+                    "extra": 0.53,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "238cc3aa1849ee055d4cfd0fb1300f478debbd2d0dd09b482af0a31ba9aae971"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "same-entry-exception-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 445,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1542,
+            "outputTokens": 142,
+            "estimatedCostUsd": 0.000064764,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "scope",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "scope",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.45,
+                  "probabilities": {
+                    "compatible": 0.34,
+                    "contradicts": 0.63,
+                    "unclear": 0.03
+                  }
+                }
+              ],
+              "wireRequestSha256": "ad334a73f73200f0bc731708ecf8166d78c306cfbc406571c15c81e6f89877e2"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.98,
+                    "conditional": 0.01,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.27,
+                  "probabilities": {
+                    "authorized": 0.52,
+                    "extra": 0.48,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "760d7c54354883f74f3ec87a16961d3f873ea569f42b475a3c0bf2337abc3043"
+            }
+          ]
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 514,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1512,
+            "outputTokens": 142,
+            "estimatedCostUsd": 0.00006350400000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "scope",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "scope",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "extra",
+                  "confidence": 0.35,
+                  "probabilities": {
+                    "authorized": 0.43,
+                    "extra": 0.57,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "505723e071160c664fa4982bda63ad3ea633207b20d3c26ae77f5a99a4f282aa"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.53,
+                  "probabilities": {
+                    "compatible": 0.28,
+                    "contradicts": 0.68,
+                    "unclear": 0.04
+                  }
+                }
+              ],
+              "wireRequestSha256": "ad334a73f73200f0bc731708ecf8166d78c306cfbc406571c15c81e6f89877e2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "exact-argument-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 523,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1467,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006161400000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.84,
+                  "probabilities": {
+                    "lasting": 0.88,
+                    "conditional": 0.09,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.03
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "extra",
+                  "confidence": 0.82,
+                  "probabilities": {
+                    "authorized": 0.12,
+                    "extra": 0.88,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "20aee24c6a2abf0e158d33b02cbd73b29a0c2ec31768555bf9c1b3325503d0ed"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.83,
+                  "probabilities": {
+                    "compatible": 0.89,
+                    "contradicts": 0.08,
+                    "unclear": 0.03
+                  }
+                }
+              ],
+              "wireRequestSha256": "06185ec23e808b0f0e4204a3076f7bafacc1fbb2728583a8510375945e3cd402"
+            }
+          ]
+        },
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 524,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1494,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000062748,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.8,
+                  "probabilities": {
+                    "compatible": 0.87,
+                    "contradicts": 0.09,
+                    "unclear": 0.04
+                  }
+                }
+              ],
+              "wireRequestSha256": "06185ec23e808b0f0e4204a3076f7bafacc1fbb2728583a8510375945e3cd402"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.86,
+                  "probabilities": {
+                    "lasting": 0.89,
+                    "conditional": 0.08,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.03
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "extra",
+                  "confidence": 0.88,
+                  "probabilities": {
+                    "authorized": 0.08,
+                    "extra": 0.92,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "118ce9ba51f50674543b1573087f17a3ee001a6035b89a523a62eaf10f803824"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "exact-argument-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 523,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1519,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000063798,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.8,
+                  "probabilities": {
+                    "compatible": 0.87,
+                    "contradicts": 0.08,
+                    "unclear": 0.05
+                  }
+                }
+              ],
+              "wireRequestSha256": "827a21e89fa565a65c529edd5d060ae0903679fbd378e0946bf97609c014f7c0"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.84,
+                  "probabilities": {
+                    "lasting": 0.87,
+                    "conditional": 0.09,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.04
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "extra",
+                  "confidence": 0.91,
+                  "probabilities": {
+                    "authorized": 0.06,
+                    "extra": 0.94,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "9b73f4eb9ea73fc03f88e0ced29aa841c6fc51b1f62d8c5193767c6b933fb379"
+            }
+          ]
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 521,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1487,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006245400000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.85,
+                  "probabilities": {
+                    "lasting": 0.88,
+                    "conditional": 0.08,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.04
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "extra",
+                  "confidence": 0.85,
+                  "probabilities": {
+                    "authorized": 0.1,
+                    "extra": 0.9,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "e463ac631f82dbd4e45ef16866e9ad1a08855e812ddfc991c298d461cb711434"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.8,
+                  "probabilities": {
+                    "compatible": 0.86,
+                    "contradicts": 0.09,
+                    "unclear": 0.05
+                  }
+                }
+              ],
+              "wireRequestSha256": "827a21e89fa565a65c529edd5d060ae0903679fbd378e0946bf97609c014f7c0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "temporary-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 539,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1463,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006144600000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "unsupported"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.83,
+                  "probabilities": {
+                    "compatible": 0.89,
+                    "contradicts": 0.05,
+                    "unclear": 0.06
+                  }
+                }
+              ],
+              "wireRequestSha256": "9301ec7e3bce442a0d3402dfbe44bedb3850188dc569d72697b5297c3f8f795e"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "temporary",
+                  "confidence": 0.89,
+                  "probabilities": {
+                    "lasting": 0.01,
+                    "conditional": 0.04,
+                    "temporary": 0.91,
+                    "elsewhere": 0,
+                    "absent": 0.04
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.79,
+                  "probabilities": {
+                    "authorized": 0.86,
+                    "extra": 0.11,
+                    "unclear": 0.03
+                  }
+                }
+              ],
+              "wireRequestSha256": "9c87c1944d9563979a8763b49c922d635a55a38f01a8ee9ce0a66942d90c8da8"
+            }
+          ]
+        },
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 508,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1489,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000062538,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "unsupported"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.83,
+                  "probabilities": {
+                    "compatible": 0.89,
+                    "contradicts": 0.04,
+                    "unclear": 0.07
+                  }
+                }
+              ],
+              "wireRequestSha256": "9301ec7e3bce442a0d3402dfbe44bedb3850188dc569d72697b5297c3f8f795e"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "temporary",
+                  "confidence": 0.91,
+                  "probabilities": {
+                    "lasting": 0.01,
+                    "conditional": 0.03,
+                    "temporary": 0.93,
+                    "elsewhere": 0,
+                    "absent": 0.03
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.81,
+                  "probabilities": {
+                    "authorized": 0.87,
+                    "extra": 0.11,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "5e2e3627d8580db90f2e460951d4c2dba71f7c3b64af21c117fb6b6f1bbe0e67"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "temporary-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 527,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1524,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006400800000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "unsupported"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "temporary",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "lasting": 0,
+                    "conditional": 0,
+                    "temporary": 0.98,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.38,
+                  "probabilities": {
+                    "authorized": 0.59,
+                    "extra": 0.39,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "256e5996073927b598ff6d8f75fe18c888c398fb2304bf34783fcbc7c5017a78"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.56,
+                  "probabilities": {
+                    "compatible": 0.71,
+                    "contradicts": 0.19,
+                    "unclear": 0.1
+                  }
+                }
+              ],
+              "wireRequestSha256": "496bf3b7d11b71fb16cf4947cd0a3f85adb91615537c6e103369dd2f56bdb8a2"
+            }
+          ]
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 522,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1491,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006262200000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "unsupported"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "temporary",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "lasting": 0,
+                    "conditional": 0,
+                    "temporary": 0.98,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.63,
+                  "probabilities": {
+                    "authorized": 0.76,
+                    "extra": 0.23,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "2f7669b6a754b5d7f8bcaa5d2716b79d11f8803c90a584f17b942187ba1cc724"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.62,
+                  "probabilities": {
+                    "compatible": 0.74,
+                    "contradicts": 0.18,
+                    "unclear": 0.08
+                  }
+                }
+              ],
+              "wireRequestSha256": "496bf3b7d11b71fb16cf4947cd0a3f85adb91615537c6e103369dd2f56bdb8a2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "approval-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 428,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1475,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.00006195,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.52,
+                  "probabilities": {
+                    "lasting": 0.62,
+                    "conditional": 0.38,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "232b3c246f4edfb316c5b749a3d9b49bbd5b723b74e84cb47d75103579648bbc"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.96,
+                  "probabilities": {
+                    "compatible": 0.97,
+                    "contradicts": 0.02,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "53c3debb4e8073b73ef10ce11d07b1fd47891fa93333825abeb607f368cfcf15"
+            }
+          ]
+        },
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 618,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1504,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000063168,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.97,
+                  "probabilities": {
+                    "compatible": 0.98,
+                    "contradicts": 0.01,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "53c3debb4e8073b73ef10ce11d07b1fd47891fa93333825abeb607f368cfcf15"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.51,
+                  "probabilities": {
+                    "lasting": 0.61,
+                    "conditional": 0.39,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.88,
+                  "probabilities": {
+                    "authorized": 0.92,
+                    "extra": 0.08,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "ff46d566669c950f9862e0f7ffb2c8e434a5b1f0a6385c12b65c15022578cd83"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "approval-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 525,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1514,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000063588,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.92,
+                  "probabilities": {
+                    "compatible": 0.95,
+                    "contradicts": 0.03,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "05fe5efb183074b8078b502ebda8997ce42d542a3279aac3b551fefb74a0f158"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "conditional",
+                  "confidence": 0.52,
+                  "probabilities": {
+                    "lasting": 0.36,
+                    "conditional": 0.61,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.03
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.93,
+                  "probabilities": {
+                    "authorized": 0.96,
+                    "extra": 0.04,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "024b85920a9b811d1cfc7f6353b92a6a01830f362ff803a771785809a0d6f21c"
+            }
+          ]
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "uncertain",
+            "durationMs": 520,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1483,
+            "outputTokens": 140,
+            "estimatedCostUsd": 0.000062286,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "uncertain"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "conditional",
+                  "confidence": 0.66,
+                  "probabilities": {
+                    "lasting": 0.25,
+                    "conditional": 0.73,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.02
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.95,
+                  "probabilities": {
+                    "authorized": 0.96,
+                    "extra": 0.03,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "a3e14edf3c31ca1444773bd63688d2fa35c2ce9b50b905f96a6fa471f92d7851"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "compatible",
+                  "confidence": 0.93,
+                  "probabilities": {
+                    "compatible": 0.95,
+                    "contradicts": 0.03,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "05fe5efb183074b8078b502ebda8997ce42d542a3279aac3b551fefb74a0f158"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "reported-proposal-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 625,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1480,
+            "outputTokens": 143,
+            "estimatedCostUsd": 0.00006216,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "unsupported"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "absent",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.01,
+                    "conditional": 0.01,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.98
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.36,
+                  "probabilities": {
+                    "authorized": 0.57,
+                    "extra": 0.35,
+                    "unclear": 0.08
+                  }
+                }
+              ],
+              "wireRequestSha256": "fa3794bbc2d56f97bb4894149b51353dafa32948c894ee74db1c29cd37d557bc"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.87,
+                  "probabilities": {
+                    "compatible": 0.07,
+                    "contradicts": 0.91,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "80a1ea836056af7ab6e14b0bd32b0d0d76e3365d25a1c50001418cfddc0f07c8"
+            }
+          ]
+        },
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 529,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1505,
+            "outputTokens": 143,
+            "estimatedCostUsd": 0.00006321000000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "unsupported"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "absent",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.01,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.99
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.54,
+                  "probabilities": {
+                    "authorized": 0.7,
+                    "extra": 0.24,
+                    "unclear": 0.06
+                  }
+                }
+              ],
+              "wireRequestSha256": "46f8c1899a679a703012dffb39eae92ebe1a11711a4b0ccd0dfba10214d040c8"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.86,
+                  "probabilities": {
+                    "compatible": 0.08,
+                    "contradicts": 0.9,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "80a1ea836056af7ab6e14b0bd32b0d0d76e3365d25a1c50001418cfddc0f07c8"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "reported-proposal-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 516,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1549,
+            "outputTokens": 143,
+            "estimatedCostUsd": 0.000065058,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "unsupported"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "absent",
+                  "confidence": 0.93,
+                  "probabilities": {
+                    "lasting": 0.04,
+                    "conditional": 0.01,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.95
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.87,
+                  "probabilities": {
+                    "authorized": 0.91,
+                    "extra": 0.07,
+                    "unclear": 0.02
+                  }
+                }
+              ],
+              "wireRequestSha256": "f691d46295b1cfa879b8e56d3ab72d7bec2933f26ebd26a79459a86ff1a341f4"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.81,
+                  "probabilities": {
+                    "compatible": 0.09,
+                    "contradicts": 0.88,
+                    "unclear": 0.03
+                  }
+                }
+              ],
+              "wireRequestSha256": "ead499cdb6d80ffef2fca587f76cb24dfbd824af6ce1572072aa51fa0e4490dc"
+            }
+          ]
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "unsupported",
+            "durationMs": 617,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 1,
+            "coveredEntries": 1,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1517,
+            "outputTokens": 143,
+            "estimatedCostUsd": 0.00006371400000000001,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "authority",
+                "reason": "unsupported"
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "authority",
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.82,
+                  "probabilities": {
+                    "compatible": 0.08,
+                    "contradicts": 0.88,
+                    "unclear": 0.04
+                  }
+                }
+              ],
+              "wireRequestSha256": "ead499cdb6d80ffef2fca587f76cb24dfbd824af6ce1572072aa51fa0e4490dc"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "absent",
+                  "confidence": 0.93,
+                  "probabilities": {
+                    "lasting": 0.04,
+                    "conditional": 0.01,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.95
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.65,
+                  "probabilities": {
+                    "authorized": 0.77,
+                    "extra": 0.15,
+                    "unclear": 0.08
+                  }
+                }
+              ],
+              "wireRequestSha256": "d2048a6f4b504cac4823556ccb92532aeedc9c361d11cfe93ddb1c30be5a6f71"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "later-revocation-en",
+      "language": "en",
+      "expectedAllow": false,
+      "arms": {
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 518,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1488,
+            "outputTokens": 142,
+            "estimatedCostUsd": 0.000062496,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.98,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 0.99,
+                    "extra": 0.01,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "8c8ce34338051438a8aa26be6627018f76ba0e6cefdee2c236fdedf966938086"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.95,
+                  "probabilities": {
+                    "compatible": 0.03,
+                    "contradicts": 0.96,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "706a9c21175ff0261d0f50f3096ed85503375b48e3c85534c2cbd7c74f37f2aa"
+            }
+          ]
+        },
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 421,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1513,
+            "outputTokens": 142,
+            "estimatedCostUsd": 0.000063546,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.93,
+                  "probabilities": {
+                    "compatible": 0.04,
+                    "contradicts": 0.95,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "706a9c21175ff0261d0f50f3096ed85503375b48e3c85534c2cbd7c74f37f2aa"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "lasting": 0.99,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.01
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "bfcc8af465b31d50cecb670304740742ac6fa8a596d962a62bc88caf71728a83"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "later-revocation-zh",
+      "language": "zh",
+      "expectedAllow": false,
+      "arms": {
+        "after": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 437,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1543,
+            "outputTokens": 142,
+            "estimatedCostUsd": 0.00006480600000000002,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.92,
+                  "probabilities": {
+                    "lasting": 0.94,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.06
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "00817c2c9ea10e506da070d7e0c94cbaf9c7958b98bbcc42417eddc1afe543ef"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.9,
+                  "probabilities": {
+                    "compatible": 0.06,
+                    "contradicts": 0.93,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "d3ffcbf264473dba72808617f31c66625bc910debdd9c94d3fdcca199250ca5a"
+            }
+          ]
+        },
+        "before": {
+          "decision": "propose",
+          "complete": true,
+          "modelVerified": true,
+          "telemetry": {
+            "stage": "harness",
+            "status": "propose",
+            "reason": "conflict",
+            "durationMs": 520,
+            "strategy": "cited-support-full-review",
+            "evidenceEntries": 2,
+            "coveredEntries": 2,
+            "verbatimExplanations": 1,
+            "evidenceWindows": 1,
+            "completedWindows": 1,
+            "requestCount": 2,
+            "completedRequests": 2,
+            "inputTokens": 1513,
+            "outputTokens": 142,
+            "estimatedCostUsd": 0.00006354600000000002,
+            "candidateFailures": [
+              {
+                "candidateIndex": 0,
+                "dimension": "counterevidence",
+                "reason": "conflict",
+                "evidenceWindowIndex": 0,
+                "evidenceEntryStart": 0,
+                "evidenceEntryEnd": 1
+              }
+            ],
+            "candidateIndex": 0,
+            "dimension": "counterevidence",
+            "evidenceWindowIndex": 0,
+            "evidenceEntryStart": 0,
+            "evidenceEntryEnd": 1,
+            "model": "jev-1.13.0"
+          },
+          "observations": [
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "authority_0",
+                  "choice": "lasting",
+                  "confidence": 0.94,
+                  "probabilities": {
+                    "lasting": 0.95,
+                    "conditional": 0,
+                    "temporary": 0,
+                    "elsewhere": 0,
+                    "absent": 0.05
+                  }
+                },
+                {
+                  "key": "family_0",
+                  "choice": "authorized",
+                  "confidence": 0.99,
+                  "probabilities": {
+                    "authorized": 1,
+                    "extra": 0,
+                    "unclear": 0
+                  }
+                }
+              ],
+              "wireRequestSha256": "308fc09d8c0b257a73f4e58954217b9c283c012949141af002ad53dcce604a0e"
+            },
+            {
+              "valid": true,
+              "modelVerified": true,
+              "judgments": [
+                {
+                  "key": "counter_0_0",
+                  "choice": "contradicts",
+                  "confidence": 0.93,
+                  "probabilities": {
+                    "compatible": 0.04,
+                    "contradicts": 0.95,
+                    "unclear": 0.01
+                  }
+                }
+              ],
+              "wireRequestSha256": "d3ffcbf264473dba72808617f31c66625bc910debdd9c94d3fdcca199250ca5a"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "productionWrites": 0,
+  "adopted": false,
+  "limitations": [
+    "24 unqueried public bilingual development cases frozen prospectively; no heldout or Docker quality claim.",
+    "Only an exact validated original user quote is added to the existing family question candidate. Same original state, criteria, thresholds and complete counter review.",
+    "Forced offline answers prove complete preflight only, not model accuracy.",
+    "One paid run, alternating arm order, no favorable retries, relabels, partial writes or automatic adoption.",
+    "Unknown/failed usage is a lower bound, tariff estimates are not actual account billing."
+  ]
+}
