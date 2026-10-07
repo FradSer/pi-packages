@@ -42,18 +42,19 @@ Feature: Intent tool lifecycle rows keep controls readable
       Then its unanswered explanation and provider diagnostic remain visible
       And any preview omission notice remains visible
 
-    Scenario: A roster subject carries no child state and keeps its page count
+    Scenario: A roster row names no child and counts only what it hides
       Given a page of retained children with different statuses
       When the agent_list result renders collapsed
-      Then the row reads as agent, listed, @children and the shown count of the total
+      Then the row reads as agent and listed
       And it names no individual child
-      And its count stays collapsed, because a page that shows a subset must say so
+      And it carries no count, because a page that shows everything has nothing to add
       And an empty page does not claim there are no children
 
     Scenario: Listing one page does not imply a complete or empty roster
       Given more retained children than fit in one list page
       When one page is rendered
-      Then the compact summary discloses how many entries are shown
+      Then the collapsed row reads as agent, listed and the shown count of the total
+      And that count appears only because entries were omitted
       And expansion reveals the remaining count and next offset
 
     Scenario: A previous operation keeps its display name after replacement

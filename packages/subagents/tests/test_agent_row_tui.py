@@ -20,6 +20,7 @@ from subagents_helpers import PACKAGE, SRC, run_isolated_node as run_node
 
 ENTRY = (PACKAGE / "index.ts").as_uri()
 INTENT_TOOLS = (SRC / "intent-tools.ts").as_uri()
+ROSTER = (SRC / "roster.ts").as_uri()
 
 PREAMBLE = f"""
 import assert from "node:assert/strict";
@@ -131,7 +132,8 @@ def test_disk_identity_facts_stay_off_the_collapsed_row_and_expand_once(tmp_path
         // the configuration facts the collapsed row keeps to itself.
         const listed = await run({ operation: "list" });
         const roster = band(paint("agent_list", listed, false));
-        assert.match(roster[0], /^\\s*\\[agent\\] listed · @children · 1 of 1/, roster[0]);
+        assert.match(roster[0], /^\\s*\\[agent\\] listed · /, roster[0]);
+        assert.ok(!/\\d+ of \\d+/.test(roster[0]), `a page that omitted nothing carries no count:\n${roster[0]}`);
         assert.equal(roster.length, 1, "a roster subject names no child on its own row");
         assert.ok(!roster[0].includes(started.details.source), roster[0]);
         const expanded = paint("agent_list", listed, true).join("\\n");
@@ -223,7 +225,9 @@ def test_a_prompt_less_start_is_refused_because_the_family_has_no_idle_startup()
         // handle for a child that does not exist.
         const listed = await run({ operation: "list" });
         assert.deepEqual(listed.details.sessions, []);
-        assert.match(band(paint("agent_list", listed, false))[0], /^\\s*\\[agent\\] listed · @children · 0 of 0/);
+        const emptyRoster = band(paint("agent_list", listed, false))[0];
+        assert.match(emptyRoster, /^\\s*\\[agent\\] listed · /, emptyRoster);
+        assert.ok(!/\\d+ of \\d+/.test(emptyRoster), `an empty roster carries no count:\n${emptyRoster}`);
         console.log(JSON.stringify({ ok: true }));
         """
     )
@@ -358,3 +362,26 @@ def test_a_rendered_row_advertises_expansion_through_the_configured_key() -> Non
         console.log(JSON.stringify({ ok: true }));
         """
     )
+
+
+def test_a_roster_page_that_hides_entries_carries_the_count(tmp_path: Path) -> None:
+    """The count is the one fact a collapsed page cannot state any other way.
+
+    A page that returned the whole roster says nothing about size, because there is
+    nothing it is hiding. A page that omitted an entry is the case that has to say
+    so without being opened, and the count is how it says it.
+    """
+    run_isolated(f"""
+        import {{ registerAgent, resetRoster }} from {json.dumps(ROSTER)};
+        resetRoster();
+        for (let index = 0; index < 21; index += 1) {{
+          registerAgent({{ name: `child-${{index}}`, role: "worker", spawnId: `s${{index}}`, pid: index,
+            status: "stopped", scope: "session", createdAt: 1, updatedAt: 1 }});
+        }}
+        const listed = await run({{ operation: "list" }});
+        const collapsed = band(paint("agent_list", listed, false))[0];
+        assert.equal(listed.details.page.returned, 20, collapsed);
+        assert.equal(listed.details.page.omitted, 1, collapsed);
+        assert.match(collapsed, /^\\s*\\[agent\\] listed · 20 of 21/, collapsed);
+        console.log(JSON.stringify({{ ok: true }}));
+        """, tmp_path)

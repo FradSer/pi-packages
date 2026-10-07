@@ -221,11 +221,13 @@ def test_native_roster_read_reports_retained_stopped_facts_not_a_failed_row(
                 # No route came back, so no stop or roster row exists: the roster
                 # read and the uncertain start row are the whole witness.
                 assert "[agent] uncertain · @calculator" in tui.screen(), tui.screen()
-                assert "[agent] listed · @children" in tui.screen(), tui.screen()
+                assert "[agent] listed" in tui.screen(), tui.screen()
             elif case != "codemode-lifecycle":
-                # A roster subject carries the page count and no child's state, so
-                # the collapsed row never names the child it read.
-                assert "[agent] listed · @children · 1 of 1" in tui.screen(), tui.screen()
+                # A roster carries no child's name and, when the page omitted
+                # nothing, no count either: the collapsed row never names the child
+                # it read, and "1 of 1" would answer a question nothing asked.
+                assert "[agent] listed" in tui.screen(), tui.screen()
+                assert "1 of 1" not in tui.screen(), tui.screen()
                 assert "[agent] listed · @calculator" not in tui.screen(), tui.screen()
             else:
                 # Native codemode uses Pi's own unbracketed title, not pi-kit.

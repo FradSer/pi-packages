@@ -243,15 +243,16 @@ const handle = exactSessionRoute(longRosterName, getAgent(longRosterName)!.spawn
 // updating the roster afterwards would leave the row describing the previous
 // state.
 updateAgent(longRosterName, { status: "working", activeTool: "file: overlay.ts" });
-// ADR-0008 left no inspect row. The roster row reads `@children · N of M`: a
-// page has no state of its own, and one child's state never becomes the
-// subject's. Per-child facts appear only after expansion.
+// ADR-0008 left no inspect row. The roster row names no child and, because this
+// page omitted nothing, no count: a page has no state of its own, and one child's
+// state never becomes the subject's. Per-child facts appear only after expansion.
 const working = await callChild({ operation: "list" }, toolCtx);
 assert.equal(working.details.operation, "agent_list");
 assert.equal(working.details.disposition, "listed", working.content[0].text);
 const rosterCollapsed = render("leader:agent_list", {}, { details: working.details, text: working.content[0].text });
 expectReadable(rosterCollapsed, "roster row");
-assert.match(rosterCollapsed, /\[agent\] listed · @children · \d+ of \d+/, rosterCollapsed);
+assert.match(rosterCollapsed, /\[agent\] listed/, rosterCollapsed);
+assert.ok(!/\d+ of \d+/.test(rosterCollapsed), `a complete page carries no count:\n${rosterCollapsed}`);
 assert.ok(!/@ui-auditor · working/.test(rosterCollapsed),
   `a roster subject carries no child's state:\n${rosterCollapsed}`);
 const rosterRow = render("leader:agent_list", {}, { details: working.details, text: working.content[0].text, expanded: true });

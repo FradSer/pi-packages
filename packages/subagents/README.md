@@ -217,10 +217,13 @@ carries it. Ctrl+O uses Pi's configured expansion keybinding; no package-specifi
 input hook is added.
 
 Intent operation rows use the child's display label consistently, including
-queued input, steering, inspection and failure notices. A roster subject has no
-state of its own, so `agent_list` reads `[agent] listed · @children · N of M`.
-The page count stays collapsed because a page that shows a subset must say so.
-A stop row confirms process closure, not task completion.
+queued input, steering, inspection and failure notices. A roster has no state of
+its own and names no child, so `agent_list` reads `[agent] listed`, and
+`[agent] listed · 3 of 9` only when the page omits entries. The count stays
+collapsed because a page that shows a subset must say so without being opened;
+a page that shows everything has nothing to add, and a count that says "all of
+them" answers a question nobody asked. A stop row confirms process closure, not
+task completion.
 
 Successful result rows display the Agent headline and one Markdown-rendered copy of the answer.
 Native Markdown styles headings, lists, emphasis, links, and code blocks. Display

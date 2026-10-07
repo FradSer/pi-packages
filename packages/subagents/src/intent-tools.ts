@@ -86,14 +86,17 @@ function rowName(row: IntentSessionRow): string {
 }
 
 /** Keep exact control addresses in expanded metadata, never in a title. */
-function subjectFor(operation: IntentToolName, details: IntentRenderDetails): string {
+function subjectFor(details: IntentRenderDetails): string {
   const direct = displayText(details.label) ?? displayText(details.identity);
   if (direct) return displayName(direct);
   const current = details.session ? observed(details.session) : undefined;
   if (current) return displayName(current.label ?? current.identity ?? current.name);
   const name = displayText(details.name) ?? displayText(details.agent);
   if (name) return displayName(name);
-  if (operation === "agent_list") return "@children";
+  // The roster never reaches this: it is a set rather than a child, and
+  // `collapsedSubject` answers for it before asking for a subject here. `@` is the
+  // prefix of a real child's name, so a set must not borrow it — `@children` read
+  // as a child called "children" on a row where every other subject is one agent.
   return "@child";
 }
 
@@ -107,14 +110,17 @@ function withoutExactHandle(value: string, session?: string): string {
 const CHILD_STATES = new Set(["starting", "idle", "working", "stopped"]);
 
 /** One collapsed row per result: the child, then the state word the label lacks.
- *  A roster subject keeps its page count instead, because a roster has no state
- *  of its own and a page showing a subset has to say so without opening it. */
+ *  A roster has no state and no child's state becomes its subject, so a roster row
+ *  carries the page count instead — and only when the page omits something.
+ *  "4 of 4" answers a question the absence of a count already answers, while a
+ *  page that hides entries is the case that has to say so without being opened. */
 function collapsedSubject(operation: IntentToolName, details: IntentRenderDetails, label: string): string {
   if (operation === "agent_list") {
     const page = details.page;
-    return page ? `@children · ${page.returned} of ${page.totalSessions + page.totalDefinitions}` : "@children";
+    if (!page || page.omitted <= 0) return "";
+    return `${page.returned} of ${page.totalSessions + page.totalDefinitions}`;
   }
-  const subject = subjectFor(operation, details);
+  const subject = subjectFor(details);
   const state = displayText(details.state);
   if (!state || !CHILD_STATES.has(state) || state === label) return subject;
   return `${subject} · ${state}`;

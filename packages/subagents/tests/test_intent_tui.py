@@ -65,10 +65,12 @@ def test_intent_rows_use_readable_subjects_and_hide_handles_until_expanded() -> 
           assert.ok(!rows[operation].collapsed.includes(handle), rows[operation].collapsed);
           assert.ok(rows[operation].expanded.includes(handle), rows[operation].expanded);
         }
-        // A roster subject names no child, so its collapsed row carries the page
-        // count and each child's name waits for expansion.
+        // A roster names no child, so its collapsed row carries no child's name and,
+        // when the page omitted nothing, no count either: each name waits for
+        // expansion, and a count that says "all of them" says nothing.
         rows.agent_list = { collapsed: render("agent_list", listed, false), expanded: render("agent_list", listed, true) };
-        assert.ok(rows.agent_list.collapsed.includes("@children"), rows.agent_list.collapsed);
+        assert.ok(rows.agent_list.collapsed.includes("[agent] listed"), rows.agent_list.collapsed);
+        assert.ok(!/\d+ of \d+/.test(rows.agent_list.collapsed), rows.agent_list.collapsed);
         assert.ok(!rows.agent_list.collapsed.includes("reviewer"), rows.agent_list.collapsed);
         assert.ok(rows.agent_list.expanded.includes("reviewer") && rows.agent_list.expanded.includes(handle), rows.agent_list.expanded);
         // The roster carries each child's live facts, printed once, after expansion.
@@ -128,7 +130,7 @@ def test_actual_intent_results_retain_friendly_label_for_controls() -> None:
           assert.ok(render(operation, value, true).includes(session), `${operation} hid exact handle on expansion`);
         }
         const listCollapsed = render("agent_list", listed, false);
-        assert.ok(listCollapsed.includes("@children") && !listCollapsed.includes(session), listCollapsed);
+        assert.ok(listCollapsed.includes("[agent] listed") && !listCollapsed.includes(session), listCollapsed);
         assert.ok(render("agent_list", listed, true).includes("@friendly reviewer"), render("agent_list", listed, true));
         const expandedRoster = render("agent_list", listed, true);
         for (const fact of ["active tool · read", "error · diagnostic", "model · provider/model", "tools · read", "result · unanswered"]) {
