@@ -90,6 +90,11 @@ export interface Task {
    *  caller's own context. There is no parameter through which a caller could
    *  name somebody else. */
   claimedBy?: string;
+  /** The participant that recorded this Task, written by the runtime from the
+   *  caller's own context. A creator may deliver the outcome of work it did
+   *  itself without a separate take, so the accountable party is recoverable
+   *  from the record instead of demanding a call that records nothing new. */
+  createdBy?: string;
   /** Replacement Work that made this Work obsolete. */
   supersededBy?: string;
   /** The evidence recorded for the current or last attempt. Retained verbatim:

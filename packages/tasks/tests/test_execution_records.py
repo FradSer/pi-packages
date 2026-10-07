@@ -47,7 +47,7 @@ def test_restored_generated_execution_does_not_hide_explicit_recovery(tmp_path: 
     assert result["kind"] == "execution"
     assert result["evidence"] == "Interrupted"
     assert result["hold"] is True
-    assert result["status"] == "inspect"
+    assert result["status"] == "continue", "the blocked snapshot continues once; the blocker is named in its reason"
     assert "id=work:" not in result["content"]
 
 

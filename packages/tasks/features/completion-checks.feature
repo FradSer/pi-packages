@@ -147,3 +147,42 @@ Feature: A completion is checked before it is recorded
       Then both tasks are in recovery_hold
       And the flag is not written back
 
+  Rule: A creator is accountable for the work it records itself
+
+    Scenario: A task recorded and finished by the same caller completes without a take
+      Given a task recorded by this caller
+      When the caller completes it with its evidence
+      Then the completion is accepted
+      And no take was needed, because the record already names who is accountable
+
+    Scenario: A caller that neither took nor recorded the task is still refused
+      Given a task recorded by another participant
+      When this caller completes it
+      Then the completion is refused for having no attempt to accept
+
+  Rule: An honest attempt is not made to pay for the checks twice
+
+    Scenario: Create, take and complete is three calls, and the third one is accepted
+      Given a task created, taken, and worked on in this session
+      When it is completed with its evidence in that one completion call
+      Then the completion is accepted without a refusal
+      And the whole attempt cost the three calls the state machine requires
+
+    Scenario: A refusal names every unsatisfied check at once
+      Given a task being completed with more than one check unsatisfied
+      When the completion is refused
+      Then the refusal names every unsatisfied check, not only the first
+      And the model can satisfy all of them in the one call that follows
+
+    Scenario: The call after a refusal succeeds, so the attempt costs at most one extra call
+      Given a task whose completion was refused
+      When the caller supplies everything the refusal named
+      Then the completion is accepted
+      And the attempt has cost at most one call more than a task set without checks
+
+    Scenario: The checks that would refuse a first attempt are reported before it starts
+      Given a task carrying a completion gate
+      When it is taken
+      Then the result names what a completion of this task must carry
+      And an honest model can satisfy it in the completion call it was going to make anyway
+

@@ -41,6 +41,7 @@ import {
   blockedDependencies,
   claimableTasks,
   completableTasks,
+  completionRequirements,
   storeNotice,
   completeTaskWithOutcome,
   createTask,
@@ -79,6 +80,14 @@ const idField = { type: "string", minLength: 1, description: "The task id, copie
  *  field names, and it guessed `handOff` once already. The shape is also what
  *  `normalizeTaskContext` checks, so the schema and the store cannot drift into
  *  accepting a context the budget cannot account for. */
+/** The context parameter, declared open at every level below the top.
+ *
+ *  A closed schema here makes the validator the author of the refusal, and its
+ *  refusal reads like a schema rejection without field names: it names neither
+ *  the field's home nor what the field accepts. This package's own reader answers
+ *  both questions, so the shape stays open and `normalizeTaskContext` writes the
+ *  message. A handoff field written one level too high is moved into the handoff,
+ *  and a field no layer owns is refused by name, next to the fields that do exist. */
 const CONTEXT_PARAMS = {
   type: "object",
   properties: {
@@ -92,7 +101,6 @@ const CONTEXT_PARAMS = {
         priorFindings: stringArray("Findings a successor must not lose. Added to, never replaced."),
         outstanding: stringArray("Work known to be unfinished or unverified."),
       },
-      additionalProperties: false,
       description: "The brief a successor receives. Fields merge with whatever the task already carries.",
     },
     refs: {
@@ -105,7 +113,6 @@ const CONTEXT_PARAMS = {
           note: { type: "string", description: "Why this reference matters." },
         },
         required: ["kind", "id"],
-        additionalProperties: false,
       },
       description: "Prior work, reports, and files this task builds on.",
     },
@@ -116,7 +123,6 @@ const CONTEXT_PARAMS = {
       description: "Byte ceiling for this task's retained context. A task may be held to less than the default, never to more.",
     },
   },
-  additionalProperties: false,
 } as const;
 
 /** The shape of a Task as a result carries it. Every field is something a caller
@@ -174,6 +180,10 @@ export type TaskToolDetails = {
   shown?: number;
   truncated?: boolean;
   notice?: string;
+  /** What a completion of this task must carry, named when the task is taken.
+   *  The checks refuse a completion, so they are reported before the attempt
+   *  instead of after it. */
+  requirements?: string[];
 };
 
 /** The per-task projection as the declared result describes it.
@@ -242,6 +252,7 @@ export const TASK_TOOL_OUTPUT_SCHEMA = {
     shown: { type: "number", description: "How many of them this result carries." },
     truncated: { type: "boolean", description: "Whether a list was cut short." },
     notice: { type: "string", description: "A store-level fact the caller needs, such as an unreadable file." },
+    requirements: { type: "array", items: { type: "string" }, description: "What a completion of this task must carry, named when the task is taken." },
   },
   required: ["ok"],
   additionalProperties: false,
@@ -385,8 +396,11 @@ function text(body: string): ToolResult["content"] {
   return [{ type: "text", text: body }];
 }
 
-function fail(tool: string, message: string): ToolResult {
-  const details: TaskToolDetails = { ok: false, tool, error: message };
+/** A refusal. `task` is supplied when an edit in the same call was recorded
+ *  before the refusal, so the caller sees what it kept and what it must retry
+ *  rather than resending a payload the task set already accepted. */
+function fail(tool: string, message: string, task?: TaskProjection): ToolResult {
+  const details: TaskToolDetails = { ok: false, tool, error: message, ...(task ? { task } : {}) };
   return { content: text(message), details, structuredContent: details, isError: true };
 }
 
@@ -443,6 +457,7 @@ export async function executeTaskCreate(
   options: CallOptions = {},
 ): Promise<ToolResult> {
   const { str, list } = readers(params);
+  const me = callerIdentity(options.env);
   const subject = str("subject");
   if (!subject) return fail("create_task", "Creating a task requires a subject stating what must be done.");
   const dependsOn = list("dependsOn") ?? [];
@@ -450,6 +465,10 @@ export async function executeTaskCreate(
   if (unknown.length > 0) return fail("create_task", `Unknown task id in dependsOn: ${unknown.join(", ")}.`);
   const created = createTask({
     subject,
+    // From the caller's own context, never from a parameter: this is what makes
+    // the creator accountable for work it finishes without taking it, and a
+    // model-supplied value would make that accountability spoofable.
+    createdBy: me,
     ...(str("description") ? { description: str("description") } : {}),
     dependsOn,
     ...(str("verify") ? { verify: str("verify") } : {}),
@@ -601,15 +620,62 @@ export async function executeTaskUpdate(
     return fail("update_task", `status "${status}" is not a position this task set knows; use ${TASK_UPDATE_STATUSES.join(", ")}.`);
   }
 
-  if (status !== undefined && ["subject", "description", "dependsOn", "verify", "context"].some(key => params[key] !== undefined)) {
-    return fail("update_task", "Use separate calls for content edits and status changes. No change was recorded.");
+  // The content half runs first and is recorded before the status half is
+  // attempted. The two used to be refused outright when they arrived together,
+  // and the cost was real: a recorded session lost a whole evidence body to that
+  // refusal, resent it, and then decided the task list was not worth the round
+  // trips. A refusal now reports what it kept.
+  const patch: Parameters<typeof updateTask>[1] = {
+    ...(params.subject !== undefined ? { subject: str("subject") ?? "" } : {}),
+    ...(params.description !== undefined ? { description: str("description") ?? "" } : {}),
+    ...(params.dependsOn !== undefined ? { dependsOn: list("dependsOn") } : {}),
+    ...(params.verify !== undefined ? { verify: str("verify") ?? "" } : {}),
+  };
+  if (params.context !== undefined) {
+    // Read, not cast. The context arrives from a model, and a cast would store
+    // whatever spelling it used: a `handOff` key is then retained on the Task
+    // forever, read by no brief and measured by no budget.
+    const context = normalizeTaskContext(params.context);
+    if (!context.ok) return fail("update_task", context.error);
+    patch.context = context.value;
+  }
+  // Validated and applied before the status is read, so a refused status cannot
+  // discard an edit that was accepted, and a refused edit records neither half.
+  const edited = Object.keys(patch).length > 0 ? updateTask(id, patch) : undefined;
+  if (edited && !edited.ok) return fail("update_task", edited.reason);
+  if (edited) options.emit?.(TASK_EVENTS.updated, { id });
+
+  /** Name both halves: the edit that stands, and the status that must be retried. */
+  const refuseStatus = (reason: string): ToolResult => edited
+    ? fail("update_task", `${reason} The content edit in this call was recorded; the status change must be a separate call, so retry it once it can succeed.`, project(edited.task))
+    : fail("update_task", reason);
+
+  if (status === undefined) {
+    if (!edited) return fail("update_task", "Supply status, or edit at least one of subject, description, dependsOn, verify, context.");
+    return ok(`TASK · ${id} · updated`, { tool: "update_task", id, status: edited.task.status, task: project(edited.task) });
   }
 
   if (status === "in_progress") {
     const taken = takeTask(id, me, { ...(str("reason") ? { reason: str("reason") } : {}) });
-    if (!taken.ok) return fail("update_task", taken.reason);
+    if (!taken.ok) return refuseStatus(taken.reason);
     options.emit?.(TASK_EVENTS.taken, { id, holder: me, resources: taken.task.resources });
-    return ok(`TASK · ${id} · in_progress`, { tool: "update_task", id, status: taken.task.status, task: project(taken.task) });
+    // What would refuse a completion is named here, before the attempt, so an
+    // honest caller satisfies it in the call it was going to make anyway rather
+    // than discovering it one refusal at a time.
+    const requirements = completionRequirements(taken.task);
+    return ok(
+      [
+        `TASK · ${id} · in_progress`,
+        ...(requirements.length > 0 ? [`REQUIRED AT COMPLETION · ${requirements.join("; ")}`] : []),
+      ].join("\n"),
+      {
+        tool: "update_task",
+        id,
+        status: taken.task.status,
+        task: project(taken.task),
+        ...(requirements.length > 0 ? { requirements } : {}),
+      },
+    );
   }
 
   if (status === "completed") {
@@ -629,7 +695,7 @@ export async function executeTaskUpdate(
       result: str("result"),
       ...(str("verdict") ? { verdict: str("verdict") as CompletionVerdict } : {}),
     });
-    if (!delivered.ok) return fail("update_task", delivered.reason);
+    if (!delivered.ok) return refuseStatus(delivered.reason);
     const task = delivered.task;
     options.emit?.(TASK_EVENTS.completed, { id, outcome, holder: me, status: task.status });
     return ok(
@@ -649,7 +715,7 @@ export async function executeTaskUpdate(
 
   if (status === "pending") {
     const reopened = reopenTask(id);
-    if (!reopened.ok) return fail("update_task", reopened.reason);
+    if (!reopened.ok) return refuseStatus(reopened.reason);
     options.emit?.(TASK_EVENTS.reopened, { id, invalidated: reopened.invalidated.map((task) => task.id) });
     // What the reopen withdrew is named, not left for the model to discover on
     // the next list: a conclusion drawn on a premise that just moved is the thing
@@ -673,29 +739,7 @@ export async function executeTaskUpdate(
     );
   }
 
-  // Content only. A status transition is one of the three named routes above, so
-  // this cannot become a second way in.
-  const patch: Parameters<typeof updateTask>[1] = {
-    ...(params.subject !== undefined ? { subject: str("subject") ?? "" } : {}),
-    ...(params.description !== undefined ? { description: str("description") ?? "" } : {}),
-    ...(params.dependsOn !== undefined ? { dependsOn: list("dependsOn") } : {}),
-    ...(params.verify !== undefined ? { verify: str("verify") ?? "" } : {}),
-  };
-  if (params.context !== undefined) {
-    // Read, not cast. The context arrives from a model, and a cast would store
-    // whatever spelling it used: a `handOff` key is then retained on the Task
-    // forever, read by no brief and measured by no budget.
-    const context = normalizeTaskContext(params.context);
-    if (!context.ok) return fail("update_task", context.error);
-    patch.context = context.value;
-  }
-  if (Object.keys(patch).length === 0) {
-    return fail("update_task", "Supply status, or edit at least one of subject, description, dependsOn, verify, context.");
-  }
-  const updated = updateTask(id, patch);
-  if (!updated.ok) return fail("update_task", updated.reason);
-  options.emit?.(TASK_EVENTS.updated, { id });
-  return ok(`TASK · ${id} · updated`, { tool: "update_task", id, status: updated.task.status, task: project(updated.task) });
+  return fail("update_task", `status "${status}" is unhandled.`);
 }
 
 /**
@@ -760,8 +804,8 @@ const TOOLS: readonly Registration[] = [
   {
     name: "create_task",
     label: "Task create",
-    promptSnippet: "Record what must be done on the shared task list",
-    description: "Record one task with a subject and optional description. Use dependsOn to name prerequisite task ids. Independent tasks can run in parallel; dependent tasks wait until every prerequisite completes. Returns an id derived from the subject. supersedes replaces unfinished tasks and redirects their dependents atomically. verify states the completion requirements as a prompt, not a command.",
+    promptSnippet: "Record work with several steps or several files, or work that outlives this turn",
+    description: "Record one task with a subject and optional description. Use when a request has several steps or several files, or when the work outlives this turn; a single edit is not a task. A task is not a goal: a goal is one objective that keeps running until it is met, and a task is one unit of work in a list you order, take, and finish. Use dependsOn to name prerequisite task ids. Independent tasks can run in parallel; dependent tasks wait until every prerequisite completes. Returns an id derived from the subject. supersedes replaces unfinished tasks and redirects their dependents atomically. verify states the completion requirements as a prompt, not a command.",
     parameters: TASK_CREATE_PARAMS,
     execute: executeTaskCreate,
   },
@@ -785,7 +829,7 @@ const TOOLS: readonly Registration[] = [
     name: "update_task",
     label: "Task update",
     promptSnippet: "Update task content, dependencies, status, or completion evidence",
-    description: "Update one task. status=in_progress starts your attempt only when all prerequisites are completed. Perform the actual work before calling status=completed. Completion needs outcome=success or failed; success requires result evidence and a pass verdict when verify is declared. Failure records the blocker and sets a recovery hold. Taking held work needs an explicit recovery reason. status=pending reopens a completed task and invalidates dependent attempts and completions. Without status, edit subject, description, dependsOn, verify, or context. The id stays unchanged after a rename. dependsOn replaces prerequisite ids; [] clears them. Dependency edits reject unknown ids, self-dependencies, and cycles. An active or completed task cannot gain unfinished prerequisites. Use separate calls for content edits and status changes. This tool never starts or stops a participant and never dispatches work to a named one.",
+    description: "Update one task. status=in_progress starts your attempt only when all prerequisites are completed. Perform the actual work before calling status=completed. Completion needs outcome=success or failed; success requires result evidence and a pass verdict when verify is declared. Failure records the blocker and sets a recovery hold. Taking held work needs an explicit recovery reason. status=pending reopens a completed task and invalidates dependent attempts and completions. Without status, edit subject, description, dependsOn, verify, or context. The id stays unchanged after a rename. dependsOn replaces prerequisite ids; [] clears them. Dependency edits reject unknown ids, self-dependencies, and cycles. An active or completed task cannot gain unfinished prerequisites. One call may carry a content edit and a status change: the content half is validated and recorded first, and a refused status keeps the edit and names the half to retry. This tool never starts or stops a participant and never dispatches work to a named one.",
     parameters: TASK_UPDATE_PARAMS,
     execute: executeTaskUpdate,
   },

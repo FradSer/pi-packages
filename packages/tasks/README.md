@@ -22,6 +22,16 @@ pi install npm:@fradser/pi-tasks
 
 Use `dependsOn` for prerequisites. Independent tasks can run in parallel. A dependent task starts only after every prerequisite completes.
 
+### Reaching the model
+
+Registering a tool is not presenting it. A session that has never seen a task has no reason to look for one.
+
+The trigger conditions therefore live in two surfaces, and they do different jobs. `create_task` states when recording a task is warranted and how a task differs from a goal, in its snippet and its description, and those are sent to the provider on every turn already. On top of them the package injects one bounded note per request from its `context` hook, because a description cannot say when the situation calls for the tool: a session that never considers recording work never reads the description of the tool that would record it.
+
+The note carries no task state, so it is identical on every turn and lands at a fixed index after the system message. Each request therefore begins with exactly the previous one, and the provider's implicit prefix cache keeps matching. It is bounded, and tests pin its size, its position, and that one source file defines it.
+
+The tools do not reach a child process. A subagent cannot take or complete a task, so a leader records the outcome from the child's report.
+
 ### Task content
 
 The task interface has four core fields:
@@ -41,7 +51,7 @@ See the official [TypeScript SDK reference](https://code.claude.com/docs/en/agen
 Dependency edits replace the full list. An empty list clears it. Unknown ids, self-dependencies, and cycles are refused.
 An in-progress or completed task cannot gain unfinished prerequisites. Complete those prerequisites, or reopen a completed task before the edit.
 
-Use separate calls for content edits and status changes. A mixed call is refused without recording either change.
+One call may carry content edits and a status change. The content half is validated and recorded first. A refused status keeps the edit, reports what stands, and names the status change as the half to retry; a refused content edit records neither half. A refused status on its own still says it must be a separate call, because the status change is the half that did not happen.
 
 All task tool rows use the `tasks` label, an action, the task name, and a readable status.
 Runtime tool names and structured statuses stay unchanged.
@@ -130,6 +140,12 @@ The task file has exactly one writer. Installed on its own, this package is that
 writer: the extension entry reads the tasks at session start and writes them after
 every change, so a standalone set survives a restart. Loading and writes use only `tasks.json`.
 A layer that claims the store takes the persistence duty. This package then stands down, so only one writer remains.
+
+The task tools are project-extension tools. A child process runs without
+extensions, so it cannot reach them: a subagent cannot take or complete a task,
+and the layer that spawned it records the outcome. That limit is stated rather
+than worked around, because the alternative is a second task surface inside every
+child, which is a different package's problem.
 
 The old `board.json` filename and its path/resolver exports are retired. The runtime does not load, copy, rename, or delete those files.
 Existing files stay in place but do not supply tasks. Transfer required records explicitly before upgrading; this release performs no migration.
@@ -289,6 +305,12 @@ what would satisfy it. A model that has just finished one of a split needs the
 read side too — which of the remaining n can I mark done *now*, rather than
 discovering it one refused completion at a time.
 
+Two things keep that read side cheap. A refused completion names **every**
+unsatisfied check at once, each with its own remedy, so satisfying all of them is
+one call rather than one per rule. And taking a task reports what its completion
+must carry — the evidence, and the gate verdict when the task declares a gate — so
+the call that finishes the work is also the call that satisfies the checks.
+
 - **Every task names what is unfinished.** `dependsOn` says what the edges are;
   `blockedBy` says which of them are not completed, which is otherwise a
   comparison a caller makes by hand against a list.
@@ -411,20 +433,20 @@ New user input renews the allowance.
 
 Cancellation, provider errors, queued input, and another handler's continuation take precedence. The task check does not restart those runs.
 
-### Inspecting blocked work
+### Blocked work
 
-A displayed status row does not create another model request. If no task can immediately proceed, the harness requests one blocker inspection for that snapshot.
+A displayed status row does not create another model request. One task snapshot earns at most one continuation, whatever the state of its tasks: a snapshot with nothing immediately claimable is not a second kind of round, it is the same round with a different reason. The waiting reason names the blocker, and the status word stays `continue`.
 
 The model reads `get_task`, checks saved evidence and dependencies, and decides whether recovery is safe within the authorized scope. It supplies a recovery reason only after that check.
 
 The harness does not clear a recovery hold, transfer ownership, or mark work completed. If a blocker still requires access or user input, the model reports it.
 
-An unchanged blocked snapshot receives no further automatic inspection. Changed task state or new user input permits another check, within the same continuation limit.
+The reminder carries the recovery instruction only when a recovery hold is present, and an unchanged snapshot receives no further continuation. Changed task state or new user input permits another check, within the same continuation limit.
 
 The transcript names the reason:
 
 ```text
-[tasks] inspect · 1 unfinished task · inspect blockers · ctrl+o to expand
+[tasks] continue · 1 unfinished task · continue work · ctrl+o to expand
 [tasks] waiting · 1 unfinished task · recovery inspection required · ctrl+o to expand
 ```
 

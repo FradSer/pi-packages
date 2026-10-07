@@ -8,64 +8,58 @@ Read @README.md for the task interface and persistence contract.
 `tasks.json`. The old `board.json` file and its resolvers are retired and are not
 loaded, copied, renamed, or deleted. Task file version stays 2.
 
-The tree is dirty and uncommitted. Four changesets ship together:
+Uncommitted on this tree: the discoverability and cost change
+(`@../../.changeset/tasks-discoverable-and-cheap.md`), which follows the four
+changesets that shipped with `e86a44f`. The four are committed; the retirement
+baseline snapshot named in earlier revisions of this file is no longer needed.
 
-- `@../../.changeset/retire-task-board-runtime.md` — the retirement, reviewed.
-  Standards PASS, Spec PASS, candidate
-  `9fe82eeca789bad9bfea6c9c6dd6036316be22cebbf10327283b63bfb456db8c`.
-- `@../../.changeset/tasks-one-claimable-rule.md` — one definition of claimable work.
-- `@../../.changeset/tasks-one-refusal-shape.md` — one refusal shape. Breaking for
-  tasks and agent-teams together.
-- `@../../.changeset/tasks-settlement-and-completion-fixes.md` — the three fixes
-  below.
+## Why the tools were not used
 
-The retirement baseline snapshot is at
-`/var/folders/vn/whfnt01d4b19zg44txbtznbc0000gn/T/pi-tasks-retire-register-rfrzgz2o`.
-A git diff against HEAD includes that earlier work, so it is not a review scope
-on its own.
+Measured before the change, over 1152 session files under `~/.pi/agent/sessions`
+(437 in this repo, 59 here since 2026-10-01): `create_task` ran 17 times in 7
+sessions while `bash` ran 78178 times. The tools loaded and were exposed the whole
+time. Four causes, in the order they mattered:
 
-## Three settlement and completion fixes
+- **No per-turn presence.** The package bound five hooks, all of them either a
+  lifecycle reset or the settle check. `pi-goal` injects a capability note from
+  its `context` hook every turn, which is why goals are used; tasks had no
+  equivalent.
+- **A self-sealing reminder.** `src/stop-check.ts` returns early when no open task
+  exists, so the reminder could sustain the habit and never start it. All 5
+  sessions carrying `pi-tasks-status` are among the 7 that called `create_task`.
+- **The wrong moment.** `agent_before_settle` fires after the model considers the
+  work finished. A task record earns its value before the work starts.
+- **A cost at delivery.** The checks refused an honest single-attempt completion,
+  a mixed call discarded its content edits, and a misplaced context field was
+  refused with `schema is false`.
 
-- **Headless settlement prints.** The `waiting` and `paused` notices are transcript
-  rows. `TaskStopCheck.check` now takes `hasUI` from the settle handler's
-  `ExtensionContext` and returns `undefined` on a settlement that cannot continue
-  when the session has no UI. A continuation result keeps its `custom_message` in
-  every mode, because the model reads it on the next request. The passive-row
-  contract lives in `tests/test_task_stop_check.py`; the live suite asserts
-  non-empty stdout for `ignore`, `progress`, and `inspect-only`.
-- **A stale holder is not a hold.** `completeTaskWithOutcome` applies the holder
-  check only while `status === "in_progress"`. A restored pending task naming a
-  departed holder completes through the fallback path, as `takeTask` accepts it.
-  A task nobody ever took is still refused when the checks are on.
-- **A failure clears its gate answer.** An `outcome: "failed"` completion clears
-  `completionVerdict` and `completionGate`; the blocker stays as evidence.
+## What the change does
 
-Concurrent edits kept in the same files: the settlement summary row names the
-work once with no task-id prefix (`src/stop-check.ts`), `index.ts` re-exports
-`./src/stop-check.ts`, and the README and `features/task-stop-check.feature`
-carry that wording.
-
-## One definition of claimable work
-
-- `claimableTasks()` is the only answer to "what can a caller take". The `list_tasks`
-  filter and the settlement reminder both read it.
-- Fixes a real divergence: the reminder's own copy required an unheld task, and a
-  restored pending task still naming a departed holder is pending, so `takeTask`
-  accepts it. The reminder under-reported available work.
-- `resolveRecordKind` in `src/types.ts` names the restored-record classification
-  next to `TASKS_FILE_VERSION`. Present-but-invalid is repaired to `task`,
-  including `null`; only an absent value is inferred from the reserved namespace.
-
-## One refusal shape
-
-- Every refusal is `{ refusal, detail?, reason }`. `TaskRefusalPayload` is the
-  payload; `refuse()` and `refuseClaim()` are the only two constructors and both
-  delegate to one private builder.
-- The success flag stays what each operation's domain calls it: `ok` for a task
-  write, `applied` for a claim marker.
-- `takeTask`'s `"unknown"` became `"unknown-task"`, so one fact has one code.
-- Breaking. Consumers read `result.reason` where a result used `result.error`, and
-  read `result.refusal` to branch on why. The sentences themselves are unchanged.
+- The trigger conditions live in two surfaces. `create_task` carries them in its
+  snippet and its description, which are sent to the provider on every turn
+  already. `src/presence.ts` adds one bounded note per request from the `context`
+  hook, because a description cannot say when the situation calls for the tool: a
+  session that never considers recording work never reads the description of the
+  tool that would record it. The note carries no task state, so it is identical
+  every turn and lands at a fixed index after the system message, which keeps each
+  request a prefix of the last. `tests/test_discoverability.py` pins the note, its
+  bound, its position, and that one source file defines it.
+- A context-only write is not progress. The settlement snapshot no longer hashes
+  `context`, because a brief is what a successor reads rather than a change to
+  the work. Counting it bought another automatic continuation.
+- `normalizeTaskContext` moves a handoff field written at the context level into
+  `context.handoff`, and refuses a field no layer owns with a message naming the
+  field and where the handoff fields belong.
+- The nested schemas in `CONTEXT_PARAMS` are open for that reason: a closed one
+  made the validator the author of the refusal, and its wording was `schema is
+  false`. The top level stays closed, where the validator's wording is readable.
+- `executeTaskUpdate` validates and records the content half before it reads the
+  status half. A refused status keeps the edit and names the status change as the
+  half to retry. A refused content edit records neither half.
+- `checkCompletion` returns every unsatisfied check, and
+  `completionRefusalReasons` joins their remedies into one message.
+  `completionRequirements` names what a completion must carry, and the take path
+  reports it.
 
 ## Decisions taken deliberately, not oversights
 
@@ -74,38 +68,39 @@ carry that wording.
   file there. The shared live container is the arrangement, not an accident.
 - **The runtime verb section in `src/store.ts`.** `revertUndeliveredTake`,
   `acknowledgeSupersession`, `bindTask`, `failTasksHeldBy`, and `discardTask` are
-  named for what happened and stay unreachable from the model tools. Moving them
-  is churn without behaviour.
+  named for what happened and stay unreachable from the model tools.
+- **`checkCompletion` returns an array.** Breaking for a library consumer, and
+  nothing in this repository reads it outside `store.ts`. Naming one check at a
+  time was the cost the change exists to remove.
+- **The three-call state machine stays, with one route around it.** R5 asked for
+  the single-attempt path to be removed or proven cheap. It is proven cheap
+  instead: the take names the requirements, a refusal names every unmet check with
+  its remedy, and one call after a refusal succeeds. The recorded creator is the
+  route around the take, so a caller that records and finishes its own work pays
+  two calls. Removing the take outright would delete the attempt record that
+  `recovery_hold` rests on.
+- **The child-process limit is documented, not worked around.** A child runs
+  `pi --no-extensions`, so the four tools cannot reach it. A second task surface
+  inside every child is a different package's problem.
 
 ## Verification
 
-- `python3 -m pytest packages/tasks/tests/ -q` — 126 pass, 0 fail. The three new
-  red-first tests and the headless passive-entry test are in this count.
-- `python3 -m pytest packages/agent-teams/tests/ packages/subagents/tests/ -q`
-  with `PI_TASK_HOLDER` and `PI_TEAMMATE_*` stripped — 300 + 583 pass, 0 fail.
-  The resident session sets `PI_TASK_HOLDER`; two agent-teams fixtures copy
-  `os.environ` and derive a non-main holder without the strip. That is an
-  environment artifact of a resident run, not a code regression.
-- `pnpm typecheck` passes. `pnpm --dir packages/tasks pack --dry-run` lists
-  `index.ts`, all of `src/`, and `README.md`.
-- Two timeout fixtures in agent-teams had budgets below the runtime's own
-  30-second confirmation window; each finishes in about 31 seconds and reports ok,
-  so their budgets moved to 50 seconds. No runtime timeout changed.
+- `python3 -m pytest packages/tasks/tests/ -q` — 142 pass, 0 fail. Coverage
+  added by this change: `tests/test_discoverability.py` (the trigger conditions in
+  the tool surface, and that the package injects no message of its own), three
+  context tests in `tests/test_work_context.py`, `tests/test_completion_cost.py`,
+  and the rewritten mixed-call tests in `tests/test_task_contents.py`.
+- `pnpm typecheck` passes.
+- `pnpm --dir packages/tasks pack --dry-run` lists `index.ts`, all of `src/`, and
+  `README.md`.
+- `AGENTS.md` carries a Task Records section, which is where the tool trigger
+  conditions are stated for a session that has not read this file.
 
-## Headless output: resolved
+## Open, not fixed here
 
-A `pi --print` run that ended with unfinished work printed nothing and exited 0:
-the task check returned a result carrying a `custom_message` draft on the settle
-that ended the run. The check returns no result there when the session has no UI
-(`ctx.hasUI`), and the run prints its final assistant text. The stdout assertion
-in `tests/test_task_stop_live.py` pins it; the E2E scenario `bundle` still
-settles the task it created and says so at that step.
-
-`packages/agent-teams/tests/test_bundle_ack.py` carries two earlier fixes, both
-stale expectations in a file that was untracked and had never passed: it drove
-the composed `agent` tool under the intent interface, where that tool is not
-dispatchable, and it expected a surface named `task` when the tasks surface is
-four tools.
-
-Changes remain local and uncommitted. Reload Pi to pick up the reminder,
-refusal, and settlement changes.
+A spawned child lost its private session directory twice while this change was
+being delegated: the first run's JSONL tree was deleted mid-run, and the second
+run's `--session-dir` was gone within 90 seconds of `spawner.ts` creating it, so
+the child reported `ENOENT` with no usable answer. The child's file writes
+survived both times, which is how the feature scenarios in this change exist. The
+cause is outside `packages/tasks` and is not reproduced.

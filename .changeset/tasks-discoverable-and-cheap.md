@@ -1,0 +1,21 @@
+---
+"@fradser/pi-tasks": minor
+---
+
+Make the task tools discoverable, and stop charging for the checks that guard them.
+
+The four tools were registered and reachable, and a session that had never seen a task had no reason to look: measured over 1152 recorded sessions, `create_task` ran 17 times in 7 sessions while `bash` ran 78178 times. The package's only presence was a reminder that fires when unfinished tasks already exist, so it could sustain the habit and never start it.
+
+- The trigger conditions live in two surfaces. `create_task` states when recording a task is warranted and how a task differs from a pi-goal goal, in its snippet and its description, and those are sent to the provider on every turn already. On top of them the package injects one bounded note per request from its `context` hook, because a description cannot say when the situation calls for the tool: a session that never considers recording work never reads the description of the tool that would record it. The note carries no task state, so it is identical on every turn and lands at a fixed index after the system message, which keeps each request a prefix of the last one.
+- A context-only edit is no longer progress. The settlement snapshot hashed `context` along with the work, so a bookkeeping write bought another automatic continuation. A brief is what a successor reads, not a change to the task, and it no longer counts toward the continuation allowance.
+- The settlement reminder is shorter, and the blocked-work instruction is emitted only when a recovery hold is present. The body carried fourteen instruction lines repeated at every settlement; one recorded session spent three of these messages on a single task.
+- The `inspect` status word is gone, so the reminder has three states instead of four: `continue`, `waiting`, `paused`. This is a wording and branch simplification, not a reduction in rounds — `inspect` and `continue` already shared one continuation and one model turn. A blocked snapshot now says `continue` and names the blocker in its waiting reason.
+- The `update_task` description no longer tells a caller to use separate calls for a content edit and a status change. The behaviour had already changed to accept both in one call, and the description was still instructing the extra round trip.
+- A handoff field written at the context level is moved into `context.handoff` instead of being refused. The field names are unique to the handoff, so the caller meant the handoff and said it one level too high.
+- A field no layer of the context owns is refused with a message that names the field and says where the handoff fields belong. The nested schemas are open for this reason: a closed one made the validator the author of the refusal, and its wording was `schema is false`.
+- One `update_task` call may carry content edits and a status change. The content half is validated and recorded first; a refused status keeps the edit, reports what stands, and names the status change as the half to retry. A refused content edit records neither half.
+- A task records who created it, and that record is what lets a caller deliver work it recorded and finished itself. `create_task` fills `createdBy` from the caller's own context, never from a parameter, and a completion from the recorded creator is accepted without a separate take. A caller that neither took the task nor recorded it is still refused: the rule asks for an accountable party, not for a call that records nothing new.
+- A refused completion names every unsatisfied check at once, with the remedy for each, instead of one per round trip. Taking a task reports what its completion must carry, so the call that finishes the work is also the call that satisfies the checks.
+- `checkCompletion` now returns every unsatisfied check rather than the first. It is exported, so a caller that reads its return value must read an array.
+
+The repository's `AGENTS.md` now states when to use the task tools, and records that they do not reach a child process: a subagent cannot take or complete a task, so the leader records the outcome from the child's report.

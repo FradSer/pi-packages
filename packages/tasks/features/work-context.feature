@@ -116,3 +116,32 @@ Feature: A Task owns bounded context
       When the tags are recorded
       Then the recording is refused
       And the tags count against the byte budget like any other free text
+
+  Rule: A misplaced context field is corrected, not refused as unknown
+
+    Scenario: Handoff fields at the context level move into the handoff
+      Given a context carrying candidate, delta, verification, priorFindings and outstanding at the context level
+      When it is recorded
+      Then each of those fields is stored in the handoff
+      And the call is not refused for a field the context already defines
+
+    Scenario: A misplaced field the handoff does not own is named with its destination
+      Given a context carrying a handoff field at the context level
+      And a field no layer of this context owns
+      When it is recorded
+      Then the refusal names each misplaced field
+      And the refusal says which field owns it and where it belongs
+
+    Scenario: A moved field is not kept in both places
+      Given a context carrying a handoff field at the context level
+      When it is recorded and then read
+      Then the handoff holds the field exactly once
+      And the context level does not hold a second copy
+
+  Rule: A validation refusal does not describe the validator
+
+    Scenario: No model-facing text reports a schema as false
+      Given any refusal this package returns to a model
+      When its text is inspected
+      Then it does not contain the phrase "schema is false"
+      And it names the field and what the field accepts

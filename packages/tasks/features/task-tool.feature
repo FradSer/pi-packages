@@ -170,11 +170,18 @@ Feature: The task tools
       Then the edit is refused
       And no part of that edit is recorded
 
-    Scenario: Content edits and status changes use separate calls
+    Scenario: Content edits are recorded when a status change is refused
       Given a task with recorded content and status
-      When one update supplies content edits and a status change
-      Then the call is refused with a separate-call instruction
-      And the task stays unchanged
+      When one update supplies content edits and a status change that the task set refuses
+      Then the content edits are recorded
+      And the refusal names the status change and says it must be a separate call
+      And the refusal is reported alongside the edits that were applied
+
+    Scenario: A mixed call whose content is refused records neither half
+      Given a task with recorded content and status
+      When one update supplies content edits the task set refuses together with a status change
+      Then nothing is recorded
+      And the refusal names the field that must be corrected
 
     Scenario: New unfinished dependencies do not invalidate an active or completed task silently
       Given an in-progress or completed task

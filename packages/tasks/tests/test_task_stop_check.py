@@ -68,9 +68,9 @@ def test_in_progress_work_returns_to_model_context_before_settlement(tmp_path: P
     assert result["type"] == "pi-tasks-status"
     assert "unfinished" in result["content"]
     assert "in_progress" in result["content"]
-    assert "Perform the unfinished work" in result["content"]
-    assert "Do not mark a task completed only to stop" in result["content"]
-    assert "Continue only within the user's authorized scope" in result["content"]
+    assert "Continue in dependency order" in result["content"]
+    assert "Do not complete a task to stop" in result["content"]
+    assert "stay inside the user's authorized scope" in result["content"]
     assert result["display"] is True
     assert result["hasRenderer"] is True
     assert result["statusUnchanged"] == "in_progress"
@@ -119,7 +119,7 @@ def test_pi_boundary_handlers_retain_earlier_messages_and_edits(tmp_path: Path) 
         assert len(receipt["entries"]) == 3
         assert receipt["entries"][-1]["customType"] == "pi-tasks-status"
     assert result["available"]["continues"] is True
-    assert result["waiting"]["continues"] is True, "a blocker inspection also preserves earlier entries"
+    assert result["waiting"]["continues"] is True, "a blocked snapshot also preserves earlier entries"
 
 
 def test_malformed_saved_identity_does_not_disable_valid_task_reminders(tmp_path: Path) -> None:
@@ -253,7 +253,14 @@ def test_cancelled_failed_or_already_continuing_runs_are_not_restarted(tmp_path:
     assert result["status"] == "in_progress"
 
 
-def test_blocked_and_foreign_work_receive_one_inspection_without_forced_takeover(tmp_path: Path) -> None:
+def test_blocked_and_foreign_work_receive_one_continuation_without_forced_takeover(tmp_path: Path) -> None:
+    """One snapshot, one continuation, whatever the state.
+
+    The check used to ask a second kind of round: when nothing was immediately
+    claimable it requested an inspection turn of its own. That is a settlement
+    round per blocked snapshot on top of the continuation, so the blocker is now
+    named in the waiting reason instead and the round count is one.
+    """
     result = run(
         """
         task.createTask({ id: "foreign", subject: "Other participant work" });
@@ -262,7 +269,7 @@ def test_blocked_and_foreign_work_receive_one_inspection_without_forced_takeover
         task.createTask({ id: "failed", subject: "Recorded blocker" });
         task.takeTask("failed", "main");
         task.completeTaskWithOutcome("failed", "main", "failed", "Needs external access");
-        // The waiting row after the inspection is a transcript row, so this
+        // The waiting row after the continuation is a transcript row, so this
         // session drives a context that has a transcript to show it in.
         const ui = { ...ctx, hasUI: true };
         const waiting = await settle({}, ui);
@@ -281,13 +288,13 @@ def test_blocked_and_foreign_work_receive_one_inspection_without_forced_takeover
         """,
         tmp_path,
     )
-    assert result["waitingContinues"] is True, "a displayed status must reach the model for inspection"
-    assert result["waitingStatus"] == "inspect"
+    assert result["waitingContinues"] is True, "a blocked snapshot still earns exactly one continuation"
+    assert result["waitingStatus"] == "continue"
     assert "Read get_task" in result["waitingContent"]
-    assert "Do not retry a failed attempt or take another participant's task" in result["waitingContent"]
+    assert "inspect the saved evidence" in result["waitingContent"], "a recovery hold is present, so its instruction is emitted"
     assert "blocked_by=foreign" in result["waitingContent"]
     assert "holder=alpha" in result["waitingContent"]
-    assert "recovery hold" in result["waitingContent"], "the state is named in the status slot now"
+    assert "Waiting reason" in result["waitingContent"], "the blocker is named instead of a status slot"
     assert result["inspectionContinues"] is False, "unchanged blockers must not trigger repeated attempts"
     assert result["inspectionStatus"] == "waiting"
     assert "Other participant" in result["inspectionContent"]
@@ -365,9 +372,9 @@ def test_restored_interrupted_work_is_inspected_before_safe_recovery(tmp_path: P
         tmp_path,
     )
     assert result["inspectedContinues"] is True
-    assert result["inspectionStatus"] == "inspect"
+    assert result["inspectionStatus"] == "continue"
     assert "recovery hold" in result["content"]
-    assert "only if recovery is safe" in result["content"]
+    assert "recover only if that is safe" in result["content"]
     assert result["beforeTake"] == {"status": "recovery_hold", "recoveryHold": True, "holder": None}
     assert result["resumeContinues"] is True
     assert result["resumeStatus"] == "continue"
@@ -561,3 +568,74 @@ def test_a_status_row_names_the_work_once_rather_than_its_id_spelling() -> None:
     assert "fix-the-three-audited-defects" not in first, first
     # Dependency relations still name the ids they refer to.
     assert "depends · fix-the-three-audited-defects" in result[1]
+
+
+def test_a_context_only_edit_does_not_buy_another_continuation(tmp_path: Path) -> None:
+    """The brief is not progress.
+
+    A context edit records what a successor needs; it changes nothing about the
+    work. Counting it as progress bought an extra automatic continuation, which is
+    what the continuation allowance exists to bound. A content edit is the
+    contrast that keeps this from becoming "no edit counts".
+    """
+    result = run(
+        """
+        task.createTask({ id: "briefed", subject: "Implement the feature" });
+        task.takeTask("briefed", "main");
+        const uiCtx = { ...ctx, hasUI: true };
+        const first = await settle({}, uiCtx);
+        const brief = task.updateTask("briefed", {
+          context: { handoff: { delta: "Recorded what the attempt found." } },
+        });
+        assert.equal(brief.ok, true);
+        const afterBrief = await settle({}, uiCtx);
+        const renamed = task.updateTask("briefed", { subject: "Implement the feature properly" });
+        assert.equal(renamed.ok, true);
+        const afterRename = await settle({}, uiCtx);
+        console.log(JSON.stringify({
+          first: first.continue,
+          afterBrief: afterBrief.continue,
+          afterRename: afterRename.continue,
+        }));
+        """,
+        tmp_path,
+    )
+    assert result["first"] is True
+    assert result["afterBrief"] is False, "a context-only write is not task progress"
+    assert result["afterRename"] is True, "a content edit is progress"
+
+
+def test_the_reminder_body_is_bounded_and_pays_only_for_what_is_present(tmp_path: Path) -> None:
+    """Every line is repeated at every settlement.
+
+    The body carried fourteen instruction lines, and one recorded session spent
+    three of these messages on a single task. The instruction that is not always
+    true — what a recovery hold requires — is emitted only when a hold is present,
+    and the body stays short enough that this cannot grow back unnoticed.
+    """
+    result = run(
+        """
+        task.createTask({ id: "plain", subject: "Ordinary unfinished work" });
+        task.takeTask("plain", "main");
+        const plain = await settle();
+        const plainMessage = plain.entries[0].content;
+        const bodyLines = plainMessage.split("\\n").filter((line) => (
+          !line.startsWith("- id=") && !/^claimable=|^Current caller=/.test(line)
+        ));
+        task.createTask({ id: "held", subject: "Attempted and did not stand" });
+        task.takeTask("held", "main");
+        task.completeTaskWithOutcome("held", "main", "failed", "Needs access");
+        const withHold = await settle();
+        console.log(JSON.stringify({
+          plainLines: bodyLines,
+          holdMentionsRecovery: /recovery hold needs a stated reason/.test(withHold.entries[0].content),
+        }));
+        """,
+        tmp_path,
+    )
+    lines = result["plainLines"]
+    assert len(lines) <= 6, f"the reminder body stays bounded: {lines}"
+    assert not any("recovery hold needs a stated reason" in line for line in lines), (
+        "no recovery instruction without a recovery hold"
+    )
+    assert result["holdMentionsRecovery"] is True, "the instruction is emitted when a hold is present"

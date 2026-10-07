@@ -71,6 +71,23 @@ update installed paths in `~/.pi/agent/settings.json`.
   context; the transcript shows only the line. Reference:
   @packages/impeccable/src/index.ts, @packages/matt-pocock/src/index.ts.
 
+## Task Records
+
+Record work in `packages/tasks` when a request has several steps or several
+files, or when the work outlives the turn. A single edit is not a task.
+
+- `create_task` records the work, its `dependsOn`, and its completion gate.
+- `update_task` moves it: `in_progress` takes it, `completed` delivers it with
+  its evidence, `pending` reopens it. One call may carry both a content edit and
+  a status change; a refused status keeps the edit.
+- `get_task` reads one task in full. `list_tasks` reads the list.
+
+A goal is not a task. A goal is one objective that keeps running until it is
+met. A task is one unit of work in a list you order, take, and finish.
+
+The task tools do not reach a child process. A subagent cannot take or complete
+a task, so the leader records the outcome from the child's report.
+
 ## Decision Boundaries & Completion
 
 - **Autonomous local work**: Contributors and agents are authorized to modify

@@ -258,7 +258,14 @@ function readStringList(value: unknown, label: string): { ok: true; value?: stri
  * **A field the task store has no definition for is refused.** Repairing it by
  * dropping it would leave the caller believing a brief was recorded when nothing
  * was, and storing it would leave a field in the Task that no reader, no budget,
- * and no successor brief knows how to interpret.
+ * and no successor brief knows how to interpret. The refusal names the field and
+ * says where the handoff fields belong, because the one mistake this sees most
+ * is a handoff written one level too high.
+ *
+ * **A handoff field written at the context level is moved, not refused.** The
+ * field names are unique to the handoff, so the caller meant the handoff and
+ * said it one level too high. Refusing it cost a round trip and taught nothing:
+ * the recorded session lost a whole evidence body to this, twice.
  *
  * **A field of the wrong type is refused for the same reason.** The budget is
  * measured in bytes precisely so a value cannot be wrong *and* unmeasured, but a
@@ -275,11 +282,12 @@ function readStringList(value: unknown, label: string): { ok: true; value?: stri
  */
 export function normalizeTaskContext(value: unknown): ContextRead {
   if (!isPlainObject(value)) return { ok: false, error: "context must be an object." };
-  const unknown = unknownFields(value, CONTEXT_FIELDS);
+  const misplaced = HANDOFF_FIELDS.filter((field) => value[field] !== undefined);
+  const unknown = unknownFields(value, [...CONTEXT_FIELDS, ...HANDOFF_FIELDS]);
   if (unknown.length > 0) {
     return {
       ok: false,
-      error: `context has no field named ${unknown.sort().join(", ")}; it carries ${CONTEXT_FIELDS.join(", ")}.`,
+      error: `context has no field named ${unknown.sort().join(", ")}; it carries ${CONTEXT_FIELDS.join(", ")}, and ${HANDOFF_FIELDS.join(", ")} belong inside context.handoff.`,
     };
   }
   const context: TaskContext = {};
@@ -288,9 +296,19 @@ export function normalizeTaskContext(value: unknown): ContextRead {
   if (!workspacePath.ok) return workspacePath;
   if (workspacePath.value) context.workspacePath = workspacePath.value;
 
+  // One source for the handoff, so a field cannot end up in both places. The
+  // explicit `handoff` object wins a field the two spell differently, because a
+  // caller that wrote both meant the nested one.
+  const handoffSource: Record<string, unknown> = {};
   if (value.handoff !== undefined) {
     if (!isPlainObject(value.handoff)) return { ok: false, error: "context.handoff must be an object." };
-    const unknownHandoff = unknownFields(value.handoff, HANDOFF_FIELDS);
+    Object.assign(handoffSource, value.handoff);
+  }
+  for (const field of misplaced) {
+    if (handoffSource[field] === undefined) handoffSource[field] = value[field];
+  }
+  if (Object.keys(handoffSource).length > 0) {
+    const unknownHandoff = unknownFields(handoffSource, HANDOFF_FIELDS);
     if (unknownHandoff.length > 0) {
       return {
         ok: false,
@@ -299,12 +317,12 @@ export function normalizeTaskContext(value: unknown): ContextRead {
     }
     const handoff: TaskHandoff = {};
     for (const field of ["candidate", "delta", "verification"] as const) {
-      const read = readString(value.handoff[field], `context.handoff.${field}`);
+      const read = readString(handoffSource[field], `context.handoff.${field}`);
       if (!read.ok) return read;
       if (read.value) handoff[field] = read.value;
     }
     for (const field of ["priorFindings", "outstanding"] as const) {
-      const read = readStringList(value.handoff[field], `context.handoff.${field}`);
+      const read = readStringList(handoffSource[field], `context.handoff.${field}`);
       if (!read.ok) return read;
       if (read.value?.length) handoff[field] = read.value;
     }

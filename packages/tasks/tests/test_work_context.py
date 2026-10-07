@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from task_helpers import PACKAGE, run_node
+from task_helpers import PACKAGE, run_node, source
 
 TASK = (PACKAGE / "index.ts").as_uri()
 
@@ -652,3 +652,109 @@ def test_a_work_item_records_a_workspace_path_and_never_a_session_id(tmp_path: P
     assert "sessionId" not in source and "SessionManager" not in source, (
         "@fradser/pi-tasks must not resolve or store session handles; Pi owns session storage"
     )
+
+
+def test_a_handoff_field_written_at_the_context_level_moves_into_the_handoff(tmp_path: Path) -> None:
+    """The shape a real session sent, and lost a whole evidence body to.
+
+    A model wrote candidate, delta, verification, priorFindings and outstanding one
+    level too high. The validator refused it with `schema is false`, which names
+    neither the field's home nor what it accepts, and the payload was resent.
+    """
+    result = run(
+        '''
+        task.createTask({ id: "w2", subject: "misplaced handoff" });
+        const written = task.setTaskContext("w2", {
+          workspacePath: "/repo",
+          candidate: "rev abc123",
+          delta: "rewrote the retry loop",
+          verification: "42 tests pass",
+          priorFindings: ["F1: unbounded list"],
+          outstanding: ["sandbox profile not implemented"],
+        });
+        const item = task.getTask("w2");
+        console.log(JSON.stringify({ written: written.ok, context: item.context }));
+        ''',
+        tmp_path,
+    )
+    assert result["written"] is True
+    context = result["context"]
+    assert context["workspacePath"] == "/repo"
+    assert context["handoff"] == {
+        "candidate": "rev abc123",
+        "delta": "rewrote the retry loop",
+        "verification": "42 tests pass",
+        "priorFindings": ["F1: unbounded list"],
+        "outstanding": ["sandbox profile not implemented"],
+    }
+    # Moved, not copied: a field kept in both places is a field two readers can
+    # disagree about.
+    for moved in ("candidate", "delta", "verification", "priorFindings", "outstanding"):
+        assert moved not in context, moved
+
+
+def test_a_field_no_layer_owns_is_refused_with_its_destination(tmp_path: Path) -> None:
+    result = run(
+        '''
+        task.createTask({ id: "w3", subject: "unknown context field" });
+        const refused = task.setTaskContext("w3", { delta: "kept", nonsense: "dropped" });
+        console.log(JSON.stringify({ refused: refused.ok, reason: refused.reason, context: task.getTask("w3").context ?? null }));
+        ''',
+        tmp_path,
+    )
+    assert result["refused"] is False
+    reason = str(result["reason"])
+    assert "nonsense" in reason
+    assert "context.handoff" in reason
+    # Nothing was recorded: a refusal that stored half the payload is the failure
+    # this shape exists to prevent.
+    assert result["context"] is None
+
+
+def test_the_declared_context_schema_lets_the_package_write_the_refusal(tmp_path: Path) -> None:
+    """No model-facing text says a schema is false.
+
+    A closed nested schema makes the validator the author of the refusal, and its
+    wording names neither the field's home nor what the field accepts. The nested
+    shapes are open so `normalizeTaskContext` writes the message; the top level
+    stays closed, because there the validator's wording is already readable.
+    """
+    result = run(
+        '''
+        const params = task.TASK_UPDATE_PARAMS;
+        const context = params.properties.context;
+        console.log(JSON.stringify({
+          contextOpen: context.additionalProperties !== false,
+          handoffOpen: context.properties.handoff.additionalProperties !== false,
+          refOpen: context.properties.refs.items.additionalProperties !== false,
+          topClosed: params.additionalProperties === false,
+          schema: JSON.stringify(params),
+        }));
+        ''',
+        tmp_path,
+    )
+    assert result["contextOpen"] is True
+    assert result["handoffOpen"] is True
+    assert result["refOpen"] is True
+    assert result["topClosed"] is True
+    # The phrase the model must never be shown, in the schema or in any source
+    # string that could reach it.
+    assert "schema is false" not in str(result["schema"])
+    # The phrase may appear in a comment that explains why the nested schemas are
+    # open. What matters is that no refusal the package returns carries it, so this
+    # drives the refusals rather than scanning the source.
+    refusals = run(
+        '''
+        task.createTask({ id: "w4", subject: "refusal text" });
+        const unknown = task.setTaskContext("w4", { nonsense: "no layer owns it" });
+        const wrongType = task.setTaskContext("w4", { handoff: { priorFindings: [7] } });
+        console.log(JSON.stringify({ unknown: unknown.reason, wrongType: wrongType.reason }));
+        ''',
+        tmp_path,
+    )
+    for kind, message in refusals.items():
+        assert "schema is false" not in str(message), kind
+        # A refusal names the field and what the field accepts.
+        assert str(message).strip(), kind
+    assert "nonsense" in str(refusals["unknown"])
+    assert "context.handoff.priorFindings" in str(refusals["wrongType"])

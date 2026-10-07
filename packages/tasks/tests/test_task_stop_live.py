@@ -99,7 +99,7 @@ def test_native_pi_delivers_task_state_and_bounds_continuation(tmp_path: Path, m
         assert list(tasks) == ["restored-task"]
         assert requests[0]["reminders"] == 0
         assert requests[1]["reminders"] == 1, "Blocked state must reach the next provider request"
-        assert settled["reminders"][0]["details"]["status"] == "inspect"
+        assert settled["reminders"][0]["details"]["status"] == "continue"
         assert "recovery hold" in settled["reminders"][0]["content"]
         assert len(settled["taskReads"]) == 1
         observed = settled["taskReads"][0]["task"]
@@ -112,7 +112,10 @@ def test_native_pi_delivers_task_state_and_bounds_continuation(tmp_path: Path, m
             assert (tmp_path / "first.txt").read_text() == "Recovered task implementation\n"
             assert len(settled["reminders"]) == 1
         else:
-            assert len(requests) == 3, "An unchanged recovery blocker receives only one inspection run"
+            assert len(requests) == 3, "An unchanged recovery blocker receives only one continuation run"
+            # One continuation per snapshot is the whole rule now: the blocked
+            # state is named in the reminder's waiting reason rather than in a
+            # second kind of settlement round.
             # Inspection is read-only. The saved pre-recovery attempt remains
             # unchanged until a task mutation persists the restored state.
             assert tasks["restored-task"]["status"] == "in_progress"
@@ -120,7 +123,7 @@ def test_native_pi_delivers_task_state_and_bounds_continuation(tmp_path: Path, m
             assert (tmp_path / "first.txt").read_text() == "Interrupted task output\n"
             # The inspection request carries its row; the follow-up waiting row
             # is suppressed headless, so the run prints its final text instead.
-            assert [item["details"]["status"] for item in settled["reminders"]] == ["inspect"]
+            assert [item["details"]["status"] for item in settled["reminders"]] == ["continue"]
             assert "recovery inspection required" in settled["reminders"][-1]["content"]
         return
     assert len(tasks) == 2

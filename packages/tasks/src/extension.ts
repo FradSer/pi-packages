@@ -6,7 +6,8 @@
  * entry. A separate top-level extension file would split that, and the root
  * `index.ts` is what every other runtime package here loads.
  *
- * It registers the four task tools and owns nothing else. Tasks changes are announced
+ * It registers the four task tools, the note that makes them discoverable, and
+ows nothing else. Tasks changes are announced
  * through `pi.events` so a coordinator can notice and wake participants without this
  * package knowing what a participant is; with nobody subscribed the emit is a
  * no-op, which is the correct degradation.
@@ -38,11 +39,21 @@ import {
   setStoreNotice,
   tasks,
 } from "./store.ts";
+import { injectTaskCapabilityNote } from "./presence.ts";
 import { registerTaskTools } from "./tool.ts";
 
 export default function piTasks(pi: Parameters<typeof registerTaskTools>[0]): void {
   registerTaskTools(pi, { renderResult: createTaskResultRenderer });
 
+  // Two surfaces carry the trigger conditions, and they do different jobs. The
+  // tool descriptions say what each tool is for, beside the tool itself. The note
+  // says when the situation calls for one at all, which a description cannot say:
+  // a session that never considers recording work never reads a description of
+  // the tool that would record it. The note is bounded, carries no task state, and
+  // lands at a fixed index, so it costs one stable block per request and keeps
+  // each request a prefix of the last. The settle reminder is the third surface,
+  // and it fires only when unfinished tasks already exist.
+  pi.on("context", async (event) => ({ messages: injectTaskCapabilityNote(event.messages) }));
   pi.on("session_start", async (_event, ctx) => {
     // Released before anything else, so every path below starts with this process
     // owning no task file at all. A writer surviving a switch is not a second

@@ -2,6 +2,7 @@ export * from "./src/context.ts";
 export * from "./src/graph.ts";
 export * from "./src/rows.ts";
 export * from "./src/persist.ts";
+export * from "./src/presence.ts";
 export * from "./src/types.ts";
 export * from "./src/store.ts";
 export * from "./src/stop-check.ts";

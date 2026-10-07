@@ -322,6 +322,9 @@ export function createTask(input: {
     verify?: string;
     resources?: string[];
     supersedes?: string[];
+    /** Who recorded it, from the caller's own context. Optional because the
+     *  library path is used by callers with no participant identity. */
+    createdBy?: string;
   }): { ok: true; task: Task; superseded: Task[] } | TaskRefusalResult {
     const subject = input.subject.trim();
     if (!subject) return refuse("invalid-content", "Task subject must not be empty.");
@@ -381,6 +384,7 @@ export function createTask(input: {
       verify: input.verify?.trim() || undefined,
       resources,
       status: "pending",
+      ...(input.createdBy ? { createdBy: input.createdBy } : {}),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -841,11 +845,40 @@ export const ALL_COMPLETION_CHECKS: CompletionChecks = {
   requireGateVerdict: true,
 };
 
+/** What a completion of this task must carry, in the words a caller acts on.
+ *
+ *  The checks refuse a completion, which makes them a write-side flow: a caller
+ *  learns them by being turned away. This is the read side, named when the task is
+ *  taken, so the call that completes the work is also the call that satisfies the
+ *  rules rather than the first of several.
+ *
+ *  The requirements follow the enabled checks: a task set that asks for nothing
+ *  promises nothing, and a requirement it would not enforce is a claim this
+ *  cannot keep. */
+export function completionRequirements(
+  task: Task,
+  checks: CompletionChecks = ALL_COMPLETION_CHECKS,
+): string[] {
+  const requirements: string[] = [];
+  if (checks.requireDependenciesCompleted) {
+    const unfinished = blockedDependencies(task);
+    if (unfinished.length > 0) requirements.push(`dependencies completed: ${unfinished.join(", ")}`);
+  }
+  if (checks.requireEvidence) requirements.push("a result recording the evidence");
+  if (checks.requireGateVerdict && task.verify?.trim()) {
+    requirements.push(`a verdict of pass or fail for its gate: ${task.verify.trim()}`);
+  }
+  return requirements;
+}
+
 /** What a caller may say about a completion beyond the outcome. */
 export interface CompletionOptions {
   checks?: CompletionChecks;
   /** The answer to the task's declared gate, when it has one. */
   verdict?: CompletionVerdict;
+  /** The party delivering the outcome. Read by `requirePriorHold`, which asks
+   *  whether this caller may speak for an attempt at all. */
+  holder?: string;
   /** The evidence this completion would record.
    *
    *  Carried rather than read off the task because the check runs *before* the
@@ -871,33 +904,65 @@ export type CompletionRefusal =
  * Exported because a caller coordinating a submission runs this before it
  * decides to record one, and a refusal it can name is more useful than a
  * completion it has to walk back.
+ *
+ * Every unsatisfied check is returned, not the first one found. Naming one at a
+ * time made the checks cost a round trip each: the caller satisfied the one it
+ * was told about, was refused for the next, and paid again. The remedy sentence
+ * for each is separate, so a caller can still satisfy all of them in one call.
  */
 export function checkCompletion(
   task: Task,
   outcome: "success" | "failed",
   options: CompletionOptions = {},
-): CompletionRefusal | undefined {
+): CompletionRefusal[] {
   const checks = options.checks;
-  if (!checks) return undefined;
+  if (!checks) return [];
+  const refusals: CompletionRefusal[] = [];
   if (checks.requireDependenciesCompleted) {
     const unfinished = task.dependsOn.find((id) => tasks[id]?.status !== "completed");
-    if (unfinished) return "unfinished-dependency";
+    if (unfinished) refusals.push("unfinished-dependency");
   }
   if (checks.requirePriorHold) {
     // A holder that reported a failure is on the record as a recovery hold, and
     // that is what makes an unheld task accept-able. Never taken is not the same
     // thing, and conflating them is how a task set ends up accepting work that was
     // never attempted.
-    if (task.claimedBy === undefined && task.status !== "recovery_hold") return "never-taken";
+    //
+    // The recorded creator is the third case, and it is not a hole in the rule: a
+    // task a caller recorded and then finished itself has an accountable party on
+    // the record — that caller — so demanding a take would add a call that records
+    // nothing the task does not already say. A caller that neither took the task
+    // nor recorded it is still refused.
+    const isCreator = task.createdBy !== undefined && task.createdBy === options.holder;
+    if (task.claimedBy === undefined && task.status !== "recovery_hold" && !isCreator) {
+      refusals.push("never-taken");
+    }
   }
-  if (outcome !== "success") return undefined;
-  const evidence = options.result !== undefined ? options.result : task.result;
-  if (checks.requireEvidence && !evidence?.trim()) return "no-evidence";
-  if (checks.requireGateVerdict) {
-    if (task.verify?.trim() && options.verdict === undefined) return "ungated-verdict";
-    if (options.verdict === "fail") return "gate-failed";
+  // A failure is not a judgement on the work, so the checks that read a
+  // judgement — evidence and the gate answer — do not apply to it. It is the
+  // route out of work that could not be started.
+  if (outcome === "success") {
+    const evidence = options.result !== undefined ? options.result : task.result;
+    if (checks.requireEvidence && !evidence?.trim()) refusals.push("no-evidence");
+    if (checks.requireGateVerdict) {
+      if (task.verify?.trim() && options.verdict === undefined) refusals.push("ungated-verdict");
+      else if (options.verdict === "fail") refusals.push("gate-failed");
+    }
   }
-  return undefined;
+  return refusals;
+}
+
+/** Every unsatisfied check as one message, each keeping its own remedy.
+ *
+ *  The machine code a refusal carries stays the first check that failed, because
+ *  the code is a closed set a caller switches on. The reason is where the whole
+ *  list lives: a caller that branches on the code still receives the rest. */
+export function completionRefusalReasons(
+  taskId: string,
+  refusals: readonly CompletionRefusal[],
+  detail?: { dependency?: string; verify?: string },
+): string {
+  return refusals.map((refusal) => completionRefusalReason(taskId, refusal, detail)).join(" ");
 }
 
 /** Why a completion was refused, in text a caller can act on. Every one names
@@ -913,7 +978,7 @@ export function completionRefusalReason(
     case "no-evidence":
       return `Task "${taskId}" cannot be completed with no result recorded. A success is a judgement against the task's requirements, so it carries the evidence for that judgement.`;
     case "never-taken":
-      return `Task "${taskId}" was never taken, so there is no attempt to accept. Take it, or record a failure first if the work could not be started.`;
+      return `Task "${taskId}" was never taken and was not recorded by this caller, so there is no attempt to accept. Take it, or record a failure first if the work could not be started.`;
     case "ungated-verdict":
       return `Task "${taskId}" declares a completion gate ("${detail?.verify ?? ""}"), so completing it needs a verdict for that gate: pass or fail.`;
     case "gate-failed":
@@ -966,14 +1031,14 @@ export function completeTaskWithOutcome(
   // Checked before anything is written, so a refusal leaves no partial state —
   // and with the evidence this call would record, so the rule reads what the
   // caller is offering rather than what the task happened to hold.
-  const refusal = checkCompletion(task, outcome, { ...options, result });
-  if (refusal) {
-    const dependency = refusal === "unfinished-dependency"
+  const refusals = checkCompletion(task, outcome, { ...options, holder, result });
+  if (refusals.length > 0) {
+    const dependency = refusals.includes("unfinished-dependency")
       ? task.dependsOn.find((id) => tasks[id]?.status !== "completed")
       : undefined;
     return refuse(
-      refusal,
-      completionRefusalReason(taskId, refusal, {
+      refusals[0],
+      completionRefusalReasons(taskId, refusals, {
         ...(dependency ? { dependency } : {}),
         ...(task.verify ? { verify: task.verify } : {}),
       }),

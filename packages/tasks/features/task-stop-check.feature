@@ -45,11 +45,11 @@ Feature: The harness checks unfinished tasks before the model stops
       Then the task check requests no additional continuation
       And it does not consume its reminder allowance
 
-    Scenario: Blocked work reaches the model for inspection
+    Scenario: A blocked snapshot earns one continuation and no second round
       Given no unfinished task can immediately proceed in this session
       When the model attempts to stop
-      Then the harness requests one blocker inspection for that task snapshot
-      And the model reads the task and checks its recovery conditions
+      Then the harness requests one continuation for that task snapshot
+      And the status row names the blocker in its waiting reason
       And the harness does not clear a hold or transfer ownership itself
 
     Scenario: An unchanged blocker does not create an automatic retry loop
@@ -109,7 +109,7 @@ Feature: The harness checks unfinished tasks before the model stops
     Scenario: Status rows follow the task display language
       Given unfinished tasks with declared dependencies
       When the harness renders its status message
-      Then the row uses tasks and a status action such as continue, inspect, waiting, or paused
+      Then the row uses tasks and a status action such as continue, waiting, or paused
       And its expansion shows a bounded task summary with dependency ids and unfinished prerequisites
       And each summary line names the work once, so a derived id never repeats its own subject
       And full continuation instructions remain in model context instead of the transcript

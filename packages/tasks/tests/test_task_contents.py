@@ -257,31 +257,78 @@ def test_dependency_edits_validate_the_graph_before_recording_any_content(tmp_pa
     assert result["finalEdges"] == ["prerequisite"]
 
 
-def test_status_requests_do_not_silently_discard_content_edits(tmp_path: Path) -> None:
+def test_content_edits_are_recorded_when_a_status_change_is_refused(tmp_path: Path) -> None:
+    """R4. Contract: features/task-tool.feature, "Content edits are recorded when a
+    status change is refused".
+
+    This test used to pin the opposite: the whole call was refused and the task
+    stayed unchanged. The recorded cost of that rule was real. A session wrote a
+    diagnosis through one mixed call, lost the entire evidence body to the
+    refusal, resent it, and then decided the task list was not worth the round
+    trips. The edit is now kept and the status is reported as the half to retry.
+    """
     result = run(
         """
-        const created = await checked("create_task", { subject: "Unchanged title" });
-        const before = JSON.stringify(task.getTask(created.details.id));
+        const created = await checked("create_task", { subject: "Original title" });
+        // A status the task set refuses: a completion by a caller that never took
+        // the task, carrying no evidence either.
         const mixed = await call("update_task", {
-          id: created.details.id, status: "in_progress", subject: "Discarded title", dependsOn: [],
+          id: created.details.id, status: "completed", outcome: "success", subject: "Recorded title",
         });
-        const unchanged = before === JSON.stringify(task.getTask(created.details.id));
-        await checked("update_task", { id: created.details.id, subject: "Recorded title" });
-        const taken = await checked("update_task", { id: created.details.id, status: "in_progress" });
-        const completed = await checked("update_task", {
-          id: created.details.id, status: "completed", outcome: "success", result: "Actual work checked",
-        });
+        const after = task.getTask(created.details.id);
         console.log(JSON.stringify({
-          mixedAccepted: mixed.details.ok, error: mixed.content[0].text, unchanged,
-          taken: taken.details.status, completed: completed.details.status,
-          storedSubject: task.getTask(created.details.id).subject,
+          mixedAccepted: mixed.details.ok, error: mixed.content[0].text,
+          subject: after.subject, status: after.status, carriedTask: Boolean(mixed.details.task),
         }));
         """,
         tmp_path,
     )
     assert result["mixedAccepted"] is False
-    assert "separate" in result["error"]
-    assert result["unchanged"] is True
-    assert result["taken"] == "in_progress"
-    assert result["completed"] == "completed"
-    assert result["storedSubject"] == "Recorded title"
+    # The edit stands.
+    assert result["subject"] == "Recorded title"
+    # The status did not, and the caller is told what to retry.
+    assert result["status"] == "pending"
+    assert "separate call" in result["error"]
+    # What was kept travels with the refusal, so the caller does not resend it.
+    assert result["carriedTask"] is True
+
+
+def test_a_mixed_call_whose_content_is_refused_records_neither_half(tmp_path: Path) -> None:
+    """The other half of R4: content is validated before anything is applied."""
+    result = run(
+        """
+        const created = await checked("create_task", { subject: "Original title" });
+        const mixed = await call("update_task", {
+          id: created.details.id, status: "in_progress", subject: "Should not land",
+          context: { nonsense: "no layer of this context owns it" },
+        });
+        const after = task.getTask(created.details.id);
+        console.log(JSON.stringify({
+          mixedAccepted: mixed.details.ok, error: mixed.content[0].text,
+          subject: after.subject, status: after.status,
+        }));
+        """,
+        tmp_path,
+    )
+    assert result["mixedAccepted"] is False
+    assert "nonsense" in result["error"]
+    assert result["subject"] == "Original title"
+    assert result["status"] == "pending"
+
+
+def test_a_mixed_call_whose_status_is_accepted_records_both_halves(tmp_path: Path) -> None:
+    """One call is enough when neither half is refused."""
+    result = run(
+        """
+        const created = await checked("create_task", { subject: "Original title" });
+        const mixed = await checked("update_task", {
+          id: created.details.id, status: "in_progress", subject: "Taken and renamed",
+        });
+        const after = task.getTask(created.details.id);
+        console.log(JSON.stringify({ status: mixed.details.status, subject: after.subject, held: after.claimedBy }));
+        """,
+        tmp_path,
+    )
+    assert result["status"] == "in_progress"
+    assert result["subject"] == "Taken and renamed"
+    assert result["held"] == "main"
