@@ -37,13 +37,17 @@ time. Four causes, in the order they mattered:
 
 - The trigger conditions live in two surfaces. `create_task` carries them in its
   snippet and its description, which are sent to the provider on every turn
-  already. `src/presence.ts` adds one bounded note per request from the `context`
-  hook, because a description cannot say when the situation calls for the tool: a
-  session that never considers recording work never reads the description of the
-  tool that would record it. The note carries no task state, so it is identical
-  every turn and lands at a fixed index after the system message, which keeps each
-  request a prefix of the last. `tests/test_discoverability.py` pins the note, its
-  bound, its position, and that one source file defines it.
+  already. `src/presence.ts` adds one bounded note per request, because a
+  description cannot say when the situation calls for the tool: a session that
+  never considers recording work never reads the description of the tool that
+  would record it. The note carries no task state, so it is identical every turn
+  and lands at a fixed index after the system prompt, which keeps each request a
+  prefix of the last. It is a **system** message injected through
+  `context_with_system`, because the plain `context` hook cannot carry system
+  messages: a note sent that way lands ahead of the user's request as a user-role
+  message, and a recorded run showed the model reporting it as the user's own
+  message while it was in context. `tests/test_discoverability.py` pins the note,
+  its bound, its position, its role, and that one source file defines it.
 - A context-only write is not progress. The settlement snapshot no longer hashes
   `context`, because a brief is what a successor reads rather than a change to
   the work. Counting it bought another automatic continuation.

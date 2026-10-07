@@ -53,7 +53,14 @@ export default function piTasks(pi: Parameters<typeof registerTaskTools>[0]): vo
   // lands at a fixed index, so it costs one stable block per request and keeps
   // each request a prefix of the last. The settle reminder is the third surface,
   // and it fires only when unfinished tasks already exist.
-  pi.on("context", async (event) => ({ messages: injectTaskCapabilityNote(event.messages) }));
+  //
+  // `context_with_system` rather than `context`: the plain hook never sees the
+  // prompt and tool system messages, so the note could only be a user-role message
+  // ahead of the user's own request, and a model reading that reports it as the
+  // user's message instead of harness context. This hook receives the whole
+  // transcript, and it runs after every `context` handler, so the goal note is
+  // already in the list and is left untouched.
+  pi.on("context_with_system", async (event) => ({ messages: injectTaskCapabilityNote(event.messages) }));
   pi.on("session_start", async (_event, ctx) => {
     // Released before anything else, so every path below starts with this process
     // owning no task file at all. A writer surviving a switch is not a second

@@ -28,7 +28,9 @@ Registering a tool is not presenting it. A session that has never seen a task ha
 
 The trigger conditions therefore live in two surfaces, and they do different jobs. `create_task` states when recording a task is warranted and how a task differs from a goal, in its snippet and its description, and those are sent to the provider on every turn already. On top of them the package injects one bounded note per request from its `context` hook, because a description cannot say when the situation calls for the tool: a session that never considers recording work never reads the description of the tool that would record it.
 
-The note carries no task state, so it is identical on every turn and lands at a fixed index after the system message. Each request therefore begins with exactly the previous one, and the provider's implicit prefix cache keeps matching. It is bounded, and tests pin its size, its position, and that one source file defines it.
+The note carries no task state, so it is identical on every turn and lands at a fixed index after the system prompt. Each request therefore begins with exactly the previous one, and the provider's implicit prefix cache keeps matching. It is bounded, and tests pin its size, its position, its role, and that one source file defines it.
+
+The note is a **system** message, injected through the `context_with_system` hook. The plain `context` hook never sees the prompt and tool system messages, so a note sent that way can only be a user-role message placed ahead of the user's own request — and a recorded run showed the model reporting it as the user's own message while it was in context. `context_with_system` receives the whole transcript and runs after every `context` handler, so the note reads as harness context and a note another package injected is left untouched.
 
 The tools do not reach a child process. A subagent cannot take or complete a task, so a leader records the outcome from the child's report.
 

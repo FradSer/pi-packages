@@ -88,9 +88,15 @@ def test_a_session_with_no_open_task_receives_the_note(tmp_path: Path) -> None:
     """
     result = run(
         """
-        const request = await handlers.get("context")({ messages: [{ role: "system", content: "s" }, { role: "user", content: "hi" }] }, {});
-        const text = request.messages[1].content;
+        const request = await handlers.get("context_with_system")({
+          messages: [{ role: "system", content: "PROMPT" }, { role: "user", content: "hi" }],
+        }, {});
+        const note = request.messages[1];
+        const text = note.content;
         console.log(JSON.stringify({
+          noteRole: note.role,
+          promptKept: request.messages[0].role === "system" && request.messages[0].content === "PROMPT",
+          userMessageUntouched: request.messages[2].content === "hi",
           hasNote: text.includes("[pi-tasks capability]"),
           namesTools: ["create_task", "get_task", "list_tasks", "update_task"].filter((name) => text.includes(name)),
           statesSeveralSteps: /several steps or several files/.test(text),
@@ -103,6 +109,13 @@ def test_a_session_with_no_open_task_receives_the_note(tmp_path: Path) -> None:
         tmp_path,
     )
     assert result["hasNote"] is True
+    # A system message, not a user message: a recorded run had the model report the
+    # note as the user's own message while it was in context, because the plain
+    # `context` hook cannot carry a system message and it landed ahead of the
+    # request. Harness context has to read as harness context.
+    assert result["noteRole"] == "system"
+    assert result["promptKept"] is True
+    assert result["userMessageUntouched"] is True
     assert result["namesTools"] == TOOL_NAMES
     assert result["statesSeveralSteps"] is True
     assert result["statesOutlivesTurn"] is True
@@ -115,7 +128,7 @@ def test_a_session_with_no_open_task_receives_the_note(tmp_path: Path) -> None:
 def test_the_note_is_bounded_and_never_grows_with_the_task_set(tmp_path: Path) -> None:
     result = run(
         """
-        const ask = async () => (await handlers.get("context")({ messages: [{ role: "system", content: "s" }] }, {})).messages[1].content;
+        const ask = async () => (await handlers.get("context_with_system")({ messages: [{ role: "system", content: "s" }] }, {})).messages[1].content;
         const empty = await ask();
         for (let index = 0; index < 25; index += 1) {
           task.createTask({ id: `many-${index}`, subject: `Task number ${index}` });
@@ -147,18 +160,20 @@ def test_the_note_lands_at_a_stable_position_so_each_request_prefixes_the_last(t
     """
     result = run(
         """
-        const ask = async (messages) => handlers.get("context")({ messages }, {});
-        const first = await ask([{ role: "system", content: "s" }, { role: "user", content: "one" }]);
+        const ask = async (messages) => handlers.get("context_with_system")({ messages }, {});
+        const first = await ask([{ role: "system", content: "PROMPT" }, { role: "user", content: "one" }]);
         const second = await ask([
-          { role: "system", content: "s" }, { role: "user", content: "one" }, { role: "assistant", content: "two" },
+          { role: "system", content: "PROMPT" }, { role: "user", content: "one" }, { role: "assistant", content: "two" },
         ]);
         const position = (messages) => messages.findIndex((message) => String(message.content).includes("[pi-tasks capability]"));
         const prefix = (shorter, longer) => shorter.every((message, index) => JSON.stringify(message) === JSON.stringify(longer[index]));
         const copies = (messages) => messages.filter((message) => String(message.content).includes("[pi-tasks capability]")).length;
+        const userCarries = (messages) => messages.some((message) => message.role === "user" && String(message.content).includes("[pi-tasks capability]"));
         console.log(JSON.stringify({
           firstPosition: position(first.messages), secondPosition: position(second.messages),
           noteUnchanged: first.messages[1].content === second.messages[1].content,
           prefixHolds: prefix(first.messages, second.messages), copies: copies(second.messages),
+          userCarries: userCarries(second.messages),
         }));
         """,
         tmp_path,
@@ -168,6 +183,8 @@ def test_the_note_lands_at_a_stable_position_so_each_request_prefixes_the_last(t
     assert result["noteUnchanged"] is True
     assert result["prefixHolds"] is True
     assert result["copies"] == 1
+    # Never attributed to the user: that attribution was the recorded failure.
+    assert result["userCarries"] is False
 
     # One definition of the note. A second copy of the text in another module is
     # how the two drift, so the marker lives in exactly one source file.

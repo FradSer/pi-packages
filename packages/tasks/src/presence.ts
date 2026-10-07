@@ -8,13 +8,22 @@
  * times in 7 sessions while `bash` ran 78178 times, with the descriptions present
  * the whole time.
  *
- * So the package injects one bounded note per request. Two properties make that
- * affordable, and both are deliberate:
+ * So the package injects one bounded note per request. Three properties make that
+ * affordable, and all three are deliberate:
  *
  * **The note is identical on every turn.** It carries no task state, so the same
  * text lands at the same index and request N+1 stays a true prefix of request N.
  * The provider's implicit prefix cache therefore keeps matching, and the cost is
  * one stable block rather than a fresh tail on every request.
+ *
+ * **The note is a system message.** An earlier version sent it through the
+ * `context` hook, which never sees the prompt and tool system messages, so the
+ * note could only be a user-role message placed ahead of the user's own request.
+ * A model reading that reports it as the user's message rather than as harness
+ * context, which is exactly what happened: in a recorded run the model answered
+ * that the block was "in your own message" while the note was in its context. The
+ * `context_with_system` hook receives the whole transcript, so the note lands as
+ * a system message after the system prompt and reads as what it is.
  *
  * **The note says what a task is not.** Two packages that both track outstanding
  * work are otherwise indistinguishable to a model reading two similar notes, and
@@ -35,9 +44,9 @@ export const TASK_CAPABILITY_NOTE = [
   "Move work with update_task: status=in_progress takes it, status=completed delivers it with its evidence. Read one with get_task, or the list with list_tasks.",
 ].join("\n");
 
-/** The role the note is sent under. It is context for the model, not a request
- *  from the user, and it must not read as one. */
-const NOTE_ROLE = "user";
+/** The role the note is sent under. It is context the harness supplies, not a
+ *  request from the user, and it must not be attributable to one. */
+const NOTE_ROLE = "system";
 
 /**
  * Insert the note into a request, at a fixed position.
@@ -47,9 +56,9 @@ const NOTE_ROLE = "user";
  * previous one. Appending instead would put the note where the newest turn goes,
  * and every request would then differ from the last at that index.
  *
- * A message list that does not start with a system message gets the note at the
- * front: a note is worth more than a stable index when there is no system message
- * to be stable about.
+ * The leading system message keeps index zero, which is the one placement the
+ * `context_with_system` contract requires: the handler owns the transcript, and
+ * the prompt stays where the provider expects it.
  */
 export function injectTaskCapabilityNote<T>(messages: readonly T[]): T[] {
   const out = [...messages];

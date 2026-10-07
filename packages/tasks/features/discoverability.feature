@@ -47,6 +47,13 @@ Feature: A session learns the task tools exist
       Then the note is identical to the note an empty task set produces
       And the note names no task, because the note is about the surface
 
+    Scenario: The note is harness context and not a user message
+      Given the note inserted into a request
+      When the request is assembled
+      Then the note is a system message after the prompt
+      And no user message carries the note
+      And the prompt keeps the first position
+
     Scenario: The note lands at a fixed position so each request prefixes the last
       Given two requests whose transcripts differ only by a later turn
       When both are built
