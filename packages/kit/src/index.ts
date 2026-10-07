@@ -85,11 +85,17 @@ export interface ToolLifecycleSpec {
 
 /** Build the common one-line lifecycle title for a tool result.
  * A missing label omits the middle segment entirely: the generic kind word
- * ("event"/"started") is layout metadata, not prose worth showing. */
+ * ("event"/"started") is layout metadata, not prose worth showing. A missing
+ * subject omits the separator with it, so a row whose label is the whole message
+ * reads `[agent] listed` rather than trailing a `·`. That is a caller saying the
+ * fact the subject would have named is not there — a roster page that omitted
+ * nothing, for one — and a dangling separator is not how it should read. */
 export function formatToolLifecycleTitle(spec: ToolLifecycleSpec): string {
   const tag = `[${safeDisplayText(spec.tool)}]`;
-  if (spec.label === undefined) return `${tag} ${safeDisplayText(spec.subject)}`;
-  return `${tag} ${safeDisplayText(spec.label)} · ${safeDisplayText(spec.subject)}`;
+  const subject = safeDisplayText(spec.subject);
+  if (spec.label === undefined) return subject === "" ? tag : `${tag} ${subject}`;
+  const label = safeDisplayText(spec.label);
+  return subject === "" ? `${tag} ${label}` : `${tag} ${label} · ${subject}`;
 }
 
 /** Optional spec fields shared by the lifecycle factories. */
@@ -307,15 +313,22 @@ export function renderToolLifecycle(
   const contentWidth = Math.max(1, options.width - 2 * bandPaddingX(options.width));
   const tag = `[${safeDisplayText(spec.tool)}]`;
   const blockSubject = spec.subjectBlock === true;
-  const label = spec.label === undefined ? "" : ` ${safeDisplayText(spec.label)}${blockSubject ? "" : " ·"}`;
-  const headColor = options.isError ? "error" : options.isPending ? "warning" : "success";
-  const head = theme.fg(headColor, theme.bold(`${tag}${label}`));
   const subjectText = safeDisplayText(spec.subject);
   const expandedSubject = spec.expandedSubject === undefined ? undefined : safeDisplayText(spec.expandedSubject);
+  // A subject that is not there takes its separator with it. The head already
+  // stands alone for a block subject with nothing authored; a row whose label is
+  // the whole message reads the same way — `[agent] listed` rather than a
+  // trailing `·` that advertises text nobody wrote. That is how a caller says the
+  // fact the subject would have named is not there, such as a roster page that
+  // omitted nothing.
+  const hasSubject = subjectText.trim() !== "";
+  const label = spec.label === undefined ? "" : ` ${safeDisplayText(spec.label)}${blockSubject || !hasSubject ? "" : " ·"}`;
+  const headColor = options.isError ? "error" : options.isPending ? "warning" : "success";
+  const head = theme.fg(headColor, theme.bold(`${tag}${label}`));
   // Authored text is raw: no teammate-name recoloring, and every written line stays visible.
   const authoredSubject = spec.verbatimSubject === true;
   const subjectBody = (text: string) => (authoredSubject ? text : styleSubject(text, options));
-  const subjectLine = (text: string) => `${head} ${subjectBody(text)}`;
+  const subjectLine = (text: string) => (text.trim() === "" ? head : `${head} ${subjectBody(text)}`);
   const title = subjectLine(subjectText);
   // A block subject keeps the head, a blank band row, and the authored lines apart;
   // nothing authored means nothing to echo, so the head stands alone.
