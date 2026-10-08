@@ -5,43 +5,39 @@
  * row, because that row language always prefixes a spinner and this one must
  * read as `<verb> · <elapsed>` — e.g. `Pursuing goal · 2h 15m`. The component exposes only `render` and `invalidate`, so it is passive and owns no input.
  */
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import type { GoalCore } from "./core.ts";
 import { formatElapsed, type GoalRecord } from "./record.ts";
 
-/** One passive row below the editor. It is never interactive and never owns
- * input: a widget that grabs keys cannot be dismissed predictably.
- *
- * The row reads `<verb> · <elapsed>` — e.g. `Pursuing goal · 2h 15m` — and no
- * state carries a `[goal]` tag. Every verb already names the goal, so a tag would
- * repeat it on every line below the editor. The transcript rows keep the tag,
- * because there it says which work belongs to the goal. No goal id appears: a
- * session holds one goal, so naming it would add noise. */
-function statusRow(core: GoalCore): string {
+/** One passive widget below the editor. It never owns input. The goal row reads
+ * `<verb> · <elapsed>` without a tag. A running check replaces it with a tagged
+ * two-line status. No goal id appears because a session holds one goal. */
+function statusRow(core: GoalCore): string[] {
+  if (core.checkProgress) return [core.checkProgress.label, core.checkProgress.detail];
   const goal = core.goal;
-  if (core.checkProgress) return core.checkProgress.label;
-  if (!goal) return "";
-  return `${goalPhrase(goal)} · ${formatElapsed(goal.usage.activeSeconds)}`;
+  if (!goal) return [];
+  return [`${goalPhrase(goal, core)} · ${formatElapsed(goal.usage.activeSeconds)}`];
 }
 
+const mounted = new WeakMap<ExtensionContext["ui"], { core: GoalCore; requestRender: () => void }>();
+
 function mountStatusWidget(core: GoalCore, ctx: ExtensionContext): void {
-  // No focused goal means no status row at all. Mounting one anyway would show
-  // progress for work this session is not doing, and would claim a goal the
-  // user never focused.
-  if (!statusRow(core)) {
-    ctx.ui?.setWidget("goal-status", undefined);
+  if (statusRow(core).length === 0) {
+    if (mounted.has(ctx.ui)) clearDashboard(ctx);
     return;
   }
+  const widget = mounted.get(ctx.ui);
+  if (widget?.core === core) { widget.requestRender(); return; }
   ctx.ui?.setWidget(
     "goal-status",
-    (tui) => ({
-      render: (width: number) => {
-        const text = statusRow(core);
-        return text ? [truncateToWidth(text, width, "…", true)] : [];
-      },
-      invalidate: () => tui.requestRender(),
-    }),
+    (tui) => {
+      mounted.set(ctx.ui, { core, requestRender: () => tui.requestRender() });
+      return {
+        render: (width: number) => statusRow(core).flatMap((line) => wrapTextWithAnsi(line, Math.max(1, width))).map((line) => truncateToWidth(line, width, "", true)),
+        invalidate: () => tui.requestRender(),
+      };
+    },
     { placement: "belowEditor" },
   );
 }
@@ -52,14 +48,15 @@ export function refreshDashboard(core: GoalCore, ctx: ExtensionContext): void {
 }
 
 export function clearDashboard(ctx: ExtensionContext): void {
+  mounted.delete(ctx.ui);
   ctx.ui?.setWidget("goal-status", undefined);
 }
 
 /** The verb for one goal state. A session holds one goal, so naming it or
  * printing its id adds noise to every line the reader sees. The status belongs
  * in the verb, and the elapsed time is the only progress figure a goal has. */
-function goalPhrase(goal: GoalRecord): string {
-  if (goal.status === "active") return goal.autoContinue ? "Pursuing goal" : "Goal held";
+function goalPhrase(goal: GoalRecord, core: GoalCore): string {
+  if (goal.status === "active") return goal.autoContinue && (core.scheduler?.isRunning() || core.scheduler?.isArmed() || goal.scheduler?.phase === "claimed") ? "Pursuing goal" : "Goal waiting";
   if (goal.status === "paused") return "Goal paused";
   if (goal.status === "budget_limited") return "Goal budget limited";
   return "Goal blocked";

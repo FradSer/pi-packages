@@ -12,15 +12,11 @@
  * those has to invalidate the armed intent rather than be discovered by a model
  * turn that was already under way.
  *
- * There is no waiting, no polling, and no execution contract to satisfy. The
- * loop runs until the goal is met, until something stops it, or until the run
- * allowance runs out — and the one thing that makes "until the goal is met" a
- * real statement is `GoalCore.check`, which the loop runs itself rather than
- * waiting for the model to remember to ask.
+ * Effective work may authorize one further run. Completion requires an
+ * explicit request and a separate tool-less check.
  */
 
-import { budgetReached, nowIso, randomToken, type GoalRecord, type ResumeReason } from "./record.ts";
-import type { GoalLedgerEvent } from "./ledger.ts";
+import { budgetReached, randomToken, type GoalRecord, type ResumeReason } from "./record.ts";
 import type { GoalSettings } from "./settings.ts";
 import type { GoalMutationOutcome } from "./store.ts";
 
@@ -34,8 +30,8 @@ export interface SchedulerHost {
   /** Run one mutation through the store. */
   apply(spec: {
     expectedGoalId: string;
+    expectedRevision?: number;
     mutate: (goal: GoalRecord) => GoalRecord | undefined;
-    ledger?: import("./ledger.ts").GoalLedgerEvent[];
   }): GoalMutationOutcome;
   /** Record a failure somewhere the user will see. */
   notify(message: string, level: "info" | "warning" | "error"): void;
@@ -45,7 +41,6 @@ export interface SchedulerHost {
   cancelContinuation(goalId: string): void;
 }
 
-export type DeclareResult = { ok: true; goal: GoalRecord } | { ok: false; message: string };
 
 export class GoalScheduler {
   private readonly host: SchedulerHost;
@@ -58,7 +53,7 @@ export class GoalScheduler {
   private armedGoalId: string | undefined;
   private inRun = false;
   /**
-   * Settings last handed to `schedule`, `declare`, `settled`, or `resume`. The
+   * Settings last handed to `schedule`, `settled`, or `resume`. The
    * scheduler always answers from the latest it was given, because `claim` and
    * the background paths have no settings of their own.
    */
@@ -80,7 +75,7 @@ export class GoalScheduler {
   private allowanceReason(settings: GoalSettings): string {
     return settings.maxAutonomousRuns === 0
       ? "Automatic continuation is disabled (maxAutonomousRuns=0). Change it in the goal settings file, then /goal resume."
-      : "The autonomous-run allowance is spent. Raise or remove maxAutonomousRuns, or /goal resume to start a new period.";
+      : "The autonomous-run allowance is spent. Raise or remove maxAutonomousRuns before resuming.";
   }
 
   private runsRemaining(goal: GoalRecord, settings: GoalSettings): boolean {
@@ -121,31 +116,6 @@ export class GoalScheduler {
    * that the turn stops, which is what keeps the model from working past the
    * answer it just gave.
    */
-  declare(goal: GoalRecord, nextAction: string, settings: GoalSettings): DeclareResult {
-    this.lastSettings = settings;
-    if (this.denied) {
-      return { ok: false, message: "A stale checkpoint already refused this dispatch. Use /goal resume." };
-    }
-    // A record for a turn that cannot run is a note nobody will read. Refusing
-    // with the reason tells the model what stops the goal instead.
-    if (this.owned(goal)) {
-      const blocked = this.blocker(goal, settings);
-      if (blocked) return { ok: false, message: blocked };
-    }
-    const outcome = this.host.apply({
-      expectedGoalId: goal.id,
-      mutate: (draft) => {
-        if (!draft.scheduler || draft.scheduler.owner !== this.host.readOwner()) return undefined;
-        return {
-          ...draft,
-          scheduler: { ...draft.scheduler!, phase: "ready", nextAction, generation: randomToken(), dispatch: undefined },
-        };
-      },
-    });
-    if (!outcome.ok) return { ok: false, message: outcome.message };
-    return { ok: true, goal: outcome.goal };
-  }
-
   /** A run started. */
   begin(): void {
     if (this.inRun) return;
@@ -169,44 +139,15 @@ export class GoalScheduler {
       this.pause(goal, reason, "agent", { requireRevision: goal.revision });
       return;
     }
-    if (!successful) return;
-    // This disposition belongs to the execution the snapshot describes. A
-    // replacement can resume, claim and start between this read and the write,
-    // leaving the record with a live dispatch of its own. The comparison is
-    // against the revision read for settlement, not the generation captured at
-    // run start: `declare()` legitimately rotates that generation, so a
-    // generation comparison would reject the ordinary settle path.
-    const settledRevision = goal.revision;
-    const progress = this.host.apply({
-      expectedGoalId: goal.id,
-      mutate: draft => {
-        if (!draft.scheduler || draft.revision !== settledRevision) return undefined;
-        return {
-          ...draft,
-          scheduler: { ...draft.scheduler, idleRuns: performedWork ? 0 : (draft.scheduler.idleRuns ?? 0) + 1 },
-        };
-      },
-    });
-    if (!progress.ok) {
-      // The record moved on, so a replacement execution is under way. That is
-      // not a fault in this one, and pausing would end work this session no
-      // longer holds the decision for.
-      const current = this.host.readFocused();
-      if (current && current.revision !== settledRevision) return;
-      this.pause(goal, progress.message);
+    if (!successful || !performedWork) {
+      const reason = successful
+        ? "No effective work was recorded. Use /goal resume to continue."
+        : "Execution was interrupted or failed. Use /goal resume to continue.";
+      if (this.pause(goal, reason, "agent", { requireRevision: goal.revision })) this.host.notify(reason, "warning");
       return;
     }
-    if ((progress.goal.scheduler?.idleRuns ?? 0) >= 3) {
-      const reason = "Three consecutive runs performed no work. Run the missing verification or resolve the reported unmet condition, then use /goal resume.";
-      // The notification is owed only when the stop actually happened. A stop
-      // declined because the record moved on must not tell the user that work
-      // which is still running has been halted.
-      if (this.pause(progress.goal, reason, "agent", { requireRevision: progress.goal.revision })) {
-        this.host.notify(reason, "warning");
-      }
-      return;
-    }
-    this.implicitReady(progress.goal, progress.goal.revision);
+    this.implicitReady(goal, goal.revision);
+
   }
 
   /**
@@ -266,10 +207,6 @@ export class GoalScheduler {
     }
 
     let authorization: { goalId: string; generation: string; dispatchId: string; run: number } | undefined;
-    // The ledger array is read after `mutate` runs, so the event is collected
-    // there. Building it inline in the options object captured the value before
-    // `mutate` assigned it, so every claim spent a decision silently.
-    const claimed: GoalLedgerEvent[] = [];
     const outcome = this.host.apply({
       expectedGoalId: goal.id,
       mutate: (draft) => {
@@ -303,10 +240,10 @@ export class GoalScheduler {
         scheduler.phase = "claimed";
         scheduler.dispatch = { id: dispatchId, claimedAt: Date.now() };
         authorization = { goalId: draft.id, generation: scheduler.generation, dispatchId, run: scheduler.used };
-        claimed.push({ type: "goal_claimed", goalId: draft.id, dispatchId, run: scheduler.used, at: nowIso() });
+
         return { ...draft, scheduler };
       },
-      ledger: claimed,
+
     });
     if (!outcome.ok) {
       // Losing the race to claim is not a fault: another scheduler on this same
@@ -426,7 +363,7 @@ export class GoalScheduler {
     goal: GoalRecord,
     reason: string,
     stopReason: "user" | "agent" = "agent",
-    options: { requireRevision?: number } = {},
+    options: { requireRevision?: number; notifyFailure?: boolean } = {},
   ): boolean {
     // Every agent-initiated stop is guarded here, not at the call sites: there
     // are many, and only one of them remembered to ask. Ownership can rotate
@@ -434,10 +371,6 @@ export class GoalScheduler {
     // another session now owns is a real user action taken on someone else's
     // work. A user pause carries its own authority and is exempt.
     const requireOwnership = stopReason !== "user";
-    this.armedGeneration = undefined;
-    this.armedGoalId = undefined;
-    this.host.cancelContinuation(goal.id);
-    const at = nowIso();
     const outcome = this.host.apply({
       expectedGoalId: goal.id,
       mutate: (draft) => {
@@ -456,7 +389,7 @@ export class GoalScheduler {
         }
         return {
           ...draft,
-          status: "paused",
+          status: stopReason === "user" ? "paused" : budgetReached(draft) ? "budget_limited" : "active",
           autoContinue: false,
           stopReason,
           pauseReason: reason,
@@ -465,19 +398,23 @@ export class GoalScheduler {
             : undefined,
         };
       },
-      ledger: [{ type: "goal_paused", goalId: goal.id, reason, stopReason, at }],
+
     });
-    if (!outcome.ok) {
+    if (outcome.ok) {
+      this.armedGeneration = undefined;
+      this.armedGoalId = undefined;
+      this.host.cancelContinuation(goal.id);
+    } else if (options.notifyFailure !== false) {
       this.host.notify(`Could not pause the goal: ${outcome.message}`, "warning");
     }
     return outcome.ok;
   }
 
-  /** A resume starts a new allowance period. The actor is recorded because the
+  /** A resume preserves the lifetime usage and allowance. The actor is recorded because the
    * two routes are different facts: the management verb has the user in front
    * of it, while a revision under an accepted `/goal <text>` request is the
    * runtime lifting a pause on the user's behalf. */
-  resume(goal: GoalRecord, settings: GoalSettings, reason: ResumeReason): boolean {
+  resume(goal: GoalRecord, settings: GoalSettings, _reason: ResumeReason): boolean {
     this.lastSettings = settings;
     this.inRun = false;
     this.denied = false;
@@ -485,24 +422,24 @@ export class GoalScheduler {
       this.host.notify(this.allowanceReason(settings), "warning");
       return false;
     }
-    if (goal.status === "complete" || budgetReached(goal)) {
+    if (goal.status === "complete" || budgetReached(goal) || !this.runsRemaining(goal, settings)) {
       this.host.notify("A completed or token-capped goal cannot resume.", "warning");
       return false;
     }
     const outcome = this.host.apply({
       expectedGoalId: goal.id,
-      mutate: (draft) => ({
+      expectedRevision: goal.revision,
+      mutate: (draft) => draft.status !== "complete" && !budgetReached(draft) && this.runsRemaining(draft, settings) ? ({
         ...draft,
         status: "active",
         autoContinue: true,
-        completionFailures: 0,
         stopReason: undefined,
         pauseReason: undefined,
         scheduler: draft.scheduler
-          ? { ...draft.scheduler, owner: this.host.readOwner(), phase: "ready", used: 0, idleRuns: 0, dispatch: undefined, generation: randomToken() }
-          : { owner: this.host.readOwner(), phase: "ready", used: 0, idleRuns: 0, generation: randomToken() },
-      }),
-      ledger: [{ type: "goal_resumed", goalId: goal.id, reason, at: nowIso() }],
+          ? { ...draft.scheduler, owner: this.host.readOwner(), phase: "ready", dispatch: undefined, generation: randomToken() }
+          : { owner: this.host.readOwner(), phase: "ready", used: 0, generation: randomToken() },
+      }) : undefined,
+
     });
     if (!outcome.ok) {
       this.host.notify(outcome.message, "warning");
@@ -528,6 +465,10 @@ export class GoalScheduler {
     this.armedGeneration = undefined;
     this.armedGoalId = undefined;
     this.inRun = false;
+  }
+
+  isRunning(): boolean {
+    return this.inRun;
   }
 
   isDenied(): boolean {

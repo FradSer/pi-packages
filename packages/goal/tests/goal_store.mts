@@ -7,15 +7,14 @@
  * of features/goal.feature.
  */
 
-import assert from "node:assert/strict";
+import { observedAssert as assert, observeScenario, observedScenarios } from "../../../tests/e2e/support/assertion-observer.ts";
+import { writeFileSync as writeObservationFile } from "node:fs";
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync as importedDirectoryEntries, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { GoalStore, newGoalId } from "../src/store.ts";
-import { appendGoalEvent, readGoalHistoryPage, readGoalLedger, rebuildGoalFromLedger } from "../src/ledger.ts";
 import { goalPromptPath, goalRecordPath } from "../src/paths.ts";
-import { appendJsonlLine } from "@fradser/pi-kit";
 
 const repoRoot = resolve(import.meta.dirname, "..", "..", "..");
 const root = mkdtempSync(join(tmpdir(), "goal-store-"));
@@ -25,7 +24,7 @@ const results: string[] = [];
  * here would abort the harness instead of being reported by name. */
 async function scenario(name: string, body: () => Promise<void> | void): Promise<void> {
   try {
-    await body();
+    await observeScenario(name, body);
     results.push(`ok ${name}`);
   } catch (error) {
     results.push(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`);
@@ -43,7 +42,7 @@ await scenario("a created goal is durable before any work begins", () => {
   const fresh = new GoalStore({ projectRoot: root });
   assert.equal(fresh.readGoal(id)?.objective, objective);
   assert.equal(fresh.readPrompt(id).trim(), objective);
-  assert.equal(readGoalLedger(root, id)[0]?.type, "goal_created");
+  assert.equal(existsSync(join(root,".pi/goals",id,"history.jsonl")),false);
 });
 
 await scenario("a failed record write appends no ledger event", () => {
@@ -52,7 +51,7 @@ await scenario("a failed record write appends no ledger event", () => {
   writeFileSync(join(root, ".pi", "goals", `${id}`), "occupied");
   const created = store.create({ objective, owner: "session-a", id });
   assert.equal(created.ok, false);
-  assert.equal(readGoalLedger(root, id).length, 0);
+  assert.equal(existsSync(join(root,".pi/goals",id,"history.jsonl")),false);
 });
 
 await scenario("the pool returns open goals deterministically and ignores junk", () => {
@@ -72,6 +71,55 @@ await scenario("the pool returns open goals deterministically and ignores junk",
   assert.ok(!pool.includes("linked"), "a symlink must never be followed");
   const twice = new GoalStore({ projectRoot: root }).readPool().map((goal) => goal.id);
   assert.deepEqual(pool, twice, "pool order must be deterministic");
+});
+
+await scenario("existing record and claim links refuse writes without changing outside files", () => {
+  for (const target of ["record.json", "claims", "claims/write-lock.json"]) {
+    const local = mkdtempSync(join(tmpdir(), "goal-link-local-"));
+    const outside = mkdtempSync(join(tmpdir(), "goal-link-sentinel-"));
+    try {
+      const linkedStore = new GoalStore({projectRoot: local});
+      const id = "linked-write";
+      const sentinel = join(outside, "sentinel.json");
+      writeFileSync(sentinel, "outside bytes must remain unchanged");
+      const record = goalRecordPath(local, id);
+      mkdirSync(dirname(record), {recursive: true});
+      if (target === "claims") symlinkSync(outside, join(dirname(record), target), "dir");
+      else {
+        mkdirSync(dirname(join(dirname(record), target)), {recursive: true});
+        symlinkSync(sentinel, join(dirname(record), target));
+      }
+      const created = linkedStore.create({id, owner: "session", objective: "Refuse redirected creation."});
+      assert.equal(created.ok, false, target);
+      assert.equal(readFileSync(sentinel, "utf8"), "outside bytes must remain unchanged", target);
+      assert.deepEqual(importedDirectoryEntries(outside), ["sentinel.json"]);
+    } finally { rmSync(local, {recursive: true, force: true}); rmSync(outside, {recursive: true, force: true}); }
+  }
+});
+
+await scenario("linked paths refuse mutation of an existing valid Goal without outside changes", () => {
+  for (const target of ["record.json", "claims", "claims/write-lock.json"]) {
+    const local = mkdtempSync(join(tmpdir(), "goal-link-mutation-"));
+    const outside = mkdtempSync(join(tmpdir(), "goal-link-valid-record-"));
+    try {
+      const linkedStore = new GoalStore({projectRoot: local});
+      const id = "existing-link";
+      assert.equal(linkedStore.create({id, owner:"session", objective:"Existing legitimate Goal."}).ok,true);
+      const record = goalRecordPath(local,id);
+      const sentinel = join(outside,"sentinel.json");
+      const original = readFileSync(record,"utf8");
+      writeFileSync(sentinel,original);
+      const destination = join(dirname(record),target);
+      rmSync(destination,{recursive:true,force:true});
+      symlinkSync(target === "claims" ? outside : sentinel,destination,target === "claims" ? "dir" : "file");
+      const changed = linkedStore.apply({expectedGoalId:id,mutate:goal=>({...goal,objective:"Redirected mutation."})});
+      assert.equal(changed.ok,false,target);
+      if (!changed.ok) assert.match(changed.message,target === "record.json" ? /no longer exists/ : /symbolic links/,target);
+      assert.equal(readFileSync(sentinel,"utf8"),original,target);
+      assert.deepEqual(importedDirectoryEntries(outside),["sentinel.json"]);
+      if (target !== "record.json") assert.equal(readFileSync(record,"utf8"),original);
+    } finally {rmSync(local,{recursive:true,force:true});rmSync(outside,{recursive:true,force:true});}
+  }
 });
 
 await scenario("disk wins over a stale cached copy", () => {
@@ -97,28 +145,10 @@ await scenario("a stale revision is refused and changes nothing", () => {
   assert.equal(store.readGoalFromDisk(id)?.revision, before, "a refused write changes nothing");
 });
 
-await scenario("archiving removes the goal from the open pool", () => {
-  const id = "goal_archive";
-  store.create({ objective, owner: "session-a", id });
-  const outcome = store.apply({
-    expectedGoalId: id,
-    archive: true,
-    mutate: (goal) => ({ ...goal, status: "complete", autoContinue: false }),
-    ledger: [{ type: "goal_completed", goalId: id, archivePath: ".pi/goals/archived/goal_archive/record.json", at: new Date().toISOString() }],
-  });
-  assert.ok(outcome.ok);
-  assert.ok(!new GoalStore({ projectRoot: root }).readPool().some((goal) => goal.id === id));
-  assert.ok(outcome.ok && outcome.goal.archivedPath);
-  // Archiving moves the goal directory, history included, so the ledger has to
-  // be read from the archive. Reading the open path would find a directory the
-  // append recreated beside it and report a one-event history.
-  assert.equal(new GoalStore({ projectRoot: root }).isArchived(id), true);
-  assert.equal(readGoalLedger(root, id, undefined, true).at(-1)?.type, "goal_completed");
-  assert.equal(
-    readGoalLedger(root, id).length,
-    0,
-    "and no stray open-goal ledger was left beside the archive",
-  );
+await scenario("finishing releases runtime state without creating an archive", () => {
+ const id="goal_end"; store.create({objective,owner:"session-a",id});
+ const done=store.apply({expectedGoalId:id,finish:true,mutate:g=>({...g,status:"complete",autoContinue:false})});
+ assert.ok(done.ok); assert.equal(store.readGoal(id),undefined); assert.equal(existsSync(join(root,".pi/goals/archived",id)),false);
 });
 
 await scenario("a writer whose lock was taken from it writes nothing", () => {
@@ -183,92 +213,13 @@ await scenario("real processes racing for one goal produce exactly one winner", 
   assert.match(after.pauseReason ?? "", /^writer \d+$/, "and the surviving write is one of the racers");
 });
 
-await scenario("ledger events append in order and read back in order", () => {
-  const id = "goal_order";
-  store.create({ objective, owner: "session-a", id });
-  store.apply({
-    expectedGoalId: id,
-    mutate: (goal) => ({ ...goal, status: "paused", autoContinue: false }),
-    ledger: [{ type: "goal_paused", goalId: id, reason: "first", stopReason: "user", at: new Date().toISOString() }],
-  });
-  store.apply({
-    expectedGoalId: id,
-    mutate: (goal) => ({ ...goal, status: "active", autoContinue: true }),
-    ledger: [{ type: "goal_resumed", goalId: id, reason: "user", at: new Date().toISOString() }],
-  });
-  assert.deepEqual(readGoalLedger(root, id).map((event) => event.type), ["goal_created", "goal_paused", "goal_resumed"]);
-});
 
-await scenario("a malformed record is consumed and reported, never blocking the drain", () => {
-  const id = "goal_malformed";
-  store.create({ objective, owner: "session-a", id });
-  store.apply({
-    expectedGoalId: id,
-    mutate: (goal) => goal,
-    ledger: [{ type: "goal_resumed", goalId: id, reason: "r", at: new Date().toISOString() }],
-  });
-  // Append a broken line directly, as another process or a partial write would.
-  appendJsonlLine(join(root, ".pi", "goals", id, "ledger.jsonl"), "not-an-object");
-  store.apply({
-    expectedGoalId: id,
-    mutate: (goal) => goal,
-    ledger: [{ type: "goal_resumed", goalId: id, reason: "r2", at: new Date().toISOString() }],
-  });
-  const page = readGoalHistoryPage(root, id);
-  assert.ok(page.events.length >= 3, `expected the good records, got ${page.events.length}`);
-  // The match used to be `/malformed/i`, which satisfied itself on the goal id
-  // this scenario is named for rather than on the diagnostic. It now asserts the
-  // diagnostic itself, and separately that no goal id is printed in it.
-  assert.ok(
-    page.diagnostics.some((diagnostic) => /unrecognized|malformed/i.test(diagnostic)),
-    `expected a diagnostic, got ${JSON.stringify(page.diagnostics)}`,
-  );
-  assert.ok(
-    page.diagnostics.every((diagnostic) => !/goal_[a-z0-9]/.test(diagnostic)),
-    `a diagnostic must not print the goal id: ${JSON.stringify(page.diagnostics)}`,
-  );
-});
 
-await scenario("history paging returns complete records exactly once", () => {
-  const id = "goal_paging";
-  store.create({ objective, owner: "session-a", id });
-  for (let index = 0; index < 60; index++) {
-    store.apply({
-      expectedGoalId: id,
-      mutate: (goal) => goal,
-      ledger: [{ type: "goal_resumed", goalId: id, reason: `r${index}`, at: new Date().toISOString() }],
-    });
-  }
-  const seen = new Set<string>();
-  let cursor: string | undefined;
-  let pages = 0;
-  do {
-    const page = readGoalHistoryPage(root, id, cursor, 512);
-    pages++;
-    for (const event of page.events) {
-      const key = `${event.type}:${(event as { reason?: string }).reason ?? ""}`;
-      assert.ok(!seen.has(key), `duplicate record ${key}`);
-      seen.add(key);
-    }
-    cursor = page.cursor;
-  } while (cursor && pages < 50);
-  assert.equal(seen.size, 61, "the creation event plus sixty");
-});
 
-await scenario("lifecycle state rebuilds from the ledger when the record is gone", () => {
-  const id = "goal_rebuild";
-  store.create({ objective, owner: "session-a", id });
-  store.apply({
-    expectedGoalId: id,
-    mutate: (goal) => ({ ...goal, status: "paused", autoContinue: false, pauseReason: "waiting on credentials" }),
-    ledger: [{ type: "goal_paused", goalId: id, reason: "waiting on credentials", stopReason: "agent", at: new Date().toISOString() }],
-  });
-  rmSync(goalRecordPath(root, id), { force: true });
-  const rebuilt = rebuildGoalFromLedger(root, id);
-  assert.equal(rebuilt?.status, "paused");
-  assert.equal(rebuilt?.pauseReason, "waiting on credentials");
-  assert.equal(rebuilt?.objective, objective);
-});
+
+
+
+
 
 await scenario("a record from a newer version is refused, not partially read", () => {
   mkdirSync(join(root, ".pi", "goals", "goal_future"), { recursive: true });
@@ -284,7 +235,8 @@ await scenario("prose written directly by a user is picked up without a record r
   const outcome = store.apply({ expectedGoalId: id, mutate: (goal) => goal });
   assert.ok(outcome.ok);
   assert.equal(outcome.goal.revision, revision + 1);
-  assert.equal(new GoalStore({ projectRoot: root }).readPrompt(id).trim(), "objective the user edited by hand");
+  assert.equal(new GoalStore({ projectRoot: root }).readPrompt(id).trim(), objective, "legacy prose does not override the atomic record");
+  assert.equal(readFileSync(goalPromptPath(root,id), "utf8"), "objective the user edited by hand\n", "legacy files remain untouched");
 });
 
 await scenario("one malformed record does not hide the valid ones", () => {
@@ -318,16 +270,7 @@ await scenario("filesystem errors never leak goal id or directory paths", () => 
 });
 
 
-await scenario("ledger append errorKind never leaks goal id or directory paths", () => {
-  const id = "goal_ledger_leak_path";
-  const badRoot = join(root, "ledger_error_file");
-  writeFileSync(badRoot, "not a directory");
-  const err = appendGoalEvent(badRoot, { type: "goal_resumed", goalId: id, reason: "r", at: new Date().toISOString() });
-  assert.ok(err, "expected an error");
-  assert.doesNotMatch(err, new RegExp(id));
-  assert.doesNotMatch(err, new RegExp(root));
-  assert.doesNotMatch(err, /->/);
-});
+
 
 await scenario("goals are refused inside Pi's own directories and left untouched there", () => {
   // The real case: a session run from Pi's home writes to ~/.pi/.pi/goals, a
@@ -396,3 +339,4 @@ await scenario("goals are refused inside Pi's own directories and left untouched
 
 rmSync(root, { recursive: true, force: true });
 process.stdout.write(`${JSON.stringify(results)}\n`);
+if (process.env.PI_E2E_ASSERTION_PATH) writeObservationFile(process.env.PI_E2E_ASSERTION_PATH, JSON.stringify(observedScenarios()));

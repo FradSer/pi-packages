@@ -14,6 +14,7 @@
  * because a tool call can always arrive one transition late.
  */
 
+import { createHash } from "node:crypto";
 import { Type } from "@earendil-works/pi-ai";
 import type { AgentToolResult } from "@earendil-works/pi-coding-agent";
 import {
@@ -22,14 +23,13 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { bindLifecycleRenderers, emptyToolCall, setOwnedTools, type PiWorkerProgressUpdate } from "@fradser/pi-kit";
-import { describeUnmet } from "./check.ts";
+import { bindLifecycleRenderers, emptyToolCall, extractTextContent, renderToolLifecycle, setOwnedTools, type ToolLifecycleSpec } from "@fradser/pi-kit";
 import type { GoalCore } from "./core.ts";
 import { nowIso, type GoalRecord } from "./record.ts";
 import type { GoalSettings } from "./settings.ts";
 import type { GoalStore } from "./store.ts";
 
-export const GOAL_TOOLS = ["get_goal", "create_goal", "update_goal", "research_goal"] as const;
+export const GOAL_TOOLS = ["get_goal", "create_goal", "update_goal"] as const;
 
 /** Tools allowed after a decision ended the turn: reading the goal is how the
  * model finds out what it was supposed to be doing, so it stays available.
@@ -58,11 +58,10 @@ const rows = bindLifecycleRenderers({
  * importing a library for one annotation — and pi's guide would then require it
  * to be declared as a peer.
  */
-const GOAL_SECTIONS = ["summary", "objective", "history", "research"] as const;
+const GOAL_SECTIONS = ["summary", "objective"] as const;
 const GOAL_STATUSES = ["complete", "blocked", "paused"] as const;
 
 type GoalSection = (typeof GOAL_SECTIONS)[number];
-type GoalStatus = (typeof GOAL_STATUSES)[number];
 
 function closedSet<const T extends readonly string[]>(values: T) {
   return Type.Union(values.map((value) => Type.Literal(value)));
@@ -72,14 +71,12 @@ export function registerGoalTools(core: GoalCore): void {
   core.pi.registerTool(goalGet(core));
   core.pi.registerTool(goalCreate(core));
   core.pi.registerTool(goalUpdate(core));
-  core.pi.registerTool(goalResearch(core));
 }
 
 /**
  * Re-assert which of this extension's tools are exposed.
  *
- * Creating and researching are always possible. Reading follows the record it
- * would read, and recording an outcome needs a goal that can accept one.
+ * Creation and reading are always exposed; updates require an open uncapped goal.
  */
 export function refreshGoalToolSurface(core: GoalCore, _ctx: ExtensionContext): void {
   const goal = core.goal;
@@ -87,13 +84,7 @@ export function refreshGoalToolSurface(core: GoalCore, _ctx: ExtensionContext): 
   const live = focused && (goal!.status === "active" || goal!.status === "paused" || goal!.status === "blocked");
   setOwnedTools(core.pi as unknown as Parameters<typeof setOwnedTools>[0], {
     owned: GOAL_TOOLS,
-    // Creating and researching are never withdrawn: a user must always be able to
-    // start a goal, and research precedes creation. Reading is withdrawn with the
-    // record, because a session with nothing focused has nothing to read: the
-    // tool could only answer "no goal", and declaring it spends the model's
-    // attention on a fact the capability note already states. A budget-limited
-    // goal has stopped but is still focused, so it stays readable.
-    always: ["create_goal", "research_goal"],
+    always: ["create_goal", "get_goal"],
     toggled: focused ? (live ? ["get_goal", "update_goal"] : ["get_goal"]) : [],
     enabled: true,
   });
@@ -107,51 +98,79 @@ export function allowsAfterStop(toolName: string): boolean {
 /** The registration binds the tool name because Pi supplies only content and details. */
 interface GoalRenderedResult extends AgentToolResult<unknown> {
   tool?: string;
+  displayPartial?: boolean;
 }
 
 /** The shape every executor returns. A refusal is returned rather than thrown, so
  * a caller reads one shape whatever went wrong. */
-type GoalToolResult = AgentToolResult<{ subject: string; summary?: string; details?: string[]; markdown?: boolean }>;
+type GoalToolResult = AgentToolResult<{ subject: string; summary?: string; details?: string[]; markdown?: boolean; label?: string; cursor?: string }>;
 
 /** pi-kit's band for one goal tool result. pi-kit owns the frame, the expansion
  * hint, the wrapping, and the error styling; this decides only which part of the
  * result is the subject, which is always visible, and which expands. */
-const goalResultBand = rows.result<GoalRenderedResult>((value) => {
-  const spec = (value.details ?? {}) as { subject?: string; summary?: string; details?: string[]; markdown?: boolean };
+const goalSpec = (value: GoalRenderedResult): ToolLifecycleSpec => {
+  const text = extractTextContent(value.content).trim();
+  const [fallbackSubject, ...fallbackBody] = text.split(/\r\n|\r|\n/);
+  const metadata = (value.details ?? {}) as { subject?: string; summary?: string; details?: string[]; markdown?: boolean; label?: string };
+  const spec = { ...metadata, subject: metadata.subject ?? fallbackSubject, summary: metadata.summary ?? fallbackBody.join("\n").trim() };
   // Unified transcript tag: every goal tool row reads `[goal] ...`, with the
   // per-tool verb carried by the subject/summary so `ctrl+o to expand` still
   // applies via the shared band. The registered tool names stay distinct; only
   // the rendered tag is unified.
   const tool = "goal";
-  const summary = spec.summary?.split("\n").filter((line) => line.length > 0) ?? [];
+  // One body preserves authored paragraphs and code blocks. Settled results
+  // show it in full; streaming progress keeps one compact preview.
+  const summary = spec.summary?.trim() ? [spec.summary] : [];
   const details = spec.details?.length ? spec.details : [];
   return {
     tool,
     kind: "event" as const,
-    subject: spec.subject ?? tool,
+    label: spec.label,
+    verbatimSubject: !value.displayPartial,
+    fullSummary: !value.displayPartial,
+    subject: spec.subject?.startsWith("Goal ") ? spec.subject.slice("Goal ".length) : spec.subject ?? tool,
     ...(summary.length > 0 ? { summary } : {}),
-    // pi-kit renders one markdown body when asked. A markdown summary is
-    // compacted to its first row while collapsed and rendered in full when
-    // expanded, so a long finding or a multi-line activity line cannot flood
-    // the transcript.
+    // Native Markdown preserves paragraph and code-block boundaries.
     ...(spec.markdown ? { summaryFormat: "markdown" as const } : {}),
     ...(details.length > 0 ? { details } : {}),
   };
-});
+};
+const goalResultBand = rows.result<GoalRenderedResult>(goalSpec);
 
 /** The tool renders its own call and result, through pi-kit's shared band. */
 const renderShell = "self" as const;
 const renderCall = () => emptyToolCall();
-function renderGoalResultFor() {
+function renderGoalResultFor(toolName?: string) {
   return (
     result: AgentToolResult<unknown>,
     options: { expanded?: boolean; isPartial?: boolean },
     theme: Parameters<typeof goalResultBand>[2],
     context: { isError?: boolean },
-  ) => goalResultBand({ ...result, tool: "goal" }, options, theme, context);
+  ) => {
+    const displayResult = { ...result, tool: "goal", displayPartial: options.isPartial === true };
+    if (context.isError) {
+      const spec = goalSpec(displayResult);
+      if (toolName === "update_goal" && /^Validation failed for tool\b/.test(extractTextContent(result.content).trim())) {
+        spec.label = "update not applied";
+        spec.subject = "";
+        spec.summary = [extractTextContent(result.content)];
+      }
+      // Goal errors carry authored recovery text too. Use the shared band with
+      // error styling while retaining the full-summary layout and precise label.
+      return {
+        render: (width: number) => renderToolLifecycle({ ...spec, label: spec.label ?? spec.subject ?? "failed", subject: spec.label ? spec.subject : "" }, {
+          width, expanded: options.expanded, theme, isError: true,
+          fit: truncateToWidth, visibleWidth,
+          wrapDetail: (text, contentWidth) => wrapTextWithAnsi(text, Math.max(1, contentWidth)),
+        }),
+        invalidate() {},
+      };
+    }
+    return goalResultBand(displayResult, options, theme, context);
+  };
 }
 
-function result(spec: { subject: string; summary?: string; details?: string[]; markdown?: boolean }, error = false): GoalToolResult {
+function result(spec: { subject: string; summary?: string; details?: string[]; markdown?: boolean; label?: string; cursor?: string }, error = false): GoalToolResult {
   const text = spec.summary ? `${spec.subject}\n\n${spec.summary}` : spec.subject;
   return {
     content: [{ type: "text", text }],
@@ -167,12 +186,12 @@ function goalGet(core: GoalCore) {
     name: "get_goal",
     label: "Get Goal",
     description:
-      "Read the focused goal: its objective, completion contract, how long it has run, and its recent ledger history.",
+      "Read the focused goal and complete requirements. Summary and objective read the same view; objective is a compatibility alias. Follow the returned cursor for long model-facing pages; the TUI retains the full body.",
     promptSnippet: "Read the focused goal, or retrieve a requirement the current prompt omitted.",
-    promptGuidelines: [],
+    promptGuidelines: ["Read only when requirements or current state are missing from context; ordinary continuation needs no get_goal or update_goal acknowledgement."],
     parameters: Type.Object({
       section: Type.Optional(closedSet(GOAL_SECTIONS)),
-      cursor: Type.Optional(Type.String({ maxLength: 256, description: "Next history page." })),
+      cursor: Type.Optional(Type.String({ maxLength: 256, description: "Cursor returned by the previous read. Keep the same section; omit to restart after requirements change." })),
     }, { additionalProperties: false }),
     renderShell,
     renderCall,
@@ -180,188 +199,123 @@ function goalGet(core: GoalCore) {
     async execute(_id, params: { section?: GoalSection; cursor?: string }, _signal, _onUpdate, ctx) {
       core.bindUi(ctx);
       const goal = core.goal;
-      if (!goal) return result({ subject: "No focused goal", summary: "Use /goal <objective and completion conditions> to start this thread’s goal." });
+      if (!goal) return result({ subject: "no active goal", summary: "Use /goal <objective> to start a goal." });
       const section = params.section ?? "summary";
-      if (section === "objective") {
-        const parts = [
-          `Objective:\n${goal.objective}`,
-          goal.verificationContract ? `\nContract:\n${goal.verificationContract}` : "",
-          goal.pauseReason ? `\nPaused:\n${goal.pauseReason}` : "",
-        ].filter(Boolean).join("\n");
-        return bounded("objective", parts);
-      }
-      if (section === "history") {
-        const page = core.store.readHistory(goal.id, params.cursor);
-        const lines = page.events.map((event) => `${event.at} ${event.type}`);
-        // The cursor is the only way to reach the events this page did not
-        // return. The tool accepts one as input, so it must hand one back or a
-        // long history silently ends at the first page.
-        const more = page.cursor
-          ? `More history remains. Continue with get_goal(section="history", cursor="${page.cursor}").`
-          : "End of history.";
-        return result({
-          subject: `${page.events.length} ledger events`,
-          summary: [lines.join("\n"), more].join("\n"),
-          details: page.diagnostics.length > 0 ? [`Ledger diagnostics: ${page.diagnostics.join("; ")}`] : [],
-        });
-      }
-      if (section === "research") {
-        const research = core.store.readResearch(goal.id).trim();
-        if (!research) {
-          return result({ subject: "no research", summary: "No research was attached when this goal was created." });
-        }
-        return bounded("research", research, true);
-      }
-      return bounded("summary", [
-        `Goal — ${goal.status}`,
-        goal.objective,
-        goal.verificationContract ? `Contract: ${goal.verificationContract}` : "",
-        goal.pauseReason ? `Paused: ${goal.pauseReason}` : "",
-      ].filter(Boolean).join("\n"));
+      if (section === ("history" as GoalSection)) return result({ subject: "history", summary: "Goal lifecycle results are in this session's transcript. There is no separate Goal history." });
+      if (section === ("research" as GoalSection)) return result({ subject: "research unavailable", summary: "Use ordinary read, grep, find and ls tools to investigate the work." });
+      return paged(goal.status.replace("_", " "), [
+        `Objective:\n${goal.objective}`,
+        goal.verificationContract ? `\nCompletion conditions:\n${goal.verificationContract}` : "",
+        goal.pauseReason ? `\nPaused:\n${goal.pauseReason}` : "",
+
+      ].filter(Boolean).join("\n"), params.cursor);
     },
   });
 }
 
-/** Bound a result body, and state the cut when there is one.
- *
- * The subject names the section, with no character count: the length is not what
- * the reader asked for, and a cut already says how much it dropped. No goal id
- * appears either, because a session has one goal. */
-function bounded(section: string, body: string, markdown = false) {
+/** Model pages are bounded, but transcript details keep the complete authored
+ * body. Every page carries a next cursor; nothing becomes irretrievable. */
+function paged(subject: string, body: string, cursor?: string, markdown = false): GoalToolResult {
   const cap = 4000;
-  if (body.length <= cap) return result({ subject: section, summary: body, markdown });
-  return result({
-    subject: section,
-    summary: `${body.slice(0, cap)}\n\n[truncated at ${cap} characters.]`,
-    markdown,
-  });
+  const fingerprint = createHash("sha256").update(body).digest("hex").slice(0, 16);
+  const match = cursor?.match(/^offset:([0-9]+):([a-f0-9]{16})$/);
+  if (cursor !== undefined && (!match || match[2] !== fingerprint)) {
+    return result({ subject: "read not applied", summary: "Use the cursor returned by get_goal, or omit it to read from the beginning." }, true);
+  }
+  const offset = cursor === undefined ? 0 : Number(match![1]);
+  if (!Number.isSafeInteger(offset) || offset >= body.length) {
+    return result({ subject: "read not applied", summary: "This page is no longer available. Read get_goal again without a cursor." }, true);
+  }
+  let end = Math.min(body.length, offset + cap);
+  // Never split a UTF-16 surrogate pair between model pages.
+  if (end < body.length && /[\uD800-\uDBFF]/.test(body[end - 1]!)) end--;
+  const next = end < body.length ? `offset:${end}:${fingerprint}` : undefined;
+  const view = result({ subject, summary: offset === 0 ? body : body.slice(offset, end), markdown, ...(next ? { cursor: next } : {}) });
+  view.content = [{ type: "text", text: `${subject}\n\n${body.slice(offset, end)}${next ? `\n\nMore content remains. Continue with get_goal(cursor="${next}").` : ""}` }];
+  return view;
 }
 
 // ── create_goal ───────────────────────────────────────────────────────
 
 function goalCreate(core: GoalCore) {
   return defineTool({
-    name: "create_goal",
-    label: "Create Goal",
-    description:
-      "Create and focus a durable goal. Write the objective yourself from the conversation: it must say what is true when the goal is met. Use update_goal instead when the user is refining a goal this session already has focused.",
-    promptSnippet: "Create a durable goal from what the user asked for.",
-    promptGuidelines: [
-      "Do not create a goal for an ordinary task that will finish in this turn.",
-      "Write the objective so someone else could tell whether it is met. Include the requirements the user stated, not a summary of them away.",
-      "Put a checkable requirement in verification_contract when the user gave one.",
-    ],
+    name: "create_goal", label: "Create Goal",
+    description: "Create this thread's objective and completion conditions when the user requests a Goal.",
     parameters: Type.Object({
-      objective: Type.String({ minLength: 1, description: "What must be true when this goal is met." }),
-      verification_contract: Type.Optional(Type.String({ maxLength: 2000, description: "What evidence shows it is met." })),
-      supersedes: Type.Optional(Type.Boolean({ description: "Archive the goal this thread already has, so this one replaces it. Set it when the new request carries the earlier goal forward." })),
+      objective: Type.String({ minLength: 1 }),
+      verification_contract: Type.Optional(Type.String()),
+      token_budget: Type.Optional(Type.Integer({ minimum: 1 })),
     }, { additionalProperties: false }),
-    renderShell,
-    renderCall,
-    renderResult: renderGoalResultFor(),
-    async execute(_id, params: { objective: string; verification_contract?: string; supersedes?: boolean }, _signal, _onUpdate, ctx) {
+    renderShell, renderCall, renderResult: renderGoalResultFor(),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
       core.bindUi(ctx);
-      const existing = core.goal;
-      if (existing && !params.supersedes) {
-        return result({
-          subject: "This thread already has a goal",
-          summary: "Carry it into a new goal with `supersedes: true`, revise it with update_goal, or use /goal clear before creating another.",
-        }, true);
-      }
+      if (core.goal) return result({ subject: "creation not applied", summary: "This thread already has a goal. Revise it with update_goal, or clear it first." }, true);
       const objective = params.objective.trim();
-      if (!objective) return result({ subject: "No objective", summary: "create_goal needs a nonempty objective." }, true);
-      // Research gathered this session attaches here, once. The store writes
-      // it under the same lock as the record, so the material and the goal it
-      // informs cannot be separated by a failure between two writes. The slot
-      // is consumed only after the write lands, so a failed creation keeps
-      // its material for the retry.
-      const research = core.peekPendingResearch();
-      const created = core.store.create({
-        objective,
-        contract: params.verification_contract?.trim(),
-        owner: ctx.sessionManager.getSessionId() || "unknown-session",
-        id: core.newId(),
-        research: research ? { focus: research.focus, text: research.findings, tokens: research.tokens } : undefined,
-      });
-      if (!created.ok) return result({ subject: "Goal creation failed", summary: created.message }, true);
-      if (research) core.takePendingResearch();
-      // A goal that carries the earlier one forward still leaves one goal per
-      // thread. The earlier goal is archived only after the new record is
-      // durable, so a failed creation can never leave the thread with neither.
-      let supersededNote = "";
-      if (existing) {
-        core.abortCheck();
-        core.cancelContinuation(existing.id);
-        const released = core.store.apply({
-          expectedGoalId: existing.id, archive: true,
-          mutate: (draft) => ({ ...draft, status: "complete", autoContinue: false }),
-          ledger: [{ type: "goal_cleared", goalId: existing.id, reason: "superseded", at: nowIso() }],
-        });
-        supersededNote = released.ok
-          ? "\n\nThe goal this thread had is archived as superseded."
-          : `\n\nThe goal this thread had could not be archived: ${released.message}`;
-      }
-      core.focus(created.goal.id, ctx, "created");
-      core.scheduler.schedule(created.goal, core.settings(ctx));
-      refreshGoalToolSurface(core, ctx);
-      return result({
-        subject: "Goal created and focused",
-        summary: `It now runs on its own until the completion check says it is met.${research ? " Read-only research gathered this session is attached." : ""}${supersededNote}\n\n${objective}`,
-      });
+      if (!objective) return result({ subject: "creation not applied", summary: "Choose a nonempty objective." }, true);
+      const created = core.store.create({ objective, contract: params.verification_contract?.trim(), tokenBudget: params.token_budget,
+        owner: ctx.sessionManager.getSessionId() || "unknown-session", id: core.newId(), initialTokens: core.pendingCreationTokens() });
+      if (!created.ok) return result({ subject: "creation not applied", summary: created.message }, true);
+      core.clearCreationUsage();
+      if (!core.focus(created.goal.id, ctx, "created")) return result({ subject: "creation not applied", summary: "The new goal could not be focused." }, true);
+      refreshGoalToolSurface(core, ctx); core.refreshUi(ctx);
+      if (created.goal.status === "budget_limited") core.markTurnStopped();
+      return result({ subject: created.goal.status === "budget_limited" ? "budget reached" : "started", summary: goalBody(created.goal) });
     },
   });
 }
 
-// ── update_goal ───────────────────────────────────────────────────────
-
 function goalUpdate(core: GoalCore) {
   return defineTool({
-    name: "update_goal",
-    label: "Update Goal",
-    description:
-      "Record an outcome for the focused goal, revise its objective, or save what comes next. Completion is decided by the completion check, not by this call.",
-    promptSnippet: "Record a goal outcome, revise its objective, or save the next action.",
-    promptGuidelines: [],
+    name: "update_goal", label: "Update Goal",
+    description: "Request evidence-based completion, report a recurring blocker, carry out a user pause, or commit a complete user-requested revision.",
+    promptGuidelines: [
+      "Request complete only after gathering the required evidence. Ordinary turns do not run completion checks.",
+      "paused requires an explicit user request. Report blocked only when no defensible progress remains; the same blocker must recur on three consecutive turns.",
+      "A revision must preserve the user's existing requirements and completion conditions unless the user explicitly removes them.",
+    ],
     parameters: Type.Object({
       status: Type.Optional(closedSet(GOAL_STATUSES)),
-      reason: Type.Optional(Type.String({ maxLength: 2000, description: "Required for paused and blocked: the concrete reason." })),
-      objective: Type.Optional(Type.String({ description: "Replace the objective. Use when the user refines this goal." })),
-      verification_contract: Type.Optional(Type.String({ maxLength: 2000, description: "Replace the completion contract." })),
-      completion_summary: Type.Optional(Type.String({ description: "What you did. An untrusted claim, never evidence. There is no length cap; the completion check reads a bounded prefix and the full text is recorded." })),
-      next_action: Type.Optional(Type.String({ minLength: 1, maxLength: 2000, description: "Save the next action and end the turn." })),
-    }, { additionalProperties: false }),
-    renderShell,
-    renderCall,
-    renderResult: renderGoalResultFor(),
-    async execute(_id, params: {
-        status?: GoalStatus;
-        reason?: string;
-        objective?: string;
-        verification_contract?: string;
-        completion_summary?: string;
-        next_action?: string;
-      }, _signal, _onUpdate, ctx) {
+      reason: Type.Optional(Type.String({ minLength: 1 })),
+      objective: Type.Optional(Type.String({ minLength: 1 })),
+      verification_contract: Type.Optional(Type.String()),
+      completion_summary: Type.Optional(Type.String()),
+    }, { additionalProperties: false, oneOf: [
+      { required: ["status"], not: { anyOf: [{required:["objective"]},{required:["verification_contract"]}] }, oneOf: [
+        { properties: {status:{const:"complete"}}, not: {required:["reason"]} },
+        { properties: {status:{enum:["paused","blocked"]}}, required:["reason"], not:{required:["completion_summary"]} },
+      ] },
+      { anyOf:[{required:["objective"]},{required:["verification_contract"]}], not:{anyOf:["status","reason","completion_summary"].map(field=>({required:[field]}))} },
+    ] }),
+    renderShell, renderCall, renderResult: renderGoalResultFor("update_goal"),
+    async execute(_id, params, _signal, _onUpdate, ctx) {
       core.bindUi(ctx);
       const goal = core.goal;
-      if (!goal) return result({ subject: "No focused goal", summary: "Create one first." }, true);
-      const settings = core.settings(ctx);
-      const outcomes = [params.status, params.objective, params.verification_contract, params.next_action].filter(Boolean);
-      if (outcomes.length === 0) {
-        return result({ subject: "Nothing to record", summary: "Pass a status, a new objective, or a next action." }, true);
+      if (!goal) return result({subject:"no active goal",summary:"Create a goal first."},true);
+      const revision = params.objective !== undefined || params.verification_contract !== undefined;
+      if ((!params.status && !revision) || (params.status && revision) ||
+          (params.reason !== undefined && !["paused","blocked"].includes(params.status ?? "")) ||
+          (params.completion_summary !== undefined && params.status !== "complete") || "next_action" in params) {
+        return result({subject:"update not applied",summary:"Choose a status or a complete objective revision, and send only its fields."},true);
       }
-      if (params.status && (params.objective || params.verification_contract || params.next_action)) {
-        return result({ subject: "Two decisions at once", summary: "status is exclusive with objective and next_action." }, true);
+      if (revision) return revise(core,ctx,goal,params.objective,params.verification_contract);
+      if (params.status === "complete") return completeGoal(core,ctx,goal,core.settings(ctx),params.completion_summary,_signal);
+      if (!params.reason?.trim()) return result({subject:"update not applied",summary:"Provide the reason for this status."},true);
+      if (params.status === "blocked") {
+        const blocked = core.reportBlocker(params.reason.trim());
+        core.refreshUi(ctx); refreshGoalToolSurface(core,ctx);
+        return result({subject:blocked ? "blocked" : "blocker reported",summary: blocked ? `${params.reason}\nUse /goal resume after resolving this blocker.` : `${params.reason}\nThe same blocker must recur on three consecutive turns before the goal is blocked.`});
       }
-      if (params.next_action && (params.objective || params.verification_contract)) {
-        return result({ subject: "Two decisions at once", summary: "next_action is exclusive with a revision." }, true);
-      }
-
-      if (params.next_action) return saveNextAction(core, ctx, goal, settings, params.next_action);
-      if (params.objective || params.verification_contract) return revise(core, ctx, goal, params.objective, params.verification_contract);
-      if (params.status === "complete") return completeGoal(core, ctx, goal, settings, params.completion_summary);
-      return pauseGoal(core, ctx, goal, params.reason);
+      if (!await core.pauseByUser(ctx,params.reason.trim())) return result({subject:"update not applied",summary:"The goal could not be paused."},true);
+      refreshGoalToolSurface(core,ctx);
+      return result({subject:"paused",summary:params.reason.trim()});
     },
   });
+}
+
+export function goalBody(goal: GoalRecord): string {
+  return [`Objective:\n${goal.objective}`, goal.verificationContract ? `\nCompletion conditions:\n${goal.verificationContract}` : "",
+    goal.pauseReason ? `\nReason:\n${goal.pauseReason}` : "", `\nTokens used: ${goal.usage.tokensUsed}`,
+    goal.tokenBudget ? `Token budget: ${goal.tokenBudget}` : ""].filter(Boolean).join("\n");
 }
 
 /**
@@ -383,13 +337,12 @@ export function applyRevision(
 ): { ok: true; goal: GoalRecord } | { ok: false; message: string } {
   return store.apply({
     expectedGoalId: goalId,
-    writePrompt: true,
     mutate: (draft) => {
       const nextContract = contract !== undefined ? contract.trim() || undefined : draft.verificationContract;
       const changed = objective !== draft.objective || nextContract !== draft.verificationContract;
       return {
         ...draft,
-        ...(changed ? { evidenceSince: nowIso(), completionFailures: 0 } : {}),
+        ...(changed ? { evidenceSince: nowIso() } : {}),
         objective,
         verificationContract: nextContract,
       };
@@ -406,15 +359,15 @@ function revise(
 ) {
   const nextObjective = objective?.trim();
   if (nextObjective !== undefined && !nextObjective) {
-    return result({ subject: "Empty objective", summary: "A revision needs text." }, true);
+    return result({ subject: "update not applied", summary: "Choose a nonempty objective." }, true);
   }
   // Lifecycle state is checked even though `update_goal` is withdrawn for these
   // goals, because a call can arrive one transition late. A budget-limited goal
-  // has spent its lifetime tokens and a completed goal is archived; rewriting
+  // has spent its lifetime tokens and a completed goal has ended; rewriting
   // their requirements, prose and refusal count would revive work that stopped.
   if (goal.status !== "active" && goal.status !== "paused" && goal.status !== "blocked") {
     return result(
-      { subject: "Goal not revisable", summary: `A ${goal.status.replace("_", " ")} goal cannot be revised. Use /goal resume to continue it.` },
+      { subject: "update not applied", summary: `A ${goal.status.replace("_", " ")} goal cannot be revised. Use /goal clear, then /goal <objective and completion conditions> to start a new goal.` },
       true,
     );
   }
@@ -424,142 +377,26 @@ function revise(
     nextObjective ?? goal.objective,
     contract,
   );
-  if (!outcome.ok) return result({ subject: "Objective not revised", summary: outcome.message }, true);
+  if (!outcome.ok) return result({ subject: "update not applied", summary: outcome.message }, true);
+  if (outcome.goal.objective !== goal.objective || outcome.goal.verificationContract !== goal.verificationContract) core.requirementsChanged();
   const activated = core.activateRequestedRevision(goal.id, ctx);
   core.refreshUi(ctx);
   refreshGoalToolSurface(core, ctx);
   return result({
-    subject: `Goal revised${activated === true ? " and activated" : ""}`,
-    summary: `${outcome.goal.objective}${activated === false ? "\n\nThe revision was saved, but continuation is blocked by its current limits." : ""}`,
+    subject: "updated",
+    summary: `${goalBody(outcome.goal)}${activated === false ? "\n\nThe revision was saved, but continuation is blocked by its current limits." : ""}`,
   });
 }
 
-function saveNextAction(core: GoalCore, _ctx: ExtensionContext, goal: GoalRecord, settings: GoalSettings, nextAction: string) {
-  const generation = goal.scheduler?.generation;
-  if (!generation) return result({ subject: "No scheduling state", summary: "Goal is not scheduled." }, true);
-  const declared = core.scheduler.declare(goal, nextAction, settings);
-  if (!declared.ok) return result({ subject: "Decision not saved", summary: declared.message }, true);
-  core.markTurnStopped();
-  // The decision is the model saying what comes next. Letting it keep working
-  // would invalidate the answer it just gave, so the turn ends here.
-  const text = `Next action saved: ${nextAction}. End this turn.`;
-  return { content: [{ type: "text" as const, text }], details: { subject: "Saved a next action", summary: text }, terminate: true };
-}
-
-function pauseGoal(core: GoalCore, ctx: ExtensionContext, goal: GoalRecord, reason: string | undefined) {
-  if (!reason?.trim()) {
-    return result({ subject: "A reason is required", summary: "Say what is blocking this goal." }, true);
-  }
-  core.cancelGoalActivation();
-  core.abortCheck();
-  if (!core.scheduler.pause(goal, reason.trim(), "agent")) {
-    return result({ subject: "Goal could not pause", summary: "The state write failed. Read the current goal before retrying." }, true);
-  }
-  core.markTurnStopped();
-  refreshGoalToolSurface(core, ctx);
-  return result({ subject: "Goal paused", summary: reason.trim() });
-}
-
-async function completeGoal(core: GoalCore, ctx: ExtensionContext, goal: GoalRecord, settings: GoalSettings, claim: string | undefined) {
-  core.noteCompletionRequested();
-  const at = nowIso();
-  core.appendEvents(ctx, [{ type: "completion_requested", goalId: goal.id, summary: claim, at }]);
-  const recorded = core.store.apply({
-    expectedGoalId: goal.id,
-    mutate: (draft) => ({ ...draft, completionClaim: claim?.trim() || draft.completionClaim }),
-  });
-  const current = recorded.ok ? recorded.goal : goal;
-
-  if (settings.disableCheck) {
-    core.appendEvents(ctx, [{ type: "check_skipped", goalId: goal.id, reason: "disabled in settings", at: nowIso() }]);
-    return archive(core, ctx, current, "Completed with the completion check disabled.");
-  }
-
-  const verdict = await core.check(ctx, current, claim, settings, true);
+async function completeGoal(core: GoalCore, ctx: ExtensionContext, goal: GoalRecord, settings: GoalSettings, claim: string | undefined, signal?: AbortSignal) {
+  const verdict = await core.check(ctx,goal,claim,settings,signal);
   if (!verdict.met) {
-    refreshGoalToolSurface(core, ctx);
-    return {
-      ...result({
-        subject: verdict.stopped ? "Goal paused after three final refusals" : "Goal is not met",
-        summary: `${describeUnmet(verdict)}${verdict.advice ? `\n\n${verdict.advice}` : ""}`,
-      }, !verdict.stopped),
-      ...(verdict.stopped ? { terminate: true } : {}),
-    };
+    refreshGoalToolSurface(core,ctx); core.refreshUi(ctx);
+    const subject = core.goal?.status === "budget_limited" ? "budget reached" : verdict.stale ? "check discarded" : verdict.cancelled ? "check cancelled" : verdict.error ? "check failed" : "not met";
+    return result({subject,summary:verdict.error ?? verdict.report},!!verdict.error && core.goal?.status !== "budget_limited");
   }
-  return archive(core, ctx, current, verdict.report);
-}
-
-function archive(core: GoalCore, ctx: ExtensionContext, goal: GoalRecord, summary: string) {
-  const outcome = core.completeCheckedGoal(ctx, goal);
-  if (!outcome.ok) return result({ subject: "Goal could not be archived", summary: outcome.message }, true);
-  refreshGoalToolSurface(core, ctx);
-  return result({ subject: "Goal completed", summary: `${summary}\n\nArchived under .pi/goals/archived/.` });
-}
-
-// ── research_goal ────────────────────────────────────────────────────────────
-
-function goalResearch(core: GoalCore) {
-  return defineTool({
-    name: "research_goal",
-    label: "Research Goal",
-    description:
-      "Explore the codebase read-only before writing an objective, and attach the findings to the next goal you create. The child has read, grep, find, and ls only — no shell, no writes. Findings are material for the objective, never evidence for the completion check.",
-    promptSnippet: "Explore the codebase read-only before creating a goal.",
-    promptGuidelines: [
-      "Run this before create_goal when the conversation does not settle what exists in the codebase.",
-      "State the focus as the open question the exploration should answer, not as an objective.",
-      "The latest successful research replaces earlier findings. A failed run preserves them until creation or a session boundary.",
-    ],
-    parameters: Type.Object({
-      focus: Type.String({ minLength: 1, maxLength: 2000, description: "What to investigate in the codebase." }),
-    }, { additionalProperties: false }),
-    renderShell,
-    renderCall,
-    renderResult: renderGoalResultFor(),
-    async execute(_id, params: { focus: string }, signal, onUpdate, ctx) {
-      core.bindUi(ctx);
-      const focus = params.focus.trim();
-      if (!focus) return result({ subject: "No focus", summary: "research_goal needs a focus to investigate." }, true);
-      // Research blocks until the child settles, so the waiting is already
-      // visible. Partial results update one transcript row in place. The final
-      // result is also sent before execute returns, so hosts that render tool
-      // updates before settling can replace the in-progress row with its outcome.
-      const update = (subject: string, summary: string, markdown = false): void => {
-        try {
-          (onUpdate as unknown as ((partial: unknown) => void) | undefined)?.({
-            content: [{ type: "text" as const, text: summary }],
-            details: { subject, summary, ...(markdown ? { markdown: true } : {}) },
-          });
-        } catch {
-          // Rendering must never take the research down.
-        }
-      };
-      const research = await core.research(focus, ctx.cwd, signal, (progress: PiWorkerProgressUpdate) => {
-        // The child's latest activity is what "progress" means here: its last
-        // tool, its thinking, or the text it is writing. The subject ends in an
-        // ellipsis so an in-progress row reads as in-progress, and pi-kit renders
-        // the activity as its own markdown row beneath the subject rather than
-        // beside it.
-        const summary = progress.activity ?? progress.text ?? "Working...";
-        update("Researching...", summary, true);
-        // The session model is the documented default, so the child follows the
-        // session instead of the persisted CLI default when none is configured.
-      }, ctx.model);
-      if (research.error || !research.findings) {
-        const failed = {
-          subject: "Research failed",
-          summary: `${research.error ?? "No findings were returned."}\n\nNo new findings were saved. Earlier successful research, if any, still waits for creation. Retry research_goal if needed.`,
-        };
-        update(failed.subject, failed.summary);
-        return result(failed, true);
-      }
-      const ready = {
-        subject: "Research ready",
-        summary: `${research.findings}\n\nThese findings replace earlier research and attach to the next goal created in this session. They inform the objective; they are not evidence for the completion check.`,
-        markdown: true,
-      };
-      update(ready.subject, ready.summary, ready.markdown);
-      return result(ready);
-    },
-  });
+  const outcome = core.completeCheckedGoal(ctx,goal);
+  if (!outcome.ok) return result({subject:"check discarded",summary:outcome.message},true);
+  refreshGoalToolSurface(core,ctx); core.refreshUi(ctx);
+  return {...result({subject:"completed",summary:verdict.report}),terminate:true};
 }

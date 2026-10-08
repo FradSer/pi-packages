@@ -9,15 +9,14 @@
  */
 
 import type { BoundaryResult, CustomMessageEntryDraft, ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { notifyPi, type PiWorkerProgressUpdate } from "@fradser/pi-kit";
-import { completionAdvice, runCompletionCheck, type CheckVerdict } from "./check.ts";
-import { runGoalResearch, type ResearchResult } from "./research.ts";
+import { runCompletionCheck, type CheckVerdict } from "./check.ts";
+import { emitGoalMessage } from "./procedure.ts";
+import { createHash } from "node:crypto";
 import { collectGoalEvidence } from "./evidence.ts";
-import type { GoalLedgerEvent } from "./ledger.ts";
 import { GoalScheduler } from "./scheduler.ts";
 import { loadGoalSettings, type GoalSettings } from "./settings.ts";
 import { GoalStore, newGoalId, type GoalMutationOutcome } from "./store.ts";
-import { budgetReached, nowIso, randomToken, type GoalRecord } from "./record.ts";
+import { budgetReached, randomToken, type GoalRecord } from "./record.ts";
 
 /** Session entry that records which goal this session is working on. Focus is
  * session-scoped on purpose: two sessions in one project can work different
@@ -33,32 +32,9 @@ export interface GoalFocusEntry {
 export interface GoalCoreOptions {
   /** Injected so the test harness can decide the verdict without a real model. */
   runCheck?: typeof runCompletionCheck;
-  /** Injected so the test harness can supply research without a real child. */
-  runResearch?: typeof runGoalResearch;
   /** Injected so a test can run against a temporary project rather than the
    * process's real working directory. */
   projectRoot?: string;
-}
-
-/** Research gathered before any goal exists. Held for this session only: it
- * is material waiting for the objective it will inform, and losing it costs a
- * re-run, not a goal. Consumed by the next `create_goal`. */
-export interface PendingResearch {
-  focus: string;
-  findings: string;
-  tokens: number;
-}
-
-/** The bound on the check report the ledger keeps.
- *
- * The report explains a decision, so it is worth keeping, but a verbose checker
- * must not flood the ledger. A cut states itself, because a silently shortened
- * report would read as the whole one. */
-const MAX_LEDGER_REPORT_CHARS = 4_000;
-
-function boundCheckReport(report: string): string {
-  if (report.length <= MAX_LEDGER_REPORT_CHARS) return report;
-  return `${report.slice(0, MAX_LEDGER_REPORT_CHARS)}\n…[truncated at ${MAX_LEDGER_REPORT_CHARS} characters.]`;
 }
 
 export class GoalCore {
@@ -69,13 +45,10 @@ export class GoalCore {
   private focusedGoalId: string | undefined;
   /** Abort for the check in flight, so focus change or shutdown stops it. */
   private checkAbort: AbortController | undefined;
-  /** Check progress for the surface. */
-  checkProgress: { label: string } | undefined;
+  /** Neutral check activity for the below-editor surface. */
+  checkProgress: { label: string; detail: string } | undefined;
   /** Tool names this extension owns, re-asserted on every surface change. */
   private readonly runCheck: typeof runCompletionCheck;
-  private readonly runResearch: typeof runGoalResearch;
-  private pendingResearch: PendingResearch | undefined;
-  private researchGeneration = 0;
   private activationGoalId: string | undefined;
   private pendingSetting: { prompt: string; goalId: string; owner: string } | undefined;
 
@@ -83,7 +56,6 @@ export class GoalCore {
     this.pi = pi;
     this.store = new GoalStore({ projectRoot });
     this.runCheck = options.runCheck ?? runCompletionCheck;
-    this.runResearch = options.runResearch ?? runGoalResearch;
     this.scheduler = new GoalScheduler({
       readFocused: () => this.goal,
       readOwner: () => this.owner(),
@@ -111,7 +83,7 @@ export class GoalCore {
     this.lastUi = {
       notify: (message, level) => {
         try {
-          notifyPi(ctx.ui, message, level);
+          emitGoalMessage(this.pi, level === "error" ? "failed" : "waiting", message);
         } catch {
           // The session this context belonged to is gone. The state change that
           // prompted the message is already durable, so there is nothing to
@@ -132,7 +104,7 @@ export class GoalCore {
   get goal(): GoalRecord | undefined {
     if (!this.focusedGoalId) return undefined;
     const goal = this.store.readGoalFromDisk(this.focusedGoalId);
-    // The goal may have been cleared or archived by another session since it
+    // The goal may have been cleared or completed by another session since it
     // was focused. Reporting it as still focused would let a command act on a
     // goal that no longer exists.
     if (!goal || goal.status === "complete") return undefined;
@@ -155,9 +127,7 @@ export class GoalCore {
     this.cancelGoalActivation();
     this.cancelContinuation(this.focusedGoalId ?? "");
     this.scheduler.shutdown();
-    this.abortCheck();
-    this.pendingResearch = undefined;
-    this.researchGeneration += 1;
+    this.abortCheck(ctx);
     this.lastSessionId = ctx.sessionManager.getSessionId();
     this.bindUi(ctx);
     let focused: string | undefined;
@@ -168,6 +138,11 @@ export class GoalCore {
     }
     this.focusedGoalId = focused;
     if (focused && !this.goal) this.focusedGoalId = undefined;
+    const restored = this.goal;
+    if (restored?.status === "active") this.scheduler.takeover(restored);
+    this.seenWork.clear();
+    this.blocker = undefined;
+    this.setUnmet(undefined);
     // Only this thread's persisted entries identify its goal.
   }
 
@@ -177,12 +152,14 @@ export class GoalCore {
       this.notify(ctx, "No goal is open.", "warning");
       return false;
     }
+    if (this.focusedGoalId !== goalId || reason === "created") this.setUnmet(undefined);
     this.focusedGoalId = goalId;
+    if (reason === "created") { this.seenWork.clear(); this.blocker = undefined; }
     this.appendFocusEntry(goalId, reason);
     this.store.apply({
       expectedGoalId: goalId,
       mutate: (goal) => goal,
-      ledger: [{ type: "goal_focused", goalId, reason, at: nowIso() }],
+
     });
     this.refreshUi(ctx);
     return true;
@@ -285,6 +262,7 @@ export class GoalCore {
   boundaryContinuation(): BoundaryResult | undefined {
     const goal = this.goal;
     if (!goal || !this.scheduler.isArmed()) return;
+    if (this.lastCtx?.hasPendingMessages()) { this.cancelContinuation(goal.id); this.scheduler.takeover(goal); return; }
     this.cancelContinuation(goal.id);
     const authorization = this.scheduler.claim();
     if (!authorization) return;
@@ -316,13 +294,17 @@ export class GoalCore {
     }
   }
 
+  canChargeGoal(goal: GoalRecord): boolean {
+    return (goal.status === "active" && goal.autoContinue) || this.activationGoalId === goal.id;
+  }
+
   cancelGoalActivation(): void {
     this.activationGoalId = undefined;
     this.pendingSetting = undefined;
   }
 
   /** A revision under an accepted `/goal <text>` request. The user asked, but
-   * the revision is what lifted the pause, so the ledger records that. */
+   * the revision is what lifted the pause, so the accepted request grants that. */
   activateRequestedRevision(goalId: string, ctx: ExtensionContext): boolean | undefined {
     if (this.activationGoalId !== goalId) return undefined;
     this.activationGoalId = undefined;
@@ -331,7 +313,7 @@ export class GoalCore {
     return this.scheduler.resume(goal, this.settings(ctx), "revision");
   }
 
-  // ── research ────────────────────────────────────────────────────────
+  // ── checker model ───────────────────────────────────────────────────
 
   /** The model a child uses: the configured one, else the session's.
    *
@@ -348,49 +330,17 @@ export class GoalCore {
     return session?.provider && session?.id ? `${session.provider}/${session.id}` : undefined;
   }
 
-  /** Hold the latest successful research for creation. A failed run keeps earlier findings.
-   * A session boundary invalidates results from children that are still running. */
-  async research(focus: string, cwd: string, signal?: AbortSignal, onUpdate?: (update: PiWorkerProgressUpdate) => void, sessionModel?: { provider?: string; id?: string }): Promise<ResearchResult> {
-    const settings = loadGoalSettings(cwd);
-    const model = this.childModel(settings.researchProvider, settings.researchModel, sessionModel);
-    const generation = ++this.researchGeneration;
-    const result = await this.runResearch({ focus, cwd, model, signal, onUpdate });
-    if (generation !== this.researchGeneration) {
-      return { findings: "", usage: result.usage, error: "The research session changed. Run research again." };
-    }
-    if (result.error || !result.findings) return result;
-    this.pendingResearch = {
-      focus,
-      findings: result.findings,
-      tokens: result.usage?.totalTokens ?? 0,
-    };
-    return result;
-  }
-
-  /** The research waiting for the next goal, without consuming it. */
-  peekPendingResearch(): PendingResearch | undefined {
-    return this.pendingResearch;
-  }
-
-  /** Consume the research waiting for the next goal, if any. Called only
-   * after the goal it informed is safely written, so a failed creation keeps
-   * its material for the retry. */
-  takePendingResearch(): PendingResearch | undefined {
-    const research = this.pendingResearch;
-    this.pendingResearch = undefined;
-    return research;
-  }
-
   // ── completion check ─────────────────────────────────────────────────
 
   get checkInFlight(): boolean {
     return this.checkAbort !== undefined;
   }
 
-  abortCheck(): void {
+  abortCheck(ctx?: ExtensionContext): void {
     this.checkAbort?.abort();
     this.checkAbort = undefined;
     this.checkProgress = undefined;
+    if (ctx) this.refreshUi(ctx);
   }
 
   /**
@@ -406,99 +356,93 @@ export class GoalCore {
     goal: GoalRecord,
     claim: string | undefined,
     settings: GoalSettings,
-    finalAttempt = false,
+    signal?: AbortSignal | boolean,
   ): Promise<CheckVerdict> {
     this.abortCheck();
     const abort = new AbortController();
     const generation = goal.scheduler?.generation;
     this.checkAbort = abort;
-    this.checkProgress = { label: "Checking whether the goal is met" };
+    const cancel = () => abort.abort();
+    const toolSignal = typeof signal === "object" ? signal : undefined;
+    toolSignal?.addEventListener("abort", cancel, { once: true });
+    if (toolSignal?.aborted) cancel();
+    this.checkProgress = {
+      label: "[goal] checking...",
+      detail: "Evaluating the objective and recorded evidence...",
+    };
+    this.refreshUi(ctx);
     const model = this.childModel(settings.provider, settings.model, ctx.model);
     const evidence = collectGoalEvidence(ctx.sessionManager.getBranch(), goal, this.owner());
-    this.appendEvents(ctx, [{ type: "check_started", goalId: goal.id, model, at: nowIso() }]);
-    this.refreshUi(ctx);
     try {
       const result = await this.runCheck({
         objective: goal.objective,
         claim,
-        contract: settings.disableContracts ? undefined : goal.verificationContract,
+        contract: goal.verificationContract,
         evidence,
         cwd: ctx.cwd,
         signal: abort.signal,
         model,
       });
       const current = this.goal;
-      if (abort.signal.aborted || this.checkAbort !== abort || !current || current.id !== goal.id ||
-          current.objective !== goal.objective || current.verificationContract !== goal.verificationContract ||
-          current.evidenceSince !== goal.evidenceSince || current.status !== goal.status || current.scheduler?.generation !== generation) {
-        return { met: false, report: "The goal changed while the completion check ran.", stale: true };
+      // Account the child even when it was cancelled or superseded. Charges
+      // target the same goal id, never a replacement goal, and do not certify it.
+      let charged = this.store.readGoalFromDisk(goal.id);
+      if (charged && result.usage?.totalTokens) {
+        const usage = this.store.apply({ expectedGoalId: goal.id, mutate: draft => {
+          const charged = { ...draft, usage: { ...draft.usage, tokensUsed: draft.usage.tokensUsed + Math.max(0, result.usage!.totalTokens) } };
+          if (!budgetReached(charged)) return charged;
+          return { ...charged, status: "budget_limited", autoContinue: false,
+            pauseReason: `The lifetime token cap of ${charged.tokenBudget} tokens was reached.`,
+            scheduler: charged.scheduler ? { ...charged.scheduler, phase: "idle", dispatch: undefined } : undefined };
+        } });
+        if (!usage.ok) return { met: false, report: usage.message, error: usage.message };
+        charged = usage.goal;
       }
-      this.appendEvents(ctx, [{
-        type: "check_result",
-        goalId: goal.id,
-        met: result.met,
-        // The report is why this decision was reached, so it is kept up to the
-        // ledger bound, and a cut states itself. A ledger record that cannot be
-        // appended is a diagnostic, not a reason to throw away the verdict just
-        // reached.
-        report: boundCheckReport(result.report || result.error || ""),
-        at: nowIso(),
-      }]);
-      if (finalAttempt && !result.met && !result.error && !result.stale) {
-        const attempts = (current.completionFailures ?? 0) + 1;
-        const advice = completionAdvice(result, evidence);
-        const stop = attempts >= 3;
-        const outcome = this.store.apply({
-          expectedGoalId: goal.id,
-          expectedRevision: current.revision,
-          mutate: draft => {
-            // This write sets `status` directly rather than going through
-            // pause(), so it carries its own ownership guard. Another session
-            // can resume the goal while the check runs, and stopping a goal this
-            // session no longer owns is a real action taken on someone else's
-            // work.
-            if (stop && !this.scheduler.owns(draft)) return undefined;
-            return {
-              ...draft, completionFailures: attempts,
-              ...(stop ? {
-                status: "paused" as const, autoContinue: false, stopReason: "agent" as const,
-                pauseReason: `Three final completion attempts were refused.\n${advice}`,
-                scheduler: draft.scheduler ? { ...draft.scheduler, phase: "idle" as const, dispatch: undefined, generation: randomToken() } : undefined,
-              } : {}),
-            };
-          },
-          ledger: [{ type: "completion_refused", goalId: goal.id, attempts, report: result.report, advice, at: nowIso() }],
-        });
-        if (!outcome.ok) return { met: false, report: outcome.message, stale: true };
-        if (stop) {
-          this.cancelContinuation(goal.id);
-          this.scheduler.shutdown();
-          this.cancelGoalActivation();
-          this.markTurnStopped();
+      if (current?.id === goal.id && charged && budgetReached(charged) &&
+          charged.objective === goal.objective && charged.verificationContract === goal.verificationContract) {
+        this.markBudgetLimited(ctx, charged, false);
+        return { met: false, report: "The goal budget was reached during the check.", error: "Budget reached." };
+      }
+      const changed = current?.id !== goal.id || !charged || charged.id !== goal.id || charged.objective !== goal.objective ||
+        charged.verificationContract !== goal.verificationContract || charged.evidenceSince !== goal.evidenceSince ||
+        charged.status !== goal.status || charged.scheduler?.generation !== generation;
+      if (changed) return { met: false, report: "The goal changed; the old check result was discarded.", stale: true };
+      if (abort.signal.aborted || this.checkAbort !== abort) return { met: false, report: "The completion check was cancelled.", cancelled: true };
+      if (charged && budgetReached(charged)) {
+        this.markBudgetLimited(ctx, charged, false);
+        return { met: false, report: "The goal budget was reached during the check.", error: "Budget reached." };
+      }
+      if (result.error) {
+        if (!this.scheduler.pause(charged!, `Completion check failed: ${result.error}`, "agent", { requireRevision: charged!.revision, notifyFailure: false })) {
+          return { met: false, report: "The goal changed; the old check result was discarded.", stale: true };
         }
-        this.setUnmet(result.report);
-        return { ...result, attempts, advice, stopped: stop };
-      }
+        this.markTurnStopped();
+      } else if (!result.met) this.setUnmet(result.report);
       return result;
     } finally {
+      toolSignal?.removeEventListener("abort", cancel);
       if (this.checkAbort === abort) {
         this.checkAbort = undefined;
         this.checkProgress = undefined;
+        this.refreshUi(ctx);
       }
-      this.refreshUi(ctx);
     }
   }
 
-  /** Archive only the revision whose contract was checked, for both completion paths. */
+  /** Release only the requirements whose contract was checked. */
   completeCheckedGoal(ctx: ExtensionContext, checked: GoalRecord): GoalMutationOutcome {
     const outcome = this.store.apply({
       expectedGoalId: checked.id,
-      expectedRevision: checked.revision,
-      archive: true,
-      mutate: draft => ({ ...draft, status: "complete", autoContinue: false }),
-      ledger: [{ type: "goal_completed", goalId: checked.id, archivePath: `.pi/goals/archived/${checked.id}/record.json`, at: nowIso() }],
+      finish: true,
+      mutate: draft => {
+        if (!this.scheduler.owns(draft) || budgetReached(draft) || draft.objective !== checked.objective || draft.verificationContract !== checked.verificationContract ||
+            draft.evidenceSince !== checked.evidenceSince || draft.status !== checked.status ||
+            draft.scheduler?.generation !== checked.scheduler?.generation) return undefined;
+        return { ...draft, status: "complete", autoContinue: false };
+      },
     });
     if (outcome.ok) {
+      this.markTurnStopped(checked.id);
       this.cancelContinuation(checked.id);
       this.clearFocus(ctx, "completed");
       this.setUnmet(undefined);
@@ -507,80 +451,69 @@ export class GoalCore {
     return outcome;
   }
 
-  /** Whether the current turn already ran the completion check for an explicit
-   * request from the model. The loop's own check must not duplicate it. */
-  private turnCompletionChecked = false;
-
-  noteCompletionRequested(): void {
-    this.turnCompletionChecked = true;
-  }
-
-  /** Whether the executor asked to close the goal this turn. */
-  turnRequestedCompletion(): boolean {
-    return this.turnCompletionChecked;
-  }
-
   private runPerformedWork = false;
+  private creationTokens = 0;
+  recordCreationUsage(tokens: number, threadId?: string): void {
+    if (threadId && threadId !== this.owner()) return;
+    this.creationTokens += Math.max(0, tokens);
+  }
+  pendingCreationTokens(): number { return this.creationTokens; }
+  clearCreationUsage(): void { this.creationTokens = 0; }
 
   /** A provider run can contain several tool turns. Work belongs to the whole run. */
   beginRun(): void {
     this.runPerformedWork = false;
+    this.creationTokens = 0;
   }
 
-  noteWork(toolName: string, successful: boolean, details?: unknown): void {
-    if (!successful || ["create_goal", "get_goal", "update_goal", "research_goal", "monitor_stop"].includes(toolName)) return;
+  private readonly seenWork = new Set<string>();
+  noteWork(toolName: string, successful: boolean, details?: unknown, output?: unknown, args?: unknown): void {
+    if (!successful || ["create_goal", "get_goal", "update_goal", "monitor_stop"].includes(toolName)) return;
     if (toolName === "monitor_start") {
       if (typeof details !== "object" || details === null || !("result" in details)) return;
       const terminal = details.result;
       if (typeof terminal !== "object" || terminal === null || !("status" in terminal) || terminal.status !== "success") return;
     }
+    // A receipt is new work only once. Repeating a successful read is not a
+    // reason to run forever; changing its result or making an edit is useful.
+    const key = createHash("sha256").update(JSON.stringify([toolName, args, output ?? details])).digest("hex");
+    if (this.seenWork.has(key)) return;
+    this.seenWork.add(key);
     this.runPerformedWork = true;
+    this.blocker = undefined;
   }
 
-  hasActiveBackgroundWork(): boolean {
-    try {
-      const rosterKey = Symbol.for("fradser.pi-subagents.roster");
-      const carrier = (globalThis as Record<symbol, Record<string, { status?: string }>>)[rosterKey];
-      if (carrier && typeof carrier === "object") {
-        for (const agent of Object.values(carrier)) {
-          if (agent && typeof agent === "object" && (agent.status === "starting" || agent.status === "working")) {
-            return true;
-          }
-        }
-      }
-    } catch {
-      // The roster belongs to another extension and is reached through a global
-      // symbol, so a shape this code cannot read is not this runtime's failure.
-      // The probe is best-effort: it can confirm only background work it can
-      // read, and a confirmation it cannot read is reported as absence.
-    }
-    return false;
+  performedWork(): boolean { return this.runPerformedWork; }
+
+  requirementsChanged(): void { this.blocker = undefined; this.seenWork.clear(); this.setUnmet(undefined); }
+
+  private blocker: { reason: string; count: number; turn: number } | undefined;
+  reportBlocker(reason: string): boolean {
+    const previous = this.blocker;
+    const same = previous?.reason === reason;
+    const count = same && previous.turn === this.turnSeq ? previous.count
+      : same && previous.turn === this.turnSeq - 1 ? previous.count + 1 : 1;
+    this.blocker = { reason, count, turn: this.turnSeq };
+    if (count < 3) return false;
+    const goal = this.goal;
+    if (!goal) return false;
+    const outcome = this.store.apply({ expectedGoalId: goal.id, expectedRevision: goal.revision, mutate: draft => this.scheduler.owns(draft) ? ({
+      ...draft, status: "blocked", autoContinue: false, pauseReason: reason,
+      scheduler: draft.scheduler ? { ...draft.scheduler, phase: "idle", dispatch: undefined, generation: randomToken() } : undefined,
+    }) : undefined });
+    if (outcome.ok) { this.scheduler.shutdown(); this.cancelContinuation(goal.id); this.markTurnStopped(); }
+    return outcome.ok;
   }
 
-  performedWork(): boolean {
-    return this.runPerformedWork || this.hasActiveBackgroundWork();
-  }
-
-  /** Reset bookkeeping when a new turn opens. */
-  beginTurn(): void {
-    this.turnCompletionChecked = false;
-  }
-
-  /** What the executor said it did, if it said anything that could be evidence. */
-  lastExecutorClaim(): string | undefined {
-    return this.pendingClaim;
-  }
-
-  /** The model may leave evidence on its way through a turn. */
-  recordClaim(claim: string): void {
-    this.pendingClaim = claim;
-  }
-
-  private pendingClaim: string | undefined;
-
-  /** Clear the executor's claim when a turn ends or is disposed. */
-  clearClaim(): void {
-    this.pendingClaim = undefined;
+  async pauseByUser(ctx: ExtensionContext, reason: string): Promise<boolean> {
+    const goal = this.goal;
+    if (!goal) return false;
+    this.cancelGoalActivation(); this.abortCheck(ctx);
+    if (!this.scheduler.pause(goal, reason, "user")) return false;
+    this.markTurnStopped();
+    if (typeof ctx.abort === "function") await ctx.abort();
+    this.refreshUi(ctx);
+    return true;
   }
 
   /** What the last check said is still missing. Volatile: it belongs in the
@@ -606,9 +539,9 @@ export class GoalCore {
    */
   private chargedTurns = new Set<string>();
 
-  chargeUsage(ctx: ExtensionContext, goal: GoalRecord, turnSeq: number, tokens: number, activeSeconds: number): GoalMutationOutcome | undefined {
+  chargeUsage(ctx: ExtensionContext, goal: GoalRecord, turnSeq: number, tokens: number, activeSeconds: number, attributed = false): GoalMutationOutcome | undefined {
     const current = this.goal;
-    if (!current || current.id !== goal.id || current.status !== "active" || !current.autoContinue) return undefined;
+    if (!attributed && (!current || current.id !== goal.id || !this.canChargeGoal(current))) return undefined;
     if (tokens <= 0 && activeSeconds <= 0) return undefined;
     const key = `${goal.id}:${turnSeq}`;
     if (this.chargedTurns.has(key)) return undefined;
@@ -616,23 +549,27 @@ export class GoalCore {
     if (this.chargedTurns.size > 1000) this.chargedTurns.clear();
     const outcome = this.store.apply({
       expectedGoalId: goal.id,
-      mutate: (draft) => ({
-        ...draft,
-        usage: {
+      mutate: (draft) => {
+        if (!this.scheduler.owns(draft) && !(attributed && draft.threadId === goal.threadId)) return undefined;
+        const charged = { ...draft, usage: {
           tokensUsed: draft.usage.tokensUsed + Math.max(0, tokens),
           activeSeconds: draft.usage.activeSeconds + Math.max(0, activeSeconds),
-        },
-      }),
-      ledger: [],
+        } };
+        if (!budgetReached(charged)) return charged;
+        return { ...charged, status: "budget_limited", autoContinue: false,
+          pauseReason: `The lifetime token cap of ${charged.tokenBudget} tokens was reached.`,
+          scheduler: charged.scheduler ? { ...charged.scheduler, phase: "idle", dispatch: undefined } : undefined };
+      },
+
     });
-    if (outcome.ok && outcome.goal.tokenBudget !== undefined && budgetReached(outcome.goal) && outcome.goal.status === "active") {
+    if (outcome.ok && budgetReached(outcome.goal) && current?.id === goal.id) {
       this.markBudgetLimited(ctx, outcome.goal);
     }
     this.refreshUi(ctx);
     return outcome;
   }
 
-  private markBudgetLimited(ctx: ExtensionContext, goal: GoalRecord): void {
+  private markBudgetLimited(_ctx: ExtensionContext, goal: GoalRecord, announce = true): void {
     const outcome = this.store.apply({
       expectedGoalId: goal.id,
       mutate: (draft) => {
@@ -649,21 +586,16 @@ export class GoalCore {
           pauseReason: `The lifetime token cap of ${draft.tokenBudget} tokens was reached.`,
         };
       },
-      ledger: [{ type: "goal_budget_limited", goalId: goal.id, tokenBudget: goal.tokenBudget ?? 0, at: nowIso() }],
+
     });
     this.cancelContinuation(goal.id);
     // Report what happened, not what was attempted: a stop declined because
     // another session took the goal over must not tell this user it stopped.
-    if (outcome.ok) this.notify(ctx, "Goal reached its token cap and stopped.", "warning");
+    if (outcome.ok) { this.markTurnStopped(); if (announce) emitGoalMessage(this.pi, "budget reached", outcome.goal.pauseReason ?? "Token budget reached."); }
   }
 
-  appendEvents(ctx: ExtensionContext, events: GoalLedgerEvent[]): void {
-    const diagnostics = this.store.appendLedger(events);
-    if (diagnostics.length > 0) this.notify(ctx, diagnostics.join("\n"), "warning");
-  }
-
-  notify(ctx: ExtensionContext, message: string, level: "info" | "warning" | "error"): void {
-    notifyPi(ctx.ui, message, level);
+  notify(_ctx: ExtensionContext, message: string, level: "info" | "warning" | "error"): void {
+    emitGoalMessage(this.pi, level === "error" ? "failed" : "waiting", message);
   }
 
   /** Ask the surface to redraw. Set by the installer; optional so the core is
@@ -697,12 +629,12 @@ export class GoalCore {
     return Math.max(0, Math.floor((Date.now() - this.turnStartedAt) / 1000));
   }
 
-  /** A saved next action ended this turn. Work tools after this are refused. */
-  markTurnStopped(): void {
-    if (this.goal) this.turnStopped = { goalId: this.goal.id, turnSeq: this.turnSeq };
+  /** A stopped goal ended this turn. Work tools after this are refused. */
+  markTurnStopped(goalId = this.goal?.id): void {
+    if (goalId) this.turnStopped = { goalId, turnSeq: this.turnSeq };
   }
 
-  /** The goal whose recorded next action stopped this turn, or null. */
+  /** The goal whose disposition stopped this turn, or null. */
   currentTurnStoppedGoalId(): string | null {
     if (!this.turnStopped) return null;
     if (this.turnStopped.turnSeq !== this.turnSeq) {
@@ -719,13 +651,12 @@ export class GoalCore {
     this.scheduler.shutdown();
     this.cancelGoalActivation();
     this.focusedGoalId = undefined;
+    this.setUnmet(undefined);
     this.appendFocusEntry(null, reason);
   }
 
   shutdown(): void {
     this.cancelGoalActivation();
-    this.pendingResearch = undefined;
-    this.researchGeneration += 1;
     this.scheduler.shutdown();
     this.abortCheck();
     if (this.continuationTimer !== undefined) clearTimeout(this.continuationTimer);

@@ -3,7 +3,7 @@
  *
  * Nothing here reads or writes storage. This module owns the shape and the
  * normalization a persisted record needs before it can be trusted. Storage
- * belongs to ./store.ts and the append-only history to ./ledger.ts.
+ * belongs to ./store.ts; lifecycle history belongs to the session transcript.
  *
  * There is deliberately no task tree. A goal is one objective plus one exit
  * condition, and a second opinion about that exit condition — a list the agent
@@ -17,7 +17,7 @@
  * user can lift. */
 export type GoalStatus = "active" | "paused" | "blocked" | "budget_limited" | "complete";
 
-/** Why a goal stopped. Lets the dashboard and the ledger distinguish "the model
+/** Why a goal stopped. Lets the dashboard and the transcript distinguish "the model
  * gave up" from "the user stopped it". */
 export type StopReason = "user" | "agent";
 
@@ -46,12 +46,9 @@ export interface GoalSchedulerState {
   /** What the model said comes next. Recorded so the following turn starts from
    * the model's own answer rather than from nothing. It does not authorize
    * anything: the loop continues either way. */
-  nextAction?: string;
   /** Automatic runs consumed in the current period. Only creation or an explicit
    * resume resets it. */
   used: number;
-  /** Consecutive settled runs without completed work. */
-  idleRuns?: number;
   /** Rotates on every authorization change, so a claim computed for an older
    * decision cannot be replayed against a newer one. */
   generation: string;
@@ -81,7 +78,6 @@ export interface GoalRecord {
    * writer is refused instead of overwriting a newer record. */
   revision: number;
   activePath?: string;
-  archivedPath?: string;
   stopReason?: StopReason;
   pauseReason?: string;
   /** Lifetime spending cap in whole tokens. */
@@ -89,13 +85,8 @@ export interface GoalRecord {
   /** What evidence must exist before this goal may be considered met. The
    * completion check is told about it and nothing else is. */
   verificationContract?: string;
-  /** What the model said it had done when it asked to close the goal. Retained
-   * so a rejection can be read against what was claimed, never as evidence. */
-  completionClaim?: string;
   /** Observations before the latest requirement revision are excluded. */
   evidenceSince?: string;
-  /** Consecutive valid explicit completion refusals for these requirements. */
-  completionFailures?: number;
   scheduler?: GoalSchedulerState;
 }
 
@@ -155,16 +146,13 @@ export function normalizeGoalRecord(raw: unknown): GoalRecord | undefined {
   };
   if (asString(record.threadId)) goal.threadId = String(record.threadId);
   if (asString(record.activePath)) goal.activePath = String(record.activePath);
-  if (asString(record.archivedPath)) goal.archivedPath = String(record.archivedPath);
   const stopReason = oneOf(record.stopReason, ["user", "agent"] as const);
   if (stopReason) goal.stopReason = stopReason;
   if (asString(record.pauseReason)) goal.pauseReason = String(record.pauseReason);
   const budget = asWholeNumber(record.tokenBudget);
   if (budget !== undefined && budget > 0) goal.tokenBudget = budget;
   if (asString(record.verificationContract)) goal.verificationContract = String(record.verificationContract);
-  if (asString(record.completionClaim)) goal.completionClaim = String(record.completionClaim);
   if (asString(record.evidenceSince)) goal.evidenceSince = String(record.evidenceSince);
-  goal.completionFailures = asWholeNumber(record.completionFailures) ?? 0;
   const scheduler = normalizeScheduler(asRecord(record.scheduler));
   if (scheduler) goal.scheduler = scheduler;
   return goal;
@@ -180,11 +168,8 @@ function normalizeScheduler(raw: Record<string, unknown> | undefined): GoalSched
     // fresh decision has to be armed before anything may claim it.
     phase: oneOf(raw?.phase, ["idle", "ready", "claimed", "running", "interrupted"] as const) ?? "idle",
     used: asWholeNumber(raw?.used) ?? 0,
-    idleRuns: asWholeNumber(raw?.idleRuns) ?? 0,
     generation: asString(raw?.generation) ?? "unknown",
   };
-  const nextAction = asString(raw?.nextAction);
-  if (nextAction) scheduler.nextAction = nextAction;
   const dispatch = asRecord(raw?.dispatch);
   const dispatchId = asString(dispatch?.id);
   const claimedAt = asWholeNumber(dispatch?.claimedAt);

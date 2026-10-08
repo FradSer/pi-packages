@@ -1,25 +1,5 @@
-/**
- * The sole mutation boundary for goal state.
- *
- * Every record write, prose write, archive, and ledger append in this package
- * goes through this module. That is the whole point of it: a goal is durable
- * state that several sessions and the agent itself write to, so a mutation
- * that skipped the ordered pipeline would be a mutation nobody could reason
- * about. Handlers validate and decide; they never touch storage.
- *
- *   reconcile from disk  (disk is the truth; no in-memory copy)
- *   -> identity checks   (expected goal id, expected revision)
- *   -> mutate a clone    (never the caller's live object)
- *   -> exclusive lock    (pi-kit exclusive create: one writer at a time)
- *   -> atomic write      (pi-kit atomic replace)
- *   -> archive           (when completing or clearing)
- *   -> ledger append     (best effort, after the authoritative write)
- *
- * If the write fails, nothing is committed and no event is appended. If the
- * ledger append fails after a successful write, the transition still stands and
- * the failure is returned as a diagnostic: the state change is real, and
- * dropping it because history could not be written would misrepresent reality.
- */
+/** One mutation boundary: lock, reconcile, compare revision, atomically write
+ * one Goal record or release it. Legacy history is never moved or removed. */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -29,20 +9,9 @@ import {
   writeJsonAtomic,
 } from "@fradser/pi-kit";
 import {
-  appendGoalEvents,
-  readGoalHistoryPage,
-  type GoalHistoryPage,
-  type GoalLedgerEvent,
-} from "./ledger.ts";
-import {
-  ARCHIVED_GOALS_DIR,
   GOALS_DIR,
-  archivedGoalDir,
   goalClaimDir,
-  goalDir,
-  goalPromptPath,
   goalRecordPath,
-  goalResearchPath,
   goalsRoot,
   goalsPlacementRefusal,
   isInside,
@@ -75,12 +44,8 @@ export interface GoalMutationSpec {
   /** Mutate a clone of the goal read from disk. Returning undefined aborts
    * without a write. */
   mutate: (goal: GoalRecord) => GoalRecord | undefined;
-  /** Appended after the authoritative write. Best effort. */
-  ledger?: GoalLedgerEvent[];
-  /** Move the goal to the archive directory instead of writing it in place. */
-  archive?: boolean;
-  /** Also write `prompt.md`. Set when the objective changed. */
-  writePrompt?: boolean;
+  /** Release the authoritative runtime record after the guarded mutation. */
+  finish?: boolean;
 }
 
 export type GoalMutationOutcome =
@@ -120,9 +85,7 @@ export class GoalStore {
     for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
       if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
       const record = this.readGoal(entry.name);
-      // A completed goal is archived, so one still sitting in the open pool is
-      // a goal that finished without being archived. It is not offered as open
-      // work: continuing it would be continuing something already done.
+      // Completed legacy records do not authorize new work.
       if (record && record.status !== "complete") goals.push(record);
     }
     return goals;
@@ -142,51 +105,19 @@ export class GoalStore {
 
   /** The user-editable objective prose. */
   readPrompt(goalId: string): string {
-    try {
-      return this.readProse(goalPromptPath(this.projectRoot, goalId));
-    } catch {
-      return "";
-    }
-  }
-
-  /** Read-only research findings attached at creation, or "" when absent. */
-  readResearch(goalId: string): string {
-    try {
-      return this.readProse(goalResearchPath(this.projectRoot, goalId));
-    } catch {
-      return "";
-    }
-  }
-
-  /** One page of ledger history, from wherever the goal currently lives. */
-  readHistory(goalId: string, cursor?: string, archived = false): GoalHistoryPage {
-    return readGoalHistoryPage(this.projectRoot, goalId, cursor, undefined, archived);
-  }
-
-  /** Whether a goal is currently archived rather than open. */
-  isArchived(goalId: string): boolean {
-    return fs.existsSync(path.join(archivedGoalDir(this.projectRoot, goalId), "record.json"));
+    return this.readGoal(goalId)?.objective ?? "";
   }
 
   // ── writes ─────────────────────────────────────────────────────────
 
-  /**
-   * Create a goal. Write prose before the authoritative record.
-   * A prose failure leaves no active goal and no creation event.
-   *
-   * `research` is pre-creation read-only findings. They are written through
-   * this same locked path — the store stays the only writer — and their tokens
-   * are seeded into usage, because spend attributed to the goal includes the
-   * research that produced it. Findings written here never reach the
-   * completion check.
-   */
+  /** Create one authoritative record before work begins. */
   create(input: {
     objective: string;
     contract?: string;
     tokenBudget?: number;
     owner: string;
     id: string;
-    research?: { focus: string; text: string; tokens: number };
+    initialTokens?: number;
   }): GoalMutationOutcome {
     // Refused before anything is written, so a nested placement leaves no
     // directory behind for a later run to adopt. Reads and an already stored
@@ -201,7 +132,7 @@ export class GoalStore {
       objective: input.objective,
       status: "active",
       autoContinue: true,
-      usage: { tokensUsed: Math.max(0, input.research?.tokens ?? 0), activeSeconds: 0 },
+      usage: { tokensUsed: input.initialTokens ?? 0, activeSeconds: 0 },
       createdAt: at,
       updatedAt: at,
       revision: 0,
@@ -209,6 +140,10 @@ export class GoalStore {
     };
     if (input.contract) goal.verificationContract = input.contract;
     if (input.tokenBudget !== undefined && input.tokenBudget > 0) goal.tokenBudget = input.tokenBudget;
+    if (goal.tokenBudget !== undefined && goal.usage.tokensUsed >= goal.tokenBudget) {
+      goal.status = "budget_limited"; goal.autoContinue = false;
+      goal.pauseReason = `The lifetime token cap of ${goal.tokenBudget} tokens was reached during creation.`;
+    }
     goal.activePath = path.posix.join(GOALS_DIR, safeGoalId(input.id), "record.json");
     try {
       const locked: { ok: true; goal: GoalRecord } | { ok: false; message: string } =
@@ -216,30 +151,11 @@ export class GoalStore {
           if (this.readGoalFromDisk(input.id)) {
             return { ok: false as const, message: `A goal with that id already exists.` };
           }
-          this.writeGoalFiles(goal, { writePrompt: true, research: input.research?.text, recordLast: true }, stillHeld);
+          this.writeGoalFiles(goal, stillHeld);
           return { ok: true as const, goal };
         });
       if (!locked.ok) return { ...locked, diagnostics: [] };
-      const events: GoalLedgerEvent[] = [{
-        type: "goal_created",
-        goalId: goal.id,
-        objective: goal.objective,
-        autoContinue: goal.autoContinue,
-        at,
-      }];
-      if (input.research) {
-        events.push({
-          type: "research_attached",
-          goalId: goal.id,
-          // Recorded whole: `research_goal` already bounds the focus at 2000
-          // characters in its schema, and a second invisible bound here would
-          // cut provenance without saying so.
-          focus: input.research.focus,
-          tokens: Math.max(0, input.research.tokens),
-          at,
-        });
-      }
-      const diagnostics = appendGoalEvents(this.projectRoot, events);
+      const diagnostics: string[] = [];
       return { ok: true, goal, diagnostics };
     } catch (error) {
       return { ok: false, message: `Goal creation failed: ${describe(error)}`, diagnostics: [] };
@@ -273,36 +189,31 @@ export class GoalStore {
           }
           next.revision = current.revision + 1;
           next.updatedAt = nowIso();
-          // 4. Write (or archive) atomically.
+          // 4. Write or release under the same lock.
           let written: GoalRecord;
           // Verified last: if the lock was taken from us while we computed the
           // mutation, the revision we based it on is no longer the truth.
           stillHeld();
-          if (spec.archive) {
-            written = this.archiveGoalFiles(next, stillHeld);
+          if (spec.finish) {
+            // Release only runtime files. Existing research and history are user
+            // data and remain untouched; no archive directory is ever written.
+            const record = goalRecordPath(this.projectRoot, goalId);
+            this.assertSafePath(record);
+            fs.unlinkSync(record);
+            written = next;
           } else {
-            this.writeGoalFiles(next, { writePrompt: spec.writePrompt === true }, stillHeld);
+            this.writeGoalFiles(next, stillHeld);
             written = next;
           }
           return { ok: true as const, goal: written };
         });
       if (!locked.ok) return { ...locked, diagnostics: [] };
       const written = locked.goal;
-      // 5. Ledger, best effort, after the authoritative write.
-      // The archive moved the goal directory, history included, so an append
-      // aimed at the open path would recreate an empty directory beside the
-      // archive and leave the completing event in a ledger of its own.
-      const diagnostics = spec.ledger?.length ? appendGoalEvents(this.projectRoot, spec.ledger, spec.archive === true) : [];
+      const diagnostics: string[] = [];
       return { ok: true, goal: written, diagnostics };
     } catch (error) {
       return { ok: false, message: describe(error), diagnostics: [] };
     }
-  }
-
-  /** Append events without a state change. Returns diagnostics for anything
-   * that could not be written. */
-  appendLedger(events: GoalLedgerEvent[], archived = false): string[] {
-    return appendGoalEvents(this.projectRoot, events, archived);
   }
 
   // ── internals ──────────────────────────────────────────────────────
@@ -320,20 +231,10 @@ export class GoalStore {
     }
   }
 
-  private readProse(file: string): string {
-    this.assertSafePath(file);
-    const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
-    try {
-      if (!fs.fstatSync(fd).isFile()) return "";
-      return fs.readFileSync(fd, "utf-8");
-    } finally {
-      fs.closeSync(fd);
-    }
-  }
-
   private readRecordFile(file: string): GoalRecord | undefined {
     let raw: string;
     try {
+      this.assertSafePath(file);
       const stats = fs.lstatSync(file);
       if (stats.isSymbolicLink() || !stats.isFile()) return undefined;
       raw = fs.readFileSync(file, "utf-8");
@@ -359,70 +260,12 @@ export class GoalStore {
     return normalizeGoalRecord((parsed as { goal?: unknown }).goal ?? parsed);
   }
 
-  private writeGoalFiles(goal: GoalRecord, options: { writePrompt: boolean; research?: string; recordLast?: boolean }, stillHeld: () => void = () => {}): void {
+  private writeGoalFiles(goal: GoalRecord, stillHeld: () => void): void {
     const file = goalRecordPath(this.projectRoot, goal.id);
-    if (!isInside(goalsRoot(this.projectRoot), file)) {
-      throw new Error(`Refused to write outside the goals directory.`);
-    }
+    if (!isInside(goalsRoot(this.projectRoot), file)) throw new Error("Goal path is outside its runtime directory.");
     this.assertSafePath(file);
-    if (options.writePrompt) this.assertSafePath(goalPromptPath(this.projectRoot, goal.id));
-    if (options.research !== undefined) this.assertSafePath(goalResearchPath(this.projectRoot, goal.id));
     stillHeld();
-    if (!options.recordLast) writeJsonAtomic(file, { version: GOAL_RECORD_VERSION, goal });
-    if (options.writePrompt) {
-      const prose = goalPromptPath(this.projectRoot, goal.id);
-      fs.mkdirSync(path.dirname(prose), { recursive: true, mode: 0o700 });
-      const fd = fs.openSync(prose, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW, 0o600);
-      try {
-        fs.writeFileSync(fd, `${goal.objective}\n`, "utf-8");
-      } finally {
-        fs.closeSync(fd);
-      }
-    }
-    if (options.research !== undefined) {
-      const research = goalResearchPath(this.projectRoot, goal.id);
-      if (!isInside(goalsRoot(this.projectRoot), research)) {
-        throw new Error(`Refused to write research outside the goals directory.`);
-      }
-      const tmp = `${research}.${process.pid}.tmp`;
-      this.assertSafePath(tmp);
-      fs.writeFileSync(tmp, `${options.research}\n`, { encoding: "utf-8", mode: 0o600, flag: "wx" });
-      try {
-        fs.renameSync(tmp, research);
-      } catch (error) {
-        fs.rmSync(tmp, { force: true });
-        throw error;
-      }
-    }
-    if (options.recordLast) {
-      stillHeld();
-      writeJsonAtomic(file, { version: GOAL_RECORD_VERSION, goal });
-    }
-  }
-
-  private archiveGoalFiles(goal: GoalRecord, stillHeld: () => void = () => {}): GoalRecord {
-    const from = goalDir(this.projectRoot, goal.id);
-    const to = archivedGoalDir(this.projectRoot, goal.id);
-    if (!isInside(path.join(this.projectRoot, ARCHIVED_GOALS_DIR), to)) {
-      throw new Error(`Refused to archive outside the archive directory.`);
-    }
-    this.assertSafePath(from);
-    this.assertSafePath(to);
-    fs.mkdirSync(path.dirname(to), { recursive: true, mode: 0o700 });
-    // Checked once, immediately before the move. The lock file lives inside the
-    // directory being moved, so it cannot be re-read afterwards; and a check
-    // after the move could not undo a move that had already happened.
-    stillHeld();
-    // The record is rewritten in place inside the moved directory so its stored
-    // `activePath` cannot outlive the move and point at a file that is gone.
-    fs.renameSync(from, to);
-    const archived: GoalRecord = {
-      ...goal,
-      archivedPath: path.posix.join(ARCHIVED_GOALS_DIR, safeGoalId(goal.id), "record.json"),
-    };
-    delete archived.activePath;
-    writeJsonAtomic(path.join(to, "record.json"), { version: GOAL_RECORD_VERSION, goal: archived });
-    return archived;
+    writeJsonAtomic(file, { version: GOAL_RECORD_VERSION, goal });
   }
 
   /**

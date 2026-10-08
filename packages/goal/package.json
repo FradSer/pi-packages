@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-goal",
   "version": "0.1.0",
-  "description": "Thread-scoped goals for Pi with one command, read-only research, authorized continuation, and an independent completion check.",
+  "description": "Thread-scoped goals for Pi with three tools, authorized continuation, and evidence-based completion.",
   "keywords": [
     "pi-package",
     "goal",
@@ -26,7 +26,8 @@
     "index.ts",
     "src",
     "features",
-    "README.md"
+    "README.md",
+    "TUI.zh-CN.md"
   ],
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",

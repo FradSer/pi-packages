@@ -8,7 +8,8 @@
  * than inspecting the injection in isolation.
  */
 
-import assert from "node:assert/strict";
+import { observedAssert as assert, observeScenario, observedScenarios } from "../../../tests/e2e/support/assertion-observer.ts";
+import { writeFileSync as writeObservationFile } from "node:fs";
 import { LIVE_CONTEXT_MARKER, LiveContext } from "../src/live-context.ts";
 import type { UserMessage } from "@earendil-works/pi-ai";
 
@@ -18,7 +19,7 @@ const results: string[] = [];
  *  unhandled rejection and the scenario is silently recorded as passing. */
 async function scenario(name: string, body: () => Promise<void> | void): Promise<void> {
   try {
-    await body();
+    await observeScenario(name, body);
     results.push(`ok ${name}`);
   } catch (error) {
     results.push(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`);
@@ -209,3 +210,4 @@ await scenario("the note says it is not a message from the user", async () => {
 });
 
 process.stdout.write(`${JSON.stringify(results)}\n`);
+if (process.env.PI_E2E_ASSERTION_PATH) writeObservationFile(process.env.PI_E2E_ASSERTION_PATH, JSON.stringify(observedScenarios()));

@@ -16,16 +16,9 @@ import { nonEmpty, safeFileName } from "@fradser/pi-kit";
  * session, so several sessions can see the same open goals. */
 export const GOALS_DIR = ".pi/goals";
 
-export const ARCHIVED_GOALS_DIR = ".pi/goals/archived";
-
 /** Directory holding one open goal. */
 export function goalDir(projectRoot: string, goalId: string): string {
   return path.join(projectRoot, GOALS_DIR, safeGoalId(goalId));
-}
-
-/** Directory holding one archived goal. */
-export function archivedGoalDir(projectRoot: string, goalId: string): string {
-  return path.join(projectRoot, ARCHIVED_GOALS_DIR, safeGoalId(goalId));
 }
 
 /** The authoritative record. Written only through pi-kit's atomic write. */
@@ -36,12 +29,6 @@ export function goalRecordPath(projectRoot: string, goalId: string): string {
 /** The objective as editable prose. Plain Markdown, no metadata. */
 export function goalPromptPath(projectRoot: string, goalId: string): string {
   return path.join(goalDir(projectRoot, goalId), "prompt.md");
-}
-
-/** Read-only research findings attached at creation. Material for the
- * objective, written only by the store, never read by the completion check. */
-export function goalResearchPath(projectRoot: string, goalId: string): string {
-  return path.join(goalDir(projectRoot, goalId), "research.md");
 }
 
 /** Directory holding this goal's exclusive-create claim markers. */

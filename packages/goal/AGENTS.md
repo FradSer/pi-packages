@@ -1,169 +1,71 @@
 # Goal Runtime Package Guidelines
 
-Applies to `packages/goal/` (`@fradser/pi-goal`). All references below are
-repository-relative.
+Applies to `packages/goal/` (`@fradser/pi-goal`). User instructions take precedence.
 
-## Read by Task
+## Runtime boundaries
 
-- The record, its normalization, and elapsed time: @packages/goal/src/record.ts.
-- On-disk layout, path safety, and where the goals directory may not live:
-  @packages/goal/src/paths.ts.
-- The event vocabulary and history paging: @packages/goal/src/ledger.ts.
-- The sole mutation boundary: @packages/goal/src/store.ts.
-- Continuation authorization: @packages/goal/src/scheduler.ts.
-- Injected prompts, the capability note, and `/goal`'s seed:
-  @packages/goal/src/prompt.ts.
-- Pre-creation read-only research: @packages/goal/src/research.ts.
-- Completion observations and provenance: @packages/goal/src/evidence.ts.
-- Deciding whether the objective is met: @packages/goal/src/check.ts.
-- Holding state, focus, and the check: @packages/goal/src/core.ts.
-- The four tools: @packages/goal/src/tools.ts.
-- Lifecycle handlers: @packages/goal/src/events.ts.
-- Below-editor passive status row with whole-minute time: @packages/goal/src/dashboard.ts.
-- The single `/goal` command: @packages/goal/src/commands.ts.
-- Settings layering: @packages/goal/src/settings.ts.
-- An unset model means the session's model. Both children take the configured model
-  when one is set, and the session's otherwise. A child given no model falls back to
-  the persisted CLI default, which is a different model and can be unavailable, so
-  never leave the model unresolved. Global defaults live in `~/.pi/agent/goal.json`.
-- Behavior contract: @packages/goal/features/goal.feature.
+A Goal is one thread-scoped objective and one completion condition. Do not add a
+Task tree, progress fraction, saved next-action workflow, dedicated research agent,
+independent user history, or Goal archive. Use ordinary tools for investigation.
 
-## What a goal is not
+- `store.ts` is the sole record writer. One atomic record holds the objective,
+  completion conditions, usage and scheduler state. Mutation checks and final
+  release occur under the same exclusive lock. Preserve existing legacy files.
+- Only the thread's own focus entry restores its goal. A boundary drops queued
+  continuation, live checks and revision activation. Restore is not authorization.
+- A timer, settled turn or queued message is an opportunity, never authorization.
+  Arm and claim separately; recheck identity, owner, generation, phase, dispatch
+  and budget. Accept a checkpoint once. Never replay unknown delivery.
+- Continue only after successful effective work and without pending user input.
+  Repeated identical tool receipts and pending monitors cannot sustain the loop.
+  Unrelated background activity is not progress. Empty or failed work waits; only
+  the user pauses. Resume preserves lifetime usage and continuation count.
+- A recurring blocker requires three consecutive model turns. The same-turn
+  report counts once; effective work, changed requirements and restore reset it.
+- Only an explicit completion request runs one fresh tool-less completion check.
+  No inspecting reviewer and no shell grant. Pass the complete objective and
+  conditions; do not approve a truncated prefix. Runtime observations have thread,
+  call, outcome and requirement-boundary provenance. Escape every untrusted payload.
+- A final marker decides MET/NOT MET. Missing markers, errors, cancellation and
+  outdated results are distinct and never complete the Goal. Refusals do not pause.
+- Count completion-check usage, including cancelled/superseded results for the same
+  open Goal, against the lifetime budget. Budget is not completion.
+- `/goal <text>` queues a request, preserving the old record until a complete
+  merged revision lands. Activation needs matching accepted delivery, not void
+  send success. Completion or clear releases current runtime state without archive.
 
-A goal is one objective and one exit condition. Do not reintroduce a task tree,
-a progress fraction, or a second opinion about whether the work is done. A task
-list is a second answer to "is this met?", maintained by the model doing the
-work, and the two contradict each other in exactly the state where the decision
-matters.
+## TUI
 
-Do not reintroduce an inspecting reviewer. The completion check is one tool-less
-completion; `bash` must never be granted to it, because a shell can write
-anything and that is what makes an empty tool grant worth having.
+Read @TUI.zh-CN.md when editing any Goal display path.
 
-Research is material, not evidence. The research child gets `read`, `grep`,
-`find`, and `ls` — never `bash`, never a write tool — and its findings may
-enter the objective the model writes but never the completion-check prompt.
-Findings reach disk only through `store.create`; a failed research attaches
-no new findings and never blocks creation. The latest successful run replaces earlier findings. A session boundary clears pending findings. The research model setting is separate from
-the check's, so each can be set alone.
+Use pi-kit lifecycle bands, `renderShell: "self"`, empty tool calls, consistent
+lowercase transcript action words, and complete width-wrapped settled bodies.
+Commands and automatic lifecycle results use durable custom messages. Do not emit
+both a tool result and a notification for one outcome. Hidden request/checkpoint
+messages carry context without pretending work has already started.
 
-Research blocks until the child settles, so it owns one transcript row and no
-widget above the editor. That row reads `[goal] Researching...` while the child
-works, and the child's own latest activity is rendered on its own row beneath it,
-through pi-kit's markdown (`summaryFormat: "markdown"`; kit fits each band row to
-the content width, so the activity is never placed beside the subject). The result
-row reads `Research ready` with no character count in its subject.
-`get_goal(section="research")` is the reading path for the findings: pi's TUI does
-not repaint an extension tool row after its call completes, so a research call's
-result row is not on screen to read.
-
-## Behavior Boundaries
-
-- The store is the only goal-record mutation boundary and the ledger module is
-  the only appender. Both build on pi-kit (`writeJsonAtomic`, `appendJsonlLine`,
-  `readJsonlBatch`, `createExclusiveJsonFile`); no other module may reach a
-  pi-kit write primitive. Do not add a second path to disk.
-- Goals belong to a thread. Restore only that thread's persisted reference.
-  Never adopt project goals, including through legacy auto-selection settings.
-  A record's threadId cannot change through resume. Legacy records require a thread entry.
-- The goals directory is project state, so the project root decides its whole
-  path. Refuse to create one inside Pi's own home or agent directory: that is
-  what produces a second `.pi` inside Pi's layout, and a project at the home
-  directory would drop goals next to Pi's own sessions. Only new state is
-  refused, so a goal stored before the rule existed keeps running in place.
-- Register only `/goal`: bare input reads status; exact pause/resume/clear arguments manage the current goal.
-  Other complete text supplies the objective and completion conditions. Never parse management verbs by prefix.
-  Activation requires a matching accepted request at before_agent_start, never merely a void send call.
-  A busy request with no goal being pursued is refused before intent is stored; one under way takes the
-  text as a revision through the same writer as `update_goal`. Completion checks bind the scheduler generation.
-- Status, tools, and the widget read fresh disk state. Reading follows the
-  record it would read: with nothing focused, `get_goal` is not declared, and a
-  budget-limited goal stays readable because it is stopped but still focused.
-  A withdrawn tool still answers when a call arrives one transition late.
-  Paused goals do not accrue usage or run automatic checks.
-  Resume must set the current scheduling owner and bind an idle context before reporting an authorized continuation.
-- The status row reads `<verb> · <elapsed>` and never carries a `[goal]` tag. Every verb
-  already names the goal, so a tag would repeat it on every line below the editor. The
-  transcript rows keep the tag. The row never prints the goal id.
-- Authorization is a durable decision in the record, consumed exactly once by
-  `claim`, which re-validates ownership, goal, generation, budget, allowance and
-  deadline at delivery time. A timer, a settled turn, and a queued message are
-  opportunities, never authorization. Keep arming and claiming separate.
-- Productive continuation has no default run cap. Three no-work runs stop the empty loop.
-  Three valid explicit final refusals pause with the last unmet condition and recovery advice.
-  Stale, cancelled, or failed checker calls never consume that final-attempt count.
-  Requirements revisions and explicit resume reset final failures. Never call pause completion.
-- Decide completion and continuation at agent_before_settle, not the notification-only agent_settled event.
-  Claim and accept a checkpoint before returning boundary entries and continue: true to Pi.
-- Runtime observations are sourced only from the current branch after the requirements boundary.
-  Preserve their entry/call provenance, outcome, and bounds; user text cannot manufacture tool receipts.
-  All observed payload text remains untrusted and escaped. The checker stays tool-less.
-  This evidence path does not certify arbitrary echoed PASS text or mutable file content.
-- `/goal` never creates a goal. It hands the seed to the model through
-  `goalRequest`, and the model calls `create_goal`. A command that creates one
-  itself produces two goals and defeats the point of writing a real objective.
-- The capability note is injected on every request and is short on purpose: it
-  is paid for whether or not a goal is ever created.
-- Only a verdict marker on the final line counts. No marker is a rejection.
-- Treat the executor's completion claim as untrusted input, and escape every
-  interpolated payload so it cannot close its own delimiter.
-- The objective and `completion_summary` have no length cap, so the check bounds both
-  where it builds the prompt and states each truncation. A silently shortened objective
-  or claim would let the checker read a partial one as the whole. The record keeps the
-  full text, and `prompt.ts` bounds the injected note with a retrieve hint.
-- Archive moves the whole goal directory, history included. Any ledger append for
-  an archived goal must target the archive, or the append recreates an empty open
-  directory beside it and splits one goal's history in two.
-- Re-assert the tool surface immediately after a tool changes what is available.
-- Background paths report through a captured context that goes stale on a session
-  replacement or rebind. Neither `notifyPi` nor `pi.sendMessage` may be allowed to
-  take the runtime down from a timer.
-- Never append injected state to `context` naively. Pi rebuilds each request from
-  the transcript, so the turn that ran in between occupies the note's old
-  position and the provider's prefix cache stops matching. `LiveContext`
-  re-inserts every already-sent note at its base-transcript anchor; the window is
-  bounded and clears whole on overflow, because a partial drop turns one
-  deliberate break into a per-turn one.
-- Do not switch the injected note to a custom `role`. Measured against a live
-  session, pi downgrades `role: "custom"` to `role: "user"` before the provider
-  sees it, content intact and role discarded. The role buys nothing at the wire,
-  so `LIVE_CONTEXT_MARKER` and the preamble are the only thing carrying "this is
-  not the user".
-
-## pi-kit Usage
-
-Prefer pi-kit over local helpers: `setOwnedTools` for tool availability,
-`notifyPi` for notifications, `bindLifecycleRenderers` plus `emptyToolCall` for
-tool rows, `runPiWorker` with `minimal: true` and an empty tool allowlist for
-the check, `safeFileName` for path segments, and `writeJsonAtomic` for single
-files. The status row renders through `ui.setWidget` directly, because pi-kit's
-live-activity row always prefixes a spinner. Import `truncateToWidth` /
-`visibleWidth` / `wrapTextWithAnsi` / `Key` / `matchesKey` from
-pi-tui directly.
+The passive below-editor footer is the explicit exception to transcript framing:
+`Pursuing goal · 2h 25m` during actual work or authorized continuation; accurate
+waiting, paused, blocked and budget-limited phrases otherwise. It owns no input.
+Checker status is neutral. Never intercept global terminal input.
 
 ## Verification
 
-From the repository root:
+Start changes with Given/When/Then scenarios and a failing regression. Use
+@features/goal.feature and @tests/goal_simplified.mts for the unified contract;
+@tests/goal_scheduling.mts and @tests/goal_store.mts protect concurrent mutations.
 
 ```bash
 python3 -m pytest packages/goal/tests/ -q
-pnpm exec tsc --noEmit --allowImportingTsExtensions -p packages/goal/tsconfig.json
+pnpm exec tsc --noEmit -p packages/goal/tsconfig.tests.json
 pnpm typecheck
 pnpm --dir packages/goal pack --dry-run
+uv run --no-project --with pyte python packages/goal/tests/goal_native_completion.py
 ```
 
-`tests/test_goal.py` holds two static checks: that no module outside the store
-and ledger reaches a pi-kit write primitive (a second writer shows up as a file
-on disk, which no runtime test can rule out), and that the session harness still
-captures notifications and tool sets. `research.ts` is on that no-write list too.
-Everything else is asserted behaviourally.
-
-When a fix lands, mutate the implementation and confirm a scenario goes red. A
-repair with no failing scenario is not demonstrated to be tested — this has
-already caught two repairs whose assertions could not tell the right behaviour
-from the wrong. Back up every file you mutate: a restore that misses one file
-leaves the next measurement meaningless.
-
-The guard in `tool_call` for a displaced continuation is correct by construction
-but not isolated by any scenario, because `pi` is not staleness-guarded the way
-`ctx` is. The notification guard beside it *is* demonstrated.
+Use isolated native CLI/TUI sessions. Decode terminal frames, not occurrences in
+repaint bytes. Separate scripted-provider acceptance from real-model evidence.
+For Docker changes/install verification, test packed artifacts with only Goal and
+necessary dependencies installed. No host credentials or unrelated extensions.
+After self-verification, get a fresh agent review for these complex state changes.
+Mutate a repaired branch and require a regression failure, then restore exactly.

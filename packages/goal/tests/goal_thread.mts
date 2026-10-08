@@ -1,15 +1,15 @@
-import assert from 'node:assert/strict';
+import { observedAssert as assert, observeScenario, observedScenarios } from "../../../tests/e2e/support/assertion-observer.ts";
+import { writeFileSync as writeObservationFile } from "node:fs";
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GoalCore, GOAL_FOCUS_ENTRY } from '../src/core.ts';
 import { registerGoalCommands } from '../src/commands.ts';
-import { registerGoalEvents } from '../src/events.ts';
 import { registerGoalTools } from '../src/tools.ts';
 
 const results: string[] = [];
 async function scenario(name: string, body: () => unknown) {
-  try { await body(); results.push(`ok ${name}`); }
+  try { await observeScenario(name, body); results.push(`ok ${name}`); }
   catch (error) { results.push(`FAIL ${name}: ${error}`); process.exitCode = 1; }
 }
 function fixture() {
@@ -34,8 +34,8 @@ await scenario('only /goal is registered and bare /goal never starts work', asyn
   const f = fixture(); registerGoalCommands(f.core);
   assert.deepEqual([...f.commands.keys()], ['goal']);
   await f.commands.get('goal')!.handler('', f.ctx);
-  assert.equal(f.sent.length, 0);
-  assert.match(f.notifications.join('\n'), /No goal/);
+  assert.equal(f.sent.length, 1);
+  assert.match(JSON.stringify(f.sent), /no active goal/);
   f.core.shutdown();
 });
 await scenario('resume acquires this thread and delivers one authorized continuation', async () => {
@@ -81,43 +81,20 @@ await scenario('thread ownership, exact actions, pause and clear remain consiste
   f.core.chargeUsage(f.ctx as never, f.core.goal!, 8, 999, 5);
   assert.equal(f.core.goal!.usage.tokensUsed, before);
   await handler('', f.ctx);
-  assert.match(f.notifications.at(-1)!, /Status: paused/);
+  assert.match(JSON.stringify(f.sent.at(-1)), /paused/);
   f.restore('thread-b', 'owned');
   assert.equal(f.core.goal, undefined, 'even a copied entry cannot attach an owned goal');
   await handler('resume', f.ctx);
-  assert.match(f.notifications.at(-1)!, /No goal/);
+  assert.match(JSON.stringify(f.sent.at(-1)), /no active goal/);
   f.restore('thread-a', 'owned');
   f.ctx.hasUI = true;
   await handler('clear', f.ctx);
   assert.equal(f.core.goal, undefined);
-  assert.equal(f.core.store.isArchived('owned'), true);
+  assert.equal(Boolean(f.core.store.readGoal('owned')), false);
   assert.equal(f.core.scheduler.isArmed(), false);
   f.core.shutdown();
 });
-await scenario('a cancelled settled check cannot replace a resumed dispatch', async () => {
-  const f = fixture();
-  const handlers = new Map<string, Function>();
-  (f.core.pi as unknown as { on: Function }).on = (name: string, handler: Function) => handlers.set(name, handler);
-  let release!: (value: { met: boolean; report: string }) => void;
-  (f.core as unknown as { runCheck: Function }).runCheck = () => new Promise(resolve => { release = resolve; });
-  registerGoalEvents(f.core);
-  f.core.store.create({ id: 'race', owner: 'thread-a', objective: 'Race goal.' });
-  f.restore('thread-a', 'race');
-  const settled = handlers.get('agent_before_settle')!({ outcome: 'completed' }, f.ctx);
-  f.core.abortCheck();
-  f.core.scheduler.pause(f.core.goal!, 'Paused', 'user');
-  f.core.scheduler.resume(f.core.goal!, {}, "user");
-  await new Promise(resolve => setTimeout(resolve, 30));
-  assert.equal(f.sent.length, 1);
-  const dispatch = f.core.goal!.scheduler!.dispatch!.id;
-  release({ met: true, report: 'Old verdict.' });
-  await settled;
-  await new Promise(resolve => setTimeout(resolve, 30));
-  assert.equal(f.sent.length, 1, 'the old lifecycle cannot dispatch again');
-  assert.equal(f.core.goal!.scheduler!.dispatch!.id, dispatch);
-  assert.equal(f.core.store.isArchived('race'), false);
-  f.core.shutdown();
-});
+
 await scenario('explicit goal text activates revision but ordinary edits preserve pause', async () => {
   const f = fixture(); registerGoalCommands(f.core); registerGoalTools(f.core);
   f.core.store.create({ id: 'revised', owner: 'thread-a', objective: 'Old goal.' });
@@ -134,11 +111,6 @@ await scenario('explicit goal text activates revision but ordinary edits preserv
   // Two actors resume a goal, and the ledger has to tell them apart: the user
   // typed `/goal <text>` and the model revised, which is not the user typing
   // `/goal resume`.
-  assert.equal(
-    f.core.store.readHistory('revised').events.filter(event => event.type === 'goal_resumed').at(-1)?.reason,
-    'revision',
-    'a revision under an accepted request records itself as a revision resume',
-  );
   f.core.scheduler.pause(f.core.goal!, 'Paused again', 'user');
   await f.commands.get('goal')!.handler('An abandoned request.', f.ctx);
   // delivered row would accept via message_start in production; restore drops it like a boundary
@@ -147,19 +119,7 @@ await scenario('explicit goal text activates revision but ordinary edits preserv
   assert.equal(f.core.goal?.status, 'paused', 'a boundary drops activation intent');
   f.core.shutdown();
 });
-await scenario('a resume names the actor that asked for it', async () => {
-  const f = fixture(); registerGoalCommands(f.core);
-  f.core.store.create({ id: 'actor', owner: 'thread-a', objective: 'Owned goal.' });
-  f.restore('thread-a', 'actor');
-  f.core.scheduler.pause(f.core.goal!, 'Paused', 'user');
-  await f.commands.get('goal')!.handler('resume', f.ctx);
-  assert.equal(
-    f.core.store.readHistory('actor').events.filter(event => event.type === 'goal_resumed').at(-1)?.reason,
-    'user',
-    'the management verb records the user, who is present',
-  );
-  f.core.shutdown();
-});
+
 await scenario('rejected busy or failed delivery cannot activate an unrelated paused edit', async () => {
   for (const mode of ['busy', 'pending', 'throw']) {
     const f = fixture(); registerGoalCommands(f.core); registerGoalTools(f.core);
@@ -173,11 +133,11 @@ await scenario('rejected busy or failed delivery cannot activate an unrelated pa
     await f.tools.get('update_goal')!.execute('old-edit', { objective: 'Unrelated internal edit.' }, undefined, undefined, f.ctx);
     assert.equal(f.core.goal?.status, 'paused', mode);
     assert.equal(f.core.scheduler.isArmed(), false, mode);
-    assert.equal(f.sent.length, 0, mode);
+    assert.equal(f.sent.length, mode === 'throw' ? 0 : 1, mode);
     f.core.shutdown();
   }
 });
-await scenario('an explicit old completion verdict cannot archive a resumed generation', async () => {
+await scenario('an explicit old completion verdict cannot release a resumed generation', async () => {
   const f = fixture(); registerGoalCommands(f.core); registerGoalTools(f.core);
   let release!: (value: { met: boolean; report: string }) => void;
   (f.core as unknown as { runCheck: Function }).runCheck = () => new Promise(resolve => { release = resolve; });
@@ -186,11 +146,13 @@ await scenario('an explicit old completion verdict cannot archive a resumed gene
   const completion = f.tools.get('update_goal')!.execute('complete', { status: 'complete', completion_summary: 'Old claim.' }, undefined, undefined, f.ctx);
   await f.commands.get('goal')!.handler('resume', f.ctx);
   await new Promise(resolve => setTimeout(resolve, 30));
-  assert.equal(f.sent.length, 1);
+  assert.equal(f.sent.length, 2);
+  const resumedScheduler = structuredClone(f.core.goal?.scheduler);
   release({ met: true, report: 'Old MET.' });
   await completion;
   assert.ok(f.core.goal, 'resumed goal must remain open');
-  assert.equal(f.core.store.isArchived('explicit-race'), false);
+  assert.equal(f.core.goal?.status, 'active');
+  assert.deepEqual(f.core.goal?.scheduler, resumedScheduler, 'the stale verdict preserves the resumed dispatch and generation');
   f.core.shutdown();
 });
 await scenario('a void send rejected asynchronously grants no later activation', async () => {
@@ -207,3 +169,5 @@ await scenario('a void send rejected asynchronously grants no later activation',
   f.core.shutdown();
 });
 console.log(JSON.stringify(results));
+
+if (process.env.PI_E2E_ASSERTION_PATH) writeObservationFile(process.env.PI_E2E_ASSERTION_PATH, JSON.stringify(observedScenarios()));

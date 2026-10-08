@@ -1,4 +1,5 @@
-import assert from "node:assert/strict";
+import { observedAssert as assert, observeScenario, observedScenarios } from "../../../tests/e2e/support/assertion-observer.ts";
+import { writeFileSync as writeObservationFile } from "node:fs";
 import { collectGoalEvidence } from "../src/evidence.ts";
 import type { GoalRecord } from "../src/record.ts";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
@@ -8,7 +9,7 @@ const goal: GoalRecord = { id: "g", objective: "Verification passed", status: "a
   usage: { tokensUsed: 0, activeSeconds: 0 }, createdAt: at, updatedAt: at, revision: 0 };
 const results: string[] = [];
 function scenario(name: string, body: () => void) {
-  try { body(); results.push(`ok ${name}`); }
+  try { observeScenario(name, body); results.push(`ok ${name}`); }
   catch (error) { results.push(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`); process.exitCode = 1; }
 }
 function collect(entries: unknown[]) {
@@ -134,3 +135,5 @@ scenario("JSON credentials and provenance labels are redacted and bounded", () =
   assert.equal(result[0].truncated, true);
 });
 console.log(JSON.stringify(results));
+
+if (process.env.PI_E2E_ASSERTION_PATH) writeObservationFile(process.env.PI_E2E_ASSERTION_PATH, JSON.stringify(observedScenarios()));

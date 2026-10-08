@@ -1,10 +1,13 @@
-"""Native offline CLI and TUI completion, refusal advice, and empty-loop bounds."""
-from __future__ import annotations
+"""CLI and rendered terminal acceptance for the simplified Goal runtime.
 
+Run: uv run --no-project --with pyte python packages/goal/tests/goal_native_completion.py
+Supports GOAL_PI_BIN and GOAL_VERIFY_ROOT for isolated packed Docker installs.
+"""
+from __future__ import annotations
 import fcntl
 import json
 import os
-import pathlib
+from pathlib import Path
 import pty
 import select
 import struct
@@ -12,102 +15,100 @@ import subprocess
 import tempfile
 import termios
 import time
-
+from goal_native_frames import TerminalFrames
 from goal_native_tui import terminate_fixture
 
 
+def assert_completion_frame(lines: list[str], mode: str) -> None:
+    text = "\n".join(lines)
+    targets = {"complete": "[goal] completed", "refuse": "[goal] not met", "empty": "Goal waiting", "error": "[goal] check failed", "blocked": "Goal blocked", "cancel": "Goal paused"}
+    assert targets[mode] in text, text[-5000:]
+    assert "Archived under" not in text and "ledger events" not in text
+    if mode == "refuse":
+        assert "[goal] paused" not in text and "Three consecutive completion" not in text
+    if mode == "error":
+        assert "Offline provider unavailable" in text and "[goal] failed · check failed" not in text
+
+
 def main() -> None:
-    repo = pathlib.Path(__file__).resolve().parents[3]
+    repo = Path(os.environ.get("GOAL_VERIFY_ROOT", Path(__file__).resolve().parents[3]))
     fixture = repo / "packages/goal/tests/goal_completion_fixture.ts"
-    for mode in ("complete", "refuse", "empty"):
+    cases = os.environ.get("GOAL_CASES", "complete,refuse,empty,error,blocked,long,cancel").split(",")
+    for mode in cases:
         for tui in (False, True):
-            with tempfile.TemporaryDirectory(prefix="goal-native-complete-") as raw:
-                root = pathlib.Path(raw)
-                agent = root / "agent"
-                agent.mkdir()
-                trace = root / "trace.jsonl"
-                env = dict(os.environ, PI_CODING_AGENT_DIR=str(agent), TERM="xterm-256color",
-                           PI_GOAL_COMPLETION_CASE=mode, PI_GOAL_COMPLETION_TRACE=str(trace))
-                command = ["pi", "-ne", "-ns", "-np", "-nc", "--no-session", "-e", str(fixture),
-                           "--model", "goal-completion-offline/scripted"]
-                output = bytearray()
+            if mode == "cancel" and not tui:
+                continue
+            with tempfile.TemporaryDirectory(prefix="goal-native-simple-") as raw:
+                root = Path(raw); agent = root / "agent"; agent.mkdir(); trace = root / "trace.jsonl"
+                release = root / "release"
+                env = dict(os.environ, PI_CODING_AGENT_DIR=str(agent), TERM="xterm-256color", PI_OFFLINE="1", PI_GOAL_COMPLETION_CASE=mode,
+                           PI_GOAL_COMPLETION_TRACE=str(trace), PI_GOAL_CHECK_RELEASE=str(release))
+                autoload = os.environ.get("PI_GOAL_AUTOLOAD") == "1"
+                if autoload:
+                    (agent / "settings.json").write_text(json.dumps({"packages":[os.environ["GOAL_INSTALLED_PATH"]]}))
+                command = [os.environ.get("GOAL_PI_BIN", "pi"), *([] if autoload else ["-ne"]), "-ns", "-np", "-nc", "--no-session", "-e", str(fixture), "--model", "goal-completion-offline/scripted"]
+                def entries() -> list[dict]:
+                    return [json.loads(line) for line in trace.read_text().splitlines()] if trace.exists() else []
                 if not tui:
-                    result = subprocess.run(command + ["--print", "Verify native completion."], cwd=root, env=env,
-                                            capture_output=True, timeout=20)
+                    result = subprocess.run(command + ["--print", "Verify Goal."], cwd=root, env=env, capture_output=True, timeout=30)
                     assert result.returncode == 0, result.stderr.decode(errors="replace")
-                    output.extend(result.stdout)
                 else:
-                    master, slave = pty.openpty()
-                    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
-                    child = subprocess.Popen(command, cwd=root, env=env, stdin=slave, stdout=slave, stderr=slave,
-                                             start_new_session=True)
-                    os.close(slave)
-
-                    def drain(seconds: float) -> None:
+                    master, slave = pty.openpty(); fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 240, 80, 0, 0))
+                    child = subprocess.Popen(command, cwd=root, env=env, stdin=slave, stdout=slave, stderr=slave, start_new_session=True)
+                    os.close(slave); frames = TerminalFrames(80, 240); raw_output = bytearray()
+                    def drain() -> None:
+                        if select.select([master], [], [], 0.05)[0]:
+                            data = os.read(master, 65536); raw_output.extend(data); frames.feed(data)
+                    def until(predicate, seconds: float = 20) -> None:
                         deadline = time.monotonic() + seconds
-                        while time.monotonic() < deadline:
-                            if select.select([master], [], [], 0.05)[0]:
-                                try:
-                                    output.extend(os.read(master, 65536))
-                                except OSError:
-                                    break
-
+                        while not predicate():
+                            assert child.poll() is None, raw_output.decode(errors="replace")[-5000:]
+                            assert time.monotonic() < deadline, raw_output.decode(errors="replace")[-5000:]
+                            drain()
                     try:
-                        deadline = time.monotonic() + 10
-                        while b"goal_completion_fixture.ts" not in output and time.monotonic() < deadline:
-                            drain(0.05)
-                        assert b"goal_completion_fixture.ts" in output
-                        drain(0.2)
-                        os.write(master, b"Verify native completion.\r")
-                        deadline = time.monotonic() + 10
-                        paths: list[pathlib.Path] = []
-                        while time.monotonic() < deadline:
-                            drain(0.1)
-                            base = root / ".pi/goals"
-                            paths = list(base.glob("archived/*/record.json")) if mode == "complete" else list(base.glob("*/record.json"))
-                            if paths:
-                                record = json.loads(paths[0].read_text())["goal"]
-                                if record["status"] == ("complete" if mode == "complete" else "paused"):
-                                    break
-                        assert paths, output.decode(errors="replace")[-4000:]
-                        entries = [json.loads(line) for line in trace.read_text().splitlines()]
-                        count = sum(entry["kind"] == "provider" for entry in entries)
-                        drain(0.6)
-                        later = [json.loads(line) for line in trace.read_text().splitlines()]
-                        assert sum(entry["kind"] == "provider" for entry in later) == count, "a stopped or complete goal must not add turns"
-                        if mode == "complete":
-                            widgets = [entry for entry in later if entry["kind"] == "widget"]
-                            assert widgets and widgets[-1]["mounted"] is False, widgets
-                            assert b"completed" in output or b"archived" in output
+                        until(lambda: any(e["kind"] == "ready" for e in entries()) and frames.count > 0)
+                        os.write(master, b"Verify Goal.\r")
+                        if mode == "cancel":
+                            until(lambda: any(e["kind"] == "checking" for e in entries()))
+                            until(lambda: "[goal] checking" in "\n".join(frames.display))
+                            os.write(master, b"/goal pause\r")
+                            until(lambda: "Goal paused" in "\n".join(frames.display))
+                            release.touch()
                         else:
-                            assert b"resume" in output and (b"missing" in output or b"no work" in output), output.decode(errors="replace")[-10000:]
+                            until(lambda: any(e["kind"] == "settled" for e in entries()))
+                        if mode == "long":
+                            until(lambda: all(marker in "\n".join(frames.display) for marker in ("GOAL_REQUIREMENT_END", "GOAL_CONTRACT_END")))
+                            assert "ctrl+o to expand" not in "\n".join(frames.display)
+                            fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", 360, 40, 0, 0)); frames.resize(40, 360)
+                            os.kill(child.pid, __import__("signal").SIGWINCH)
+                            until(lambda: all(marker in "\n".join(frames.display) for marker in ("GOAL_REQUIREMENT_END", "GOAL_CONTRACT_END")))
+                        else:
+                            target = {"complete":"[goal] completed", "refuse":"[goal] not met", "empty":"Goal waiting", "error":"[goal] check failed", "blocked":"Goal blocked", "cancel":"Goal paused"}[mode]
+                            until(lambda: target in "\n".join(frames.display)); assert_completion_frame(frames.display, mode)
+                        # Exercise durable command rows and clear against the real terminal.
+                        if mode in ("empty", "long"):
+                            os.write(master, b"/goal pause\r"); until(lambda: "[goal] paused" in "\n".join(frames.display))
+                            os.write(master, b"/goal\r"); until(lambda: "Objective:" in "\n".join(frames.display))
+                            os.write(master, b"/goal resume\r"); until(lambda: "[goal] resumed" in "\n".join(frames.display))
+                            until(lambda: len([e for e in entries() if e["kind"] == "settled"]) >= 2)
+                            os.write(master, b"/goal clear\r"); until(lambda: "[goal] cleared" in "\n".join(frames.display))
+                            assert not list((root / ".pi/goals").glob("*/record.json"))
                     finally:
-                        try:
-                            terminate_fixture(child)
-                        finally:
-                            os.close(master)
-                    assert child.poll() is not None
-                base = root / ".pi/goals"
-                paths = list(base.glob("archived/*/record.json")) if mode == "complete" else list(base.glob("*/record.json"))
-                assert len(paths) == 1, mode
-                record = json.loads(paths[0].read_text())["goal"]
-                assert record["status"] == ("complete" if mode == "complete" else "paused"), record
-                ledger = [json.loads(line) for line in (paths[0].parent / "ledger.jsonl").read_text().splitlines()]
-                if mode == "complete":
-                    assert not list(base.glob("*/record.json"))
-                    assert sum(entry["type"] == "goal_completed" for entry in ledger) == 1
-                    checks = [json.loads(line) for line in trace.read_text().splitlines() if json.loads(line)["kind"] == "check"]
-                    assert any("NATIVE_COMPLETION_E2E_PASS" in str(entry) for entry in checks)
-                elif mode == "refuse":
-                    assert record["completionFailures"] == 3, record
-                    assert "independent review" in record["pauseReason"]
-                    assert "Run" in record["pauseReason"] and "/goal resume" in record["pauseReason"]
-                    assert sum(entry["type"] == "completion_refused" for entry in ledger) == 3
+                        terminate_fixture(child); os.close(master)
+                rows = entries(); checks = [e for e in rows if e["kind"] == "check"]
+                assert len(checks) == {"complete":1,"refuse":3,"empty":0,"error":1,"blocked":0,"long":0,"cancel":1}[mode], (mode, rows)
+                assert not (root / ".pi/goals/archived").exists()
+                records = list((root / ".pi/goals").glob("*/record.json"))
+                if mode == "complete" or tui and mode in ("empty", "long"):
+                    assert not records, mode
                 else:
-                    assert record["scheduler"]["idleRuns"] == 3, record
-                    assert record["scheduler"]["used"] <= 2, record
-                print(f"PASS native {'TUI' if tui else 'CLI'} {mode}")
-    print("GOAL_NATIVE_COMPLETION_OK")
+                    assert len(records) == 1, mode
+                    record = json.loads(records[0].read_text())["goal"]
+                    assert record["status"] == {"blocked":"blocked", "cancel":"paused"}.get(mode,"active"), record
+                    if mode in ("empty","error","refuse","long"):
+                        assert record["autoContinue"] is False, record
+                print(f"PASS native {'TUI' if tui else 'CLI'} {mode}", flush=True)
+    print("GOAL_NATIVE_SIMPLIFIED_OK")
 
 
 if __name__ == "__main__":

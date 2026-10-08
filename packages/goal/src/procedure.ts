@@ -33,7 +33,7 @@ export function deliverGoalProcedure(
   details: GoalProcedureDetails,
 ): void {
   pi.sendMessage(
-    { customType: GOAL_PROCEDURE_ENTRY, content, display: true, details },
+    { customType: GOAL_PROCEDURE_ENTRY, content, display: false, details },
     { deliverAs: "followUp", triggerTurn: true },
   );
 }
@@ -53,3 +53,17 @@ export function registerGoalProcedureRenderer(pi: ExtensionAPI): void {
   });
 }
 
+
+/** Durable transcript outcome; no triggerTurn and no toast replacement. */
+export const GOAL_EVENT_ENTRY = "goal-event";
+export function emitGoalMessage(pi: ExtensionAPI, subject: string, summary = ""): void {
+  pi.sendMessage({ customType: GOAL_EVENT_ENTRY, content: summary ? `${subject}\n\n${summary}` : subject,
+    display: true, details: { subject, summary } }, { triggerTurn: false });
+}
+export function registerGoalEventRenderer(pi: ExtensionAPI): void {
+  if (typeof pi.registerMessageRenderer !== "function") return;
+  pi.registerMessageRenderer(GOAL_EVENT_ENTRY, goalProcedureRows.message((message) => {
+    const details = message.details as {subject?: string; summary?: string} | undefined;
+    return {tool:"goal",kind:"event",subject:details?.subject ?? "status",summary:details?.summary ? [details.summary] : [],verbatimSubject:true,fullSummary:true};
+  }));
+}

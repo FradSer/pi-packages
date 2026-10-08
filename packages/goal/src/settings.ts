@@ -14,20 +14,13 @@ import { nonEmpty, parseModelRef, writeJsonAtomic } from "@fradser/pi-kit";
 import { GOALS_DIR, agentDir, goalsPlacementRefusal } from "./paths.ts";
 
 export interface GoalSettings {
-  /** Whole autonomous runs allowed per creation or resume period. Undefined is
+  /** Lifetime automatic continuation allowance. Undefined is
    * unlimited; 0 disables automatic continuation entirely. */
   maxAutonomousRuns?: number;
-  /** Hide the goal's completion contract from the check prompt. */
-  disableContracts?: boolean;
-  /** Close a goal without asking the completion check, and record the skip. */
-  disableCheck?: boolean;
   /** Provider and model the completion check uses instead of the session's. */
   provider?: string;
   model?: string;
-  /** Provider and model the pre-creation research child uses instead of the
-   * session's. Separate from the check's so each can be set alone. */
-  researchProvider?: string;
-  researchModel?: string;
+
 }
 
 /** Project override file, inside the goals directory so a project's goal state
@@ -60,12 +53,8 @@ function sanitize(raw: Partial<GoalSettings>): Partial<GoalSettings> {
   if (typeof raw.maxAutonomousRuns === "number" && Number.isSafeInteger(raw.maxAutonomousRuns) && raw.maxAutonomousRuns >= 0) {
     out.maxAutonomousRuns = raw.maxAutonomousRuns;
   }
-  if (typeof raw.disableContracts === "boolean") out.disableContracts = raw.disableContracts;
-  if (typeof raw.disableCheck === "boolean") out.disableCheck = raw.disableCheck;
   if (nonEmpty(raw.provider)) out.provider = raw.provider;
   if (nonEmpty(raw.model)) out.model = raw.model;
-  if (nonEmpty(raw.researchProvider)) out.researchProvider = raw.researchProvider;
-  if (nonEmpty(raw.researchModel)) out.researchModel = raw.researchModel;
   return out;
 }
 
@@ -81,11 +70,6 @@ export function loadGoalSettings(projectRoot: string): GoalSettings {
   if (envModel?.provider) resolved.provider = envModel.provider;
   if (envModel?.model) resolved.model = envModel.model;
   if (envProvider) resolved.provider = envProvider;
-  const envResearchModel = parseModelRef(process.env.PI_GOAL_RESEARCH_MODEL);
-  const envResearchProvider = nonEmpty(process.env.PI_GOAL_RESEARCH_PROVIDER);
-  if (envResearchModel?.provider) resolved.researchProvider = envResearchModel.provider;
-  if (envResearchModel?.model) resolved.researchModel = envResearchModel.model;
-  if (envResearchProvider) resolved.researchProvider = envResearchProvider;
   const envRuns = process.env.PI_GOAL_MAX_RUNS;
   if (envRuns !== undefined && /^\d+$/.test(envRuns)) resolved.maxAutonomousRuns = Number.parseInt(envRuns, 10);
   return resolved;

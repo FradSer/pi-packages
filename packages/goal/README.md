@@ -1,199 +1,113 @@
 # @fradser/pi-goal
 
-A durable goal for the current Pi thread. The runtime continues after a turn
-until completion, pause, a limit, or a blocker stops it.
+One thread-scoped objective, authorized continuation, and evidence-based completion.
 
 ```bash
 pi install npm:@fradser/pi-goal
 ```
 
-## One command
+## Commands
 
-These are Pi chat commands, not terminal subcommands.
-
-| Input | Action |
+| Command | Behavior |
 | --- | --- |
-| `/goal <objective and completion conditions>` | Set or revise this thread's goal. |
-| `/goal` | Show this thread's current objective, conditions, status, and usage. |
-| `/goal pause` | Pause work and cancel queued continuation. |
-| `/goal resume` | Restore scheduling ownership and authorize one continuation. |
-| `/goal clear` | Confirm and archive this thread's goal. |
+| `/goal <objective and completion conditions>` | Ask the model to create a complete objective, or merge this request into the current objective. |
+| `/goal` | Show the complete current objective, conditions, reason, and usage. |
+| `/goal pause` | Stop current Goal work and pending continuation. |
+| `/goal resume` | Authorize continuation, preserving accumulated tokens, elapsed time and run count. |
+| `/goal clear` | End the current Goal without claiming completion. |
 
-Only complete arguments equal to `pause`, `resume`, or `clear` are management
-actions. `/goal clear my schedule` remains objective text. Bare `/goal` never
-starts work. Goal-setting text while Pi is busy is refused only when there is no goal being pursued to revise; a goal
-under way takes the new text as a revision and continues on it.
-Only a matching request accepted by Pi grants revision activation.
-A refused or failed send never grants activation to an unrelated edit.
-Clear requires interactive confirmation; headless calls refuse it.
+A goal belongs to its thread. A fresh thread never adopts another thread's goal.
+The command queues the user's request; it does not create a second goal or overwrite
+an existing objective with a raw additive fragment. The accepted model revision
+commits the complete objective and conditions together.
 
-Example:
+## Tools
 
-```text
-/goal Optimize packages/matt-pocock for Pi v1.0.
-Completion conditions: package tests, typecheck, packed-manifest checks, and
-real offline Pi interaction checks pass. Resolve blocking review findings.
-Report work that remains unverified. Preserve existing local changes.
-Do not publish, commit, or change other packages.
+- `create_goal({objective, verification_contract?, token_budget?})` starts one goal.
+  Another unfinished goal must be revised or explicitly cleared first. A budget
+  is set only when requested by the user.
+- `get_goal({section?, cursor?})` reads the goal. `summary` and the compatibility
+  alias `objective` return the same view. Long model responses include a
+  content-bound continuation cursor; the initial TUI result displays the full body.
+- `update_goal(...)` performs exactly one operation: request `status: "complete"`
+  with an optional `completion_summary`, report `status: "blocked"` with a reason,
+  carry out an explicit user pause with `status: "paused"` and a reason, or commit
+  a complete `objective`/`verification_contract` revision.
+
+Use ordinary work tools for research. There is no `research_goal`, saved
+`next_action`, or separate Goal history tool. Old history reads direct the caller
+to the thread transcript. Empty updates and mixed operations are rejected.
+
+## Continuation and completion
+
+A normal settled turn does not invoke a checker. The runtime authorizes another
+run only after successful effective work, within the configured limits, with no
+queued user input. New successful tool receipts count as work; repeating the same
+call and output cannot keep the loop alive. Pending monitor acknowledgements are
+not completed work. Unrelated background agents do not count as Goal progress.
+
+Generation and dispatch checks authorize each continuation exactly once. User
+input invalidates a queued continuation. Failed, interrupted, empty or repeated
+runs wait for explicit recovery rather than fabricating a user pause. Restoring a
+session restores its objective but grants no continuation by itself.
+
+Only an explicit completion request invokes one fresh tool-less check. The check
+receives the **complete** objective and conditions plus bounded, attributed
+observations from this thread. Executor claims are escaped untrusted data. The
+checker cannot inspect files or run tests: the executor must collect concrete
+verification first. A final `MET` accepts completion; `NOT MET` leaves the goal
+unmet. Errors, cancellation and superseded results are distinct and cannot complete
+the goal. Three refused completion requests do not pause it.
+
+The same reported blocker must recur on three consecutive model turns with no new
+work before the goal becomes blocked. Repeated reports in one turn count once;
+new work, requirement revisions and a session boundary reset the streak.
+
+Main-model usage and completion-check usage count against the goal budget. Reaching
+the budget stops work and reports the limit; it never means completion.
+
+## Display
+
+Transcript results use the shared pi-kit `[goal] <action or state>` band. Command
+and automatic results are durable custom session messages, not replaceable info
+notifications. Each event has one result. Settled objectives, conditions, reasons
+and reports wrap in full without `ctrl+o` expansion.
+
+The passive footer keeps the Codex-style `Pursuing goal · 2h 25m` while work is
+running or continuation is authorized. Otherwise it reads `Goal waiting`,
+`Goal paused`, `Goal blocked`, or `Goal budget limited`, followed by elapsed time.
+A running check temporarily shows neutral `[goal] checking` status.
+
+[All TUI cases and trigger conditions](TUI.zh-CN.md).
+
+## Storage and settings
+
+Active state is an atomic `.pi/goals/<id>/record.json`. A write lock protects
+revision checks, requirement changes and continuation claims. Completion and clear
+release that record and detach the thread. **No Goal archive is created.** Existing
+legacy archive, prose, research and history files are left untouched; they do not
+reactivate finished goals. The normal Pi transcript retains the result.
+
+Global settings are `~/.pi/agent/goal.json`; project overrides are
+`.pi/goals/settings.json`. Supported settings are `maxAutonomousRuns`, `provider`
+and `model`. The check defaults to the current session model. `PI_GOAL_MODEL`,
+`PI_GOAL_PROVIDER` and `PI_GOAL_MAX_RUNS` provide temporary overrides.
+`maxAutonomousRuns` is a lifetime continuation allowance; unset is unlimited and
+`0` disables continuation. Resume does not replenish the allowance. Legacy research
+and check-bypass settings are ignored; completion conditions cannot be bypassed.
+
+## Verification
+
+```bash
+python3 -m pytest packages/goal/tests/ -q
+pnpm exec tsc --noEmit -p packages/goal/tsconfig.tests.json
+pnpm typecheck
+pnpm --dir packages/goal pack --dry-run
+uv run --no-project --with pyte python packages/goal/tests/goal_native_completion.py
 ```
 
-The session model preserves the objective, completion conditions, and scope
-constraints. It uses `update_goal` for a revision instead of creating a second goal.
-A successful revision requested through idle `/goal <text>` activates work.
-An internal revision without that explicit request preserves pause.
-If repository facts are missing, it calls `research_goal` before `create_goal`.
-The slash command supplies the request; it does not create a second goal itself.
-
-## Thread isolation
-
-A new thread has no goal, even if the project has older open goals.
-The runtime ignores legacy project auto-selection preferences.
-Restoring the same thread reads its goal from persisted thread entries.
-Records created by this version also store `threadId`.
-Legacy records remain on disk; only an existing thread entry can restore them.
-The runtime does not delete or silently adopt old project goals.
-
-Status, tools, and the widget read the same fresh record.
-Pause keeps the current goal but stops accounting and automatic completion checks.
-Resume restores this thread's scheduling owner and refills the run allowance.
-Clear archives the goal directory and detaches the thread.
-
-## Continuation and limits
-
-A durable generation authorizes each continuation. The scheduler claims it once
-and checks identity, ownership, status, budget, and allowance before delivery.
-At `agent_before_settle`, Pi receives the claimed checkpoint and owns the next request.
-An explicit idle resume uses a timer that waits for no pending messages.
-`agent_settled` only refreshes the final display; it never starts work.
-An expired or cancelled authorization never grants work.
-
-Productive continuation has no default run cap unless `maxAutonomousRuns` is configured.
-Three consecutive runs without completed work stop automatic continuation with a recovery suggestion.
-Three consecutive valid explicit final refusals also pause the goal and show the last missing condition.
-Cancelled, stale, and failed checker calls do not consume a final attempt.
-An actual requirements change or explicit resume resets the final-refusal count.
-Writing identical objective or contract text preserves the count and evidence boundary.
-A valid `MET` completes and archives the goal; pause is never completion.
-Set a run cap for unattended work. Resume starts a new allowance period.
-A lifetime token budget cannot be refilled by resume.
-Settings are files, not additional slash commands:
-
-```text
-.pi/goals/settings.json          project settings
-~/.pi/agent/goal.json            global defaults
-```
-
-Example settings:
-
-```json
-{
-  "maxAutonomousRuns": 50,
-  "researchProvider": "anthropic",
-  "researchModel": "claude-haiku",
-  "provider": "anthropic",
-  "model": "claude-opus-4-5"
-}
-```
-
-Environment overrides include `PI_GOAL_MAX_RUNS`, `PI_GOAL_MODEL`,
-`PI_GOAL_PROVIDER`, `PI_GOAL_RESEARCH_MODEL`, and `PI_GOAL_RESEARCH_PROVIDER`.
-Model overrides accept `provider/model`. An unset model means the session's model, so a
-check or research child follows the session it runs in. It never falls back to the
-persisted CLI default, which is a different model and can be unavailable.
-
-## Research and completion
-
-`research_goal` grants only `read`, `grep`, `find`, and `ls` to a minimal child.
-It grants no shell or write tool. The latest successful research replaces earlier
-findings; failed research preserves them. Session boundaries invalidate pending
-findings and late child results. Creation attaches findings once as `research.md`
-and attributes their tokens to the goal.
-
-Research blocks until the child settles. One `[goal] Researching...` transcript row
-reports that the work is in progress, and the child's latest activity is rendered on
-its own row beneath it through markdown. The result row reads `Research ready` with
-no character count. Read the findings through `get_goal(section="research")`: pi's TUI
-does not repaint an extension tool row after its call completes, so a research call's
-result row is not on screen.
-
-The completion check uses a separate fresh process with no tools.
-It receives the objective, completion contract, bounded runtime observations, and the executor's untrusted claim.
-The objective and `completion_summary` have no length cap; the check reads a bounded prefix of each and states the truncation, while the record keeps the full text. The injected note bounds the objective with a retrieve hint.
-Tool receipts include their recorded call input, output, outcome, entry ID, and time.
-Monitor terminals and attributed independent results come from extension records, not user-supplied text.
-The checker evaluates coverage and results rather than rejecting observations merely because it cannot repeat them.
-Observed output remains untrusted data and cannot instruct the checker to approve.
-The latest requirement revision excludes earlier observations.
-Research files never become check input. Only a final-line `MET` approves completion.
-Failure, missing output, cancellation, or a changed goal rejects completion.
-A child that exits successfully with no answer names the model that produced nothing, so a silent model is not mistaken for an unmet goal.
-The checker cannot independently inspect files or execute tests.
-Run the required checks in the current thread before requesting completion.
-Self-written PASS text, claims, or research files are not runtime execution receipts.
-Evidence can be omitted or truncated; the checker must reject insufficient coverage.
-Common credential formats are redacted, but arbitrary private output can still require manual redaction.
-Monitor start acknowledgements are pending intent, not successful work.
-Completion evidence uses structured monitor outcomes plus recorded launch provenance.
-Only an unambiguous launch after the requirement boundary supports a success observation.
-Unlinked success terminals remain reported, not proof of the current contract.
-Failure, timeout, and result_missing stay failures; stops and unknown states stay reported.
-Terminal match and output fields accompany the launching command, with all payload fields bounded and redacted. Monitor identities
-correlate repeated terminal delivery without duplicating evidence, retaining
-the latest delivery in its chronological position. Historical
-counter identities such as `monitor_1`, and results without an identity, stay
-independent because old counters restart with each monitor manager.
-Append-only context edits omit a receipt or replace only its text; original
-roles, monitor status, and identities remain authoritative. Omitted or replaced
-assistant calls no longer establish tool-result provenance. Evidence retains
-raw executed receipts since the current requirement boundary, including across
-compaction; it does not treat compaction summaries as executed observations.
-
-| Tool | Purpose |
-| --- | --- |
-| `research_goal` | Gather read-only facts before creation. |
-| `create_goal` | Create this thread's one goal and attach research. |
-| `get_goal` | Read the current objective, contract, research, or history. Offered while a goal is focused. |
-| `update_goal` | Revise requirements, record an outcome, or save the next action. |
-
-`research_goal` and `create_goal` are always offered. `get_goal` and
-`update_goal` appear once a goal is focused, and `update_goal` disappears again
-when no goal can accept an outcome, so a session with nothing in flight does not
-pay for tools it cannot use.
-
-## Storage and boundaries
-
-```text
-.pi/goals/<goal>/record.json            authoritative record
-.pi/goals/<goal>/prompt.md              objective prose
-.pi/goals/<goal>/research.md            attached research
-.pi/goals/<goal>/ledger.jsonl           lifecycle history
-.pi/goals/<goal>/claims/write-lock.json  exclusive write lock
-.pi/goals/archived/<goal>/              completed or cleared goals
-```
-
-Existing symbolic links below the project root are rejected for prose and
-research file access. This is not an OS sandbox against concurrent directory replacement.
-Failed creation can leave prose files without an active record.
-Atomic replacements do not use `fsync`; host crashes can lose the newest write.
-
-The goals directory is project state, so the project root decides its whole
-path. Goal creation is refused when that path would land inside Pi's own home
-or agent directory, which is what produces a second `.pi` inside Pi's layout
-(`~/.pi/.pi/goals`) or a goals directory beside Pi's own sessions. Nothing is
-written in that case. A goal already stored there keeps running. Start Pi from
-a project directory to create goals.
-
-The passive widget mounts below the input editor through `ui.setWidget`.
-The row reads `<verb> · <elapsed>`, for example `Pursuing goal · 12m` or
-`Goal paused · 12m`, and never carries a `[goal]` tag: every verb already names
-the goal, so the tag would repeat it on every line below the editor. The
-transcript rows keep the tag. The row never prints the goal id.
-Elapsed time scales with the run: whole minutes below an hour, then hours and
-minutes, then days and hours (for example `0m`, `1m`, `2h 15m`, `1d 1h`).
-The passive widget uses the current goal state. `/goal` displays a compact summary
-without an overlay or project-wide list. The recorded status `active` means the goal
-is enabled; it does not prove that a child or model request is currently running.
-
-## License
-
-MIT
+Native acceptance uses a scripted provider inside a real Pi CLI/TUI and decodes
+complete terminal frames, including resizing and interactive management. It makes
+no remote model calls. Docker acceptance installs the packed Goal and its required
+kit dependency into an isolated Pi environment; test fixtures inject the scripted
+provider/checker, without other production extensions or host credentials.

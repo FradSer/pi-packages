@@ -1,13 +1,14 @@
 /** The status row and the elapsed figure it reports. */
 
-import assert from "node:assert/strict";
+import { observedAssert as assert, observeScenario, observedScenarios } from "../../../tests/e2e/support/assertion-observer.ts";
+import { writeFileSync as writeObservationFile } from "node:fs";
 import { clearDashboard, refreshDashboard } from "../src/dashboard.ts";
 import { formatElapsed, type GoalRecord } from "../src/record.ts";
 
 const results: string[] = [];
 async function scenario(name: string, body: () => Promise<void> | void): Promise<void> {
   try {
-    await body();
+    await observeScenario(name, body);
     results.push(`ok ${name}`);
   } catch (error) {
     results.push(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`);
@@ -50,7 +51,7 @@ await scenario("the status row never carries the goal tag", () => {
       if (!factory) return;
       lines = factory({ requestRender() {} }, theme).render(120);
     } } };
-    refreshDashboard({ goal, checkProgress: undefined } as never, ctx as never);
+    refreshDashboard({ goal, scheduler: {isRunning:()=>goal.status === "active" && goal.autoContinue,isArmed:()=>false}, checkProgress: undefined } as never, ctx as never);
     return lines.join("\n");
   };
   // No state tags the row. Every verb already names the goal, so the tag would
@@ -58,7 +59,7 @@ await scenario("the status row never carries the goal tag", () => {
   // because there it says which work belongs to the goal.
   const cases: [GoalRecord, string][] = [
     [goalWith(), "Pursuing goal"],
-    [goalWith({ autoContinue: false }), "Goal held"],
+    [goalWith({ autoContinue: false }), "Goal waiting"],
     [goalWith({ status: "paused", autoContinue: false }), "Goal paused"],
     [goalWith({ status: "blocked", autoContinue: false }), "Goal blocked"],
     [goalWith({ status: "budget_limited", autoContinue: false }), "Goal budget limited"],
@@ -72,15 +73,16 @@ await scenario("the status row never carries the goal tag", () => {
       assert.ok(!text.includes(glyph), `the row must not carry the marker ${glyph}: ${text}`);
     }
   }
-  // The check row is a status row too, so it is untagged as well.
-  let checking = "";
+  // The check replaces the goal status with a two-line, passive activity row.
+  let checking: string[] = [];
   const ctx = { mode: "tui", ui: { setWidget: (_key: string, factory: Function | undefined) => {
     if (!factory) return;
-    checking = factory({ requestRender() {} }, theme).render(120).join("\n");
+    checking = factory({ requestRender() {} }, theme).render(120);
   } } };
-  refreshDashboard({ goal: goalWith(), checkProgress: { label: "Checking whether the goal is met" } } as never, ctx as never);
-  assert.doesNotMatch(checking, /\[goal\]/, `the check row is untagged: ${checking}`);
-  assert.match(checking, /Checking whether the goal is met/, `the check replaces the row: ${checking}`);
+  refreshDashboard({ goal: goalWith(), checkProgress: { label: "[goal] checking...", detail: "Evaluating the objective and recorded evidence..." } } as never, ctx as never);
+  assert.match(checking[0] ?? "", /\[goal\] checking\.\.\./, `the check row has its lifecycle label: ${checking}`);
+  assert.match(checking.join("\n"), /Evaluating the objective and recorded evidence\.\.\./, `the neutral activity text appears beneath the title: ${checking}`);
+  assert.doesNotMatch(checking.join("\n"), /NOT MET|MET|private checker output/, `the checker result is not exposed while in flight: ${checking}`);
 });
 
 await scenario("the shared passive widget mounts below the editor and starts at zero minutes", () => {
@@ -103,4 +105,38 @@ await scenario("the shared passive widget mounts below the editor and starts at 
   } finally { clearDashboard(ctx as never); }
 });
 
+await scenario("status refresh reuses the widget and still reads fresh state", () => {
+  let mounts = 0, renders = 0;
+  let component: { render(width: number): string[] } | undefined;
+  const core = { goal: goalWith() };
+  const ctx = { mode: "tui", ui: { setWidget: (_key: string, factory: Function | undefined) => {
+    mounts++;
+    if (factory) component = factory({ requestRender() { renders++; } });
+  } } };
+  refreshDashboard(core as never, ctx as never);
+  refreshDashboard(core as never, ctx as never);
+  assert.equal(mounts, 1);
+  assert.equal(renders, 1);
+  core.goal = goalWith({ status: "paused", autoContinue: false });
+  refreshDashboard(core as never, ctx as never);
+  assert.equal(mounts, 1);
+  assert.match(component!.render(80).join("\n"), /Goal paused/);
+  clearDashboard(ctx as never);
+  refreshDashboard(core as never, ctx as never);
+  assert.equal(mounts, 3, "clearing resets the mount cache");
+});
+
+await scenario("narrow status widgets wrap instead of dropping their ending", () => {
+  let component: { render(width: number): string[] } | undefined;
+  const ctx = { mode: "tui", ui: { setWidget: (_key: string, factory: Function | undefined) => {
+    if (factory) component = factory({ requestRender() {} });
+  } } };
+  refreshDashboard({ goal: goalWith({ status: "budget_limited" }) } as never, ctx as never);
+  const text = component!.render(10).join("\n");
+  assert.equal(text.replace(/\s/g, ""), "Goalbudgetlimited·0m");
+  assert.doesNotMatch(text, /…/);
+});
+
 process.stdout.write(`${JSON.stringify(results)}\n`);
+
+if (process.env.PI_E2E_ASSERTION_PATH) writeObservationFile(process.env.PI_E2E_ASSERTION_PATH, JSON.stringify(observedScenarios()));

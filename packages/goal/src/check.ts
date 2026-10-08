@@ -37,6 +37,7 @@ export interface CheckVerdict {
   error?: string;
   /** A result superseded by goal state must not consume a completion attempt. */
   stale?: boolean;
+  cancelled?: boolean;
   attempts?: number;
   advice?: string;
   stopped?: boolean;
@@ -76,7 +77,6 @@ function escape(value: string): string {
  * cap, so the bounds live here rather than in the tool schema. The prompt states
  * each truncation, because a silently shortened objective or claim would let the
  * checker read a partial one as the whole. The full text stays in the goal record. */
-const MAX_CHECK_OBJECTIVE_CHARS = 4_000;
 const MAX_CLAIM_CHARS = 4_000;
 
 function bound(text: string | undefined, cap: number, whenEmpty: string): string {
@@ -103,7 +103,7 @@ export function buildCheckPrompt(args: {
     "",
     "Objective:",
     "<objective>",
-    escape(bound(args.objective, MAX_CHECK_OBJECTIVE_CHARS, "")),
+    escape(args.objective),
     "</objective>",
     "",
     ...(args.contract
@@ -180,19 +180,6 @@ export async function runCompletionCheck(options: RunCheckOptions): Promise<Chec
     };
   }
   return { ...parsed, usage: result.usage, model: options.model };
-}
-
-export function completionAdvice(verdict: CheckVerdict, evidence: GoalEvidence): string {
-  const failed = evidence.observations.filter(item => item.outcome === "failure");
-  const steps = [
-    `Unmet condition: ${verdict.report || verdict.error || "The completion conditions are not established."}`,
-    ...(failed.length > 0 ? [`Re-run and repair these failed checks: ${failed.map(item => item.label).join(", ")}.`] : []),
-    ...(evidence.observations.length === 0 ? ["Run the required verification commands in this thread so their actual output is recorded."] : []),
-    ...(evidence.observations.some(item => item.truncated) || evidence.omitted > 0
-      ? ["Run a focused verification command that prints the missing result within the output limit."] : []),
-    "Resolve the unmet condition with fresh observed results, then use /goal resume before another final attempt.",
-  ];
-  return steps.join("\n");
 }
 
 /** What the executor is told when its request is refused. */

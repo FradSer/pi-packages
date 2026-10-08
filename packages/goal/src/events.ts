@@ -9,10 +9,9 @@
  */
 
 import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { detailField, notifyPi } from "@fradser/pi-kit";
+import { detailField } from "@fradser/pi-kit";
 import { GOAL_PROCEDURE_ENTRY } from "./procedure.ts";
 import type { GoalCore } from "./core.ts";
-import { describeUnmet } from "./check.ts";
 import { clearDashboard, refreshDashboard } from "./dashboard.ts";
 import { LiveContext } from "./live-context.ts";
 import { goalCapabilityNote, goalPromptParts, isCheckpointMessage } from "./prompt.ts";
@@ -38,6 +37,10 @@ export function registerGoalEvents(core: GoalCore): void {
   // process must never re-insert a note into the wrong transcript.
   const live = new LiveContext();
   const chargedMessages = new WeakSet<object>();
+  const runGoals = new Map<string, string | undefined>();
+  const messageGoals = new WeakMap<object, { goalId?: string; threadId: string }>();
+  const toolArgs = new Map<string, unknown>();
+  pi.on("tool_execution_start", event => { toolArgs.set(event.toolCallId, event.args); });
   let usageSequence = 0;
   let elapsedCharged = 0;
   const sessionKey = (ctx: ExtensionContext): string =>
@@ -71,6 +74,8 @@ export function registerGoalEvents(core: GoalCore): void {
   pi.on("agent_start", async (_event, ctx) => {
     core.bindUi(ctx);
     core.beginRun();
+    const goal = core.goal;
+    runGoals.set(ctx.sessionManager.getSessionId(), goal && core.canChargeGoal(goal) ? goal.id : undefined);
     core.scheduler.begin();
   });
 
@@ -79,8 +84,6 @@ export function registerGoalEvents(core: GoalCore): void {
     elapsedCharged = 0;
     // A new turn means a new claim. Without this a refused checkpoint from the
     // previous turn would keep acting on the new one.
-    core.beginTurn();
-    core.clearClaim();
     refreshDashboard(core, ctx);
   });
 
@@ -126,11 +129,16 @@ export function registerGoalEvents(core: GoalCore): void {
   });
 
   pi.on("tool_execution_end", async (event) => {
-    core.noteWork(event.toolName, !event.isError, event.result?.details);
+    core.noteWork(event.toolName, !event.isError, event.result?.details, event.result?.content, toolArgs.get(event.toolCallId));
+    toolArgs.delete(event.toolCallId);
   });
 
   pi.on("message_start", async (event, ctx) => {
     const message = event.message as { details?: unknown; role?: unknown; customType?: unknown; content?: unknown };
+    if (message.role === "assistant") {
+      const threadId = ctx.sessionManager.getSessionId();
+      messageGoals.set(message, { threadId, goalId: runGoals.get(threadId) });
+    }
     // Custom-message delivery never fires before_agent_start, so the /goal
     // procedure row accepts here instead. The match is the same stored prompt
     // against the delivered body; a mismatch still drops the intent silently.
@@ -148,35 +156,30 @@ export function registerGoalEvents(core: GoalCore): void {
     const accepted = core.scheduler.acceptCheckpoint(
       message.details as { goalId?: unknown; generation?: unknown; dispatchId?: unknown },
     );
-    if (!accepted.ok) notifyPi(ctx.ui, `Goal checkpoint refused: ${accepted.message}`, "warning");
+    if (!accepted.ok) core.notify(ctx, `Goal checkpoint refused: ${accepted.message}`, "warning");
   });
 
   pi.on("message_end", async (event, ctx) => {
     const message = event.message as { role?: unknown; usage?: unknown; content?: { type?: string; text?: string }[]; errorMessage?: unknown };
     if (message.role !== "assistant" || chargedMessages.has(message)) return;
-    const goal = core.goal;
-    if (!goal || goal.status !== "active" || !goal.autoContinue) return;
+    const threadId = ctx.sessionManager.getSessionId();
+    const attribution = messageGoals.get(message) ?? { threadId, goalId: runGoals.get(threadId) };
+    const focused = core.goal;
+    if (!attribution.goalId && focused?.threadId && focused.threadId !== attribution.threadId) { chargedMessages.add(message); return; }
+    const goal = attribution.goalId ? core.store.readGoalFromDisk(attribution.goalId) : focused;
+    // A released Goal's late usage must never migrate into the replacement.
+    if (attribution.goalId && !goal) { chargedMessages.add(message); return; }
+    if (!goal) { chargedMessages.add(message); core.recordCreationUsage(turnTokens(message.usage), attribution.threadId); return; }
+    if (!attribution.goalId && !core.canChargeGoal(goal)) return;
     chargedMessages.add(message);
-    if (!message.errorMessage) {
-      const claim = message.content?.filter(block => block.type === "text").map(block => block.text ?? "").join("\n").trim();
-      if (claim) core.recordClaim(claim);
-    }
     const elapsed = core.currentTurnSeconds();
-    core.chargeUsage(ctx, goal, ++usageSequence, turnTokens(message.usage), elapsed - elapsedCharged);
+    core.chargeUsage(ctx, goal, ++usageSequence, turnTokens(message.usage), elapsed - elapsedCharged, !!attribution.goalId);
     elapsedCharged = elapsed;
     refreshGoalToolSurface(core, ctx);
     refreshDashboard(core, ctx);
   });
 
-  /**
-   * The loop's own completion check.
-   *
-   * Nothing here waits for the model to remember `update_goal({status:
-   * "complete"})`. After every execution the runtime asks the check whether the
-   * objective is met from what the executor just did. An answer of MET closes
-   * the goal without another run; anything else becomes the next turn's input.
-   * The model asking for completion itself is the same check, only earlier.
-   */
+  // Settling authorizes continuation only after successful effective work.
   pi.on("agent_before_settle", async (event, ctx) => {
     core.bindUi(ctx);
     // Unconsumed setting intent must not activate an unrelated later edit.
@@ -186,12 +189,6 @@ export function registerGoalEvents(core: GoalCore): void {
     if (!goal) {
       refreshDashboard(core, ctx);
       return;
-    }
-    // The check comes before settling. A goal that turns out to be met closes
-    // here and never queues a continuation for a goal that no longer exists.
-    if (!failed && goal.status === "active" && goal.autoContinue && !core.turnRequestedCompletion() && !core.hasActiveBackgroundWork()) {
-      const settled = await runLoopCheck(core, ctx, goal);
-      if (settled) return;
     }
     core.scheduler.settled(core.goal, core.settings(ctx), !failed, core.performedWork());
     if (failed) {
@@ -209,37 +206,4 @@ export function registerGoalEvents(core: GoalCore): void {
     refreshGoalToolSurface(core, ctx);
     refreshDashboard(core, ctx);
   });
-}
-/**
- * Run the completion check for a settled turn that did not ask for one.
- *
- * MET archives the goal here rather than queuing another run and reports that
- * the goal is over. NOT MET records the missing requirement so the next
- * continuation carries it; the turn continues, because an open goal keeps
- * working and the unmet line is what it works on next.
- */
-async function runLoopCheck(core: GoalCore, ctx: import("@earendil-works/pi-coding-agent").ExtensionContext, goal: import("./record.ts").GoalRecord): Promise<boolean> {
-  const claim = core.lastExecutorClaim();
-  const turn = core.currentTurnSeq();
-  const generation = goal.scheduler?.generation;
-  const verdict = await core.check(ctx, goal, claim, core.settings(ctx));
-  const current = core.goal;
-  // A cancelled check must end its old lifecycle path, not settle a resumed run.
-  if (verdict.stale || !current || current.id !== goal.id || current.status !== goal.status ||
-      current.scheduler?.generation !== generation || core.currentTurnSeq() !== turn ||
-      current.objective !== goal.objective || current.verificationContract !== goal.verificationContract ||
-      current.evidenceSince !== goal.evidenceSince) return true;
-  if (verdict.met) {
-    const outcome = core.completeCheckedGoal(ctx, goal);
-    if (!outcome.ok) {
-      core.notify(ctx, outcome.message, "error");
-      return false;
-    }
-    core.notify(ctx, "Goal met its objective and is archived.", "info");
-    return true;
-  }
-  core.setUnmet(verdict.report);
-  core.appendEvents(ctx, [{ type: "check_deferred", goalId: goal.id, report: verdict.report, at: new Date().toISOString() }]);
-  core.notify(ctx, describeUnmet(verdict), "info");
-  return false;
 }

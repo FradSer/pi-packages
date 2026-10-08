@@ -1,7 +1,7 @@
 """Goal runtime contracts.
 
 Success criterion: every scenario in ``features/goal.feature`` is executed
-against the real store, ledger, scheduler, and auditor-prompt construction — not
+against the real store, scheduler, and auditor-prompt construction — not
 against a source-text assertion. The Node harnesses import the production
 modules and run the same pi-kit primitives the runtime binds, so a change in
 either package fails here rather than diverging silently.
@@ -40,13 +40,14 @@ def assert_all_pass(name: str) -> list[str]:
     return outcomes
 
 
-def test_durable_state_and_ledger_contracts() -> None:
-    """Goal record, pool scan, revision conflicts, archiving, and ledger paging.
-
-    Covers the "Goal record and durable state" and "Ledger" feature blocks.
-    """
+def test_durable_state_contracts() -> None:
+    """Atomic records, revision conflicts, safe paths and legacy preservation."""
     outcomes = assert_all_pass("goal_store.mts")
-    assert len(outcomes) >= 14, f"expected the full storage contract, got {len(outcomes)}"
+    assert len(outcomes) >= 13, f"expected the full storage contract, got {len(outcomes)}"
+
+
+def test_probe_cleanup_observations() -> None:
+    assert_all_pass("goal_probe_cleanup.mts")
 
 
 def test_scheduling_authorization_contracts() -> None:
@@ -90,7 +91,7 @@ def test_live_session_contracts() -> None:
     Everything above this is pure logic and runs without a host. These scenarios
     are the ones that only fail inside one: whether the tools are actually
     registered and gated by lifecycle, whether a completion request really runs
-    the auditor and really archives, and whether a task list set in one tool call
+    the auditor and releases the open record, and whether a task list set in one tool call
     is immediately usable by the next. The auditor is injected, so each scenario
     decides the verdict and then asserts on what the goal did about it.
 
@@ -103,29 +104,18 @@ def test_live_session_contracts() -> None:
 
 def test_completion_evidence_and_no_work_contracts() -> None:
     outcomes = assert_all_pass("goal_completion.mts")
-    assert len(outcomes) >= 9
+    assert len(outcomes) >= 8
 
-
-def test_command_handler_contracts() -> None:
-    outcomes = assert_all_pass("goal_command.mts")
-    assert len(outcomes) >= 2, f"expected the /goal command contract, got {len(outcomes)}"
 
 
 def test_thread_lifecycle_contracts() -> None:
     outcomes = assert_all_pass("goal_thread.mts")
-    assert len(outcomes) >= 9
+    assert len(outcomes) >= 8
 
 
-def test_research_before_creation_contracts() -> None:
-    """Read-only research: no shell, its own model, one writer, no influence.
-
-    Covers the "Research before creation" feature block. The child is reached
-    through a stand-in pi CLI, so the tool grant and the model flag are the
-    arguments the runtime actually passed. The store scenarios pin the other
-    half: findings reach disk only through the store, seeded and sequenced.
-    """
-    outcomes = assert_all_pass("goal_research.mts")
-    assert len(outcomes) >= 14, f"expected the full research contract, got {len(outcomes)}"
+def test_simplified_goal_contracts() -> None:
+    outcomes = assert_all_pass("goal_simplified.mts")
+    assert len(outcomes) >= 16
 
 
 def test_notifications_and_the_tool_surface_are_covered_behaviourally() -> None:
@@ -157,18 +147,6 @@ def test_dashboard_geometry_and_input_contracts() -> None:
     assert len(outcomes) >= 2, f"expected the dashboard contract, got {len(outcomes)}"
 
 
-def test_live_activity_and_procedure_rows() -> None:
-    """One blocking research transcript row and one /goal lifecycle row.
-
-    The count dropped from nine when research stopped mounting a widget: the
-    superseded-run token and the session-boundary clear only described that
-    widget's lifecycle. The requirements behind them, a stale run never
-    replacing newer findings and a boundary invalidating a running child, are
-    asserted at the core seam in goal_research.mts.
-    """
-    outcomes = assert_all_pass("goal_live.mts")
-    assert len(outcomes) >= 7, f"expected the live TUI contract, got {len(outcomes)}"
-
 
 def test_the_live_check_is_opt_in_and_gated() -> None:
     """Reserved for a live run against the real pi binary.
@@ -181,20 +159,11 @@ def test_the_live_check_is_opt_in_and_gated() -> None:
     assert not (PACKAGE / "tests" / "test_goal_live.py").exists(), "no live test exists yet"
 
 
-def test_only_the_store_and_ledger_reach_a_write_primitive() -> None:
-    """The one structural check that has to be static.
-
-    The store is the package's only goal-record mutation boundary and the ledger
-    module is the only appender of lifecycle events. A second writer cannot be
-    ruled out by a runtime test, because the observable difference is a file on
-    disk, so this one is checked by reading the modules rather than running them.
-    Everything else about writes is asserted behaviourally: the cross-process
-    race in `goal_store.mts`, the archive-ledger routing in the same file, and
-    the archive assertions in `goal_session.mts`.
-    """
-    for module in ("record.ts", "scheduler.ts", "prompt.ts", "tools.ts", "commands.ts", "events.ts", "check.ts", "dashboard.ts", "core.ts", "live-context.ts", "research.ts", "evidence.ts"):
+def test_only_the_store_reaches_a_write_primitive() -> None:
+    """Only the atomic store may write Goal records."""
+    for module in ("record.ts", "scheduler.ts", "prompt.ts", "tools.ts", "commands.ts", "events.ts", "check.ts", "dashboard.ts", "core.ts", "live-context.ts", "evidence.ts"):
         source = (PACKAGE / "src" / module).read_text(encoding="utf-8")
         for primitive in ("writeJsonAtomic", "appendJsonlLine", "createExclusiveJsonFile", "writeFileSync", "appendFileSync"):
             assert primitive not in source, f"{module} reaches {primitive} outside the store"
     assert "writeJsonAtomic" in (PACKAGE / "src" / "store.ts").read_text(encoding="utf-8")
-    assert "appendJsonlLine" in (PACKAGE / "src" / "ledger.ts").read_text(encoding="utf-8")
+    assert not (PACKAGE / "src" / "ledger.ts").exists()

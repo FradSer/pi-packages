@@ -9,7 +9,8 @@
  * anything.
  */
 
-import assert from "node:assert/strict";
+import { observedAssert as assert, observeScenario, observedScenarios } from "../../../tests/e2e/support/assertion-observer.ts";
+import { writeFileSync as writeObservationFile } from "node:fs";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,7 +25,7 @@ import {
 const results: string[] = [];
 async function scenario(name: string, body: () => Promise<void> | void): Promise<void> {
   try {
-    await body();
+    await observeScenario(name, body);
     results.push(`ok ${name}`);
   } catch (error) {
     results.push(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`);
@@ -130,17 +131,10 @@ await scenario("the objective and contract reach the check, the claim is marked 
   assert.match(prompt, /NOT MET/, "and the rejection verdict is spelled out");
 });
 
-await scenario("a long objective is bounded for the check, and the bound is stated", () => {
-  // The stored objective has no cap, so the check bounds what it reads and says
-  // so. `prompt.ts` bounds the injected note the same way, with a retrieve hint.
-  const objective = `${"y".repeat(9_000)}TAIL`;
-  const prompt = buildCheckPrompt({ objective, claim: undefined, contract: undefined });
-  assert.ok(prompt.length < 6_000, `the objective must not reach the check whole, got ${prompt.length}`);
-  assert.match(prompt, /truncated at \d+ characters/);
-  assert.ok(!prompt.includes("TAIL"), "the tail is what is dropped");
-  // An objective inside the bound is passed through untouched.
-  const short = buildCheckPrompt({ objective: "Export the reports page as CSV.", claim: undefined, contract: undefined });
-  assert.match(short, /Export the reports page as CSV\./);
+await scenario("a long objective reaches the checker in full", () => {
+ const objective="A".repeat(10000)+"FINAL_REQUIRED_CONDITION";
+ const prompt=buildCheckPrompt({objective,claim:undefined,contract:undefined});
+ assert.ok(prompt.includes(objective)); assert.match(prompt,/FINAL_REQUIRED_CONDITION/);
 });
 
 await scenario("a long claim is bounded for the check, and the bound is stated", () => {
@@ -209,3 +203,4 @@ process.argv[1] = originalArgv1;
 delete process.env.GOAL_CHECK_REPORT;
 delete process.env.GOAL_CHECK_ARGS;
 process.stdout.write(`${JSON.stringify(results)}\n`);
+if (process.env.PI_E2E_ASSERTION_PATH) writeObservationFile(process.env.PI_E2E_ASSERTION_PATH, JSON.stringify(observedScenarios()));
