@@ -1,4 +1,4 @@
-import { realpathSync } from "node:fs";
+import { realpathSync, lstatSync, mkdirSync, openSync, readSync, writeFileSync, closeSync, fstatSync, fsyncSync, constants } from "node:fs";
 import { execFileSync } from "node:child_process";
 import * as path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -74,10 +74,54 @@ export function escapedProjectPath(cwd: string): string {
   return safePath;
 }
 
+/** A readable legacy key is not an identity: punctuation can collide. Bind
+ * it to the canonical path before any scoped data is read. The marker lives
+ * outside entry roots, whose regular Markdown-only contract is unchanged. */
+export function assertProjectScopeOwner(cwd: string, agentDir = getAgentDir()): void {
+  const canonical = canonicalProjectCwd(cwd);
+  const root = canonicalProjectCwd(agentDir);
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  const directory = path.join(root, "memory", "scopes");
+  // Agent root is trusted configuration; newly introduced child directories
+  // may never redirect ownership checks through symbolic links.
+  for (const child of [path.join(root, "memory"), directory]) {
+    try { mkdirSync(child, { mode: 0o700 }); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+    const stat = lstatSync(child);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error(`Unsafe project scope registry: ${child}`);
+  }
+  const marker = path.join(directory, `${escapedProjectPath(canonical)}.json`);
+  let handle: number | undefined;
+  try {
+    handle = openSync(marker, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+    writeFileSync(handle, JSON.stringify({ version: 1, cwd: canonical }));
+    fsyncSync(handle); closeSync(handle); handle = undefined;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+  } finally { if (handle !== undefined) closeSync(handle); }
+  const stat = lstatSync(marker);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 16_384) throw new Error(`Unsafe project scope binding: ${marker}`);
+  handle = openSync(marker, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try {
+    const opened = fstatSync(handle);
+    if (!opened.isFile() || opened.size > 16_384 || opened.dev !== stat.dev || opened.ino !== stat.ino) throw new Error(`Project scope binding changed: ${marker}`);
+    const bytes = Buffer.alloc(opened.size);
+    const count = readSync(handle, bytes, 0, bytes.length, 0);
+    const after = fstatSync(handle);
+    const named = lstatSync(marker);
+    if (count !== bytes.length || after.size !== opened.size || after.mtimeMs !== opened.mtimeMs || after.ctimeMs !== opened.ctimeMs || named.dev !== opened.dev || named.ino !== opened.ino || named.isSymbolicLink()) throw new Error(`Project scope binding changed: ${marker}`);
+    const binding: unknown = JSON.parse(bytes.toString("utf8"));
+    if (!binding || typeof binding !== "object" || !("version" in binding) || binding.version !== 1 || !("cwd" in binding) || binding.cwd !== canonical) {
+      throw new Error(`Project scope collision: ${canonical} does not own ${marker}; existing data was preserved`);
+    }
+  } finally { closeSync(handle); }
+}
+
 export function resolveMemoryPaths(cwd: string, agentDir = getAgentDir()): MemoryPaths {
   const canonicalCwd = canonicalProjectCwd(cwd);
   const scopeKey = projectScopeKey(canonicalCwd);
   const root = canonicalProjectCwd(agentDir);
+  assertProjectScopeOwner(canonicalCwd, root);
   const harnessDir = path.join(root, "memory", scopeKey);
   return {
     cwd: canonicalCwd,

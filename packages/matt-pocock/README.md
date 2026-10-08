@@ -186,7 +186,7 @@ These operations keep their own subjects rather than substituting a workflow pha
 - **Reference loading (`load`)**: `[matt pocock] event · loaded <reference>` (e.g. `[matt pocock] event · loaded HTML Report`).
 - **Standalone capability**: `[matt pocock] started · <capability>` (e.g. `[matt pocock] started · Diagnosing Bugs`).
 - **Standalone reference**: `[matt pocock] started · <capability> · <reference>`.
-- **`matt_pocock_ask`**: `[matt pocock] ask · <question>`, with the answer or pending status below. Timeout, no-UI, and custom-input metadata remain available on expansion without repeating the answer.
+- **`matt_pocock_ask`**: `[matt pocock] ask · <question>`, with the answer or pending status below. The model-facing result includes the full question followed by the chosen answer as a block quote (`> <answer>`); `(Recommended)` is only a choice label and is omitted from the answer. Timeout, no-UI, and custom-input metadata remain available on expansion without repeating the answer.
 - **Fallback**: `[matt pocock] event · workflow updated` when no action or subject is available.
 
 Capability and reference names use readable catalog labels consistently. Transition-menu choices use their destination phase titles, matching lifecycle rows. Command identifiers and saved resource ids remain unchanged; user-supplied tasks are displayed verbatim.

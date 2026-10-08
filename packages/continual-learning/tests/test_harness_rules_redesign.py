@@ -732,6 +732,8 @@ def test_registered_text_guidance_reports_scoped_source_and_retirement_owner(tmp
       import {{ configPaths }} from './packages/continual-learning/extensions/guardrail-config.ts';
       const cwd={json.dumps(str(tmp_path))};
       const paths=configPaths(cwd);
+      const {{assertProjectScopeOwner}} = await import('./packages/continual-learning/extensions/memory-paths.ts');
+      assertProjectScopeOwner(cwd);
       fs.mkdirSync(path.dirname(paths.userScoped), {{recursive:true}});
       fs.writeFileSync(paths.userScoped, JSON.stringify({{rules:[{{id:'scoped-text',text:'needle',instructions:'Scoped guidance'}}]}}));
       const hooks={{}}, entries=[];

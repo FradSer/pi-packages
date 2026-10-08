@@ -1,0 +1,20 @@
+{
+  "kind": "adversarial-negative-study-reverification",
+  "version": 1,
+  "recordedAt": "2026-10-08",
+  "purpose": "Re-run the frozen bilingual adversarial corpus at the current source revision, because the candidate-review checklist construction changed to follow whether a record has a description line.",
+  "protocol": "packages/continual-learning/tests/adversarial-negative-study-protocol-2026-10-07.md",
+  "evaluator": "packages/continual-learning/tests/evaluate_adversarial_negative_study.ts",
+  "rawRoot": "~/.cache/pi-continual-learning/research/adversarial-negative-2026-10-07",
+  "corpusSha256": "5f1011e5f696fd711b10887e45b87805443157aec6c2f57928014b6ee95623e8",
+  "model": "jev-1.13.0",
+  "sdk": "0.6.0",
+  "mode": "live",
+  "totalCases": 14,
+  "matched": 14,
+  "falseAllows": 0,
+  "falseHolds": 0,
+  "requests": 14,
+  "writeAuthorized": false,
+  "unchangedClaims": "The earlier recorded 12 of 14 and later 14 of 14 results stay in their own files; this file records one new run and replaces none of them."
+}

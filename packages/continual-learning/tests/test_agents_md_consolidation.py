@@ -729,6 +729,9 @@ def test_orphan_pre_receipt_recovers_predecessors_before_new_work(tmp_path: Path
         "directories": [],
     }
     (run_dir / "agents-pre-receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+    # New recovery records prove the exact bytes produced by the interrupted writer.
+    ownership = {entry["file"]: __import__("base64").b64encode(Path(entry["file"]).read_bytes()).decode() for entry in receipt["predecessors"]}
+    (run_dir / "agents-ownership.json").write_text(json.dumps(ownership), encoding="utf-8")
     result = js(f'''
       import {{ recoverAgentsMdConsolidation }} from '{MODULE}';
       const run = {{ manifest: {{ runId: 'run_recover', scopeDigest: 'scope', snapshotDigest: {json.dumps(digest)}, harnessDir: {json.dumps(str(agent / 'memory' / 'project'))}, publicDir: {json.dumps(str(project / '.memory'))}, runDir: {json.dumps(str(run_dir))} }} }};
@@ -776,6 +779,9 @@ def test_pending_recovery_is_discovered_from_the_project_runs_directory(tmp_path
         "directories": [],
     }
     (run_dir / "agents-pre-receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+    # New recovery records prove the exact bytes produced by the interrupted writer.
+    ownership = {entry["file"]: __import__("base64").b64encode(Path(entry["file"]).read_bytes()).decode() for entry in receipt["predecessors"]}
+    (run_dir / "agents-ownership.json").write_text(json.dumps(ownership), encoding="utf-8")
     result = js(f'''
       process.env.PI_CODING_AGENT_DIR = {json.dumps(str(agent))};
       const {{ recoverPendingAgentsMdConsolidations }} = await import('{MODULE}');
@@ -874,7 +880,8 @@ def test_changed_snapshot_bytes_are_rejected_before_agents_planning() -> None:
 def test_agents_planner_uses_package_prompt_and_minimal_readonly_args() -> None:
     source = (PKG_DIR / "extensions" / "agents-md-consolidation.ts").read_text(encoding="utf-8")
     assert "buildAgentsMdConsolidatorPrompt" in source
-    assert 'minimalPiWorkerArgs(["read", "grep", "find", "ls"])' in source
+    assert 'minimalPiWorkerArgs(["learning_read"])' in source
+    assert "plannerReadArgs" in source
     header = source.split("const taskText = [", 1)[1].split('].join("\\n");', 1)[0]
     for duplicate in ("Run ID:", "Scope digest:", "Artifact/snapshot digest:", "Immutable task-slice snapshot:", "Authoritative Learning Dossier:"):
         assert duplicate not in header

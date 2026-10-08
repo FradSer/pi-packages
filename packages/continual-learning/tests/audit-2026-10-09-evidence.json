@@ -1,0 +1,38 @@
+{
+  "scope_collision": {
+    "sameMemoryRoot": true,
+    "bReadsAMemory": [
+      "private.md"
+    ],
+    "sameScopedHarness": true,
+    "bDecision": "block"
+  },
+  "menu_cap": {
+    "title": "Browse memories · 129 total · 1 omitted from the index",
+    "options": 128,
+    "tailAccessible": false,
+    "hasNextPage": false
+  },
+  "rollback_concurrent_edit": {
+    "error": "final verification failed",
+    "final": "original",
+    "humanEditPreserved": false
+  },
+  "recursive_prompt_bindings": {
+    "rendered": "a=literal replacement b=replacement",
+    "literalPreserved": false
+  },
+  "agents_concurrent_edit": {
+    "outcome": "applied",
+    "final": "- Run tests with pnpm test\n",
+    "humanEditPreserved": false
+  },
+  "actual_prompt_builder": {
+    "literalRunDirectoryPreserved": false,
+    "runDirectoryRewritten": true
+  },
+  "native_worker_read_boundary": {
+    "outsideReadAllowed": true,
+    "symlinkReadAllowed": true
+  }
+}

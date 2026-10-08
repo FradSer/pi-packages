@@ -88,7 +88,7 @@ Feature: Memory management with automatic learning and manual consolidation
     When the child Pi process is launched in JSON print mode
     Then it uses the shared minimal Pi worker arguments
     And extension, skill, prompt-template, context-file, and theme discovery are disabled
-    And only read, grep, find, and ls are available in the disposable child session
+    And only parent-scoped learning_read is available in the disposable child session
 
   Scenario: Shows a dreaming widget immediately for the complete pipeline
     Given the user invokes /consolidate in the TUI

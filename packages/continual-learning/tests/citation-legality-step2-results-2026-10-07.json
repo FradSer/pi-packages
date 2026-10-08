@@ -1,0 +1,38 @@
+{
+  "kind": "citation-legality-step2",
+  "version": 2,
+  "recordedAt": "2026-10-07",
+  "status": "landed: validator plus routing into the existing structural repair",
+  "landed": {
+    "validator": "candidateCitationProblems(evidence, candidates) exported from extensions/inject-memory.ts",
+    "checks": [
+      "a candidate with no citation",
+      "an out-of-range cited index",
+      "a citation with no quote",
+      "a quote absent from the entry it cites"
+    ],
+    "routing": "Inside the Memory worker's plan-expansion try, the check runs before any judge call. On a problem the parent clears the expanded plan and throws a controlled error naming the locations, which is what routes the failure into the existing structural repair branch, gated on a rejected plan with no expanded one. A normalization error inside the check is swallowed so existing behaviour is unchanged; only a citation failure changes the flow.",
+    "tests": [
+      "test_candidate_citations_must_quote_the_entry_they_cite, RED then GREEN, covering the four check classes",
+      "test_memory_plan_expansion_checks_citations_before_any_judge_call, asserting the check is present, that the plan is cleared, and that it precedes the judge call in source order"
+    ]
+  },
+  "verification": {
+    "focused": "96 passed in 151.81s",
+    "fullSuite": "1096 passed in 622.16s",
+    "typecheck": "exit 0",
+    "packCheck": "exit 0, 19 workspace manifests",
+    "dryPack": "pi-continual-learning-0.4.0.tgz",
+    "diffCheck": "exit 0"
+  },
+  "designDecisionRecorded": {
+    "degenerateCitationSet": "Deliberately NOT a rejection. Several candidates can legitimately quote one message, so the quote-versus-entry check carries the real defect on its own; the distinct-index count stays a diagnostic idea.",
+    "honestyRule": "A parent-side citation rejection keeps its own error text and never impersonates a Jev verdict, so the receipt cannot read as a judgment that was never made."
+  },
+  "behaviouralVerificationOutstanding": "The routing is proven by unit and source-order tests and by the full suite, but not yet by a live arm, because the weak generator produced a degenerate plan only on one of its runs. A live confirmation needs a weak-generator run that again cites one index for several quotes.",
+  "limits": [
+    "No live arm has exercised the routing yet.",
+    "The check reads the run snapshot for the frozen evidence, so it runs on the same bytes the semantic block later freezes for the judge."
+  ],
+  "writeAuthorized": false
+}

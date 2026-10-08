@@ -40,3 +40,5 @@ screen do not. A deterministic screen identifies plausible opportunities and
 may miss a lesson; it never establishes that no lesson exists. If evidence is
 incomplete or omitted, preserve existing knowledge and report uncertainty
 instead of deleting or broadening a rule.
+
+The only inspection tool is `learning_read`, enforced by the parent-approved scope. Native read, grep, find, ls, shell and network tools are unavailable. A refused read does not authorize alternate paths or guessing.

@@ -83,23 +83,16 @@ def test_symlinked_locks_directory_denies_actual_lock_acquisition() -> None:
         assert result["lockExists"] is False
 
 
-def test_colliding_readable_names_intentionally_share_private_scope() -> None:
-    result = run_bun(
-        """
+def test_colliding_readable_names_refuse_cross_project_access() -> None:
+    result = run_bun("""
         import { escapedProjectPath, resolveMemoryPaths } from './packages/continual-learning/extensions/memory-paths.ts';
         const first = resolveMemoryPaths('/tmp/a:b/c');
-        const second = resolveMemoryPaths('/tmp/a/b/c');
-        console.log(JSON.stringify({
-          first,
-          second,
-          firstPrefix: escapedProjectPath('/tmp/a:b/c'),
-          secondPrefix: escapedProjectPath('/tmp/a/b/c'),
-        }));
-        """
-    )
-    assert result["firstPrefix"] == result["secondPrefix"] == "--tmp-a-b-c--"
-    for key in ("scopeKey", "harnessDir", "lockFile", "runsDir"):
-        assert result["first"][key] == result["second"][key]
+        let refused = false;
+        try { resolveMemoryPaths('/tmp/a/b/c'); } catch (error) {refused = error.message.includes('collision');}
+        console.log(JSON.stringify({refused, firstPrefix: escapedProjectPath('/tmp/a:b/c'), secondPrefix: escapedProjectPath('/tmp/a/b/c')}));
+    """)
+    assert result['refused'] is True
+    assert result['firstPrefix'] == result['secondPrefix'] == '--tmp-a-b-c--'
 
 
 def test_readable_private_path_uses_canonical_project_path_and_shared_scope_lock() -> None:
@@ -945,45 +938,21 @@ def test_obsolete_private_roots_are_ignored_without_mutation() -> None:
         assert result["obsoleteUnchanged"] == [True, True, True]
 
 
-def test_colliding_readable_roots_load_the_same_private_memory() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        agent = Path(tmp) / "agent"
-        result = run_bun(
-            f"""
-            import {{ escapedProjectPath, resolveMemoryPaths }} from './packages/continual-learning/extensions/memory-paths.ts';
-            import {{ loadAndDeduplicateMemories }} from './packages/continual-learning/extensions/memory-files.ts';
-            import {{ existsSync, mkdirSync, readFileSync, writeFileSync }} from 'node:fs';
-            const leftCwd = '/tmp/a:b/c';
-            const rightCwd = '/tmp/a/b/c';
-            const left = resolveMemoryPaths(leftCwd, {json.dumps(str(agent))});
-            const right = resolveMemoryPaths(rightCwd, {json.dumps(str(agent))});
-            const sharedRoot = left.agentDir + '/memory/' + escapedProjectPath(left.cwd);
-            if (sharedRoot !== right.agentDir + '/memory/' + escapedProjectPath(right.cwd)) throw new Error('expected collision');
-            mkdirSync(sharedRoot, {{ recursive: true }});
-            writeFileSync(sharedRoot + '/ambiguous.md', 'ambiguous\\n');
-            mkdirSync(left.harnessDir, {{ recursive: true }});
-            mkdirSync(right.harnessDir, {{ recursive: true }});
-            writeFileSync(left.harnessDir + '/left.md', 'left\\n');
-            writeFileSync(right.harnessDir + '/right.md', 'right\\n');
-            const leftEntries = await loadAndDeduplicateMemories(leftCwd);
-            const rightEntries = await loadAndDeduplicateMemories(rightCwd);
-            console.log(JSON.stringify({{
-              sharedCanonicalRoot: left.harnessDir === right.harnessDir,
-              left: leftEntries.entries.map((entry) => entry.filename),
-              right: rightEntries.entries.map((entry) => entry.filename),
-              sharedKept: existsSync(sharedRoot + '/ambiguous.md'),
-              sharedBytes: readFileSync(sharedRoot + '/ambiguous.md', 'utf8'),
-            }}));
-            """,
-            {"PI_CODING_AGENT_DIR": str(agent)},
-        )
-        assert result == {
-            "sharedCanonicalRoot": True,
-            "left": ["ambiguous.md", "left.md", "right.md"],
-            "right": ["ambiguous.md", "left.md", "right.md"],
-            "sharedKept": True,
-            "sharedBytes": "ambiguous\n",
-        }
+def test_colliding_readable_roots_never_load_another_projects_private_memory(tmp_path: Path) -> None:
+    agent = tmp_path / "agent"
+    result = run_bun(f"""
+        import {{resolveMemoryPaths}} from './packages/continual-learning/extensions/memory-paths.ts';
+        import {{loadAndDeduplicateMemories}} from './packages/continual-learning/extensions/memory-files.ts';
+        import fs from 'node:fs/promises';
+        const paths = resolveMemoryPaths('/tmp/a:b/c');
+        await fs.mkdir(paths.harnessDir, {{recursive:true}});
+        await fs.writeFile(paths.harnessDir+'/private.md','only left');
+        const left = await loadAndDeduplicateMemories('/tmp/a:b/c');
+        let refused=false;
+        try {{await loadAndDeduplicateMemories('/tmp/a/b/c');}} catch (error) {{refused=error.message.includes('collision');}}
+        console.log(JSON.stringify({{left:left.entries.map(entry=>entry.filename),refused,preserved:await fs.readFile(paths.harnessDir+'/private.md','utf8')}}));
+    """, {"PI_CODING_AGENT_DIR": str(agent)})
+    assert result == {"left":["private.md"], "refused":True, "preserved":"only left"}
 
 
 def test_git_root_probe_is_memoized_within_a_process(tmp_path: Path) -> None:

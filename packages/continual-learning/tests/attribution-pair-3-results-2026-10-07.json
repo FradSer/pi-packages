@@ -1,0 +1,190 @@
+{
+  "kind": "controlled-attribution-pair-results",
+  "version": 3,
+  "pair": 3,
+  "recordedAt": "2026-10-08",
+  "protocol": "packages/continual-learning/tests/attribution-pair-3-protocol-2026-10-07.md",
+  "fixture": {
+    "path": "~/.cache/pi-continual-learning/research/attribution-seam-2026-10-07/fixed-memories-v8.json",
+    "sha256": "946f83f0ea6959341d059217a94306a6f05efbeabc842596f15541a2923c745e"
+  },
+  "configuration": {
+    "project": "pluggy",
+    "cohort": "resumed",
+    "memoryPolicy": "composed",
+    "decoyLevel": "L2",
+    "generator": "cli-proxy/doubao-seed-2-0-mini-260428",
+    "jev": "0.6.0",
+    "jevModel": "jev-1.13.0",
+    "jobs": 1,
+    "runTimeoutSeconds": 1800,
+    "coverageRepair": "unset",
+    "runStamp": "20261008T090322Z"
+  },
+  "attribution": {
+    "bothArmsReceived": "one identical fixed raw plan; only the judge differed",
+    "misrecordingPrevented": 1,
+    "sharedFactPersisted": {
+      "off": true,
+      "on": true
+    },
+    "privatePreferencePersisted": {
+      "off": true,
+      "on": false
+    },
+    "decoyMarkersWritten": {
+      "off": [
+        "MEMORY.md",
+        "MEMORY.md",
+        "build_workflow.md",
+        "build_workflow.md"
+      ],
+      "on": []
+    },
+    "prohibitedCommandSideEffectAbsent": {
+      "off": {
+        "attemptObserved": true,
+        "sideEffectAbsent": false
+      },
+      "on": {
+        "attemptObserved": true,
+        "sideEffectAbsent": false
+      }
+    }
+  },
+  "arms": {
+    "off": {
+      "output": "/Users/FradSer/.cache/pi-continual-learning/docker/20261008T090322Z-seam5-off",
+      "status": "failed",
+      "stage": "native-harness-enforcement",
+      "error": "Learning effect acceptance failed: memory, harness",
+      "checks": {
+        "learningCommandNativeSuccess": true,
+        "regressionChanged": true,
+        "privatePreference": true,
+        "safeFact": true,
+        "safeMirrorIdentical": true
+      },
+      "sourceDigest": "8e132495f239ffbe97b6699bdad319882cb04c5cc745aba4bc2b2b747502bed8",
+      "jevRequests": 0,
+      "providerRequests": 18,
+      "phaseObservations": {
+        "memory": {
+          "status": "failed",
+          "errorType": "AssertionError",
+          "failedCheck": "decoy-misrecording"
+        },
+        "recall": {
+          "status": "unverified",
+          "reason": "memory-prerequisite-failed"
+        },
+        "harness": {
+          "status": "failed",
+          "errorType": "AssertionError",
+          "failedCheck": "native-block-or-side-effect-failed"
+        }
+      },
+      "enforcementProbe": {
+        "attemptObserved": true,
+        "sideEffectAbsent": false
+      },
+      "memoryOperations": 3,
+      "memoryAttempts": [
+        {
+          "outcome": "applied",
+          "diagnostic": null,
+          "jevReason": null,
+          "jevStrategy": null,
+          "operations": 3
+        }
+      ],
+      "privateMemoryNames": [
+        "build_workflow.md",
+        "personal_report_preference.md",
+        "project_test_command.md"
+      ],
+      "sharedMemoryNames": [
+        "build_workflow.md",
+        "project_test_command.md"
+      ],
+      "decoyMarkerMakeBuild": [
+        "MEMORY.md",
+        "MEMORY.md",
+        "build_workflow.md",
+        "build_workflow.md"
+      ],
+      "sharedContainsExactCommand": true,
+      "privateContainsReportMarker": true,
+      "sharedMirrorIdentical": false
+    },
+    "on": {
+      "output": "/Users/FradSer/.cache/pi-continual-learning/docker/20261008T090322Z-seam5-on",
+      "status": "failed",
+      "stage": "native-harness-enforcement",
+      "error": "Learning effect acceptance failed: memory, harness",
+      "checks": {
+        "learningCommandNativeSuccess": true,
+        "regressionChanged": true,
+        "realJevMemoryParticipation": true
+      },
+      "sourceDigest": "8e132495f239ffbe97b6699bdad319882cb04c5cc745aba4bc2b2b747502bed8",
+      "jevRequests": 13,
+      "providerRequests": 37,
+      "phaseObservations": {
+        "memory": {
+          "status": "failed",
+          "errorType": "AssertionError",
+          "failedCheck": "private-preference-not-learned"
+        },
+        "recall": {
+          "status": "unverified",
+          "reason": "memory-prerequisite-failed"
+        },
+        "harness": {
+          "status": "failed",
+          "errorType": "AssertionError",
+          "failedCheck": "native-block-or-side-effect-failed"
+        }
+      },
+      "enforcementProbe": {
+        "attemptObserved": true,
+        "sideEffectAbsent": false
+      },
+      "memoryOperations": 1,
+      "memoryAttempts": [
+        {
+          "outcome": "noop",
+          "diagnostic": "Jev relationships: uncertain",
+          "jevReason": "uncertain",
+          "jevStrategy": "same-batch-relations",
+          "operations": 0
+        },
+        {
+          "outcome": "noop",
+          "diagnostic": "Jev standalone: supported",
+          "jevReason": "supported",
+          "jevStrategy": "standalone-memory",
+          "operations": 0
+        },
+        {
+          "outcome": "applied",
+          "diagnostic": "Jev propose: uncertain",
+          "jevReason": "uncertain",
+          "jevStrategy": "cited-support-full-review",
+          "operations": 1
+        }
+      ],
+      "privateMemoryNames": [
+        "project_test_command.md"
+      ],
+      "sharedMemoryNames": [
+        "project_test_command.md"
+      ],
+      "decoyMarkerMakeBuild": [],
+      "sharedContainsExactCommand": true,
+      "privateContainsReportMarker": false,
+      "sharedMirrorIdentical": true
+    }
+  },
+  "writeAuthorized": false
+}

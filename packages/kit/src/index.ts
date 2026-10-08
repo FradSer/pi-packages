@@ -61,6 +61,9 @@ export interface ToolLifecycleSpec {
    *  happened and the reader opens the row for the content. The row stays
    *  expandable, and its affordance is shown, whenever a summary exists. */
   expandedSummary?: boolean;
+  /** Wrap and show the complete summary even when collapsed. Hidden-summary
+   * mode takes precedence when expandedSummary is also set. */
+  fullSummary?: boolean;
   /** Plain by default. Markdown renders one body through native pi-tui Markdown. */
   summaryFormat?: "plain" | "markdown";
   /** Supplementary user-facing evidence, not raw result metadata or a title restatement.
@@ -356,7 +359,8 @@ export function renderToolLifecycle(
       }).render(contentWidth).map(line => fit(line, contentWidth))
     : undefined;
   const hideCollapsedSummary = spec.expandedSummary === true && summary.length > 0;
-  const summaryHidden = markdownRows
+  const fullSummary = spec.fullSummary === true && !hideCollapsedSummary;
+  const summaryHidden = fullSummary ? false : markdownRows
     ? markdownRows.length > 1 || hideCollapsedSummary
     : summary.some(isHidden) || hideCollapsedSummary;
   const expandable = options.expandable ?? (detailRows.length > 0 || hiddenSubject || summaryHidden);
@@ -376,6 +380,7 @@ export function renderToolLifecycle(
           : collapsedBandRows(singleLine(title), hint, contentWidth, options)),
         ...(hideCollapsedSummary
           ? []
+          : fullSummary ? (markdownRows ?? summary.flatMap((line) => wrap(line).map((part) => theme.fg(textToken, part))))
           : markdownRows ? markdownRows.slice(0, 1) : summary.map((line) => fit(theme.fg(textToken, singleLine(line)), contentWidth))),
       ];
   return paintBand(rows, spec.bgToken === undefined ? options : { ...options, bgToken: spec.bgToken });

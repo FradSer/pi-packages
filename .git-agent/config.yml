@@ -1,45 +1,41 @@
 scopes:
     - name: ctx
-      description: Code-context retrieval extensions and research workflows in packages/context/; does not cover package-local runtime logic.
+      description: code-context retrieval and research workflows in packages/context/; does not cover package-local runtime logic
     - name: cl
-      description: Harness guardrails, memory retrieval, injection, and consolidation in packages/continual-learning/; does not cover the shared kit runtime.
+      description: harness guardrails, memory retrieval, injection, and consolidation in packages/continual-learning/; does not cover the shared kit runtime
     - name: kit
-      description: Shared runtime, process lifecycles, and tool interfaces in packages/kit/; does not cover consumer package behavior.
+      description: shared runtime, process lifecycles, and tool interfaces in packages/kit/; does not cover consumer package behavior
     - name: tm
-      description: Agent team composition, peer messaging, task-board state, and UI rendering in packages/agent-teams/; does not cover the subagent execution layer or shared kit internals.
+      description: agent team composition, peer messaging, and UI rendering in packages/agent-teams/; does not cover the subagent execution layer
     - name: sa
-      description: Subagent execution — definitions, child spawn and lifecycle, workspace isolation, child environment policy, and report channel in packages/subagents/; does not cover task-board or team coordination.
+      description: subagent definitions, child spawn, workspace isolation, and report channels in packages/subagents/; does not cover team coordination
     - name: tasks
-      description: Task domain — data model, status machine, dependency-graph and resource-conflict rules, durable board persistence, and the `task` tool in packages/tasks/; does not cover processes, rosters, or messaging.
+      description: task data model, status machines, dependency-graph rules, and durable board persistence in packages/tasks/; does not cover processes
     - name: goal
-      description: Durable goal runtime — record and ledger storage, one mutation boundary, continuation authorization, completion auditing, and the goal tools in packages/goal/; does not cover shared kit internals or the task board.
-    - name: btw
-      description: Read-only side-question overlay and child-session behavior in packages/btw/; does not cover other package runtimes.
-    - name: key
-      description: Keyboard integration, lighting state, and global session records in packages/keyboard/; does not cover other package runtimes.
-    - name: imp
-      description: Design procedures, taste library, live variant runtime, and detection tooling in packages/impeccable/; does not cover shared kit internals.
-    - name: e2e
-      description: End-to-end verification harnesses, scenario drivers, and result recording in packages/e2e/; does not cover shared kit internals.
-    - name: mp
-      description: Persisted Matt Pocock workflow routes, procedures, and command integration in packages/matt-pocock/; does not cover other package runtimes.
-    - name: mon
-      description: Background command monitoring, result contracts, diagnostics, and event handling in packages/monitor/; does not cover shared kit internals.
+      description: durable goal runtime, ledger storage, and completion auditing in packages/goal/; does not cover shared kit internals
     - name: odk
-      description: Desk Link reporting of a machine's Pi sessions and their operating events to Open DeskOS in packages/open-deskos/; does not cover shared kit internals or the Open DeskOS runtime.
-    - name: plan
-      description: Planning workers, overlay management, and execution orchestration in packages/plan-mode/; does not cover general-purpose utilities.
-    - name: rc
-      description: Session recap generation, persistence, and display behavior in packages/recap/; does not cover other package runtimes.
-    - name: sr
-      description: External skill-collection routing and command behavior in packages/skill-router/; does not cover other package runtimes.
+      description: remote session reporting and Pi-control events to Open DeskOS in packages/open-deskos/; does not cover shared kit internals
     - name: util
-      description: General-purpose extensions, npm guards, live session control, directory sessions, and worktree utilities in packages/utils/; does not cover release automation.
-    - name: vis
-      description: Text-model image analysis bridging and vision model configuration in packages/vision/; does not cover other package runtimes.
+      description: general-purpose extensions, live session control, and worktree utilities in packages/utils/; does not cover release automation
     - name: rel
-      description: Package manifests, Changesets, release allowlists, and publishing automation in .changeset/ and scripts/; does not cover runtime package behavior.
-    - name: repo
-      description: Repository-wide documentation, RFCs, contributor guidance, workspace configuration, and shared package conventions in docs/ and repository root; does not cover package-specific implementation details.
-    - name: ex
-      description: SDK usage examples in examples/; does not cover package implementations or release automation.
+      description: package manifests, changesets, and publishing automation in .changeset/ and scripts/; does not cover runtime package behavior
+    - name: btw
+      description: side conversations and overlays in packages/btw/; does not cover shared kit internals
+    - name: e2e
+      description: feature evidence verification and real-run acceptance in packages/e2e/; does not cover shared kit internals
+    - name: imp
+      description: interface design procedures and tooling in packages/impeccable/; does not cover shared kit internals
+    - name: key
+      description: keyboard interaction helpers in packages/keyboard/; does not cover shared kit internals
+    - name: mp
+      description: planning and interview workflows in packages/matt-pocock/; does not cover shared kit internals
+    - name: mon
+      description: session monitoring and activity display in packages/monitor/; does not cover shared kit internals
+    - name: plan
+      description: planning mode lifecycle in packages/plan-mode/; does not cover shared kit internals
+    - name: recap
+      description: session recaps in packages/recap/; does not cover shared kit internals
+    - name: sr
+      description: skill discovery and routing in packages/skill-router/; does not cover shared kit internals
+    - name: vis
+      description: image and visual input tools in packages/vision/; does not cover shared kit internals

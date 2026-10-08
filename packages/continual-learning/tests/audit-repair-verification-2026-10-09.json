@@ -1,0 +1,46 @@
+{
+  "date": "2026-10-09",
+  "scope": "packages/continual-learning",
+  "compatibility": "legacy scope binds automatically on first access; subsequent canonical-project collisions refused",
+  "repairs": [
+    "transaction predecessor and owned rollback checks",
+    "ancestor identity and recovery stable roots",
+    "bounded scoped learning_read worker tool",
+    "literal prompt interpolation",
+    "memory metadata reference authority and stale reference removal",
+    "management inventory and detail pagination",
+    "meaningful automatic receipts",
+    "incomplete evidence apply-to-propose downgrade"
+  ],
+  "independentReview": {
+    "regressions": 16,
+    "result": "passed after recovery follow-up"
+  },
+  "verification": {
+    "packageSuite": {
+      "result": "passed",
+      "tests": 1131,
+      "seconds": 636.04
+    },
+    "typecheck": "passed",
+    "packDryRun": "passed",
+    "nativePiTui": "passed",
+    "upgradeRealPi": "passed",
+    "liveModelLearning": "failed: missing legal citations; parent rejected writes",
+    "installCheck": "failed: 10 other configured workspace packages missing",
+    "transactionSafetySuite": {
+      "result": "passed",
+      "tests": 104
+    },
+    "injectionSuite": {
+      "result": "passed",
+      "tests": 62
+    }
+  },
+  "boundaries": [
+    "No npm publication or remote writes",
+    "No model efficacy claim",
+    "No Docker cohort validation",
+    "Pre-first-binding historical ownership remains unprovable"
+  ]
+}

@@ -18,7 +18,7 @@
     "../index.ts": "1ab8302e9b46799be439f84a3c0d49a113d96261084c3d2e96478313d09b061e",
     "../node_modules/@typesafe-ai/sdk/package.json": "b94bd1d862b166be53b0b91a36a2af27a0b14e397ffea8f0c53cbfcc9718c508",
     "../node_modules/@typesafe-ai/sdk/dist/index.mjs": "bbb851dfe375c586c5bee3c082a04ab71882813dde39df0e95eaa23f30ec7012",
-    "../../../pnpm-lock.yaml": "4514f0638dab88ffa5cfcc4bad1c0438fcc1c700584ad677669c8e4edbdf52fa",
+    "../../../pnpm-lock.yaml": "6fe5525b11c2a0555f868ad53577caabc8ba15dae2b1ece3c06cdc5bf5ca6ce8",
     "../extensions/learning-settings.ts": "d965ab02dccceb7afc7b5ff9032fd78a6b326e45dc801e7712bcdab419ae4ebc",
     "../extensions/incremental-learning.ts": "7c4d5664183ff61544cf45c858a7f8d9e11d17e28963276b1e45cb414f1ec694",
     "../extensions/memory-files.ts": "162578b257b8b8893cae89b3e0425ed321e751e0624cb8233dc79f092b71cbfa",
@@ -51,7 +51,7 @@
     "../extensions/guardrail-engine.ts": "cebf97de3ba2d03bc9275f8fceedcb4e7e9fd86edfdc42ba7203880fb0b6c65d",
     "../extensions/learning-efficiency.ts": "419b791f40d94d2c94fe7b3aae7a8a8be3c3e1f6b46d81122f479fe4333daab7",
     "../extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899",
-    "../extensions/harness-consolidation.ts": "a35441ddfbf3c8c3be27dbcfee3dd89dc0daaadf2f9e1e7e5b42ce247ef49c47"
+    "../extensions/harness-consolidation.ts": "74de1e5485549aec98b9527f78b66646e395c7b600d9a7fcbc4be14c75504c86"
   },
   "thresholds": {
     "confidence": 0.8,

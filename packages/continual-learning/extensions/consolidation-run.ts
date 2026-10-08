@@ -1,3 +1,4 @@
+import { prepareTransactionWrite, recordTransactionWrite, removeTransactionFile, restoreOwnedFile, withOwnedFileTransaction } from "./file-transaction";
 import * as crypto from "node:crypto";
 import * as fsp from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
@@ -555,7 +556,9 @@ export async function writeFileAtomic(filePath: string, data: string | Uint8Arra
     await handle.sync();
     await handle.close();
     handle = undefined;
+    await prepareTransactionWrite(filePath, Buffer.from(data));
     await fsp.rename(temporary, filePath);
+    recordTransactionWrite(filePath, Buffer.from(data));
     await fsp.chmod(filePath, mode);
   } finally {
     await handle?.close().catch(() => {});
@@ -1256,11 +1259,10 @@ async function restoreMemoryFiles(snapshots: readonly MemoryFileSnapshot[]): Pro
   const errors: Error[] = [];
   for (const snapshot of [...snapshots].reverse()) {
     try {
-      if (snapshot.existed) {
-        await writeFileAtomic(snapshot.file, snapshot.content!, snapshot.mode ?? 0o600);
-      } else {
-        await fsp.rm(snapshot.file, { force: true });
-      }
+      await restoreOwnedFile(snapshot.file, async () => {
+        if (snapshot.existed) await writeFileAtomic(snapshot.file, snapshot.content!, snapshot.mode ?? 0o600);
+        else await fsp.rm(snapshot.file, { force: true });
+      });
     } catch (error) {
       errors.push(error as Error);
     }
@@ -1368,7 +1370,7 @@ function memoryFilePath(root: string, name: string): string {
 
 async function removeMemoryFile(root: string, name: string): Promise<void> {
   const identity = await assertMemoryRootStable(root);
-  await fsp.rm(memoryFilePath(root, name), { force: true });
+  await removeTransactionFile(memoryFilePath(root, name));
   await assertMemoryRootStable(root, identity);
 }
 
@@ -1779,6 +1781,7 @@ export async function applyConsolidationPlan(
     const existed = snapshots.some((snapshot) => snapshot.existed && path.basename(snapshot.file).toLowerCase() === key);
     if (existed) throw new Error(`newMemories proposal would overwrite an existing memory: ${proposal.name}`);
   }
+  return withOwnedFileTransaction(snapshots, async () => {
   try {
     ensureActive();
     if (selected.length === 0 && newProposals.length === 0) {
@@ -1842,4 +1845,5 @@ export async function applyConsolidationPlan(
     }
     throw error;
   }
+  });
 }

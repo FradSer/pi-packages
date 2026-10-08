@@ -12,7 +12,9 @@
 - `src/verify.ts` orchestrates the three verification layers.
 - `src/report.ts` renders markdown and HTML reports.
 - `src/cli.ts` provides the standalone command-line entry point.
-- `extensions/index.ts` exposes the `/e2e` command in Pi.
+- `src/run.ts` runs the project adapter and tracks fresh per-attempt evidence.
+- `src/harness.ts` manages feature checkpoints and same-turn verification retries.
+- `src/tool.ts` exposes `e2e_verify`; `extensions/index.ts` also exposes `/e2e` in Pi.
 - `features/e2e.feature` defines package contracts.
 - `tests/test_e2e_package.py` runs Python and TypeScript harnesses.
 - `tests/e2e/` runs containerized end-to-end browser tests via `e2e`.

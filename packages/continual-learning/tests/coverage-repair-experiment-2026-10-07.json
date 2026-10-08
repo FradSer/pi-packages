@@ -1,0 +1,47 @@
+{
+  "kind": "coverage-repair-experiment",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "whatWasTested": "The step-5 coverage repair enabled through PI_COVERAGE_REPAIR=1, forwarded into the disposable container, on the weak generator at the same configuration as the earlier weak arms.",
+  "landing": {
+    "feature": "planHarnessConsolidationPhase gained coverageRepair; on an empty plan with a screened constraint it re-asks once through repairHarnessPlan with allowOmissions: false, and adopts the result only when coverageRepairAccepted(validationErrors, operationCount) holds, so a failed repair keeps the previous plan.",
+    "defaultOff": "The parent enables it only when the harness policy applies, the screen found constraint evidence, and PI_COVERAGE_REPAIR === 1. Three existing tests encode the reviewed-verdict and harness-only-evidence contracts, and enabling it by default broke all three, so opt-in is the correct gate.",
+    "tests": [
+      "coverageRepairAccepted cases, RED then GREEN",
+      "wiring and ordering test, including that the switch sits outside the Jev-only spread"
+    ],
+    "verification": "1100 passed in 359.50 s; typecheck exit 0; pack:check exit 0 with 19 manifests; dry pack ok; diff check exit 0."
+  },
+  "run": {
+    "root": "~/.cache/pi-continual-learning/docker/20261007T151229Z-weak-on-coverage-repair",
+    "digest": "d16408f6690d53019032c55478cbb910b4e41a30c4357c0691ecf81afde3067d",
+    "status": "failed",
+    "learningSeconds": 106.2,
+    "checks": {
+      "learningCommandNativeSuccess": false,
+      "regressionChanged": true
+    },
+    "memoryAttempts": [
+      "rejected, 0 operations",
+      "rejected, 0 operations, Memory structural repair"
+    ],
+    "memoryFailedCheck": "no-candidate-for-jev-review",
+    "enforcementProbe": {
+      "attemptObserved": true,
+      "sideEffectAbsent": false
+    },
+    "harnessFailedCheck": "native-block-or-side-effect-failed"
+  },
+  "verdict": {
+    "result": "inconclusive for the coverage repair, because the weak generator produced no valid plan at all this run, so neither the Memory nor the Harness path had material for a repair to work on.",
+    "targetsUnmet": "The pre-registered weak-generator on-arm targets remain unproven: Memory operations with privatePreference and safeFact passing, and enforcement blocking. They are not disproven either.",
+    "rootCauseOfTheNoise": "The weak generator's failure stage varies run to run. Across five weak runs it produced: a bounds refusal with a small degenerate plan; an applied plan with two items but the command fact missing; a structurally rejected plan twice; and now a rejected plan with no valid candidate at all."
+  },
+  "theOnlyWayToAttribute": "Hold the plan fixed. Five runs per arm would average over plans but still could not attribute a per-run difference to the judge; the plan-injection seam is what makes attribution possible, and it does not exist yet.",
+  "limits": [
+    "One project, one generator, one run with the switch on; the generator's variance dominates the outcome.",
+    "The coverage repair itself was not exercised in this run, because the plan was empty for a different reason: no valid candidate was produced at all.",
+    "No finished arm was rerun; this was a new configuration with a new digest."
+  ],
+  "writeAuthorized": false
+}

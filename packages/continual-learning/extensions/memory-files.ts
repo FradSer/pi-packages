@@ -184,7 +184,7 @@ async function readRegularMemory(root: string, name: string, options: MemoryLoad
   if (name.includes("/") || name.includes("\\") || name === "." || name === "..") return undefined;
   let handle: fs.FileHandle | undefined;
   try {
-    handle = await fs.open(path.join(root, name), fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+    handle = await fs.open(path.join(root, name), fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0));
     const stat = await handle.stat();
     if (!stat.isFile()) return undefined;
     const maxFileChars = nonNegativeLimit(options.maxFileChars, DEFAULT_MAX_FILE_CHARS);
@@ -202,6 +202,8 @@ async function readRegularMemory(root: string, name: string, options: MemoryLoad
     // replacement character as part of the relevance description.
     const content = new TextDecoder().decode(buffer.subarray(0, bytesRead), { stream: true });
     const finalStat = await handle.stat();
+    const namedStat = await fs.lstat(path.join(root, name));
+    if (namedStat.isSymbolicLink() || !sameIdentity(finalStat, identityOf(stat)) || !sameIdentity(namedStat, identityOf(finalStat))) return undefined;
     const truncated = finalStat.size > bytesRead || content.length > maxFileChars;
     return { content: truncated ? charPrefix(content, maxFileChars) : content, truncated, identity: identityOf(finalStat) };
   } catch {

@@ -330,6 +330,7 @@ export interface LearningPipelineReceipt {
 export interface LearningInputSource {
   source: "current-session" | "recent-project-session" | "existing-memory" | "none";
   entryCount: number;
+  omittedEntries?: number;
   sessionId?: string;
   sourceDigest?: string;
 }
@@ -398,6 +399,7 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
   const validInput = input === undefined || Boolean(input && typeof input === "object"
     && ["current-session", "recent-project-session", "existing-memory", "none"].includes(input.source)
     && Number.isSafeInteger(input.entryCount) && input.entryCount >= 0
+    && (input.omittedEntries === undefined || Number.isSafeInteger(input.omittedEntries) && input.omittedEntries >= 0)
     && (input.sessionId === undefined || (typeof input.sessionId === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(input.sessionId)))
     && (input.sourceDigest === undefined || (typeof input.sourceDigest === "string" && /^[a-f0-9]{64}$/.test(input.sourceDigest))));
   return validInput && receipt.kind === "learning-pipeline-receipt" && receipt.version === 1 &&
@@ -455,7 +457,7 @@ export function learningSummaryDetails(receipt: LearningPipelineReceipt): string
   const phaseLines = receipt.attempts.map((attempt) => `${attempt.phase}: ${attempt.outcome} · ${attempt.operations} change(s) · ${attempt.durationMs} ms`);
   return [
     fieldLine("mode", receipt.mode),
-    ...(receipt.input ? [fieldLine("source", `${receipt.input.source} · ${receipt.input.entryCount} entries${receipt.input.sessionId ? ` · ${receipt.input.sessionId}` : ""}`)] : []),
+    ...(receipt.input ? [fieldLine("source", `${receipt.input.source} · ${receipt.input.entryCount} entries${receipt.input.omittedEntries ? ` · ${receipt.input.omittedEntries} omitted; proposals only` : ""}${receipt.input.sessionId ? ` · ${receipt.input.sessionId}` : ""}`)] : []),
     ...(receipt.screen.reasons.includes("no-learning-inputs") ? ["No session evidence or existing Memory. Resume a task session or use /memory <request>."] : []),
     fieldLine("operations", receipt.operations),
     fieldLine("calls", receipt.attempts.length),
@@ -488,4 +490,9 @@ export function totalLearningUsage(attempts: readonly LearningAttempt[]): PiWork
       cost: total.cost + usage.cost,
     };
   }, { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: 0 });
+}
+
+export function shouldReportLearningReceipt(receipt: LearningPipelineReceipt, requested: boolean): boolean {
+  return requested || (receipt.mode === "automatic" && receipt.attempts.some(attempt =>
+    ["proposed", "failed", "rejected", "cancelled"].includes(attempt.outcome) || (attempt.phase !== "selector" && attempt.outcome === "applied")));
 }

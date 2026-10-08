@@ -191,3 +191,23 @@ def test_pre_styled_detail_blocks_keep_their_host_colors_inside_the_band() -> No
     assert "<FG:customMessageText>" in rows[6]
     # The band background survives the pre-styled resets.
     assert all(row.startswith("<BG:toolSuccessBg>") for row in rows)
+
+
+def test_full_summary_wraps_without_expansion() -> None:
+    result = run_typescript(r"""
+        import { renderToolLifecycle } from './packages/kit/src/index.ts';
+        import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from '@earendil-works/pi-tui';
+        const theme = { fg: (_, text) => text, bg: (_, text) => text, bold: text => text };
+        const summary = ['First acceptance condition must survive a narrow terminal.\n\nFINAL_CONDITION'];
+        const spec = { tool: 'goal', kind: 'event', subject: 'active', summary, fullSummary: true };
+        const options = { theme, width: 25, fit: truncateToWidth, visibleWidth, wrapDetail: wrapTextWithAnsi };
+        console.log(JSON.stringify({
+          collapsed: renderToolLifecycle(spec, { ...options, expanded: false }),
+          expanded: renderToolLifecycle(spec, { ...options, expanded: true }),
+        }));
+    """)
+    assert result['collapsed'] == result['expanded']
+    text = ''.join(result['collapsed'])
+    assert 'FINAL_CONDITION' in text
+    assert 'to expand' not in text
+    assert '...' not in text

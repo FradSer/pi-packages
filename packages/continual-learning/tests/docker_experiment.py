@@ -277,6 +277,44 @@ def redact_transport_credentials(text: str, proxy: InferenceProxy) -> str:
     return redact_transport_bytes(text.encode(), proxy).decode()
 
 
+# Pluggability arm: remove every copy of the SDK so absence is real. The package link
+# and the root link are not enough: pnpm also keeps the store copy and a hoisted
+# virtual copy under node_modules/.pnpm, and a runtime that consults the hoisted
+# directory would still resolve the SDK. The command then proves the removal.
+ABSENT_SDK_COMMAND = (
+    "find /opt/experiment -type d -name '@typesafe-ai' -prune -exec rm -rf {} + ; "
+    "cd /opt/experiment/packages/continual-learning && "
+    "node -e \"try{require.resolve('@typesafe-ai/sdk');console.log('sdk-present')}"
+    "catch{console.log('sdk-absent')}\" ; "
+    "echo copies-remaining=$(find /opt/experiment -type d -name '@typesafe-ai' | wc -l)"
+)
+
+
+SEAM_FILE_NAME = "fixed-memories.json"
+SEAM_ENVIRONMENT = f"PI_FIXED_MEMORIES=/home/node/agent/{SEAM_FILE_NAME}"
+
+
+def fixed_memory_seam(source: str | None, directory: str | None, project: str) -> tuple[str | None, tuple[str, str] | None]:
+    """The attribution seam as one decision.
+
+    Returns the file to place in the agent configuration and the container
+    environment that hands it to the extension. Both come from this single
+    decision, so a supplied fixture can never be written without also being given
+    to the extension. A per-project directory wins over a single source, because a
+    widened cohort needs each project's own quotes, and a project with no file in
+    that directory supplies nothing rather than a fixture from another project.
+    """
+    candidate = Path(directory) / f"{project}.json" if directory else None
+    path: Path | None = None
+    if candidate is not None and candidate.exists():
+        path = candidate
+    elif source and Path(source).exists():
+        path = Path(source)
+    if path is None:
+        return None, None
+    return path.read_text(), ("--env", SEAM_ENVIRONMENT)
+
+
 def run_project(image: str, digest: str, proxy: InferenceProxy, project: dict[str, str], output: Path, *, jev_enabled: bool | None = None) -> dict:
     name = f"cl-project-{project['name']}-{secrets.token_hex(4)}"
     output.mkdir(parents=True)
@@ -292,6 +330,11 @@ def run_project(image: str, digest: str, proxy: InferenceProxy, project: dict[st
                 (config / "continual-learning.json").write_text(json.dumps({"jev": {
                     "model": "jev-1.13.0", "allowPrivateMemory": True} if jev_enabled else False}))
             contents = {file.name: file.read_text() for file in config.iterdir()}
+            # Attribution experiment seam: one fixed candidate list for both arms.
+            seam_contents, seam_environment = fixed_memory_seam(
+                os.environ.get("PI_FIXED_MEMORIES_SOURCE"), os.environ.get("PI_FIXED_MEMORIES_DIR"), project["name"])
+            if seam_contents is not None:
+                contents[SEAM_FILE_NAME] = seam_contents
             writer = "import json,pathlib,sys;root=pathlib.Path('/home/node/agent');root.mkdir(mode=0o700);[(root/name).write_text(text) for name,text in json.load(sys.stdin).items()];[file.chmod(0o600) for file in root.iterdir()]"
             result = subprocess.run(["docker", "exec", "-i", container, "python3", "-c", writer],
                                     input=json.dumps(contents), capture_output=True, text=True, timeout=30)
@@ -299,11 +342,32 @@ def run_project(image: str, digest: str, proxy: InferenceProxy, project: dict[st
                 raise RuntimeError("Unable to initialize isolated agent configuration")
         environment = proxy.jev_environment() if jev_enabled else {}
         env_args = [item for key, value in environment.items() for item in ("--env", f"{key}={value}")]
+        # Pluggability arm, default-off: make the SDK physically absent inside the
+        # container, so the extension must load, learn and report Jev unavailable
+        # instead of failing. The resolution check is recorded as evidence.
+        if os.environ.get("PI_ABSENT_TYPESAFE_SDK") == "1":
+            # The container runs as node, so removing a build-time dependency needs
+            # root. Without it the removal fails and the arm silently keeps the SDK.
+            removal = subprocess.run(["docker", "exec", "--user", "root", container, "sh", "-lc", ABSENT_SDK_COMMAND],
+                                     capture_output=True, text=True, timeout=120)
+            (output / "sdk-absence.txt").write_text(redact_transport_credentials(
+                f"exit {removal.returncode}\n{removal.stdout}{removal.stderr}", proxy))
+        # Experimental strategies stay default-off in production. An experiment that
+        # measures one forwards its switch explicitly into the disposable container.
+        if os.environ.get("PI_COVERAGE_REPAIR"):
+            env_args.extend(["--env", f"PI_COVERAGE_REPAIR={os.environ['PI_COVERAGE_REPAIR']}"])
+        # The seam environment comes from the same decision that wrote the file, so
+        # the two can never disagree.
+        if seam_environment:
+            env_args.extend(seam_environment)
         mode_args = ["--jev", "on" if jev_enabled else "off"] if jev_enabled is not None else []
         result = subprocess.run(["docker", "exec", *env_args, container, "python3",
             "/opt/experiment/packages/continual-learning/tests/live_docker_projects.py", "--container",
             "--project", project["name"], "--cohort", project.get("cohort", "historical"),
-            "--memory-policy", project.get("memoryPolicy", "default"), "--source-digest", digest, *mode_args], capture_output=True, text=True, timeout=1800)
+            "--memory-policy", project.get("memoryPolicy", "default"), "--source-digest", digest, *mode_args,
+            *(["--decoy-level", project["decoyLevel"]] if project.get("decoyLevel") else []),
+            *(["--constraint-level", project["constraintLevel"]] if project.get("constraintLevel") else []),
+            *(["--run-timeout", str(project["runTimeout"])] if project.get("runTimeout") else [])], capture_output=True, text=True, timeout=1800)
         (output / "runner-output.txt").write_text(redact_transport_credentials(result.stdout + result.stderr, proxy))
         report["containerExitCode"] = result.returncode
     except Exception as error:

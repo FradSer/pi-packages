@@ -540,7 +540,8 @@ def test_phase_writes_pre_receipt_before_apply_and_post_after(tmp_path: Path) ->
 def test_harness_planner_uses_package_prompt_and_minimal_readonly_args() -> None:
     src = (PKG_DIR / "extensions" / "harness-consolidation.ts").read_text(encoding="utf-8")
     assert "buildHarnessConsolidatorPrompt" in src
-    assert 'minimalPiWorkerArgs(["read", "grep", "find", "ls"])' in src
+    assert 'minimalPiWorkerArgs(["learning_read"])' in src
+    assert "plannerReadArgs" in src
 
 
 def test_procedure_declares_readonly_boundary_and_bounds() -> None:

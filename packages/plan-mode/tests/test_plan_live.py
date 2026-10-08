@@ -71,8 +71,18 @@ def live_command(tmp_path: Path) -> Iterator[tuple[list[str], dict[str, str], li
     }}}))
     env = {key: os.environ[key] for key in ("PATH", "SHELL", "TMPDIR", "LANG") if key in os.environ}
     env.update({"PI_CODING_AGENT_DIR": str(agent_dir), "PI_OFFLINE": "1", "PI_TELEMETRY": "0", "TERM": "xterm-256color"})
+    # Pi paints the model footer before enabling submission. session_start is
+    # emitted after managed-tool setup and the normal editor handlers are bound.
+    ready = tmp_path / "session-ready"
+    readiness_extension = tmp_path / "readiness.ts"
+    readiness_extension.write_text(
+        'import { writeFileSync } from "node:fs";\n'
+        'export default function (pi) { pi.on("session_start", () => '
+        f'writeFileSync({json.dumps(str(ready))}, "ready")); }}\n'
+    )
     command = [pi, "--no-session", "--no-extensions", "--no-skills", "--no-prompt-templates",
                "--no-themes", "--no-context-files", "--no-approve", "--extension", str(Path(__file__).parents[1] / "index.ts"),
+               "--extension", str(readiness_extension),
                "--provider", "plan-live", "--model", "offline", "--thinking", "off"]
     try:
         yield command, env, requests
@@ -140,7 +150,7 @@ def test_live_native_tui_requires_implementation_choice(
         os.write(master, text.encode())
 
     try:
-        wait_for(lambda: "offline" in screen())
+        wait_for(lambda: (tmp_path / "session-ready").exists())
         send("/plan verify guards\r")
         wait_for(lambda: "Implement in new session" in screen())
         assert len(requests) == 3, "parent must not run before a selection"

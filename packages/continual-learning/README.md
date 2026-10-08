@@ -875,3 +875,15 @@ main-model calls, writes, recall or Harness executions. This does not establish
 plugin learning net benefit. See @tests/jev-focused-requirement-manifest.json,
 @tests/jev-focused-requirement-real-results.json and
 @tests/jev-focused-requirement-adoption-decision.json.
+
+### Audit safety and upgrade ownership
+
+Learning workers use only the package's parent-scoped `learning_read` tool, not native read/grep/find/ls or shell tools. Incremental Memory is dossier-only; broader maintenance still checks project containment, symlinks, sensitive paths/content and read bounds. Variable Memory metadata is a replaceable untrusted reference message; the system prompt contains only fixed retrieval instructions.
+
+Readable private paths remain compatible, with canonical project ownership recorded outside Memory entry roots. The first canonical project accessing an unbound legacy scope is bound automatically, preserving upgrade compatibility. This only adds an ownership binding; it never moves, rewrites or merges existing Memory or scoped Harness. Another project's binding cannot be overwritten. First-access binding cannot retrospectively prove historical legacy ownership. A colliding or malformed scoped Harness binding is diagnosed as unavailable rather than reusing another project's cached policy; global/project layers remain loaded.
+
+Application rechecks predecessor bytes and verifies readback. Rollback restores only still-owned writes; newer human edits are preserved with a conflict diagnostic. Interrupted AGENTS extraction uses a durable ownership journal; legacy incomplete transactions without ownership proof require reconciliation instead of guessing.
+
+`/memory` browsing has 32-row pages and a separate 4,096-entry management limit. Selected bodies, history and Harness details support full bounded pagination. Proposed history explains the fresh `/consolidate` next step. Automatic applied/proposed/failed/rejected/cancelled outcomes show a compact receipt. Omitted Task Slice evidence downgrades apply to propose and is shown in receipts. None of these safety checks establishes improved model task success.
+
+Private run artifacts are retained without automatic expiry; this repair does not remove existing snapshots or history.

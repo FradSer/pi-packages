@@ -4,7 +4,7 @@ import json
 import tempfile
 from pathlib import Path
 
-from support import PKG_DIR as MEMORY_PKG_DIR, initialize_git_repo, run_bun
+from support import PKG_DIR as MEMORY_PKG_DIR, initialize_git_repo, run_bun, run_bun_script
 
 
 def source() -> str:
@@ -108,7 +108,8 @@ def test_memory_planner_prompts_are_mode_specific_and_read_only() -> None:
     assert "incremental-memory-plan" in incremental
     assert "Do not emit `selected`, `inventory`," in incremental
     assert "read-only" in full.lower() and "read-only" in incremental.lower()
-    assert "broad repository exploration" in incremental
+    assert "Read `dossierPath` only" in incremental
+    assert "No repository exploration or discovery is granted" in incremental
 
 
 def test_forged_validator_text_does_not_prove_a_plan() -> None:
@@ -836,7 +837,8 @@ def test_consolidate_command_has_exactly_two_learning_modes_plus_an_explicit_dra
     assert "noContext" not in content
     assert "buildIncrementalMemoryConsolidatorPrompt" in content
     assert "buildMemoryConsolidatorPrompt" in content
-    assert 'minimalPiWorkerArgs(incremental ? ["read"] : ["read", "grep", "find", "ls"])' in content
+    assert 'minimalPiWorkerArgs(["learning_read"])' in content
+    assert "plannerReadArgs" in content
 
 
 def test_child_output_uses_streaming_utf8_and_byte_bounded_diagnostics() -> None:
@@ -1043,3 +1045,161 @@ def test_memory_index_is_bounded_at_entry_boundaries() -> None:
         assert lines == ["- git-agent-commits.md (public)", "- huge.md (public)"]
         assert "2 shown, 1 omitted of 3 total" in block
         assert len(block) <= first_budget
+
+
+def test_bounds_and_semantic_holds_trigger_repair_but_refusals_do_not() -> None:
+    # Given a review outcome reason, When the parent decides whether to repair the
+    # plan semantically, Then an uncertain or unsupported judgment and a bounds
+    # refusal trigger a repair, while privacy, availability, and success do not.
+    # Measured need: a weak generator's review was refused at a bound and the whole
+    # Memory review was lost with zero operations instead of being repaired.
+    from support import run_bun
+
+    value = run_bun(
+        """
+        import { repairTriggersSemantics } from './packages/continual-learning/extensions/inject-memory.ts';
+        console.log(JSON.stringify({
+          triggers: ['uncertain','unsupported','bounds'].map(repairTriggersSemantics),
+          doesNot: ['supported','sensitive','unavailable','timeout','cancelled','duplicate','conflict','scope-expansion','private-memory-denied','missing-key','invalid-response','disabled','missing-config','invalid-config','scope-denied'].map(repairTriggersSemantics),
+        }));
+        """
+    )
+    assert value['triggers'] == [True, True, True]
+    assert not any(value['doesNot'])
+
+
+def test_candidate_citations_must_quote_the_entry_they_cite() -> None:
+    # Given candidates whose citations are checked before any judge call, When a
+    # quote is absent from the entry it cites, the index is out of range, or a
+    # candidate cites nothing, Then the parent reports a controlled problem so the
+    # plan can be repaired instead of being sent to a degenerate review. Measured
+    # need: a weak generator cited entry 0 for every candidate while quoting four
+    # different entries, and the review then died at a bound.
+    from support import run_bun
+
+    value = run_bun(
+        """
+        import { candidateCitationProblems } from './packages/continual-learning/extensions/inject-memory.ts';
+        const evidence = { entries: [
+          { message: { role: 'user', content: 'This project uses pnpm.' } },
+          { message: { role: 'toolResult', content: 'pnpm test passed: 8 tests.' } },
+        ] };
+        const sound = [{ name: 'a.md', content: 'The project uses pnpm.', evidence: [{ index: 0, quote: 'This project uses pnpm.', role: 'user' }] }];
+        const wrongEntry = [{ name: 'a.md', content: 'Use pnpm test.', evidence: [{ index: 0, quote: 'pnpm test passed: 8 tests.', role: 'toolResult' }] }];
+        const outOfRange = [{ name: 'a.md', content: 'Use pnpm test.', evidence: [{ index: 7, quote: 'pnpm test passed: 8 tests.', role: 'toolResult' }] }];
+        const uncited = [{ name: 'a.md', content: 'Use pnpm test.' }];
+        console.log(JSON.stringify({
+          sound: candidateCitationProblems(evidence, sound),
+          wrongEntry: candidateCitationProblems(evidence, wrongEntry),
+          outOfRange: candidateCitationProblems(evidence, outOfRange),
+          uncited: candidateCitationProblems(evidence, uncited),
+        }));
+        """
+    )
+    assert value['sound'] == []
+    assert value['wrongEntry'] and 'quote' in value['wrongEntry'][0]
+    assert value['outOfRange'] and 'range' in value['outOfRange'][0]
+    assert value['uncited'] and 'citation' in value['uncited'][0]
+
+
+def test_memory_plan_expansion_checks_citations_before_any_judge_call() -> None:
+    # Given the plan-expansion step in the Memory worker, When a candidate's quote
+    # is absent from the entry it cites, Then the parent clears the expanded plan
+    # and raises a controlled citation error, which routes the failure into the
+    # existing structural repair instead of a review. Clearing the plan is what the
+    # repair branch is gated on, so the test asserts both the check and the clear.
+    text = source()
+    expansion = text.index("plan = await expandIncrementalMemoryPlan(run, selectedScope, rawPlan);")
+    window = text[expansion:expansion + 1800]
+    assert "candidateCitationProblems(citationEvidence" in window
+    assert "plan = undefined;" in window
+    assert "Citations are invalid:" in window
+    # The check must precede the judge call in the source order of the worker.
+    assert expansion < text.index('opts.jevJudge.validate("memory"')
+
+
+def test_screened_constraint_with_no_harness_rule_is_named_not_silent() -> None:
+    # Given the Harness phase screened constraint evidence, When the plan arrives with
+    # zero operations, Then the attempt records a controlled diagnostic naming the
+    # coverage miss instead of a bare noop. Measured need: the weak generator produced
+    # an empty Harness plan while the task stated a durable prohibition, and the arm
+    # failed with no explanation in the receipt. The attempt outcome stays noop,
+    # because an existing rule can legitimately cover the constraint already; only a
+    # named gap is safe here.
+    text = source()
+    marker = "Harness plan has no rule although constraint evidence was screened"
+    assert marker in text
+    coverage = text.index("const coverageMiss = harnessPlan.ok && harnessOperations === 0 && screen.harness === true;")
+    assert coverage < text.index(marker)
+    assert "operations: harnessOperations," in text[coverage:coverage + 900]
+
+
+def test_fixed_raw_plan_stamps_identity_so_the_pipeline_derives_the_rest() -> None:
+    # Given the attribution seam, When a fixed candidate list becomes a raw plan,
+    # Then it carries the live run identity and only that candidate list, so
+    # expandIncrementalMemoryPlan derives operations, inventory and staleness from
+    # the fixed candidates instead of carrying metadata about other ones. The seam
+    # reads PI_FIXED_MEMORIES, which is unset in production and in this suite.
+    from support import run_bun
+
+    value = run_bun(
+        """
+        import { fixedRawPlan } from './packages/continual-learning/extensions/inject-memory.ts';
+        const manifest = { runId: 'run_x', scopeKey: 'scope', scopeDigest: 'digest', snapshotDigest: 'snap' };
+        const memories = [{ name: 'fixed.md', kind: 'project', classification: 'safe', content: 'body', evidence: [{ index: 0, quote: 'q', role: 'user' }] }];
+        const plan = fixedRawPlan(manifest, memories);
+        console.log(JSON.stringify({
+          kind: plan.kind,
+          identity: [plan.runId, plan.scopeKey, plan.scopeDigest, plan.artifactHash, plan.snapshotDigest],
+          names: plan.newMemories.map(m => m.name),
+          operations: plan.operations,
+          keys: Object.keys(plan).sort(),
+          envSet: typeof process.env.PI_FIXED_MEMORIES === 'string',
+        }));
+        """
+    )
+    assert value['kind'] == 'incremental-memory-plan'
+    assert value['identity'] == ['run_x', 'scope', 'digest', 'snap', 'snap']
+    assert value['names'] == ['fixed.md']
+    assert value['operations'] == []
+    assert value['keys'] == sorted(['kind', 'version', 'schemaVersion', 'runId', 'scopeKey', 'scopeDigest', 'artifactHash', 'snapshotDigest', 'operations', 'newMemories'])
+    assert value['envSet'] is False
+
+
+def test_a_supplied_fixed_plan_survives_a_planner_model_error(tmp_path: Path) -> None:
+    # Given a planner that reports a model error and returns no plan, When the
+    # attribution seam supplies the plan, Then the memory phase must reach the
+    # semantic judge instead of stopping at the planner error. Without the seam
+    # the same error must still stop the phase, so the seam alone changes it.
+    fixture = Path(__file__).with_name("learning-policy-harness.ts")
+    fixed = tmp_path / "fixed-memories.json"
+    fixed.write_text(
+        json.dumps([
+            {
+                "name": "concise.md",
+                "kind": "project",
+                "classification": "safe",
+                "content": "---\nname: concise\ndescription: Prefer concise progress updates\ntype: project\n---\nPrefer concise progress updates.\n",
+                "evidence": [{"index": 0, "quote": "I prefer concise progress updates.", "role": "user"}],
+            }
+        ]),
+        encoding="utf-8",
+    )
+
+    def memory_attempts(value: object) -> list[tuple[object, object]]:
+        receipt = value.get("registryReceipt") or {}
+        return [
+            (attempt.get("outcome"), attempt.get("diagnostic"))
+            for attempt in (receipt.get("attempts") or [])
+            if attempt.get("phase") == "memory"
+        ]
+
+    without_seam = run_bun_script(fixture, "planner-model-error")
+    with_seam = run_bun_script(fixture, "planner-model-error", env={"PI_FIXED_MEMORIES": str(fixed)})
+
+    assert memory_attempts(without_seam) == [("failed", "memory planner model error")]
+    assert without_seam["history"] == []
+    reached = memory_attempts(with_seam)
+    assert reached and reached[0][0] != "failed", reached
+    assert reached[0][1] != "memory planner model error", reached
+    assert [record for record in with_seam["history"] if record["phase"] == "memory"], with_seam["history"]

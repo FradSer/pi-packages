@@ -1,0 +1,828 @@
+{
+  "packages/goal/features/goal.feature": {
+    "/goal hands the model a seed rather than creating a goal": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts",
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Capability notes require an explicit persistent Goal request": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Three model-facing tools": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts",
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal records: a created goal is durable before any work begins": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: a failed record write appends no ledger event": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: the pool returns open goals deterministically and ignores junk": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: existing record and claim links refuse writes without changing outside files": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: linked paths refuse mutation of an existing valid Goal without outside changes": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: disk wins over a stale cached copy": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: a stale revision is refused and changes nothing": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: finishing releases runtime state without creating an archive": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: a writer whose lock was taken from it writes nothing": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: real processes racing for one goal produce exactly one winner": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: a record from a newer version is refused, not partially read": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: prose written directly by a user is picked up without a record revision": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: one malformed record does not hide the valid ones": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: filesystem errors never leak goal id or directory paths": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal records: goals are refused inside Pi's own directories and left untouched there": [
+      "packages/goal/tests/test_goal.py::test_durable_state_contracts"
+    ],
+    "Goal scheduling: a hostile objective stays inside its block": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a hostile contract stays inside its block too": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: stable policy is byte-identical across turns while counters change": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: continuation is unlimited by default": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a configured allowance stops claiming and names the setting": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: zero disables automatic continuation": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a claim must match the generation that armed it": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: only one claim consumes one decision": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a claim is refused after the goal is paused": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a claim armed for one goal cannot be spent on another": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: another session cannot claim or pause this goal's scheduling": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a goal stopped after the pre-lock read claims nothing": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a checkpoint is refused after the goal is paused mid-flight": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a losing claimant never pauses the goal another owner resumed": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a goal on its last authorized run still accepts its checkpoint": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a checkpoint is refused when its dispatch was replaced": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a stale view cannot let a claimant pause the goal another owner resumed": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: an agent cannot pause a goal another session owns": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a checkpoint is refused when only its generation was replaced": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a checkpoint is refused when only its dispatch id was replaced": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a checkpoint is refused when the token budget is spent": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a claim is refused when its decision is no longer ready": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a settled progress write never overwrites a replacement dispatch": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a settled promotion write never overwrites a replacement dispatch": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a stale settlement stop never deletes the dispatch that replaced it": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a denied scheduler stays denied": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a matching checkpoint is accepted exactly once": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: losing the race to claim stands down without pausing the goal": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a failed turn does not queue another run": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a successful turn does queue exactly one continuation": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: resume starts a new allowance period": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a completed goal cannot resume": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a token-capped goal stops rather than continuing": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: goal prompts carry the unmet line when the check deferred one": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal scheduling: a successful claim is durable without a separate history": [
+      "packages/goal/tests/test_goal.py::test_scheduling_authorization_contracts"
+    ],
+    "Goal prompt replay: the second request begins with the first one exactly": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal prompt replay: re-inserted state is the state that was actually sent, not the current one": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal prompt replay: consecutive turns stay prefix-stable until the retained window fills": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal prompt replay: overflowing the window costs one break and then stability resumes": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal prompt replay: replayed notes are bounded rather than accumulating without limit": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal prompt replay: every note already sent is replayed, not just the newest": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal prompt replay: identical state across requests appends nothing extra": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal prompt replay: a rewritten history resets instead of re-inserting into the wrong place": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal prompt replay: a truncated history cannot re-insert at a vanished anchor": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal prompt replay: notes never cross sessions, in either direction": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal prompt replay: the note says it is not a message from the user": [
+      "packages/goal/tests/test_goal.py::test_prefix_stability_contracts"
+    ],
+    "Goal completion transport: the check really spawns a child and reads its verdict": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal completion transport: an answer with no verdict marker is an error, not a refusal": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal completion transport: a refusal carrying a real marker stays countable": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal completion transport: the child is granted no tools at all": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal completion transport: the verdict is the report's last line, or there is no verdict": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal completion transport: the objective and contract reach the check, the claim is marked untrusted": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal completion transport: a long objective reaches the checker in full": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal completion transport: a long claim is bounded for the check, and the bound is stated": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal completion transport: neither the objective nor the claim can close its own block": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal completion transport: a silent check names the model that swallowed the answer": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal completion transport: a check that cannot be trusted is a refusal": [
+      "packages/goal/tests/test_goal.py::test_completion_check_contracts"
+    ],
+    "Goal native sessions: a refused completion leaves the goal open and records the check": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: a met verdict releases the goal without archiving": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: a paused goal is recorded with its reason and stops running": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: a refusal without a reason is rejected rather than pausing": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: /goal hands the model a seed instead of creating one": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: ordinary tools research without a Goal research child": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: the capability note requires an explicit persistent-goal request": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: an objective revision updates the goal rather than starting another": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: a command tells the user what the goal is doing": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: the tool surface follows the goal's lifecycle": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: a new session starts unfocused even when a goal is open": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: legacy auto-select cannot attach another thread's goal": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: an unfocused session offers creation and read but no outcomes": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: a continuation queued before a session reload does not crash the runtime": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal native sessions: the tool surface follows what is focused, one status at a time": [
+      "packages/goal/tests/test_goal.py::test_live_session_contracts"
+    ],
+    "Goal completion evidence: host schema validation is also an unapplied update": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: long goal reads share one view and preserve all text through paging": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: an explicitly empty contract clears it while an empty objective is rejected": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: late revisions of token-capped goals offer a valid recovery path": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: completion receives recorded executions and review separately from the executor claim": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: failing, omitted, edited, and credential-bearing observations stay bounded data": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: three malformed checker answers never spend a valid refusal": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: usage cannot charge a goal whose owner changed before the accounting lock": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: observations cannot relabel old or edited executions as fresh verification": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: completion cannot release requirements revised after verdict validation": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: a stopped goal refuses a late revision": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: a tool revision moves prose, evidence window and refusal count together": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: legacy attributed review reports reach the check without promoting control notices": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: active subagents prevent no-work pause and defer premature loop checks": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: the completion claim is not length-capped in the tool schema": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: the objective is not length-capped in the schema or the record": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: an unset check model falls back to the session model": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal completion evidence: a configured check model is used instead of the session's": [
+      "packages/goal/tests/test_goal.py::test_completion_evidence_and_no_work_contracts"
+    ],
+    "Goal thread lifecycle: only /goal is registered and bare /goal never starts work": [
+      "packages/goal/tests/test_goal.py::test_thread_lifecycle_contracts"
+    ],
+    "Goal thread lifecycle: resume acquires this thread and delivers one authorized continuation": [
+      "packages/goal/tests/test_goal.py::test_thread_lifecycle_contracts"
+    ],
+    "Goal thread lifecycle: all surfaces read fresh state and paused work consumes no usage": [
+      "packages/goal/tests/test_goal.py::test_thread_lifecycle_contracts"
+    ],
+    "Goal thread lifecycle: thread ownership, exact actions, pause and clear remain consistent": [
+      "packages/goal/tests/test_goal.py::test_thread_lifecycle_contracts"
+    ],
+    "Goal thread lifecycle: explicit goal text activates revision but ordinary edits preserve pause": [
+      "packages/goal/tests/test_goal.py::test_thread_lifecycle_contracts"
+    ],
+    "Goal thread lifecycle: rejected busy or failed delivery cannot activate an unrelated paused edit": [
+      "packages/goal/tests/test_goal.py::test_thread_lifecycle_contracts"
+    ],
+    "Goal thread lifecycle: an explicit old completion verdict cannot release a resumed generation": [
+      "packages/goal/tests/test_goal.py::test_thread_lifecycle_contracts"
+    ],
+    "Goal thread lifecycle: a void send rejected asynchronously grants no later activation": [
+      "packages/goal/tests/test_goal.py::test_thread_lifecycle_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a loaded Goal extension When tools register Then only three Goal tools exist": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given completed work When settling Then no automatic checker is called": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given valid completion When accepted Then release runtime record without creating archives": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a current goal When cleared Then end without completion or archive": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given busy CSV work When appending Windows requirement Then retain original until full revision": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a long goal When constructing a check Then include its final requirement": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given three rejected completion requests When checking Then remain active": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given checker failure When completion requested Then report failure and wait without user pause": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given checker usage When result returns Then charge the Goal budget": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given restored active state When no work is authorized Then show waiting": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given running work When rendering footer Then keep Codex phrasing and elapsed time": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given an execution error When settling Then wait without autonomous user pause": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given repeated reads When each run settles Then stop repeated-output continuation": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a pause command When received Then abort current work and enforce the tool stop": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given an empty update When validating Then reject it without Nothing to record": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given an old history request When read Then direct to session history without ledger counts": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given project settings When saved Then load only supported runtime controls": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given caller cancellation When a check returns MET Then report cancellation without ending the goal": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a revised objective When an older check returns MET Then discard the result": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given three consecutive blocker turns When reported Then block without user pause": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given repeated blocker calls in one turn When reported Then count only one turn": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a blocker streak When new work or requirements arrive Then reset the streak": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given spent tokens and runs When resuming Then preserve both totals": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given queued user input When productive work settles Then no boundary continuation is claimed": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given new output When a read repeats Then allow meaningful work but stop identical output": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a checker exhausting budget When it returns MET Then stop by budget with one result": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given long checker error When rendered Then show one precise header and the full cause": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a failed setting delivery When revising later Then no request authorizes it": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given pre-creation model usage When a Goal starts Then include it in the budget": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given accepted completion When returning Then terminate the run without another model call": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a switched thread When cancelled checking returns usage Then charge the original open Goal": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given accepted paused revision When its model responds Then account its usage": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given an unmet report When requirements or focus change Then clear the old report": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given stale resume snapshot When budget is exhausted Then refuse resume": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given an old-thread checker exceeding cap When cancelled usage returns Then stop its original Goal": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given requirements revised before an error stop lock When old check fails Then discard without stopping new work": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given an attributed model run When pause precedes its usage event Then still account returned tokens": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given an attributed model run When thread changes before usage Then charge only its original Goal": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given overlapping thread messages When old usage ends after a new run Then keep original attribution": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given fenced Markdown with blank lines When rendering Then preserve authored code spacing": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a Goal-prefixed subject When rendering Then normalize only the transcript heading": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given successful transitions When delivering outcomes Then each has one visible result": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given two blocker turns When restoring the thread Then restart the blocker audit": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a successful turn with no tools When settling Then wait without pausing or continuing": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Simplified thread Goal lifecycle: Given a paused Goal When accepting an explicit full revision Then authorize work and show pursuing": [
+      "packages/goal/tests/test_goal.py::test_simplified_goal_contracts"
+    ],
+    "Goal footer: elapsed time is the progress the surface reports": [
+      "packages/goal/tests/test_goal.py::test_dashboard_geometry_and_input_contracts"
+    ],
+    "Goal footer: the status row never carries the goal tag": [
+      "packages/goal/tests/test_goal.py::test_dashboard_geometry_and_input_contracts"
+    ],
+    "Goal footer: the shared passive widget mounts below the editor and starts at zero minutes": [
+      "packages/goal/tests/test_goal.py::test_dashboard_geometry_and_input_contracts"
+    ],
+    "Goal footer: status refresh reuses the widget and still reads fresh state": [
+      "packages/goal/tests/test_goal.py::test_dashboard_geometry_and_input_contracts"
+    ],
+    "Goal footer: narrow status widgets wrap instead of dropping their ending": [
+      "packages/goal/tests/test_goal.py::test_dashboard_geometry_and_input_contracts"
+    ],
+    "Goal monitor evidence: pending acknowledgements do not prove command success": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal monitor evidence: headless terminal status overrides transport success": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal monitor evidence: custom terminal failures and cancellation are observed without trusting text": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal monitor evidence: monitor identity correlates terminals without counting acknowledgements twice": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal monitor evidence: stopping a monitor reports a control action rather than successful work": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal monitor evidence: legacy counter identities never conflate distinct monitor runs": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal monitor evidence: a replaced terminal remains recent enough for bounded evidence": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal monitor evidence: context edits omit observations or replace only their content": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal monitor evidence: monitor terminal carries actual match/output metadata and its linked command": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal monitor evidence: linked monitor launches before a requirements revision stay stale": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal monitor evidence: JSON credentials and provenance labels are redacted and bounded": [
+      "packages/goal/tests/test_goal_monitor_evidence.py::test_monitor_evidence_contracts"
+    ],
+    "Goal fixture cleanup: cleanup kills and reaps a resistant fixture without late signals": [
+      "packages/goal/tests/test_goal.py::test_probe_cleanup_observations"
+    ]
+  },
+  "packages/tasks/features/task-tool.feature": {
+    "The extension entry registers exactly four tools": [
+      "packages/tasks/tests/test_task_tool.py::test_the_extension_registers_exactly_four_tools_and_nothing_else"
+    ],
+    "Routing hints identify their task operation": [
+      "packages/tasks/tests/test_discoverability.py::test_all_four_tools_reach_the_model_with_a_snippet"
+    ],
+    "get_task is a read and nothing else": [
+      "packages/tasks/tests/test_task_tool.py::test_task_get_takes_an_id_and_nothing_else"
+    ],
+    "No tool offers a way to name who does a task": [
+      "packages/tasks/tests/test_task_tool.py::test_the_schema_exposes_no_assignee_or_participant_name"
+    ],
+    "update_task's status is the only route to a transition": [
+      "packages/tasks/tests/test_task_tool.py::test_every_lifecycle_position_is_reachable_exactly_one_way"
+    ],
+    "A position outside the enum is refused by name": [
+      "packages/tasks/tests/test_task_tool.py::test_a_refusal_says_what_was_asked_and_what_is_valid"
+    ],
+    "The four tools do not expose resource locks": [
+      "packages/tasks/tests/test_task_tool.py::test_dependency_tools_hide_resource_locks_in_schemas_results_and_rows"
+    ],
+    "Older resource fields do not appear in the transcript": [
+      "packages/tasks/tests/test_task_tool.py::test_dependency_tools_hide_resource_locks_in_schemas_results_and_rows"
+    ],
+    "Independent tasks can proceed while dependents wait": [
+      "packages/tasks/tests/test_task_tool.py::test_independent_tasks_run_in_parallel_and_a_join_waits_for_both"
+    ],
+    "The main session holds the task it takes": [
+      "packages/tasks/tests/test_task_surface.py::test_taking_a_task_is_the_act_of_moving_it_into_progress"
+    ],
+    "A participant holds the task it takes": [
+      "packages/tasks/tests/test_task_surface.py::test_two_participants_racing_for_one_task_produce_exactly_one_holder"
+    ],
+    "A task set whose file could not be read says so": [
+      "packages/tasks/tests/test_task_tool.py::test_a_tasks_that_could_not_be_read_says_so"
+    ],
+    "The limit a caller supplied is the limit that applies": [
+      "packages/tasks/tests/test_task_tool.py::test_the_limit_a_caller_supplied_is_the_limit_that_applies"
+    ],
+    "A cap below one task is the empty list, not a truncated lie": [
+      "packages/tasks/tests/test_task_tool.py::test_a_cap_below_one_task_is_the_empty_list_and_a_negative_one_is_refused"
+    ],
+    "A negative cap is refused rather than quietly ignored": [
+      "packages/tasks/tests/test_task_tool.py::test_a_cap_below_one_task_is_the_empty_list_and_a_negative_one_is_refused"
+    ],
+    "A result is bounded whether the cap came from the model or the host": [
+      "packages/tasks/tests/test_task_tool.py::test_the_limit_a_caller_supplied_is_the_limit_that_applies"
+    ],
+    "The result is declared, so a caller receives it as data": [
+      "packages/tasks/tests/test_task_tool.py::test_a_result_carries_structured_content_a_caller_can_read"
+    ],
+    "A refusal carries its data as well as its error": [
+      "packages/tasks/tests/test_task_tool.py::test_a_result_carries_structured_content_a_caller_can_read"
+    ],
+    "The tool declares the reach it actually has": [
+      "packages/tasks/tests/test_task_tool.py::test_the_tool_declares_the_reach_it_actually_has"
+    ],
+    "Full task reads include the work to perform": [
+      "packages/tasks/tests/test_task_contents.py::test_task_list_is_a_summary_and_task_get_returns_the_full_body"
+    ],
+    "A list provides summaries rather than full task bodies": [
+      "packages/tasks/tests/test_task_contents.py::test_task_list_is_a_summary_and_task_get_returns_the_full_body"
+    ],
+    "A task name can change without changing its identity": [
+      "packages/tasks/tests/test_task_contents.py::test_updating_name_and_details_preserves_the_task_id_and_refuses_empty_names"
+    ],
+    "Dependencies can be updated after tasks are created": [
+      "packages/tasks/tests/test_task_contents.py::test_dependency_edits_validate_the_graph_before_recording_any_content"
+    ],
+    "Invalid dependency edits leave the task unchanged": [
+      "packages/tasks/tests/test_task_contents.py::test_dependency_edits_validate_the_graph_before_recording_any_content"
+    ],
+    "Content edits are recorded when a status change is refused": [
+      "packages/tasks/tests/test_task_contents.py::test_content_edits_are_recorded_when_a_status_change_is_refused"
+    ],
+    "A mixed call whose content is refused records neither half": [
+      "packages/tasks/tests/test_task_contents.py::test_a_mixed_call_whose_content_is_refused_records_neither_half"
+    ],
+    "New unfinished dependencies do not invalidate an active or completed task silently": [
+      "packages/tasks/tests/test_task_contents.py::test_dependency_edits_validate_the_graph_before_recording_any_content"
+    ],
+    "Task rows use display numbers for dependency and blocker references": [
+      "packages/tasks/tests/test_task_contents.py::test_task_tui_uses_numbered_dependency_relations"
+    ],
+    "Display numbers remain stable as tasks are added": [
+      "packages/tasks/tests/test_task_contents.py::test_display_numbers_follow_creation_order_and_stay_stable"
+    ],
+    "Refusals use display references instead of storage ids": [
+      "packages/tasks/tests/test_task_tool.py::test_the_row_spec_leads_with_the_work_not_the_id"
+    ],
+    "Refusals hide unknown dependency identifiers": [
+      "packages/tasks/tests/test_task_contents.py::test_dependency_edits_validate_the_graph_before_recording_any_content"
+    ],
+    "Empty lists use one readable TUI label": [
+      "packages/tasks/tests/test_task_contents.py::test_task_rows_show_content_and_dependencies_without_holder_metadata"
+    ],
+    "Lists use the same compact default as other task results": [
+      "packages/tasks/tests/test_list_titles.py::test_default_list_is_compact_and_expansion_wraps_complete_titles"
+    ],
+    "Task tools share one display label": [
+      "packages/tasks/tests/test_task_contents.py::test_task_rows_show_content_and_dependencies_without_holder_metadata"
+    ],
+    "Store write failures are shown on the operation that encountered them": [
+      "packages/tasks/tests/test_task_tool.py::test_write_failures_are_shown_and_cleared_after_recovery"
+    ],
+    "Default task fields have named sections": [
+      "packages/tasks/tests/test_task_contents.py::test_task_rows_show_content_and_dependencies_without_holder_metadata"
+    ],
+    "Dependency relations are visible before expansion": [
+      "packages/tasks/tests/test_task_contents.py::test_task_tui_uses_numbered_dependency_relations"
+    ],
+    "Blocked by lists only unfinished dependencies": [
+      "packages/tasks/tests/test_task_contents.py::test_blocked_by_lists_only_unfinished_dependencies"
+    ],
+    "Narrow lists wrap complete task summaries": [
+      "packages/tasks/tests/test_list_titles.py::test_default_list_is_compact_and_expansion_wraps_complete_titles"
+    ],
+    "The row is bound when the extension is loaded": [
+      "packages/tasks/tests/test_task_tool.py::test_the_row_is_bound_when_the_extension_loads"
+    ],
+    "A row without hidden content does not advertise expansion": [
+      "packages/tasks/tests/test_task_content_tui.py::test_native_tui_expands_task_content_without_holder_rows"
+    ],
+    "The row never builds without real geometry": [
+      "packages/tasks/tests/test_task_tool.py::test_the_row_is_bound_when_the_extension_loads"
+    ],
+    "A retired filename is not loaded or modified": [
+      "packages/tasks/tests/test_work_domain.py::test_retired_task_file_is_ignored_and_preserved"
+    ],
+    "Current task data wins without a retired-file fallback": [
+      "packages/tasks/tests/test_task_surface.py::test_marker_submissions_retain_gate_verdicts_and_refuse_retired_callers"
+    ],
+    "Retired persistence helpers are absent from the package interface": [
+      "packages/tasks/tests/test_work_domain.py::test_retired_task_file_is_ignored_and_preserved"
+    ],
+    "A standalone task set is written after every change": [
+      "packages/tasks/tests/test_work_domain.py::test_a_standalone_tasks_is_written_and_read_back"
+    ],
+    "A task set with participants but no coordinator still writes its file": [
+      "packages/tasks/tests/test_work_domain.py::test_a_tasks_with_participants_but_no_coordinator_still_writes_its_file"
+    ],
+    "A task set that cannot be read is reported, not overwritten": [
+      "packages/tasks/tests/test_work_domain.py::test_a_session_that_cannot_be_read_does_not_inherit_the_last_writers_file"
+    ],
+    "A session the process cannot write to does not inherit the last one's writer": [
+      "packages/tasks/tests/test_work_domain.py::test_a_session_that_cannot_be_read_does_not_inherit_the_last_writers_file"
+    ],
+    "A coordinator beside the task set keeps sole ownership": [
+      "packages/tasks/tests/test_work_domain.py::test_a_coordinator_keeps_sole_ownership_of_the_tasks_file"
+    ],
+    "A restored in-progress task is not handed straight back out": [
+      "packages/tasks/tests/test_work_domain.py::test_a_restored_in_progress_task_returns_under_a_recovery_hold"
+    ],
+    "A durable task set that lost a field is read, not crashed on": [
+      "packages/tasks/tests/test_work_domain.py::test_a_tasks_file_missing_its_arrays_is_read_not_crashed_on"
+    ],
+    "A task in recovery hold is not presented as claimable": [
+      "packages/tasks/tests/test_task_tool.py::test_list_reports_a_recovery_hold_rather_than_hiding_it"
+    ]
+  },
+  "packages/e2e/features/e2e.feature": {
+    "Deterministic checks decide the clauses that declare them": [
+      "packages/e2e/tests/test_e2e_package.py::test_declared_checks_are_asked_no_question_and_decided_in_code"
+    ],
+    "Remaining clauses become narrow independent Jev questions": [
+      "packages/e2e/tests/test_e2e_package.py::test_only_clauses_without_a_check_reach_the_model_request"
+    ],
+    "The final verdict comes from code, not from the model": [
+      "packages/e2e/tests/test_e2e_package.py::test_deterministic_failure_overrides_a_fulfilled_model_verdict",
+      "packages/e2e/tests/test_e2e_package.py::test_low_model_confidence_becomes_review_not_a_pass"
+    ],
+    "A clause without evidence stays unverified": [
+      "packages/e2e/tests/test_e2e_package.py::test_offline_run_reports_unverified_instead_of_claiming_fulfillment"
+    ],
+    "The report names the verdict, the clauses, and the source of each answer": [
+      "packages/e2e/tests/test_e2e_package.py::test_html_report_marks_the_verdict_and_every_clause_row"
+    ],
+    "The CLI keeps CI exit codes stable": [
+      "packages/e2e/tests/test_core_boundaries.py::test_cli_exit_codes_reports_and_invalid_inputs"
+    ],
+    "The pi extension exposes the same verification as a command": [
+      "packages/e2e/tests/test_e2e_package.py::test_tool_execute_e2e_verify_returns_structured_result"
+    ],
+    "The extension injects a stable e2e capability note directly after the system prompt": [
+      "packages/e2e/tests/test_e2e_package.py::test_presence_injects_stable_capability_note_into_system_prompt"
+    ],
+    "The extension provides an autonomous e2e_verify tool": [
+      "packages/e2e/tests/test_e2e_package.py::test_tool_execute_e2e_verify_returns_structured_result",
+      "packages/e2e/tests/test_e2e_package.py::test_shipped_extension_runs_through_pi_boundary_with_a_bounded_checkpoint"
+    ],
+    "A feature directly involved in the current turn starts the acceptance workflow": [
+      "packages/e2e/tests/test_e2e_package.py::test_changed_feature_starts_a_bounded_truthful_acceptance_checkpoint"
+    ],
+    "An explicitly requested feature starts acceptance without edits": [
+      "packages/e2e/tests/test_e2e_package.py::test_only_current_turn_feature_paths_are_tracked_and_explicit_paths_are_accepted"
+    ],
+    "An unrelated parallel feature change does not start acceptance": [
+      "packages/e2e/tests/test_e2e_package.py::test_parallel_feature_change_does_not_trigger_unless_path_is_in_scope"
+    ],
+    "The same checkpoint is not repeated without new progress": [
+      "packages/e2e/tests/test_e2e_package.py::test_repeated_settlement_requires_relevant_progress_for_a_new_checkpoint"
+    ],
+    "Feature acceptance continuations stop at the configured bound": [
+      "packages/e2e/tests/test_e2e_package.py::test_changed_feature_starts_a_bounded_truthful_acceptance_checkpoint",
+      "packages/e2e/tests/test_e2e_package.py::test_boundary_does_not_duplicate_an_existing_continuation_or_pending_input"
+    ],
+    "A fulfilled verification for the changed feature clears its checkpoint": [
+      "packages/e2e/tests/test_run_provenance.py::test_real_http_run_clears_only_matching_fulfilled_scenarios"
+    ],
+    "A new user turn clears feature changes from the prior turn": [
+      "packages/e2e/tests/test_e2e_package.py::test_unproven_verdicts_stay_pending_and_new_user_turn_clears_checkpoint"
+    ],
+    "The harness gate intercepts settlement when an unfulfilled verification was recorded": [
+      "packages/e2e/tests/test_e2e_package.py::test_harness_gate_intercepts_unmet_verdict_before_settle"
+    ],
+    "Caller-supplied fulfilled evidence cannot clear feature acceptance": [
+      "packages/e2e/tests/test_run_provenance.py::test_inline_fulfilled_evidence_cannot_clear_checkpoint"
+    ],
+    "A fresh successful runner can clear feature acceptance": [
+      "packages/e2e/tests/test_run_provenance.py::test_real_http_run_clears_only_matching_fulfilled_scenarios",
+      "packages/e2e/tests/test_run_provenance.py::test_rejected_real_runs_never_clear_and_cleanup_private_artifacts"
+    ],
+    "Failed verification preserves changed-feature inspection directions": [
+      "packages/e2e/tests/test_run_provenance.py::test_failed_verdict_keeps_changed_feature_directions"
+    ],
+    "Stale asynchronous work cannot authorize a new turn": [
+      "packages/e2e/tests/test_run_provenance.py::test_stale_turn_callbacks_and_post_run_mutations_cannot_clear",
+      "packages/e2e/tests/test_run_provenance.py::test_stale_guard_after_async_preparation_prevents_child_spawn"
+    ],
+    "Every requested run remains fresh until settlement": [
+      "packages/e2e/tests/test_run_provenance.py::test_unchanged_feature_requested_run_is_revalidated_after_external_mutation",
+      "packages/e2e/tests/test_run_provenance.py::test_external_adapter_mutation_after_a_pass_reopens_feature_checkpoint"
+    ],
+    "Verification can be retried after repairs in the same turn": [
+      "packages/e2e/tests/test_retry_workflow.py::test_failed_run_can_be_repaired_and_retried_in_the_same_turn",
+      "packages/e2e/tests/test_retry_workflow.py::test_requested_feature_waits_for_all_scenarios_and_stale_pass_can_be_rerun"
+    ],
+    "Trusted adapters stay stable within each verification attempt": [
+      "packages/e2e/tests/test_run_provenance.py::test_native_runner_guard_rejects_changes_within_attempt_before_execution",
+      "packages/e2e/tests/test_run_provenance.py::test_command_substitution_is_refused_but_reconfigured_adapter_can_run"
+    ],
+    "Canceling a turn does not emit a redundant acceptance warning": [
+      "packages/e2e/tests/test_retry_workflow.py::test_aborted_settlement_does_not_emit_generic_acceptance_warning"
+    ],
+    "Default tool results keep complete failure diagnostics": [
+      "packages/e2e/tests/test_retry_workflow.py::test_default_error_and_report_keep_their_full_tails"
+    ],
+    "Read-only review does not request acceptance execution": [
+      "packages/e2e/tests/test_retry_workflow.py::test_read_only_request_is_not_overwritten_by_turn_preparation"
+    ],
+    "A generic acceptance request retains partially verified features": [
+      "packages/e2e/tests/test_retry_workflow.py::test_generic_acceptance_request_keeps_partial_feature_pending"
+    ],
+    "A later runner error withdraws the earlier pass": [
+      "packages/e2e/tests/test_retry_workflow.py::test_later_runner_error_with_same_adapter_withdraws_prior_pass"
+    ],
+    "Relevant implementation repairs invalidate previous acceptance": [
+      "packages/e2e/tests/test_retry_workflow.py::test_relevant_implementation_edit_withdraws_acceptance_but_unrelated_edit_does_not",
+      "packages/e2e/tests/test_retry_workflow.py::test_root_project_implementation_edits_withdraw_root_feature_acceptance"
+    ],
+    "Partial verification names the remaining scenarios": [
+      "packages/e2e/tests/test_retry_workflow.py::test_partial_checkpoint_names_only_remaining_scenarios"
+    ],
+    "A complete verified report needs no duplicate success notification": [
+      "packages/e2e/tests/test_retry_workflow.py::test_verified_completion_has_no_duplicate_success_notice_and_plain_status_keeps_pass"
+    ],
+    "A plain git status does not revoke fresh acceptance": [
+      "packages/e2e/tests/test_retry_workflow.py::test_verified_completion_has_no_duplicate_success_notice_and_plain_status_keeps_pass"
+    ],
+    "Missing evidence asks for observations rather than speculative repairs": [
+      "packages/e2e/tests/test_retry_workflow.py::test_needs_review_checkpoint_requests_evidence_before_implementation_repairs"
+    ],
+    "Goal seed checks come from the real command handler": [
+      "packages/e2e/tests/test_feature_adapter.py::test_goal_seed_adapter_proves_each_clause_from_command_observations",
+      "packages/e2e/tests/test_feature_adapter.py::test_observation_bindings_fail_closed_and_unbound_suites_stay_unjudged",
+      "packages/e2e/tests/test_feature_adapter.py::test_real_command_regressions_are_vetoed_by_observed_checks"
+    ],
+    "Repeated settlement refresh does not spend another continuation": [
+      "packages/e2e/tests/test_retry_workflow.py::test_repeated_real_settlement_refresh_preserves_checkpoint_budget_without_progress"
+    ],
+    "A failed runner reports its bounded diagnostics": [
+      "packages/e2e/tests/test_run_provenance.py::test_runner_exit_error_preserves_bounded_diagnostic"
+    ]
+  }
+}

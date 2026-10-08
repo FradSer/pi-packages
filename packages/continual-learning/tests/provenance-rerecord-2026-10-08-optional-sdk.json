@@ -1,0 +1,24 @@
+{
+ "kind": "provenance-rerecord",
+ "version": 1,
+ "recordedAt": "2026-10-08",
+ "reason": "The TypeSafe SDK moved from dependencies to optionalDependencies, so it is no longer a hard runtime dependency of the extension tree while the lazy load still tolerates its absence. That changes pnpm-lock.yaml, which both frozen study manifests pin. Only the lockfile pin is refreshed; every source pin, corpus, raw result and negative result keeps its bytes.",
+ "superseded": {
+  "tests/jev-composed-readiness-study-manifest.json": {
+   "../../../pnpm-lock.yaml": "e29d41f18d7e30fd443de6ff5b961c96dab93f0e47a594d9986101d5978829cf"
+  },
+  "tests/jev-standalone-memory-study-manifest.json": {
+   "../../../pnpm-lock.yaml": "e29d41f18d7e30fd443de6ff5b961c96dab93f0e47a594d9986101d5978829cf"
+  }
+ },
+ "recorded": {
+  "tests/jev-composed-readiness-study-manifest.json": {
+   "../../../pnpm-lock.yaml": "6fe5525b11c2a0555f868ad53577caabc8ba15dae2b1ece3c06cdc5bf5ca6ce8"
+  },
+  "tests/jev-standalone-memory-study-manifest.json": {
+   "../../../pnpm-lock.yaml": "6fe5525b11c2a0555f868ad53577caabc8ba15dae2b1ece3c06cdc5bf5ca6ce8"
+  }
+ },
+ "untouched": "Source pins, corpora, other manifests and every recorded raw and negative result.",
+ "bindingNote": "The manifests now bind the current lockfile. The superseded lockfile digest above is the binding for the historical results."
+}

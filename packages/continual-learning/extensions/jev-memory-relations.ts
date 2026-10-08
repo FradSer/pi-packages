@@ -1,5 +1,5 @@
 /** Exact semantic views for observational relationships; never write authority. */
-import {choice} from '@typesafe-ai/sdk';
+import {jevSdk} from "./jev-sdk";
 
 function semanticView(value:unknown) {
  if(!value||typeof value!=='object'||Array.isArray(value)||!('content' in value)||typeof value.content!=='string')throw new Error('Invalid pair candidate');
@@ -14,7 +14,7 @@ export function structuredMemoryPairState(originalEvidence:unknown,originalCandi
  if(originalCandidates.length!==2)throw new Error('Expected exactly two pair candidates');
  return {originalEvidence,originalCandidates,candidateA:semanticView(originalCandidates[0]),candidateB:semanticView(originalCandidates[1])};
 }
-export function structuredMemoryPairQuestion(){return choice({
+export function structuredMemoryPairQuestion(){return jevSdk.choice({
  task:'Compare candidateA and candidateB as proposed new Memory records. Evaluate each complete body and description; originalCandidates and originalEvidence remain the authoritative raw data. Select the relationship, not original support or write permission.',
  conditions:'A self-contained conditional states its own full condition and result. It can remain meaningful even when the other note is absent. Shared terms, command, topic, or an environment mentioned in both notes alone do not create a dependency. A note that references a definition, exception, scope or value only specified by the other note is dependent.',
  uncertainty:'A reference to an absent record or undefined material context prevents resolving the relation: unclear, never independent. Compare description claims as well as body claims; a conflict in either matters even when the bodies seem compatible.',

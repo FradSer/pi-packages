@@ -925,3 +925,106 @@ def test_placeholder_credentials_in_tool_output_do_not_refuse_a_review() -> None
     assert value['real']['decision'] == 'propose'
     assert value['real']['telemetry']['reason'] == 'sensitive'
     assert value['requests'] == 1
+
+
+def test_bounds_refusal_names_the_specific_bound_without_content() -> None:
+    # Given a request that exceeds one specific review bound, When the judge
+    # refuses before any transport, Then the telemetry names which bound and how
+    # much, so the cause is read rather than inferred, and no evidence text enters
+    # the receipt. Measured need: a weak generator returned reason bounds with no
+    # counters, so the bound could not be identified from the retained artifacts.
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const offline=async()=>{throw new Error('NO TRANSPORT EXPECTED FOR A BOUNDS REFUSAL');};
+      const evidence={entries:[{message:{role:'user',content:'This project uses pnpm.'}}]};
+      const candidate=i=>({name:'fact'+i+'.md',content:'Use pnpm test for verification '+i+'.',evidence:[{index:0,quote:'This project uses pnpm.',role:'user'}]});
+      const plain=()=>createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:offline});
+      const huge={entries:[{message:{role:'user',content:'x'.repeat(70000)}}]};
+      const bytes=await plain().validate('memory',huge,[candidate(0)],[]);
+      // Windows are built from CITED entries, so many citations are needed to
+      // reach the window cap; one cited index would trip the question-byte bound.
+      const texts=Array.from({length:120},(_,i)=>'y'.repeat(2000)+' '+i);
+      const many={entries:texts.map(content=>({message:{role:'user',content}}))};
+      const cited={name:'fact.md',content:'Use pnpm test.',evidence:texts.map((quote,index)=>({index,quote,role:'user'}))};
+      const windows=await plain().validate('memory',many,[cited],[]);
+      console.log(JSON.stringify({bytes,windows}));
+    ''')
+    assert value['bytes']['telemetry']['reason'] == 'bounds'
+    assert value['bytes']['telemetry']['boundsKind'] == 'question-bytes'
+    assert value['bytes']['telemetry']['boundsCount'] > 64000
+    assert value['windows']['telemetry']['reason'] == 'bounds'
+    # Finding, recorded rather than asserted away: citing many entries makes every
+    # window question exceed the request bound, because the cited support set is
+    # carried in full in each question. The per-question byte bound is therefore the
+    # binding constraint and the window cap of eight is never reached. A later step
+    # must shrink the request, not the window count.
+    assert value['windows']['telemetry']['boundsKind'] == 'question-bytes'
+    assert value['windows']['telemetry']['boundsCount'] > 64000
+    assert 'NO TRANSPORT EXPECTED' not in str(value)
+
+
+def test_one_fixed_candidate_set_shows_the_judge_is_the_only_support_gate() -> None:
+    # Controlled comparison. ONE fixed candidate set goes through the same judge
+    # interface in both arms, so nothing but the judge differs. The parent applies a
+    # plan when the decision is "allow" (inject-memory.ts) and skips the judge
+    # entirely when it is disabled. Off arm: the disabled judge answers allow, so the
+    # well-formed speculation is applied. On arm: a fixture judge reproduces the
+    # recorded real-Jev behaviour and holds the speculation. The real-Jev side of
+    # that class is measured separately on the frozen corpus, where 10 of 10
+    # negatives are held with 0 false allows.
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const evidence={entries:[
+        {message:{role:'user',content:'I think this project might build with make build, but I have not checked.'}},
+        {message:{role:'toolResult',content:'pnpm test passed: 8 tests.'}},
+      ]};
+      const legitimate={name:'test-command.md',content:'Use pnpm test to verify this project.',evidence:[{index:1,quote:'pnpm test passed: 8 tests.',role:'toolResult'}]};
+      const speculation={name:'build-command.md',content:'This project builds with make build.',evidence:[{index:0,quote:'I think this project might build with make build, but I have not checked.',role:'user'}]};
+      const candidates=[legitimate,speculation];
+      const requestCounts={off:0,on:0};
+      const off=await createJevJudge({enabled:false,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async()=>{requestCounts.off++;throw new Error('OFF ARM MUST NOT TRANSPORT');}}).validate('memory',evidence,candidates,[]);
+      const on=await createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
+        requestCounts.on++;const request=JSON.parse(init.body);const answers={};
+        for(const [key,q] of Object.entries(request.questions)){
+          if(q.type==='noul')answers[key]={type:'noul',noul:0.99};
+          if(q.type==='score')answers[key]={type:'score',score:2.88,confidence:0.95,probabilities:{0:0.01,1:0.01,2:0.07,3:0.91},legend:{0:"a",1:"b",2:"c",3:"d"}};
+          if(q.type==='choice')answers[key]=key.startsWith('supported_1')
+            ?{type:'choice',choice:'speculative',confidence:0.99,probabilities:{grounded:0.01,speculative:0.99,transient:0,unsupported:0,unclear:0}}
+            :key.startsWith('supported_0')
+              ?{type:'choice',choice:'grounded',confidence:0.99,probabilities:{grounded:0.99,speculative:0.01,transient:0,unsupported:0,unclear:0}}
+              :{type:'choice',choice:'supplement',confidence:0.99,probabilities:{unrelated:0,duplicate:0,supplement:1,conflict:0,unclear:0}};
+        }
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:10,output_tokens:2}}));
+      }}).validate('memory',evidence,candidates,[]);
+      const applied=(verdict)=>verdict.decision==='allow'?candidates.length:candidates.length-1;
+      console.log(JSON.stringify({off,on,requestCounts,
+        offAppliedCandidates:applied(off), onAppliedCandidates:applied(on),
+        counts:{candidates:candidates.length,offApplied:applied(off),onApplied:applied(on),prevented:applied(off)-applied(on)}}));
+    ''')
+    assert value['counts']['candidates'] == 2
+    assert value['off']['decision'] == 'allow' and value['off']['telemetry']['status'] == 'disabled'
+    assert value['off']['telemetry']['reason'] == 'disabled'
+    assert value['counts']['offApplied'] == 2
+    assert value['on']['decision'] == 'propose'
+    assert value['on']['telemetry']['reason'] == 'unsupported'
+    assert value['counts']['onApplied'] == 1
+    assert value['counts']['prevented'] == 1
+    assert value['requestCounts']['off'] == 0 and value['requestCounts']['on'] >= 1
+
+
+def test_window_packing_guarantees_staying_inside_window_cap_for_large_evidence() -> None:
+    # Given an evidence set with 10 entries of 13 KB each (total 130 KB, well within context)
+    # where naive packing creates 10 windows exceeding MAX_EVIDENCE_WINDOWS (8),
+    # When packaging cited evidence windows,
+    # Then windows are packed/merged to stay within the cap of 8 windows rather than tripping bounds.
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const offline=async()=>{throw new Error('NO TRANSPORT');};
+      const plain=()=>createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:offline});
+      // 10 entries of 13 KB each:
+      const entries=Array.from({length:10},(_,i)=>({message:{role:'user',content:'entry_'+i+'_'+'z'.repeat(13000)}}));
+      const candidate={name:'fact.md',kind:'project',classification:'safe',content:'Use pnpm test.',evidence:[{index:0,quote:'entry_0',role:'user'}]};
+      const res=await plain().validate('memory',{contextEnabled:true,entries},[candidate],[]);
+      console.log(JSON.stringify({reason:res.telemetry.reason,windows:res.telemetry.evidenceWindows,boundsKind:res.telemetry.boundsKind}));
+    ''')
+    assert value['reason'] != 'bounds'

@@ -47,14 +47,16 @@ def test_research_rejects_unfrozen_sdk_or_policy_before_reserving_or_calling() -
 
         value = isolated_run_bun(r'''
           import fs from 'node:fs/promises';
+          import {historicalResearchPath} from './packages/continual-learning/tests/historical-research-source.ts';
           const original=fs.readFile.bind(fs); const change=CHANGE;
           fs.readFile=async function(file,...args){
+            file=historicalResearchPath(file);
             // Preserve this historical study's source bytes while isolating
             // forged policy metadata. No manifest, snapshot or real file edits.
             const source=String(file).endsWith('/extensions/independent-memory-partition.ts')
               ? new URL('./packages/continual-learning/tests/fixtures/composed-partition-preintegration/independent-memory-partition.ts',`file://${process.cwd()}/`)
               : file;
-            const legacyName=['jev-learning.ts','inject-memory.ts','learning-efficiency.ts'].find(name=>String(file).endsWith('/extensions/'+name));
+            const legacyName=['jev-learning.ts','inject-memory.ts','learning-efficiency.ts','jev-memory-relations.ts'].find(name=>String(file).endsWith('/extensions/'+name));
             const frozenSource=legacyName ? new URL('./packages/continual-learning/tests/fixtures/composed-parent-preintegration/'+legacyName,`file://${process.cwd()}/`) : source;
             const bytes=await original(frozenSource,...args);
             if(String(file).endsWith('jev-standalone-memory-study-manifest.json'))

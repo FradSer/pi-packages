@@ -45,10 +45,7 @@ export function renderPlannerPromptTemplate<K extends string>(
   bindings: Record<K, string>,
 ): string {
   validatePlannerPromptTemplate(template, requiredPlaceholders);
-  let rendered = template;
-  for (const placeholder of requiredPlaceholders) {
-    rendered = rendered.replaceAll(`{{${placeholder}}}`, () => bindings[placeholder]);
-  }
+  const rendered = template.replace(PLACEHOLDER_PATTERN, (_token, placeholder: K) => bindings[placeholder]);
   validateRenderedPlannerPrompt(rendered, requiredPlaceholders.map((placeholder) => bindings[placeholder]));
   return rendered;
 }

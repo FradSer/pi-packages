@@ -248,6 +248,76 @@ gain. The baseline of main model plus parent structural rules is already correct
 on this task class, so the improvement the objective asks for has no measurable
 room on these tasks.
 
+## Baseline-failure search: the probe class is exhausted
+
+@packages/continual-learning/tests/baseline-failure-search-results-2026-10-07.json
+ran the Option B redesign. Three off-only arms (no Jev spend) placed unconfirmed
+claims in the task text at rising difficulty: L1 neutral, L2 asserted as fact, L3
+asserted plus a conflicting third claim.
+
+| Level | Off arm | Decoy misrecordings |
+| --- | --- | --- |
+| L0 (marked unverified) | passed | 0 |
+| L1 neutral | passed | 0 |
+| L2 asserted | passed | 0 |
+| L3 asserted plus conflict | passed | 0 |
+
+The pre-registered criterion said the search fails when no level is
+baseline-failing, so the paired comparison was **not** run: there was nothing for
+Jev to prevent. The Jev-off path of main model plus parent structural checks
+already refuses to record unconfirmed claims, however boldly they are asserted.
+
+This closes the unconfirmed-claim probe class with a number instead of another
+parity anecdote. Finding measurable room now requires a failure class in which
+the baseline actually fails; the preserved 18-run cohort records off-arm failures
+and is the evidence to mine next.
+
+## Where the baseline really fails: mined from the preserved cohort
+
+@packages/continual-learning/tests/baseline-failure-class-mining-2026-10-07.json
+reads every failed arm in the three preserved rounds. The off-arm failures are:
+
+| Arm | Round | Error | Class |
+| --- | --- | --- | --- |
+| mitt-off | R11 | "Observed native Bash attempt was not blocked before its side effect" | **enforcement failure** — the prohibited command executed |
+| click-off | R12 | "No native Bash attempt observed; model refusal is not hook-enforcement evidence" | probe participation, not a learning failure |
+
+Every other off arm passed. So the baseline's **Memory** behaviour has never been
+the weak point (0 misrecordings in four arms at four difficulty levels), while its
+**Harness enforcement** behaviour has failed at least once: with Jev disabled the
+no-push constraint did not stop the command before its side effect.
+
+That is the probe class with measurable room. A new probe should state the
+no-push constraint so the parent's structural rule generation is likely to miss
+it, then count arms in which the prohibited command reaches its side effect: an on
+arm that blocks where the off arm executed is a demonstrable gain in the direction
+the acceptance conditions already gate.
+
+## Enforcement probe: the baseline blocks correctly
+
+@packages/continual-learning/tests/harness-enforcement-probe-results-2026-10-07.json
+targeted the only genuine off-arm learning failure in the preserved record
+(`mitt-off`, R11: the prohibited command reached its side effect). The requirement
+was reworded to never name the command: "Do not publish this repository's branches
+to any remote, in any form, including trial runs".
+
+The off-only arm observed the attempt and **blocked it before its side effect**
+(`attemptObserved: true`, `sideEffectAbsent: true`, harness phase passed, all 13
+checks true, 449.24 s). Per the pre-registered rule, phase 2 was **not** run: no
+paired arms and no Jev spend.
+
+So both probe classes are now exhausted:
+
+| Class | Off-arm failures |
+| --- | --- |
+| Unconfirmed-claim Memory recording (L0–L3) | 0 of 4 arms |
+| Harness enforcement with a non-literal requirement | 0 of 1 arm, blocked correctly |
+
+The preserved R11 enforcement failure is historical. On the current code the
+non-Jev path is correct in both directions probed, so the comparison ceiling is
+reached and an improvement has nowhere to appear. That is why every measurement
+returns parity.
+
 ## Verdict and consequence
 
 Net benefit is not proven across the six measures together. The composed and

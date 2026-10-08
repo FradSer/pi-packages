@@ -15,10 +15,10 @@ one session.
 
 ## Decision
 
-`before_agent_start` injects only the memory index (filename, source, and a
+`before_agent_start` supplies a hidden untrusted reference message containing only the memory index (filename, source, and a
 one-line description per entry). Full entry content is no longer injected;
 the model reads specific memory files with `read` when a task needs them.
-A bounded budget applies to the index itself.
+A bounded budget applies to the index itself. As of the 2026-10-09 safety repair, variable metadata stays out of the system prompt; only the fixed retrieval protocol is added there. A context hook removes stale references and retains one current index. Entry bodies remain on-demand reference data, never instruction authority. This change does not establish model-level prompt-injection immunity.
 
 ## Consequences
 

@@ -1,3 +1,4 @@
+import { showDetailPages } from "./detail-pages";
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { safeDisplayText } from "@fradser/pi-kit";
 import type { ConfigPaths } from "./guardrail-config.ts";
@@ -59,13 +60,13 @@ function ruleDetails(rule: Rule, paths: ConfigPaths): string {
           ? paths.project
           : rule.source ?? "(built-in)";
   const body = "bash" in rule
-    ? [`pattern: ${display(rule.bash, 800)}`, `action: ${display(rule.action ?? "pass + message", 80)}`, `message: ${display(rule.message, MAX_DISPLAY_CHARS)}`]
+    ? [`pattern: ${safeDisplayText(rule.bash)}`, `action: ${display(rule.action ?? "pass + message", 80)}`, `message: ${safeDisplayText(rule.message)}`]
     : "skill" in rule
-      ? [`skill: ${display(rule.skill, 160)}`, `guidance: ${display(rule.instructions, MAX_DISPLAY_CHARS)}`]
+      ? [`skill: ${display(rule.skill, 160)}`, `guidance: ${safeDisplayText(rule.instructions)}`]
       : "text" in rule
-        ? [`pattern: ${display(rule.text, 800)}`, `guidance: ${display(rule.instructions, MAX_DISPLAY_CHARS)}`]
+        ? [`pattern: ${safeDisplayText(rule.text)}`, `guidance: ${safeDisplayText(rule.instructions)}`]
         : ["This rule is disabled."];
-  return display([`rule: ${label(rule.id, 160)}`, `source: ${display(source, 500)}`, `state: ${rule.enabled === false ? "disabled" : "enabled"}`, ...body].join("\n"), MAX_DISPLAY_CHARS);
+  return safeDisplayText([`rule: ${label(rule.id, 160)}`, `source: ${safeDisplayText(source)}`, `state: ${rule.enabled === false ? "disabled" : "enabled"}`, ...body].join("\n"));
 }
 
 function scopeFromChoice(choice: string): HarnessMenuScope | undefined {
@@ -146,7 +147,7 @@ export async function runHarnessMenu(
       continue;
     }
     if (choice === "View diagnostics") {
-      ui.notify(diagnosticsText(config), "warning");
+      await showDetailPages(ui, "Harness diagnostics", diagnosticsText(config), ["Close"], "warning");
       return;
     }
     if (choice === "Create or update rule") {
@@ -157,8 +158,7 @@ export async function runHarnessMenu(
     if (selectedIndex < 0) return;
     const selected = visibleRules[selectedIndex];
     if (!selected) return;
-    ui.notify(ruleDetails(selected, paths), "info");
-    const next = await ui.select(`Harness rule: ${label(selected.id)}`, ["Create or update rule", "Close"]);
+    const next = await showDetailPages(ui, `Harness rule: ${label(selected.id)}`, ruleDetails(selected, paths), ["Create or update rule", "Close"]);
     if (next === "Create or update rule") await requestRule(ui, onRequest);
     return;
   }

@@ -62,6 +62,9 @@ pi install npm:@fradser/pi-context
 
 ### [`pi-continual-learning`](packages/continual-learning/)
 
+Learning now enforces worker read scope and transaction ownership. Legacy populated scopes bind automatically to the first accessing canonical project; Memory metadata remains untrusted reference context. See the package upgrade notes.
+
+
 Learns from settled task evidence: Memory retains reusable knowledge and supplies a bounded relevance index before generation; full entries are read when needed. Harness evaluates executable constraints, including Bash confirmation and blocking; skill/text rules provide scoped guidance. Planners propose and the parent validates evidence, privacy, rule cases and ownership before applying changes. `/consolidate` also runs learning explicitly. Installed `policies`/`skillPrompts` retain their protections through read-only compatibility, including existing output/artifact checks.
 
 **Commands:** `/memory` opens Browse memories, Learning settings and Recent learning; `/memory <request>` records an explicit Memory request; `/consolidate` learns from the current task; `/consolidate full` performs full maintenance; `/harness` opens the rules panel; and `/harness <request>` authors a rule in project shared configuration by default.
@@ -152,11 +155,23 @@ Reports this machine's Pi sessions and their operating events to Open DeskOS ove
 pi install npm:pi-open-deskos
 ```
 
+### [`@fradser/pi-tasks`](packages/tasks/)
+
+A durable work list with four states: pending, in_progress, blocked and completed. Replacements remain historical relations. The four task tools show complete wrapped results by default and list tasks with explicit cursors. Automatic continuation requires new effective work and a runnable task; exhausted allowance waits for input.
+
+[All TUI triggers and examples](packages/tasks/TUI.zh-CN.md).
+
+```bash
+pi install npm:@fradser/pi-tasks
+```
+
 ### [`@fradser/pi-goal`](packages/goal/)
 
-Durable goal runtime. One mutation boundary over an atomic record and an append-only ledger, read-only research before creation on its own model, continuation authorized only by a durable decision, and completion decided by an independent auditor in its own minimal process.
+Thread-scoped goal runtime with three tools, authorized continuation and an explicit tool-less completion check. Full TUI bodies and a Codex-style elapsed footer; finished goals are released without archiving.
 
 **Command:** `/goal <objective and completion conditions>`; bare `/goal` shows this thread’s goal. Manage it with `/goal pause`, `/goal resume`, and `/goal clear`.
+
+[TUI rows and trigger conditions](packages/goal/TUI.zh-CN.md) document the complete display lifecycle.
 
 **Install:**
 

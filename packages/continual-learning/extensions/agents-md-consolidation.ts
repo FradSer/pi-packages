@@ -1,3 +1,5 @@
+import { plannerReadArgs } from "./planner-read-scope";
+import { assertTransactionPath, assertTransactionPredecessor, restoreOwnedFile, withOwnedFileTransaction, withRecoveredFileTransaction } from "./file-transaction";
 /**
  * AGENTS.md consolidation phase — the third stage of the /consolidate pipeline.
  *
@@ -16,7 +18,7 @@ import fs from "node:fs/promises";
 import { constants as fsConstants, realpathSync } from "node:fs";
 import path from "node:path";
 import type { ChildProcess } from "node:child_process";
-import { getAgentDir, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, withFileMutationQueue, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   minimalPiWorkerArgs,
   notifyPi,
@@ -642,8 +644,11 @@ async function restoreTransactionState(
   for (const snapshot of [...snapshots].reverse()) {
     if ([...unsafeRoots].some((root) => insideRoot(snapshot.file, root))) continue;
     try {
-      if (snapshot.existed) await writeFileAtomic(snapshot.file, snapshot.content!, snapshot.mode ?? 0o600);
-      else await fs.rm(snapshot.file, { force: true });
+      for (const root of stableRoots) if (insideRoot(snapshot.file, root.path)) await assertStableMemoryRoot(root);
+      await restoreOwnedFile(snapshot.file, async () => {
+        if (snapshot.existed) await writeFileAtomic(snapshot.file, snapshot.content!, snapshot.mode ?? 0o600);
+        else await fs.rm(snapshot.file, { force: true });
+      });
     } catch (error) {
       errors.push((error as Error).message);
     }
@@ -651,6 +656,9 @@ async function restoreTransactionState(
   for (const directory of [...directories].reverse()) {
     if (directory.existed) continue;
     try {
+      if ([...unsafeRoots].some(root => insideRoot(directory.path, root))) continue;
+      await assertTransactionPath(path.join(directory.path, "directory-check"));
+      for (const root of stableRoots) if (insideRoot(directory.path, root.path)) await assertStableMemoryRoot(root);
       await fs.rmdir(directory.path);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT" && (error as NodeJS.ErrnoException).code !== "ENOTEMPTY") {
@@ -783,7 +791,18 @@ export async function recoverAgentsMdConsolidation(run: ConsolidationRun, cwd: s
       ...(entry.bytesBase64 !== null ? { content: Buffer.from(entry.bytesBase64, "base64") } : {}),
       ...(entry.mode !== null ? { mode: entry.mode } : {}),
     }));
-    await restoreTransactionState(snapshots, receipt.directories, []);
+    const ownershipFile = path.join(run.manifest.runDir, "agents-ownership.json");
+    const ownershipBytes = await readRegularFileIfExists(ownershipFile, MAX_SNAPSHOT_BYTES);
+    const ownership: unknown = ownershipBytes ? JSON.parse(ownershipBytes.toString("utf8")) : {};
+    if (!isRecord(ownership) || Object.values(ownership).some(value => value !== null && typeof value !== "string")) throw new Error("AGENTS.md recovery ownership journal is invalid");
+    const stableRoots: StableMemoryRoot[] = [];
+    try {
+      for (const root of [run.manifest.harnessDir, ...(run.manifest.publicDir ? [run.manifest.publicDir] : [])]) {
+        await assertTransactionPath(path.join(root, "root-check"));
+        stableRoots.push(await openStableMemoryRoot(root));
+      }
+      await withRecoveredFileTransaction(snapshots, ownership as Record<string, string | null>, () => restoreTransactionState(snapshots, receipt.directories, stableRoots));
+    } finally { await closeStableRoots(stableRoots); }
     await fs.rm(preReceiptPath, { force: true });
     return true;
   } catch (error) {
@@ -1046,7 +1065,9 @@ async function planAgentsMdConsolidationPhaseInternal(
   await fs.writeFile(taskFile, taskText, { mode: 0o600 });
   const child = spawnPiChild(
     cli.command,
-    [...cli.args, ...minimalPiWorkerArgs(["read", "grep", "find", "ls"]), ...learningPlannerArgs(),
+    [...cli.args, ...minimalPiWorkerArgs(["learning_read"]), ...await plannerReadArgs(run.manifest.runDir, {
+      cwd: opts.cwd, files: [run.manifest.snapshotPath], roots: [opts.cwd],
+    }), ...learningPlannerArgs(),
     ...(opts.model ? ["--model", opts.model] : []), `@${taskFile}`],
     { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] },
   );
@@ -1165,8 +1186,14 @@ export async function planAgentsMdConsolidationPhase(
   }
 }
 
+export async function applyAgentsMdConsolidationPlan(...args: Parameters<typeof applyAgentsMdConsolidationPlanInternal>): Promise<AgentsMdConsolidationApplyResult> {
+  // Harness mutations and recovery use this same queue. Serialize the complete
+  // multi-file unit before taking any predecessor snapshots.
+  return withFileMutationQueue(path.resolve(configPaths(args[2].cwd).project), () => applyAgentsMdConsolidationPlanInternal(...args));
+}
+
 /** Revalidate and apply a previously planned result as one rollback unit. */
-export async function applyAgentsMdConsolidationPlan(
+async function applyAgentsMdConsolidationPlanInternal(
   ctx: ExtensionContext,
   state: { active: boolean; generation: number; cancelled: boolean; child?: ChildProcess },
   opts: AgentsMdConsolidationPhaseOptions,
@@ -1289,10 +1316,13 @@ export async function applyAgentsMdConsolidationPlan(
   }
   const extractionNotes: string[] = [];
   let transactionStarted = false;
+  const ownership: Record<string, string | null> = {};
+  return withOwnedFileTransaction(snapshots, async () => {
   try {
     if (!current()) throw new Error("__CANCELLED__:before artifacts");
     await opts.transactionHook?.("before-artifacts");
     for (const root of stableRoots) await assertStableMemoryRoot(root);
+    for (const snapshot of snapshots) await assertTransactionPredecessor(snapshot.file);
 
     if (skillOps.length > 0) {
       await assertProjectLocalTarget(opts.cwd, harnessConfig);
@@ -1358,7 +1388,8 @@ export async function applyAgentsMdConsolidationPlan(
     if (opts.transactionFault === "after-agents") throw new Error("Injected transaction failure after AGENTS.md");
     if (!current()) throw new Error("__CANCELLED__:after AGENTS.md");
 
-    const afterBytes = Buffer.from(resimulated.doc, "utf8");
+    const afterBytes = await readRegularFileIfExists(targetPath, MAX_AGENTS_MD_FILE_BYTES);
+    if (!afterBytes || !afterBytes.equals(Buffer.from(resimulated.doc, "utf8"))) throw new Error("AGENTS.md changed during apply verification");
     const receipt = {
       kind: "agents-md-consolidation-receipt",
       phase: "post",
@@ -1406,4 +1437,8 @@ export async function applyAgentsMdConsolidationPlan(
   } finally {
     await closeStableRoots(stableRoots);
   }
+  }, async (file, bytes) => {
+    ownership[path.resolve(file)] = bytes?.toString("base64") ?? null;
+    await writeFileAtomic(path.join(run.manifest.runDir, "agents-ownership.json"), `${JSON.stringify(ownership)}\n`);
+  });
 }

@@ -64,6 +64,9 @@ pi install npm:@fradser/pi-context
 
 ### [`pi-continual-learning`](packages/continual-learning/)
 
+学习 worker 的读取范围和事务回滚所有权现在由代码限制。旧作用域首次访问时自动绑定 canonical cwd，后续碰撞被拒绝；Memory 元数据以不可信参考上下文提供。升级说明见包内 README。
+
+
 从完成的任务证据中学习：Memory 积累可复用知识，在生成前注入相关性索引，需要时读取全文；Harness 将可执行的约束交给运行检查，包括 Bash 确认和阻止，skill/text 规则则提供有范围的提示。规划模型提出方案，父进程验证证据、隐私、规则正反样例和所有权后应用。也可通过 `/consolidate` 显式整理。存量 `policies`/`skillPrompts` 通过只读兼容保留原有保护，包括已有 output/artifact 检查。
 
 **命令：** `/memory` 打开 Browse memories、Learning settings 和 Recent learning；`/memory <request>` 记录明确的 Memory 请求；`/consolidate` 学习当前任务；`/consolidate full` 执行完整维护；`/harness` 打开规则面板；`/harness <request>` 默认在项目共享配置中编写规则。
@@ -154,11 +157,23 @@ pi install npm:@fradser/pi-monitor
 pi install npm:pi-open-deskos
 ```
 
+### [`@fradser/pi-tasks`](packages/tasks/)
+
+持久化工作清单，仅使用 pending、in_progress、blocked、completed 四种状态。替换以历史关系保留。四个任务工具默认完整换行显示结果，列表提供明确分页。自动续跑需要新有效工作和可执行任务；额度耗尽等待用户输入。
+
+[全部 TUI 场景和触发条件](packages/tasks/TUI.zh-CN.md)。
+
+```bash
+pi install npm:@fradser/pi-tasks
+```
+
 ### [`@fradser/pi-goal`](packages/goal/)
 
-持久化目标运行时。单一变更边界管原子记录与追加式 ledger，创建前可用独立模型做只读探索，自动续跑只由落盘决策授权，完成由独立进程中的审计员判定。
+会话级目标运行时：三个工具、授权续跑、显式无工具完成检查。TUI 正文完整显示，底部保留 Codex 风格的执行时长；目标结束后释放，不归档。
 
 **唯一命令：** `/goal <目标和验收条件>`；裸 `/goal` 查看当前线程目标。使用 `/goal pause`、`/goal resume`、`/goal clear` 管理目标。
+
+[完整 TUI 文案与触发条件](packages/goal/TUI.zh-CN.md) 列出所有结果行、状态、通知和转换路径。
 
 **安装：**
 

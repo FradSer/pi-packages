@@ -85,6 +85,12 @@ def prepare(base: Path, auto_memory: bool, *, seed_memory: bool = False, agents_
     (agent / "memory" / "settings.json").write_text(json.dumps({
         "autoMemory": auto_memory, "agentsMd": {"disabled": not agents_md},
     }))
+    # This fixture deliberately owns its legacy-shaped seed. Bind before any
+    # entries exist so the runtime need not guess the owner during upgrade.
+    canonical = os.path.realpath(project)
+    scope = "--" + canonical.lstrip("/").replace("/", "-").replace("\\", "-").replace(":", "-") + "--"
+    registry = agent / "memory" / "scopes"; registry.mkdir()
+    (registry / f"{scope}.json").write_text(json.dumps({"version":1,"cwd":canonical}))
     if seed_memory:
         # The scope key is the canonical project path with separators replaced,
         # which is how the package names its private Memory root.

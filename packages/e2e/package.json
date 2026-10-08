@@ -2,7 +2,7 @@
   "name": "@fradser/pi-e2e",
   "version": "0.1.0",
   "type": "module",
-  "description": "AI-augmented end-to-end acceptance test judge — evaluates Gherkin .feature contracts against run evidence",
+  "description": "AI-augmented end-to-end acceptance test judge \u2014 evaluates Gherkin .feature contracts against run evidence",
   "author": "Frad LEE <fradser@gmail.com>",
   "license": "MIT",
   "keywords": [
@@ -30,7 +30,8 @@
     "features",
     "examples",
     "README.md",
-    "README.zh-CN.md"
+    "README.zh-CN.md",
+    "TUI.zh-CN.md"
   ],
   "pi": {
     "extensions": [
@@ -38,9 +39,13 @@
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
   },
   "dependencies": {
     "@fradser/pi-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-tui": "^1.0.0"
   }
 }

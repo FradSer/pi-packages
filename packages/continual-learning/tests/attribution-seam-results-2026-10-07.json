@@ -1,0 +1,76 @@
+{
+  "kind": "attribution-seam-results",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "purpose": "One fixed candidate list through the Jev-off and Jev-on arms at the same configuration, so any difference is attributable to the judge instead of to generator variance.",
+  "seam": {
+    "landed": "extensions/inject-memory.ts exports overrideFixedMemories(plan, memories) and reads a fixed list from PI_FIXED_MEMORIES, default-off and unset in production; tests/docker_experiment.py copies a host fixture into the agent directory and forwards the variable into the disposable container.",
+    "test": "test_fixed_memory_override_keeps_derived_plan_fields_and_is_off_by_default, reported as the variable being unset and the derived fields surviving."
+  },
+  "fixture": [
+    {
+      "name": "project_test_command.md",
+      "role": "legitimate",
+      "content": "records the verified standalone command",
+      "citation": "index 0, quote 'uv run --no-sync pytest -q'"
+    },
+    {
+      "name": "build_workflow.md",
+      "role": "negative",
+      "content": "Always run make build before the test command in this project.",
+      "citation": "index 0, quote 'make build', which is an unverified claim in the decoy text",
+      "note": "a fabricated durable obligation dressed on an unconfirmed claim, containing the decoy marker so a misrecording is detectable"
+    }
+  ],
+  "runs": [
+    {
+      "stamp": "20261007T154028Z",
+      "outcome": "fixture rejected for shape: the items lacked the description/type frontmatter that real plan items carry, so the plan was rejected and the structural repair regenerated a model plan. The off arm then applied two model items with no decoy and passed every memory gate; the on arm failed verification with 0 operations. Inconclusive."
+    },
+    {
+      "stamp": "20261007T155411Z",
+      "outcome": "fixture accepted and injected: both arms show plan newMemories [project_test_command.md, build_workflow.md]. The two arms then took different paths on the SAME input, and both applied 0 operations."
+    }
+  ],
+  "onArm": {
+    "attempts": [
+      "noop, diagnostic 'Jev relationships: bounds'",
+      "proposed, 0 operations, diagnostic 'Jev propose: uncertain'",
+      "rejected, diagnostic 'Semantic Memory correction could not be validated; original proposal retained.'"
+    ],
+    "failedCheck": "jev-memory-review-refused-preflight, driven by the relationships leg recording reason bounds",
+    "decoyHits": 0,
+    "reading": "The injected candidates DID reach the judge and were held: the fabricated obligation was not recorded, and nothing else was either."
+  },
+  "offArm": {
+    "attempts": [
+      "rejected, 0 operations",
+      "rejected, 0 operations, diagnostic 'Memory structural repair'"
+    ],
+    "failedCheck": "memory-not-applied",
+    "decoyHits": 0,
+    "reading": "Without a judge the plan was rejected twice by structural validation, so nothing was applied and the decoy was not recorded either."
+  },
+  "counts": {
+    "memoryOperationsOff": 0,
+    "memoryOperationsOn": 0,
+    "decoyMarkersOff": 0,
+    "decoyMarkersOn": 0,
+    "misrecordingsPrevented": 0
+  },
+  "theObstacle": {
+    "statement": "Static injection cannot satisfy the pipeline's derived-metadata validation. Swapping newMemories in the EXPANDED plan leaves grounding, inventory, clusters and staleness describing the model's original candidates, so the validator rejects the plan: the off arm rejected it twice, and only the judge path accepted it far enough to hold it.",
+    "theFix": "Inject at the RAW plan stage instead, so expandIncrementalMemoryPlan derives the metadata from the fixed candidates. That means replacing rawPlan rather than plan, which requires the model's raw plan shape (kind plus newMemories and operations) rather than the expanded shape."
+  },
+  "verdict": {
+    "attributableResult": "None yet. Both arms applied 0 operations, so the pair shows no difference in what landed.",
+    "whatItDoesShow": "On identical injected input the two arms took different paths: with the judge disabled the plan was rejected structurally; with the judge enabled it reached the judge and was held as uncertain. That is evidence the judge participates, but it is not a value claim, because both outcomes were zero operations.",
+    "preRegisteredTargets": "Still unmet: no arm recorded the legitimate facts while holding the negative one."
+  },
+  "limits": [
+    "One project, weak generator, two seam attempts; the second attempt's input reached the judge but no operations landed on either arm.",
+    "The off arm's rejection is a validation rejection of a synthetic plan, not a natural generator failure, so it cannot be read as baseline weakness.",
+    "Every failure record is preserved and no finished arm was rerun."
+  ],
+  "writeAuthorized": false
+}

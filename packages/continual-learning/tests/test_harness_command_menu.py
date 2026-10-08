@@ -218,6 +218,8 @@ def test_scoped_user_menu_shows_the_actual_config_file(tmp_path: Path) -> None:
       const commands = {{}}, notices = [];
       register({{on(){{}},registerCommand:(name,command)=>commands[name]=command,registerEntryRenderer(){{}},getCommands:()=>[]}});
       const cwd={json.dumps(str(tmp_path))}, paths=configPaths(cwd);
+      const {{assertProjectScopeOwner}} = await import('./packages/continual-learning/extensions/memory-paths.ts');
+      assertProjectScopeOwner(cwd);
       fs.mkdirSync(path.dirname(paths.userScoped),{{recursive:true}});
       fs.writeFileSync(paths.userScoped,JSON.stringify({{rules:[{{id:'scoped-view',text:'needle',instructions:'Scoped guidance'}}]}}));
       await commands.harness.handler('',{{cwd,hasUI:true,ui:{{
@@ -246,6 +248,8 @@ def test_scoped_user_source_points_to_scoped_file_in_guardrails_and_guidance(tmp
       registerGuardrails(pi); registerGuidance(pi);
       const cwd = {json.dumps(str(tmp_path))};
       const paths = configPaths(cwd);
+      const {{assertProjectScopeOwner}} = await import('./packages/continual-learning/extensions/memory-paths.ts');
+      assertProjectScopeOwner(cwd);
       fs.mkdirSync(path.dirname(paths.userScoped), {{recursive:true}});
       fs.writeFileSync(paths.userScoped, JSON.stringify({{rules:[
         {{id:'scoped-block', bash:'^fixture$', action:'block', message:'Scoped block'}},

@@ -30,6 +30,11 @@ if (isModelFreeze) fs.writeFileSync(path.join(agent, "memory.json"), JSON.string
 const quote = scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : scenario === "remember-shared" ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
 const oldAgents = "- Run tests with npm test\n";
 if (isAgents || isModelFreeze || isRemember) fs.writeFileSync(path.join(cwd,"AGENTS.md"),oldAgents);
+// Attribution and pluggability seam: install the absence before any extension
+// module loads, so a static SDK import fails exactly as a missing dependency.
+if (process.env.CL_ABSENT_TYPESAFE_SDK === "1") {
+  mock.module("@typesafe-ai/sdk", () => { throw new Error("Cannot find module '@typesafe-ai/sdk'"); });
+}
 const kit = await import("../../kit/src/index.ts");
 let selectors = 0;
 let semanticRepairs = 0;
@@ -126,6 +131,13 @@ mock.module("../../kit/src/index.ts", () => ({
     if (fixtureReason?.startsWith("structural-") && !harness && !agents) (plan as {newMemories: Array<{kind:string}>}).newMemories[0].kind = "project-fact";
     const child = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), killed: false, exitCode: null as number | null, signalCode: null });
     queueMicrotask(() => {
+      // A planner that reports a model error without any plan. The attribution seam
+      // must keep this failure from stopping the phase before the semantic judge.
+      if (scenario === "planner-model-error" && !harness && !agents) {
+        child.stdout.emit("data", Buffer.from(JSON.stringify({type:"message_end",message:{role:"assistant",stopReason:"error",errorMessage:"Connection error.",content:[]}}) + "\n"));
+        child.exitCode = 0; child.emit("close", 0);
+        return;
+      }
       const tracksRepair = scenario === "harness-repair-cost" && harness;
       const text = tracksRepair && !harnessRepair ? "The planner returned prose instead of a plan." : JSON.stringify(plan);
       const usage = tracksRepair ? { input: harnessRepair ? 20 : 10, output: harnessRepair ? 4 : 2, cacheRead: harnessRepair ? 6 : 3, cacheWrite: 0, totalTokens: harnessRepair ? 30 : 15, cost: {total: harnessRepair ? 0.02 : 0.01} } : undefined;

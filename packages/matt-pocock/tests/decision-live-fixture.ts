@@ -31,6 +31,12 @@ export default function decisionFixture(pi: ExtensionAPI): void {
     { name: "matt_pocock_ask", arguments: { question: "LIVE escape", options: ["A", "B"] } },
     { name: "matt_pocock_ask", arguments: { question: "LIVE timeout without recommendation", options: ["A", "B"], timeout_seconds: 0.05 } },
     { name: "matt_pocock_ask", arguments: { question: "LIVE abort", options: ["A", "B"], recommended: "A", timeout_seconds: 30 } },
+    { name: "matt_pocock_ask", arguments: {
+      question: "LIVE recommendation timeout",
+      options: ["(Recommended) Use adjacent verification", "Block for review"],
+      recommended: "(Recommended) Use adjacent verification",
+      timeout_seconds: 0.05,
+    } },
     { name: "matt_pocock_active", arguments: { action: "complete" } },
   ];
   let index = 0;

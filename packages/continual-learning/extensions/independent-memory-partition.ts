@@ -1,11 +1,13 @@
 import {interpretStandaloneMemory} from "./jev-memory-readiness";
 import {createHash} from "node:crypto";
-import {citedMemoryEvidence, type JevCandidateReview, type JevMemoryRelationsReview} from "./jev-learning";
+import {citedMemoryEvidence, memoryDescriptionClaim, type JevCandidateReview, type JevMemoryRelationsReview} from "./jev-learning";
 import {interpretMemoryPair} from "./jev-memory-relations";
 import type {SelectedMemory} from "./incremental-learning";
 
 /** Index selection only. Parent permission, persistence, validation and writes
- * remain mandatory; a diagnostic review is never a write capability. */
+ * remain mandatory; a diagnostic review is never a write capability. The pair
+ * gate is strict: any non-independent pair holds both members. Only the composed
+ * proof of self-containment can recover a proven candidate afterwards. */
 export function partitionReviewedNewMemory(
   evidence: unknown, candidates: readonly unknown[], existing: readonly SelectedMemory[],
   review: JevCandidateReview | undefined, relations: JevMemoryRelationsReview | undefined,
@@ -28,9 +30,12 @@ export function partitionReviewedNewMemory(
   const eligible = new Set<number>();
   for (const [index, candidate] of candidates.entries()) {
     const observation = review.candidates[index];
-    const expected = [`supported_${index}`, `supported_description_${index}`,
-      ...(existing.length ? [`relation_${index}`, `relation_description_${index}`] : []),
-      ...prepared.windows.flatMap((_, window) => [`counter_${index}_${window}`, `counter_description_${index}_${window}`])];
+    // A record without a description line gets no description judgment, so the
+    // expected checklist must shrink with it rather than deny the plan.
+    const described = memoryDescriptionClaim(candidate) !== undefined;
+    const expected = [`supported_${index}`, ...(described ? [`supported_description_${index}`] : []),
+      ...(existing.length ? [`relation_${index}`, ...(described ? [`relation_description_${index}`] : [])] : []),
+      ...prepared.windows.flatMap((_, window) => [`counter_${index}_${window}`, ...(described ? [`counter_description_${index}_${window}`] : [])])];
     if (!observation || !Array.isArray(observation.passedChecks) || !Array.isArray(observation.heldChecks)) return denied();
     const checks = [...observation.passedChecks, ...observation.heldChecks];
     if (observation.index !== index || observation.candidateDigest !== digest(candidate)

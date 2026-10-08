@@ -140,6 +140,10 @@ def _merged_env(
     temporary: str,
 ) -> dict[str, str]:
     merged = {**os.environ, **(env or {})}
+    # Path resolution now binds ownership. Never let an ordinary snippet claim
+    # fixture projects under the developer's actual Pi agent directory.
+    if not env or "PI_CODING_AGENT_DIR" not in env:
+        merged["PI_CODING_AGENT_DIR"] = tempfile.mkdtemp(dir=temporary)
     for name in temp_dirs:
         merged[name] = tempfile.mkdtemp(dir=temporary)
     return merged

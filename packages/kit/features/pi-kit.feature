@@ -562,3 +562,9 @@ Feature: Ask a decision model one bounded question set
     When pi-kit asks
     Then the failure is reported as cancelled
     And the endpoint is never contacted
+
+  Scenario: A full summary wraps without requiring expansion
+    Given a lifecycle row explicitly requests a full summary
+    When the collapsed row renders at a narrow terminal width
+    Then every authored line is visible and wrapped
+    And no expansion hint is shown for that summary

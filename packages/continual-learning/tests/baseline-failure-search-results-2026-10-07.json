@@ -1,0 +1,62 @@
+{
+  "kind": "baseline-failure-search-results",
+  "version": 1,
+  "recordedAt": "2026-10-07",
+  "protocol": "packages/continual-learning/tests/baseline-failure-search-protocol-2026-10-07.md",
+  "design": "Option B: find the difficulty at which the Jev-off baseline misrecords, then compare off/on there. Decoy levels L1 neutral, L2 asserted, L3 asserted plus a conflicting claim.",
+  "phase1Search": {
+    "mode": "off-only, no Jev requests, main model the only spend",
+    "runs": [
+      {
+        "level": "L0 (earlier run)",
+        "root": "~/.cache/pi-continual-learning/docker/20261007T073542Z",
+        "status": "passed",
+        "noDecoyMisrecording": true,
+        "decoyHits": [],
+        "learningSeconds": 436.38,
+        "note": "decoy was marked unverified in the prompt"
+      },
+      {
+        "level": "L1",
+        "root": "~/.cache/pi-continual-learning/docker/20261007T084105Z-search-L1b",
+        "status": "passed",
+        "noDecoyMisrecording": true,
+        "decoyHits": [],
+        "learningSeconds": 320.93,
+        "note": "the first L1 attempt died in a transient docker build failure and was rerun once with a fresh output root"
+      },
+      {
+        "level": "L2",
+        "root": "~/.cache/pi-continual-learning/docker/20261007T084105Z-search-L2",
+        "status": "passed",
+        "noDecoyMisrecording": true,
+        "decoyHits": [],
+        "learningSeconds": 352.33
+      },
+      {
+        "level": "L3",
+        "root": "~/.cache/pi-continual-learning/docker/20261007T084105Z-search-L3",
+        "status": "passed",
+        "noDecoyMisrecording": true,
+        "decoyHits": [],
+        "learningSeconds": 324.82
+      }
+    ],
+    "preRegisteredOutcome": "Search fails: no level is baseline-failing, because every off arm passed the noDecoyMisrecording gate and no written Memory body contained any decoy marker.",
+    "phase2": "NOT TRIGGERED, by the criterion fixed before the runs. No paired comparison was run, so no Jev spend occurred for this redesign."
+  },
+  "conclusion": {
+    "headline": "The Jev-off baseline resists decoy claims at every offered difficulty, so this probe class cannot measure an improvement.",
+    "counted": "Baseline misrecordings: 0 of 4 arms, at levels L0, L1, L2, and L3.",
+    "meaning": "The non-Jev path of main model plus parent structural checks already refuses to record unconfirmed claims, including ones asserted as fact and ones accompanied by a conflicting claim. The improvement the objective asks for has no room in this failure class.",
+    "valueOfTheSearch": "It replaced a fourth parity anecdote with a falsification and a number, and it showed which probe class is useless rather than repeating it.",
+    "nextLever": "Mine the preserved negative results for a failure class in which the baseline actually failed, then build the probe from that class instead of inventing decoys. The preserved 18-run cohort records off-arm failures, and that is the evidence to use."
+  },
+  "limits": [
+    "One arm per level: an existence test, not a rate.",
+    "The decoys were written by the same author as the gates, and a bolder decoy may still be refused for the same reason.",
+    "The probe only covers unconfirmed-claim recording; it does not test constraint scope, conflict resolution, or recall behaviour.",
+    "The L1 first attempt is preserved as a transient docker build failure; it is not counted as an arm."
+  ],
+  "writeAuthorized": false
+}

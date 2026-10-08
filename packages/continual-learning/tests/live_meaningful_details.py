@@ -131,6 +131,29 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
             return latest_menu()
 
         root = open_memory_menu()
+        before = menu_count()
+        os.write(master, b"\r")  # Browse memories.
+        wait_for(lambda: menu_count() == before + 1)
+        for _ in range(4):
+            current = latest_menu()
+            assert "Next page" in current["options"], current
+            before = menu_count()
+            os.write(master, b"\x1b[B" * current["options"].index("Next page") + b"\r")
+            wait_for(lambda: menu_count() == before + 1)
+        current = latest_menu()
+        assert "page 5/5" in current["title"], current
+        assert "memory-129.md" in current["options"][0], current
+        before = menu_count()
+        os.write(master, b"\r")
+        wait_for(lambda: menu_count() == before + 1)
+        assert "Next page" in latest_menu()["options"], latest_menu()
+        before = menu_count()
+        os.write(master, b"\r")
+        wait_for(lambda: menu_count() == before + 1 and has_notice("CL_MEMORY_BODY_TAIL"))
+        current = latest_menu()
+        os.write(master, b"\x1b[B" * current["options"].index("Close") + b"\r")
+
+        root = open_memory_menu()
         assert root["options"][:3] == ["Browse memories", "Learning settings", "Recent learning"], root
         os.write(master, b"\x1b[B" * root["options"].index("Recent learning") + b"\r")
         wait_for(lambda: has_notice("No recent learning changes"))
@@ -196,6 +219,15 @@ def main() -> None:
         (agent / "settings.json").write_text(json.dumps({"theme": "dark", "quietStartup": True, "packages": []}))
         (agent / "memory").mkdir()
         (agent / "memory" / "settings.json").write_text(json.dumps({"autoMemory": False}))
+        canonical = str(cwd.resolve())
+        scope = "--" + canonical.lstrip("/").replace("/", "-").replace("\\", "-").replace(":", "-") + "--"
+        registry = agent / "memory" / "scopes"; registry.mkdir()
+        (registry / f"{scope}.json").write_text(json.dumps({"version":1,"cwd":canonical}))
+        memories = agent / "memory" / scope; memories.mkdir()
+        for number in range(1,130):
+            body = "CL_MEMORY_BODY_START\n" + ("body " * 900) + "CL_MEMORY_BODY_TAIL" if number == 129 else "Small reference"
+            (memories / f"memory-{number:03d}.md").write_text(f"---\nname: memory-{number:03d}\ndescription: Reference {number}\ntype: project\n---\n{body}")
+        (memories / "MEMORY.md").write_text("\n".join(f"- [memory-{number:03d}.md](memory-{number:03d}.md)" for number in range(1,130)))
         env = {key: value for key, value in os.environ.items() if key in {"PATH", "LANG", "LC_ALL"}}
         env.update({"HOME": str(cwd), "PI_CODING_AGENT_DIR": str(agent), "PI_OFFLINE": "1",
                     "PI_DETAILS_LIVE_AUTH": secrets.token_hex(16), "TERM": "xterm-256color"})

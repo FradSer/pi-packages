@@ -316,6 +316,56 @@ def test_inactive_guidance_advertises_workflows_and_model_capabilities() -> None
     assert "matt_pocock_ask" not in guidance
 
 
+def test_ask_result_quotes_only_the_selected_answer_and_retains_the_question() -> None:
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(); await r.start();
+        const question = "若项目没有可运行的 E2E 测试，也不能产出真实运行证据，应如何结束？";
+        const recommended = "(Recommended) 允许寻找替代验证；仍无真实证据时报告 needs_review 或阻塞";
+        const selectedOption = "继续寻找替代验证";
+        const trailingRecommended = "允许寻找替代验证；仍无真实证据时报告 needs_review 或阻塞 (Recommended)";
+        r.ctx.ui.select = async () => trailingRecommended;
+        const trailingSelected = await r.call("matt_pocock_ask", {
+          question, options: [trailingRecommended, selectedOption], recommended: trailingRecommended,
+        });
+        r.ctx.ui.select = async () => recommended;
+        const selectedRecommendation = await r.call("matt_pocock_ask", {
+          question, options: [recommended, selectedOption], recommended,
+        });
+        r.ctx.ui.select = async () => selectedOption;
+        const selectedAlternative = await r.call("matt_pocock_ask", {
+          question, options: [recommended, selectedOption], recommended,
+        });
+        r.ctx.ui.select = (_title, _choices, { signal }) =>
+          new Promise(resolve => signal.addEventListener("abort", () => resolve(undefined), { once: true }));
+        const timedOut = await r.call("matt_pocock_ask", {
+          question, options: [recommended, selectedOption], recommended, timeout_seconds: 0.01,
+        });
+        console.log(JSON.stringify({ trailingSelected, selectedRecommendation, selectedAlternative, timedOut }));
+    """)
+    expected_question = "若项目没有可运行的 E2E 测试，也不能产出真实运行证据，应如何结束？"
+    expected_recommendation = "允许寻找替代验证；仍无真实证据时报告 needs_review 或阻塞"
+    assert result["trailingSelected"]["content"][0]["text"] == (
+        f"{expected_question}\n\n> {expected_recommendation}"
+    )
+    assert result["selectedRecommendation"]["content"][0]["text"] == (
+        f"{expected_question}\n\n> {expected_recommendation}"
+    )
+    assert result["selectedAlternative"]["content"][0]["text"] == (
+        f"{expected_question}\n\n> 继续寻找替代验证"
+    )
+    assert result["timedOut"]["content"][0]["text"] == (
+        f"{expected_question}\n\n> {expected_recommendation}"
+    )
+    assert "(Recommended)" not in result["trailingSelected"]["content"][0]["text"]
+    assert "(Recommended)" not in result["selectedRecommendation"]["content"][0]["text"]
+    assert "(Recommended)" not in result["timedOut"]["content"][0]["text"]
+    assert "继续寻找替代验证" not in result["timedOut"]["content"][0]["text"]
+    assert result["trailingSelected"]["details"]["answer"] == expected_recommendation + " (Recommended)"
+    assert result["selectedRecommendation"]["details"]["answer"] == "(Recommended) " + expected_recommendation
+    assert result["timedOut"]["details"]["answer"] == "(Recommended) " + expected_recommendation
+    assert result["timedOut"]["details"]["source"] == "timeout_recommended"
+
+
 def test_matt_pocock_ask_selection_custom_input_pending_cases() -> None:
     result = run_typescript(RUNTIME_HARNESS + """
         const r = runtime(); await r.start();
@@ -346,7 +396,7 @@ def test_matt_pocock_ask_selection_custom_input_pending_cases() -> None:
     assert result["timeoutRecommended"]["details"]["pending"] is False
     assert result["timeoutRecommended"]["details"]["timed_out"] is True
     assert result["timeoutRecommended"]["details"]["source"] == "timeout_recommended"
-    assert "User selected (timeout default): Option A" in result["timeoutRecommended"]["content"][0]["text"]
+    assert result["timeoutRecommended"]["content"][0]["text"] == "Which scope?\n\n> Option A"
     assert result["noRecommendedTimeout"] is None
     assert result["noRecommendedCancel"]["details"]["pending"] is True
     assert "Do not proceed" in result["noRecommendedCancel"]["content"][0]["text"]

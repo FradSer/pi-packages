@@ -14,6 +14,7 @@
     "pack:check": "node scripts/publish-release.mjs --check"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.9",
     "@changesets/cli": "^3.0.0",
     "@earendil-works/pi-ai": "^1.0.0",
     "@earendil-works/pi-coding-agent": "^1.0.0",

@@ -141,7 +141,8 @@ def test_zero_file_limit_still_discloses_total_and_read_only_fallback(tmp_path: 
     assert str(memory.resolve()) in result["block"]
     assert "bounded" in result["block"] and "symlink" in result["block"]
     assert {file.name: file.read_bytes() for file in memory.iterdir()} == before
-    assert not agent.exists()
+    assert not (agent / "memory" / "MEMORY.md").exists()
+    assert len(list((agent / "memory" / "scopes").glob("*.json"))) == 1
 
 
 def test_budget_too_small_for_discovery_rejects_explicitly(tmp_path: Path) -> None:

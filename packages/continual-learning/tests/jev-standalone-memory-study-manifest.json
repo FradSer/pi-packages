@@ -24,7 +24,7 @@
     "../extensions/guardrail-types.ts": "fc006eb0fbd927f8664cf63e59cb505d1bfa8f46e8bf7fc4f80128a0472bc6d0",
     "../extensions/guardrails.ts": "42f81b3e94473fe77dd325028f1ccca25dd94723f5b1b356a51589f0f41d2a77",
     "../extensions/harness-command-coverage.ts": "122b26c79364e4c82b41d96e819f0ecb916b4a7a01738b6b3f0002bfcce2de8c",
-    "../extensions/harness-consolidation.ts": "a35441ddfbf3c8c3be27dbcfee3dd89dc0daaadf2f9e1e7e5b42ce247ef49c47",
+    "../extensions/harness-consolidation.ts": "74de1e5485549aec98b9527f78b66646e395c7b600d9a7fcbc4be14c75504c86",
     "../extensions/harness-guidance-planner.ts": "b07ca0b4a9ff75a56c020b1a62b8636488fbb3642bc42a42a8a8f0e39b5b0f16",
     "../extensions/harness-guidance.ts": "2674d6d5838d8acc72ad1e1c52b64cc7f51494c071d6311f974afa7b0bcea010",
     "../extensions/harness-menu.ts": "25f16f8b31d8364662d8a99e4f3372a3ca1d037424aee542da604053f7999c68",
@@ -50,7 +50,7 @@
     "../extensions/planner-prompts.ts": "622b566fbb6829b7f927fc74fb08acbc7d2878aa7c3c3c9bf98a5743c1f6e899",
     "../node_modules/@typesafe-ai/sdk/package.json": "b94bd1d862b166be53b0b91a36a2af27a0b14e397ffea8f0c53cbfcc9718c508",
     "../node_modules/@typesafe-ai/sdk/dist/index.mjs": "bbb851dfe375c586c5bee3c082a04ab71882813dde39df0e95eaa23f30ec7012",
-    "../../../pnpm-lock.yaml": "4514f0638dab88ffa5cfcc4bad1c0438fcc1c700584ad677669c8e4edbdf52fa"
+    "../../../pnpm-lock.yaml": "6fe5525b11c2a0555f868ad53577caabc8ba15dae2b1ece3c06cdc5bf5ca6ce8"
   },
   "purpose": "read-only semantic question comparison; never write permission",
   "thresholds": {

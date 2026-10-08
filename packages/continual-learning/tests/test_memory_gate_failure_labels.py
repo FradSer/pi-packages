@@ -126,3 +126,26 @@ def test_supported_judgment_and_disabled_jev_do_not_raise_a_gate() -> None:
     assert workflow.memory_gate_failure(supported, "off") is None
     stopped = receipt({"phase": "memory", "attempt": 0, "outcome": "failed", "durationMs": 1, "operations": 0})
     assert workflow.memory_gate_failure(stopped, "off") is None
+
+def test_an_unavailable_judge_that_applied_memory_is_not_a_missing_judgment() -> None:
+    # Requirement: an optional judge that cannot run must not change Memory. An
+    # enabled judge that was unavailable leaves the parent's own validated plan to
+    # apply, exactly as with Jev off, so the runner reports the availability
+    # observation instead of a missing judgment. A judged hold stays its own class,
+    # and a preflight refusal stays its own class.
+    applied_when_unavailable = [{"attempts": [{"phase": "memory", "outcome": "applied", "operations": 3,
+        "jev": {"stage": "memory", "status": "disabled", "reason": "unavailable"}}]}]
+    applied_after_timeout = [{"attempts": [{"phase": "memory", "outcome": "applied", "operations": 3,
+        "jev": {"stage": "memory", "status": "disabled", "reason": "timeout"}}]}]
+    applied_with_no_judgment = [{"attempts": [{"phase": "memory", "outcome": "applied", "operations": 3}]}]
+    refused_preflight = [{"attempts": [{"phase": "memory", "outcome": "proposed",
+        "jev": {"stage": "memory", "status": "propose", "reason": "bounds"}}]}]
+    judged_hold = [{"attempts": [{"phase": "memory", "outcome": "proposed",
+        "jev": {"stage": "memory", "status": "propose", "reason": "uncertain"}}]}]
+
+    assert workflow.memory_gate_failure(applied_when_unavailable, "on") is None
+    assert workflow.memory_gate_failure(applied_after_timeout, "on") is None
+    assert workflow.memory_gate_failure(applied_with_no_judgment, "on") == "Memory was applied without a Jev judgment"
+    assert workflow.memory_gate_failure(refused_preflight, "on") == "Jev memory review was refused by a preflight guard"
+    assert workflow.memory_gate_failure(judged_hold, "on") == "No successful real Jev memory judgment"
+    assert workflow.memory_gate_failure(applied_when_unavailable, "off") is None

@@ -19,3 +19,9 @@ export function automaticPhasePolicies(settings: { automaticPhases?: unknown; ag
   if (settings.agentsMd?.disabled) policies.agents = "off";
   return policies;
 }
+
+/** Incomplete evidence cannot justify durable mutation, even in manual mode. */
+export function incompleteEvidencePolicies(policies: PhasePolicies, omittedEntries = 0): PhasePolicies {
+  if (omittedEntries <= 0) return policies;
+  return Object.fromEntries(Object.entries(policies).map(([phase, policy]) => [phase, policy === "apply" ? "propose" : policy])) as PhasePolicies;
+}

@@ -1,8 +1,9 @@
+import { showDetailPages } from "./detail-pages";
 import type { ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { notifyPi, safeDisplayText } from "@fradser/pi-kit";
 import type { LearningHistory } from "./learning-history";
 import { readLearningFile } from "./learning-history";
-import type { MemoryEntry, MemoryLoadResult } from "./memory-files";
+import type { MemoryEntry, MemoryLoadResult, MemoryLoadOptions } from "./memory-files";
 import { parseMemoryIndexLine } from "./consolidation-run";
 
 /** Data shown in the compact /memory title. Keep this separate from settings
@@ -22,7 +23,7 @@ export interface MemoryMenuStatus {
  */
 export interface MemoryMenuDependencies {
   status: (cwd: string) => Promise<MemoryMenuStatus>;
-  loadMemories: (cwd: string) => Promise<MemoryLoadResult>;
+  loadMemories: (cwd: string, options?: MemoryLoadOptions) => Promise<MemoryLoadResult>;
   listHistory: (cwd: string) => Promise<LearningHistory[]>;
   manage: (command: string, ctx: ExtensionCommandContext) => Promise<boolean>;
   selectModel: (ctx: ExtensionCommandContext) => Promise<void>;
@@ -31,8 +32,6 @@ export interface MemoryMenuDependencies {
 }
 
 const FIRST_LEVEL = ["Browse memories", "Learning settings", "Recent learning"] as const;
-const MEMORY_DETAIL_MAX_CHARS = 4_000;
-const HISTORY_DETAIL_MAX_CHARS = 8_000;
 
 function bounded(value: string, limit: number): string {
   const text = safeDisplayText(value);
@@ -106,27 +105,37 @@ function historyDetail(record: LearningHistory): string {
   if (record.status === "proposed" && record.proposal !== undefined) {
     lines.push(`proposal:\n${JSON.stringify(record.proposal, null, 2)}`);
   }
-  return bounded(lines.join("\n"), HISTORY_DETAIL_MAX_CHARS);
+  if (record.status === "proposed") lines.push("Next step: run /consolidate to plan again against current evidence. Saved proposals cannot be applied as stale plans.");
+  return safeDisplayText(lines.join("\n"));
 }
 
 async function browseMemories(ctx: ExtensionCommandContext, dependencies: MemoryMenuDependencies, cwd: string): Promise<void> {
-  const memories = await dependencies.loadMemories(cwd);
+  // Discovery is intentionally small for model context. Management has its
+  // own bounded inventory and reads the selected body only when requested.
+  const memories = await dependencies.loadMemories(cwd, {maxFiles:4096, maxFileChars:1024});
   if (memories.entries.length === 0) {
     notifyPi(ctx.ui, "No project memories found.", "info");
     return;
   }
   const privateIndex = await privateMemoryIndexState(memories);
-
-  const selected = await ctx.ui.select(
-    `Browse memories · ${memories.totalEntries} total${memories.omittedEntries ? ` · ${memories.omittedEntries} omitted from the index` : ""}`,
-    memories.entries.map(entry => memoryOption(entry, privateIndex)),
-  );
-  if (!selected) return;
-  const index = memories.entries.findIndex(entry => memoryOption(entry, privateIndex) === selected);
-  if (index < 0) return;
-  const entry = memories.entries[index];
-  notifyPi(ctx.ui, `${memorySource(entry, privateIndex)} · ${entry.filename}\n\n${bounded(entry.content, MEMORY_DETAIL_MAX_CHARS)}`, "info");
-  await ctx.ui.select(`Memory entry · ${memorySource(entry, privateIndex)}`, ["Close"]);
+  const pageSize = 32;
+  const pages = Math.ceil(memories.entries.length / pageSize);
+  let page = 0;
+  for (;;) {
+    const entries = memories.entries.slice(page * pageSize, (page + 1) * pageSize);
+    const selected = await ctx.ui.select(
+      `Browse memories · ${memories.totalEntries} total${pages > 1 ? ` · page ${page + 1}/${pages}` : ""}${memories.omittedEntries ? ` · ${memories.omittedEntries} unavailable or beyond management limit` : ""}`,
+      [...entries.map(entry => memoryOption(entry, privateIndex)), ...(page > 0 ? ["Previous page"] : []), ...(page + 1 < pages ? ["Next page"] : [])]);
+    if (selected === "Next page" && page + 1 < pages) {page++; continue;}
+    if (selected === "Previous page" && page > 0) {page--; continue;}
+    const entry = entries.find(entry => memoryOption(entry, privateIndex) === selected);
+    if (!entry) return;
+    let content = entry.content;
+    try { content = (await readLearningFile(entry.readPath, 4 * 1024 * 1024)).toString("utf8"); }
+    catch { content += "\n[Full file unavailable; showing the bounded loaded content.]"; }
+    await showDetailPages(ctx.ui, `Memory entry · ${memorySource(entry, privateIndex)}`, `${memorySource(entry, privateIndex)} · ${entry.filename}\n${entry.readPath}\n\n${content}`);
+    return;
+  }
 }
 
 async function editPolicies(ctx: ExtensionCommandContext, dependencies: MemoryMenuDependencies): Promise<void> {
@@ -170,13 +179,12 @@ async function recentLearning(ctx: ExtensionCommandContext, dependencies: Memory
   if (!selected) return;
   const record = records.find(item => historyOption(item) === selected);
   if (!record) return;
-  notifyPi(ctx.ui, historyDetail(record), "info");
 
   // Proposed, failed, undone and abandoned records are read-only here. The
   // existing management handler remains the sole owner of undo validation and
   // confirmation for a completed applied change.
   const actions = record.status === "applied" ? ["Close", "Undo this change"] : ["Close"];
-  const action = await ctx.ui.select(`Learning change · ${record.status}`, actions);
+  const action = await showDetailPages(ctx.ui, `Learning change · ${record.status}`, historyDetail(record), actions);
   if (action !== "Undo this change") return;
   if (dependencies.isBusy()) {
     notifyPi(ctx.ui, "Wait for the current learning pipeline before undoing a change.", "warning");

@@ -19,7 +19,7 @@ FIXTURE = Path(__file__).with_name("decision-live-fixture.ts")
 
 def check_results(rows: list[dict]) -> None:
     results = [row for row in rows if row["kind"] == "result"]
-    assert len(results) == 8, results
+    assert len(results) == 9, results
     assert all(not row["isError"] for row in results), results
     asks = [row for row in results if row["tool"] == "matt_pocock_ask"]
     assert [row["details"] for row in asks] == [
@@ -31,7 +31,15 @@ def check_results(rows: list[dict]) -> None:
         # Pi's Ctrl-C is consumed by the active selector as user cancellation;
         # programmatic AbortSignal propagation is covered by unit boundaries.
         {"pending": True, "timed_out": False, "source": "cancelled"},
+        {"answer": "(Recommended) Use adjacent verification", "is_custom": False,
+         "timed_out": True, "pending": False, "source": "timeout_recommended"},
     ], asks
+    assert asks[0]["content"][0]["text"] == "LIVE selection\n\n> A"
+    assert asks[-1]["content"][0]["text"] == (
+        "LIVE recommendation timeout\n\n> Use adjacent verification"
+    )
+    assert "(Recommended)" not in asks[-1]["content"][0]["text"]
+    assert "Block for review" not in asks[-1]["content"][0]["text"]
 
 
 def main() -> None:

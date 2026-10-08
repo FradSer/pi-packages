@@ -16,11 +16,12 @@ from support import isolated_run_bun
 SNIPPET = r"""
       import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
       const { configPaths, loadLayers } = await import('./packages/continual-learning/extensions/guardrail-config.ts');
-      const { escapedProjectPath } = await import('./packages/continual-learning/extensions/memory-paths.ts');
+      const { escapedProjectPath, assertProjectScopeOwner } = await import('./packages/continual-learning/extensions/memory-paths.ts');
       const agent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'scoped-harness-')));
       const a = path.join(agent,'a'), b = path.join(agent,'b');
       fs.mkdirSync(path.join(a,'.pi'),{recursive:true});
       fs.mkdirSync(path.join(b,'.pi'),{recursive:true});
+      assertProjectScopeOwner(a, agent); assertProjectScopeOwner(b, agent);
       const pathsA = configPaths(a, agent), pathsB = configPaths(b, agent);
       fs.mkdirSync(path.dirname(pathsA.userScoped),{recursive:true});
       fs.writeFileSync(pathsA.userScoped, JSON.stringify({rules:[{id:'only-a',bash:'^only-a',action:'block',message:'A only.'}]}));

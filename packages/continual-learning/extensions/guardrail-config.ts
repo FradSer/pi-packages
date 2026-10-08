@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_RULES, mergeLayers, validateRuleContainer } from "./guardrail-engine.ts";
-import { escapedProjectPath } from "./memory-paths.ts";
+import { escapedProjectPath, assertProjectScopeOwner } from "./memory-paths.ts";
 import type { ResolvedHarnessConfig, RuleLayer } from "./guardrail-types.ts";
 
 export interface ConfigPaths {
@@ -98,7 +98,17 @@ export function loadLayers(cwd: string, agentDir?: string): RuleLayer[] {
     ['project', paths.project],
     ['project.local', paths.projectLocal],
   ] as const)
-    .flatMap(([source, file]) => { const layer = readLayer(source, file); return layer ? [layer] : []; });
+    .flatMap(([source, file]) => {
+      if (source === "user.scoped" && fs.existsSync(file)) {
+        try { assertProjectScopeOwner(cwd, agentDir); }
+        catch (error) {
+          // Never reuse a cached scoped layer from a different canonical owner.
+          return [{source, unavailable:true, errors:[error instanceof Error ? error.message : String(error)]}];
+        }
+      }
+      const layer = readLayer(source, file);
+      return layer ? [layer] : [];
+    });
 }
 
 /** Read current bytes on each resolution. A stat-only cache cannot establish

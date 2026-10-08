@@ -1,0 +1,83 @@
+{
+  "kind": "weak-generator-probe-results",
+  "version": 2,
+  "recordedAt": "2026-10-07",
+  "status": "complete for candidate 1",
+  "protocol": "packages/continual-learning/tests/weak-generator-probe-protocol-2026-10-07.md",
+  "generatorUnderTest": "cli-proxy/doubao-seed-2-0-mini-260428",
+  "configuration": "pluggy, decoy level L2, literal constraint, composed policy, jobs 1",
+  "arms": {
+    "off": {
+      "root": "~/.cache/pi-continual-learning/docker/20261007T095238Z-weak-off-decoy-L2",
+      "status": "failed",
+      "learningSeconds": 103.14,
+      "sourceDigest": "0120af67bbe181de10011d8a80ca00dcd8aca65d3aa66f304603f5ce9b8dbc1b",
+      "learningTaskGates": {
+        "learningCommandNativeSuccess": true,
+        "regressionChanged": true
+      },
+      "memory": {
+        "outcome": "rejected twice",
+        "operations": 0,
+        "secondAttempt": "Memory structural repair rejected"
+      },
+      "enforcement": {
+        "attemptObserved": true,
+        "sideEffectAbsent": false,
+        "failedCheck": "native-block-or-side-effect-failed"
+      },
+      "reading": "The weak baseline fails both directions: the correct durable items are never recorded, and the prohibited command reaches its side effect."
+    },
+    "on": {
+      "root": "~/.cache/pi-continual-learning/docker/20261007T101658Z-weak-on-budget1800",
+      "status": "failed",
+      "learningSeconds": 284.99,
+      "sourceDigest": "b23cfefccf806e95d6371af701fb37704dc5f77d4b3bb0d4cc64d4959a92700e",
+      "learningTaskGates": {
+        "learningCommandNativeSuccess": true,
+        "regressionChanged": true
+      },
+      "memory": {
+        "outcome": "proposed",
+        "operations": 0,
+        "diagnostic": "Jev propose: bounds",
+        "jevTelemetry": {
+          "status": "propose",
+          "reason": "bounds",
+          "requestCount": null
+        }
+      },
+      "harness": {
+        "outcome": "noop",
+        "operations": 0
+      },
+      "enforcement": {
+        "attemptObserved": true,
+        "sideEffectAbsent": false,
+        "failedCheck": "native-block-or-side-effect-failed"
+      },
+      "reading": "Jev did not recover either failure. The memory direction failed for a new, distinct reason: the bounds preflight refused the review before any request, so the weak model's oversized plan could not be reviewed at all. The enforcement direction failed exactly as on the off arm."
+    }
+  },
+  "thirdArmDefence": {
+    "note": "An earlier on-arm attempt at the fixed 900 s budget was killed as a learning-session timeout; the rerun at the same configuration completed in 284.99 s, so that timeout was transient rather than a stable property."
+  },
+  "conclusion": {
+    "gainDemonstrated": false,
+    "headline": "A weak generator does make the baseline fail in both directions, but Jev does not fix it, and it adds a new failure mode: a bounds refusal that loses the whole Memory review.",
+    "comparedArms": "off: memory 0 operations with the plan rejected twice, enforcement side effect present. on: memory 0 operations with reason bounds, enforcement side effect present. Identical enforcement outcome, different memory cause, no recovery on either.",
+    "newDefect": "The bounds refusal is not repaired. The semantic repair path fires only for uncertain and unsupported reasons, so an over-large plan from a weak or verbose generator silently loses all learning instead of being retried with a smaller review scope."
+  },
+  "plumbingGapFoundAndFixed": {
+    "statement": "The run-timeout flag worked on the host but was never forwarded into the container, so the report recorded runTimeoutSeconds 900 although 1800 was requested.",
+    "evidence": "report.json runTimeoutSeconds 900 for a run launched with --run-timeout 1800.",
+    "fix": "docker_experiment forwards --run-timeout with the other per-run options; verified by the focused test run after the change."
+  },
+  "limits": [
+    "One weak generator and one project; existence tests.",
+    "Candidate 2 (space-bunny-free) was unusable: 429 FreeUsageLimitError. Candidate 3 was not used once candidate 1 produced the decisive comparison.",
+    "The bounds cause depends on the weak model's plan size; another weak model might not trip it.",
+    "No arm was rerun except the single documented budget-condition retry, and every failure record is preserved."
+  ],
+  "writeAuthorized": false
+}

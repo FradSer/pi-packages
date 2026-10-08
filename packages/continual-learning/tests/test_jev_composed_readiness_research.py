@@ -65,14 +65,16 @@ def test_research_transport_redirect_policy_does_not_forward_to_another_server()
     # used with real local servers, Then the destination gets no request.
     value = isolated_run_bun(r'''
       import fs from 'node:fs/promises';
+          import {historicalResearchPath} from './packages/continual-learning/tests/historical-research-source.ts';
       // This transport regression uses the preserved study's source bytes for
       // its historical hash check; it does not rewrite or rerun the paid study.
       const readFile=fs.readFile.bind(fs);
       fs.readFile=async(file,...args)=>{
+        file=historicalResearchPath(file);
         const path=String(file);
         if(path.endsWith('/extensions/independent-memory-partition.ts'))
           return readFile(new URL('./packages/continual-learning/tests/fixtures/composed-partition-preintegration/independent-memory-partition.ts',`file://${process.cwd()}/`),...args);
-        const legacyName=['jev-learning.ts','inject-memory.ts','learning-efficiency.ts'].find(name=>path.endsWith('/extensions/'+name));
+        const legacyName=['jev-learning.ts','inject-memory.ts','learning-efficiency.ts','jev-memory-relations.ts'].find(name=>path.endsWith('/extensions/'+name));
         if(legacyName)return readFile(new URL('./packages/continual-learning/tests/fixtures/composed-parent-preintegration/'+legacyName,`file://${process.cwd()}/`),...args);
         return readFile(file,...args);
       };

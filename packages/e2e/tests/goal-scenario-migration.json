@@ -1,0 +1,981 @@
+[
+  {
+    "legacy": "/goal hands the model a seed rather than creating a goal",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "/goal hands the model a seed rather than creating a goal"
+    ]
+  },
+  {
+    "legacy": "the model can start a goal without being asked",
+    "disposition": "revised",
+    "reason": "A capability note reaches the real provider, requires an explicit persistent-goal request and asks the model to author the objective; it grants no inferred autonomy.",
+    "targets": [
+      "Capability notes require an explicit persistent Goal request"
+    ]
+  },
+  {
+    "legacy": "the model decides whether to create or to revise",
+    "disposition": "revised",
+    "reason": "A focused thread revises its own Goal; the current capability explicitly prefers in-place update rather than presenting creation of a separate focused Goal as an alternative.",
+    "targets": [
+      "Goal native sessions: an objective revision updates the goal rather than starting another"
+    ]
+  },
+  {
+    "legacy": "the objective is written by the model",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal native sessions: /goal hands the model a seed instead of creating one",
+      "Simplified thread Goal lifecycle: Given busy CSV work When appending Windows requirement Then retain original until full revision",
+      "Capability notes require an explicit persistent Goal request"
+    ]
+  },
+  {
+    "legacy": "A fixture cannot prevent verification from exiting",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal fixture cleanup: cleanup kills and reaps a resistant fixture without late signals"
+    ]
+  },
+  {
+    "legacy": "A rejected request cannot activate an old internal edit",
+    "disposition": "revised",
+    "reason": "Busy goal input is now queued rather than rejected with idle-retry instructions. Failed or unaccepted delivery still grants no activation; that preserved authorization boundary is observed directly.",
+    "targets": [
+      "Goal thread lifecycle: rejected busy or failed delivery cannot activate an unrelated paused edit"
+    ]
+  },
+  {
+    "legacy": "Asynchronous preflight rejection grants no activation",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal thread lifecycle: a void send rejected asynchronously grants no later activation"
+    ]
+  },
+  {
+    "legacy": "Explicit completion checks cannot close a resumed generation",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal thread lifecycle: an explicit old completion verdict cannot release a resumed generation"
+    ]
+  },
+  {
+    "legacy": "Setting a new goal request activates its successful revision",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal thread lifecycle: explicit goal text activates revision but ordinary edits preserve pause",
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results",
+      "Simplified thread Goal lifecycle: Given spent tokens and runs When resuming Then preserve both totals",
+      "Simplified thread Goal lifecycle: Given a paused Goal When accepting an explicit full revision Then authorize work and show pursuing"
+    ]
+  },
+  {
+    "legacy": "The single command reads and controls the current thread goal",
+    "disposition": "revised",
+    "reason": "The one slash command retains status/pause/resume/clear behavior; clear releases current state and preserves legacy history without creating an archive.",
+    "targets": [
+      "Goal thread lifecycle: only /goal is registered and bare /goal never starts work",
+      "Goal thread lifecycle: thread ownership, exact actions, pause and clear remain consistent",
+      "Simplified thread Goal lifecycle: Given a current goal When cleared Then end without completion or archive"
+    ]
+  },
+  {
+    "legacy": "Objective text entered while the thread is busy",
+    "disposition": "revised",
+    "reason": "Busy input queues an explicit revision request while preserving the existing objective. Accepted complete revisions move the evidence window; idle-retry instructions and stored refusal counters are retired.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given busy CSV work When appending Windows requirement Then retain original until full revision",
+      "Goal thread lifecycle: rejected busy or failed delivery cannot activate an unrelated paused edit",
+      "Goal completion evidence: a tool revision moves prose, evidence window and refusal count together"
+    ]
+  },
+  {
+    "legacy": "New threads cannot adopt project goals",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal native sessions: a new session starts unfocused even when a goal is open",
+      "Goal prompt replay: notes never cross sessions, in either direction",
+      "Goal thread lifecycle: thread ownership, exact actions, pause and clear remain consistent"
+    ]
+  },
+  {
+    "legacy": "A new session starts unfocused even when a goal is open",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal native sessions: a new session starts unfocused even when a goal is open"
+    ]
+  },
+  {
+    "legacy": "Legacy auto-select settings cannot cross thread boundaries",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal native sessions: legacy auto-select cannot attach another thread's goal"
+    ]
+  },
+  {
+    "legacy": "A created goal is durable before any work begins",
+    "disposition": "revised",
+    "reason": "One atomic record persists objective and scheduler before work. Separate editable prompt files and goal_created ledger writes are retired.",
+    "targets": [
+      "Goal records: a created goal is durable before any work begins",
+      "Goal records: a failed record write appends no ledger event"
+    ]
+  },
+  {
+    "legacy": "Re-reading the pool finds every open goal and ignores malformed files",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal records: the pool returns open goals deterministically and ignores junk",
+      "Goal records: one malformed record does not hide the valid ones"
+    ]
+  },
+  {
+    "legacy": "A record from disk wins over stale memory",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal records: disk wins over a stale cached copy"
+    ]
+  },
+  {
+    "legacy": "Concurrent writers produce a conflict rather than a lost update",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal records: a stale revision is refused and changes nothing",
+      "Goal records: real processes racing for one goal produce exactly one winner"
+    ]
+  },
+  {
+    "legacy": "Real processes racing for one goal produce one winner",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal records: real processes racing for one goal produce exactly one winner"
+    ]
+  },
+  {
+    "legacy": "A writer whose lock was taken from it writes nothing",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal records: a writer whose lock was taken from it writes nothing"
+    ]
+  },
+  {
+    "legacy": "A completed goal is archived and leaves the open pool",
+    "disposition": "revised",
+    "reason": "Completion releases the open record without creating archives; legacy history remains unchanged.",
+    "targets": [
+      "Goal records: finishing releases runtime state without creating an archive",
+      "Simplified thread Goal lifecycle: Given valid completion When accepted Then release runtime record without creating archives"
+    ]
+  },
+  {
+    "legacy": "There is one exit condition, not two",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given completed work When settling Then no automatic checker is called",
+      "Goal completion transport: the child is granted no tools at all",
+      "Goal completion evidence: completion receives recorded executions and review separately from the executor claim"
+    ]
+  },
+  {
+    "legacy": "Events append in order and read back in order",
+    "disposition": "superseded",
+    "reason": "Current architecture has one atomic record and ordinary session history, not a separate ledger, ledger paging or ledger replay. Persisted records, malformed-file isolation, current-thread focus and session-history guidance replace the retired paths.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given an old history request When read Then direct to session history without ledger counts",
+      "Goal records: finishing releases runtime state without creating an archive",
+      "Goal native sessions: a refused completion leaves the goal open and records the check"
+    ]
+  },
+  {
+    "legacy": "A malformed record is consumed and reported, never blocking the drain",
+    "disposition": "superseded",
+    "reason": "Current architecture has one atomic record and ordinary session history, not a separate ledger, ledger paging or ledger replay. Persisted records, malformed-file isolation, current-thread focus and session-history guidance replace the retired paths.",
+    "targets": [
+      "Goal records: one malformed record does not hide the valid ones",
+      "Simplified thread Goal lifecycle: Given an old history request When read Then direct to session history without ledger counts"
+    ]
+  },
+  {
+    "legacy": "History paging never reads a partial record",
+    "disposition": "superseded",
+    "reason": "Current architecture has one atomic record and ordinary session history, not a separate ledger, ledger paging or ledger replay. Persisted records, malformed-file isolation, current-thread focus and session-history guidance replace the retired paths.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given an old history request When read Then direct to session history without ledger counts",
+      "Goal records: finishing releases runtime state without creating an archive"
+    ]
+  },
+  {
+    "legacy": "Lifecycle state rebuilds from the ledger alone",
+    "disposition": "superseded",
+    "reason": "Current architecture has one atomic record and ordinary session history, not a separate ledger, ledger paging or ledger replay. Persisted records, malformed-file isolation, current-thread focus and session-history guidance replace the retired paths.",
+    "targets": [
+      "Goal records: a created goal is durable before any work begins",
+      "Goal records: disk wins over a stale cached copy",
+      "Goal thread lifecycle: thread ownership, exact actions, pause and clear remain consistent"
+    ]
+  },
+  {
+    "legacy": "Automatic continuation is unlimited by default and bounded on request",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal scheduling: continuation is unlimited by default",
+      "Goal scheduling: a configured allowance stops claiming and names the setting",
+      "Goal scheduling: zero disables automatic continuation"
+    ]
+  },
+  {
+    "legacy": "A claim must match the generation that armed it",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Goal scheduling: a claim must match the generation that armed it",
+      "Goal scheduling: a goal stopped after the pre-lock read claims nothing"
+    ]
+  },
+  {
+    "legacy": "Only one claim consumes one decision",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal scheduling: only one claim consumes one decision"
+    ]
+  },
+  {
+    "legacy": "A claim armed for one goal cannot be spent on another",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal scheduling: a claim armed for one goal cannot be spent on another"
+    ]
+  },
+  {
+    "legacy": "Losing the race to claim stands down",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal scheduling: losing the race to claim stands down without pausing the goal"
+    ]
+  },
+  {
+    "legacy": "Work tools are blocked after a decision ended the turn",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given a pause command When received Then abort current work and enforce the tool stop",
+      "Goal scheduling: a failed turn does not queue another run"
+    ]
+  },
+  {
+    "legacy": "Saving a next action does not itself consume a run",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Goal scheduling: a matching checkpoint is accepted exactly once",
+      "Goal scheduling: a successful turn does queue exactly one continuation",
+      "Simplified thread Goal lifecycle: Given queued user input When productive work settles Then no boundary continuation is claimed"
+    ]
+  },
+  {
+    "legacy": "The loop itself decides whether the goal is met",
+    "disposition": "revised",
+    "reason": "Only an explicit completion request checks completion; ordinary settled work may continue after effective work but never invokes the checker automatically.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given completed work When settling Then no automatic checker is called",
+      "Simplified thread Goal lifecycle: Given accepted completion When returning Then terminate the run without another model call"
+    ]
+  },
+  {
+    "legacy": "A background failure does not take the runtime down",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal native sessions: a continuation queued before a session reload does not crash the runtime"
+    ]
+  },
+  {
+    "legacy": "Final attempts stop with specific guidance after three refusals",
+    "disposition": "revised",
+    "reason": "Three valid refusals remain active; failures, cancellation and stale results stay distinct rather than fabricating user pause.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given three rejected completion requests When checking Then remain active",
+      "Simplified thread Goal lifecycle: Given checker failure When completion requested Then report failure and wait without user pause"
+    ]
+  },
+  {
+    "legacy": "Observed results establish completion without executor self-certification",
+    "disposition": "revised",
+    "reason": "A fresh explicit checker receives runtime observations separately from the executor claim. Completion releases the current record; the former archive clause is retired.",
+    "targets": [
+      "Goal completion evidence: completion receives recorded executions and review separately from the executor claim",
+      "Goal completion evidence: failing, omitted, edited, and credential-bearing observations stay bounded data",
+      "Goal completion evidence: observations cannot relabel old or edited executions as fresh verification",
+      "Simplified thread Goal lifecycle: Given accepted completion When returning Then terminate the run without another model call"
+    ]
+  },
+  {
+    "legacy": "Empty turns cannot continue indefinitely",
+    "disposition": "revised",
+    "reason": "Empty/repeated output waits immediately without fabricated user pause; recurring blockers require three consecutive turns.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given an execution error When settling Then wait without autonomous user pause",
+      "Simplified thread Goal lifecycle: Given repeated reads When each run settles Then stop repeated-output continuation",
+      "Simplified thread Goal lifecycle: Given new output When a read repeats Then allow meaningful work but stop identical output"
+    ]
+  },
+  {
+    "legacy": "The check cannot act on the work it is judging",
+    "disposition": "revised",
+    "reason": "The fresh completion worker has an empty tool grant. Separate checker ledger-event writes are retired.",
+    "targets": [
+      "Goal completion transport: the child is granted no tools at all"
+    ]
+  },
+  {
+    "legacy": "The verdict is the report's last line, or there is no verdict",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal completion transport: the verdict is the report's last line, or there is no verdict"
+    ]
+  },
+  {
+    "legacy": "The executor's completion claim is never evidence",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal completion evidence: completion receives recorded executions and review separately from the executor claim",
+      "Goal completion evidence: failing, omitted, edited, and credential-bearing observations stay bounded data",
+      "Goal completion transport: the objective and contract reach the check, the claim is marked untrusted"
+    ]
+  },
+  {
+    "legacy": "A long objective is recorded in full and read bounded",
+    "disposition": "revised",
+    "reason": "The complete objective reaches the tool-less checker; it is not a truncated prefix.",
+    "targets": [
+      "Goal completion transport: a long objective reaches the checker in full",
+      "Simplified thread Goal lifecycle: Given a long goal When constructing a check Then include its final requirement"
+    ]
+  },
+  {
+    "legacy": "A long completion claim is recorded in full and read bounded",
+    "disposition": "revised",
+    "reason": "The tool schema accepts the complete claim and checker transport states its bounded claim view. Durable claim storage in a separate Goal ledger is retired; session history belongs to Pi.",
+    "targets": [
+      "Goal completion transport: a long claim is bounded for the check, and the bound is stated",
+      "Goal completion evidence: the completion claim is not length-capped in the tool schema"
+    ]
+  },
+  {
+    "legacy": "A refused completion leaves the goal open",
+    "disposition": "revised",
+    "reason": "A valid NOT MET keeps the Goal active and reports the result through ordinary tool/session history and volatile check context. Separate ledger claim retention is retired.",
+    "targets": [
+      "Goal native sessions: a refused completion leaves the goal open and records the check",
+      "Simplified thread Goal lifecycle: Given three rejected completion requests When checking Then remain active"
+    ]
+  },
+  {
+    "legacy": "An accepted completion archives the goal",
+    "disposition": "revised",
+    "reason": "A valid MET result releases current Goal state and terminates the provider run without an archive.",
+    "targets": [
+      "Goal native sessions: a met verdict releases the goal without archiving",
+      "Simplified thread Goal lifecycle: Given valid completion When accepted Then release runtime record without creating archives"
+    ]
+  },
+  {
+    "legacy": "Archiving waits for the verdict",
+    "disposition": "revised",
+    "reason": "Runtime release waits for a fresh accepted MET verdict. Goal archiving is retired.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given a revised objective When an older check returns MET Then discard the result",
+      "Goal completion evidence: completion cannot release requirements revised after verdict validation"
+    ]
+  },
+  {
+    "legacy": "The check can be switched off, and the skip is recorded",
+    "disposition": "revised",
+    "reason": "The retired checking-enabled switch is not a current runtime control. Completion is explicit and always checked; supported check-model selection is covered separately.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given completed work When settling Then no automatic checker is called",
+      "Goal completion evidence: an unset check model falls back to the session model",
+      "Goal completion evidence: a configured check model is used instead of the session's"
+    ]
+  },
+  {
+    "legacy": "A check that cannot be trusted is a refusal",
+    "disposition": "revised",
+    "reason": "Malformed answers, worker errors, cancellation and stale results have distinct outcomes and cannot complete the Goal. They are not promoted to valid NOT MET refusals.",
+    "targets": [
+      "Goal completion transport: a check that cannot be trusted is a refusal"
+    ]
+  },
+  {
+    "legacy": "A silent check names the model that swallowed the answer",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal completion transport: a silent check names the model that swallowed the answer"
+    ]
+  },
+  {
+    "legacy": "The objective and the claim cannot close their own blocks",
+    "disposition": "revised",
+    "reason": "Untrusted objective and claim payloads are escaped before checker transport. The prior provider-report-rejection wording is superseded by direct delimiter safety predicates.",
+    "targets": [
+      "Goal completion transport: neither the objective nor the claim can close its own block",
+      "Goal scheduling: a hostile objective stays inside its block",
+      "Goal scheduling: a hostile contract stays inside its block too"
+    ]
+  },
+  {
+    "legacy": "Existing symbolic links cannot redirect goal files",
+    "disposition": "revised",
+    "reason": "Existing record/claim path links are refused and outside bytes remain unchanged. Separate prose/ledger write paths are retired. This does not claim protection against concurrent directory replacement.",
+    "targets": [
+      "Goal records: a created goal is durable before any work begins",
+      "Goal records: the pool returns open goals deterministically and ignores junk",
+      "Goal records: a writer whose lock was taken from it writes nothing",
+      "Goal records: goals are refused inside Pi's own directories and left untouched there",
+      "Goal records: existing record and claim links refuse writes without changing outside files",
+      "Goal records: linked paths refuse mutation of an existing valid Goal without outside changes"
+    ]
+  },
+  {
+    "legacy": "A read-only worker gathers the material for an objective",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools"
+    ]
+  },
+  {
+    "legacy": "Findings attach to the goal created from them",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Simplified thread Goal lifecycle: Given an unmet report When requirements or focus change Then clear the old report"
+    ]
+  },
+  {
+    "legacy": "Research runs on its configured model",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Goal completion evidence: a configured check model is used instead of the session's"
+    ]
+  },
+  {
+    "legacy": "An unset model follows the session",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Goal completion evidence: an unset check model falls back to the session model"
+    ]
+  },
+  {
+    "legacy": "A failed research never blocks creation",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Goal native sessions: ordinary tools research without a Goal research child"
+    ]
+  },
+  {
+    "legacy": "The latest successful research is what attaches",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Simplified thread Goal lifecycle: Given an unmet report When requirements or focus change Then clear the old report"
+    ]
+  },
+  {
+    "legacy": "Research does not survive a session boundary",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Goal prompt replay: notes never cross sessions, in either direction",
+      "Simplified thread Goal lifecycle: Given an unmet report When requirements or focus change Then clear the old report"
+    ]
+  },
+  {
+    "legacy": "Research is work, not recall, after a decision ended the turn",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Simplified thread Goal lifecycle: Given an execution error When settling Then wait without autonomous user pause"
+    ]
+  },
+  {
+    "legacy": "Research material never reaches the completion check",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Goal completion evidence: completion receives recorded executions and review separately from the executor claim",
+      "Goal completion evidence: failing, omitted, edited, and credential-bearing observations stay bounded data"
+    ]
+  },
+  {
+    "legacy": "Goals are not stored inside Pi's own directories",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal records: goals are refused inside Pi's own directories and left untouched there",
+      "Goal records: a created goal is durable before any work begins"
+    ]
+  },
+  {
+    "legacy": "Goal activity stays below the editor",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal footer: the shared passive widget mounts below the editor and starts at zero minutes"
+    ]
+  },
+  {
+    "legacy": "The status row never carries the goal tag",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Goal footer: the status row never carries the goal tag",
+      "Goal footer: elapsed time is the progress the surface reports"
+    ]
+  },
+  {
+    "legacy": "An update must declare one decision",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given an empty update When validating Then reject it without Nothing to record",
+      "Goal completion evidence: host schema validation is also an unapplied update"
+    ]
+  },
+  {
+    "legacy": "Empty revision fields are interpreted by presence",
+    "disposition": "revised",
+    "reason": "An empty contract clears the contract and an empty objective is rejected. The old two-decisions wording belongs to the removed independent research workflow.",
+    "targets": [
+      "Goal completion evidence: an explicitly empty contract clears it while an empty objective is rejected",
+      "Simplified thread Goal lifecycle: Given an empty update When validating Then reject it without Nothing to record"
+    ]
+  },
+  {
+    "legacy": "A multiline result stays compact until expanded",
+    "disposition": "revised",
+    "reason": "Settled bodies wrap completely by default instead of hiding requirements behind expansion.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results",
+      "Goal footer: narrow status widgets wrap instead of dropping their ending"
+    ]
+  },
+  {
+    "legacy": "Markdown results preserve authored blank lines",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results",
+      "Simplified thread Goal lifecycle: Given fenced Markdown with blank lines When rendering Then preserve authored code spacing"
+    ]
+  },
+  {
+    "legacy": "A token-capped goal offers only usable recovery commands",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Goal completion evidence: late revisions of token-capped goals offer a valid recovery path",
+      "Simplified thread Goal lifecycle: Given stale resume snapshot When budget is exhausted Then refuse resume"
+    ]
+  },
+  {
+    "legacy": "Transcript subjects do not repeat the goal tag",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results",
+      "Simplified thread Goal lifecycle: Given a Goal-prefixed subject When rendering Then normalize only the transcript heading"
+    ]
+  },
+  {
+    "legacy": "Reading is offered only when there is something to read",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Goal native sessions: the tool surface follows what is focused, one status at a time",
+      "Goal thread lifecycle: only /goal is registered and bare /goal never starts work",
+      "Simplified thread Goal lifecycle: Given an old history request When read Then direct to session history without ledger counts",
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results"
+    ]
+  },
+  {
+    "legacy": "Elapsed time is the progress a goal reports",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal footer: elapsed time is the progress the surface reports"
+    ]
+  },
+  {
+    "legacy": "Injected state does not disturb the prompt cache",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal prompt replay: the second request begins with the first one exactly",
+      "Goal prompt replay: re-inserted state is the state that was actually sent, not the current one",
+      "Goal prompt replay: consecutive turns stay prefix-stable until the retained window fills",
+      "Goal prompt replay: overflowing the window costs one break and then stability resumes",
+      "Goal prompt replay: replayed notes are bounded rather than accumulating without limit",
+      "Goal prompt replay: every note already sent is replayed, not just the newest"
+    ]
+  },
+  {
+    "legacy": "Stable policy is separated from per-turn counters",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal scheduling: stable policy is byte-identical across turns while counters change"
+    ]
+  },
+  {
+    "legacy": "The persisted continuation marker carries no goal text",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Goal scheduling: a successful claim is durable without a separate history",
+      "Goal scheduling: goal prompts carry the unmet line when the check deferred one"
+    ]
+  },
+  {
+    "legacy": "Omitted requirements are retrievable rather than silently lost",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Goal completion evidence: long goal reads share one view and preserve all text through paging",
+      "Goal completion transport: a long objective reaches the checker in full",
+      "Goal completion evidence: the objective is not length-capped in the schema or the record"
+    ]
+  },
+  {
+    "legacy": "A command tells the user what happened",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal native sessions: a command tells the user what the goal is doing",
+      "Goal thread lifecycle: all surfaces read fresh state and paused work consumes no usage"
+    ]
+  },
+  {
+    "legacy": "Research lifecycle labels use lowercase",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results"
+    ]
+  },
+  {
+    "legacy": "Research blocks without a widget above the editor",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Goal native sessions: ordinary tools research without a Goal research child"
+    ]
+  },
+  {
+    "legacy": "The research row shows the child's latest progress as markdown",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results"
+    ]
+  },
+  {
+    "legacy": "The research result carries no character count",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results"
+    ]
+  },
+  {
+    "legacy": "The final research update replaces the in-progress row",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results"
+    ]
+  },
+  {
+    "legacy": "Every research outcome still returns one row",
+    "disposition": "superseded",
+    "reason": "Current architecture has three Goal tools and no research worker, research model, attachment or research renderer. Ordinary real Pi read tools perform research; thread boundaries and escaped execution evidence remain covered.",
+    "targets": [
+      "Three model-facing tools",
+      "Simplified thread Goal lifecycle: Given long checker error When rendered Then show one precise header and the full cause"
+    ]
+  },
+  {
+    "legacy": "Native verification observes settled terminal frames",
+    "disposition": "revised",
+    "reason": "Retired research frames are replaced by current Goal footer and complete lifecycle-renderer predicates. Separate native PTY verification must still run and is not inferred from renderer predicates.",
+    "targets": [
+      "Goal footer: narrow status widgets wrap instead of dropping their ending",
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results",
+      "Simplified thread Goal lifecycle: Given accepted completion When returning Then terminate the run without another model call"
+    ]
+  },
+  {
+    "legacy": "/goal delivers one lifecycle row with the requirement",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "/goal hands the model a seed rather than creating a goal",
+      "Goal native sessions: /goal hands the model a seed instead of creating one"
+    ]
+  },
+  {
+    "legacy": "Different requirements produce different rows",
+    "disposition": "revised",
+    "reason": "Goal request/checkpoint messages are hidden context under the current simplified TUI contract. The old visible started-request row requirement is retired; distinct requests still carry their own full escaped model-facing content.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given busy CSV work When appending Windows requirement Then retain original until full revision",
+      "Goal thread lifecycle: explicit goal text activates revision but ordinary edits preserve pause"
+    ]
+  },
+  {
+    "legacy": "Management arguments emit no lifecycle row",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Goal thread lifecycle: only /goal is registered and bare /goal never starts work",
+      "Goal thread lifecycle: thread ownership, exact actions, pause and clear remain consistent"
+    ]
+  },
+  {
+    "legacy": "A revision under way emits exactly one row",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given busy CSV work When appending Windows requirement Then retain original until full revision",
+      "Goal thread lifecycle: explicit goal text activates revision but ordinary edits preserve pause"
+    ]
+  },
+  {
+    "legacy": "Settled goal results wrap their complete bodies by default",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results",
+      "Goal footer: narrow status widgets wrap instead of dropping their ending"
+    ]
+  },
+  {
+    "legacy": "Long goal reads remain retrievable and fully visible",
+    "disposition": "revised",
+    "reason": "Updated to the explicit simplified lifecycle and complete-body contracts in Goal AGENTS.md; retired decision, archive, compact-preview or legacy display claims are not retained.",
+    "targets": [
+      "Goal completion evidence: long goal reads share one view and preserve all text through paging"
+    ]
+  },
+  {
+    "legacy": "Invalid updates do not imply goal failure",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given an empty update When validating Then reject it without Nothing to record",
+      "Goal completion evidence: host schema validation is also an unapplied update",
+      "Goal completion evidence: an explicitly empty contract clears it while an empty objective is rejected"
+    ]
+  },
+  {
+    "legacy": "Repeated status refreshes reuse the passive widget",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Goal footer: status refresh reuses the widget and still reads fresh state"
+    ]
+  },
+  {
+    "legacy": "Three model-facing tools",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Three model-facing tools"
+    ]
+  },
+  {
+    "legacy": "Explicit completion check",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given completed work When settling Then no automatic checker is called",
+      "Goal completion transport: the child is granted no tools at all",
+      "Simplified thread Goal lifecycle: Given checker usage When result returns Then charge the Goal budget",
+      "Simplified thread Goal lifecycle: Given a long goal When constructing a check Then include its final requirement"
+    ]
+  },
+  {
+    "legacy": "Finish without archiving",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given valid completion When accepted Then release runtime record without creating archives",
+      "Simplified thread Goal lifecycle: Given a current goal When cleared Then end without completion or archive",
+      "Goal records: finishing releases runtime state without creating an archive"
+    ]
+  },
+  {
+    "legacy": "Preserve requirements while revising",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given busy CSV work When appending Windows requirement Then retain original until full revision",
+      "Simplified thread Goal lifecycle: Given a revised objective When an older check returns MET Then discard the result"
+    ]
+  },
+  {
+    "legacy": "Consistent complete transcript bodies",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results",
+      "Simplified thread Goal lifecycle: Given long checker error When rendered Then show one precise header and the full cause",
+      "Simplified thread Goal lifecycle: Given successful transitions When delivering outcomes Then each has one visible result"
+    ]
+  },
+  {
+    "legacy": "Honest execution footer",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given restored active state When no work is authorized Then show waiting",
+      "Simplified thread Goal lifecycle: Given running work When rendering footer Then keep Codex phrasing and elapsed time",
+      "Goal footer: the status row never carries the goal tag"
+    ]
+  },
+  {
+    "legacy": "Suppress empty and repeated-output continuations",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given an execution error When settling Then wait without autonomous user pause",
+      "Simplified thread Goal lifecycle: Given repeated reads When each run settles Then stop repeated-output continuation",
+      "Simplified thread Goal lifecycle: Given new output When a read repeats Then allow meaningful work but stop identical output",
+      "Simplified thread Goal lifecycle: Given a successful turn with no tools When settling Then wait without pausing or continuing"
+    ]
+  },
+  {
+    "legacy": "Refusals are not user pauses",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given three rejected completion requests When checking Then remain active",
+      "Simplified thread Goal lifecycle: Given checker failure When completion requested Then report failure and wait without user pause",
+      "Simplified thread Goal lifecycle: Given caller cancellation When a check returns MET Then report cancellation without ending the goal",
+      "Simplified thread Goal lifecycle: Given a revised objective When an older check returns MET Then discard the result"
+    ]
+  },
+  {
+    "legacy": "User pause is one operation",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given a pause command When received Then abort current work and enforce the tool stop",
+      "Simplified thread Goal lifecycle: Given spent tokens and runs When resuming Then preserve both totals"
+    ]
+  },
+  {
+    "legacy": "No separate Goal user history",
+    "disposition": "superseded",
+    "reason": "Current architecture has one atomic record and ordinary session history, not a separate ledger, ledger paging or ledger replay. Persisted records, malformed-file isolation, current-thread focus and session-history guidance replace the retired paths.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given an old history request When read Then direct to session history without ledger counts",
+      "Simplified thread Goal lifecycle: Given an empty update When validating Then reject it without Nothing to record"
+    ]
+  },
+  {
+    "legacy": "Recurring blockers require consecutive turns without progress",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given three consecutive blocker turns When reported Then block without user pause",
+      "Simplified thread Goal lifecycle: Given repeated blocker calls in one turn When reported Then count only one turn",
+      "Simplified thread Goal lifecycle: Given a blocker streak When new work or requirements arrive Then reset the streak",
+      "Simplified thread Goal lifecycle: Given two blocker turns When restoring the thread Then restart the blocker audit"
+    ]
+  },
+  {
+    "legacy": "Attribute every authorized Goal model call",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given pre-creation model usage When a Goal starts Then include it in the budget",
+      "Simplified thread Goal lifecycle: Given a switched thread When cancelled checking returns usage Then charge the original open Goal",
+      "Simplified thread Goal lifecycle: Given accepted paused revision When its model responds Then account its usage",
+      "Simplified thread Goal lifecycle: Given an old-thread checker exceeding cap When cancelled usage returns Then stop its original Goal",
+      "Simplified thread Goal lifecycle: Given an attributed model run When pause precedes its usage event Then still account returned tokens",
+      "Simplified thread Goal lifecycle: Given an attributed model run When thread changes before usage Then charge only its original Goal",
+      "Simplified thread Goal lifecycle: Given overlapping thread messages When old usage ends after a new run Then keep original attribution"
+    ]
+  },
+  {
+    "legacy": "Prevent stale lifecycle writes",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given stale resume snapshot When budget is exhausted Then refuse resume",
+      "Simplified thread Goal lifecycle: Given requirements revised before an error stop lock When old check fails Then discard without stopping new work",
+      "Goal scheduling: a settled progress write never overwrites a replacement dispatch",
+      "Goal scheduling: a settled promotion write never overwrites a replacement dispatch",
+      "Goal scheduling: a stale settlement stop never deletes the dispatch that replaced it"
+    ]
+  },
+  {
+    "legacy": "Clear private volatile reports at boundaries",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given an unmet report When requirements or focus change Then clear the old report",
+      "Goal scheduling: a hostile objective stays inside its block",
+      "Goal scheduling: a hostile contract stays inside its block too",
+      "Goal scheduling: goal prompts carry the unmet line when the check deferred one"
+    ]
+  },
+  {
+    "legacy": "Accepted completion ends the provider run",
+    "disposition": "retained",
+    "reason": "The underlying requirement remains in the current behavior fixtures. Targets identify exact fresh assertion witnesses, not a broad passing-suite result.",
+    "targets": [
+      "Simplified thread Goal lifecycle: Given accepted completion When returning Then terminate the run without another model call"
+    ]
+  }
+]

@@ -162,6 +162,15 @@ function workflowEventSubject(action: "transition" | "complete" | "cancel", phas
   return action === "transition" ? title : `${title} ${action === "complete" ? "completed" : "cancelled"}`;
 }
 
+/** Keep the selected decision explicit in model context without echoing the offered choices. */
+function formatDecisionAnswer(question: string, answer: string, recommendation?: string): string {
+  const selected = answer === recommendation
+    ? answer.replace(/^\s*\(Recommended\)\s*|\s*\(Recommended\)\s*$/i, "")
+    : answer;
+  const quote = selected.split(/\r?\n/).map((line) => `> ${line}`).join("\n");
+  return `${question}\n\n${quote}`;
+}
+
 /** A timeout recommendation requires this deadline to actually dismiss the selector. */
 async function selectDecision(
   ctx: ExtensionContext, question: string, choices: string[], signal?: AbortSignal, timeout?: number,
@@ -766,7 +775,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
           if (interrupted()) return pendingAbort();
           if (choice.action === "timed_out" && recommended) {
             return {
-              content: [{ type: "text" as const, text: `User selected (timeout default): ${recommended}` }],
+              content: [{ type: "text" as const, text: formatDecisionAnswer(params.question, recommended, recommended) }],
               details: { answer: recommended, is_custom: false, timed_out: true, pending: false, source: "timeout_recommended" },
             };
           }
@@ -796,7 +805,7 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
             }
           }
           return {
-            content: [{ type: "text" as const, text: `${isCustom ? "User answered (custom)" : "User selected"}: ${answer}` }],
+            content: [{ type: "text" as const, text: formatDecisionAnswer(params.question, answer, isCustom ? undefined : recommended) }],
             details: { answer, is_custom: isCustom, source: isCustom ? "custom_input" : "choice_selected" },
           };
         }

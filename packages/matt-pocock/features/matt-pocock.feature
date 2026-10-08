@@ -279,6 +279,13 @@ Feature: Matt Pocock workflow harness
     Then the tool presents choices using the Pi UI selection dialog
     And it supports a recommended option and custom user input
 
+  Scenario: A selected answer returns the full question and only the chosen answer
+    Given an active grilling or interview procedure with a recommended option marked `(Recommended)` at the beginning or end
+    When the user selects an option or the recommended choice is adopted after timeout
+    Then the tool result includes the full question followed by `> <answer>`
+    And the chosen answer omits the `(Recommended)` marker
+    And unselected options are not included as answers
+
   Scenario: A recommended decision automatically adopts the recommendation on timeout
     Given an active grilling or interview procedure
     When the agent calls matt_pocock_ask with a recommended option
