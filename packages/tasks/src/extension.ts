@@ -7,7 +7,7 @@
  * `index.ts` is what every other runtime package here loads.
  *
  * It registers the four task tools, the note that makes them discoverable, and
-ows nothing else. Tasks changes are announced
+ * owns nothing else. Tasks changes are announced
  * through `pi.events` so a coordinator can notice and wake participants without this
  * package knowing what a participant is; with nobody subscribed the emit is a
  * no-op, which is the correct degradation.
@@ -107,6 +107,7 @@ export default function piTasks(pi: Parameters<typeof registerTaskTools>[0]): vo
       onTasksChanged(() => {
         try {
           writeTasksFile(writeTo, tasks);
+          setStoreNotice(undefined);
         } catch (error) {
           setStoreNotice(`The durable task file at ${writeTo} could not be written: ${error instanceof Error ? error.message : String(error)}`);
         }

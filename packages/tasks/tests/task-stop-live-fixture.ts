@@ -10,10 +10,12 @@ const workDirectory = process.env.PI_TASK_TEST_WORK_DIR;
 if (!outputFile || !workDirectory) throw new Error("PI_TASK_TEST_OUTPUT and PI_TASK_TEST_WORK_DIR are required");
 const firstArtifact = path.join(workDirectory, "first.txt");
 const secondArtifact = path.join(workDirectory, "second.txt");
+const inputArtifact = path.join(workDirectory, "input.txt");
 let requests = 0;
 
 export default function fixture(pi: ExtensionAPI): void {
   pi.on("session_start", () => {
+    fs.writeFileSync(inputArtifact, "Inspect dependencies before implementing.\n");
     fs.appendFileSync(outputFile!, `${JSON.stringify({ type: "ready" })}\n`);
   });
   pi.registerProvider("tasks-stop-test", {
@@ -63,35 +65,26 @@ export default function fixture(pi: ExtensionAPI): void {
           ? [{ type: "toolCall", id: `content-${requests}`, name: call.name, arguments: call.arguments }]
           : [{ type: "text", text: "TASK_STOP_TEST_DONE" }];
       } else if (mode === "restore" || mode === "inspect-only") {
-        if (requests === 1) {
-          content = [{ type: "text", text: "An existing task is waiting. I am stopping now." }];
-        } else if (reminders.length > 0 && requests === 2) {
-          content = [{ type: "toolCall", id: "inspect-restored", name: "get_task", arguments: { id: "restored-task" } }];
-        } else if (mode === "inspect-only") {
-          content = [{ type: "text", text: "Recovery still needs permission. The task remains unfinished." }];
-        } else if (reminders.length > 0 && requests === 3) {
-          content = [{ type: "toolCall", id: "inspect-saved-output", name: "read", arguments: { path: firstArtifact } }];
-        } else if (reminders.length > 0 && requests === 4) {
-          content = [{ type: "toolCall", id: "resume-restored", name: "update_task", arguments: {
-            id: "restored-task", status: "in_progress", reason: "Read the saved output and confirmed the attempt can resume safely",
-          } }];
-        } else if (reminders.length > 0 && requests === 5) {
-          content = [{ type: "toolCall", id: "perform-restored", name: "write", arguments: { path: firstArtifact, content: "Recovered task implementation\n" } }];
-        } else if (reminders.length > 0 && requests === 6) {
-          content = [{ type: "toolCall", id: "verify-restored", name: "read", arguments: { path: firstArtifact } }];
-        } else if (reminders.length > 0 && requests === 7) {
-          content = [{ type: "toolCall", id: "finish-restored", name: "update_task", arguments: {
-            id: "restored-task", status: "completed", outcome: "success", result: `Recovered and read back ${firstArtifact}`,
-          } }];
-        } else {
-          content = [{ type: "text", text: "TASK_STOP_TEST_DONE" }];
-        }
+        const calls = [
+          { name: "get_task", arguments: { id: "restored-task" } },
+          { name: "read", arguments: { path: firstArtifact } },
+          { name: "update_task", arguments: { id: "restored-task", status: "in_progress", reason: "Read the saved output and confirmed the attempt can resume safely" } },
+          { name: "write", arguments: { path: firstArtifact, content: "Recovered task implementation\n" } },
+          { name: "read", arguments: { path: firstArtifact } },
+          { name: "update_task", arguments: { id: "restored-task", status: "completed", outcome: "success", result: `Recovered and read back ${firstArtifact}` } },
+        ];
+        const call = (mode === "inspect-only" ? calls.slice(0, 2) : calls)[requests - 1];
+        content = call ? [{ type: "toolCall", id: `restore-${requests}`, name: call.name, arguments: call.arguments }]
+          : [{ type: "text", text: "TASK_STOP_TEST_DONE. Recovery requires deliberate action." }];
       } else if (requests === 1) {
         content = [{ type: "toolCall", id: "create-one", name: "create_task", arguments: { subject: "First task" } }];
       } else if (requests === 2) {
         content = [{ type: "toolCall", id: "create-dependent", name: "create_task", arguments: { subject: "Second task", dependsOn: ["first-task"] } }];
       } else if (requests === 3) {
-        content = [{ type: "toolCall", id: "take-one", name: "update_task", arguments: { id: "first-task", status: "in_progress" } }];
+        content = [
+          { type: "toolCall", id: "take-one", name: "update_task", arguments: { id: "first-task", status: "in_progress" } },
+          { type: "toolCall", id: "inspect-input", name: "read", arguments: { path: inputArtifact } },
+        ];
       } else if (requests === 4) {
         // Reproduce the symptom: a final answer while the held task is unfinished.
         content = [{ type: "text", text: "The tasks are planned. I am stopping now." }];

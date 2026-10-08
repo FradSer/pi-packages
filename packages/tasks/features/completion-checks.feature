@@ -34,7 +34,7 @@ Feature: A completion is checked before it is recorded
 
     Scenario: A dead holder's work can still be accepted
       Given a task whose holder reported a failure
-      And it is therefore back in pending with nobody holding it
+      And it is therefore blocked with nobody holding it
       When it is completed
       Then the completion is accepted, because the attempt is on the record
 
@@ -49,14 +49,14 @@ Feature: A completion is checked before it is recorded
     Scenario: Reopening pulls back what was concluded on it
       Given a completed task that a completed task depends on
       When the dependency is reopened
-      Then the dependent is back in pending rather than left completed
+      Then the dependent is blocked rather than left completed
       And the dependent names the task whose reopening withdrew its premise
       And its recorded gate verdict is withdrawn with it
 
     Scenario: A cascade reaches every conclusion, not just the nearest
       Given a chain of three completed tasks, each depending on the one before
       When the first is reopened
-      Then all three conclusions are back in pending
+      Then the first task is pending and the two dependent conclusions are blocked
 
     Scenario: The withdrawal is reported, not silent
       Given a reopen that withdraws a conclusion
@@ -76,7 +76,7 @@ Feature: A completion is checked before it is recorded
       And one dependent is completed while the other is in progress
       When each prerequisite is reopened
       Then both reopens succeed
-      And both dependents return to `recovery_hold`
+      And both dependents return to `blocked`
 
   Rule: A caller can ask what is blocking a completion, not only find out by failing
 
@@ -120,31 +120,31 @@ Feature: A completion is checked before it is recorded
       Then it is refused for that reason alone
       And the other checks are not applied
 
-  Rule: Recovery hold is a state of its own
+  Rule: Actual blockers have an explicit state
 
-    Scenario: A failed attempt leaves the task in recovery hold, not pending
+    Scenario: A failed attempt leaves the task in blocked state, not pending
       Given a taken task
       When the attempt reports a failure
-      Then the task's status is recovery_hold
+      Then the task's status is blocked
       And its status is not pending
       And the blocker is retained as its evidence
 
-    Scenario: Pending now means never attempted
-      Given a task that was never taken
+    Scenario: New or reopened work is pending
+      Given a new task or reopened completed task
       Then its status is pending
-      And it is not in recovery hold
+      And it is not in blocked state
 
-    Scenario: Taking from recovery hold needs a stated reason
-      Given a task in recovery hold
+    Scenario: Taking from blocked state needs a stated reason
+      Given a task in blocked state
       When a caller takes it without a reason
       Then the take is refused and the refusal names the state
       And a caller that supplies a reason takes it
 
     Scenario: A file written before the state existed restores correctly
-      Given a saved task with status pending and a recovery hold flag set
+      Given a saved task with status pending and a legacy recoveryRequired flag set
       And a saved task that was in progress
       When the task set is restored
-      Then both tasks are in recovery_hold
+      Then both tasks are in blocked
       And the flag is not written back
 
   Rule: A creator is accountable for the work it records itself

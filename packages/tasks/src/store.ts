@@ -20,7 +20,7 @@ import {
   withinContextBudget,
 } from "./context.ts";
 import { canonicalDependencies, hasDependencyCycle, normalizeResources, resourcesConflict, taskIdFromSubject } from "./graph.ts";
-import { isTaskStatus, resolveRecordKind, type CompletionVerdict, type Task, type TaskIntent, type TaskStatus } from "./types.ts";
+import { isTaskReplaced, isTaskStatus, resolveRecordKind, type CompletionVerdict, type Task, type TaskIntent, type TaskStatus } from "./types.ts";
 
 /** A holder's lease on the Task it holds. The participant registry publishes this
  *  same record, so the two sides mirror one shape rather than translating. */
@@ -216,11 +216,11 @@ export function getTask(taskId: string): Task | undefined {
 }
 
 export function listTasks(): Task[] {
-  return Object.values(tasks).sort((a, b) => a.id.localeCompare(b.id));
+  return Object.values(tasks).sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
 }
 
 export function pendingTasks(): Task[] {
-  return listTasks().filter((task) => task.status === "pending");
+  return listTasks().filter((task) => task.status === "pending" && !isTaskReplaced(task));
 }
 
 /** Tasks a caller may take right now.
@@ -256,13 +256,13 @@ export function blockedDependencies(task: Task): string[] {
  *  the rest can I mark done, so the batch does not have to be discovered one
  *  refused completion at a time. */
 export function completableTasks(): Task[] {
-  return listTasks().filter((task) => task.recordKind !== "execution" && (
-    task.status === "in_progress" || task.status === "recovery_hold"
+  return listTasks().filter((task) => task.recordKind !== "execution" && !isTaskReplaced(task) && (
+    task.status === "in_progress" || task.status === "blocked"
   ) && blockedDependencies(task).length === 0);
 }
 
 export function taskDependenciesMet(task: Task): boolean {
-  return task.status === "pending" && task.dependsOn.every((dep) => tasks[dep]?.status === "completed");
+  return !isTaskReplaced(task) && task.status === "pending" && task.dependsOn.every((dep) => tasks[dep]?.status === "completed");
 }
 
 /** Every Task transitively depending on `taskId` that `select` accepts.
@@ -302,7 +302,7 @@ function transitiveDependents(taskId: string, select: (task: Task) => boolean): 
 export function claimedDependents(taskId: string): Task[] {
   return transitiveDependents(
     taskId,
-    (task) => task.status === "in_progress" || (task.status === "superseded" && task.claimedBy !== undefined),
+    (task) => task.status === "in_progress" || (isTaskReplaced(task) && task.claimedBy !== undefined),
   );
 }
 
@@ -360,7 +360,7 @@ export function createTask(input: {
     if (tasks[id]) return refuse("already-exists", `Task id "${id}" already exists.`, id);
     const migrations = new Map<string, string[]>();
     for (const dependent of Object.values(tasks)) {
-      if (dependent.status === "completed" || dependent.status === "superseded") continue;
+      if (dependent.status === "completed" || isTaskReplaced(dependent)) continue;
       const migrated = dependent.dependsOn.map((dependency) => supersedes.includes(dependency) ? id : dependency);
       if (migrated.some((dependency, index) => dependency !== dependent.dependsOn[index])) {
         migrations.set(dependent.id, [...new Set(migrated)]);
@@ -375,6 +375,8 @@ export function createTask(input: {
       return refuse("invalid-dependency", "Task supersession would create a dependency cycle.");
     }
 
+    const latestCreatedAt = Object.values(tasks).reduce((latest, task) => Math.max(latest, task.createdAt), 0);
+    const createdAt = Math.max(Date.now(), latestCreatedAt + 1);
     const task: Task = {
       id,
       ...(input.recordKind ? { recordKind: input.recordKind } : {}),
@@ -385,8 +387,8 @@ export function createTask(input: {
       resources,
       status: "pending",
       ...(input.createdBy ? { createdBy: input.createdBy } : {}),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt,
+      updatedAt: createdAt,
     };
     // A creation is a write like any other, and everything it retains is free
     // text a model wrote. Budgeting only on update would let the first write past
@@ -400,8 +402,7 @@ export function createTask(input: {
     const superseded: Task[] = [];
     for (const oldId of supersedes) {
       const old = tasks[oldId];
-      if (!old || old.status === "completed" || old.status === "superseded") continue;
-      old.status = "superseded";
+      if (!old || old.status === "completed" || isTaskReplaced(old)) continue;
       old.supersededBy = id;
       // A living holder keeps the claim and lease until it acknowledges
       // cancellation or stops. Releasing its resources before it receives the
@@ -487,12 +488,13 @@ export function loadTasks(persisted: Record<string, Task>): number {
     const invalidRecordKind = rawRecordKind !== undefined && rawRecordKind !== "task" && rawRecordKind !== "execution";
     const recordKind = resolveRecordKind(rawRecordKind, id);
     if (invalidRecordKind) notices.push(`task "${id}" has invalid recordKind; it remains a task under a recovery hold`);
-    const rawStatus: unknown = task.status;
+    const savedStatus: unknown = task.status;
+    const rawStatus: unknown = savedStatus === "recovery_hold" ? "blocked" : savedStatus === "superseded" ? "pending" : savedStatus;
     const knownStatus = isTaskStatus(rawStatus);
     if (!knownStatus) {
       notices.push(`task "${task.id}" has status ${JSON.stringify(rawStatus)}, which this task set does not define`);
     }
-    const orphanedHolding = rawStatus === "in_progress" || rawStatus === "superseded";
+    const orphanedHolding = rawStatus === "in_progress" || savedStatus === "superseded" || isTaskReplaced(task);
     const rawContext = task.context as { budgetBytes?: unknown } | undefined;
     const readContext = task.context === undefined ? undefined : normalizeTaskContext(task.context);
     const context = readContext?.ok ? readContext.value : undefined;
@@ -511,7 +513,7 @@ export function loadTasks(persisted: Record<string, Task>): number {
     if (dependsOn.length !== rawDependencies.length) {
       notices.push(`task "${task.id}" listed a dependency that is not a task id; those entries were dropped`);
     }
-    // A file written before `recovery_hold` was a status carried the state as a
+    // A file written before `blocked` was a status carried the state as a
     // flag beside `pending`. The two spellings mean the same thing, so the flag
     // is read here once and never written back; the status is now the only one.
     // A `pending` record that still names a claimant says the same thing, since
@@ -526,9 +528,11 @@ export function loadTasks(persisted: Record<string, Task>): number {
     // Task would discard real work; trusting the value would put the tasks in a
     // state the store never enters, and every projection of it would then fail
     // the declared result schema.
-    const unrestorable = !knownStatus || repairedIdentity || invalidRecordKind;
+    const missingReplacement = savedStatus === "superseded" && !isTaskReplaced(task);
+    if (missingReplacement) notices.push(`task "${id}" was superseded without a replacement; inspection is required`);
+    const unrestorable = !knownStatus || repairedIdentity || invalidRecordKind || missingReplacement;
     const restoredStatus: TaskStatus = unrestorable || attempted || rawStatus === "in_progress"
-      ? "recovery_hold"
+      ? "blocked"
       : rawStatus as TaskStatus;
     const restored: Task = {
       ...carried,
@@ -540,6 +544,9 @@ export function loadTasks(persisted: Record<string, Task>): number {
       dependsOn,
       context,
       status: restoredStatus,
+      ...(missingReplacement ? { replacementUnresolved: true } : {}),
+      failureEvidence: task.failureEvidence ?? ((savedStatus === "recovery_hold" || legacyHold) ? task.result : undefined),
+      blockedReason: task.blockedReason ?? (restoredStatus === "blocked" ? task.recoveryNote ?? task.result ?? (missingReplacement ? "Legacy replacement target is missing; repair is required." : undefined) : undefined),
       // Restored task state has no participants, so a held Task cannot keep naming
       // one. Superseded work stays visible for audit but retains no dead lease.
       claimedBy: orphanedHolding || repairedIdentity ? undefined : task.claimedBy,
@@ -701,11 +708,14 @@ export function takeTask(
 ): { ok: true; task: Task } | TaskRefusalResult {
   const task = tasks[taskId];
   if (!task) return refuse("unknown-task", takeRefusalReason(taskId, "unknown-task"), taskId);
+  if (isTaskReplaced(task)) return refuse("superseded", task.supersededBy
+    ? `Task "${taskId}" was replaced by "${task.supersededBy}".`
+    : `Task "${taskId}" has an unresolved replacement; inspect its saved replacement relation before proceeding.`, taskId);
   if (task.status === "in_progress") {
     const other = task.claimedBy && task.claimedBy !== holder ? task.claimedBy : undefined;
     return refuse("held-by-other", takeRefusalReason(taskId, "held-by-other", other), other);
   }
-  if (task.status !== "pending" && task.status !== "recovery_hold") {
+  if (task.status !== "pending" && task.status !== "blocked") {
     return refuse("not-pending", takeRefusalReason(taskId, "not-pending"), taskId);
   }
   const unfinished = blockedDependencies(task);
@@ -715,7 +725,7 @@ export function takeTask(
     // refusal here names its blocker; this one had been the exception.
     return refuse("unmet-dependencies", takeRefusalReason(taskId, "unmet-dependencies", unfinished.join(", ")), unfinished.join(", "));
   }
-  if (task.status === "recovery_hold" && !options.reason?.trim()) {
+  if (task.status === "blocked" && !options.reason?.trim()) {
     return refuse("recovery-hold-needs-reason", takeRefusalReason(taskId, "recovery-hold-needs-reason"), taskId);
   }
   // Only meaningful with a registry. Standalone, the single participant is the
@@ -934,7 +944,7 @@ export function checkCompletion(
     // nothing the task does not already say. A caller that neither took the task
     // nor recorded it is still refused.
     const isCreator = task.createdBy !== undefined && task.createdBy === options.holder;
-    if (task.claimedBy === undefined && task.status !== "recovery_hold" && !isCreator) {
+    if (task.claimedBy === undefined && task.status !== "blocked" && !isCreator) {
       refusals.push("never-taken");
     }
   }
@@ -1002,6 +1012,28 @@ export function completionRefusalReason(
  *
  * `options.checks` adds the task set's own facts to that: see `checkCompletion`.
  */
+/** Record an operational blocker without pretending that an attempt completed. */
+export function blockTask(taskId: string, holder: string, reason: string | undefined): { ok: true; task: Task } | TaskRefusalResult {
+  const task = tasks[taskId];
+  if (!task) return refuse("unknown-task", `Task "${taskId}" does not exist.`, taskId);
+  if (isTaskReplaced(task)) return refuse("superseded", `Task "${taskId}" has been replaced.`, taskId);
+  if (task.status === "completed") return refuse("already-completed", `Task "${taskId}" is completed; reopen it before recording a blocker.`, taskId);
+  if (task.claimedBy && task.claimedBy !== holder) return refuse("held-by-other", `Task "${taskId}" is held by @${task.claimedBy}.`, taskId);
+  if (!reason?.trim()) return refuse("no-evidence", "Recording blocked work requires a reason.", taskId);
+  if (!withinContextBudget({ ...task, blockedReason: reason })) return refuse("budget-exceeded", `Task "${taskId}" blocker exceeds its byte budget.`, taskId);
+  const previous = task.claimedBy;
+  task.status = "blocked";
+  task.blockedReason = reason;
+  task.claimedBy = undefined;
+  task.completedAt = undefined;
+  task.completionVerdict = undefined;
+  task.completionGate = undefined;
+  task.updatedAt = Date.now();
+  markChanged();
+  if (previous) hooks.sync(previous, undefined, undefined);
+  return { ok: true, task };
+}
+
 export function completeTaskWithOutcome(
   taskId: string,
   holder: string,
@@ -1022,7 +1054,7 @@ export function completeTaskWithOutcome(
   if (task.status === "completed") {
     return refuse("already-completed", `Task "${taskId}" is already completed.`, taskId);
   }
-  if (task.status === "superseded") {
+  if (isTaskReplaced(task)) {
     return refuse("superseded", `Task "${taskId}" was superseded by "${task.supersededBy ?? "a replacement"}"; deliver the outcome against the replacement.`, taskId);
   }
   if (task.status === "in_progress" && task.claimedBy && task.claimedBy !== holder) {
@@ -1045,6 +1077,15 @@ export function completeTaskWithOutcome(
       dependency,
     );
   }
+  const prospective = { ...task, result: result?.trim() ? result : undefined,
+    blockedReason: outcome === "failed" ? result : undefined,
+    failureEvidence: outcome === "failed" ? result : task.failureEvidence };
+  if (!withinContextBudget(prospective)) return refuse("budget-exceeded", `Task "${taskId}" evidence exceeds its byte budget.`, taskId);
+  return recordOutcome(task, outcome, result, options);
+}
+
+/** Runtime stop cleanup must release authority even for over-budget legacy evidence. */
+function recordOutcome(task: Task, outcome: "success" | "failed", result: string | undefined, options: CompletionOptions = {}): { ok: true; task: Task } {
   const previous = task.claimedBy;
   // Retained evidence round-trips byte-for-byte. Trimming decides only whether
   // there is evidence at all, so a whitespace-only result records nothing while a
@@ -1056,13 +1097,16 @@ export function completeTaskWithOutcome(
     // answer to every later reader.
     task.completionVerdict = undefined;
     task.completionGate = undefined;
-    task.status = "recovery_hold";
+    task.status = "blocked";
+    task.blockedReason = result;
+    task.failureEvidence = result;
     task.claimedBy = undefined;
     task.completedAt = undefined;
   } else {
     if (options.verdict) task.completionVerdict = options.verdict;
     if (task.verify?.trim()) task.completionGate = task.verify;
     task.status = "completed";
+    task.blockedReason = undefined;
     task.claimedBy = undefined;
     task.completedAt = Date.now();
   }
@@ -1084,6 +1128,7 @@ export function reopenTask(
 ): { ok: true; task: Task; invalidated: Task[] } | TaskRefusalResult {
   const task = tasks[taskId];
   if (!task) return refuse("unknown-task", `Task "${taskId}" does not exist.`, taskId);
+  if (isTaskReplaced(task)) return refuse("superseded", `Task "${taskId}" has been replaced.`, taskId);
   if (task.status !== "completed") {
     return refuse("not-completed", `Task "${taskId}" is not completed.`, taskId);
   }
@@ -1101,12 +1146,11 @@ export function reopenTask(
     .filter((dependent, index, all) => all.findIndex((entry) => entry.id === dependent.id) === index);
   task.status = "pending";
   task.claimedBy = undefined;
-  task.result = undefined;
   task.completedAt = undefined;
   task.updatedAt = Date.now();
   for (const dependent of invalidated) {
     const wasHeld = dependent.claimedBy;
-    dependent.status = "recovery_hold";
+    dependent.status = "blocked";
     dependent.claimedBy = undefined;
     dependent.completedAt = undefined;
     dependent.invalidatedBy = taskId;
@@ -1150,7 +1194,8 @@ export function revertUndeliveredTake(taskId: string, holder: string, reason: st
   if (!task || task.status !== "in_progress" || task.claimedBy !== holder) return undefined;
   task.status = "pending";
   task.claimedBy = undefined;
-  task.result = reason;
+  task.recoveryNote = reason;
+  task.result ??= reason;
   task.updatedAt = Date.now();
   markChanged();
   hooks.sync(holder, undefined, undefined);
@@ -1166,9 +1211,10 @@ export function revertUndeliveredTake(taskId: string, holder: string, reason: st
  */
 export function acknowledgeSupersession(taskId: string, holder: string, reason: string): Task | undefined {
   const task = tasks[taskId];
-  if (!task || task.status !== "superseded" || task.claimedBy !== holder) return undefined;
+  if (!task || !isTaskReplaced(task) || task.claimedBy !== holder) return undefined;
   task.claimedBy = undefined;
-  task.result = reason;
+  task.recoveryNote = reason;
+  task.result ??= reason;
   task.updatedAt = Date.now();
   markChanged();
   hooks.sync(holder, undefined, undefined);
@@ -1185,10 +1231,10 @@ export function acknowledgeSupersession(taskId: string, holder: string, reason: 
 export function failTasksHeldBy(holder: string, reason: string): Task[] {
   const released: Task[] = [];
   for (const task of listTasks()) {
-    if (task.status === "in_progress" && task.claimedBy === holder) {
-      completeTaskWithOutcome(task.id, holder, "failed", reason);
+    if (task.status === "in_progress" && !isTaskReplaced(task) && task.claimedBy === holder) {
+      recordOutcome(task, "failed", reason);
       released.push(task);
-    } else if (task.status === "superseded" && task.claimedBy === holder) {
+    } else if (isTaskReplaced(task) && task.claimedBy === holder) {
       // A superseded task stays superseded; only the lease comes back.
       const acknowledged = acknowledgeSupersession(task.id, holder, reason);
       if (acknowledged) released.push(acknowledged);
@@ -1216,6 +1262,7 @@ export function bindTask(
   const task = tasks[taskId];
   const from = options.from ?? ["pending"];
   if (!task) return refuse("unknown-task", `Task "${taskId}" does not exist.`, taskId);
+  if (isTaskReplaced(task)) return refuse("superseded", `Task "${taskId}" has been replaced.`, taskId);
   if (!from.includes(task.status)) {
     return refuse("bind-not-allowed", `Task "${taskId}" is ${task.status}; it cannot be bound from that state.`, taskId);
   }
@@ -1225,7 +1272,7 @@ export function bindTask(
   // do, and a creation that rolled back leaves no record to look up at all.
   const named = `Task "${task.subject}"`;
   if (!participant) return refuse("participant-unavailable", `Cannot bind ${named} to @${holder}: it is not a current participant.`, holder);
-  if (participant.currentTaskId !== undefined && task.status === "superseded") {
+  if (participant.currentTaskId !== undefined && isTaskReplaced(task)) {
     return refuse("bind-not-allowed", `Cannot bind ${named} to @${holder}: it still holds superseded work and must acknowledge that first.`, holder);
   }
   if (!options.allowHeldLease && participant.assignment && !participant.assignment.closed) {
@@ -1248,7 +1295,7 @@ export function bindTask(
  */
 export function discardTask(taskId: string, holder: string): boolean {
   const task = tasks[taskId];
-  if (!task) return false;
+  if (!task || isTaskReplaced(task)) return false;
   if (task.status === "pending" && task.claimedBy === undefined && task.result === undefined) {
     delete tasks[taskId];
     markChanged();
@@ -1270,6 +1317,7 @@ function recordTake(
   options: { recoveryNote?: string; assignment?: WorkAssignment } = {},
 ): { ok: true; task: Task } {
   task.status = "in_progress";
+  task.blockedReason = undefined;
   task.claimedBy = holder;
   if (options.recoveryNote) task.recoveryNote = options.recoveryNote;
   task.updatedAt = Date.now();
@@ -1305,7 +1353,7 @@ export function applyClaimIntent(intent: TaskIntent): TaskClaimOutcome {
   // A hold is refused outright rather than cleared: a marker carries no reason,
   // and a participant that failed its last attempt needs a deliberate statement
   // of what changed before its work is offered again.
-  if (task.status === "recovery_hold") {
+  if (task.status === "blocked") {
     return refuseClaim("recovery-hold-needs-reason", `task "${intent.taskId}" requires a deliberate assignment after a failed attempt`, intent.taskId);
   }
   const taken = takeTask(intent.taskId, intent.participant);
@@ -1327,20 +1375,20 @@ export function applySubmissionIntent(
   }
   const task = tasks[intent.taskId];
   if (!task) return refuse("unknown-task", `unknown task "${intent.taskId}"`, intent.taskId);
-  if (task.status !== "in_progress" && task.status !== "superseded") {
+  if (task.status !== "in_progress" && !isTaskReplaced(task)) {
     return refuse("not-in-progress", `task "${intent.taskId}" is not in progress`, intent.taskId);
   }
   if (task.claimedBy !== intent.participant) {
     return refuse("held-by-other", `task "${intent.taskId}" is held by @${task.claimedBy ?? "someone else"}`, task.claimedBy);
   }
-  if (task.status === "superseded" && intent.status !== "failed") {
+  if (isTaskReplaced(task) && intent.status !== "failed") {
     return refuse("superseded", `task "${intent.taskId}" was superseded by "${task.supersededBy ?? "a replacement"}"; a submission must acknowledge cancellation instead`, intent.taskId);
   }
   if (intent.status === "failed") {
     // A superseded task stays superseded: its replacement stands, and only the
     // holder's lease comes back. Anything else is a recorded failure, which
     // returns the task to pending under a recovery hold.
-    if (task.status === "superseded") {
+    if (isTaskReplaced(task)) {
       const acknowledged = acknowledgeSupersession(intent.taskId, intent.participant, intent.result?.trim() || "Cancellation acknowledged.");
       return acknowledged ? { ok: true } : refuse("superseded", `could not acknowledge cancellation of task "${intent.taskId}"`, intent.taskId);
     }

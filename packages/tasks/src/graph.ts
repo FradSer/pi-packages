@@ -51,8 +51,8 @@ export function canonicalDependency(taskId: string, tasks: Record<string, Task>)
     seen.add(current);
     const task = tasks[current];
     if (!task) return undefined;
-    if (task.status !== "superseded") return current;
-    if (!task.supersededBy) return undefined;
+    if (task.replacementUnresolved) return undefined;
+    if (!task.supersededBy) return current;
     current = task.supersededBy;
   }
 }

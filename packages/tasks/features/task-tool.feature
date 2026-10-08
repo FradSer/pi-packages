@@ -18,6 +18,12 @@ Feature: The task tools
       And it registers a default export, because the manifest points at this file
       And the removed single "task" tool is not registered under any name
 
+    Scenario: Routing hints identify their task operation
+      Given the four registered task tools
+      When their prompt snippets are read
+      Then every hint names tasks and its operation within eighty characters
+      And create_task identifies work that spans steps, files, or turns
+
     Scenario: get_task is a read and nothing else
       Given the get_task parameter schema
       When its properties are read
@@ -35,7 +41,7 @@ Feature: The task tools
     Scenario: update_task's status is the only route to a transition
       Given the update_task parameter schema
       When its status enum is read
-      Then it is exactly in_progress, completed and pending
+      Then it is exactly in_progress, completed, pending and blocked
       And the field routes to the named store transition rather than assigning a value
       And a completion still needs an explicit outcome
 
@@ -83,7 +89,7 @@ Feature: The task tools
     Scenario: A task in recovery hold is not presented as claimable
       Given a task whose last attempt failed
       When it is listed
-      Then the result names the `recovery_hold` state
+      Then the result names the `blocked` state
       And the reason a hold was cleared is carried when there was one
 
     Scenario: A task set whose file could not be read says so
@@ -191,12 +197,47 @@ Feature: The task tools
 
   Rule: A row is what a person reads
 
-    Scenario: Lists show complete titles without expansion
-      Given tasks with titles wider than the terminal and separate descriptions
-      When the task list is rendered in its default state
-      Then each stored title wraps in full without an ellipsis
-      And descriptions do not replace the titles
+    Scenario: Task rows use display numbers for dependency and blocker references
+      Given a task named Build database and a task named Configure application that depends on it
+      When either task is shown in a tool result or settlement row
+      Then the task list shows #1 Build database and #2 Configure application
+      And the dependency reads Depends on #1
+      And its unfinished prerequisite reads Blocked by #1
+      And both relations use the same compact order in list and settlement summaries
+      And neither relation repeats a task name or storage id
+      And storage ids are not shown in the TUI
+
+    Scenario: Display numbers remain stable as tasks are added
+      Given tasks created as Zebra task and Maple task
+      When Aardvark task is created later
+      Then the earlier tasks keep #1 and #2 in every TUI task summary
+      And the new task receives #3 even though its name sorts first
+
+    Scenario: Refusals use display references instead of storage ids
+      Given a task action that is refused for a known task
+      When its error row is rendered
+      Then the row names the task and its display number
+      And the storage id remains hidden
+
+    Scenario: Refusals hide unknown dependency identifiers
+      Given a task refers to a dependency that does not exist
+      When its error row is rendered
+      Then it explains that the referenced task is missing
+      And it does not expose the supplied identifier
+
+    Scenario: Lists use the same compact default as other task results
+      Given a task list with long titles and dependencies
+      When the list result is rendered without expansion
+      Then it shows numbered names, statuses, and named dependencies
+      And complete wrapped titles are available on expansion
+      And descriptions remain available through get_task
       And every rendered line fits the terminal width
+
+    Scenario: Empty lists use one readable TUI label
+      Given no tasks match a list request
+      When the list result is rendered
+      Then the row says No tasks
+      And it does not show a conflicting zero-task summary
 
 
     Scenario: Task tools share one display label
@@ -206,9 +247,15 @@ Feature: The task tools
       And progress reads as in progress rather than in_progress
       And the registered tool names and structured statuses remain unchanged
 
-    Scenario: Expanded task fields have named sections
+    Scenario: Store write failures are shown on the operation that encountered them
+      Given a task mutation whose durable write fails
+      When its result is rendered
+      Then the task row includes the persistence notice
+      And after a later durable write succeeds the stale notice is cleared
+
+    Scenario: Default task fields have named sections
       Given a task has description, verify, and dependency fields
-      When its result is expanded
+      When its result is rendered without expansion
       Then Description introduces the full description
       And Verify introduces the full verification prompt on separate lines
       And dependency relationships follow the description and verification sections
@@ -217,14 +264,28 @@ Feature: The task tools
     Scenario: Dependency relations are visible before expansion
       Given a task with declared dependencies and unfinished prerequisites
       When its result is collapsed
-      Then it identifies its dependency ids and unfinished prerequisites
-      And expansion preserves the full dependency relationships without duplicate rows
+      Then it identifies dependencies by display number
+      And it identifies unfinished prerequisites with Blocked by
+      And each label appears once after the full task body
+
+    Scenario: Blocked by lists only unfinished dependencies
+      Given a task depends on one completed and one pending task
+      When its list row is rendered
+      Then Depends on includes both task numbers
+      And Blocked by includes only the pending task number
+      And both relations follow the task heading after one middot separator
+
+    Scenario: Narrow lists wrap complete task summaries
+      Given a numbered task row with a long title and both relationship labels
+      When the list is rendered at a narrow terminal width
+      Then the default row wraps the full title and both relationships within the terminal
+      And it has no expansion hint
 
     Scenario: The row is bound when the extension is loaded
       Given the package's extension entry
       When it registers the tool
       Then the result is rendered as a lifecycle row
-      And the row leads with what must be done rather than with the task id
+      And the row leads with a display number and task name rather than its storage id
       And its description and dependencies are available on expansion
       And holder and resource rows are absent from the transcript
 
@@ -302,7 +363,7 @@ Feature: The task tools
       Given a task set holding a task that was in progress when it was written
       When a later session reads it
       Then no participant is recorded as holding it
-      And it returns to `recovery_hold`
+      And it returns to `blocked`
 
     Scenario: A durable task set that lost a field is read, not crashed on
       Given a durable task set whose task is missing an array it should carry

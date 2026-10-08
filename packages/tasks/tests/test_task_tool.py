@@ -260,8 +260,8 @@ def test_every_lifecycle_position_is_reachable_exactly_one_way(tmp_path: Path) -
         """,
         tmp_path,
     )
-    assert result["statusEnum"] == ["in_progress", "completed", "pending"], (
-        "three positions, and `pending` is the only way back from completed"
+    assert result["statusEnum"] == ["in_progress", "completed", "pending", "blocked"], (
+        "four transitions, and `pending` is the only way back from completed"
     )
     assert "status=in_progress" in str(result["reasonDescribed"]), (
         "`reason` is documented for the take route, which is the only one that reads it. "
@@ -566,7 +566,7 @@ def test_the_declared_result_describes_a_task_rather_than_an_untyped_bag(tmp_pat
     for field in ("id", "subject", "status", "dependsOn", "blockedBy", "holder"):
         assert field in result["declaredTask"], field
         assert field in result["declaredItem"], field
-    assert set(result["declaredItem"]) == set(result["declaredTask"]) - {"description", "verify", "result", "completionVerdict"}
+    assert set(result["declaredItem"]) == set(result["declaredTask"]) - {"description", "verify", "result", "completionVerdict", "failureEvidence"}
     assert set(result["listedTaskKeys"]) == set(result["actualTask"]) - {"description"}
 
 
@@ -646,10 +646,10 @@ def test_a_result_states_the_change_and_leaves_the_how_to_the_description(tmp_pa
         f"a plain creation leaves the human row with its headline alone: {create_row['summary']}"
     )
     supersede_row = result["supersedeRow"]
-    assert supersede_row["summary"] == ["REPLACED · record-the-upgrade"], (
+    assert supersede_row["summary"] == ["Replaced: Record the upgrade #1"], (
         "what a creation made obsolete is state a person wants on the row"
     )
-    assert result["takeRow"]["summary"] == [], "every action's row now reads the same way"
+    assert any("Required at completion:" in line for line in result["takeRow"]["summary"]), "taking work shows the completion requirements"
     assert result["createDescribesSupersede"] is True
     assert result["updateDescribesEveryRoute"] is True, (
         "the usage guide is the declared descriptions, which are in the prompt either way"
@@ -708,7 +708,7 @@ def test_list_reports_a_recovery_hold_rather_than_hiding_it(tmp_path: Path) -> N
         const silent = await call("update_task", { id, status: "in_progress" });
         const spoken = await call("update_task", { id, status: "in_progress", reason: "pinned the upstream" });
         console.log(JSON.stringify({
-          holdVisible: listed.details.tasks[0].status === "recovery_hold",
+          holdVisible: listed.details.tasks[0].status === "blocked",
           evidence: full.details.task.result,
           excludedFromClaimable: claimable.details.count === 0,
           silentRefused: silent.details.ok === false,
@@ -773,7 +773,7 @@ def test_a_failure_outcome_must_be_explicit(tmp_path: Path) -> None:
     assert result["proseRefused"] is True
     assert result["guidesTowardOutcome"] is True
     assert result["stayedInProgress"] == "in_progress"
-    assert result["explicitRecorded"] == "recovery_hold"
+    assert result["explicitRecorded"] == "blocked"
 
 
 def test_the_caller_is_derived_and_never_supplied(tmp_path: Path) -> None:
@@ -940,8 +940,7 @@ def test_the_row_is_bound_when_the_extension_loads(tmp_path: Path) -> None:
 
 
 def test_the_row_spec_leads_with_the_work_not_the_id() -> None:
-    """A reader looking at a row asks what is being done; the id is what they
-    look up when they act on it."""
+    """A display number names the work while storage ids stay internal."""
     result = run_node(
         f"""
         import {{ TASK_ROW_SPEC }} from {json.dumps((PACKAGE / "index.ts").as_uri())};
@@ -962,9 +961,9 @@ def test_the_row_spec_leads_with_the_work_not_the_id() -> None:
     )
     assert result["tool"] == "tasks"
     assert result["label"] == "status"
-    assert "Polish the login flow" in str(result["subject"]), "the row leads with the work"
-    assert "t1 ·" not in str(result["subject"]), "the id belongs in the expansion, not the title"
-    assert any("depends" in str(d) for d in result["details"])
+    assert "#1 Polish the login flow (in progress)" in str(result["subject"]), "the row leads with its display number and work"
+    assert "t1" not in str(result["subject"]), "storage ids stay out of the visible row"
+    assert any("depends" in str(d).lower() for d in result["summary"])
     assert "in progress" in str(result["subject"])
     assert "in_progress" not in str(result["subject"])
 
@@ -984,3 +983,46 @@ def test_a_tasks_that_could_not_be_read_says_so() -> None:
     )
     assert result["ok"] is True
     assert "EACCES" in str(result["notice"]), "a task set that could not be read must say so"
+
+
+def test_write_failures_are_shown_and_cleared_after_recovery(tmp_path: Path) -> None:
+    result = run_node(
+        f"""
+        import fs from "node:fs";
+        import path from "node:path";
+        import * as task from {json.dumps((PACKAGE / "index.ts").as_uri())};
+        const handlers = new Map();
+        const tools = new Map();
+        task.default({{
+          registerTool(tool) {{ tools.set(tool.name, tool); }},
+          registerMessageRenderer() {{}},
+          on(name, handler) {{ handlers.set(name, [...(handlers.get(name) ?? []), handler]); }},
+          events: {{ emit() {{}} }},
+        }});
+        const context = {{
+          cwd: process.cwd(), mode: "interactive", hasUI: true,
+          sessionManager: {{ getSessionFile: () => undefined }},
+        }};
+        for (const handler of handlers.get("session_start")) await handler({{}}, context);
+        const file = task.tasksFilePath(undefined, process.cwd());
+        const directory = path.dirname(file);
+        fs.mkdirSync(path.dirname(directory), {{ recursive: true }});
+        fs.writeFileSync(directory, "blocks the task directory");
+        const first = await tools.get("create_task").execute("first", {{ subject: "First task" }}, undefined, undefined, {{}});
+        const style = {{ fg: (_token, text) => text, bg: (_token, text) => text, bold: text => text }};
+        const firstRow = tools.get("create_task").renderResult(first, {{ expanded: true, isPartial: false }}, style, {{ isError: false }}).render(120).join("\\n");
+        fs.unlinkSync(directory);
+        const second = await tools.get("create_task").execute("second", {{ subject: "Second task" }}, undefined, undefined, {{}});
+        console.log(JSON.stringify({{
+          firstNotice: first.details.notice ?? null,
+          rowShowsNotice: firstRow.includes("Notice: The durable task file"),
+          secondNotice: second.details.notice ?? null,
+          finalNotice: task.storeNotice() ?? null,
+        }}));
+        """,
+        env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path)},
+    )
+    assert "could not be written" in str(result["firstNotice"])
+    assert result["rowShowsNotice"] is True
+    assert result["secondNotice"] is None
+    assert result["finalNotice"] is None

@@ -44,6 +44,7 @@ def test_create_task_states_when_recording_a_task_is_warranted(tmp_path: Path) -
         const create = registered.find((tool) => tool.name === "create_task");
         const text = `${create.snippet} ${create.description}`;
         console.log(JSON.stringify({
+          snippetNamesTask: /task/.test(create.snippet) && create.snippet.length <= 80,
           snippetStatesTrigger: /several steps|several files/.test(create.snippet),
           statesSeveralSteps: /several steps or several files/.test(text),
           statesOutlivesTurn: /outlives this turn/.test(text),
@@ -55,6 +56,7 @@ def test_create_task_states_when_recording_a_task_is_warranted(tmp_path: Path) -
         """,
         tmp_path,
     )
+    assert result["snippetNamesTask"] is True
     assert result["snippetStatesTrigger"] is True
     assert result["statesSeveralSteps"] is True
     assert result["statesOutlivesTurn"] is True

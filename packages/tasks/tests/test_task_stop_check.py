@@ -30,6 +30,13 @@ def run(script: str, tmp_path: Path) -> dict[str, object]:
           sessionManager: {{ getSessionFile: () => undefined }},
           signal: undefined, hasPendingMessages: () => false,
         }};
+        let workSequence = 0;
+        const performWork = async () => {{
+          const toolCallId = `work-${{++workSequence}}`;
+          await handlers.get("tool_execution_start")({{toolCallId, toolName:"write",args:{{path:"output",content:toolCallId}}}},ctx);
+          await handlers.get("tool_execution_end")({{toolCallId,toolName:"write",result:{{content:[{{type:"text",text:"Written"}}]}},isError:false}},ctx);
+        }};
+        await performWork();
         const settle = async (options = {{}}, context = ctx) => {{
           const handler = handlers.get("agent_before_settle");
           assert.equal(typeof handler, "function", "The shipping entry must install the task stop check");
@@ -116,10 +123,11 @@ def test_pi_boundary_handlers_retain_earlier_messages_and_edits(tmp_path: Path) 
     for receipt in (result["available"], result["waiting"]):
         assert receipt["valid"] is True
         assert receipt["entries"][:2] == result["earlierEntries"]
-        assert len(receipt["entries"]) == 3
-        assert receipt["entries"][-1]["customType"] == "pi-tasks-status"
+    assert len(result["available"]["entries"]) == 3
+    assert result["available"]["entries"][-1]["customType"] == "pi-tasks-status"
+    assert len(result["waiting"]["entries"]) == 2, "headless waiting preserves earlier entries without a passive row"
     assert result["available"]["continues"] is True
-    assert result["waiting"]["continues"] is True, "a blocked snapshot also preserves earlier entries"
+    assert result["waiting"]["continues"] is False, "blocked snapshots wait while preserving earlier entries"
 
 
 def test_malformed_saved_identity_does_not_disable_valid_task_reminders(tmp_path: Path) -> None:
@@ -137,7 +145,7 @@ def test_malformed_saved_identity_does_not_disable_valid_task_reminders(tmp_path
           content: receipt.entries[0].content,
           taskIds: task.listTasks().map(task => task.id),
           validStatus: task.getTask("valid").status,
-          repairedHeld: ["missing", "wrongType"].map(id => task.getTask(id).status === "recovery_hold"),
+          repairedHeld: ["missing", "wrongType"].map(id => task.getTask(id).status === "blocked"),
           notice: task.storeNotice(),
         }));
         """,
@@ -203,7 +211,7 @@ def test_the_claimable_hint_names_exactly_what_the_store_will_let_a_caller_take(
         """,
         tmp_path,
     )
-    assert result["staleStatus"] == "recovery_hold", (
+    assert result["staleStatus"] == "blocked", (
         "a restored record naming a claimant was attempted, so it is on hold rather than pending"
     )
     assert result["store"] == ["fresh"]
@@ -253,7 +261,7 @@ def test_cancelled_failed_or_already_continuing_runs_are_not_restarted(tmp_path:
     assert result["status"] == "in_progress"
 
 
-def test_blocked_and_foreign_work_receive_one_continuation_without_forced_takeover(tmp_path: Path) -> None:
+def test_blocked_and_foreign_work_wait_without_forced_takeover(tmp_path: Path) -> None:
     """One snapshot, one continuation, whatever the state.
 
     The check used to ask a second kind of round: when nothing was immediately
@@ -279,28 +287,28 @@ def test_blocked_and_foreign_work_receive_one_continuation_without_forced_takeov
           waitingContinues: waiting.continue ?? false,
           waitingStatus: waiting.entries[0].details.status,
           waitingContent: waiting.entries[0].content,
-          inspectionContinues: afterInspection.continue ?? false,
-          inspectionStatus: afterInspection.entries[0].details.status,
-          inspectionContent: afterInspection.entries[0].content,
+          inspectionContinues: afterInspection?.continue ?? false,
+          inspectionStatus: afterInspection?.entries[0].details.status ?? null,
+          inspectionContent: afterInspection?.entries[0].content ?? "",
           again: again ?? null,
           statuses: task.listTasks().map((record) => [record.id, record.status]),
         }));
         """,
         tmp_path,
     )
-    assert result["waitingContinues"] is True, "a blocked snapshot still earns exactly one continuation"
-    assert result["waitingStatus"] == "continue"
+    assert result["waitingContinues"] is False, "no runnable task means no continuation"
+    assert result["waitingStatus"] == "waiting"
     assert "Read get_task" in result["waitingContent"]
     assert "inspect the saved evidence" in result["waitingContent"], "a recovery hold is present, so its instruction is emitted"
     assert "blocked_by=foreign" in result["waitingContent"]
     assert "holder=alpha" in result["waitingContent"]
     assert "Waiting reason" in result["waitingContent"], "the blocker is named instead of a status slot"
     assert result["inspectionContinues"] is False, "unchanged blockers must not trigger repeated attempts"
-    assert result["inspectionStatus"] == "waiting"
-    assert "Other participant" in result["inspectionContent"]
-    assert "recovery" in result["inspectionContent"].lower()
+    assert result["inspectionStatus"] is None
+    assert "Other participant" in result["waitingContent"]
+    assert "recovery" in result["waitingContent"].lower()
     assert result["again"] is None
-    assert result["statuses"] == [["blocked", "pending"], ["failed", "recovery_hold"], ["foreign", "in_progress"]]
+    assert result["statuses"] == [["foreign", "in_progress"], ["blocked", "pending"], ["failed", "blocked"]]
 
 
 def test_a_headless_settlement_has_no_passive_entry(tmp_path: Path) -> None:
@@ -342,16 +350,17 @@ def test_restored_interrupted_work_is_inspected_before_safe_recovery(tmp_path: P
           dependsOn: [], resources: [], createdAt: 1, updatedAt: 1,
           result: "An implementation attempt started before the session ended",
         } });
-        const inspected = await settle();
+        const inspected = await settle({}, {...ctx,hasUI:true});
         const beforeTake = {
           status: task.getTask("restored").status,
-          recoveryHold: task.getTask("restored").status === "recovery_hold",
+          recoveryHold: task.getTask("restored").status === "blocked",
           holder: task.getTask("restored").claimedBy ?? null,
         };
         const taken = await task.executeTaskUpdate({
           id: "restored", status: "in_progress", reason: "Inspected the saved output; no operation remains active",
         }, { env: {} });
         assert.equal(taken.details.ok, true);
+        await performWork();
         const resume = await settle();
         const completed = await task.executeTaskUpdate({
           id: "restored", status: "completed", outcome: "success", result: "Recovered output verified",
@@ -371,11 +380,11 @@ def test_restored_interrupted_work_is_inspected_before_safe_recovery(tmp_path: P
         """,
         tmp_path,
     )
-    assert result["inspectedContinues"] is True
-    assert result["inspectionStatus"] == "continue"
-    assert "recovery hold" in result["content"]
+    assert result["inspectedContinues"] is False
+    assert result["inspectionStatus"] == "waiting"
+    assert "Blocked work" in result["content"]
     assert "recover only if that is safe" in result["content"]
-    assert result["beforeTake"] == {"status": "recovery_hold", "recoveryHold": True, "holder": None}
+    assert result["beforeTake"] == {"status": "blocked", "recoveryHold": True, "holder": None}
     assert result["resumeContinues"] is True
     assert result["resumeStatus"] == "continue"
     assert result["completed"] is True
@@ -394,17 +403,18 @@ def test_progress_continuation_is_bounded_and_real_input_resets_it(tmp_path: Pat
         const ui = { ...ctx, hasUI: true };
         for (let i = 0; i < 6; i++) {
           receipts.push((await settle({}, ui)) ?? null);
-          if (i < 3) task.updateTask("unfinished", { description: `Verified progress ${i}` });
+          if (i < 3) await performWork();
         }
         const handler = handlers.get("input");
         assert.equal(typeof handler, "function");
         await handler({ type: "input", source: "extension", text: "Automatic reminder" }, ctx);
         const afterReminder = await settle({}, ui);
         await handler({ type: "input", source: "interactive", text: "Continue the work" }, ctx);
+        await performWork();
         const afterUser = await settle({}, ui);
         console.log(JSON.stringify({
           continuationCount: receipts.filter((receipt) => receipt?.continue === true).length,
-          limitContent: receipts.find((receipt) => receipt?.entries?.[0]?.details?.status === "paused")?.entries[0].content,
+          limitContent: receipts.find((receipt) => receipt?.entries?.[0]?.details?.status === "waiting")?.entries[0].content,
           afterLimit: receipts.slice(4),
           afterReminder: afterReminder ?? null,
           afterUserContinues: afterUser.continue,
@@ -427,6 +437,7 @@ def test_unchanged_available_work_waits_without_exhausting_the_allowance(tmp_pat
           task.clearTasks();
           const handler = handlers.get("input");
           await handler({ type: "input", source: "interactive", text: "Check the tasks" }, ctx);
+          await performWork();
           task.createTask({ id: "needs-approval", subject: "Commit the changes", description: "Requires authorization" });
           task.loadTasks({ recovery: {
             id: "recovery", subject: "Inspect saved output", status: "in_progress", claimedBy: "main",
@@ -462,19 +473,19 @@ def test_unchanged_available_work_waits_without_exhausting_the_allowance(tmp_pat
         assert observation["first"] is True
         assert observation["second"] is False
         assert observation["status"] == "waiting"
-        assert "no task progress" in observation["reason"]
-        assert "authorization" in observation["reason"]
+        assert "no new effective work" in observation["reason"]
         assert "limit is reached" not in observation["content"]
         assert observation["third"] is None
         assert observation["timestampOnly"] is None
         assert observation["stateUnchanged"] is True
-        assert observation["progressed"] is True
-        assert observation["continuation"] == 2
+        assert observation["progressed"] is False
+        assert observation["continuation"] == 1
 
 
 def test_status_rows_share_task_labels_and_dependency_summaries(tmp_path: Path) -> None:
     result = run(
         r"""
+        import { ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
         task.createTask({ id: "first", subject: "First task" });
         task.takeTask("first", "main");
         task.createTask({ id: "second", subject: "Second task", dependsOn: ["first"] });
@@ -489,13 +500,20 @@ def test_status_rows_share_task_labels_and_dependency_summaries(tmp_path: Path) 
         const expanded = paint(message, true);
         const waiting = await settle({}, ui);
         const waitingText = paint(waiting.entries[0], false);
+        const waitingExpanded = paint(waiting.entries[0], true);
+        const statusComponent = renderers.get(waiting.entries[0].customType)(
+          waiting.entries[0], { expanded: false }, style,
+        );
+        const clickHint = statusComponent.render(120).join("\n");
+        const clickResult = statusComponent.handleMouse?.({ type: "click", button: "left", x: 5, y: 2, width: 120, height: 12 }) ?? {handled:false};
+        const clickedExpanded = statusComponent.render(120).join("\n");
         const original = JSON.stringify(task.tasks);
         for (let index = 0; index < 60; index += 1) {
           task.createTask({ id: `extra-${index}`, subject: "中".repeat(1000) });
         }
         const bounded = await settle({}, ui);
         console.log(JSON.stringify({
-          collapsed, expanded, waitingText,
+          collapsed, expanded, waitingText, waitingExpanded, clickHint, clickResult, clickedExpanded,
           modelContent: message.content, details: message.details,
           detailBytes: Buffer.byteLength(JSON.stringify(bounded.entries[0].details), "utf8"),
           storedStatus: JSON.parse(original).first.status,
@@ -505,17 +523,26 @@ def test_status_rows_share_task_labels_and_dependency_summaries(tmp_path: Path) 
     )
     assert "[tasks] continue · 2 unfinished tasks" in result["collapsed"]
     assert "[tasks] waiting · 2 unfinished tasks" in result["waitingText"]
-    assert "no task progress" in result["waitingText"]
-    assert "First task · in progress" in result["expanded"]
-    assert "Second task · pending" in result["expanded"]
-    assert "depends · first" in result["expanded"]
-    assert "blocked · first" in result["expanded"]
+    assert "no new effective work" in result["waitingText"]
+    assert "Reason: no new effective work" in result["waitingExpanded"]
+    assert "to expand" not in result["clickHint"]
+    assert "ctrl+o to expand" not in result["clickHint"]
+    assert result["clickedExpanded"] == result["clickHint"], "full default content does not depend on clicking"
+    assert "Reason: no new effective work" in result["clickedExpanded"]
+    assert "Depends on #1" in result["clickedExpanded"]
+    assert "Blocked by #1" in result["clickedExpanded"]
+    assert "#1 First task (in progress)" in result["expanded"]
+    assert "#2 Second task (pending)" in result["expanded"]
+    assert "Depends on #1" in result["expanded"]
+    assert "Blocked by #1" in result["expanded"]
     assert "Task status check before settlement." in result["modelContent"]
     assert "Task status check before settlement." not in result["expanded"]
     assert "Current caller" not in result["expanded"]
-    assert result["details"]["tasks"][1]["dependsOn"] == ["first"]
+    assert result["details"]["tasks"][1]["dependencies"] == ["#1"]
+    assert result["details"]["tasks"][1]["blockedBy"] == ["#1"]
+    assert all("id" not in task for task in result["details"]["tasks"])
     assert result["storedStatus"] == "in_progress"
-    assert result["detailBytes"] <= 8192
+    assert result["detailBytes"] > 8192, "full visible titles are independent of the bounded model instructions"
 
 
 def test_status_reminders_supply_runnable_context_and_stay_bounded(tmp_path: Path) -> None:
@@ -539,35 +566,27 @@ def test_status_reminders_supply_runnable_context_and_stay_bounded(tmp_path: Pat
     assert "task-00" in result["content"]
 
 
-def test_a_status_row_names_the_work_once_rather_than_its_id_spelling() -> None:
-    """The settlement row printed the name twice.
-
-    A task id is derived from the subject, so the row read
-    `- fix-the-thing · Fix the thing · pending`: one name in two spellings.
-    Every other task row shows the name and the state. This row now matches,
-    and the id stays in the tool result, where a caller acts on it. A task id
-    that is not the subject's spelling is still machine data a reader may want,
-    but a row is not where a caller addresses work.
-    """
+def test_status_rows_use_numbered_dependency_relations_without_storage_ids() -> None:
+    """Settlement rows use the same task numbers and relation labels as tool rows."""
     result = run_node(
         f"""
         import {{ taskStatusSpec }} from {json.dumps(ENTRY)};
         console.log(JSON.stringify(taskStatusSpec({{
           remaining: 2, status: "continue", continuation: 1,
           tasks: [
-            {{ id: "fix-the-three-audited-defects", subject: "Fix the three audited defects",
-               status: "pending", dependsOn: [], blockedBy: [] }},
-            {{ id: "m1", subject: "Ship the m1 path", status: "in_progress",
-               dependsOn: ["fix-the-three-audited-defects"], blockedBy: ["fix-the-three-audited-defects"] }},
+            {{ number: 1, subject: "Fix the three audited defects",
+               status: "pending", blockedBy: [], dependencies: [] }},
+            {{ number: 2, subject: "Ship the m1 path", status: "in_progress",
+               blockedBy: ["#1"], dependencies: ["#1"] }},
           ],
-        }}).details));
+        }}).summary));
         """,
     )
     first = result[0]
-    assert first == "- Fix the three audited defects · pending", first
+    assert first == "- #1 Fix the three audited defects (pending)", first
     assert "fix-the-three-audited-defects" not in first, first
-    # Dependency relations still name the ids they refer to.
-    assert "depends · fix-the-three-audited-defects" in result[1]
+    assert result[1] == "- #2 Ship the m1 path (in progress) · Depends on #1; Blocked by #1"
+    assert len(result) == 2
 
 
 def test_a_context_only_edit_does_not_buy_another_continuation(tmp_path: Path) -> None:
@@ -602,7 +621,7 @@ def test_a_context_only_edit_does_not_buy_another_continuation(tmp_path: Path) -
     )
     assert result["first"] is True
     assert result["afterBrief"] is False, "a context-only write is not task progress"
-    assert result["afterRename"] is True, "a content edit is progress"
+    assert result["afterRename"] is False, "a rename is metadata, not effective work"
 
 
 def test_the_reminder_body_is_bounded_and_pays_only_for_what_is_present(tmp_path: Path) -> None:
@@ -625,17 +644,17 @@ def test_the_reminder_body_is_bounded_and_pays_only_for_what_is_present(tmp_path
         task.createTask({ id: "held", subject: "Attempted and did not stand" });
         task.takeTask("held", "main");
         task.completeTaskWithOutcome("held", "main", "failed", "Needs access");
-        const withHold = await settle();
+        const withHold = await settle({}, {...ctx,hasUI:true});
         console.log(JSON.stringify({
           plainLines: bodyLines,
-          holdMentionsRecovery: /recovery hold needs a stated reason/.test(withHold.entries[0].content),
+          holdMentionsRecovery: /Blocked work needs a stated reason/.test(withHold.entries[0].content),
         }));
         """,
         tmp_path,
     )
     lines = result["plainLines"]
     assert len(lines) <= 6, f"the reminder body stays bounded: {lines}"
-    assert not any("recovery hold needs a stated reason" in line for line in lines), (
+    assert not any("Blocked work needs a stated reason" in line for line in lines), (
         "no recovery instruction without a recovery hold"
     )
     assert result["holdMentionsRecovery"] is True, "the instruction is emitted when a hold is present"

@@ -359,13 +359,13 @@ def test_the_restored_tasks_is_read_back_through_the_same_checks_as_a_write(tmp_
         });
         const listed = await task.executeTaskList({});
         const update = task.updateTask("loose", { context: { handoff: { delta: "x" } } });
-        const takeable = task.listTasks().filter((t) => t.status === "pending" && !(t.status === "recovery_hold")).map((t) => t.id);
+        const takeable = task.listTasks().filter((t) => t.status === "pending" && !(t.status === "blocked")).map((t) => t.id);
         console.log(JSON.stringify({
           clampedBudget: task.getTask("loose").context?.budgetBytes,
           ceiling: task.DEFAULT_CONTEXT_BUDGET_BYTES,
           findingsKept: task.getTask("loose").context?.handoff?.priorFindings,
           weirdStatus: task.getTask("weird").status,
-          weirdHeld: task.getTask("weird").status === "recovery_hold",
+          weirdHeld: task.getTask("weird").status === "blocked",
           weirdDeps: task.getTask("weird").dependsOn,
           badRefsContext: task.getTask("badRefs").context ?? null,
           listed: listed.details.count,
@@ -380,7 +380,7 @@ def test_the_restored_tasks_is_read_back_through_the_same_checks_as_a_write(tmp_
         "a restored budget is clamped by the same rule a written one is"
     )
     assert result["findingsKept"] == ["abc"], "a readable brief survives the restore"
-    assert result["weirdStatus"] == "recovery_hold", "a status the task store cannot define is held for inspection, not adopted"
+    assert result["weirdStatus"] == "blocked", "a status the task store cannot define is held for inspection, not adopted"
     assert result["weirdHeld"] is True, "and the task is held rather than offered out"
     assert result["weirdDeps"] == [], "a dependency that is not a task id is dropped"
     assert result["badRefsContext"] is None, "a context the task store cannot read is dropped, not spread"
@@ -434,7 +434,7 @@ def test_the_declared_status_enum_is_the_one_the_tasks_produces(tmp_path: Path) 
         const declared = task.TASK_TOOL_OUTPUT_SCHEMA.properties.task.properties.status.enum;
         const filterEnum = task.TASK_LIST_PARAMS.properties.statusFilter.items.enum;
         // Every status the store can put on a task, read from the type's own doc.
-        const union = ["pending", "in_progress", "recovery_hold", "completed", "superseded"];
+        const union = ["pending", "in_progress", "blocked", "completed"];
         console.log(JSON.stringify({
           declared,
           filterEnum,

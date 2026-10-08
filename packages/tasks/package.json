@@ -23,7 +23,8 @@
   "files": [
     "index.ts",
     "src",
-    "README.md"
+    "README.md",
+    "TUI.zh-CN.md"
   ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

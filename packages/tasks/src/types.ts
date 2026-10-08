@@ -13,23 +13,28 @@
 
 /** Tasks lifecycle of a Task, in the order the tasks moves through it.
  *
- *  `recovery_hold` sits beside `in_progress` rather than under `pending`,
+ *  `blocked` sits beside `in_progress` rather than under `pending`,
  *  because it is a state of its own: the work was attempted and the attempt did
- *  not stand. `pending` now means never attempted, and only that. Taking from
- *  `recovery_hold` needs a stated reason.
+ *  not stand. `pending` covers unstarted and reopened work. Taking from
+ *  `blocked` needs a stated reason.
  *
  *  The runtime list, not a bare union, so the two cannot drift: `loadTasks`
  *  validates a restored status against it, the tool declares it in a schema, and
  *  a status added here reaches all three. A `TaskStatus` written out as a union
  *  of literals instead would erase at runtime and leave each of those places
  *  holding its own private copy. */
-export const TASK_STATUSES = ["pending", "in_progress", "recovery_hold", "completed", "superseded"] as const;
+export const TASK_STATUSES = ["pending", "in_progress", "blocked", "completed"] as const;
 
 /** Tasks lifecycle of a Task. The set is closed: every transition a caller may
  *  name lives here, so an unsupported value is a compile error rather than a
  *  silent no-op. `in_progress` replaces the older `claimed` because "in_progress"
  *  described an authority a caller had to be granted, and a Task has no declared
  *  owner — moving a Task into progress *is* taking it. */
+/** Replacement history is inactive independently of its last task status. */
+export function isTaskReplaced(task: { supersededBy?: string; replacementUnresolved?: boolean } | undefined): boolean {
+  return !!(task?.supersededBy || task?.replacementUnresolved);
+}
+
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 /** The answer a task's declared completion gate was given. `pass` and `fail` are
@@ -97,10 +102,16 @@ export interface Task {
   createdBy?: string;
   /** Replacement Work that made this Work obsolete. */
   supersededBy?: string;
+  /** Legacy replacement history with a missing target stays inactive for repair. */
+  replacementUnresolved?: boolean;
   /** The evidence recorded for the current or last attempt. Retained verbatim:
    *  trimming decides only whether there is evidence at all, so a real result
    *  keeps whatever the caller supplied. */
   result?: string;
+  /** Last failed attempt retained when a later attempt succeeds. */
+  failureEvidence?: string;
+  /** Explicit blocker; cleared when the task resumes. */
+  blockedReason?: string;
   /** The answer to this task's declared completion gate, for the *current*
    *  attempt. `undefined` means the task declared no gate, or a recorded answer
    *  was withdrawn because the premise under it was reopened — never that a gate

@@ -1,131 +1,79 @@
-Feature: The harness checks unfinished tasks before the model stops
+Feature: Effective work gates bounded task continuation
+  Rule: Only productive runnable work continues
+    Scenario: A normal run performs new work
+      Given a pending task with completed prerequisites or caller-held work
+      And a new successful tool receipt in this run
+      When Pi settles normally without pending user input
+      Then Tasks appends status after the existing boundary entries
+      And requests one continuation without changing the task state
 
-  Task status is not proof that the work is done. The harness returns unfinished
-  tasks to model context before settlement. It does not complete tasks itself.
+    Scenario: Only metadata or a repeated read changed
+      Given unfinished runnable work
+      When the run only reads the same arguments and result again or edits task metadata
+      Then it requests no continuation
+      And a UI transcript shows waiting with the reason
+      And an identical waiting snapshot is not printed again
 
-  Rule: The next model request receives the current task state
+    Scenario: Only blocked or foreign work remains
+      Given blocked work, unfinished prerequisites or another holder's work
+      When no task can proceed for the caller
+      Then Tasks waits without a forced inspection turn, takeover or state change
 
-    Scenario: The model stops after setting a task to in progress
-      Given the current session holds an in-progress task
-      When the model finishes a normal response
-      Then the harness appends a task status message to model context
-      And it requests one continuation to perform the unfinished work
-      And it does not change the task status
+    Scenario: Restored work recovers deliberately
+      Given a persisted in-progress task restored as blocked
+      When the caller inspects evidence and supplies a safe recovery reason
+      Then it can start a new attempt after the prerequisites complete
+      And verified success is recorded with evidence
 
-    Scenario: Dependencies select which tasks can proceed
-      Given an unfinished task with an unfinished dependency
-      And an independent pending task
-      When the model attempts to stop
-      Then the message identifies the unfinished dependency
-      And it directs the model to available work without resource tags
+    Scenario: Historical records do not cause work
+      Given only completed, replaced or recordKind execution records
+      When Pi settles
+      Then no task continuation or passive message is added
 
-    Scenario: The claimable hint names exactly what the store will let a caller take
-      Given a restored pending task that still names a holder who is gone
-      When the model attempts to stop
-      Then the message reports that task as claimable
-      And list_tasks filtered by claimable returns the same task
+  Rule: Pi retains control of input and cancellation
+    Scenario: A competing continuation or queued input exists
+      Given new successful work and a runnable task
+      When input is pending or another handler already continues
+      Then Tasks neither continues nor spends allowance
 
-    Scenario: No unfinished task needs a reminder
-      Given every task is completed or superseded
-      When the model finishes
-      Then the harness appends no task status message
-      And it requests no continuation
+    Scenario: A run aborts or fails
+      Given unfinished work
+      When the run outcome is aborted or error or its signal is aborted
+      Then Tasks does not restart the run
 
-  Rule: A reminder does not override cancellation or pending input
+    Scenario: Earlier messages and edits survive
+      Given earlier boundary messages and context edits
+      When Tasks emits a status snapshot
+      Then the earlier entries retain their order before the Tasks message
 
-    Scenario: The run was cancelled or failed
-      Given unfinished tasks
-      When the run ends with an aborted or error outcome
-      Then the harness requests no continuation
-      And it does not change task status
+  Rule: Allowance and reminders stay bounded
+    Scenario: Three productive continuations occurred
+      Given new work after each automatic continuation
+      When the next normal settlement occurs
+      Then Tasks shows waiting with automatic continuation limit reached
+      And never claims the user paused
 
-    Scenario: Another continuation or input is pending
-      Given unfinished tasks
-      When another handler already requests continuation or input is queued
-      Then the task check requests no additional continuation
-      And it does not consume its reminder allowance
-
-    Scenario: A blocked snapshot earns one continuation and no second round
-      Given no unfinished task can immediately proceed in this session
-      When the model attempts to stop
-      Then the harness requests one continuation for that task snapshot
-      And the status row names the blocker in its waiting reason
-      And the harness does not clear a hold or transfer ownership itself
-
-    Scenario: An unchanged blocker does not create an automatic retry loop
-      Given the model has inspected the blocked task snapshot
-      And no task state changes
-      When the model attempts to stop again
-      Then the harness reports the specific waiting reason without another continuation
-
-    Scenario: Interrupted work can resume after inspection
-      Given a restored task under a recovery hold
-      When the model inspects the recorded state and confirms recovery is safe
-      Then it supplies a recovery reason and starts a new attempt
-      And it performs and verifies the work before marking the task completed
-
-  Rule: The task check composes with other boundary handlers
-
-    Scenario: Earlier boundary entries are preserved
-      Given an earlier handler supplies a message and a context edit
-      When the task check adds its status message
-      Then all earlier entries remain in their original order
-      And the task message follows them
-
-    Scenario: A malformed task identity cannot hide valid unfinished work
-      Given a saved task with a missing or non-string id
-      And a valid pending task
-      When the tasks are restored
-      Then the malformed identity uses its persisted task key under a recovery hold
-      And a notice reports the repair
-      And the valid task still receives its continuation
-
-  Rule: Repeated premature settlement is bounded
-
-    Scenario: Available work receives no repeated continuation without progress
-      Given a task continuation has returned available work to the model
-      And the model reports that it needs input or authorization without changing task state
-      When the model attempts to stop again
-      Then the harness reports no task progress without another continuation
-      And it does not exhaust the continuation allowance or change the task
-
-    Scenario: Timestamp-only changes do not renew continuation
-      Given a task snapshot was already returned for continuation
-      When a repeated content update changes only its timestamp
-      Then the harness requests no additional continuation for that snapshot
-
-    Scenario: Progressing task state still has a continuation limit
-      Given unfinished tasks whose state changes after each continuation
-      When the model repeatedly attempts to stop without completing them
-      Then no more than three task continuations run for that user input
-      And the final message reports unfinished tasks and the exhausted allowance
-
-    Scenario: New user input starts a new allowance
-      Given the task reminder allowance is exhausted
+    Scenario: Real user input renews allowance
+      Given an exhausted allowance
       When a real user message arrives
-      Then another unfinished task check can request continuation
-      And a task reminder does not reset the allowance
+      Then new effective work can earn another continuation
+      And extension-generated input does not reset the allowance
 
-    Scenario: Status rows follow the task display language
-      Given unfinished tasks with declared dependencies
-      When the harness renders its status message
-      Then the row uses tasks and a status action such as continue, waiting, or paused
-      And its expansion shows a bounded task summary with dependency ids and unfinished prerequisites
-      And each summary line names the work once, so a derived id never repeats its own subject
-      And full continuation instructions remain in model context instead of the transcript
+    Scenario: The model reminder is bounded
+      Given many tasks with long titles
+      When the status message is generated
+      Then model instructions stay within twenty rows and eight KiB
+      And omissions direct the model to list_tasks
+      And visible titles and task bodies wrap in full without expansion
 
-    Scenario: Task summaries stay bounded
-      Given many tasks with long subjects
-      When the harness creates a reminder
-      Then its model content is bounded and identifies omitted tasks
-      And its transcript renderer uses a compact lifecycle row
+    Scenario: Malformed restored data is visible
+      Given saved work with missing or invalid identity
+      When it is restored
+      Then it uses the persisted key as blocked work and reports a notice
+      And valid runnable tasks remain independently usable
 
-  Rule: The passive notice exists only where a transcript can show it
-
-    Scenario: A headless run that ends with unfinished work still prints
-      Given a session with no UI and unfinished tasks
-      And the current task snapshot was already returned once
-      When the model finishes a normal response
-      Then the task check returns no result on that settlement
-      And the run prints its final assistant text
-      And unfinished work that can still proceed keeps its status message in every mode
+    Scenario: Headless waiting preserves the final answer
+      Given a session without a UI
+      When the run cannot continue
+      Then no passive row replaces the final assistant answer
+      And productive continuation still includes model context in every mode

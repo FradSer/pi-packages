@@ -70,7 +70,7 @@ export interface TaskContext {
  *  `subject` and `verify` are optional in the shape so a caller measuring a
  *  partial Task is not asked to invent them. */
 export function taskContextBytes(
-  task: Partial<Pick<Task, "subject" | "description" | "verify" | "result">> & {
+  task: Partial<Pick<Task, "subject" | "description" | "verify" | "result" | "blockedReason" | "failureEvidence">> & {
     context?: TaskContext;
     resources?: readonly string[];
   },
@@ -80,6 +80,8 @@ export function taskContextBytes(
     task.description ?? "",
     task.verify ?? "",
     task.result ?? "",
+    task.blockedReason ?? "",
+    task.failureEvidence ?? "",
     // Resource tags are model-supplied free text and are re-serialized into the
     // tasks file on every change, so they are measured with the rest of what a
     // Task retains rather than being the one field a caller can grow for free.
@@ -91,7 +93,7 @@ export function taskContextBytes(
 
 /** Whether a Task's retained context is within its budget. */
 export function withinContextBudget(
-  task: Partial<Pick<Task, "subject" | "description" | "verify" | "result">> & {
+  task: Partial<Pick<Task, "subject" | "description" | "verify" | "result" | "blockedReason" | "failureEvidence">> & {
     context?: TaskContext;
     resources?: readonly string[];
   },

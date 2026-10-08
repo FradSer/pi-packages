@@ -141,7 +141,7 @@ def test_failure_is_explicit_and_retains_its_evidence(tmp_path: Path) -> None:
         tmp_path,
     )
     assert result["ok"] is True
-    assert result["status"] == "recovery_hold"
+    assert result["status"] == "blocked"
     assert result["evidence"] == "cannot reach the private registry"
 
 
@@ -156,7 +156,7 @@ def test_the_recovery_hold_requires_a_stated_reason(tmp_path: Path) -> None:
           silentOk: silent.ok,
           silentRefusal: silent.ok ? null : silent.refusal,
           spokenOk: spoken.ok,
-          holdCleared: spoken.task ? spoken.task.status !== "recovery_hold" : null,
+          holdCleared: spoken.task ? spoken.task.status !== "blocked" : null,
           note: spoken.task?.recoveryNote ?? null,
         }));
         """,
@@ -209,7 +209,7 @@ def test_an_unheld_task_accepts_fallback_acceptance_when_a_holder_died(tmp_path:
         // Values, not the record: `getTask` hands back the live object, so a
         // snapshot read after the next call reports the *later* state.
         const after = task.getTask("t1");
-        const afterFailure = { status: after.status, held: after.claimedBy ?? null, hold: after.status === "recovery_hold" };
+        const afterFailure = { status: after.status, held: after.claimedBy ?? null, hold: after.status === "blocked" };
         const closed = task.completeTaskWithOutcome("t1", "main", "success", "verified by reading the output");
         console.log(JSON.stringify({
           afterFailure,
@@ -220,7 +220,7 @@ def test_an_unheld_task_accepts_fallback_acceptance_when_a_holder_died(tmp_path:
         """,
         tmp_path,
     )
-    assert result["afterFailure"] == {"status": "recovery_hold", "held": None, "hold": True}, (
+    assert result["afterFailure"] == {"status": "blocked", "held": None, "hold": True}, (
         "a reported failure is what makes an unheld task accept-able again"
     )
     assert result["ok"] is True
@@ -255,7 +255,7 @@ def test_reopening_proceeds_while_a_dependent_is_being_worked_on(tmp_path: Path)
     )
     assert result["ok"] is True
     assert result["withdrawn"] == ["dependent"]
-    assert result["dependentStatus"] == "recovery_hold"
+    assert result["dependentStatus"] == "blocked"
     assert result["namesTheTask"] == "t1"
 
 
@@ -519,7 +519,7 @@ def test_reopening_pulls_back_what_was_concluded_on_it(tmp_path: Path) -> None:
           premiseAfter: task.getTask("base").status,
           withdrawnIds: reopened.ok ? reopened.invalidated.map((entry) => entry.id) : null,
           dependentAfter: after.status,
-          held: after.status === "recovery_hold",
+          held: after.status === "blocked",
           namesTheTask: after.invalidatedBy ?? null,
           evidenceKept: after.result ?? null,
           invariant: !(after.status === "completed" && task.getTask("base").status !== "completed"),
@@ -530,7 +530,7 @@ def test_reopening_pulls_back_what_was_concluded_on_it(tmp_path: Path) -> None:
     assert result["completedBefore"] == "completed"
     assert result["premiseAfter"] == "pending"
     assert result["withdrawnIds"] == ["built"], "the conclusion is pulled back, and named"
-    assert result["dependentAfter"] == "recovery_hold", (
+    assert result["dependentAfter"] == "blocked", (
         "a completed task must never depend on an unfinished one, whichever door is used"
     )
     assert result["held"] is True, "it is held rather than offered straight back out"
@@ -595,7 +595,7 @@ def test_a_reopened_premise_withdraws_its_recorded_gate_verdict(tmp_path: Path) 
         "a pass on work whose premise is gone is the one reading this task set cannot afford"
     )
     assert result["dependentGate"] is None
-    assert result["dependentStatus"] == "recovery_hold"
+    assert result["dependentStatus"] == "blocked"
     assert result["ownVerdictKept"] == "pass", (
         "a task keeps its own verdict when it is the one reopened; it is pending again, "
         "and the answer described an attempt that may yet stand"
@@ -621,7 +621,7 @@ def test_a_reopen_cascade_reaches_every_conclusion(tmp_path: Path) -> None:
         tmp_path,
     )
     assert result["withdrawn"] == ["c2", "c3"], "the cascade reaches the far end, not just the nearest"
-    assert result["statuses"] == ["pending", "recovery_hold", "recovery_hold"]
+    assert result["statuses"] == ["pending", "blocked", "blocked"]
 
 
 def test_a_dependent_being_worked_on_is_invalidated_rather_than_blocking(tmp_path: Path) -> None:
@@ -655,7 +655,7 @@ def test_a_dependent_being_worked_on_is_invalidated_rather_than_blocking(tmp_pat
           withdrawn: reopened.ok ? reopened.invalidated.map((entry) => entry.id) : null,
           dependentStatus: dependent.status,
           heldBy: dependent.claimedBy ?? null,
-          held: dependent.status === "recovery_hold",
+          held: dependent.status === "blocked",
           namesTheTask: dependent.invalidatedBy ?? null,
           note: dependent.recoveryNote ?? null,
           leaseReleased: released,
@@ -668,7 +668,7 @@ def test_a_dependent_being_worked_on_is_invalidated_rather_than_blocking(tmp_pat
         "reopen must be available: it is the only way back from a completed task"
     )
     assert result["withdrawn"] == ["h2"]
-    assert result["dependentStatus"] == "recovery_hold"
+    assert result["dependentStatus"] == "blocked"
     assert result["heldBy"] is None, "the holder is released with the premise"
     assert result["held"] is True, "and the attempt is held rather than offered straight back out"
     assert result["namesTheTask"] == "h1"
@@ -730,7 +730,7 @@ def test_reopen_does_not_depend_on_who_is_working(tmp_path: Path) -> None:
     )
     assert result["completedWithdrawn"] == ["done-dependent"]
     assert result["heldWithdrawn"] == ["busy-dependent"], "the held dependent is withdrawn, not spared"
-    assert result["heldAfter"] == "recovery_hold"
+    assert result["heldAfter"] == "blocked"
     assert result["heldAfterNamesPremise"] == "busy-premise"
 
 

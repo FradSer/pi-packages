@@ -323,7 +323,7 @@ def test_a_failed_attempt_clears_the_previous_attempt_gate_answer(tmp_path: Path
     assert result["passed"] is True, "the setup must reach a recorded verdict before the failure"
     assert result["reopened"] is True and result["retaken"] is True
     assert result["failed"] is True
-    assert result["status"] == "recovery_hold"
+    assert result["status"] == "blocked"
     assert result["blocker"] == "The fix regressed", "the failure keeps its blocker as evidence"
     assert result["verdict"] is None, "a failed attempt answered no gate"
     assert result["gate"] is None
@@ -535,12 +535,12 @@ def test_a_restored_in_progress_task_returns_under_a_recovery_hold(tmp_path: Pat
         console.log(JSON.stringify({{
           status: restored.status,
           claimedBy: restored.claimedBy ?? null,
-          recoveryRequired: (restored.status === "recovery_hold") ?? false,
+          recoveryRequired: (restored.status === "blocked") ?? false,
         }}));
         """,
         env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path)},
     )
-    assert result["status"] == "recovery_hold"
+    assert result["status"] == "blocked"
     assert result["claimedBy"] is None, "a restored tasks has no participants, so it names no holder"
 
 
@@ -741,8 +741,8 @@ def test_a_supersession_reaches_the_durable_file_and_not_only_the_tasks(tmp_path
         """,
         env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path)},
     )
-    assert result["diskOldStatus"] == "superseded", (
-        "the durable tasks must record the supersession the call reported"
+    assert result["diskOldStatus"] == "pending", (
+        "replacement is a durable relation, not a fifth status"
     )
     assert result["diskSupersededBy"] == "replacement-work"
     assert result["diskDependentDeps"] == ["replacement-work"], (

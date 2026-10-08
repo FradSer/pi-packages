@@ -25,7 +25,7 @@ def test_execution_history_is_retained_without_continuation(tmp_path: Path) -> N
     assert "id=explicit" in result["content"]
     assert "id=run" not in result["content"]
     assert result["evidence"] == "Provider disconnected"
-    assert result["status"] == "recovery_hold"
+    assert result["status"] == "blocked"
 
 
 def test_restored_generated_execution_does_not_hide_explicit_recovery(tmp_path: Path) -> None:
@@ -35,10 +35,10 @@ def test_restored_generated_execution_does_not_hide_explicit_recovery(tmp_path: 
         const base={dependsOn:[],resources:[],createdAt:1,updatedAt:1,status:"pending",recoveryRequired:true};
         task.loadTasks({[generated]:{...base,id:generated,subject:"Earlier review",result:"Interrupted"},
           explicit:{...base,id:"explicit",subject:"User task"}});
-        const receipt=await settle();
+        const receipt=await settle({}, {...ctx,hasUI:true});
         console.log(JSON.stringify({count:receipt.entries[0].details.remaining,
           content:receipt.entries[0].content,kind:task.getTask(generated).recordKind,
-          evidence:task.getTask(generated).result,hold:task.getTask(generated).status === "recovery_hold",
+          evidence:task.getTask(generated).result,hold:task.getTask(generated).status === "blocked",
           status:receipt.entries[0].details.status}));
         """,
         tmp_path,
@@ -47,7 +47,7 @@ def test_restored_generated_execution_does_not_hide_explicit_recovery(tmp_path: 
     assert result["kind"] == "execution"
     assert result["evidence"] == "Interrupted"
     assert result["hold"] is True
-    assert result["status"] == "continue", "the blocked snapshot continues once; the blocker is named in its reason"
+    assert result["status"] == "waiting", "blocked snapshots require deliberate recovery"
     assert "id=work:" not in result["content"]
 
 
@@ -62,7 +62,7 @@ def test_invalid_present_classification_is_repaired_not_inferred(tmp_path: Path)
           task.loadTasks({[id]:{id,subject:"Saved work",recordKind:value,dependsOn:[],resources:[],
             status:"pending",createdAt:1,updatedAt:1,result:"Preserved evidence"}});
           const full=await task.executeTaskGet({id});
-          observations.push({kind:full.details.task.recordKind,hold:task.getTask(id).status === "recovery_hold",
+          observations.push({kind:full.details.task.recordKind,hold:task.getTask(id).status === "blocked",
             evidence:full.details.task.result,notice:task.storeNotice(),claimable:task.claimableTasks().length});
         }
         console.log(JSON.stringify({observations}));

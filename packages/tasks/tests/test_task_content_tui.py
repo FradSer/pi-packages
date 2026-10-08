@@ -1,4 +1,4 @@
-"""Verify task content expansion in the native Pi fullscreen terminal.
+"""Verify default task content in the native Pi fullscreen terminal.
 
 The deterministic provider performs task edits without credentials or network requests.
 """
@@ -47,7 +47,7 @@ def test_native_tui_expands_task_content_without_holder_rows(tmp_path: Path, mod
         "PI_TASK_TEST_WORK_DIR": str(tmp_path),
     })
     master, slave = pty.openpty()
-    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 100, 0, 0))
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 300, 100, 0, 0))
     process = subprocess.Popen([
         str(REPO / "node_modules/.bin/pi"), "--no-session", "--no-extensions", "--no-skills",
         "--no-context-files", "--no-prompt-templates", "--tui-mode", "fullscreen",
@@ -92,12 +92,11 @@ def test_native_tui_expands_task_content_without_holder_rows(tmp_path: Path, mod
         if mode == "ignore":
             assert settled["requests"] == 5
             assert settled["reminders"][-1]["details"]["status"] == "waiting"
-            wait_for(lambda: "[tasks] waiting" in screen_text() and "no task progress" in screen_text(), "no-progress waiting row")
+            wait_for(lambda: "[tasks] waiting · 2 unfinished tasks" in screen_text(), "waiting row")
+            assert "no new effective work" in screen_text()
             assert "continuation limit reached" not in screen_text()
-            before_expand = len(output)
-            os.write(master, b"\x0f")
-            wait_for(lambda: "depends · first-task" in
-                     ANSI.sub("", output[before_expand:].decode("utf-8", errors="replace")), "status dependencies")
+            assert "to expand" not in screen_text()
+            assert "Blocked by #1" in screen_text()
             assert "Task status check before settlement." not in screen_text(), "The transcript must keep full task instructions hidden"
             assert "[Task]" not in screen_text()
             return
@@ -106,21 +105,14 @@ def test_native_tui_expands_task_content_without_holder_rows(tmp_path: Path, mod
         assert "[tasks] update" in screen_text()
         assert "[tasks] create" in screen_text()
         assert "[Task]" not in screen_text()
-        assert "depends · content-prerequisite" in screen_text()
+        assert "Depends on #1" in screen_text()
+        assert "Blocked by #1" in screen_text()
         assert "[update_task]" not in screen_text()
         assert "in_progress" not in screen_text()
-        assert "Check the input handling and report failures." not in screen_text(), "Task bodies stay collapsed initially"
-        before_expand = len(output)
-        os.write(master, b"\x0f")  # Pi's native Ctrl+O tool expansion.
-        wait_for(lambda: all(text in ANSI.sub("", output[before_expand:].decode("utf-8", errors="replace"))
-                 for text in ("Check the input handling and report failures.", "Confirm the input checks pass.",
-                              "depends · content-prerequisite")), "complete expanded task sections")
-        expanded = ANSI.sub("", output[before_expand:].decode("utf-8", errors="replace"))
-        assert "Description:" in expanded
-        assert "Verify:" in expanded
-        assert "Confirm the input checks pass." in expanded
-        assert "depends · content-prerequisite" in expanded
-        assert expanded.index("Description:") < expanded.index("Verify:") < expanded.index("depends · content-prerequisite")
+        wait_for(lambda: all(text in screen_text() for text in (
+            "Check the input handling and report failures.", "Confirm the input checks pass.",
+            "Description:", "Verify:", "Depends on #1")), "complete default task sections")
+        assert "to expand" not in screen_text()
         assert "holder ·" not in screen_text()
         assert "HELD BY" not in screen_text()
         assert "@main" not in screen_text()

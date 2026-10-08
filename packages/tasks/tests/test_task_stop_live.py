@@ -98,33 +98,24 @@ def test_native_pi_delivers_task_state_and_bounds_continuation(tmp_path: Path, m
     if mode in {"restore", "inspect-only"}:
         assert list(tasks) == ["restored-task"]
         assert requests[0]["reminders"] == 0
-        assert requests[1]["reminders"] == 1, "Blocked state must reach the next provider request"
-        assert settled["reminders"][0]["details"]["status"] == "continue"
-        assert "recovery hold" in settled["reminders"][0]["content"]
+        assert settled["reminders"] == [], "blocked work must not trigger an automatic inspection turn"
         assert len(settled["taskReads"]) == 1
         observed = settled["taskReads"][0]["task"]
-        assert observed["status"] == "recovery_hold"
+        assert observed["status"] == "blocked"
         assert "holder" not in observed
         if mode == "restore":
-            assert len(requests) == 8
+            assert len(requests) == 7
             assert tasks["restored-task"]["status"] == "completed"
             assert "Read the saved output" in tasks["restored-task"]["recoveryNote"]
             assert (tmp_path / "first.txt").read_text() == "Recovered task implementation\n"
-            assert len(settled["reminders"]) == 1
+            assert len(settled["reminders"]) == 0
         else:
             assert len(requests) == 3, "An unchanged recovery blocker receives only one continuation run"
-            # One continuation per snapshot is the whole rule now: the blocked
-            # state is named in the reminder's waiting reason rather than in a
-            # second kind of settlement round.
             # Inspection is read-only. The saved pre-recovery attempt remains
             # unchanged until a task mutation persists the restored state.
             assert tasks["restored-task"]["status"] == "in_progress"
             assert tasks["restored-task"]["result"] == "The interrupted attempt created a partial output"
             assert (tmp_path / "first.txt").read_text() == "Interrupted task output\n"
-            # The inspection request carries its row; the follow-up waiting row
-            # is suppressed headless, so the run prints its final text instead.
-            assert [item["details"]["status"] for item in settled["reminders"]] == ["continue"]
-            assert "recovery inspection required" in settled["reminders"][-1]["content"]
         return
     assert len(tasks) == 2
     assert requests[3]["reminders"] == 0
@@ -147,8 +138,8 @@ def test_native_pi_delivers_task_state_and_bounds_continuation(tmp_path: Path, m
             # content contract lives in tests/test_task_stop_check.py.
             assert [item["details"]["status"] for item in settled["reminders"]] == ["continue"]
         else:
-            assert len(requests) == 10, "Three changed-state continuations still exhaust the fixed allowance"
+            assert len(requests) == 6, "Metadata edits do not buy another automatic turn"
             # Three continuation rows. The paused notice needs a transcript, so
             # headless settlement returns no result and the run prints instead.
             # The paused-row contract lives in tests/test_task_stop_check.py.
-            assert [item["details"]["status"] for item in settled["reminders"]] == ["continue"] * 3
+            assert [item["details"]["status"] for item in settled["reminders"]] == ["continue"]

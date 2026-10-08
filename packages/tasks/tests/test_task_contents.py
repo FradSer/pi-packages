@@ -85,22 +85,25 @@ def test_task_rows_show_content_and_dependencies_without_holder_metadata(tmp_pat
         tmp_path,
     )
     assert result["storedHolder"] == result["resultHolder"] == "main", "ownership remains runtime evidence"
-    assert "[tasks] update · A simple task · in progress" in result["collapsed"]
+    assert "[tasks] update · #1 A simple task (in progress)" in result["collapsed"]
     for operation in result["operations"]:
         action = operation["name"].removesuffix("_task").removesuffix("_tasks")
         assert f"[tasks] {action} ·" in operation["display"]
         assert operation["structuredTool"] == operation["name"]
         assert "in_progress" not in operation["display"]
     assert result["operations"][-1]["structuredStatus"] == "in_progress"
-    assert "[tasks] failed ·" in result["refusal"], "Failures retain pi-kit's shared failed band"
-    assert 'Task "missing" does not exist.' in result["refusal"]
-    assert "depends · a-prerequisite" in result["createCollapsed"]
-    assert "blocked · a-prerequisite" in result["createCollapsed"]
-    assert result["hiddenLines"] == [], "holder alone does not make a task expandable"
+    assert "[tasks] get not applied" in result["refusal"], "Refusals use the full shared lifecycle row"
+    assert "The task does not exist." in result["refusal"]
+    assert "Depends on #2" in result["createCollapsed"]
+    assert "Blocked by #2" in result["createCollapsed"]
+    assert "A prerequisite #1" not in result["createCollapsed"]
+    assert "(pending, blocked)" not in result["createCollapsed"]
+    assert result["hiddenLines"] == ["Required at completion: a result recording the evidence"], "requirements are visible without ownership metadata"
     assert result["collapsed"].strip() == result["expanded"].strip()
     assert "ctrl+o" not in result["collapsed"]
     assert all(item["actual"] <= item["width"] for item in result["narrowWidths"])
-    assert "depends · a-prerequisite" in result["listExpanded"]
+    assert "Depends on #2" in result["listExpanded"]
+    assert "Blocked by #2" in result["listExpanded"]
     for key in ("collapsed", "expanded", "createExpanded", "getExpanded", "listExpanded"):
         assert "holder ·" not in result[key], key
         assert "HELD BY" not in result[key], key
@@ -112,14 +115,142 @@ def test_task_rows_show_content_and_dependencies_without_holder_metadata(tmp_pat
         assert lines.index("Description:") < lines.index("Inspect the current interaction.")
         assert lines.index("Check the input handling and report failures.") < lines.index("Verify:")
         assert lines.index("Verify:") < lines.index("Confirm input handling works.")
-        assert lines.index("Check cancellation before acceptance.") < lines.index("depends · a-prerequisite")
+        assert lines.index("Check cancellation before acceptance.") < lines.index("Depends on #2")
         assert lines.count("Inspect the current interaction.") == 1
-        assert lines.count("depends · a-prerequisite") == 1
-        assert lines.count("blocked · a-prerequisite") == 1
+        assert lines.count("Depends on #2") == 1
+        assert lines.count("Blocked by #2") == 1
+        assert "(pending, blocked)" not in result[key]
         assert "verify ·" not in result[key]
     for key in ("collapsed", "expanded", "listExpanded"):
         assert "Description:" not in result[key], "Absent fields have no empty section"
         assert "Verify:" not in result[key]
+
+
+def test_task_tui_uses_numbered_dependency_relations(tmp_path: Path) -> None:
+    result = run(
+        r"""
+        const prerequisite = await checked("create_task", {
+          subject: "Build database", description: "Prepare the storage layer",
+        });
+        const dependent = await checked("create_task", {
+          subject: "Configure application",
+          description: "Wire the application to storage",
+          dependsOn: [prerequisite.details.id],
+        });
+        const documentation = await checked("create_task", {
+          subject: "Document several independent storage adapters",
+          description: "Explain the storage adapter choices",
+        });
+        const listed = await checked("list_tasks", {});
+        const listCollapsed = render("list_tasks", listed, false, 100).join("\n");
+        const listExpanded = render("list_tasks", listed, true, 32).join("\n");
+        const narrowCollapsed = render("list_tasks", listed, false, 32).join("\n");
+        const narrowExpanded = render("list_tasks", listed, true, 32).join("\n");
+        const got = await checked("get_task", { id: dependent.details.id });
+        const getCollapsed = render("get_task", got, false, 100).join("\n");
+        const createCollapsed = render("create_task", prerequisite, false, 100).join("\n");
+        const refused = await call("update_task", {
+          id: dependent.details.id, status: "completed", outcome: "success", result: "Not started",
+        });
+        const refusal = render("update_task", refused, false, 100).join("\n");
+        const invalidDependency = await call("create_task", {
+          subject: "Rejected task", dependsOn: ["opaque.reference"],
+        });
+        const invalidDependencyRow = render("create_task", invalidDependency, false, 100).join("\n");
+        const empty = await checked("list_tasks", { statusFilter: ["completed"] });
+        const emptyRow = render("list_tasks", empty, false, 100).join("\n");
+        console.log(JSON.stringify({
+          ids: [prerequisite.details.id, dependent.details.id, documentation.details.id],
+          listCollapsed, listExpanded, narrowCollapsed, narrowExpanded, getCollapsed, createCollapsed, refusal,
+          narrowWidths: narrowExpanded.split("\n").map(line => visibleWidth(line)),
+          invalidDependencyRow, emptyRow,
+        }));
+        """,
+        tmp_path,
+    )
+    assert "#1 Build database (pending)" in result["listCollapsed"]
+    assert "#2 Configure application (pending) · Depends on #1; Blocked by #1" in result["listCollapsed"]
+    assert "Depends on #1" in result["listCollapsed"]
+    assert "Blocked by #1" in result["listCollapsed"]
+    assert "to expand" not in result["narrowCollapsed"]
+    narrow_expanded = " ".join(result["narrowExpanded"].split())
+    assert "Document several independent storage adapters" in narrow_expanded
+    assert "Depends on #1" in narrow_expanded
+    assert "Blocked by #1" in narrow_expanded
+    assert all(width <= 32 for width in result["narrowWidths"])
+    assert "#2 Configure application (pending)" in result["getCollapsed"]
+    assert "Depends on #1" in result["getCollapsed"]
+    assert "Blocked by #1" in result["getCollapsed"]
+    assert "#1 Build database (pending)" in result["createCollapsed"]
+    assert "Configure application #2" in result["refusal"]
+    assert result["ids"][1] not in result["refusal"]
+    assert "dependency refers to a task that does not exist" in result["invalidDependencyRow"]
+    assert "opaque.reference" not in result["invalidDependencyRow"]
+    assert "reference." not in result["invalidDependencyRow"]
+    expanded_list_text = " ".join(result["listExpanded"].split())
+    assert "Document several independent storage adapters" in expanded_list_text
+    assert "Wire the application to storage" not in result["listExpanded"]
+    assert all(task_id not in "\n".join(
+        (result["listCollapsed"], result["listExpanded"], result["getCollapsed"], result["createCollapsed"])
+    ) for task_id in result["ids"])
+    assert "No tasks" in result["emptyRow"]
+    assert "0 tasks" not in result["emptyRow"]
+    list_content = result["listCollapsed"].replace("[tasks] list ·", "")
+    assert list_content.count(" · ") == 1
+
+
+def test_blocked_by_lists_only_unfinished_dependencies(tmp_path: Path) -> None:
+    result = run(
+        r"""
+        const completed = await checked("create_task", { subject: "Build schema" });
+        await checked("update_task", { id: completed.details.id, status: "in_progress" });
+        await checked("update_task", {
+          id: completed.details.id, status: "completed", outcome: "success", result: "Schema verified",
+        });
+        const pending = await checked("create_task", { subject: "Build cache" });
+        await checked("create_task", {
+          subject: "Wire service", dependsOn: [completed.details.id, pending.details.id],
+        });
+        const listed = await checked("list_tasks", {});
+        console.log(JSON.stringify({ row: render("list_tasks", listed, false, 120).join("\n") }));
+        """,
+        tmp_path,
+    )
+    assert "#1 Build schema (completed)" in result["row"]
+    assert "#2 Build cache (pending)" in result["row"]
+    assert "#3 Wire service (pending)" in result["row"]
+    assert "#3 Wire service (pending) · Depends on #1, #2; Blocked by #2" in result["row"]
+    assert "Blocked by #1" not in result["row"]
+
+
+def test_display_numbers_follow_creation_order_and_stay_stable(tmp_path: Path) -> None:
+    result = run(
+        r"""
+        const originalNow = Date.now;
+        Date.now = () => 1_800_000_000_000;
+        const zebra = await checked("create_task", { subject: "Zebra task" });
+        const maple = await checked("create_task", { subject: "Maple task" });
+        Date.now = originalNow;
+        const firstList = await checked("list_tasks", {});
+        const before = render("list_tasks", firstList, false, 120).join("\n");
+        Date.now = () => 1_800_000_000_000;
+        const aardvark = await checked("create_task", { subject: "Aardvark task" });
+        Date.now = originalNow;
+        const secondList = await checked("list_tasks", {});
+        const after = render("list_tasks", secondList, false, 120).join("\n");
+        console.log(JSON.stringify({
+          before, after,
+          createdAt: [zebra, maple, aardvark].map(result => task.getTask(result.details.id).createdAt),
+        }));
+        """,
+        tmp_path,
+    )
+    assert "#1 Zebra task (pending)" in result["before"]
+    assert "#2 Maple task (pending)" in result["before"]
+    assert "#1 Zebra task (pending)" in result["after"]
+    assert "#2 Maple task (pending)" in result["after"]
+    assert "#3 Aardvark task (pending)" in result["after"]
+    assert result["createdAt"][0] < result["createdAt"][1] < result["createdAt"][2]
 
 
 def test_task_list_is_a_summary_and_task_get_returns_the_full_body(tmp_path: Path) -> None:

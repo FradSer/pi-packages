@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 /**
  * The model-facing surface: four tools over one store.
  *
@@ -39,6 +40,7 @@ import {
   ALL_COMPLETION_CHECKS,
   MAIN_SESSION,
   blockedDependencies,
+  blockTask,
   claimableTasks,
   completableTasks,
   completionRequirements,
@@ -53,7 +55,15 @@ import {
 } from "./store.ts";
 import { TASK_STATUSES, type CompletionVerdict, type Task, type TaskStatus } from "./types.ts";
 import { formatTaskHandoff, normalizeTaskContext } from "./context.ts";
-import { TASK_DISPLAY_LABEL, taskDependencyLines, taskStatusText, taskSummaryText } from "./display.ts";
+import {
+  TASK_DISPLAY_LABEL,
+  taskBlockedByLines,
+  taskDependencyLines,
+  taskDisplayHeading,
+  taskDisplayIndex,
+  taskDisplayReference,
+  taskSummaryLines,
+} from "./display.ts";
 
 /** Tool ids this extension registers. Declared so a spawner can grant them
  *  without hardcoding names, mirroring the subagents extension. */
@@ -126,7 +136,7 @@ const CONTEXT_PARAMS = {
 } as const;
 
 /** The shape of a Task as a result carries it. Every field is something a caller
- *  would otherwise have to infer and get wrong; `recovery_hold` in particular is
+ *  would otherwise have to infer and get wrong; `blocked` in particular is
  *  a state of its own, and a Task in it cannot be taken without a reason.
  *
  *  A type alias rather than an interface: this is plain JSON on its way to
@@ -147,6 +157,9 @@ export type TaskProjection = {
   verify?: string;
   result?: string;
   supersededBy?: string;
+  replacementUnresolved?: boolean;
+  blockedReason?: string;
+  failureEvidence?: string;
   completionVerdict?: CompletionVerdict;
 };
 
@@ -179,6 +192,8 @@ export type TaskToolDetails = {
   count?: number;
   shown?: number;
   truncated?: boolean;
+  cursor?: string;
+  offset?: number;
   notice?: string;
   /** What a completion of this task must carry, named when the task is taken.
    *  The checks refuse a completion, so they are reported before the attempt
@@ -205,6 +220,9 @@ const TASK_PROJECTION_SCHEMA = {
     blockedBy: { type: "array", items: { type: "string" }, description: "Among dependsOn, the ones not completed. Absent when none are." },
     verify: { type: "string", description: "The completion gate a fresh reviewer answers." },
     result: { type: "string", description: "Evidence recorded for the current or last attempt." },
+    blockedReason: { type: "string", description: "Why work cannot continue." },
+    failureEvidence: { type: "string", description: "Evidence of the last failed attempt." },
+    replacementUnresolved: { type: "boolean", description: "Legacy replacement target is missing; this history is inactive." },
     supersededBy: { type: "string", description: "The replacement that made this task obsolete." },
     completionVerdict: { type: "string", enum: ["pass", "fail"], description: "The gate verdict recorded at completion, when the task declared a gate." },
   },
@@ -221,9 +239,11 @@ const TASK_SUMMARY_SCHEMA = {
     status: TASK_PROJECTION_SCHEMA.properties.status,
     holder: TASK_PROJECTION_SCHEMA.properties.holder,
     recoveryNote: TASK_PROJECTION_SCHEMA.properties.recoveryNote,
+    blockedReason: TASK_PROJECTION_SCHEMA.properties.blockedReason,
     dependsOn: TASK_PROJECTION_SCHEMA.properties.dependsOn,
     blockedBy: TASK_PROJECTION_SCHEMA.properties.blockedBy,
     supersededBy: TASK_PROJECTION_SCHEMA.properties.supersededBy,
+    replacementUnresolved: TASK_PROJECTION_SCHEMA.properties.replacementUnresolved,
   },
 } as const;
 
@@ -246,11 +266,13 @@ export const TASK_TOOL_OUTPUT_SCHEMA = {
     tasks: { type: "array", items: TASK_SUMMARY_SCHEMA, description: "Task summaries. Use get_task for the detailed body and evidence." },
     brief: { type: "string", description: "The successor brief, rendered for whoever picks this task up." },
     replaced: { type: "array", items: { type: "string" }, description: "Tasks a creation made obsolete." },
-    invalidated: { type: "array", items: TASK_PROJECTION_SCHEMA, description: "Tasks returned to pending after a dependency was reopened." },
-    withdrawn: { type: "array", items: { type: "string" }, description: "Ids of tasks returned to pending after a dependency was reopened." },
+    invalidated: { type: "array", items: TASK_PROJECTION_SCHEMA, description: "Tasks blocked after a dependency was reopened." },
+    withdrawn: { type: "array", items: { type: "string" }, description: "Ids of tasks blocked after a dependency was reopened." },
     count: { type: "number", description: "How many tasks matched a list." },
     shown: { type: "number", description: "How many of them this result carries." },
-    truncated: { type: "boolean", description: "Whether a list was cut short." },
+    truncated: { type: "boolean", description: "Whether more tasks remain after this page." },
+    cursor: { type: "string", description: "Pass to list_tasks to read the next page." },
+    offset: { type: "number", description: "Number of matching tasks before this page." },
     notice: { type: "string", description: "A store-level fact the caller needs, such as an unreadable file." },
     requirements: { type: "array", items: { type: "string" }, description: "What a completion of this task must carry, named when the task is taken." },
   },
@@ -288,6 +310,7 @@ export const TASK_LIST_PARAMS = {
     },
     claimable: { type: "boolean", description: "Restrict to tasks that can be taken right now." },
     ready: { type: "boolean", description: "Restrict to tasks that could be completed right now: an attempt on the record, every dependency done." },
+    cursor: { type: "string", description: "Next page cursor from list_tasks; filters are carried with it." },
     limit: { type: "number", minimum: 0, description: "Cap the number of tasks returned. 0 returns none. Bounded by the store either way." },
   },
   additionalProperties: false,
@@ -298,7 +321,7 @@ export const TASK_LIST_PARAMS = {
  *  routes a caller may take, and `superseded` is not among them. Declared above
  *  the parameter object that spreads it, and used again by the handler that has
  *  to refuse anything outside it. */
-const TASK_UPDATE_STATUSES = ["in_progress", "completed", "pending"] as const;
+const TASK_UPDATE_STATUSES = ["in_progress", "completed", "pending", "blocked"] as const;
 
 export const TASK_UPDATE_PARAMS = {
   type: "object",
@@ -313,12 +336,12 @@ export const TASK_UPDATE_PARAMS = {
     status: {
       type: "string",
       enum: [...TASK_UPDATE_STATUSES],
-      description: "Move the task. in_progress takes it for you, completed delivers it and needs an outcome, pending reopens a completed one.",
+      description: "Move the task. in_progress takes it for you, completed delivers it and needs an outcome, pending reopens a completed one; blocked records a blocker and requires reason.",
     },
     outcome: {
       type: "string",
       enum: ["success", "failed"],
-      description: "With status=completed: success delivers the result; failed returns the task to pending under a recovery hold and retains the blocker as evidence.",
+      description: "With status=completed: success delivers the result; failed records blocked work and retains the blocker as evidence.",
     },
     result: { type: "string", description: "With status=completed: the evidence for the outcome. Required: a success with no result is refused." },
     verdict: {
@@ -326,7 +349,7 @@ export const TASK_UPDATE_PARAMS = {
       enum: ["pass", "fail"],
       description: "With status=completed: the answer to this task's declared completion gate. Required when the task has a gate.",
     },
-    reason: { type: "string", description: "With status=in_progress: required to take a task under a recovery hold, stating how the blocker was addressed." },
+    reason: { type: "string", description: "With status=blocked: the blocker. With status=in_progress: required to resume blocked work, stating how the blocker was addressed." },
     subject: { type: "string", minLength: 1, description: "Without status: replace the task name. The id stays unchanged." },
     description: { type: "string", description: "Without status: replace the full task body." },
     dependsOn: stringArray("Without status: replace the prerequisite ids. Use [] to clear them. Unknown ids and cycles are refused."),
@@ -361,6 +384,7 @@ function project(task: Task): TaskProjection {
     ...(task.description ? { description: task.description } : {}),
     ...(task.verify ? { verify: task.verify } : {}),
     ...(task.result ? { result: task.result } : {}),
+    ...(task.failureEvidence ? { failureEvidence: task.failureEvidence } : {}),
     ...(task.completionVerdict ? { completionVerdict: task.completionVerdict } : {}),
   };
 }
@@ -374,11 +398,14 @@ function summarize(task: Task): TaskSummary {
     status: task.status,
     ...(task.claimedBy ? { holder: task.claimedBy } : {}),
     ...(task.recoveryNote ? { recoveryNote: task.recoveryNote } : {}),
+    ...(task.status === "blocked" && (task.blockedReason || task.recoveryNote || task.result)
+      ? { blockedReason: task.blockedReason ?? task.recoveryNote ?? task.result } : {}),
     dependsOn: task.dependsOn,
     // Which of the declared edges are unfinished, so a caller does not have to
     // hold a list in its head to answer "can I finish this yet".
     ...(blockedBy.length > 0 ? { blockedBy } : {}),
     ...(task.supersededBy ? { supersededBy: task.supersededBy } : {}),
+    ...(task.replacementUnresolved ? { replacementUnresolved: true } : {}),
   };
 }
 
@@ -512,7 +539,7 @@ export async function executeTaskGet(
   return ok(
     [
       `TASK · ${task.id} · ${task.status} · ${task.subject}`,
-      ...(task.status === "recovery_hold" ? [`RECOVERY HOLD · ${task.recoveryNote ?? "take it with a reason stating how the blocker was addressed"}`] : []),
+      ...(task.status === "blocked" ? [`BLOCKED · ${task.recoveryNote ?? "take it with a reason stating how the blocker was addressed"}`] : []),
       ...(task.dependsOn.length > 0 ? [`DEPENDS ON · ${task.dependsOn.join(", ")}`] : []),
       ...(blockedDependencies(task).length > 0 ? [`BLOCKED BY · ${blockedDependencies(task).join(", ")}`] : []),
       ...(task.description ? [task.description] : []),
@@ -558,23 +585,32 @@ export async function executeTaskList(
       : []),
   ].reduce((smallest, cap) => Math.min(smallest, cap));
 
-  const statuses = list("statusFilter");
-  // Both filters read the store's own predicates rather than restating them.
-  // `claimable` and `ready` are answers the task store keeps and the take and
-  // completion paths enforce; a second copy here is one that can disagree with
-  // the path it is describing, which is how a filter starts hiding work.
-  const claimableIds = params.claimable === true ? new Set(claimableTasks().map((task) => task.id)) : undefined;
-  // `ready` answers the other half of the same question `claimable` answers: not
-  // what can be started, but what can be finished, which is the one a model needs
-  // after it has just finished one of a split it created.
-  const readyIds = params.ready === true ? new Set(completableTasks().map((task) => task.id)) : undefined;
-  const matching = listTasks().filter((task) => {
-    if (statuses && !statuses.includes(task.status)) return false;
-    if (claimableIds && !claimableIds.has(task.id)) return false;
-    if (readyIds && !readyIds.has(task.id)) return false;
-    return true;
-  });
-  const shown = matching.slice(0, limit);
+  let query = { statuses: list("statusFilter"), claimable: params.claimable === true, ready: params.ready === true };
+  let offset = 0;
+  let fingerprint: string | undefined;
+  if (params.cursor !== undefined) {
+    try {
+      if (typeof params.cursor !== "string" || params.cursor.length > 4096) throw new Error();
+      const page = JSON.parse(Buffer.from(params.cursor, "base64url").toString("utf8"));
+      if (!Number.isSafeInteger(page.offset) || page.offset <= 0 || typeof page.fingerprint !== "string" ||
+          !page.query || typeof page.query.claimable !== "boolean" || typeof page.query.ready !== "boolean" ||
+          (page.query.statuses !== undefined && (!Array.isArray(page.query.statuses) || !page.query.statuses.every((status: unknown) => typeof status === "string" && STATUS_ENUM.includes(status as TaskStatus))))) throw new Error();
+      if (["statusFilter", "claimable", "ready"].some(key => params[key] !== undefined) && JSON.stringify(query) !== JSON.stringify(page.query)) throw new Error();
+      query = page.query; offset = page.offset; fingerprint = page.fingerprint;
+    } catch { return fail("list_tasks", "Invalid page cursor or changed filters. Read list_tasks again without a cursor."); }
+  }
+  const claimableIds = query.claimable ? new Set(claimableTasks().map(task => task.id)) : undefined;
+  const readyIds = query.ready ? new Set(completableTasks().map(task => task.id)) : undefined;
+  const matching = listTasks().filter(task => (!query.statuses || query.statuses.includes(task.status)) &&
+    (!claimableIds || claimableIds.has(task.id)) && (!readyIds || readyIds.has(task.id)));
+  const currentFingerprint = createHash("sha256").update(JSON.stringify([query, matching.map(summarize)])).digest("hex");
+  if (fingerprint && (fingerprint !== currentFingerprint || offset >= matching.length)) {
+    return fail("list_tasks", "The task list changed; read it again without a cursor.");
+  }
+  const shown = matching.slice(offset, offset + limit);
+  const end = offset + shown.length;
+  const cursor = limit > 0 && end < matching.length
+    ? Buffer.from(JSON.stringify({offset: end, fingerprint: currentFingerprint, query})).toString("base64url") : undefined;
   const notice = storeNotice();
   return ok(
     shown.length === 0
@@ -587,7 +623,9 @@ export async function executeTaskList(
       tool: "list_tasks",
       count: matching.length,
       shown: shown.length,
-      truncated: matching.length > shown.length,
+      truncated: end < matching.length,
+      offset,
+      ...(cursor ? { cursor } : {}),
       // A file that could not be read is a fact the model needs: it is looking
       // at an empty set of tasks that is not empty on disk.
       ...(notice ? { notice } : {}),
@@ -655,6 +693,13 @@ export async function executeTaskUpdate(
     return ok(`TASK · ${id} · updated`, { tool: "update_task", id, status: edited.task.status, task: project(edited.task) });
   }
 
+  if (status === "blocked") {
+    const blocked = blockTask(id, me, str("reason"));
+    if (!blocked.ok) return refuseStatus(blocked.reason);
+    options.emit?.(TASK_EVENTS.updated, { id, status: "blocked" });
+    return ok(`TASK · ${id} · blocked`, { tool: "update_task", id, status: "blocked", task: project(blocked.task) });
+  }
+
   if (status === "in_progress") {
     const taken = takeTask(id, me, { ...(str("reason") ? { reason: str("reason") } : {}) });
     if (!taken.ok) return refuseStatus(taken.reason);
@@ -701,7 +746,7 @@ export async function executeTaskUpdate(
     return ok(
       outcome === "success"
         ? `TASK · ${id} · completed`
-        : `TASK · ${id} · pending · recovery hold · blocker retained`,
+        : `TASK · ${id} · blocked · blocker retained`,
       {
         tool: "update_task",
         id,
@@ -724,7 +769,7 @@ export async function executeTaskUpdate(
       [
         `TASK · ${id} · pending · reopened`,
         ...(reopened.invalidated.length > 0
-          ? [`WITHDRAWN · ${reopened.invalidated.map((task) => task.id).join(", ")} · back in pending: they were completed on a premise this reopening withdraws`]
+          ? [`WITHDRAWN · ${reopened.invalidated.map((task) => task.id).join(", ")} · blocked: they were completed on a premise this reopening withdraws`]
           : []),
       ].join("\n"),
       {
@@ -748,41 +793,66 @@ export async function executeTaskUpdate(
  * The subject is the work, not the id: a reader looking at a row asks what is
  * being done, and the id is what they look up when they act on it.
  */
-export const TASK_ROW_SPEC: import("./rows.ts").TaskRowSpec = (result, options) => {
+export const TASK_ROW_SPEC: import("./rows.ts").TaskRowSpec = (result) => {
   const details = (result.details ?? {}) as TaskToolDetails;
   const content = (result.content ?? []) as Array<{ text?: string }>;
   const body = content.map((part) => part.text ?? "").join("\n");
-  const state = details.status ?? details.outcome;
   const count = details.count ?? details.tasks?.length ?? 0;
-  const subject = details.task?.subject
-    ?? (details.tasks ? `${count} task${count === 1 ? "" : "s"}` : "task");
+  const displayIndex = taskDisplayIndex([
+    ...listTasks(),
+    ...(details.task ? [details.task] : []),
+    ...(details.tasks ?? []),
+    ...(details.invalidated ?? []),
+  ]);
+  const subject = details.task
+    ? taskDisplayHeading({
+      ...details.task,
+      status: details.task.status ?? details.status ?? details.outcome ?? "unknown",
+    }, displayIndex)
+    : details.tasks
+      ? count === 0 ? "No tasks" : `${count} task${count === 1 ? "" : "s"}`
+      : "task";
   const summary = details.tasks
-    ? details.tasks.map(task => `- ${taskSummaryText(task)}`)
+    ? details.tasks.flatMap(task => taskSummaryLines(task, displayIndex))
     : details.task
       ? [
-        ...(options?.expanded === false ? taskDependencyLines(details.task) : []),
-        ...(details.replaced?.length ? [`REPLACED · ${details.replaced.join(", ")}`] : []),
-        ...(details.withdrawn?.length ? [`WITHDRAWN · ${details.withdrawn.join(", ")} · returned to pending`] : []),
+        ...(details.replaced?.length
+          ? [`Replaced: ${details.replaced.map(id => taskDisplayReference(id, displayIndex)).join(", ")}`]
+          : []),
+        ...(details.withdrawn?.length
+          ? [`Invalidated: ${details.withdrawn.map(id => taskDisplayReference(id, displayIndex)).join(", ")}`]
+          : []),
       ]
       : body.split("\n").filter(Boolean).filter(line => !/^TASK · /.test(line));
-  return {
-    kind: "started",
+  const spec = {
+    kind: "started" as const,
     tool: TASK_DISPLAY_LABEL,
     label: details.tool?.replace(/_tasks?$/, "") ?? "status",
-    subject: state ? `${subject} · ${taskStatusText(state)}` : subject,
+    subject,
     summary,
     details: [
-      // A file that could not be read belongs on the row: the model is looking at
-      // an empty set of tasks that is not empty on disk.
-      ...(details.notice ? [`notice · ${details.notice}`] : []),
+      ...(details.notice ? [`Notice: ${details.notice}`] : []),
       ...(details.task?.description ? ["Description:", ...details.task.description.split("\n"), ""] : []),
       ...(details.task?.verify ? ["Verify:", ...details.task.verify.split("\n"), ""] : []),
-      ...(details.task ? taskDependencyLines(details.task) : []),
-      ...(details.task?.status === "recovery_hold" ? [`hold · ${details.task.recoveryNote ?? "recovery required"}`] : []),
+      ...(details.task ? taskDependencyLines(details.task, displayIndex) : []),
+      ...(details.task ? taskBlockedByLines(details.task, displayIndex) : []),
+      ...(details.task?.status === "blocked" && (!details.task.result || details.task.blockedReason !== details.task.result) ? [`Reason: ${details.task.blockedReason ?? details.task.recoveryNote ?? details.task.result ?? "Recovery is required."}`] : []),
+      ...(details.task?.supersededBy
+        ? [`Replaced by ${taskDisplayReference(details.task.supersededBy, displayIndex)}`]
+        : []),
+      ...(details.task?.replacementUnresolved ? ["Replacement target unresolved; this historical task is inactive."] : []),
       ...(details.tool === "get_task" && details.brief ? details.brief.split("\n") : []),
-      ...(details.tool === "get_task" && details.task?.result ? [`evidence · ${details.task.result}`] : []),
+      ...(details.task?.result ? [`Evidence: ${details.task.result}`] : []),
+      ...(details.task?.recoveryNote ? [`Recovery: ${details.task.recoveryNote}`] : []),
+      ...(details.shown !== undefined && (details.truncated || details.offset)
+        ? [`Showing ${(details.offset ?? 0) + 1}–${(details.offset ?? 0) + details.shown} of ${count} matching tasks.`] : []),
+      ...(details.cursor ? [`Next page: list_tasks with cursor=${details.cursor}`] : []),
+      ...(details.requirements?.length ? [`Required at completion: ${details.requirements.join("; ")}`] : []),
+      ...(details.task?.failureEvidence && details.task.failureEvidence !== details.task.result
+        ? [`Previous failure: ${details.task.failureEvidence}`] : []),
     ],
   };
+  return { ...spec, verbatimSubject: true, fullSummary: true, summary: [...spec.summary, ...spec.details], details: [] };
 };
 
 /** Injected geometry for the rows, supplied by the extension entry — the only
@@ -804,7 +874,7 @@ const TOOLS: readonly Registration[] = [
   {
     name: "create_task",
     label: "Task create",
-    promptSnippet: "Record work with several steps or several files, or work that outlives this turn",
+    promptSnippet: "Create a task for work spanning several steps, files, or turns",
     description: "Record one task with a subject and optional description. Use when a request has several steps or several files, or when the work outlives this turn; a single edit is not a task. A task is not a goal: a goal is one objective that keeps running until it is met, and a task is one unit of work in a list you order, take, and finish. Use dependsOn to name prerequisite task ids. Independent tasks can run in parallel; dependent tasks wait until every prerequisite completes. Returns an id derived from the subject. supersedes replaces unfinished tasks and redirects their dependents atomically. verify states the completion requirements as a prompt, not a command.",
     parameters: TASK_CREATE_PARAMS,
     execute: executeTaskCreate,
@@ -820,8 +890,8 @@ const TOOLS: readonly Registration[] = [
   {
     name: "list_tasks",
     label: "Task list",
-    promptSnippet: "List task names, status, dependencies, and recovery holds",
-    description: "List bounded task summaries: id, name, status, dependencies, unfinished prerequisites, and recovery holds. Runtime holder information remains available as data. Use get_task for detailed content and evidence. Filter by status, claimable work, or completion readiness, and set limit to cap the result.",
+    promptSnippet: "List task names, status, dependencies, and blockers",
+    description: "List bounded task summaries: id, name, status, dependencies, unfinished prerequisites, and blockers. Runtime holder information remains available as data. Use get_task for detailed content and evidence. Filter by status, claimable work, or completion readiness, and set limit to cap the page. Pass the returned cursor to read the next page.",
     parameters: TASK_LIST_PARAMS,
     execute: executeTaskList,
   },
@@ -829,7 +899,7 @@ const TOOLS: readonly Registration[] = [
     name: "update_task",
     label: "Task update",
     promptSnippet: "Update task content, dependencies, status, or completion evidence",
-    description: "Update one task. status=in_progress starts your attempt only when all prerequisites are completed. Perform the actual work before calling status=completed. Completion needs outcome=success or failed; success requires result evidence and a pass verdict when verify is declared. Failure records the blocker and sets a recovery hold. Taking held work needs an explicit recovery reason. status=pending reopens a completed task and invalidates dependent attempts and completions. Without status, edit subject, description, dependsOn, verify, or context. The id stays unchanged after a rename. dependsOn replaces prerequisite ids; [] clears them. Dependency edits reject unknown ids, self-dependencies, and cycles. An active or completed task cannot gain unfinished prerequisites. One call may carry a content edit and a status change: the content half is validated and recorded first, and a refused status keeps the edit and names the half to retry. This tool never starts or stops a participant and never dispatches work to a named one.",
+    description: "Update one task. status=in_progress starts your attempt only when all prerequisites are completed. Perform the actual work before calling status=completed. Completion needs outcome=success or failed; success requires result evidence and a pass verdict when verify is declared. Failure records the blocker and sets blocked. Resuming blocked work needs an explicit recovery reason. status=blocked records reason and releases your attempt. status=pending reopens a completed task and invalidates dependent attempts and completions. Without status, edit subject, description, dependsOn, verify, or context. The id stays unchanged after a rename. dependsOn replaces prerequisite ids; [] clears them. Dependency edits reject unknown ids, self-dependencies, and cycles. An active or completed task cannot gain unfinished prerequisites. One call may carry a content edit and a status change: the content half is validated and recorded first, and a refused status keeps the edit and names the half to retry. This tool never starts or stops a participant and never dispatches work to a named one.",
     parameters: TASK_UPDATE_PARAMS,
     execute: executeTaskUpdate,
   },
@@ -878,7 +948,11 @@ export function registerTaskTools(
       // repaint.
       ...(options.renderResult ? { renderResult: options.renderResult({ createSpec: TASK_ROW_SPEC }) as never } : {}),
       async execute(_toolCallId: string, params: never) {
-        return tool.execute(params as Record<string, unknown>, { env: options.env, ...(emit ? { emit } : {}) });
+        const result = await tool.execute(params as Record<string, unknown>, { env: options.env, ...(emit ? { emit } : {}) });
+        const notice = storeNotice();
+        if (!notice || result.details.notice === notice) return result;
+        const details = { ...result.details, notice };
+        return { ...result, details, structuredContent: details };
       },
     } as never);
   }
