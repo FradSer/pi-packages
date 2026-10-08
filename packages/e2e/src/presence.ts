@@ -15,8 +15,11 @@ export const E2E_CAPABILITY_NOTE = [
   "[pi-e2e capability]",
   "e2e verifies whether business acceptance criteria and user flows in Gherkin .feature scenarios or test specs are fulfilled.",
   "When working on features, bug fixes, or acceptance verification: run e2e tests or use the e2e_verify tool to judge scenarios against run evidence.",
+  "When a .feature file changes, the harness adds a bounded acceptance checkpoint before settlement; inspect project tests, run them, call e2e_verify with runner; the adapter writes fresh Evidence JSON to PI_E2E_EVIDENCE_PATH.",
+  "Only successful fresh runner evidence can clear checkpoints; inline and existing-file verdicts remain unverified. Never invent observations; report a blocker or needs_review when real run evidence is unavailable.",
+  "You may call e2e_verify repeatedly in one turn after repairing implementation, tests or an authorized adapter. Each attempt must run fresh tests; automatic continuation limits do not limit tool calls.",
   "Code decides exact values through deterministic checks with veto authority; e2e_verify evaluates semantic business clauses with calibrated probabilities.",
-  "Do not guess whether acceptance criteria hold. If a scenario fails or needs review, fix the implementation before completing.",
+  "Do not guess whether acceptance criteria hold. If behavior checks fail, fix the behavior. If evidence is missing or the runner/provider fails, collect observations or resolve that blocker before retrying; unchanged missing evidence is not an implementation failure.",
 ].join("\n");
 
 const NOTE_ROLE = "system";

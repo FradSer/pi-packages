@@ -4,7 +4,9 @@ import { web } from "@e2e-dev/web";
 export default {
   targets: [
     {
-      engine: web(),
+      engine: web(process.env.E2E_CDP_ENDPOINT
+        ? { connect: { cdpEndpoint: () => process.env.E2E_CDP_ENDPOINT! } }
+        : {}),
       app: {
         url: "http://127.0.0.1:3000",
         // The server serves the report the CLI wrote, so the browser test

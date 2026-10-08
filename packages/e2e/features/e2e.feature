@@ -67,8 +67,184 @@ Feature: End-to-end BDD verdict
     Then the tool runs the three-layer verification engine
     And the tool returns structured verdict data with clause breakdown
 
+  Scenario: A feature directly involved in the current turn starts the acceptance workflow
+    Given the agent touches a .feature path or names an explicit .feature path in a shell command
+    And the user may explicitly request acceptance for a .feature path without changing files
+    When the agent attempts to settle without matching fulfilled verification
+    Then the harness continues the turn with an acceptance checkpoint
+    And implementation file activity only invalidates a feature already involved in this turn
+    And the checkpoint directs the agent to inspect the project and existing tests
+    And the checkpoint requires real test results as evidence before e2e_verify
+    And the checkpoint forbids invented evidence or a claimed pass without verification
+    And the checkpoint stays active until each requested scenario in the feature is fulfilled
+
+  Scenario: An explicitly requested feature starts acceptance without edits
+    Given the user explicitly names a .feature path for acceptance
+    When the agent attempts to settle without a matching fulfilled verification
+    Then the harness continues the turn for that named path
+
+  Scenario: A generic acceptance request retains partially verified features
+    Given the user requests e2e without naming a feature path
+    And a fresh run passes only one scenario in a feature with multiple scenarios
+    When the agent attempts to settle
+    Then the remaining scenarios are named in a bounded checkpoint
+
+  Scenario: Relevant implementation repairs invalidate previous acceptance
+    Given a package feature passed a fresh verification in this turn
+    When the agent edits an implementation file in that same package
+    Then its previous acceptance is withdrawn until a fresh run passes
+    And unrelated package edits do not withdraw that feature
+
+  Scenario: An unrelated parallel feature change does not start acceptance
+    Given a .feature file changes in another package
+    And that package and feature path are not involved in this turn
+    And the user did not name that path for acceptance
+    When the agent attempts to settle
+    Then the harness does not continue for the unrelated feature
+
+  Scenario: The same checkpoint is not repeated without new progress
+    Given the harness already returned a checkpoint for the current feature and verification state
+    When the agent settles again without new tools or verification results
+    Then the harness does not repeat that checkpoint
+    And unrelated reads and searches do not count as progress
+    And a new relevant mutation or verification result permits another bounded correction
+
+  Scenario: Feature acceptance continuations stop at the configured bound
+    Given the agent changes a .feature file and does not produce verification evidence
+    When the agent reaches the maximum automatic continuations
+    Then the harness stops continuing and leaves the result unverified
+
+  Scenario: A fulfilled verification for the changed feature clears its checkpoint
+    Given the agent changes a .feature file
+    And the agent verifies that same file with a fulfilled verdict from a fresh configured runner
+    When the agent attempts to settle
+    Then the harness does not continue for that feature
+
+  Scenario: A new user turn clears feature changes from the prior turn
+    Given the agent changed a .feature file during a prior turn
+    When the user starts a new turn
+    Then the prior feature change does not trigger an acceptance checkpoint
+
   Scenario: The harness gate intercepts settlement when an unfulfilled verification was recorded
     Given a scenario verification that resulted in not_fulfilled or needs_review
-    When the agent attempts to settle the turn
+    When the agent attempts to settle
     Then the harness gate intervenes before settlement
     And the harness returns a continuation checkpoint requiring the failure to be resolved
+
+  Scenario: Caller-supplied fulfilled evidence cannot clear feature acceptance
+    Given a changed feature and inline or pre-existing evidence
+    When e2e_verify returns fulfilled without executing a fresh test run
+    Then the changed feature checkpoint remains active
+    And the result identifies the evidence as unverified
+
+  Scenario: A fresh successful runner can clear feature acceptance
+    Given a changed feature with all scenarios covered by tests
+    When e2e_verify executes the project runner and reads its newly generated evidence
+    Then only fulfilled scenarios backed by that successful run clear the checkpoint
+    And failed aborted timed-out or missing-evidence runs cannot clear it
+    And changes to the feature during the run or evaluation invalidate the evidence
+
+  Scenario: Failed verification preserves changed-feature inspection directions
+    Given a changed feature and a failed verification in the same turn
+    When the agent attempts to settle
+    Then one bounded checkpoint includes changed feature paths and the failed verdict
+    And it requires inspection of project instructions scripts test setup and existing tests
+    And it requires a fresh real run before verification
+
+  Scenario: Verification can be retried after repairs in the same turn
+    Given a failed verification or a changed project adapter in the current turn
+    When the implementation or tests are repaired and e2e_verify is called again
+    Then it captures the current project runner and executes a fresh test process
+    And a fresh fulfilled result clears the previous failed scenario
+    And manual verification calls are not limited by automatic continuation allowance
+
+  Scenario: A later runner error withdraws the earlier pass
+    Given the current scenario previously passed with fresh evidence
+    When another verification attempt fails to execute or produce valid evidence
+    Then the earlier pass cannot certify the current acceptance request
+    And repairing the execution blocker and rerunning can pass in the same turn
+
+  Scenario: Trusted adapters stay stable within each verification attempt
+    Given the project runner configuration and adapter files were captured for one verification
+    When the configuration or an adapter changes during that attempt
+    Then the tool rejects that attempt without accepting its evidence
+    And accepted evidence is invalidated if an adapter changes after verification
+
+  Scenario: Canceling a turn does not emit a redundant acceptance warning
+    Given unverified feature work in the current turn
+    When the user aborts the run
+    Then no automatic continuation or final acceptance warning is added
+    And cancellation does not count as verified evidence
+
+  Scenario: Read-only review does not request acceptance execution
+    Given the user explicitly asks not to run e2e for a feature
+    When the input hook prepares the turn
+    Then no missing-verification checkpoint is generated
+
+  Scenario: Default tool results keep complete failure diagnostics
+    Given long verification errors or scenario reports
+    When the tool renders in a narrow terminal
+    Then the complete default result wraps without expansion or truncation
+
+  Scenario: Stale asynchronous work cannot authorize a new turn
+    Given a runner or feature snapshot is awaiting filesystem operations
+    When a new input or reset changes the turn generation
+    Then old work cannot replace the new turn snapshot or clear its checkpoint
+    And a stale native runner is rejected immediately before process spawn
+
+  Scenario: Every requested run remains fresh until settlement
+    Given a fresh fulfilled verdict for an unchanged feature requested by the user
+    When its adapter changes before settlement
+    Then the accepted proof is withdrawn and verification remains pending
+
+Feature: Simple and actionable acceptance feedback
+
+  Scenario: Partial verification names the remaining scenarios
+    Given a feature with two scenarios and a fresh pass for only the first
+    When acceptance is checked before settlement
+    Then the remaining scenario name is shown
+    And the successful scenario is not requested again
+
+  Scenario: A complete verified report needs no duplicate success notification
+    Given every scenario has a fresh fulfilled verdict
+    When the agent settles
+    Then acceptance is complete
+    And no redundant success notification is emitted
+
+  Scenario: A plain git status does not revoke fresh acceptance
+    Given a feature has fresh fulfilled acceptance
+    When the agent reads git status without changing files
+    Then acceptance stays complete
+    When an unclassified shell mutation occurs
+    Then acceptance is conservatively revoked
+
+  Scenario: Missing evidence asks for observations rather than speculative repairs
+    Given a fresh run with unjudged clauses
+    When the acceptance checkpoint is emitted
+    Then it requests missing observations or checks
+    And it does not require an implementation change merely because evidence is missing
+
+Feature: Project adapter observation producers
+
+  Scenario: Goal seed checks come from the real command handler
+    Given a fresh session with no goal and a registered goal seed observation producer
+    When the project adapter runs the goal seed scenario
+    Then each Then clause has checks over actual command observations
+    And the producer is included in the trusted adapter files
+    And passing linked tests alone cannot fabricate those observations
+
+Feature: Settlement checkpoint suppression
+
+  Scenario: Repeated settlement refresh does not spend another continuation
+    Given unresolved acceptance has already received a checkpoint
+    When settlement refresh finds no new changes or results
+    Then no duplicate checkpoint is emitted
+    And the remaining continuation is preserved for actual progress
+
+Feature: Actionable runner errors
+
+  Scenario: A failed runner reports its bounded diagnostics
+    Given the project runner prints a useful failure diagnostic
+    When it exits with a nonzero code
+    Then the tool reports the exit code and diagnostic
+    And no successful proof is created

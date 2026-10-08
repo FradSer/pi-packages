@@ -11,15 +11,38 @@ export interface Clause {
 
 export interface Scenario {
   readonly feature: string;
+  readonly featureTags: readonly string[];
   readonly name: string;
+  readonly rule?: string;
+  readonly ruleTags: readonly string[];
   readonly tags: readonly string[];
   readonly background: readonly Clause[];
+  readonly featureBackground: readonly Clause[];
+  readonly ruleBackground: readonly Clause[];
   readonly clauses: readonly Clause[];
 }
 
+export interface RuleGroup {
+  readonly name: string;
+  readonly tags: readonly string[];
+  readonly background: readonly Clause[];
+  readonly scenarios: readonly Scenario[];
+}
+
+export interface FeatureSection {
+  readonly name: string;
+  readonly tags: readonly string[];
+  readonly description: string;
+  readonly background: readonly Clause[];
+  readonly rules: readonly RuleGroup[];
+  readonly scenarios: readonly Scenario[];
+}
+
 export interface FeatureFile {
+  /** First Feature name, retained for single-Feature callers. */
   readonly feature: string;
   readonly description: string;
+  readonly features: readonly FeatureSection[];
   readonly scenarios: readonly Scenario[];
 }
 

@@ -1,0 +1,35 @@
+{
+  "executable": "node",
+  "args": [
+    "--import",
+    "tsx",
+    "packages/e2e/tests/run-feature-suites.mjs"
+  ],
+  "adapterFiles": [
+    "packages/e2e/tests/run-feature-suites.mjs",
+    "packages/e2e/tests/scenario-behavior-map.json",
+    "packages/e2e/tests/test_e2e_package.py",
+    "packages/e2e/tests/test_run_provenance.py",
+    "packages/e2e/tests/test_core_boundaries.py",
+    "packages/e2e/tests/run-fixture.mjs",
+    "packages/e2e/src",
+    "packages/goal/src",
+    "packages/goal/tests",
+    "packages/kit/index.ts",
+    "packages/kit/package.json",
+    "packages/kit/src",
+    "packages/tasks/src",
+    "packages/tasks/tests",
+    "packages/e2e/tests/test_retry_workflow.py",
+    "packages/e2e/tests/scenario-observation-map.json",
+    "packages/e2e/tests/observe-goal-seed.mts",
+    "packages/e2e/tests/test_feature_adapter.py",
+    "packages/goal/index.ts",
+    "packages/goal/package.json",
+    "packages/e2e/tests/observe-goal-harness.mts",
+    "tests/e2e/support",
+    "package.json",
+    "pnpm-lock.yaml"
+  ],
+  "timeoutMs": 600000
+}

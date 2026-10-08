@@ -43,8 +43,16 @@ function unjudged(clause: { readonly index: number; readonly text: string }): Cl
  * unjudged and the verdict becomes needs_review.
  */
 export async function verifyScenario(options: VerifyOptions): Promise<VerifyResult> {
+  options.signal?.throwIfAborted();
+  if (typeof options.evidence?.run?.observations !== "object" || options.evidence.run.observations === null || Array.isArray(options.evidence.run.observations)) {
+    throw new Error("Evidence run.observations must be an object");
+  }
   const policy: Policy = { ...DEFAULT_POLICY, ...options.policy };
+  for (const [name, value] of Object.entries(policy)) {
+    if (value !== undefined && (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1)) throw new Error(`policy.${name} must be a number between 0 and 1`);
+  }
   const clauses = thenClauses(options.scenario);
+  if (clauses.length === 0) throw new Error("Scenario needs a Then clause");
   const deterministic = evaluateChecks(clauses, options.evidence);
   const pending = clauses.filter((clause) => !deterministic.has(clause.index)).map((clause) => clause.index);
   const results = new Map<number, ClauseResult>(deterministic);
@@ -88,10 +96,12 @@ export async function verifyScenario(options: VerifyOptions): Promise<VerifyResu
         });
       }
     } catch (error) {
+      options.signal?.throwIfAborted();
       modelError = error instanceof TypeSafeError ? `${error.code}: ${error.message}` : `PROVIDER_FAILED: ${(error as Error).message}`;
     }
   }
 
+  options.signal?.throwIfAborted();
   const verdict = composeVerdict({
     scenario: options.scenario,
     clauses: clauses.map((clause) => results.get(clause.index) ?? unjudged(clause)),
