@@ -32,7 +32,7 @@ def test_recovery_required_work_is_never_autonomously_claimable(tmp_path: Path) 
         console.log(JSON.stringify({ listed: listed.content[0].text, explicit, automatic,
           intents: fixture.intents(fixture.binding.claimsDir) }));
     ''', "none")
-    assert "recovery-hold" in str(payload["listed"]), "Tasks must name the recovery hold"
+    assert "blocked" in str(payload["listed"]), "Legacy recovery holds are projected as blocked"
     assert "explicit leader Work assignment" in str(payload["explicit"])
     assert "held for explicit leader recovery" in str(payload["automatic"]).lower()
     assert payload["intents"] == [], "Recovery-held Work must not queue a claim intent"
@@ -53,7 +53,7 @@ def test_leader_assignment_clears_recovery_and_claim_follows(tmp_path: Path) -> 
         attemptSubmission("w", "s1", task.id, "failed", "External parser rejected every authorized attempt");
         processTaskIntents();
         const held = {{ status: getTask(task.id).status, evidence: getTask(task.id).result }};
-        const recovered = bindTask(task.id, "w", {{ id: "attempt-2", kind: "direct", resources: [] }}, {{ from: ["recovery_hold"] }});
+        const recovered = bindTask(task.id, "w", {{ id: "attempt-2", kind: "direct", resources: [] }}, {{ from: ["blocked"] }});
         const after = getTask(task.id).status;
         processTaskIntents();
         console.log(JSON.stringify({{ held, recovered: recovered.ok, after,
@@ -61,7 +61,7 @@ def test_leader_assignment_clears_recovery_and_claim_follows(tmp_path: Path) -> 
         shutdownTeamMachine();
     ''')
     assert payload["held"] == {
-        "status": "recovery_hold",
+        "status": "blocked",
         "evidence": "External parser rejected every authorized attempt",
     }
     assert payload["recovered"] is True

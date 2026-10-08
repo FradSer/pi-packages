@@ -145,11 +145,11 @@ def test_failure_settles_before_release_and_reports_once(tmp_path: Path, channel
         const before = getTask(task.id).status;
         settle(); processTaskIntents(); settle();
         console.log(JSON.stringify({{ before, after: getTask(task.id).status, evidence: getTask(task.id).result,
-          held: getTask(task.id).status === "recovery_hold",
+          held: getTask(task.id).status === "blocked",
           reports: reports.filter(r => r.finished), reminders: reminders(), attempt }}));
     ''')
     assert payload["before"] == "in_progress"
-    assert payload["after"] == "recovery_hold"
+    assert payload["after"] == "blocked"
     # The failure is retained as evidence in `result`, the field the task store reads and
     # shows. It used to be written to `errorMessage`, which nothing ever read.
     assert payload["evidence"] == "Provider unavailable"
@@ -194,7 +194,7 @@ def test_superseded_results_use_one_submission_path(tmp_path: Path, kind: str, c
     assert payload["beforeSettlement"] == "reviewer"
     assert payload["owner"] is None
     assert payload["assignment"] is None
-    assert payload["state"] == "superseded"
+    assert payload["state"] == "in_progress"
     assert payload["replacement"] == "pending"
 
 
@@ -233,7 +233,7 @@ def test_duplicate_failure_does_not_block_later_attempt(tmp_path: Path) -> None:
         processTaskIntents();
         attemptSubmission("reviewer", "spawn-1", task.id, "failed", "Duplicate failure");
         settle();
-        bindTask(task.id, "reviewer", { id: "attempt-2", kind: "direct", resources: [] }, { from: ["recovery_hold"] });
+        bindTask(task.id, "reviewer", { id: "attempt-2", kind: "direct", resources: [] }, { from: ["blocked"] });
         applyProgress("reviewer", "spawn-1", { text: "", turns: 2, finalResponse: false });
         attemptSubmission("reviewer", "spawn-1", task.id, "completed", "Recovered result");
         processTaskIntents(); settle();
@@ -271,7 +271,7 @@ def test_ordinary_mail_does_not_unpark_verification(tmp_path: Path, verdict: str
           steerRefused: steer.details.ok === false,
           state: getTask(task.id).status,
           owner: getTask(task.id).claimedBy ?? null,
-          held: getTask(task.id).status === "recovery_hold",
+          held: getTask(task.id).status === "blocked",
           feedback: reminders().map(r => r.body),
         }}));
     ''')
@@ -279,7 +279,7 @@ def test_ordinary_mail_does_not_unpark_verification(tmp_path: Path, verdict: str
     assert payload == {
         "reviews": 2,
         "steerRefused": True,
-        "state": "recovery_hold",
+        "state": "blocked",
         "owner": None,
         "held": True,
     }

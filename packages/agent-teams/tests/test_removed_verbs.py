@@ -113,7 +113,7 @@ def test_the_two_absorbed_verbs_are_reachable_as_fields() -> None:
         }}));
         """
     )
-    assert result["reopenAsStatus"] == ["in_progress", "completed", "pending"]
+    assert result["reopenAsStatus"] == ["in_progress", "completed", "pending", "blocked"]
     assert result["supersedeAsField"] is True
     assert result["supersededIsNotAStatus"] is True, (
         "supersession is a creation, not something a caller moves a task to"

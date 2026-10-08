@@ -1,3 +1,4 @@
+import { isTaskReplaced } from "@fradser/pi-tasks";
 /**
  * Team state management for the current session only: the teammate roster,
  * the in-memory task storage, and the single leader inbox. The leader process
@@ -261,7 +262,7 @@ export function activeAssignmentConflict(
     if (teammate.name === exceptWorker) return false;
     const assignment = teammate.assignment;
     const retainsWorkAuthority = teammate.currentTaskId !== undefined
-      && ["in_progress", "superseded"].includes(state.tasks[teammate.currentTaskId]?.status ?? "");
+      && (state.tasks[teammate.currentTaskId]?.status === "in_progress" || isTaskReplaced(state.tasks[teammate.currentTaskId]));
     return assignment !== undefined
       && (!assignment.closed || retainsWorkAuthority)
       && resourcesConflict(resources, assignment.resources);

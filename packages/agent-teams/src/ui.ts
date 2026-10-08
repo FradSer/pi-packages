@@ -1,3 +1,4 @@
+import { isTaskReplaced } from "@fradser/pi-tasks";
 /** Passive team widget and the /agent-teams management console
  * (session agents + persistent agent roles + tasks). */
 
@@ -505,7 +506,7 @@ export function openTeamConsole(ctx: {
     const headerLine = (): string => {
       const alive = livingAgents();
       const tasks = listTasks();
-      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · tasks ${tasks.filter((task) => task.status === "pending").length}p/${tasks.filter((task) => task.status === "in_progress").length}c/${tasks.filter((task) => task.status === "completed").length}d/${tasks.filter((task) => task.status === "superseded").length}s · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
+      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · tasks ${tasks.filter((task) => !isTaskReplaced(task) && task.status === "pending").length}p/${tasks.filter((task) => !isTaskReplaced(task) && task.status === "in_progress").length}c/${tasks.filter((task) => !isTaskReplaced(task) && task.status === "blocked").length}b/${tasks.filter((task) => task.status === "completed").length}d/${tasks.filter((task) => isTaskReplaced(task)).length}s · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
     };
 
     interface ContentLine {
@@ -548,11 +549,11 @@ export function openTeamConsole(ctx: {
       const holder = task.claimedBy ? style.dim(` @${task.claimedBy}`) : "";
       const statusText = task.status === "completed"
         ? style.success("✓")
-        : task.status === "superseded"
-          ? style.dim("⊘ superseded")
+        : isTaskReplaced(task)
+          ? style.dim("replaced")
           : task.status === "in_progress"
-            ? theme.fg("warning", "◐ claimed")
-            : style.dim("○ pending");
+            ? theme.fg("warning", "in progress")
+            : task.status === "blocked" ? style.dim("blocked") : style.dim("pending");
       return `${marker}${label} ${statusText} ${theme.fg("customMessageText", task.subject)}${holder}`;
     };
 

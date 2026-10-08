@@ -509,7 +509,7 @@ def test_state_machine_roster_and_tasks_rules() -> None:
     assert payload["duplicateSuppressed"] is True
     assert payload["releasedCount"] == 0
     assert payload["reloadedCount"] == 2
-    assert payload["resumedClaimBackToPending"] == "recovery_hold"
+    assert payload["resumedClaimBackToPending"] == "blocked"
     assert payload["resumeKeptCompleted"] == "completed"
 
 
@@ -741,11 +741,11 @@ def test_stale_verify_result_cannot_complete_a_new_holding(tmp_path: Path) -> No
         await tick();
         attemptSubmission("w", "s1", id, "failed");
         processTaskIntents();
-        const releasedWhileVerifying = getTask(id).status === "recovery_hold";
+        const releasedWhileVerifying = getTask(id).status === "blocked";
         // The second holding is a deliberate leader assignment. An autonomous
         // claim cannot clear a recovery hold, so that is the only path that can
         // reach the stale gate release this test is about.
-        const rebound = bindTask(id, "w", {{ id: "attempt-2", kind: "direct", resources: [] }}, {{ from: ["recovery_hold"] }});
+        const rebound = bindTask(id, "w", {{ id: "attempt-2", kind: "direct", resources: [] }}, {{ from: ["blocked"] }});
         const reboundHeld = rebound.ok === true && getTask(id).status === "in_progress";
         releaseStaleGate();
         await tick();

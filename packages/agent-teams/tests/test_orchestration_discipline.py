@@ -86,7 +86,7 @@ def test_work_recheck_needs_explicit_refreshed_context(tmp_path: Path) -> None:
       await call("update_task", { id: task.id, status: "pending", reason: "Inspect candidate v2 instead" });
       const reopened = (await call("get_task", { id: task.id })).details.task;
       assert.equal(reopened.description, "Inspect candidate v1 against baseline B0");
-      assert.equal(reopened.result, undefined);
+      assert.equal(reopened.result, priorReport);
       // This synthetic original is completed again only to exercise a linked follow-up.
       assert.ok(takeTask(task.id, "reviewer").ok);
       assert.ok(completeTaskWithOutcome(task.id, "reviewer", "success", savedResult).ok);
@@ -96,10 +96,10 @@ def test_work_recheck_needs_explicit_refreshed_context(tmp_path: Path) -> None:
       // A created task is pending; whether it can be taken right now is a task set
       // question answered by `list claimable`, not a property of the creation.
       assert.equal(followUp.details.status, "pending");
-      console.log(JSON.stringify({ oldDescription: reopened.description, clearedResult: reopened.result ?? null,
+      console.log(JSON.stringify({ oldDescription: reopened.description, retainedResult: reopened.result ?? null,
         followUp: followUp.details.task }));
     ''')
-    assert payload["clearedResult"] is None
+    assert payload["retainedResult"] == "Spec REWORK: reviewer scope and stale candidate brief"
     assert payload["oldDescription"].startswith("Inspect candidate v1")
     assert "candidate v2" in payload["followUp"]["description"]
     assert "reviewer scope and stale candidate brief" in payload["followUp"]["description"]

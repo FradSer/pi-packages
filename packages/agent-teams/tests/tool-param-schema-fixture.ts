@@ -9,6 +9,8 @@ import {
   TASK_UPDATE_PARAMS,
   TASK_CAPABILITY_TOOLS,
   executeTaskUpdate,
+  createTask,
+  getTask,
   registerTaskTools,
 } from "@fradser/pi-tasks";
 import { registerLeaderTools } from "../src/tools.ts";
@@ -131,9 +133,19 @@ if (!Value.Check(TASK_LIST_PARAMS, { statusFilter: ["pending"], claimable: true,
 if (Value.Check(TASK_UPDATE_PARAMS, { id: "w1", context: { handoff: "prior brief" } })) {
   throw new Error("task payload with a string handoff accepted");
 }
-if (Value.Check(TASK_UPDATE_PARAMS, { id: "w1", context: { handOff: { delta: "x" } } })) {
-  throw new Error("task payload with a misspelled handoff accepted");
-}
+// Unknown nested fields reach the task reader so its refusal names the field.
+// Schema acceptance must never be mistaken for successful storage.
+const misspelledContext = { handOff: { delta: "x" } };
+assert.equal(Value.Check(TASK_UPDATE_PARAMS, { id: "w1", context: misspelledContext }), true);
+const malformedTask = createTask({ id: "schema-context", subject: "Preserve context on refusal" });
+assert.equal(malformedTask.ok, true);
+const beforeContextRefusal = JSON.stringify(getTask("schema-context"));
+const misspelledHandoff = await executeTaskUpdate({ id: "schema-context", context: misspelledContext });
+assert.equal(misspelledHandoff.details.ok, false);
+assert.match(misspelledHandoff.content[0].text, /handOff/);
+assert.match(misspelledHandoff.content[0].text, /context\.handoff/);
+assert.equal(JSON.stringify(getTask("schema-context")), beforeContextRefusal,
+  "a refused context must leave the task byte-identical");
 if (!Value.Check(TASK_UPDATE_PARAMS, { id: "w1", status: "in_progress" })) {
   throw new Error("task take payload rejected");
 }

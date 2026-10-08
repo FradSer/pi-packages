@@ -107,7 +107,7 @@ def test_superseding_claimed_work_keeps_holder_locked_until_cancellation_acknowl
         }}));
         '''
     )
-    assert payload["oldStatus"] == "superseded"
+    assert payload["oldStatus"] == "in_progress"
     assert payload["supersededBy"] == payload["replacementId"]
     assert payload["holdingId"].startswith("task:")
     assert payload["holderAssignment"] == {"id": payload["holdingId"], "kind": "task", "resources": []}
@@ -256,7 +256,7 @@ def test_resume_clears_dead_holder_from_superseded_task() -> None:
         console.log(JSON.stringify({{ status: restored?.status, claimedBy: restored?.claimedBy ?? null, resources: restored?.resources ?? [] }}));
         '''
     )
-    assert payload == {"status": "superseded", "claimedBy": None, "resources": ["firmware/sub-node"]}
+    assert payload == {"status": "blocked", "claimedBy": None, "resources": ["firmware/sub-node"]}
 
 
 def test_active_verify_rejects_replacement_submission(tmp_path: Path) -> None:
@@ -1023,7 +1023,7 @@ def test_invalidated_holding_aborts_its_in_flight_reviewer(tmp_path: Path) -> No
         processTaskIntents();
         await new Promise((resolve) => setImmediate(resolve));
         const afterRelease = signal ? signal.aborted : null;
-        const failed = {{ ok: getTask(task.id)?.status === "recovery_hold" }};
+        const failed = {{ ok: getTask(task.id)?.status === "blocked" }};
         // Retrying needs a stated reason, and the re-take is what the coordinator
         // reacts to on `pi-tasks:task-taken`.
         const silent = takeTask(task.id, "w");
@@ -1061,3 +1061,22 @@ def test_invalidated_holding_aborts_its_in_flight_reviewer(tmp_path: Path) -> No
     assert payload["status"] == "in_progress"
 
 
+
+def test_replaced_resident_cannot_accept_new_input_before_cancellation_ack(tmp_path: Path) -> None:
+    payload = run_node(f'''
+        import {{ initTeamMachine, shutdownTeamMachine, sendResidentSequence }} from "{(SRC / 'team-machine.ts').as_uri()}";
+        import {{ resetState, registerAgent, createTask, takeTask, getTask, getAgent }} from "{(SRC / 'state.ts').as_uri()}";
+        initTeamMachine({{sessionManager:undefined,cwd:{str(tmp_path)!r}}},{{sendUpdate(){{}},notifyChange(){{}}}});
+        resetState();
+        registerAgent({{name:"worker",role:"executor",spawnId:"one",pid:1,status:"idle",isolation:"none",createdAt:1,updatedAt:1}});
+        const old=createTask({{id:"old",subject:"Original"}}).task;
+        takeTask(old.id,"worker");
+        createTask({{id:"new",subject:"Replacement",supersedes:[old.id]}});
+        const assignment=getAgent("worker").assignment;
+        const outcome=await sendResidentSequence("worker","one","Continue obsolete work");
+        console.log(JSON.stringify({{outcome,unchanged:getAgent("worker").assignment===assignment,holder:getTask("old").claimedBy}}));
+        shutdownTeamMachine();
+    ''')
+    assert payload['outcome']['ok'] is False
+    assert 'retains Task authority' in payload['outcome']['error']
+    assert payload['unchanged'] is True and payload['holder']=='worker'

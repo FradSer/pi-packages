@@ -366,7 +366,7 @@ const taskListed = await tools.get("leader:list_tasks").execute(
 const listedRow = render("leader:list_tasks", {}, { details: taskListed.details, text: taskListed.content[0].text, expanded: true });
 expectReadable(listedRow, "task list row");
 assert.ok(listedRow.includes("Fix the spacing under the started row"), `task list row missing the subject:\n${listedRow}`);
-assert.ok(listedRow.includes("· in progress"), `task list row missing state:\n${listedRow}`);
+assert.ok(listedRow.includes("(in progress)"), `task list row missing state:\n${listedRow}`);
 assert.ok(!listedRow.includes("@main"), `task list row must not name a holder:\n${listedRow}`);
 
 // A long Work subject stays whole: the row fits it to the terminal and
@@ -394,7 +394,8 @@ const narrowLongRow = stripVTControlCharacters(renderComponent("leader:create_ta
   details: longCreated.details,
   text: longCreated.content[0].text,
 }).render(80).join("\n"));
-assert.ok(narrowLongRow.includes("to expand"), `a width-clipped subject must advertise expansion:\n${narrowLongRow}`);
+assert.ok(!narrowLongRow.includes("to expand"), `Task titles are complete by default:\n${narrowLongRow}`);
+assert.ok(narrowLongRow.includes("TAIL-SUBJECT"), `default Task title lost its tail:\n${narrowLongRow}`);
 
 // ── agent_event: the message itself, not the routing record ─────────
 

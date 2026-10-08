@@ -101,8 +101,8 @@ assert.match(blocked.content[0].text, /depends on .*which is not completed/);
 
 // A failure is a recorded outcome, not prose.
 const failed = await update.execute("fail", { id: prerequisiteId, status: "completed", outcome: "failed", result: "no reviewer available" }, undefined, undefined, context);
-assert.equal(failed.details.status, "recovery_hold");
-assert.equal(failed.details.task.status, "recovery_hold");
+assert.equal(failed.details.status, "blocked");
+assert.equal(failed.details.task.status, "blocked");
 assert.equal(failed.details.task.result, "no reviewer available");
 
 // The recovery hold withholds the task until somebody says why.
@@ -157,11 +157,12 @@ const replacement = await create.execute("replace", {
 }, undefined, undefined, context);
 assert.equal(replacement.details.ok, true);
 assert.deepEqual(replacement.details.replaced, [created.details.id]);
-assert.equal(listTasks().find((entry) => entry.id === created.details.id).status, "superseded");
+assert.equal(listTasks().find((entry) => entry.id === created.details.id).status, "pending");
+assert.equal(listTasks().find((entry) => entry.id === created.details.id).supersededBy, replacement.details.id);
 // Reopening a superseded task is refused: the successor already replaced it.
 const reopenSuperseded = await update.execute("reopen-superseded", { id: created.details.id, status: "pending" }, undefined, undefined, context);
 assert.equal(reopenSuperseded.details.ok, false);
-assert.match(reopenSuperseded.content[0].text, /not completed/);
+assert.match(reopenSuperseded.content[0].text, /replaced/);
 
 shutdownTeamMachine();
 console.log("UNIFIED_WORK_INTERFACE_OK");

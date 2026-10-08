@@ -1,3 +1,4 @@
+import { isTaskReplaced } from "@fradser/pi-tasks";
 /**
  * Team machine — resident teammate lifecycle, peer mail routing, task-intent
  * processing, verify gating, and the harness poll loop that wakes idle
@@ -1331,7 +1332,7 @@ function applyOutboxRecord(teammate: Agent, record: unknown): boolean {
     const taskId = teammate.currentTaskId;
     const task = taskId ? getTask(taskId) : undefined;
     if (teammate.assignment && taskId && task?.claimedBy === teammate.name
-      && (task.status === "in_progress" || task.status === "superseded")) {
+      && (task.status === "in_progress" || isTaskReplaced(task))) {
       applySubmissionMarker({
         taskId, participant: teammate.name, spawnId: teammate.spawnId, assignmentId: teammate.assignment.id,
         status, result: record.body, timestamp: record.timestamp ?? Date.now(),
@@ -1552,8 +1553,8 @@ export async function sendResidentSequence(name: string, spawnId: string, input:
   // Draining may synchronously start the final report's verification gate.
   if (verificationFrozen(agent)) return { ok: false, error: `@${name}'s Task is awaiting verification or explicit recovery; input cannot bypass that authority.` };
   const currentTask = agent.currentTaskId ? getTask(agent.currentTaskId) : undefined;
-  const continuing = agent.assignment && !agent.assignment.closed && currentTask?.status === "in_progress" && currentTask.claimedBy === name;
-  if (!continuing && currentTask && ["in_progress", "superseded"].includes(currentTask.status)) {
+  const continuing = agent.assignment && !agent.assignment.closed && currentTask?.status === "in_progress" && !isTaskReplaced(currentTask) && currentTask.claimedBy === name;
+  if (!continuing && currentTask && (currentTask.status === "in_progress" || isTaskReplaced(currentTask))) {
     return { ok: false, error: `@${name} still retains Task authority; settle or recover it before independent input.` };
   }
   const previousReportEnded = agent.reportSequenceEnded;
@@ -1958,11 +1959,11 @@ function applySubmissionMarker(intent: import("./types").TaskIntent): void {
   const task = getState().tasks[intent.taskId];
   const pending = pendingSubmissions.get(intent.participant);
   if (pending?.spawnId === intent.spawnId && pending.assignmentId === intent.assignmentId) return;
-  if (!task || (task.status !== "in_progress" && task.status !== "superseded") || task.claimedBy !== intent.participant) {
+  if (!task || (task.status !== "in_progress" && !isTaskReplaced(task)) || task.claimedBy !== intent.participant) {
     deliverFeedback(intent.participant, "Submission rejected", `Task "${intent.taskId}" is not currently yours.`);
     return;
   }
-  if (task.status === "superseded") {
+  if (isTaskReplaced(task)) {
     if (intent.status !== "failed") {
       deliverFeedback(intent.participant, "Submission rejected", `Task "${intent.taskId}" was superseded by "${task.supersededBy ?? "a replacement"}". Stop work and submit failed to acknowledge cancellation.`);
       return;
@@ -2048,7 +2049,7 @@ function authorizeDirectRevision(intent: import("./types").TaskIntent, detail: s
 function beginVerifyOrComplete(intent: import("./types").TaskIntent, verify: string | undefined): void {
   const task = getState().tasks[intent.taskId];
   if (!task) return;
-  if (task.status === "superseded") {
+  if (isTaskReplaced(task)) {
     if (intent.status === "failed") releaseSupersededHolding(intent);
     return;
   }

@@ -1,3 +1,4 @@
+import { isTaskReplaced } from "@fradser/pi-tasks";
 /**
  * Agent capabilities. A single addressed agent_event primitive covers
  * leader reports and peer mail. Task-list registration is shared by leader
@@ -9,7 +10,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { truncateTail, type ExtensionAPI, type MessageEndEvent } from "@earendil-works/pi-coding-agent";
 import { setOwnedTools } from "@fradser/pi-kit";
-import { resourcesConflict, type TaskStatus } from "@fradser/pi-tasks";
+import { isTaskStatus, resourcesConflict, type TaskStatus } from "@fradser/pi-tasks";
 import { messageRow, workerWorkRow } from "./tool-copy.ts";
 import { emptyToolCall, renderCoordinationRow, textOf } from "./tool-render.ts";
 import { resolveRecipient } from "./recipient.ts";
@@ -98,7 +99,16 @@ export function workerBinding(): WorkerBinding | undefined {
 
 function loadWorkerTasks(binding: WorkerBinding): Task[] {
   const tasks = readTasksFile(binding.tasksFile);
-  return Object.values(tasks?.tasks ?? {}).sort((a, b) => a.id.localeCompare(b.id));
+  return Object.values(tasks?.tasks ?? {}).map(task => {
+    // Workers read the leader's file without restoring the shared store. Legacy
+    // files can still be present until its next mutation, so normalize status
+    // here without resetting an active participant's holding.
+    const raw: unknown = task.status;
+    const status = raw === "recovery_hold" ? "blocked"
+      : raw === "superseded" ? (task.supersededBy ? "pending" : "blocked")
+      : isTaskStatus(raw) ? raw : "blocked";
+    return { ...task, status, ...(raw === "superseded" && !task.supersededBy ? { replacementUnresolved: true } : {}) };
+  }).sort((a, b) => a.id.localeCompare(b.id));
 }
 
 function dependenciesMet(task: Task, tasks: Map<string, Task>): boolean {
@@ -106,10 +116,10 @@ function dependenciesMet(task: Task, tasks: Map<string, Task>): boolean {
 }
 
 function taskCounts(tasks: Task[], byId: Map<string, Task>): string {
-  const counts: Record<TaskStatus, number> = { pending: 0, in_progress: 0, recovery_hold: 0, completed: 0, superseded: 0 };
-  for (const task of tasks) counts[task.status] += 1;
-  const claimable = tasks.filter((task) => task.status === "pending" && dependenciesMet(task, byId)).length;
-  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · in_progress=${counts.in_progress} · recovery_hold=${counts.recovery_hold} · completed=${counts.completed} · superseded=${counts.superseded}`;
+  const counts: Record<TaskStatus, number> = { pending: 0, in_progress: 0, blocked: 0, completed: 0 };
+  for (const task of tasks) if (!isTaskReplaced(task)) counts[task.status] += 1;
+  const claimable = tasks.filter((task) => !isTaskReplaced(task) && task.status === "pending" && dependenciesMet(task, byId)).length;
+  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · in_progress=${counts.in_progress} · blocked=${counts.blocked} · completed=${counts.completed} · superseded=${tasks.filter(isTaskReplaced).length}`;
 }
 
 function claimRejection(binding: WorkerBinding, task: Task): string | undefined {
@@ -128,10 +138,11 @@ function claimRejection(binding: WorkerBinding, task: Task): string | undefined 
 }
 
 function taskStatusLabel(task: Task, tasks: Map<string, Task>): string {
-  // `recovery_hold` is a state of its own, so it is named as one. A task in it
+  // `blocked` is a state of its own, so it is named as one. A task in it
   // was attempted and the attempt did not stand: it is not claimable work, and
   // calling it "pending" hid that from the participant reading this list.
-  if (task.status === "recovery_hold") return "recovery-hold";
+  if (isTaskReplaced(task)) return task.supersededBy ? `replaced-by=${task.supersededBy}` : "replacement-unresolved";
+  if (task.status === "blocked") return "blocked";
   if (task.status === "pending") return dependenciesMet(task, tasks) ? "pending/claimable" : "pending/blocked";
   return task.status;
 }
@@ -219,7 +230,7 @@ function createWorkerReports(pi: ExtensionAPI) {
       throw new Error("Work authority rejected: this turn belongs to a different assignment. Wait for its fresh assignment marker.");
     }
     const cancelled = cancellation && assignmentId && self.currentTaskId
-      && (self.assignment?.closed || loadWorkerTasks(binding).some((task) => task.id === self.currentTaskId && task.status === "superseded"));
+      && (self.assignment?.closed || loadWorkerTasks(binding).some((task) => task.id === self.currentTaskId && isTaskReplaced(task)));
     if ((reportClosed || self.assignment?.closed) && !(cancelled && terminalOutcome !== "failed")) {
       throw new Error("Leader report rejected: this assignment already has a terminal report or is closed. Stop; no repeated acknowledgment is required.");
     }
@@ -370,19 +381,23 @@ export function registerChildCapabilities(pi: ExtensionAPI): WorkerToolDisclosur
     const byId = new Map(tasks.map((task) => [task.id, task]));
     const candidates = id
       ? tasks.filter((task) => task.id === id)
-      : tasks.filter((task) => task.status === "pending" && dependenciesMet(task, byId));
+      : tasks.filter((task) => !isTaskReplaced(task) && task.status === "pending" && dependenciesMet(task, byId));
     if (candidates.length === 0) {
       // Say why nothing is claimable: a task set whose only pending Work is held for
       // Leader recovery must not read as an ordinary empty tasks.
-      const held = loadWorkerTasks(binding).filter((task) => task.status === "recovery_hold");
+      const held = loadWorkerTasks(binding).filter((task) => task.status === "blocked");
       if (!id && held.length > 0) {
         throw new Error(`No claimable ${label.toLowerCase()} right now. Held for explicit leader recovery: ${held.map((task) => task.id).join(", ")}.`);
       }
       throw new Error(id ? `${label} "${id}" was not found${presentation === "task" ? " in the task list" : ""}.` : empty);
     }
     for (const task of candidates) {
-      if (task.status === "recovery_hold") {
+      if (task.status === "blocked") {
         if (id) throw new Error(`Work Item "${task.id}" requires explicit leader Work assignment after failure.`);
+        continue;
+      }
+      if (isTaskReplaced(task)) {
+        if (id) throw new Error(task.supersededBy ? `Work Item "${task.id}" was replaced by "${task.supersededBy}".` : `Work Item "${task.id}" has an unresolved replacement target.`);
         continue;
       }
       if (task.status !== "pending" || !dependenciesMet(task, byId)) continue;

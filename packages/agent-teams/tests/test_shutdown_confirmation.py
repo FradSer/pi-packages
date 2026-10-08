@@ -44,7 +44,7 @@ def test_retry_confirms_stop_and_rejects_work_while_stopping(tmp_path):
     assert "requested" not in result["retry"]["body"].lower()
     assert result["status"] == "stopped"
     assert isinstance(result["stopTime"], int)
-    assert result["task"]["status"] == "recovery_hold"
+    assert result["task"]["status"] == "blocked"
 
 
 def test_delayed_close_is_intentional_and_absent_replacement_preserves_evidence(tmp_path):
@@ -108,7 +108,7 @@ def test_unrequested_failure_or_unfinished_work_still_reaches_the_leader(tmp_pat
     assert result["reports"][0]["harnessEvent"]["type"] == "unexpected-stop"
     assert [message["subject"] for message in result["mailbox"]] == ["Agent stopped unexpectedly"]
     if mode in {"close-owned", "close-unreported"}:
-        assert result["task"]["status"] == "recovery_hold"
+        assert result["task"]["status"] == "blocked"
         assert "claimedBy" not in result["task"]
     else:
         assert result["error"] is not None

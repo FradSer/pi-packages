@@ -90,7 +90,7 @@ export default function (pi: ExtensionAPI): void {
           // deliberate assignment clears that hold, and it is what makes the
           // retired reports historical: their assignment no longer matches.
           assert.ok(bindTask(created.task.id, agent.name,
-            { id: "replacement-attempt", kind: "direct", resources: [] }, { from: ["recovery_hold"] }).ok);
+            { id: "replacement-attempt", kind: "direct", resources: [] }, { from: ["blocked"] }).ok);
         }
       } else if (transition === "released") {
         assert.ok(revertUndeliveredTake(created.task.id, agent.name, "Fixture release"));

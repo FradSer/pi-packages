@@ -1,3 +1,4 @@
+import { isTaskReplaced } from "@fradser/pi-tasks";
 /**
  * pi-agent-teams-fradser — Pi extension for Claude-style resident agent
  * teams. Composition only: worker capability registration, session lifecycle,
@@ -71,7 +72,7 @@ function isHistoricalReport(report: LeaderReport): boolean {
   if (!worker || worker.spawnId !== report.spawnId || worker.status === "stopped") return true;
   if (report.assignmentId !== worker.assignment?.id || worker.assignment?.closed || worker.reportSequenceEnded) return true;
   const task = worker.currentTaskId ? getTask(worker.currentTaskId) : undefined;
-  return task?.status === "superseded" || task?.status === "completed";
+  return isTaskReplaced(task) || task?.status === "completed";
 }
 
 function sendLeaderReport(report: LeaderReport): void {
