@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 // alias/virtualModules), so pi-kit can import the host-bundled TUI library
 // directly while keeping a dependency-free manifest. The tarball therefore
 // declares no dependency or peer; the host always supplies this one.
-import { Markdown, visibleWidth, type MarkdownTheme } from "@earendil-works/pi-tui";
+import { Markdown, visibleWidth, truncateToWidth, matchesKey, Key, type MarkdownTheme } from "@earendil-works/pi-tui";
 
 // ── TUI ─────────────────────────────────────────────────────────────
 // Spinner cadence matching pi's native " ⠋ Working..." loader and the
@@ -45,6 +45,7 @@ export type ToolLifecycleKind = "started" | "event";
 
 /** Shared lifecycle row specification. Consumers adapt it to Pi's TUI types. */
 export interface ToolLifecycleSpec {
+  tone?: "success" | "warning" | "error";
   kind: ToolLifecycleKind;
   tool: string;
   subject: string;
@@ -103,6 +104,7 @@ export function formatToolLifecycleTitle(spec: ToolLifecycleSpec): string {
 
 /** Optional spec fields shared by the lifecycle factories. */
 export interface ToolLifecycleFlags {
+  tone?: "success" | "warning" | "error";
   /** See `ToolLifecycleSpec.verbatimSubject`. */
   verbatimSubject?: boolean;
   /** See `ToolLifecycleSpec.subjectBlock`. */
@@ -124,6 +126,7 @@ export function startedToolLifecycle(
     label: options.label,
     verbatimSubject: options.verbatimSubject,
     subjectBlock: options.subjectBlock,
+    tone: options.tone,
     bgToken: options.bgToken,
   };
 }
@@ -145,6 +148,7 @@ export function eventToolLifecycle(
     detailLimit: options.detailLimit,
     verbatimSubject: options.verbatimSubject,
     subjectBlock: options.subjectBlock,
+    tone: options.tone,
     bgToken: options.bgToken,
   };
 }
@@ -312,6 +316,7 @@ export function renderToolLifecycle(
   options: ToolLifecycleRenderOptions,
 ): string[] {
   if (options.width <= 0) return [];
+  options = { ...options, isError: options.isError || spec.tone === "error", isPending: options.isPending || spec.tone === "warning" };
   const { theme, fit } = options;
   const contentWidth = Math.max(1, options.width - 2 * bandPaddingX(options.width));
   const tag = `[${safeDisplayText(spec.tool)}]`;
@@ -1658,7 +1663,22 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
     args.push("--tools", toolStr);
   }
   if (extraArgs) args.push(...extraArgs);
-  args.push(prompt);
+  // Frozen task/repair evidence can exceed Linux's per-argument limit. Read it
+  // before importing the Node CLI and append it to the in-memory argv: native
+  // Pi stdin trims boundary whitespace. No prompt file or wrapper reaches the
+  // model. PATH-only binaries can use native stdin for already-trimmed prompts.
+  const nodeEntrypoint = cli.command === process.execPath && cli.args.length > 0;
+  const promptOnStdin = Buffer.byteLength(prompt, "utf8") > 16 * 1024
+    && (nodeEntrypoint || prompt === prompt.trim());
+  if (promptOnStdin && nodeEntrypoint) {
+    args.unshift("--input-type=module", "--eval", [
+      'import {readFileSync} from "node:fs";',
+      'import {pathToFileURL} from "node:url";',
+      'process.argv.push(readFileSync(0, "utf8"));',
+      'await import(pathToFileURL(process.argv[1]).href);',
+    ].join("\n"));
+  }
+  if (!promptOnStdin) args.push(prompt);
 
   return new Promise((resolve) => {
     let stdout = "";
@@ -1679,7 +1699,7 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
 
     const child = spawnPiChild(cli.command, args, {
       cwd,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [promptOnStdin ? "pipe" : "ignore", "pipe", "pipe"],
       env: { ...process.env, ...env },
     });
 
@@ -1768,6 +1788,11 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
         cancelled,
       });
     });
+
+    if (promptOnStdin) {
+      child.stdin?.on("error", () => failWorker("Pi worker prompt delivery failed."));
+      child.stdin?.end(prompt, "utf8");
+    }
   });
 }
 
@@ -2210,10 +2235,12 @@ export async function searchModelFromPicker(
       getText: modelSearchText,
     });
 
-    const maxVisible = options?.maxVisible ?? 10;
+    let detailOffset = 0;
+
     const title = options?.title ?? "Select a model";
 
     const render = (width: number): string[] => {
+      const maxVisible = Math.max(1, Math.min(options?.maxVisible ?? 10, (_tui.terminal?.rows ?? 24) - 12));
       const results = picker.results();
       const selectedIndex = picker.selectedIndex();
       const lines: string[] = [];
@@ -2257,6 +2284,10 @@ export async function searchModelFromPicker(
         }
       }
 
+      const selected = picker.selected();
+      if (selected) lines.push(`  ${Array.from(safeDisplayText(modelSearchText(selected))).slice(detailOffset).join("")}`);
+      lines.push(theme.fg("dim", "  Left/Right: scroll selected model"));
+
       // Scroll info
       if (results.length > 0 && (startIndex > 0 || endIndex < results.length)) {
         lines.push(theme.fg("muted", `  (${selectedIndex + 1}/${results.length})`));
@@ -2264,22 +2295,28 @@ export async function searchModelFromPicker(
 
       lines.push("");
       // Key hints
-      const confirmHint = "Enter to select";
-      const cancelHint = "Esc to cancel";
-      const navHint = "↑/↓ to navigate";
+      const confirmHint = "Enter: select";
+      const cancelHint = "Esc: cancel";
+      const navHint = "↑/↓: move";
       lines.push(theme.fg("dim", `  ${navHint} · ${confirmHint} · ${cancelHint}`));
       lines.push(theme.fg("border", border));
 
-      return lines;
+      return lines.map(line => truncateToWidth(line, width));
     };
 
     const handleInput = (keyData: string): void => {
+      if (matchesKey(keyData, Key.left) || matchesKey(keyData, Key.right)) {
+        const length = Array.from(modelSearchText(picker.selected() ?? {provider: "", id: ""})).length;
+        detailOffset = Math.max(0, Math.min(Math.max(0, length - 1), detailOffset + (matchesKey(keyData, Key.right) ? 16 : -16)));
+        return;
+      }
+      detailOffset = 0;
       if (kb && typeof kb.matches === "function") {
-        if (kb.matches(keyData, "tui.select.up") || keyData === "\x1b[A" || keyData === "k") {
+        if (kb.matches(keyData, "tui.select.up") || keyData === "\x1b[A") {
           picker.up();
           return;
         }
-        if (kb.matches(keyData, "tui.select.down") || keyData === "\x1b[B" || keyData === "j") {
+        if (kb.matches(keyData, "tui.select.down") || keyData === "\x1b[B") {
           picker.down();
           return;
         }

@@ -62,6 +62,14 @@ Read @features/pi-kit.feature when changing this contract and run `python3 -m py
 
 ### One-shot workers
 
+Large prompts use a pipe and a fixed Node bootstrap that appends the complete
+text to the CLI's in-memory arguments. This avoids OS argument-size limits and
+Pi's native stdin whitespace trimming without writing a prompt file. Actual Pi
+input capture, broken-pipe and event-driven cancellation checks live in
+`tests/test_large_worker_prompt.py`. A PATH-only binary can use native stdin for
+already-trimmed prompts; whitespace-sensitive prompts on that fallback retain
+the original argv path and its platform limits.
+
 - `MINIMAL_PI_WORKER_TOOLS` — the canonical minimal worker grant (`read`, `bash`, `grep`, `find`): inspection access plus Pi's built-in discovery tools. `ls` is deliberately absent because `find` and `bash` already cover listing, so the grant stays minimal; a worker needing a narrower or wider grant passes its own allowlist.
 - `minimalPiWorkerArgs(tools)` — builds the common `--print --mode json --no-session -ne -ns -np -nc --no-themes --tools <allowlist>` arguments for packages that own a one-shot child-process lifecycle. Omitting `tools` uses `MINIMAL_PI_WORKER_TOOLS`; a supplied list stays authoritative, including an empty one that grants no tools.
 - `runPiWorker(options)` — runs a one-shot JSONL worker with pre-cancel checks. Set `minimal: true` to use those shared minimal arguments; omit `tools` for the canonical set or pass one for an explicit allowlist. Only an explicit empty array grants no tools: an empty string counts as omitted in every mode. It also provides close-observed cancellation and byte limits of 16 MiB for stdout, 8 MiB for
@@ -99,3 +107,8 @@ Read @features/pi-kit.feature when changing this contract and run `python3 -m py
 ## License
 
 MIT
+
+Message lifecycle specifications accept `tone: "success" | "warning" | "error"`;
+both message renderer variants propagate this to the band and prefix. Model-search
+rows fit the current terminal width and height, including after resize. Ordinary
+j/k characters enter the query; Left/Right reveals the full selected model label.

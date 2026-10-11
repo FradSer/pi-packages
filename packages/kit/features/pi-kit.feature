@@ -4,6 +4,14 @@ Feature: Shared pi-kit runtime helpers
   So that spinner cadence, theme style callbacks, and message text extraction
   stay identical across agent-teams, btw, memory, recap, vision, and utils
 
+  Scenario: Large worker prompts exceed operating-system argument limits
+    Given a worker prompt includes a large frozen task and repair evidence
+    When runPiWorker starts the actual child CLI
+    Then deliver the complete UTF-8 prompt through standard input
+    And do not place that large prompt in process arguments
+    And retain the same tool allowlist and result parsing
+    And handle prompt pipe failure and cancellation without unhandled errors
+
   Scenario: Spinner frames match pi's native loader
     Given a package animates a waiting indicator
     When it imports the shared spinner constants
@@ -568,3 +576,14 @@ Feature: Ask a decision model one bounded question set
     When the collapsed row renders at a narrow terminal width
     Then every authored line is visible and wrapped
     And no expansion hint is shown for that summary
+
+  Scenario: Model queries keep navigation letters and fit the viewport
+    Given a narrow terminal and long model identifiers
+    When the user types j or k into the model search
+    Then the query contains the typed character
+    And every output row fits the terminal width
+
+  Scenario: Semantic message lifecycle colors
+    Given an event with an error or warning tone
+    When either message renderer renders it
+    Then the band and prefix use the matching semantic tokens
