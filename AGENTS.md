@@ -47,6 +47,150 @@ both suites and tsc. Runtime changes require `pnpm check:install` and
 live `pi --print` verification; test TUI interactively. Package moves must
 update installed paths in `~/.pi/agent/settings.json`.
 
+## Real Pi Terminal Verification
+
+For TUI changes, run the actual `pi` CLI in an interactive terminal or a PTY.
+Renderer/unit tests and `pi --print` do not prove input ownership, viewport
+composition, focus, navigation, or resize behavior.
+
+- Use a disposable cwd and agent directory with isolated `HOME` and
+  `PI_CODING_AGENT_DIR`. Keep user settings, credentials and package installation
+  unchanged. For offline fixture runs, use a deterministic local provider,
+  `PI_OFFLINE=1`, and disable unrelated extensions, skills, prompt templates,
+  themes, context files and built-in tools; load only the fixture extension.
+  Isolation flags are test conditions, not production defaults.
+- Spawn `pi` through `pty.openpty()` (or the existing interactive terminal).
+  Set dimensions with `TIOCSWINSZ`; resize the same live component and send
+  `SIGWINCH`. Exercise 120x40, 48x24 and a short-height case such as 48x12.
+  Do not recreate a component and call that a live-resize test.
+- Send actual terminal key bytes through the PTY: arrows, Enter, Escape,
+  Ctrl-C, Ctrl-O and PageUp/PageDown. Include SS3/CSI variants for custom key
+  handling. Synchronize on lifecycle/menu/render events and input release;
+  drain output before capture. Fixed sleeps are not acceptance conditions.
+- Walk complete paths: command entry, empty/loading/error states where present,
+  long lists, list ends and navigation actions, full-body start and tail,
+  search input, detail close, parent return, retained selection, and exit.
+  Check meaningful labels and essential actions remain readable, not merely
+  that rendered lines fit. Check resize preserves the logical reading position.
+- Retain raw PTY bytes, terminal dimensions, ordered interactions and structured
+  renderer events. Inspect the composed terminal screen as well as component
+  lines. ANSI-to-text alone loses cursor placement, color and occlusion; use a
+  terminal-state parser for captures and keep its resize sequence. Label images
+  reconstructed from terminal bytes as reconstructions, not OS screenshots.
+  Record source revision/local changes and capture provenance; never retain
+  authentication values or private user data in evidence.
+- Distinguish evidence: real CLI + deterministic fixture proves native display
+  and interaction only; real-model/service learning and persistent mutations
+  require separate acceptance. Test RPC with actual `--mode rpc` requests and
+  `extension_ui_response` dialogs; native custom UI is unavailable there.
+  Report unverified screen-reader, physical-terminal/theme, service and mutation
+  cases explicitly. Never weaken validation to obtain a green result.
+
+When auditing continual-learning TUI, use
+@packages/continual-learning/tests/live_meaningful_details.py for native
+print/interaction acceptance and
+@packages/continual-learning/tests/tui_showcase.py with
+@packages/continual-learning/tests/tui-showcase-fixture.ts for terminal captures
+and RPC dialog evidence. From the repository root:
+
+```bash
+uv run --no-project packages/continual-learning/tests/live_meaningful_details.py
+uv run --no-project --with pyte --with pillow python packages/continual-learning/tests/tui_showcase.py /tmp/continual-learning-tui-cases
+```
+
+Inspect the showcase `manifest.json`, PNGs, `.txt`, `.ansi`, `events.jsonl` and
+`rpc-dialogs.json`. The showcase uses actual product components with isolated
+fixture data; it does not perform real undo, policy writes or remote learning.
+After a user reloads Pi, also reproduce the reported case in that reloaded
+session; an isolated process is not evidence that their session loaded the fix.
+
+For intermittent AGENTS learning failures, use
+@packages/continual-learning/tests/live_agents_reliability.py with `--full-pipeline`.
+Retain actual planner-child transport, receipts and before/after documents in
+disposable roots. A successful retry does not identify an earlier failure's
+cause. Check that every required dossier read is actually authorized, rather
+than inferring it from a final applied outcome. Receipt diagnostics must use
+parent-controlled categories, never arbitrary child stderr or model output.
+For large repair contexts, also run
+@packages/kit/tests/test_large_worker_prompt.py. Native Pi stdin trims boundary
+whitespace; prove exact prompt delivery through the actual CLI, not only a fake
+stdin reader. Reproduce Linux argument-limit failures with the original frozen
+evidence before changing transport; reducing evidence is not a transport fix.
+
+For downstream Memory claims, use
+@packages/continual-learning/tests/live_real_project_memory.py and its frozen
+@packages/continual-learning/tests/real_project_tasks.py protocol. Run
+`--preflight-only` before real calls. This Docker study enables Jev only in its
+isolated configuration, learns from real source work, and starts fresh sessions
+with identical post-training code. Hidden checks enter containers after model
+execution. Preserve failures and ties; invalid training must stop downstream
+tasks. Small authored feature tasks on previously used public projects do not
+establish broad model capability or production benefit.
+After a confirmed learning runtime fix, `--resume-from <prior-cohort>` may reuse
+verified real source observations instead of repeating the audit. Keep the
+original project/model/protocol and source hashes, use the existing `continue`
+contract. For a summary-only continuation, replace the parent tool allowlist with
+`--no-tools`; a prompt-only ban can loop, and combining it with `--tools` reopens
+those tools. Independent learning workers keep their own explicit authorization.
+Require `originalObservationsPreserved=true` in the actual learning
+dossier. A new substantive summary request starts a new task slice and is not
+proof that old tool evidence was reviewed. Record failed cohorts, cumulative
+resumed usage and the changed protocol; never seed Memory or future answers.
+For citation failures, compare raw dossier entries with the frozen snapshot before
+assuming an offset bug. Incremental Memory model inputs label each unchanged entry
+with its original `snapshotIndex`; validate against raw evidence, not the display
+projection. For Jev bounds, measure the fully encoded wire request, retain the
+rejection, and never trim original evidence or lower thresholds to manufacture
+a valid experimental arm.
+For Memory maintenance bounds, replay the actual rewrite/delete mixed plan and
+its frozen selected predecessor bodies; a create-only test does not cover this
+path. Verify every original entry is reviewed, including final revocations, with
+the unchanged wire bound. Mutation reviews require operation/preservation intent,
+exact old bodies and same-plan replacement bodies; none of that state authorizes
+the mutation. An all-positive offline judge proves framing and coverage only.
+
+For a learning/history/undo acceptance request, also run
+@packages/continual-learning/tests/live_learning_history_undo.py:
+
+```bash
+uv run --no-project --with pyte --with pillow python packages/continual-learning/tests/live_learning_history_undo.py /tmp/continual-learning-full-path
+```
+
+This drives the real Pi CLI, planner children, parent validation and file writes,
+then native history/detail menus and undo confirmation in one disposable project.
+Each invocation creates a new private run directory under the supplied output
+parent and prints its `outputDir`. Inspect that directory, not an older sibling.
+The runner uses the installed workspace Pi CLI and records its version, so a
+global CLI upgrade cannot silently change the compatibility baseline. It checks
+isolation before spawning Pi, snapshots source hashes at startup,
+refuses a pass after source drift, and automatically writes a manifest, run log
+and gallery on success or failure. Freeze implementation before the final run;
+stabilize deterministic acceptance and obtain required independent review before
+calling a real provider. Re-run checks only for affected changes or unresolved
+failures. Dialog evidence must match the current dialog id and event offset.
+It also resizes the same history list between 120 and 48 columns and checks that
+applied and undone statuses remain readable.
+Its loopback provider is deterministic; explicitly disable Jev in the disposable
+agent configuration and whitelist inherited environment variables to keep remote
+services out of this offline run. Verify rendered results against receipts,
+history targets and actual bytes. Bind cancellation evidence to the current
+dialog; undo every applied record in reverse order, including index bootstrap
+records. Compare predecessor bytes, permissions and missing files, retain undone
+history and the original receipt, and preserve unrelated files. Inspect
+`manifest.json`, `snapshots.json`, `receipt.json`, both history JSON files,
+`events.jsonl`, raw terminal bytes and reconstructed images. This proves the
+learning/undo mechanics with controlled plans; report real-model learning and
+remote semantic review separately.
+The optional `--real-model` flag runs the same native path with the configured
+real provider for Memory only, copying auth into the disposable agent directory
+with private permissions. Use it when real-service verification is authorized;
+it may incur model usage. It retains synthetic receipts and terminal evidence,
+never credentials. Jev remains disabled, so this does not verify remote semantic
+review. A failed real-model receipt remains a failure, separate from loopback
+acceptance.
+
+
+
 ## Extension Architecture
 
 - Activate state-dependent tools with `pi.setActiveTools()` only after valid
@@ -118,3 +262,58 @@ and packed manifests free of `workspace:` protocols.
 Search before adding decisions. Keep safe `.memory/` files byte-identical with
 canonical `~/.pi/agent/memory/<escaped-cwd>/`; private entries stay private.
 Use `name`/`description`/`type` frontmatter, **Why**, and **How to apply**.
+
+For continuous-learning effectiveness, use
+@packages/continual-learning/tests/live_continuous_project_learning.py and the frozen
+@packages/continual-learning/tests/continuous_project_tasks.py protocol. Run
+`--preflight-only` first. It resets disposable project/agent state, never seeds
+Memory or Harness, converges source bytes before each paired fresh-session task,
+and preserves actual learned state only in the learning arm. Hidden probes enter
+after model exit and are removed before the next task. Source convergence is an
+experimental intervention, not independent project evolution. The standalone version-execution instruction belongs only in correction and retirement
+tasks; a conditional shared instruction caused both orientation models to execute it
+prematurely and is retained in the earlier cohort. Record invalid
+learning, task failures, explicit recovery, all known leader/learning/Jev usage and
+unknown interrupted costs; never turn one sequence into a broad capability claim.
+Freeze implementation and obtain required independent review before paid calls.
+The continuous protocol permits one bounded explicit backfill after initial learning
+if pending, retaining the original failures and recovery cost; invalid learning
+then stops dependent tasks. Read actual backlog status rather than inferring pending
+work from attempt files. On interruption retain sessions and ledgers before removing
+owned containers; known summaries may be incomplete, and missing usage is unknown.
+The revised study loads @packages/continual-learning/tests/continuous-tool-budget.ts
+only in each arm's parent task process: eighteen admitted calls, then an empty
+active tool set; excess in-flight calls are blocked and make the task fail. This
+experimental resource intervention is identical in both arms, preserves original
+observations in the same session, and does not constrain independent learning
+workers or explicit backfill. Retain prior prompt-only-budget cohorts and disclose
+the changed protocol. Verify the empty next-turn tool set through the actual Pi
+CLI with @packages/continual-learning/tests/test_continuous_tool_budget.py before
+paid calls; do not treat prompt wording alone as a hard budget.
+For requested version-permission checks, match the standalone `npm --version`
+call to a unique successful actual Bash result with a version. Attempts, assistant
+claims and a later pure rule-engine probe cannot satisfy the task. Record the
+complete common prompt and this stricter protocol separately from prior cohorts.
+
+Continuous coverage version 2 adds a sixth real wrapper-maintenance task after
+Memory correction. Actual failed verification is read once from a complete,
+source/session-bound file through `continue` in the original session, with only
+one read available in both arms; this is observed evidence, never seeded Memory
+or user authorization. One explicit bounded backfill may process this failure,
+retaining the failed task and all added costs. Require exact acknowledgment
+SHA256 of JavaScript `JSON.stringify(receipt)`, the receipt's parent mutation batch
+in applied history, and subsequent consumption of the changed knowledge. A
+zero-operation acknowledgment proves processing only. Require independent Jev
+old/new Memory versus complete current source auditing at unchanged thresholds
+and later exact-revision delivery for correction coverage. Missing coverage is
+`incomplete-coverage`, even if all task processes exit. The experimental audit is
+read-only and its real service usage belongs in cumulative costs.
+
+For same-task failure feedback, inspect actual pending backlog ranges and the
+`input.backlogCoverage` of replay receipts. Only independently digest-verified,
+byte-identical prefix extensions may share one learning call; a new substantive
+task or changed source cannot be substituted. Preserve each original failure and
+one cost-bearing receipt. Exercise acknowledgment crashes before any sibling,
+between siblings, and before the receipt owner, plus recovery before older retry
+selection. A truncated replay must retain omission metadata and its existing
+proposals-only policy. Empty pending counts alone do not establish learned benefit.

@@ -27,3 +27,15 @@ A bounded budget applies to the index itself. As of the 2026-10-09 safety repair
   memory files explicitly; the guidance text injected with the index says so.
 - The 96K full-text budget is replaced by a small index budget (filenames plus
   one-line descriptions), so entry count no longer scales the prompt.
+
+## 2026-10-10 bounded retrieval amendment
+
+The index remains the discovery surface. A lexical metadata ranker may now add
+at most three complete relevant bodies, at most 4,000 characters each and 8,000
+characters including the full reference block. Large or incomplete entries remain
+on-demand reads. Bodies and revision hashes stay in the hidden untrusted message;
+current user instructions and verified evidence take precedence. Recent exposure
+can nominate an existing entry for correction, but is never factual evidence.
+This removes the assumption that every model reliably opens relevant files. It
+does not establish useful recall, correct application, or prompt-injection resistance;
+those require real downstream task evidence and include retrieval/learning costs.

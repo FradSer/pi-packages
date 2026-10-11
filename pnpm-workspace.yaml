@@ -1,6 +1,14 @@
 packages:
   - packages/*
 
+# Security pins for advisories that open Dependabot alerts.
+# Remove a pin when every dependent raises its own range above the patched version.
+overrides:
+  brace-expansion: ^5.0.12
+  shell-quote: ^1.11.0
+  source-map-js: ^1.2.2
+  '@earendil-works/pi-coding-agent@0.84.1>undici': 8.10.2
+
 allowBuilds:
   "@google/genai": true
   esbuild: true
