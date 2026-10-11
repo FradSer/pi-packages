@@ -47,12 +47,12 @@ def test_memory_menu_has_three_first_level_actions_and_safe_browse(tmp_path: Pat
         ''',
         tmp_path,
     )
-    assert len(result["menus"]) == 3
-    assert result["menus"][0]["options"] == ["Browse memories", "Learning settings", "Recent learning"]
+    assert len(result["menus"]) == 5
+    assert result["menus"][0]["options"] == ["Browse memories", "Learning settings", "Recent learning", "Close"]
     assert "auto on" in result["menus"][0]["title"]
     assert "provider/model" in result["menus"][0]["title"]
     assert "2 entries" in result["menus"][0]["title"]
-    assert result["menus"][1]["options"] == ["Private · preference.md · Keep changes small", "Shared · fact.md · Project fact"]
+    assert result["menus"][1]["options"] == ["Private · preference.md · Keep changes small", "Shared · fact.md · Project fact", "Back"]
     assert result["writes"] == []
 
 
@@ -60,7 +60,7 @@ def test_memory_menu_settings_and_advanced_policy_delegate_without_writes(tmp_pa
     result = run_menu(
         r'''
           import { openMemoryMenu } from './packages/continual-learning/extensions/memory-menu.ts';
-          const choices = ['Learning settings', 'Advanced phase policies', 'Harness policy', 'propose'];
+          const choices = ['Learning settings', 'Advanced phase policies', 'Harness policy', 'propose — save for review'];
           const menus = []; const delegated = []; const writes = [];
           const ctx = { cwd: process.env.MEMORY_MENU_TEST_ROOT, hasUI: true, ui: {
             select: async (title, options) => { menus.push({ title, options }); return choices.shift(); },
@@ -81,7 +81,7 @@ def test_memory_menu_settings_and_advanced_policy_delegate_without_writes(tmp_pa
     )
     assert result["menus"][1]["options"] == ["Select learning model", "Toggle automatic learning", "Advanced phase policies"]
     assert result["menus"][2]["options"] == ["Memory policy", "Harness policy", "Agents policy"]
-    assert result["menus"][3]["options"] == ["apply", "propose", "off"]
+    assert result["menus"][3]["options"] == ["apply — save validated changes", "propose — save for review", "off — skip automatic phase"]
     assert result["delegated"] == ["policy harness propose"]
     assert result["writes"] == []
 
@@ -90,7 +90,7 @@ def test_memory_menu_recent_learning_does_not_offer_undo_for_proposals(tmp_path:
     result = run_menu(
         r'''
           import { openMemoryMenu } from './packages/continual-learning/extensions/memory-menu.ts';
-          const choices = ['Recent learning', 'memory · proposed · proposal-1'];
+          const choices = ['Recent learning', '#1 saved proposal · proposed · 10-03 00:00 · memory'];
           const menus = []; const delegated = [];
           const ctx = { cwd: process.env.MEMORY_MENU_TEST_ROOT, hasUI: true, ui: {
             select: async (title, options) => { menus.push({ title, options }); return choices.shift(); },
@@ -110,7 +110,7 @@ def test_memory_menu_recent_learning_does_not_offer_undo_for_proposals(tmp_path:
         ''',
         tmp_path,
     )
-    assert result["menus"][1]["options"] == ["memory · proposed · proposal-1", "harness · applied · applied-1"]
+    assert result["menus"][1]["options"] == ["#1 saved proposal · proposed · 10-03 00:00 · memory", "#2 saved proposal · applied · 10-02 00:00 · harness", "Back"]
     assert result["menus"][2]["options"] == ["Close"]
     assert result["delegated"] == []
 
@@ -134,7 +134,7 @@ def test_memory_menu_sanitizes_external_model_in_title(tmp_path: Path) -> None:
         ''',
         tmp_path,
     )
-    assert len(result["titles"]) == 2
+    assert len(result["titles"]) == 3
     for title in result["titles"]:
         assert "\x1b" not in title
         assert "\x07" not in title
@@ -165,7 +165,8 @@ def test_memory_menu_does_not_call_an_unreadable_canonical_entry_shared(tmp_path
         ''',
         tmp_path,
     )
-    assert result["options"] == ["Canonical · maybe-private.md · Unknown provenance"]
+    assert result["options"][-1] == "Back"
+    assert result["options"][:-1] == ["Canonical · maybe-private.md · Unknown provenance"]
 
 
 def test_memory_menu_matches_parent_index_syntax_and_marks_unindexed_as_canonical(tmp_path: Path) -> None:
@@ -200,7 +201,8 @@ def test_memory_menu_matches_parent_index_syntax_and_marks_unindexed_as_canonica
         ''',
         tmp_path,
     )
-    assert result["options"] == [
+    assert result["options"][-1] == "Back"
+    assert result["options"][:-1] == [
         "Private · preference.md · preference",
         "Shared · safe.md · safe",
         "Private · private.md · private",
@@ -238,7 +240,8 @@ def test_memory_menu_prioritizes_link_target_and_ignores_prose_filename(tmp_path
         ''',
         tmp_path,
     )
-    assert result["options"] == [
+    assert result["options"][-1] == "Back"
+    assert result["options"][:-1] == [
         "Canonical · decoy.md · decoy",
         "Private · private.md · private",
         "Canonical · prose.md · prose",
@@ -270,4 +273,5 @@ def test_memory_menu_duplicate_index_records_are_canonical_not_shared(tmp_path: 
         ''',
         tmp_path,
     )
-    assert result["options"] == ["Canonical · duplicate.md · unknown"]
+    assert result["options"][-1] == "Back"
+    assert result["options"][:-1] == ["Canonical · duplicate.md · unknown"]

@@ -27,7 +27,7 @@ if (isModelFreeze || scenario === "remember-declined") {
 const policies = { memory: isModelFreeze ? "propose" : scenario === "all-off" || isHarness || isAgents ? "off" : scenario === "memory-apply" ? "apply" : "propose", harness: isModelFreeze ? "propose" : isHarness ? scenario === "harness-rejected" ? "apply" : "propose" : "off", agents: isModelFreeze ? "propose" : isAgents ? scenario === "agents-propose" ? "propose" : "apply" : "off" };
 fs.writeFileSync(path.join(agent, "memory", "settings.json"), JSON.stringify({ autoMemory: !isRemember, automaticPhases: isRemember ? {memory:"off",harness:"off",agents:"off"} : policies }));
 if (isModelFreeze) fs.writeFileSync(path.join(agent, "memory.json"), JSON.stringify(scenario === "model-freeze" ? { provider: "old", model: "one" } : {}));
-const quote = scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : scenario === "remember-shared" ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
+const quote = scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : (scenario === "remember-shared" || process.env.CL_JEV_FIXTURE === "syntax-privacy-downgrade") ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
 const oldAgents = "- Run tests with npm test\n";
 if (isAgents || isModelFreeze || isRemember) fs.writeFileSync(path.join(cwd,"AGENTS.md"),oldAgents);
 // Attribution and pluggability seam: install the absence before any extension
@@ -41,6 +41,7 @@ let semanticRepairs = 0;
 let structuralContextReceived = false;
 let receivedFailureHints = false;
 let totalRepairs = 0;
+let lastMemoryPlan: unknown;
 let cancellation: Promise<void> | undefined;
 let cancelRun: (() => Promise<void>) | undefined;
 const fixtureReason = process.env.CL_JEV_FIXTURE;
@@ -62,7 +63,8 @@ mock.module("../../kit/src/index.ts", () => ({
       const payload = JSON.parse(prompt.split("\n").at(-1)!);
       if (payload.semanticContext && !prompt.includes("existing structural correction slot")) { semanticRepairs += 1; receivedFailureHints = payload.errors.some((error: string) => error.includes("Candidate failures: 0:support:uncertain")); }
       else { selectors += 1; structuralContextReceived = !!payload.semanticContext?.frozenEvidence && Array.isArray(payload.semanticContext?.existingMemories); }
-      const repaired = structuredClone(payload.rejectedPlan);
+      const repaired = structuredClone(payload.rejectedPlan.malformedPlanText ? lastMemoryPlan : payload.rejectedPlan);
+      if (fixtureReason === "syntax-privacy-downgrade") { repaired.newMemories[0].kind = "project"; repaired.newMemories[0].classification = "safe"; }
       if (fixtureReason?.startsWith("structural-")) repaired.newMemories[0].kind = "project";
       if (fixtureReason === "repair-held") repaired.newMemories[0].content += "A correction proposal.\n";
       if (fixtureReason === "tamper-repair") tamperFrozen();
@@ -118,8 +120,8 @@ mock.module("../../kit/src/index.ts", () => ({
       evidence: [{index:0,source:"user",quote,count:1}],
     } : {
       ...identity, kind: "incremental-memory-plan", operations: [], newMemories: [{
-        name: "concise.md", kind: scenario === "remember-shared" ? "project" : "preference", classification: scenario === "remember-shared" ? "safe" : "private",
-        content: scenario === "remember-shared" ? "---\nname: concise\ndescription: Project build convention\ntype: project\n---\nThe project build convention is CL_MANUAL_SHARED.\n" : "---\nname: concise\ndescription: For progress updates, keep them concise\ntype: feedback\n---\nPrefer concise progress updates.\n",
+        name: "concise.md", kind: (scenario === "remember-shared" || fixtureReason === "syntax-privacy-downgrade") ? "project" : "preference", classification: scenario === "remember-shared" ? "safe" : "private",
+        content: (scenario === "remember-shared" || fixtureReason === "syntax-privacy-downgrade") ? "---\nname: concise\ndescription: Project build convention\ntype: project\n---\nThe project build convention is CL_MANUAL_SHARED.\n" : "---\nname: concise\ndescription: For progress updates, keep them concise\ntype: feedback\n---\nPrefer concise progress updates.\n",
         evidence: [{index:0,quote:scenario === "remember-invalid" ? "No such request evidence" : quote}],
       }],
     };
@@ -129,6 +131,7 @@ mock.module("../../kit/src/index.ts", () => ({
         content: `---\nname: ${name.slice(0,-3)}\ndescription: ${body}\ntype: project\n---\n${body}\n`, evidence: [{index: 0, quote}]}));
     }
     if (fixtureReason?.startsWith("structural-") && !harness && !agents) (plan as {newMemories: Array<{kind:string}>}).newMemories[0].kind = "project-fact";
+    if (!harness && !agents) lastMemoryPlan = plan;
     const child = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), killed: false, exitCode: null as number | null, signalCode: null });
     queueMicrotask(() => {
       // A planner that reports a model error without any plan. The attribution seam
@@ -139,8 +142,9 @@ mock.module("../../kit/src/index.ts", () => ({
         return;
       }
       const tracksRepair = scenario === "harness-repair-cost" && harness;
-      const text = tracksRepair && !harnessRepair ? "The planner returned prose instead of a plan." : JSON.stringify(plan);
+      const text = scenario.startsWith("remember-syntax") ? JSON.stringify(plan).replace('"concise.md"', '"concise.md') : tracksRepair && !harnessRepair ? "The planner returned prose instead of a plan." : JSON.stringify(plan);
       const usage = tracksRepair ? { input: harnessRepair ? 20 : 10, output: harnessRepair ? 4 : 2, cacheRead: harnessRepair ? 6 : 3, cacheWrite: 0, totalTokens: harnessRepair ? 30 : 15, cost: {total: harnessRepair ? 0.02 : 0.01} } : undefined;
+      if (scenario === "remember-syntax-multiple") for (let i=0;i<2;i++) child.stdout.emit("data", Buffer.from(JSON.stringify({type:"message_end",message:{role:"assistant",content:[{type:"text",text:JSON.stringify(plan)}]}})+"\n"));
       child.stdout.emit("data", Buffer.from(JSON.stringify({type:"message_end",message:{role:"assistant",content:[{type:"text",text}],...(usage ? {usage} : {})}}) + "\n"));
       child.exitCode = 0; child.emit("close", 0);
     });
@@ -189,7 +193,7 @@ if (process.env.CL_JEV_FIXTURE) {
         jevValidations.push(stage);
         if (reason === "tamper-first" || reason === "tamper-dossier") tamperFrozen(reason === "tamper-dossier");
         if (reason === "tamper-second" && jevValidations.length === 2) tamperFrozen();
-        const allowed = reason === "supported" || reason === "tamper-first" || reason === "tamper-dossier" || reason === "tamper-queue" || (reason === "repair-supported" || reason === "tamper-second") && jevValidations.length === 2;
+        const allowed = reason === "supported" || reason === "syntax-privacy-downgrade" || reason === "tamper-first" || reason === "tamper-dossier" || reason === "tamper-queue" || (reason === "repair-supported" || reason === "tamper-second") && jevValidations.length === 2;
         const judgment = (reason.startsWith("repair-") || reason === "structural-held" || reason === "tamper-second" || reason === "tamper-repair") ? allowed ? "supported" : "uncertain" : reason;
         return { decision: allowed ? "allow" : "propose",
           telemetry: {stage,status:allowed ? "decided" : "propose",reason:judgment,durationMs:2,model:"jev-1.13.0",inputTokens:10,outputTokens:2,...(!allowed ? {candidateIndex:0,dimension:"support",candidateFailures:[{candidateIndex:0,dimension:"support",reason:"uncertain"}]} : {})} };

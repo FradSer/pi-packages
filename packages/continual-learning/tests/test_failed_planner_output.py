@@ -147,7 +147,18 @@ def test_receipt_never_formats_unknown_failed_usage_as_zero_or_free() -> None:
     assert all('cost unavailable' in row['summary'] and '$0.0000' not in row['summary'] for row in result['rows'])
     assert 'usage unavailable' in result['rows'][0]['summary']
     assert 'known subtotal' in result['rows'][1]['summary']
-    assert result['rows'][2]['subject'] == 'cancelled'
+    assert result['rows'][2]['subject'] == 'finished with issues: memory cancelled'
     assert result['skippedAvailable'] is True
     assert result['legacyValid'] is True and 'cost unavailable' in result['legacySummary']
     assert result['invalidValid'] is False
+
+
+def test_complete_plan_cannot_hide_truncated_or_unmatched_second_object() -> None:
+    from support import isolated_run_bun
+    result=isolated_run_bun(r'''
+      import {extractChildPlan} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const plan=JSON.stringify({kind:'incremental-memory-plan',version:1,operations:[],newMemories:[]});
+      const tails=['\n{"kind":"incremental-memory-plan","operations":[','\n}','\n{"kind":"harness-consolidation-plan"','\n{"kind":"incremental-memory-plan","operations":[],}','\n{"kind":"incremental-memory-plan" "operations":[]}','\n{"kind":"harness-consolidation-plan","operations":[]}'];
+      console.log(JSON.stringify(tails.map(tail=>extractChildPlan(JSON.stringify({type:'message_end',message:{role:'assistant',stopReason:'stop',content:[{type:'text',text:plan+tail}]}})).ok)));
+    ''')
+    assert result==[False]*6

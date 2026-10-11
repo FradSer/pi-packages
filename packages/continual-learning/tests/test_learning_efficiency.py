@@ -294,7 +294,7 @@ def test_quiet_learning_subjects_and_details_keep_routine_rows_compact() -> None
     """)
     assert result["noop"] == "no durable changes"
     assert result["changed"] == "2 memories applied"
-    assert result["failed"] == "finished with issues"
+    assert result["failed"] == "finished with issues: memory failed"
     assert any("memory: applied" in line for line in result["details"])
 
 
@@ -431,3 +431,52 @@ def test_semantic_receipt_labels_do_not_invent_evidence_window_counts() -> None:
     assert all('undefined' not in row and 'full review' not in row for row in value)
     assert 'same-batch relations' in value[0]
     assert 'standalone meaning' in value[1]
+
+
+def test_learning_summary_details_formats_human_durations_and_disambiguates_retries() -> None:
+    result = run_bun("""
+      import { buildLearningReceipt, learningSummaryDetails, formatDurationMs } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const receipt = buildLearningReceipt('full', { memory: true, harness: true, agents: true, reasons: [] }, [
+        { phase: 'memory', attempt: 0, outcome: 'failed', durationMs: 33746, operations: 0, diagnostic: 'memory planner produced no usable plan' },
+        { phase: 'memory', attempt: 1, outcome: 'proposed', durationMs: 909154, operations: 0, diagnostic: 'Jev propose: private-memory-denied',
+          jev: { stage: 'memory', status: 'propose', reason: 'private-memory-denied', durationMs: 0 } },
+        { phase: 'harness', attempt: 0, outcome: 'noop', durationMs: 14162, operations: 0 },
+        { phase: 'agents', attempt: 0, outcome: 'noop', durationMs: 28211, operations: 0 },
+      ]);
+      const lines = learningSummaryDetails(receipt);
+      console.log(JSON.stringify({
+        lines,
+        durations: [formatDurationMs(33746), formatDurationMs(909154), formatDurationMs(14162), formatDurationMs(28211), formatDurationMs(5)],
+      }));
+    """)
+    assert result["durations"] == ["33.7s", "15m 9s", "14.2s", "28.2s", "5 ms"]
+    text = "\n".join(result["lines"])
+    assert "memory #1 reason · memory planner produced no usable plan" in text
+    assert "memory #2 reason · Jev propose: private-memory-denied" in text
+    assert "Jev memory #2 · propose: private-memory-denied" in text
+    assert "input unknown" not in text
+    assert "output unknown" not in text
+    assert "estimated cost unavailable" not in text
+    assert "memory #1: failed · 0 change(s) · 33.7s" in text
+    assert "memory #2: proposed · 0 change(s) · 15m 9s" in text
+    assert "harness: noop · 0 change(s) · 14.2s" in text
+    assert "agents: noop · 0 change(s) · 28.2s" in text
+
+
+def test_receipt_distinguishes_assistant_context_from_primary_evidence_omissions() -> None:
+    result = run_bun("""
+      import { buildLearningReceipt, learningSummaryDetails, isLearningPipelineReceipt } from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const screen = {memory:true,harness:false,agents:false,reasons:[]};
+      const receipt = buildLearningReceipt('automatic',screen,[],{source:'current-session',entryCount:130,omittedEntries:34,omittedEvidenceEntries:0});
+      const missing = {...receipt,input:{...receipt.input,omittedEvidenceEntries:2}};
+      const legacy = {...receipt,input:{source:'current-session',entryCount:130,omittedEntries:34}};
+      const invalid = {...receipt,input:{...receipt.input,omittedEvidenceEntries:35}};
+      console.log(JSON.stringify({valid:isLearningPipelineReceipt(receipt),invalid:isLearningPipelineReceipt(invalid),
+        context:learningSummaryDetails(receipt).join("\\n"), evidence:learningSummaryDetails(missing).join("\\n"), legacy:learningSummaryDetails(legacy).join("\\n")}));
+    """)
+    assert result['valid'] is True
+    assert result['invalid'] is False
+    assert '34 assistant context entries omitted' in result['context']
+    assert 'proposals only' not in result['context']
+    assert '2 evidence entries omitted; proposals only' in result['evidence']
+    assert '34 omitted; proposals only' in result['legacy']

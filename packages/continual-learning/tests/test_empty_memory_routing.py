@@ -32,9 +32,11 @@ def test_empty_memory_routes_explicit_evidence_without_model_and_preserves_dossi
           fs.mkdirSync(path.join(cwd,'.memory'));
           fs.writeFileSync(path.join(cwd,'.memory','known.md'),'---\nname: known\ndescription: Known project fact\ntype: project\n---\nBody\n');
           const existing=await run('existing');
+          const rejected=JSON.parse(fs.readFileSync(path.join(process.env.TEST_ROOT,'ambiguous','selector-rejected.json'),'utf8'));
+          const rejectedMode=fs.statSync(path.join(process.env.TEST_ROOT,'ambiguous','selector-rejected.json')).mode&0o777;
           const cancelled=await run('cancelled',slice,{signal:AbortSignal.abort()});
           console.log(JSON.stringify({cold:cold.outcome,coldCalls,dossier,coldUsage:cold.usage??null,
-            diagnostic:cold.diagnostic,requestCalls,requested:requested.selection,
+            diagnostic:cold.diagnostic,rejected,rejectedMode,requestCalls,requested:requested.selection,
             ambiguous:ambiguous.outcome,existing:existing.outcome,calls,cancelled:cancelled.outcome}));
         ''', {"TEST_ROOT": temporary})
     assert result['cold'] == 'selected'
@@ -48,3 +50,7 @@ def test_empty_memory_routes_explicit_evidence_without_model_and_preserves_dossi
     assert result['ambiguous'] == result['existing'] == 'failed'
     assert result['cancelled'] == 'cancelled' and result['calls'] == 2
     assert result['diagnostic'] == 'empty Memory index; parent-routed explicit evidence'
+
+    assert result['rejected']['output'] == 'INVALID_SELECTOR'
+    assert result['rejected']['contextDigest'] == 'frozen-digest'
+    assert result['rejectedMode'] == 0o600

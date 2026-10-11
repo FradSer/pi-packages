@@ -32,7 +32,7 @@ def test_dreaming_widget_starts_before_selector_and_survives_memory_phase_comple
     finish = content[content.index('const finish = async'):content.index('child.on("error"')]
     assert 'cleanup?.()' not in finish
     assert 'state.cleanup = undefined' not in finish
-    assert 'cleanup?.();' in pipeline[pipeline.index('}).finally(() => {'):]
+    assert 'cleanup?.();' in pipeline[pipeline.index('}).finally(async () => {'):]
 
 
 def test_dreaming_activity_labels_a_search_by_its_pattern() -> None:
@@ -74,6 +74,33 @@ def test_dreaming_widget_and_notifications_use_shared_pi_kit_tui_primitives() ->
     assert "dreamingWidget.clear(ctx)" in content
     assert "notifyPi(ctx.ui" in content
     assert "ctx.ui.notify" not in content
+
+
+def test_dreaming_activity_updates_tui_widget_live() -> None:
+    result = run_bun(
+        """
+        import { setDreamingWidget, setDreamingActivity, clearDreamingWidget } from './packages/continual-learning/extensions/inject-memory.ts';
+        const updates = [];
+        const mockUi = {
+          setWidget: (key, factory) => {
+            if (!factory) return;
+            const component = factory({ requestRender: () => {} }, { fg: (_c, t) => t, bold: t => t });
+            updates.push({ key, rendered: component.render(80) });
+          }
+        };
+        const ctx = { mode: 'tui', ui: mockUi };
+        setDreamingWidget(ctx, 'preparing full maintenance');
+        setDreamingActivity('full memory');
+        setDreamingActivity('harness delta');
+        clearDreamingWidget(ctx);
+        console.log(JSON.stringify({
+          called: updates.length > 0,
+          key: updates[0]?.key,
+        }));
+        """
+    )
+    assert result["called"] is True
+    assert result["key"] == "memory-dreaming"
 
 
 def test_consolidation_contract_is_parent_owned() -> None:
@@ -1103,19 +1130,12 @@ def test_candidate_citations_must_quote_the_entry_they_cite() -> None:
 
 
 def test_memory_plan_expansion_checks_citations_before_any_judge_call() -> None:
-    # Given the plan-expansion step in the Memory worker, When a candidate's quote
-    # is absent from the entry it cites, Then the parent clears the expanded plan
-    # and raises a controlled citation error, which routes the failure into the
-    # existing structural repair instead of a review. Clearing the plan is what the
-    # repair branch is gated on, so the test asserts both the check and the clear.
+    # All generation paths use one citation contract before semantic review.
     text = source()
-    expansion = text.index("plan = await expandIncrementalMemoryPlan(run, selectedScope, rawPlan);")
-    window = text[expansion:expansion + 1800]
-    assert "candidateCitationProblems(citationEvidence" in window
-    assert "plan = undefined;" in window
-    assert "Citations are invalid:" in window
-    # The check must precede the judge call in the source order of the worker.
+    expansion = text.index("plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, rawPlan);")
     assert expansion < text.index('opts.jevJudge.validate("memory"')
+    assert 'plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, repair.plan);' in text
+    assert 'const corrected = await expandCitedIncrementalMemoryPlan(run, selectedScope, repaired.plan);' in text
 
 
 def test_screened_constraint_with_no_harness_rule_is_named_not_silent() -> None:
@@ -1203,3 +1223,31 @@ def test_a_supplied_fixed_plan_survives_a_planner_model_error(tmp_path: Path) ->
     assert reached and reached[0][0] != "failed", reached
     assert reached[0][1] != "memory planner model error", reached
     assert [record for record in with_seam["history"] if record["phase"] == "memory"], with_seam["history"]
+
+
+def test_automatic_truncated_pipeline_retains_valid_input_provenance(tmp_path) -> None:
+    result = run_bun(f'''
+      import fs from 'node:fs/promises';
+      import register from './packages/continual-learning/extensions/inject-memory.ts';
+      import {{resolveMemoryPaths}} from './packages/continual-learning/extensions/memory-paths.ts';
+      import {{isLearningPipelineReceipt}} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const cwd={json.dumps(str(tmp_path / 'project'))}; await fs.mkdir(cwd);
+      const paths=resolveMemoryPaths(cwd); await fs.mkdir(paths.agentDir,{{recursive:true}});
+      await fs.writeFile(paths.agentDir+'/continual-learning.json',JSON.stringify({{jev:false}}));
+      await fs.mkdir(paths.harnessDir,{{recursive:true}});
+      await fs.writeFile(paths.settingsFile,JSON.stringify({{autoMemory:true,automaticPhases:{{memory:'off',harness:'off',agents:'off'}}}}));
+      const hooks=new Map();const notices=[];
+      register({{on:(n,f)=>hooks.set(n,f),registerCommand:()=>{{}},sendMessage:()=>{{}},appendEntry:()=>{{}},getCommands:()=>[],exec:async()=>({{stdout:'',stderr:'',code:0}})}});
+      const entries=[{{message:{{role:'user',content:'Audit the actual source'}}}},...Array.from({{length:300}},(_,n)=>({{message:{{role:'toolResult',content:'source '+n}}}}))];
+      const ctx={{cwd,hasUI:false,ui:{{notify:(x)=>notices.push(x)}},sessionManager:{{getBranch:()=>entries,buildContextEntries:()=>entries}}}};
+      await hooks.get('input')({{source:'interactive'}},ctx);
+      await hooks.get('agent_settled')({{}},ctx);
+      const files=await fs.readdir(paths.runsDir,{{recursive:true}});
+      const f=files.find(x=>x.endsWith('learning-pipeline-receipt.json'));
+      const receipt=f?JSON.parse(await fs.readFile(paths.runsDir+'/'+f,'utf8')):null;
+      console.log(JSON.stringify({{receipt,valid:isLearningPipelineReceipt(receipt),notices}}));
+    ''',env={'PI_CODING_AGENT_DIR':str(tmp_path / 'agent')})
+    assert result['valid'] is True, result
+    assert result['receipt']['input']['source'] == 'current-session'
+    assert result['receipt']['input']['entryCount'] == 301
+    assert result['receipt']['input']['omittedEvidenceEntries'] > 0

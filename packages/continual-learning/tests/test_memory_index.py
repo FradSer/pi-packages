@@ -391,7 +391,14 @@ def test_planner_prompts_require_concise_front_loaded_relevance_descriptions(pro
     assert "description: How this project works" not in content
     assert "preservedIn" in content and "private" in content
     assert "read-only" in content
-    assert '"schemaVersion": 1' in content and "{{SCOPE_DIGEST}}" in content
+    if prompt == "incremental-memory-consolidator":
+        # The parent renders identity and schema as escaped JSON in one pass.
+        # Exact rendered values are checked in test_learning_failure_recovery.py.
+        assert "{{OUTPUT_SCHEMA}}" in content
+        builder = (PACKAGE / "extensions" / "planner-prompts.ts").read_text()
+        assert 'schemaVersion: 1' in builder and 'scopeDigest: bindings.scopeDigest' in builder
+    else:
+        assert '\"schemaVersion\": 1' in content and "{{SCOPE_DIGEST}}" in content
     assert "user" in content and "tool-result" in content
 
 

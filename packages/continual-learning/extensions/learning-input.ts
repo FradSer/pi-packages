@@ -18,6 +18,7 @@ export interface RecentLearningInput {
   entries: unknown[];
   sessionId: string;
   sourceDigest: string;
+  contextEntries?: unknown[];
 }
 
 function inside(root: string, file: string): boolean {
@@ -45,6 +46,8 @@ export async function recentProjectLearningInput(input: {
   sessionDir?: string;
   currentSessionFile?: string;
   signal?: AbortSignal;
+  /** Exact backlog reference; no age-based or unrelated-session fallback. */
+  requestedSessionFile?: string;
 }): Promise<RecentLearningInput | undefined> {
   if (!input.sessionDir || input.signal?.aborted) return undefined;
   const sessionsRoot = path.join(canonicalProjectCwd(input.agentDir), "sessions");
@@ -73,16 +76,27 @@ export async function recentProjectLearningInput(input: {
       && stat.dev === directoryIdentity.dev && stat.ino === directoryIdentity.ino;
   };
   const candidates: Array<{ file: string; modified: number }> = [];
+  if (input.requestedSessionFile) {
+    // Exact references do not depend on the number or age of unrelated logs.
+    const file = path.resolve(input.requestedSessionFile);
+    if (canonicalProjectCwd(path.dirname(file)) !== directory) return undefined;
+    try {
+      const stat = await fs.lstat(file);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_SESSION_BYTES || stat.size === 0) return undefined;
+      candidates.push({file, modified:stat.mtimeMs});
+    } catch { return undefined; }
+  } else {
   let count = 0;
   for await (const entry of await fs.opendir(directory)) {
     if (input.signal?.aborted || ++count > MAX_SESSION_FILES) return undefined;
     if (!entry.isFile() || entry.isSymbolicLink() || !entry.name.endsWith(".jsonl")) continue;
     const file = path.join(directory, entry.name);
-    if (input.currentSessionFile && canonicalProjectCwd(file) === canonicalProjectCwd(input.currentSessionFile)) continue;
+    if (!input.requestedSessionFile && input.currentSessionFile && canonicalProjectCwd(file) === canonicalProjectCwd(input.currentSessionFile)) continue;
     const stat = await fs.lstat(file);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_SESSION_BYTES || stat.size === 0) continue;
-    if (Date.now() - stat.mtimeMs > RECENT_AGE_MS) continue;
+    if (!input.requestedSessionFile && Date.now() - stat.mtimeMs > RECENT_AGE_MS) continue;
     candidates.push({ file, modified: stat.mtimeMs });
+  }
   }
   candidates.sort((left, right) => right.modified - left.modified || right.file.localeCompare(left.file));
   for (const candidate of candidates.slice(0, MAX_RECENT_CANDIDATES)) {
@@ -113,6 +127,8 @@ export async function recentProjectLearningInput(input: {
         || typeof header.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(header.id)) continue;
       const sessionEntries = parsed.filter((entry): entry is SessionEntry => entry.type !== "session");
       if (parsed.slice(1).some(entry => entry.type === "session") || !validEntryGraph(sessionEntries)) continue;
+      // Replaying an older pointer must not resurrect later redacted context.
+      if (input.requestedSessionFile && parsed.some(entry => (entry as {type:string}).type === "context_edit")) continue;
       // Wildcard peers can resolve to an older SDK locally. Such SDKs cannot
       // project Pi v1 context edits: decline that source instead of reviving it.
       const projectionApi = piSdk as typeof piSdk & { buildSessionProjection?: (entries: SessionEntry[]) => {
@@ -131,7 +147,8 @@ export async function recentProjectLearningInput(input: {
         entries = buildContextEntries(sessionEntries).filter(entry => entry.type === "message");
       }
       if (!hasLearningInput(entries) || input.signal?.aborted) continue;
-      return { entries, sessionId: header.id, sourceDigest: sha256Digest(bytes) };
+      return { entries, sessionId: header.id, sourceDigest: sha256Digest(bytes),
+        ...(input.requestedSessionFile ? {contextEntries:buildContextEntries(sessionEntries)} : {}) };
     } catch {
       // An unreadable, changing, malformed or unrelated candidate is not authority.
     } finally { await handle?.close().catch(() => {}); }

@@ -584,3 +584,30 @@ def test_harness_repair_receipt_counts_both_workers_and_one_retry() -> None:
     assert receipt["totals"]["cost"] == pytest.approx(0.03), receipt
     assert receipt["retries"] == 1, receipt
     assert receipt["operations"] == 0, receipt
+
+
+def test_code_expressions_and_env_references_do_not_trip_sensitive_detector(tmp_path: Path) -> None:
+    result = run_bun(r"""
+      import {containsSensitiveMemoryMaterial} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const benignCode = [
+        'apiKey: process.env.TYPESAFE_API_KEY',
+        'apiKey = live ? process.env.TYPESAFE_API_KEY : "fixture-only"',
+        'apiKey: "fixture"',
+        'apiKey: "fixture-absent-sdk"',
+        'apiKey: config.apiKey',
+        'apiKey: options.apiKey',
+        'apiKey: (config.apiKey || "fallback")',
+        'token = process.env.GITHUB_TOKEN',
+        'password: "test-password-123"',
+      ];
+      const realSecrets = [
+        'password: hunter2-super-secret-value',
+        'api_key: my-secret-prod-token-12345',
+        'export API_KEY=sk-live-9f3a2b7c4d5e6f70',
+      ];
+      console.log(JSON.stringify({
+        benignPassed: benignCode.every(code => !containsSensitiveMemoryMaterial(code)),
+        secretsCaught: realSecrets.every(secret => containsSensitiveMemoryMaterial(secret)),
+      }));
+    """, tmp_path)
+    assert result == {"benignPassed": True, "secretsCaught": True}

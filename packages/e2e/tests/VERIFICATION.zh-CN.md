@@ -242,3 +242,37 @@ reset 和空工作等待。复查未发现新的具体阻断项。
 不是外部真实模型能力验证。pnpm check:install 仍报告另 10 个包未配置，未修改全局安装。
 额外根 pnpm check 在无失败的 276 passed 后主动中断（389.66s），没有宣称全仓库 check
 通过；相关包的最终完整测试、根 types 和打包检查如上。
+
+## 2026-10-09：状态行与反馈修订
+
+用户指定状态行仅显示 `[e2e] running`、`[e2e] passed`、`[e2e] needs review` 等状态，不带分隔符或场景后缀。新增共享反馈渲染，原生工具提供执行阶段更新；正文先显示来源和 feature 验收进度，再显示未满足项优先的完整条款列表。Provider 原因同时进入默认结果、检查点和等待反馈；`/e2e` 使用同一持久结果显示且不触发 agent 轮次。简单 shell 查询保留通过，未知程序保留原有的保守失效边界。
+
+回归先失败后修复。独立审查又复现两项问题：未知 shell 修改未声明的应用输入后证明仍通过、失败重跑沿用旧成功计数。新增对应回归，恢复未知 shell 的保守撤销，并在失败重跑时重新核验、撤销旧场景通过状态。独立复审确认两项已修复，单独运行新增反馈测试 8 passed。
+
+| 检查 | 本次结果 |
+| --- | --- |
+| macOS 完整包测试 | `uv run --no-project --with pytest python -m pytest packages/e2e/tests/ -q`：108 passed |
+| 类型检查 | `pnpm typecheck`、`pnpm exec tsc --noEmit -p packages/e2e/tsconfig.json`：通过 |
+| 打包 | `pnpm --dir packages/e2e pack --dry-run` 包含新 feedback.ts；`pnpm pack:check`：19 包通过 |
+| 安装检查 | 隔离 settings 配置：18 个 Pi 扩展包通过；用户当前 settings 的默认检查仍列出 10 个其他包未配置，未改写用户配置 |
+| 真实 Pi CLI | 本机 Pi 1.1.0、脚本 provider；fresh、inline、失败及失败后重试通过，原机器 status/verifiedRun 保持不变 |
+| 真实 Pi PTY | 80/40 列；运行阶段、失败后重试、已有证据、业务失败、缺 provider key、runner 错误、continue/waiting，以及 /e2e 的共享渲染通过；状态行无分隔符和后缀，长文本尾部完整 |
+| 仓库相关契约 | 34 passed、1 failed：continual-learning 的 typebox peer 为 ^1.3.27，契约要求 *；该 manifest 与 HEAD 相同，属于本次 E2E 范围外的既有失败 |
+| 修改检查 | `git diff --check -- packages/e2e .changeset/e2e-feedback-and-freshness.md`：通过 |
+
+PTY 文本帧保存在 `/tmp/pi-e2e-feedback-20261009/`。本次没有重跑 Linux、真实 Jev 或真实推理模型；没有提交、发布或修改生产服务。既有其他工作区改动保留。
+
+## ProMax 预实验后的提示与意图优化
+
+冻结预实验不变。优化修复了保留原行为的约束意外取消显式验收请求的问题，
+并把注入和工具说明调整为尽早运行已授权适配器、避免重复执行同一测试套件、
+预留修复时间及明确已覆盖场景。新增请求用例覆盖中英文行为约束、执行禁令、
+只审查、无关测试禁跑和后续显式指令。
+
+`tests/live_gate.py` 的 `requested-inline` 用真实 Pi、脚本化本地 provider、
+独立 HOME/agent 目录验证：不修改 feature，显式请求仍触发 checkpoint；
+inline fulfilled 不能清除它。这是运行和状态契约证据，不是模型正确率提升证据。
+本轮未改变 TUI 渲染，没有新增物理终端或屏幕阅读器验收结论。
+
+本地日志、任务及打包 Docker 证明位于 `tests/runs/prompt-optimization/`（忽略提交）。
+全局 `check:install` 缺少其他插件的结果保留，未修改用户安装。

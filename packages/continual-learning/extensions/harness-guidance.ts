@@ -88,6 +88,7 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
     const promptFields = fieldBlock("prompt", prompt);
     return guidanceRows.message(() => eventToolLifecycle("harness", subject, {
       label,
+      tone: details?.kind === "text-incomplete" ? "warning" : "success",
       details: details
         ? [
           fieldLine("source", details.source),

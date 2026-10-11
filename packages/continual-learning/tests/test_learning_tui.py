@@ -43,7 +43,7 @@ def test_learning_renderer_and_explicit_delivery_are_compact_and_single() -> Non
       console.log(JSON.stringify({ collapsed, expanded, malformedSafe, messages }));
     '''
     output = run_bun(source)
-    assert "[learning] event · 2 memories and 1 harness change applied" in output["collapsed"]
+    assert "[learning] 2 memories and 1 harness change applied" in output["collapsed"]
     assert "input 10" not in output["collapsed"]
     assert "usage · input 10" in output["expanded"]
     assert output["malformedSafe"] is True

@@ -11,7 +11,7 @@ import { plannerReadArgs } from "./planner-read-scope";
  * any failure here never touches already-applied memory results.
  */
 
-import { jevRepairFailureHints, type BoundScopeContext } from "./jev-learning";
+import { completeLiteralRuleMessage, jevRepairFailureHints, type BoundScopeContext } from "./jev-learning";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { ChildProcess } from "node:child_process";
@@ -87,6 +87,7 @@ export interface HarnessOp {
   rule: Record<string, unknown>;
   /** Bounded selector fixtures evaluated without executing commands. */
   cases?: unknown;
+  correction?: { eventIndex: number; quote: string; priorRevision: string };
 }
 
 export type HarnessEvidenceSource = "user" | "tool";
@@ -126,6 +127,9 @@ export interface HarnessPlanValidationOptions {
   /** Direct non-automatic callers may omit evidence explicitly. */
   requireEvidence?: boolean;
   requireCases?: boolean;
+  /** Planning may inspect a correction; application always requires its exact review. */
+  proposingCorrections?: boolean;
+  reviewedCorrections?: Readonly<Record<string, string>>;
 }
 
 export interface HarnessConsolidationPlan {
@@ -138,6 +142,24 @@ export interface HarnessConsolidationPlan {
   operations?: unknown;
   evidence?: unknown;
   report?: unknown;
+}
+
+/** Caller must first validate all citations against the immutable snapshot.
+ * The exact prefix extension changes no matcher, action, case or citation. */
+export function completeHarnessLiteralMessages(plan: HarnessConsolidationPlan): HarnessConsolidationPlan {
+  if (!Array.isArray(plan.operations) || !Array.isArray(plan.evidence)) return plan;
+  const evidence = plan.evidence;
+  let changed = false;
+  const operations = plan.operations.map((operation, index) => {
+    const citations = evidence.filter(item => isRecord(item) && item.index === index);
+    const citation = citations[0];
+    if (citations.length !== 1 || !isRecord(citation) || citation.source !== "user" || typeof citation.quote !== "string") return operation;
+    const completed = completeLiteralRuleMessage(operation, citation.quote);
+    if (!completed) return operation;
+    changed = true;
+    return completed;
+  });
+  return changed ? { ...plan, operations } : plan;
 }
 
 /** Structural subset of the shared dream state both phases coordinate on. */
@@ -406,6 +428,7 @@ function parseRuleCases(raw: unknown, label: string, errors: string[], required:
 
 function validateRuleCases(rule: Record<string, unknown>, cases: HarnessRuleCases, label: string, errors: string[], skills?: ReadonlySet<string>): void {
   const config = mergeLayers([{ source: "candidate", rules: [rule] }], skills);
+  const matchingConfig = rule.enabled === false ? mergeLayers([{source:"retired predecessor selector", rules:[{...rule, enabled:true}]}], skills) : config;
   const selector = ["bash", "skill", "text"].find(key => rule[key] !== undefined);
   for (const side of ["positive", "negative"] as const) for (const [index, fixture] of cases[side].entries()) {
     const name = `${label}.cases.${side}[${index}]`;
@@ -414,11 +437,11 @@ function validateRuleCases(rule: Record<string, unknown>, cases: HarnessRuleCase
     let decision: string | undefined;
     if (selector === "bash") {
       const evaluation = evaluateBash(config, fixture.bash!);
-      matched = evaluation.matchedRules.some(match => match.id === rule.id);
+      matched = evaluateBash(matchingConfig, fixture.bash!).matchedRules.some(match => match.id === rule.id);
       decision = evaluation.decision;
-    } else if (selector === "skill") matched = evaluateSkill(config, fixture.skill!).some(match => match.id === rule.id);
+    } else if (selector === "skill") matched = evaluateSkill(matchingConfig, fixture.skill!).some(match => match.id === rule.id);
     else {
-      const evaluation = evaluateText(config, fixture.text!);
+      const evaluation = evaluateText(matchingConfig, fixture.text!);
       if (evaluation.incomplete) errors.push(`${name} evaluator incomplete`);
       matched = evaluation.matches.some(match => match.id === rule.id);
     }
@@ -433,6 +456,20 @@ function ruleWeakens(existing: Record<string, unknown>, proposed: Record<string,
   for (const field of ["skill", "bash", "text"] as const) if (existing[field] !== proposed[field]) return true;
   const rank = (action: unknown) => action === "block" ? 2 : action === "confirm" ? 1 : 0;
   return rank(proposed.action) < rank(existing.action);
+}
+
+export function correctionDigest(operation: unknown): string {
+  return sha256Digest(JSON.stringify(operation));
+}
+
+function validCorrection(raw: Record<string, unknown>, existing: Record<string, unknown>, options: HarnessPlanValidationOptions): boolean {
+  if (!isRecord(raw.correction) || Object.keys(raw.correction).some(key => !["eventIndex", "quote", "priorRevision"].includes(key))) return false;
+  const { eventIndex, quote, priorRevision } = raw.correction;
+  if (!Number.isSafeInteger(eventIndex) || Number(eventIndex) < 0 || !boundedString(quote, MAX_EVIDENCE_QUOTE_CHARS) || priorRevision !== ruleRevision(existing)) return false;
+  const snapshot = snapshotEvidenceSource(options);
+  const entry = snapshot?.entries[Number(eventIndex)];
+  if (!entry || evidenceSourceOfSnapshotEntry(entry) !== "user" || !evidenceTextOfSnapshotEntry(entry, "user").includes(quote)) return false;
+  return options.proposingCorrections === true || options.reviewedCorrections?.[String(existing.id)] === correctionDigest(raw);
 }
 
 function validateAutomaticOwnership(ops: readonly unknown[], options: HarnessPlanValidationOptions, errors: string[]): void {
@@ -465,7 +502,8 @@ function validateAutomaticOwnership(ops: readonly unknown[], options: HarnessPla
       }
       const existing = entries[0].rule;
       if (options.learnedRules?.[id] !== ruleRevision(existing)) errors.push(`${label}: rule "${id}" is manually authored or its learned revision no longer matches`);
-      if (ruleWeakens(existing, raw.rule)) errors.push(`${label}: automatic learning cannot weaken, change selectors, disable, or re-enable an existing rule; use explicit /harness authorization`);
+      if (ruleWeakens(existing, raw.rule) && !validCorrection(raw, existing, options)) errors.push(`${label}: automatic learning cannot weaken, change selectors, disable, or re-enable an existing rule without an exact reviewed user correction`);
+      if (raw.correction !== undefined && !validCorrection(raw, existing, options)) errors.push(`${label}: correction lacks current user evidence, exact predecessor revision or semantic approval`);
     }
   }
 }
@@ -490,7 +528,8 @@ export function validateHarnessPlan(plan: unknown, options: HarnessPlanValidatio
     const label = `operations[${index}]`;
     if (!isRecord(raw)) { errors.push(`${label} is not an object`); return; }
     if (!HARNESS_OP_KINDS.includes(raw.op as HarnessOpKind)) { errors.push(`${label}.op must be one of ${HARNESS_OP_KINDS.join(", ")}`); return; }
-    if (Object.keys(raw).some(key => !["op", "rule", "cases"].includes(key))) errors.push(`${label} has unsupported operation fields`);
+    if (Object.keys(raw).some(key => !["op", "rule", "cases", "correction"].includes(key))) errors.push(`${label} has unsupported operation fields`);
+    if (raw.correction !== undefined && raw.op !== "updateRule") errors.push(`${label}: corrections only update owned learned rules`);
     if (!isRecord(raw.rule)) { errors.push(`${label}.rule must be an object`); return; }
     const rule = raw.rule;
     if (!ruleIdValid(rule.id)) errors.push(`${label}.rule.id must be a non-empty string up to 128 chars`);
@@ -502,14 +541,14 @@ export function validateHarnessPlan(plan: unknown, options: HarnessPlanValidatio
     const declarationErrors = validateRuleDeclaration(rule, skills);
     errors.push(...declarationErrors.map(error => `${label}.rule ${error}`));
     if (rule.instructions !== undefined && !boundedString(rule.instructions, MAX_GUIDANCE_CHARS)) errors.push(`${label}.rule.instructions must be 1..${MAX_GUIDANCE_CHARS} chars`);
-    if (validationOptions.automatic && rule.enabled === false) errors.push(`${label}: automatic learning cannot disable rules`);
+    if (validationOptions.automatic && rule.enabled === false && !(raw.op === "updateRule" && isRecord(raw.correction))) errors.push(`${label}: automatic learning cannot disable rules without a reviewed correction`);
     const fixtures = parseRuleCases(raw.cases, label, errors, strict || options.requireCases === true);
     if (fixtures && !declarationErrors.length) validateRuleCases(rule, fixtures, label, errors, skills);
     // A registry entry alone proves availability, not an evidence-backed scope.
-    if (strict && (rule.skill !== undefined || rule.text !== undefined) && !declarationErrors.length) {
+    if (strict && raw.correction === undefined && (rule.skill !== undefined || rule.text !== undefined) && !declarationErrors.length) {
       const evidence = options.evidence ?? p.evidence;
       const quotes = Array.isArray(evidence) ? evidence.filter(item => isRecord(item) && item.index === index && typeof item.quote === "string").map(item => (item as HarnessEvidence).quote) : [];
-      const config = mergeLayers([{ source: "candidate", rules: [rule] }], skills);
+      const config = mergeLayers([{ source: "candidate", rules: [{...rule, enabled:true}] }], skills);
       const groundedScope = typeof rule.skill === "string"
         ? quotes.some(quote => quote.includes(rule.skill as string))
         : evaluateText(config, quotes).matches.length > 0;
@@ -616,7 +655,7 @@ async function prepareHarnessOps(target: string, ops: readonly HarnessOp[], requ
   const layers = observedLayers.filter(layer => layer.source !== source && layer.source !== "built-in defaults");
   layers.push(local);
   layers.sort(compareHarnessLayers);
-  const options = { ...requested, targetSource: source as "project" | "project.local", layers, learnedRules: learnedRuleRevisionsFromConfig(base) };
+  const options = { ...requested, proposingCorrections: false, targetSource: source as "project" | "project.local", layers, learnedRules: learnedRuleRevisionsFromConfig(base) };
   const validation = validateHarnessPlan({ kind: HARNESS_PLAN_KIND, operations: ops, evidence: options.evidence }, options);
   if (validation.length) throw new Error(validation.join("; "));
   const rules = [...local.rules!];
@@ -1167,6 +1206,7 @@ export async function planHarnessConsolidationPhase(
       layers: [builtInDefaultsLayer(), ...loadLayers(opts.cwd)],
       learnedRules: learnedRuleRevisionsFromConfig(localConfig),
       automatic: true,
+      proposingCorrections: Boolean(opts.validateSemantics),
     };
     // Optional display summaries have no authority. A malformed summary must
     // not discard otherwise valid rules or consume the shared repair slot.
@@ -1268,6 +1308,18 @@ export async function planHarnessConsolidationPhase(
         }
       }
     }
+    if (opts.validateSemantics) {
+      const completed = completeHarnessLiteralMessages(plan);
+      if (completed !== plan) {
+        const checked = validateCandidate(completed);
+        if (checked.errors.length) return fail(parentValidationDiagnostic(checked.errors));
+        if (!current()) return fail("harness message completion cancelled");
+        await fs.writeFile(path.join(run.manifest.runDir, "pre-message-completion-plan.json"), JSON.stringify(plan, null, 2), { mode: 0o600 });
+        await fs.writeFile(path.join(run.manifest.runDir, "message-completed-plan.json"), JSON.stringify(checked.candidate, null, 2), { mode: 0o600 });
+        if (!current()) return fail("harness message completion cancelled");
+        plan = checked.candidate;
+      }
+    }
     let semanticDecision: "allow" | "propose" | undefined;
     let deferredPlan: HarnessConsolidationPlan | undefined;
     if (opts.validateSemantics && Array.isArray(plan.operations) && plan.operations.length) {
@@ -1275,7 +1327,12 @@ export async function planHarnessConsolidationPhase(
       const parentScope: BoundScopeContext = Object.freeze({ repoRoot: semanticManifest.cwd, runId: semanticManifest.runId, scopeKey: semanticManifest.scopeKey, evidenceDigest: sha256Digest(JSON.stringify(snapshot)) });
       const judge = async (candidate: HarnessConsolidationPlan) => {
         const attempt = attempts.at(-1)!;
-        const verdict = await opts.validateSemantics!(snapshot, candidate.operations as unknown[], candidate.evidence, parentScope);
+        const semanticOperations = (candidate.operations as unknown[]).map(operation => {
+          if (!isRecord(operation) || !isRecord(operation.correction) || !isRecord(operation.rule)) return operation;
+          const priorRule = validationOptions.layers?.find(layer => layer.source === "project")?.rules?.find(rule => rule.id === (operation.rule as Record<string, unknown>).id);
+          return {...operation, priorRule};
+        });
+        const verdict = await opts.validateSemantics!(snapshot, semanticOperations, candidate.evidence, parentScope);
         // Returned usage belongs to this attempt even if cancellation won the race.
         attempt.jev = verdict.telemetry;
         attempt.diagnostic = `Jev ${verdict.telemetry.status}: ${verdict.telemetry.reason}`;
@@ -1299,7 +1356,7 @@ export async function planHarnessConsolidationPhase(
             "Scope repair: For a new command-family rule, only if quoted user evidence prohibits the whole family, prefer the documented anchored ASCII family matcher over operator-prefix searches.",
             "A semicolon or pipe inside a quoted printf argument does not execute that command. Include negative cases for quoted command strings containing operators and arguments.",
             "Git family coverage: retain same-project global-option positives (git -C . push, git -c core.quotePath=false push, git --no-pager push). Echo and quoted printf of those strings remain negative. Do not delete valid cases, use greedy wildcard matching, or broaden exact-only/project limits.",
-            "Preserve exact-only limits and approval exceptions, and do not weaken existing rules.",
+            "Preserve exact-only limits and approval exceptions. Ordinary updates must not weaken existing rules; an explicitly authorized correction may replace or retire only the owned predecessor through the exact correction contract, never by inventing permission.",
             ...jevRepairFailureHints(verdict.telemetry),
           ],
           taskText, timeoutMs, current, ...(opts.model ? { model: opts.model } : {}), onChild: hooks.onChild,
@@ -1336,6 +1393,12 @@ export async function planHarnessConsolidationPhase(
           }
         }
       }
+    }
+    validationOptions.proposingCorrections = false;
+    if (semanticDecision === "allow" && attempts.at(-1)?.jev?.status === "decided") {
+      validationOptions.reviewedCorrections = Object.fromEntries((Array.isArray(plan.operations) ? plan.operations : [])
+        .filter(operation => isRecord(operation) && isRecord(operation.correction) && isRecord(operation.rule))
+        .map(operation => [(operation as HarnessOp).rule.id, correctionDigest(operation)]));
     }
     return {
       ok: true,

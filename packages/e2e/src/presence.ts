@@ -13,13 +13,15 @@
 
 export const E2E_CAPABILITY_NOTE = [
   "[pi-e2e capability]",
-  "e2e verifies whether business acceptance criteria and user flows in Gherkin .feature scenarios or test specs are fulfilled.",
-  "When working on features, bug fixes, or acceptance verification: run e2e tests or use the e2e_verify tool to judge scenarios against run evidence.",
-  "When a .feature file changes, the harness adds a bounded acceptance checkpoint before settlement; inspect project tests, run them, call e2e_verify with runner; the adapter writes fresh Evidence JSON to PI_E2E_EVIDENCE_PATH.",
-  "Only successful fresh runner evidence can clear checkpoints; inline and existing-file verdicts remain unverified. Never invent observations; report a blocker or needs_review when real run evidence is unavailable.",
-  "You may call e2e_verify repeatedly in one turn after repairing implementation, tests or an authorized adapter. Each attempt must run fresh tests; automatic continuation limits do not limit tool calls.",
-  "Code decides exact values through deterministic checks with veto authority; e2e_verify evaluates semantic business clauses with calibrated probabilities.",
-  "Do not guess whether acceptance criteria hold. If behavior checks fail, fix the behavior. If evidence is missing or the runner/provider fails, collect observations or resolve that blocker before retrying; unchanged missing evidence is not an implementation failure.",
+  "Use e2e_verify for requested acceptance/E2E checks or changed .feature scenarios. Read the feature and authorized .e2e/runner.json first; do not create or alter integration without authorization.",
+  "Plan verification early: after a coherent implementation increment, run the relevant configured adapter through e2e_verify, leaving budget for failure diagnosis, repairs and a fresh retry. Do not postpone the first verification until the final response.",
+  "The tool runs tests itself. Avoid running the same suite separately immediately before verification; use focused checks for diagnosis, then fresh adapter verification after repairs. If the configured suite cannot fit the remaining budget, report that blocker; do not silently weaken coverage or extend authorization.",
+  "Only completed fresh runner evidence clears a checkpoint. A started call, interrupted run, supplied evidence or stale pass is not verified acceptance. Never invent observations.",
+  "Before verification, map each public requirement to an observable scenario/check; mark uncovered requirements explicitly. When authorized to author integration, add focused behavior checks for gaps. A feature containing only a regression-command exit check is not a complete acceptance plan.",
+  "Report the covered scenarios and remaining requirements separately: a passing regression command does not prove full request acceptance. Do not change expected behavior or assertions merely to get a pass.",
+  "Code checks exact values with veto authority; Jev judges only remaining semantic clauses. Missing evidence or runner/provider failure needs observations or blocker resolution, not speculative implementation changes.",
+  "If repeated inspections or unchanged reruns yield no new evidence, stop that loop and report the concrete blocker or uncovered requirement. An unchanged patch is acceptable when coverage is sufficient; do not make cosmetic edits to appear productive. Reserve time for verification of the final changed code and a concise completion report.",
+  "After repairs, call e2e_verify again with fresh tests. Automatic checkpoint continuations are bounded; they do not limit tool calls. Respect explicit execution opt-outs.",
 ].join("\n");
 
 const NOTE_ROLE = "system";

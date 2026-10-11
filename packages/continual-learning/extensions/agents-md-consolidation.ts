@@ -1066,7 +1066,7 @@ async function planAgentsMdConsolidationPhaseInternal(
   const child = spawnPiChild(
     cli.command,
     [...cli.args, ...minimalPiWorkerArgs(["learning_read"]), ...await plannerReadArgs(run.manifest.runDir, {
-      cwd: opts.cwd, files: [run.manifest.snapshotPath], roots: [opts.cwd],
+      cwd: opts.cwd, files: [run.manifest.snapshotPath, ...(opts.explorationPath ? [opts.explorationPath] : [])], roots: [opts.cwd],
     }), ...learningPlannerArgs(),
     ...(opts.model ? ["--model", opts.model] : []), `@${taskFile}`],
     { cwd: opts.cwd, stdio: ["ignore", "pipe", "pipe"] },

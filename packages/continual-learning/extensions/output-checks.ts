@@ -465,6 +465,7 @@ export default function registerOutputChecks(pi: ExtensionAPI): void {
     const details = entry.data as HarnessCheckEvent | undefined;
     const reason = safeDisplayText(details?.detail ?? "harness check");
     return checkRows.message(() => eventToolLifecycle("harness", reason, {
+      tone: details?.status === "violated" || details?.status === "repair-exhausted" ? "error" : details?.status === "unsupported" ? "warning" : "success",
       label: details?.status === "unsupported" ? "check unsupported" : `check ${details?.status ?? "recorded"}`,
       details: details ? [
         fieldLine("phase", details.phase),

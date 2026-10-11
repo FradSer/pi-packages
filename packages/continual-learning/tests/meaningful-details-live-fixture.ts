@@ -62,8 +62,25 @@ export default function (pi: ExtensionAPI): void {
     const select = ctx.ui.select.bind(ctx.ui);
     ctx.ui.select = async (...args) => {
       appendFileSync(snapshots, JSON.stringify({ kind: "menu", title: args[0], options: args[1] }) + "\n");
-      return select(...args);
+      const value = await select(...args);
+      appendFileSync(snapshots, JSON.stringify({ kind: "menu-closed", title: args[0] }) + "\n");
+      return value;
     };
+    const custom = ctx.ui.custom.bind(ctx.ui);
+    ctx.ui.custom = async (factory, options) => custom(async (...args) => {
+      const component = await factory(...args);
+      const metadata = component as typeof component & { title?: string; options?: string[] };
+      if (metadata.title && metadata.options) appendFileSync(snapshots, JSON.stringify({ kind: "menu", title: metadata.title, options: metadata.options }) + "\n");
+      const render = component.render.bind(component);
+      component.render = width => {
+        const lines = render(width);
+        assert.ok(lines.every(line => visibleWidth(line) <= width));
+        assert.ok(lines.length <= args[0].terminal.rows);
+        appendFileSync(snapshots, JSON.stringify({ kind: "management-render", title: metadata.title, width, height: args[0].terminal.rows, lines: lines.map(stripVTControlCharacters) }) + "\n");
+        return lines;
+      };
+      return component;
+    }, options);
     const notify = ctx.ui.notify.bind(ctx.ui);
     ctx.ui.notify = (message, type) => {
       appendFileSync(snapshots, JSON.stringify({ kind: "notification", message, type }) + "\n");

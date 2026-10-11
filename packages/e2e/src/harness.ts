@@ -2,17 +2,17 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
-import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import type {
   AgentBeforeSettleEvent,
   AgentBeforeSettleEventResult,
   ExtensionAPI,
   ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
-import { bindLifecycleRenderers, eventToolLifecycle, notifyPi, safeDisplayText } from "@fradser/pi-kit";
+import { notifyPi, safeDisplayText } from "@fradser/pi-kit";
 import { injectE2ECapabilityNote } from "./presence.ts";
 import { verifiedRun } from "./run.ts";
 import type { Verdict } from "./types.ts";
+import { E2E_FEEDBACK_MESSAGE_TYPE, registerFeedbackRenderer, renderFeedback, type AcceptanceFeedback, type E2EFeedback } from "./feedback.ts";
 import { DEFAULT_POLICY } from "./verify.ts";
 
 export const E2E_CHECKPOINT_MESSAGE_TYPE = "pi-e2e-checkpoint";
@@ -36,6 +36,21 @@ function featurePathKey(target: string, baseDir = process.cwd()): string {
 function parseRequestedFeaturePaths(prompt: string, baseDir: string): Set<string> {
   const candidates = [...prompt.matchAll(/(?:^|[\s`"'])((?:\.\.\/|\.\/|\/|[\w.-]+\/)?[^\s`"']+\.feature)(?=$|[\s`"'])/g)];
   return new Set(candidates.map((match) => featurePathKey(match[1] ?? "", baseDir)));
+}
+
+/** Scope negation to execution verbs; behavior-preservation constraints are not opt-outs. */
+function verificationIntent(text: string): boolean | undefined {
+  let intent: boolean | undefined;
+  // Keep dots inside paths and apply later explicit directives in reading order.
+  const clauses = text.split(/[.!?](?=\s|$)|[;\n。！？；]|\bbut\b|\band instead\b|但是|但/);
+  for (const clause of clauses) {
+    const denied = /\b(?:do not|don't|never|no need to)\s+(?:automatically\s+)?(?:(?:re-?run|run|execute)\b[^.!?;\n]{0,80}?(?:\b(?:tests?|testing|e2e|acceptance)\b|\.feature)|(?:verify|test)\b)|\b(?:skip|without)\s+(?:re-?running\s+|running\s+|executing\s+|verifying\s+)?(?:the\s+|any\s+|all\s+)?(?:tests?|testing|e2e|acceptance)\b|\bno\s+(?:e2e\s+|acceptance\s+)?(?:tests?|testing|verification)\b(?!\s+(?:should|must|may|are|will|can)\b)|\bno\s+tests?\s+(?:should|must|may|will|can)\s+(?:be\s+)?(?:run|executed)\b|(?:不要|别|不|无需|不用)\s*(?:运行|执行|验证|测试|跑)|(?:仅|只)(?:审查|看)|\breview only\b/i.test(clause);
+    const unrelatedTests = /(?:run|execute)\s+(?:unrelated|unit)\b/i.test(clause)
+      && !/(?:e2e|acceptance|\.feature|验收|端到端)/i.test(clause);
+    if (denied && !unrelatedTests) intent = false;
+    else if (/(?:(?:run|test|verify|check|验证|运行|测试|跑).*?(?:e2e|acceptance|验收|\.feature|端到端)|(?:e2e|acceptance|验收|端到端).*?(?:test|run|verify|check|测试|验证|运行|跑))/i.test(clause)) intent = true;
+  }
+  return intent;
 }
 
 function activityInFeaturePackage(feature: string, activity: string, baseDir: string): boolean {
@@ -84,6 +99,19 @@ function touchedPathsFromTool(toolName: string, input: Record<string, unknown>, 
   return [...command.matchAll(/(?<![$\w{])((?:\/|[\w.-]+\/)*[\w.-]+\.feature)(?=$|[\s"'`;&|])/g)]
     .map((match) => featurePathKey(match[1] ?? "", commandBase))
     .filter((target) => isWithin(baseDir, target));
+}
+
+/** Recognize simple inspection commands, never arbitrary shell programs. */
+function isShellInspection(toolName: string, command: unknown): boolean {
+  if (toolName !== "bash" || typeof command !== "string") return false;
+  const text = command.trim();
+  if (/[;&|<>`$()\r\n]/.test(text)) return false;
+  if (/^(?:pwd|git status(?: --(?:short|porcelain|branch|untracked-files=no))*)$/.test(text)) return true;
+  if (/^(?:ls|cat)(?:\s|$)/.test(text)) return true;
+  // Options that can launch subprocesses are not inspection. Keep the accepted
+  // long-option set deliberately small rather than interpreting shell syntax.
+  if (!/^rg(?:\s|$)/.test(text)) return false;
+  return text.split(/\s+/).every(token => !token.startsWith("--") || ["--files", "--hidden", "--line-number", "--ignore-case", "--fixed-strings", "--count", "--files-with-matches", "--quiet"].includes(token));
 }
 
 async function featureSnapshot(baseDir: string): Promise<FeatureSnapshot> {
@@ -302,7 +330,7 @@ export class E2EGate {
     }
   }
 
-  verdictListener(): (verdict: Verdict, featurePath?: string, baseDir?: string, scenarios?: readonly string[]) => Promise<void> {
+  verdictListener(): (verdict: Verdict, featurePath?: string, baseDir?: string, scenarios?: readonly string[], modelError?: string) => Promise<void> {
     const generation = this.generation;
     return async (...args) => {
       if (generation === this.generation) await this.recordVerdict(...args);
@@ -313,10 +341,13 @@ export class E2EGate {
     onVerdict: ReturnType<E2EGate["verdictListener"]>;
     validateRunner: (snapshot: string) => void;
     onError: (message: string, featurePath: string, scenario?: string, baseDir?: string) => Promise<void>;
+    acceptance: (featurePath: string, baseDir: string) => AcceptanceFeedback | undefined;
   } {
     const generation = this.generation;
     return {
       onVerdict: this.verdictListener(),
+      acceptance: (featurePath, baseDir) => generation === this.generation
+        ? this.acceptanceFeedback(featurePath, baseDir) : undefined,
       onError: async (message, featurePath, scenario, baseDir = process.cwd()) => {
         if (generation !== this.generation) return;
         const key = featurePathKey(featurePath, baseDir);
@@ -337,11 +368,22 @@ export class E2EGate {
     };
   }
 
+  private acceptanceFeedback(featurePath: string, baseDir: string): AcceptanceFeedback | undefined {
+    const key = featurePathKey(featurePath, baseDir);
+    const accepted = this.state.verifiedFeatures.get(key);
+    if (accepted) return {passed:accepted.length,total:accepted.length,remaining:[]};
+    const tracked = this.state.featureScenarios.get(key);
+    if (!tracked) return undefined;
+    return {passed:tracked.fulfilled.size,total:tracked.expected.size,
+      remaining:[...tracked.expected].filter(name=>!tracked.fulfilled.has(name))};
+  }
+
   async recordVerdict(
     verdict: Verdict,
     featurePath?: string,
     baseDir = process.cwd(),
     _expectedScenarios?: readonly string[],
+    modelError?: string,
   ): Promise<void> {
     const generation = this.generation;
     this.progressRevision += 1;
@@ -350,7 +392,29 @@ export class E2EGate {
     const failureKey = JSON.stringify([featureKey, verdict.scenario]);
     this.state.checkpointFingerprint = undefined;
     if (verdict.status !== "fulfilled") {
-      this.state.failedVerdicts.set(failureKey, verdict);
+      // Keep failure registration immediate for existing observer callers.
+      this.state.failedVerdicts.set(failureKey, modelError ? {...verdict,reason:`${verdict.reason}; Provider: ${modelError}`} : verdict);
+      const hadPass = this.state.verifiedFeatures.has(featureKey) || (this.state.featureScenarios.get(featureKey)?.fulfilled.size ?? 0) > 0;
+      if (featurePath === undefined && !hadPass) return;
+      const expected = featurePath === undefined ? undefined : await verifiedRun(verdict, featureKey);
+      if (generation !== this.generation) return;
+      // A failed fresh rerun supersedes its earlier pass. Revalidate other
+      // passes first, since a repaired adapter may invalidate all their proofs.
+      await this.refreshFeatureChanges(baseDir);
+      if (generation !== this.generation) return;
+      const accepted = this.state.verifiedFeatures.get(featureKey);
+      const tracked = this.state.featureScenarios.get(featureKey) ?? (accepted
+        ? {expected:new Set(accepted.map(item=>item.scenario)),fulfilled:new Map(accepted.map(item=>[item.scenario,item]))}
+        : expected ? {expected:new Set(expected),fulfilled:new Map<string,Verdict>()} : undefined);
+      if (tracked) {
+        tracked.fulfilled.delete(verdict.scenario);
+        this.state.verifiedFeatures.delete(featureKey);
+        this.state.featureScenarios.set(featureKey,tracked);
+        if (hadPass) {
+          this.state.featureFilesModified.add(featureKey);
+          this.state.explicitlyChangedFeatures.add(featureKey);
+        }
+      }
       return;
     }
     if (featurePath === undefined) {
@@ -404,17 +468,14 @@ export class E2EGate {
       return;
     }
 
-    // Check for negative/read-only requests to avoid false positives
-    const isNegativeOrReview = /(?:do not|don't|no|never|skip|without|不要|别|不跑|仅审查|只审查|仅看|只看).*?(?:run|execute|verify|test|测试|验证|运行|跑)/i.test(text);
-    if (isNegativeOrReview) {
+    const intent = verificationIntent(text);
+    if (intent === false) {
       this.state.userRequestedVerification = false;
       this.state.requestedFeatureFiles.clear();
       return;
     }
 
-    // Positive request to run e2e / acceptance testing
-    const isE2ERequest = /(?:(?:run|test|verify|check|验证|运行|测试|跑).*?(?:e2e|acceptance|验收|\.feature|端到端)|(?:e2e|acceptance|验收|端到端).*?(?:test|run|verify|check|测试|验证|运行|跑))/i.test(text);
-    this.state.userRequestedVerification = isE2ERequest;
+    this.state.userRequestedVerification = intent === true;
   }
 
   recordToolResult(
@@ -423,22 +484,20 @@ export class E2EGate {
     isError = false,
     baseDir = process.cwd(),
   ): void {
-    const command = input["command"];
-    if (toolName === "bash" && typeof command === "string" && /^(?:pwd|git status(?: --(?:short|porcelain|branch|untracked-files=no))*)\s*$/.test(command.trim())) return;
     const mutating = ["edit", "write", "bash", "powershell"].includes(toolName);
     if (!mutating) return;
     const touched = touchedPathsFromTool(toolName, input, baseDir);
+    for (const target of touched) {
+      if (isFeaturePath(target)) this.state.touchedPaths.add(target);
+    }
+    if (isShellInspection(toolName,input["command"])) return;
+    // Unknown programs can change inputs omitted by a legacy adapter. Keep
+    // their conservative invalidation; only recognized inspection is exempt.
     const unscopedShellMutation = (toolName === "bash" || toolName === "powershell") && touched.length === 0;
-    if (touched.length === 0 && !unscopedShellMutation) return;
     if (unscopedShellMutation) {
-      const tracked = new Set([
-        ...this.state.requestedFeatureFiles,
-        ...this.state.featureFilesModified,
-        ...this.state.verifiedFeatures.keys(),
-        ...this.state.featureScenarios.keys(),
-        ...[...this.state.failedVerdicts.values()].map((verdict) => featurePathKey(verdict.feature, baseDir)),
-      ]);
-      const affected = [...tracked].filter((feature) => this.state.touchedPaths.has(feature));
+      const tracked = new Set([...this.state.requestedFeatureFiles, ...this.state.featureFilesModified,
+        ...this.state.verifiedFeatures.keys(), ...this.state.featureScenarios.keys()]);
+      const affected = [...tracked].filter(feature=>this.state.touchedPaths.has(feature));
       if (affected.length === 0) return;
       this.progressRevision += 1;
       this.generation += 1;
@@ -451,13 +510,10 @@ export class E2EGate {
       }
       return;
     }
+    if (touched.length === 0) return;
     // A shell command that only names a .feature path has not changed it. Record the path as
     // involved and let the snapshot comparison decide, so running a feature's own tests cannot
     // re-arm its checkpoint.
-    for (const target of touched) {
-      if (isFeaturePath(target)) this.state.touchedPaths.add(target);
-    }
-
     const changedFeatures = toolName === "edit" || toolName === "write"
       ? typeof input["path"] === "string" && isFeaturePath(input["path"]) && !isError ? touched : []
       : [];
@@ -489,7 +545,7 @@ export class E2EGate {
     ]);
     const affectedFeatures = [...relevantFeatures].filter((feature) =>
       this.state.touchedPaths.has(feature) &&
-      (unscopedShellMutation || touched.some((target) => activityInFeaturePackage(feature, target, baseDir))),
+      touched.some((target) => activityInFeaturePackage(feature, target, baseDir)),
     );
     if (affectedFeatures.length === 0) return;
     this.progressRevision += 1;
@@ -626,7 +682,7 @@ export class E2EGate {
       this.state.requestedFeatureFiles.size === 0 && this.state.featureScenarios.size === 0;
   }
 
-  notifyOnSettled(ctx: ExtensionContext): void {
+  notifyOnSettled(ctx: ExtensionContext, publish?: (feedback: E2EFeedback) => void): void {
     const { lastVerdict, featureFilesModified, continuations } = this.state;
     const pending = [...featureFilesModified].filter((feature) =>
       this.state.explicitlyChangedFeatures.has(feature) || this.state.requestedFeatureFiles.has(feature),
@@ -646,15 +702,25 @@ export class E2EGate {
       // The verified tool report already states success.
       return;
     }
-    if (pending.length > 0) {
-      notifyPi(
-        ctx.ui,
-        `[e2e] waiting · ${pending.length} feature(s) need verification`,
-        "warning",
-      );
-      return;
+    const lines = ["[e2e] waiting"];
+    const features = [...new Set([...pending, ...this.state.requestedFeatureFiles, ...this.state.featureScenarios.keys()])];
+    for (const feature of features.slice(0,20)) {
+      lines.push(`Feature: ${path.relative(ctx.cwd ?? process.cwd(),feature)}`);
+      for (const name of this.acceptanceFeedback(feature,ctx.cwd ?? process.cwd())?.remaining ?? []) lines.push(`Remaining: ${name}`);
     }
-    notifyPi(ctx.ui, "[e2e] waiting · Requested scenarios need verification", "warning");
+    if (features.length > 20) lines.push(`${features.length - 20} more feature(s).`);
+    const failures=[...this.state.failedVerdicts.values()];
+    for (const failure of failures.slice(0,20)) lines.push(`${failure.scenario}: ${failure.reason}`);
+    if (failures.length > 20) lines.push(`${failures.length - 20} more failed scenario(s).`);
+    if (features.length === 0 && failures.length === 0) lines.push("Requested scenarios have no verified fresh test result.");
+    lines.push(continuations >= (pending.length > 0 || failures.length > 0 ? MAX_E2E_CONTINUATIONS : 1)
+      ? "Automatic continuation allowance exhausted." : "No new verification progress; automatic continuation is waiting.");
+    lines.push(failures.some(verdict=>verdict.status === "needs_review")
+      ? "Next: resolve the reported evidence or execution blocker, then rerun fresh verification; ask the user if configuration needs authorization."
+      : failures.length > 0 ? "Next: fix the unmet behavior checks, then rerun fresh verification."
+        : "Next: run the remaining scenarios with the configured e2e_verify runner; report a blocker if tests cannot run.");
+    if (publish) publish({label:"waiting",tone:"warning",lines:lines.slice(1)});
+    else notifyPi(ctx.ui,lines.join("\n"),"warning");
   }
 }
 
@@ -668,22 +734,20 @@ export class E2EGate {
 export function registerE2EHarness(pi: ExtensionAPI, gate: E2EGate): void {
   let completed = false;
   let settledSignal: AbortSignal | undefined;
-  const rows = bindLifecycleRenderers({fit:truncateToWidth,visibleWidth,
-    wrapDetail:(line,width)=>wrapTextWithAnsi(line,Math.max(1,width))});
-  pi.registerMessageRenderer(E2E_CHECKPOINT_MESSAGE_TYPE, rows.message(message => {
+  registerFeedbackRenderer(pi);
+  pi.registerMessageRenderer(E2E_CHECKPOINT_MESSAGE_TYPE, (message, _state, theme) => {
     const details = message.details as {featurePaths?:string[];omittedFeaturePaths?:number;
       remainingScenarios?:{feature:string;scenarios:string[]}[];failures?:{scenario:string;status:string;reason:string}[];failedScenarios?:number;continuation?:number;continuationLimit?:number} | undefined;
-    return {...eventToolLifecycle("e2e", "acceptance verification", {label:"continue"}),
-      fullSummary:true,verbatimSubject:true,details:[],summary:[
+    return renderFeedback({label:"continue",tone:"warning",lines:[
         ...(details?.featurePaths ?? []).map(target=>`Feature: ${safeDisplayText(target)}`),
-        ...(details?.remainingScenarios ?? []).flatMap(item => item.scenarios.map(name => `Remaining: ${safeDisplayText(item.feature)} · ${safeDisplayText(name)}`)),
+        ...(details?.remainingScenarios ?? []).flatMap(item => item.scenarios.map(name => `Remaining: ${safeDisplayText(item.feature)}: ${safeDisplayText(name)}`)),
         ...(details?.failures ?? []).map(failure=>`${safeDisplayText(failure.scenario)} (${safeDisplayText(failure.status)}): ${safeDisplayText(failure.reason)}`),
         ...(details?.omittedFeaturePaths ? [`${details.omittedFeaturePaths} more feature(s).`] : []),
         ...((details?.failedScenarios ?? 0) > (details?.failures?.length ?? 0)
           ? [`${details!.failedScenarios! - (details?.failures?.length ?? 0)} more failed scenario(s).`] : []),
         `Automatic continuation ${details?.continuation ?? 0}/${details?.continuationLimit ?? MAX_E2E_CONTINUATIONS}`,
-      ]};
-  }));
+      ]},theme);
+  });
   // 1. Prompt injection: stable, bounded capability note after system prompt
   pi.on("context_with_system", async (event) => ({
     messages: injectE2ECapabilityNote(event.messages),
@@ -724,6 +788,10 @@ export function registerE2EHarness(pi: ExtensionAPI, gate: E2EGate): void {
 
   // 6. Final settled notification
   pi.on("agent_settled", (_event, ctx) => {
-    if (completed && !settledSignal?.aborted) gate.notifyOnSettled(ctx);
+    if (completed && !settledSignal?.aborted) gate.notifyOnSettled(ctx,
+      typeof pi.sendMessage === "function" ? feedback => pi.sendMessage({
+        customType:E2E_FEEDBACK_MESSAGE_TYPE,content:`[e2e] waiting\n${feedback.lines.join("\n")}`,
+        display:true,details:feedback,
+      },{triggerTurn:false}) : undefined);
   });
 }

@@ -17,7 +17,7 @@ def test_explicit_request_keeps_bounded_context_without_clipping_evidence() -> N
       try { requestedMemoryTaskSlice('界'.repeat(180000), []); } catch(error) { oversizedRequest=error.message; }
       console.log(JSON.stringify({bytes:Buffer.byteLength(JSON.stringify(slice)),count:slice.entries.length,first:slice.entries[0].message.content,last:slice.entries.at(-1).message.content,omitted:slice.omittedEntries,unchanged:slice.entries.slice(1).every(entry=>context.includes(entry)),oversizedRequest}));
     ''')
-    assert result["bytes"] <= 512_000 and result["count"] <= 96
+    assert result["bytes"] <= 512_000 and result["count"] <= 256
     assert result["first"] == "Remember MY_EXACT_REQUEST"
     assert result["last"] == "FINAL_RESULT"
     assert result["omitted"] > 0 and result["unchanged"] is True
@@ -68,3 +68,50 @@ def test_consolidate_completion_exposes_only_full() -> None:
       console.log(JSON.stringify({empty:complete?.('')?.map(item=>item.value)??[],partial:complete?.('fu')?.map(item=>item.value)??[],legacy:complete?.('back')??[]}));
     ''', temp_dirs=("PI_CODING_AGENT_DIR",))
     assert result == {"empty": ["full"], "partial": ["full"], "legacy": []}
+
+
+def test_malformed_json_on_empty_scope_is_corrected_and_revalidated_once() -> None:
+    result = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-syntax', env={'CL_JEV_FIXTURE':'supported'})
+    assert result['totalRepairs'] == 1, result
+    assert result['structuralContextReceived'] is True
+    assert result['jevValidations'] == ['memory']
+    assert result['registryReceipt']['operations'] == 1
+    assert 'concise.md' in result['privateFiles']
+
+
+@pytest.mark.parametrize('reason', ['unsupported', 'structural-tamper-snapshot', 'structural-tamper-dossier'])
+def test_syntax_correction_cannot_bypass_semantics_or_frozen_evidence(reason: str) -> None:
+    result = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-syntax', env={'CL_JEV_FIXTURE':reason})
+    assert result['totalRepairs'] == 1
+    assert result['registryReceipt']['operations'] == 0
+    assert 'concise.md' not in result['privateFiles']
+
+
+def test_syntax_correction_refuses_existing_scope_ambiguity_and_oversize() -> None:
+    result = run_bun(r'''
+      import {malformedIncrementalRepairText} from './packages/continual-learning/extensions/inject-memory.ts';
+      const broken='{"kind":"incremental-memory-plan","newMemories":[{"name":"unfinished.md\n}]}';
+      console.log(JSON.stringify({eligible:!!malformedIncrementalRepairText(broken,[]),
+        selected:malformedIncrementalRepairText(broken,['existing.md'])??null,
+        ambiguous:malformedIncrementalRepairText(broken+broken,[])??null,
+        valid:malformedIncrementalRepairText('{"kind":"incremental-memory-plan"}',[])??null,
+        prose:malformedIncrementalRepairText('Here is the plan: '+broken,[])??null,
+        oversized:malformedIncrementalRepairText(broken+'x'.repeat(600000),[])??null}));
+    ''')
+    assert result.pop('eligible') is True
+    assert all(value is None for value in result.values())
+
+
+def test_syntax_correction_does_not_override_multiple_plan_rejection() -> None:
+    result = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-syntax-multiple', env={'CL_JEV_FIXTURE':'supported'})
+    assert result['totalRepairs'] == 0, result
+    assert result['jevValidations'] == []
+    assert 'concise.md' not in result['privateFiles']
+
+
+def test_malformed_regeneration_cannot_publish_reclassified_private_project() -> None:
+    result = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-syntax', env={'CL_JEV_FIXTURE':'syntax-privacy-downgrade'})
+    assert result['totalRepairs'] == 1
+    assert result['registryReceipt']['operations'] == 1
+    assert 'concise.md' in result['privateFiles']
+    assert 'concise.md' not in result['publicFiles'], result

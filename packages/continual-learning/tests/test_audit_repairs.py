@@ -101,11 +101,11 @@ def test_management_can_reach_memory_129_and_full_body(tmp_path):
       import {{openMemoryMenu}} from './packages/continual-learning/extensions/memory-menu.ts';
       const entries=Array.from({{length:129}},(_,i)=>({{filename:`memory-${{String(i+1).padStart(3,'0')}}.md`,source:'public',readPath:{json.dumps(str(tmp_path))}+'/memory.md',content:'bounded',description:'entry'}}));
       await Bun.write(entries[128].readPath, 'START'+ 'x'.repeat(4100)+'TAIL');
-      const choices=['Browse memories','Next page','Next page','Next page','Next page','Shared · memory-129.md · entry','Next page','Close'];
+      const choices=['Browse memories','Next page','Next page','Next page','Next page','Shared · memory-129.md · entry','Next page','Close','Back','Close'];
       const menus=[], notices=[];let options;
       const ctx={{cwd:{json.dumps(str(tmp_path))},hasUI:true,ui:{{select:async(title,choicesShown)=>{{menus.push({{title,choicesShown}});return choices.shift();}},notify:message=>notices.push(message)}}}};
       await openMemoryMenu(ctx,{{status:async()=>({{autoMemory:false,model:'model',entries:129}}),loadMemories:async(cwd,opts)=>{{options=opts;return {{entries,totalEntries:129,omittedEntries:0,indexes:[]}};}},listHistory:async()=>[],manage:async()=>true,selectModel:async()=>{{}},toggleAutoMemory:async()=>{{}},isBusy:()=>false}});
-      console.log(JSON.stringify({{options,reached:menus.some(menu=>menu.choicesShown.includes('Shared · memory-129.md · entry')),tail:notices.some(message=>message.includes('TAIL')),bounded:menus.every(menu=>menu.choicesShown.length<=34)}}));
+      console.log(JSON.stringify({{options,reached:menus.some(menu=>menu.choicesShown.includes('Shared · memory-129.md · entry')),tail:menus.some(menu=>menu.title.includes('TAIL')),bounded:menus.every(menu=>menu.choicesShown.length<=35)}}));
     ''')
     assert result['options']['maxFiles'] == 4096
     assert result['reached'] and result['tail'] and result['bounded']

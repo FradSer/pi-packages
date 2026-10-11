@@ -316,6 +316,8 @@ export interface LearningPipelineReceipt {
   kind: "learning-pipeline-receipt";
   version: 1;
   mode: LearningMode;
+  /** Parent mutation batch, when supplied; older receipts remain valid. */
+  batchId?: string;
   screen: LearningScreen;
   attempts: LearningAttempt[];
   totals: PiWorkerUsage;
@@ -328,22 +330,28 @@ export interface LearningPipelineReceipt {
 }
 
 export interface LearningInputSource {
-  source: "current-session" | "recent-project-session" | "existing-memory" | "none";
+  source: "current-session" | "recent-project-session" | "backlog-session" | "existing-memory" | "none";
   entryCount: number;
   omittedEntries?: number;
+  omittedEvidenceEntries?: number;
   sessionId?: string;
   sourceDigest?: string;
+  backlogId?: string;
+  /** Parent-verified same-task slices covered by this one replay batch. */
+  backlogCoverage?: Array<{ id: string; from: number; to: number; digest: string }>;
+
 }
 
 function allLearningUsageAvailable(attempts: readonly LearningAttempt[]): boolean {
   return attempts.every(attempt => attempt.usage !== undefined || attempt.outcome === "skipped" || attempt.outcome === "screened");
 }
 
-export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen, attempts: LearningAttempt[], input?: LearningInputSource): LearningPipelineReceipt {
+export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen, attempts: LearningAttempt[], input?: LearningInputSource, batchId?: string): LearningPipelineReceipt {
   return {
     kind: "learning-pipeline-receipt",
     version: 1,
     mode,
+    ...(batchId ? {batchId} : {}),
     screen,
     attempts,
     totals: totalLearningUsage(attempts),
@@ -397,12 +405,23 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
   const screen = receipt.screen as Partial<LearningScreen> | undefined;
   const input = receipt.input;
   const validInput = input === undefined || Boolean(input && typeof input === "object"
-    && ["current-session", "recent-project-session", "existing-memory", "none"].includes(input.source)
+    && ["current-session", "recent-project-session", "backlog-session", "existing-memory", "none"].includes(input.source)
+    && (input.backlogId === undefined || (typeof input.backlogId === "string" && /^[a-f0-9]{64}$/.test(input.backlogId)))
+    && (input.backlogCoverage === undefined || input.source === "backlog-session"
+      && Array.isArray(input.backlogCoverage) && input.backlogCoverage.length >= 2 && input.backlogCoverage.length <= 32
+      && input.backlogCoverage.every(item => item && typeof item === "object"
+        && typeof item.id === "string" && /^[a-f0-9]{64}$/.test(item.id)
+        && typeof item.digest === "string" && /^[a-f0-9]{64}$/.test(item.digest)
+        && Number.isSafeInteger(item.from) && item.from >= 0 && Number.isSafeInteger(item.to) && item.to >= item.from)
+      && new Set(input.backlogCoverage.map(item => item.id)).size === input.backlogCoverage.length
+      && input.backlogCoverage.some(item => item.id === input.backlogId))
     && Number.isSafeInteger(input.entryCount) && input.entryCount >= 0
     && (input.omittedEntries === undefined || Number.isSafeInteger(input.omittedEntries) && input.omittedEntries >= 0)
+    && (input.omittedEvidenceEntries === undefined || Number.isSafeInteger(input.omittedEvidenceEntries) && input.omittedEvidenceEntries >= 0
+      && input.omittedEntries !== undefined && input.omittedEvidenceEntries <= input.omittedEntries)
     && (input.sessionId === undefined || (typeof input.sessionId === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(input.sessionId)))
     && (input.sourceDigest === undefined || (typeof input.sourceDigest === "string" && /^[a-f0-9]{64}$/.test(input.sourceDigest))));
-  return validInput && receipt.kind === "learning-pipeline-receipt" && receipt.version === 1 &&
+  return (receipt.batchId === undefined || typeof receipt.batchId === "string" && /^batch_[a-f0-9]{32}$/.test(receipt.batchId)) && validInput && receipt.kind === "learning-pipeline-receipt" && receipt.version === 1 &&
     typeof receipt.mode === "string" && modes.includes(receipt.mode as LearningMode) &&
     Boolean(screen && typeof screen.memory === "boolean" && typeof screen.harness === "boolean" && typeof screen.agents === "boolean" && Array.isArray(screen.reasons) && screen.reasons.every((reason) => typeof reason === "string")) &&
     Array.isArray(receipt.attempts) && receipt.attempts.every((attempt) =>
@@ -421,6 +440,12 @@ function surfaceLabel(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+/** Latest phase disposition supersedes earlier pending counts after repair. */
+export function pendingLearningOperations(receipt: LearningPipelineReceipt): number {
+  const latest = new Map(receipt.attempts.map(attempt => [attempt.phase, attempt]));
+  return [...latest.values()].reduce((sum, attempt) => sum + (attempt.pendingOperations ?? 0), 0);
+}
+
 export function learningSummarySubject(receipt: LearningPipelineReceipt): string {
   const memory = surfaceCount(receipt, "memory");
   const harness = surfaceCount(receipt, "harness");
@@ -430,13 +455,21 @@ export function learningSummarySubject(receipt: LearningPipelineReceipt): string
     ...(harness > 0 ? [surfaceLabel(harness, "harness change", "harness changes")] : []),
     ...(agents > 0 ? [surfaceLabel(agents, "AGENTS.md change", "AGENTS.md changes")] : []),
   ];
-  const pending = receipt.attempts.reduce((sum, attempt) => sum + (attempt.pendingOperations ?? 0), 0);
+  const pending = pendingLearningOperations(receipt);
+  const final = new Map(receipt.attempts.map(attempt => [attempt.phase, attempt.outcome]));
+  const issues = [...final].filter(([, outcome]) => ["failed", "rejected", "cancelled"].includes(outcome)).map(([phase, outcome]) => `${phase} ${outcome}`);
+  if (surfaces.length > 0 && issues.length) return `${surfaces.join(" and ")} applied; ${issues.join(", ")}${pending ? `; ${pending} pending review` : ""}`;
   if (surfaces.length > 0) return `${surfaces.join(" and ")} applied${pending ? `; ${pending} pending review` : ""}`;
-  if (receipt.attempts.some(attempt => attempt.outcome === "proposed")) return "proposals saved for review";
-  if (receipt.attempts.some((attempt) => attempt.outcome === "failed" || attempt.outcome === "rejected")) return "finished with issues";
-  if (receipt.attempts.some(attempt => attempt.outcome === "cancelled")) return "cancelled";
+  if (issues.length) return `finished with issues: ${issues.join(", ")}`;
+  if ([...final.values()].some(outcome => outcome === "proposed")) return "proposals saved for review";
   if (receipt.attempts.length === 0 && receipt.screen.reasons.includes("no-learning-inputs")) return "no learning input";
-  return "no durable changes";
+  return `no durable changes${pending ? `; ${pending} pending review` : ""}`;
+}
+
+export function learningSummaryTone(receipt: LearningPipelineReceipt): "success" | "warning" | "error" {
+  const outcomes = [...new Map(receipt.attempts.map(attempt => [attempt.phase, attempt.outcome])).values()];
+  return outcomes.some(outcome => outcome === "failed" || outcome === "rejected") ? "error"
+    : pendingLearningOperations(receipt) > 0 || outcomes.some(outcome => outcome === "cancelled" || outcome === "proposed") ? "warning" : "success";
 }
 
 function receiptUsageAvailable(receipt: LearningPipelineReceipt): boolean {
@@ -453,22 +486,89 @@ function receiptCostText(receipt: LearningPipelineReceipt): string {
   return receipt.totals.cost > 0 ? `cost unavailable · known subtotal ${formatLearningCost(receipt.totals)}` : "cost unavailable";
 }
 
+export function formatDurationMs(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return "0 ms";
+  if (ms < 1000) return `${ms} ms`;
+  if (ms < 60000) {
+    const s = (ms / 1000).toFixed(1).replace(/\.0$/, "");
+    return `${s}s`;
+  }
+  const mins = Math.floor(ms / 60000);
+  const secs = Math.round((ms % 60000) / 1000);
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
+function formatJevTelemetry(jev: JevTelemetry): string {
+  const parts: string[] = [`${jev.status}: ${jev.reason}`];
+  if (typeof jev.httpStatus === "number" && Number.isSafeInteger(jev.httpStatus) && jev.httpStatus >= 400 && jev.httpStatus <= 599) {
+    parts.push(`HTTP ${jev.httpStatus}`);
+  }
+  if (jev.candidateIndex !== undefined && jev.dimension) {
+    parts.push(`candidate ${jev.candidateIndex} ${jev.dimension}${jev.field === "description" ? ".description" : ""}`);
+  }
+  const counterLoc = jevCounterLocationText(jev);
+  if (counterLoc) parts.push(counterLoc);
+  if (jev.strategy === "cited-support-full-review") {
+    parts.push(`full review ${jev.coveredEntries}/${jev.evidenceEntries} entries (${jev.completedWindows}/${jev.evidenceWindows} windows)`);
+  } else if (jev.strategy === "same-batch-relations") {
+    parts.push("same-batch relations");
+  } else if (jev.strategy === "standalone-memory") {
+    parts.push("standalone meaning");
+  }
+  if (jev.model) parts.push(jev.model);
+  if (jev.durationMs > 0) parts.push(formatDurationMs(jev.durationMs));
+  if (jev.inputTokens !== undefined || jev.knownInputTokens !== undefined) {
+    parts.push(`input ${jev.inputTokens ?? `at least ${jev.knownInputTokens}`}`);
+  }
+  if (jev.outputTokens !== undefined) {
+    parts.push(`output ${jev.outputTokens}`);
+  }
+  if (jev.estimatedCostUsd !== undefined) {
+    parts.push(`estimated cost $${jev.estimatedCostUsd.toFixed(8)}`);
+  } else if (jev.knownEstimatedCostUsd !== undefined) {
+    parts.push(`estimated cost at least $${jev.knownEstimatedCostUsd.toFixed(8)}`);
+  }
+  return parts.join(" · ");
+}
+
 export function learningSummaryDetails(receipt: LearningPipelineReceipt): string[] {
-  const phaseLines = receipt.attempts.map((attempt) => `${attempt.phase}: ${attempt.outcome} · ${attempt.operations} change(s) · ${attempt.durationMs} ms`);
+  const phaseCounts = new Map<string, number>();
+  for (const attempt of receipt.attempts) {
+    phaseCounts.set(attempt.phase, (phaseCounts.get(attempt.phase) ?? 0) + 1);
+  }
+  const attemptPhaseLabel = (attempt: LearningAttempt): string => {
+    const count = phaseCounts.get(attempt.phase) ?? 0;
+    return count > 1 ? `${attempt.phase} #${attempt.attempt + 1}` : attempt.phase;
+  };
+
+  const phaseLines = receipt.attempts.map((attempt) => {
+    const label = attemptPhaseLabel(attempt);
+    return `${label}: ${attempt.outcome} · ${attempt.operations} change(s) · ${formatDurationMs(attempt.durationMs)}`;
+  });
+  const input = receipt.input;
+  const omission = !input?.omittedEntries ? "" : input.omittedEvidenceEntries === undefined
+    ? `${input.omittedEntries} omitted; proposals only`
+    : input.omittedEvidenceEntries > 0
+      ? `${input.omittedEvidenceEntries} evidence entries omitted; proposals only`
+      : `${input.omittedEntries} assistant context entries omitted`;
+
   return [
     fieldLine("mode", receipt.mode),
-    ...(receipt.input ? [fieldLine("source", `${receipt.input.source} · ${receipt.input.entryCount} entries${receipt.input.omittedEntries ? ` · ${receipt.input.omittedEntries} omitted; proposals only` : ""}${receipt.input.sessionId ? ` · ${receipt.input.sessionId}` : ""}`)] : []),
+    ...(input ? [fieldLine("source", `${input.source} · ${input.entryCount} entries${omission ? ` · ${omission}` : ""}${input.sessionId ? ` · ${input.sessionId}` : ""}`)] : []),
     ...(receipt.screen.reasons.includes("no-learning-inputs") ? ["No session evidence or existing Memory. Resume a task session or use /memory <request>."] : []),
     fieldLine("operations", receipt.operations),
     fieldLine("calls", receipt.attempts.length),
     fieldLine("usage", receiptUsageText(receipt)),
     fieldLine("cost", receiptCostText(receipt)),
     fieldLine("directions", [receipt.screen.memory ? "memory" : "", receipt.screen.harness ? "harness" : "", receipt.screen.agents ? "agents" : ""].filter(Boolean).join(", ") || "none"),
-    ...receipt.attempts.flatMap(attempt => [
-      ...(attempt.selectedMemory ? [fieldLine("selected Memory", attempt.selectedMemory.join(", ") || "none")] : []),
-      ...(attempt.diagnostic ? [fieldLine(`${attempt.phase} reason`, attempt.diagnostic)] : []),
-      ...(attempt.jev ? [fieldLine(`Jev ${attempt.jev.stage}`, `${attempt.jev.status}: ${attempt.jev.reason}${typeof attempt.jev.httpStatus === "number" && Number.isSafeInteger(attempt.jev.httpStatus) && attempt.jev.httpStatus >= 400 && attempt.jev.httpStatus <= 599 ? ` · HTTP ${attempt.jev.httpStatus}` : ""}${attempt.jev.candidateIndex !== undefined && attempt.jev.dimension ? ` · candidate ${attempt.jev.candidateIndex} ${attempt.jev.dimension}${attempt.jev.field === "description" ? ".description" : ""}` : ""}${jevCounterLocationText(attempt.jev) ? ` · ${jevCounterLocationText(attempt.jev)}` : ""}${attempt.jev.strategy === "cited-support-full-review" ? ` · full review ${attempt.jev.coveredEntries}/${attempt.jev.evidenceEntries} entries (${attempt.jev.completedWindows}/${attempt.jev.evidenceWindows} windows)` : attempt.jev.strategy === "same-batch-relations" ? " · same-batch relations" : attempt.jev.strategy === "standalone-memory" ? " · standalone meaning" : ""} · ${attempt.jev.model ?? "no model response"} · ${attempt.jev.durationMs} ms · input ${attempt.jev.inputTokens ?? (attempt.jev.knownInputTokens !== undefined ? `unknown (at least ${attempt.jev.knownInputTokens})` : "unknown")} · output ${attempt.jev.outputTokens ?? "unknown"} · estimated cost ${attempt.jev.estimatedCostUsd === undefined ? (attempt.jev.knownEstimatedCostUsd !== undefined ? `unknown (at least $${attempt.jev.knownEstimatedCostUsd.toFixed(8)})` : "unavailable") : `$${attempt.jev.estimatedCostUsd.toFixed(8)}`}`)] : []),
-    ]),
+    ...receipt.attempts.flatMap(attempt => {
+      const label = attemptPhaseLabel(attempt);
+      return [
+        ...(attempt.selectedMemory ? [fieldLine("selected Memory", attempt.selectedMemory.join(", ") || "none")] : []),
+        ...(attempt.diagnostic ? [fieldLine(`${label} reason`, attempt.diagnostic)] : []),
+        ...(attempt.jev ? [fieldLine(`Jev ${label}`, formatJevTelemetry(attempt.jev))] : []),
+      ];
+    }),
     ...phaseLines,
   ];
 }

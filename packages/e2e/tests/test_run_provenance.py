@@ -146,6 +146,8 @@ def test_stale_turn_callbacks_and_post_run_mutations_cannot_clear() -> None:
         await run("pass", {}, fresh);
         const cleared = !pending(fresh);
         fresh.recordToolResult("bash", {command: "update implementation"}, true, cwd);
+        await writeFile(path.join(cwd,".e2e/runner.json"),JSON.stringify({executable:process.execPath,args:[fixture,"unmet"],adapterFiles:[fixture]}));
+        await fresh.refreshFeatureChanges(cwd);
         out({verified: result.details?.verifiedRun, stalePending: pending(stale), cleared, reopened: pending(fresh)});
       } finally {await rm(cwd, {recursive: true, force: true});}
     ''')
@@ -404,3 +406,17 @@ def test_runner_exit_error_preserves_bounded_diagnostic() -> None:
     assert result["status"] == "error" and result["verified"] is False
     assert "Test runner exited with 1" in result["error"]
     assert "RUNNER_DIAGNOSTIC_TAIL" in result["error"]
+
+
+def test_failed_fresh_evidence_preserves_bounded_runner_diagnostics() -> None:
+    result = run_typescript(RUN_PREAMBLE + r'''
+      try {
+        const result = await run("unmet");
+        const {E2E_VERIFY_OUTPUT_SCHEMA} = await import(new URL("packages/e2e/src/tool.ts", `file://${process.cwd()}/`).href);
+        const properties = E2E_VERIFY_OUTPUT_SCHEMA.properties;
+        if (Object.keys(result.structuredContent ?? {}).some(key => !(key in properties))) throw Error("undeclared result field");
+        out({status: result.details?.status, diagnostic: result.details?.runnerOutput,
+          visible: result.content.some(item => item.type === "text" && item.text.includes("expected value false"))});
+      } finally {await rm(cwd, {recursive: true, force: true});}
+    ''')
+    assert result == {"status": "not_fulfilled", "diagnostic": "expected value false", "visible": True}

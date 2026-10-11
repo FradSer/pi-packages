@@ -10,14 +10,14 @@ actual prompt; it never reads credentials or contacts an external service.
 from __future__ import annotations
 
 import json
-import os
 import re
-import shutil
 import subprocess
 import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+from live_acceptance_support import isolated_environment, workspace_pi
 
 PACKAGE = Path(__file__).resolve().parents[1]
 REPO = PACKAGE.parents[1]
@@ -218,9 +218,7 @@ class LoopbackProvider(BaseHTTPRequestHandler):
 
 
 def run_pi(project: Path, agent: Path, session: Path, prompt: str, port: int) -> subprocess.CompletedProcess[str]:
-    pi = shutil.which("pi")
-    if not pi:
-        raise RuntimeError("Pi CLI is required for the offline live loop")
+    pi = workspace_pi(REPO)
     disposable_home = agent.parent
     try:
         return subprocess.run(
@@ -247,16 +245,7 @@ def run_pi(project: Path, agent: Path, session: Path, prompt: str, port: int) ->
                 prompt,
             ],
             cwd=project,
-            env={
-                **os.environ,
-                "HOME": str(disposable_home),
-                "XDG_CONFIG_HOME": str(disposable_home / "xdg-config"),
-                "XDG_DATA_HOME": str(disposable_home / "xdg-data"),
-                "XDG_STATE_HOME": str(disposable_home / "xdg-state"),
-                "PI_CODING_AGENT_DIR": str(agent),
-                "PI_OFFLINE": "1",
-                "PI_TELEMETRY": "0",
-            },
+            env=isolated_environment(disposable_home, agent),
             capture_output=True,
             text=True,
             timeout=180,
@@ -286,6 +275,7 @@ def run() -> dict[str, object]:
             (project / ".pi").mkdir()
             (agent / "memory").mkdir()
             (agent / "settings.json").write_text(json.dumps({"quietStartup": True, "packages": []}))
+            (agent / "continual-learning.json").write_text(json.dumps({"jev": False}))
             (agent / "memory.json").write_text(json.dumps({"provider": PROVIDER, "model": MODEL}))
             (agent / "models.json").write_text(json.dumps({"providers": {
                 PROVIDER: {"baseUrl": f"http://127.0.0.1:{server.server_port}/v1", "api": "openai-completions", "apiKey": API_KEY,
@@ -327,7 +317,11 @@ def run() -> dict[str, object]:
             harness_receipts = list(receipts[-1].parent.glob("harness-*-receipt.json"))
             if len(harness_receipts) < 2:
                 raise AssertionError("Harness pre/post receipts were not written")
-            expected_learning_responses = ["task-done", "selection", "memory-plan", "harness-plan"]
+            # Empty-index selection is parent-routed; no generative selector call.
+            selectors = [attempt for attempt in receipt["attempts"] if attempt["phase"] == "selector"]
+            if not selectors or not any(attempt.get("outcome") == "applied" and "empty Memory index" in attempt.get("diagnostic", "") for attempt in selectors):
+                raise AssertionError("empty-index parent routing lacks its selector receipt")
+            expected_learning_responses = ["task-done", "memory-plan", "harness-plan"]
             if LoopbackProvider.responses != expected_learning_responses:
                 raise AssertionError(f"first run needed an unexpected learning retry: {LoopbackProvider.responses}")
 
@@ -410,7 +404,7 @@ def run() -> dict[str, object]:
 
 
 def pi_version() -> str:
-    result = subprocess.run([shutil.which("pi") or "pi", "--version"], check=True, capture_output=True, text=True)
+    result = subprocess.run([workspace_pi(REPO), "--version"], check=True, capture_output=True, text=True)
     return result.stdout.strip()
 
 

@@ -11,21 +11,12 @@
  *   4. Interactive command `/e2e`: for human-initiated evaluations.
  */
 
-import path from "node:path";
-import { readFile } from "node:fs/promises";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { notifyPi } from "@fradser/pi-kit";
-import { firstScenario, parseFeature, scenarioByName } from "../src/gherkin.ts";
+import { E2E_FEEDBACK_MESSAGE_TYPE, type E2EFeedback } from "../src/feedback.ts";
 import { E2EGate, registerE2EHarness } from "../src/harness.ts";
-import { registerE2ETools } from "../src/tool.ts";
-import type { Evidence } from "../src/types.ts";
-import { verifyScenario } from "../src/verify.ts";
+import { executeE2EVerify, registerE2ETools } from "../src/tool.ts";
 
 const USAGE = "/e2e [verify] <feature.feature> <evidence.json> [scenario name]";
-
-async function readText(target: string, cwd: string): Promise<string> {
-  return readFile(path.resolve(cwd, target), "utf-8");
-}
 
 /** Registers tools, harness enforcement hooks, prompt injection, and slash commands. */
 export default function e2eExtension(pi: ExtensionAPI): void {
@@ -44,30 +35,19 @@ export default function e2eExtension(pi: ExtensionAPI): void {
       const parts = args.trim().split(/\s+/).filter((part) => part !== "");
       const tokens = parts[0]?.toLowerCase() === "verify" ? parts.slice(1) : parts;
       const [featureArg, evidenceArg, ...rest] = tokens;
+      const send = (feedback: E2EFeedback, content = feedback.lines.join("\n")) => pi.sendMessage({
+        customType:E2E_FEEDBACK_MESSAGE_TYPE,content,display:true,details:feedback,
+      },{triggerTurn:false});
       if (featureArg === undefined || evidenceArg === undefined) {
-        notifyPi(ctx.ui, `Usage: ${USAGE}`, "warning");
+        send({label:"needs review",tone:"warning",lines:[`Usage: ${USAGE}`]});
         return;
       }
-      try {
-        const file = parseFeature(await readText(featureArg, ctx.cwd));
-        const wanted = rest.join(" ");
-        const scenario =
-          wanted === "" ? firstScenario(file) : scenarioByName(file, wanted);
-        if (scenario === undefined) {
-          notifyPi(ctx.ui, `Scenario "${wanted}" is not in ${featureArg}.`, "error");
-          return;
-        }
-        const evidence = JSON.parse(await readText(evidenceArg, ctx.cwd)) as Evidence;
-        const result = await verifyScenario({ scenario, evidence });
-        const { verdict } = result;
-        await gate.recordVerdict(verdict, featureArg, ctx.cwd, file.scenarios.map((item) => item.name));
-
-        const line = `caller-supplied evidence (acceptance unverified) · ${verdict.status} · ${verdict.clauses.filter((clause) => clause.status === "met").length}/${verdict.clauses.length} clauses met · ${verdict.reason}`;
-        notifyPi(ctx.ui, line, "warning");
-        if (result.modelError !== undefined) notifyPi(ctx.ui, result.modelError, "warning");
-      } catch (error) {
-        notifyPi(ctx.ui, `e2e verify failed: ${(error as Error).message}`, "error");
-      }
+      send({label:"running",tone:"warning",lines:["Evaluating caller-supplied evidence"]});
+      const observer = gate.verificationObserver();
+      const result = await executeE2EVerify({feature:featureArg,evidence:evidenceArg,
+        ...(rest.length > 0 ? {scenario:rest.join(" ")} : {})},observer.onVerdict,
+        {cwd:ctx.cwd,signal:ctx.signal,onError:observer.onError});
+      if (result.details?.feedback) send(result.details.feedback,result.content.map(item=>item.text).join("\n"));
     },
   });
 }

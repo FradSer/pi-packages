@@ -44,7 +44,7 @@ def test_provenance_research_preserves_every_question_and_all_holds() -> None:
         const row=base[1];const sent=[];
         const judge=createJevJudge({enabled:true,apiKey:'fixture',defaultModel:'jev-1.13.0',scopes:['harness'],fetch:async(_url,init)=>{
           if(mode==='unavailable')throw Error('fixture');
-          const request=JSON.parse(String(init.body));const before=JSON.stringify(request);const patched=sourceProvenanceRequest(request);sent.push({request,patched,unchanged:before===JSON.stringify(request)});
+          const request=JSON.parse(String(init.body));const before=JSON.stringify(request);const patched=sourceProvenanceRequest(request);sent.push({unchanged:before===JSON.stringify(request),questionsUnchanged:JSON.stringify(request.questions)===JSON.stringify(patched.questions),modelUnchanged:request.model===patched.model});
           const answers={};for(const [k,q]of Object.entries(patched.questions)) {
             if(q.type==='noul')answers[k]={type:'noul',noul:mode==='unsupported'?.01:.99};
             else {const label=k.startsWith('counter')?(mode==='counter'?'contradicts':mode==='unclear'?'unclear':'compatible'):mode==='scope'?'broader':'same';answers[k]={type:'choice',choice:label,confidence:.99,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};}
@@ -59,6 +59,6 @@ def test_provenance_research_preserves_every_question_and_all_holds() -> None:
         assert row['result']['decision'] == ('allow' if row['mode'] == 'supported' else 'propose')
         for sent in row['sent']:
             assert sent['unchanged']
-            assert sent['request']['questions'] == sent['patched']['questions']
-            assert sent['request']['model'] == sent['patched']['model']
+            assert sent['questionsUnchanged']
+            assert sent['modelUnchanged']
 

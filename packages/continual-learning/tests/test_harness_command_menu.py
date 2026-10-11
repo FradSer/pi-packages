@@ -27,6 +27,7 @@ def test_harness_menu_lists_rule_and_shows_bounded_details(tmp_path: Path) -> No
         notify: (message, type) => notices.push({{message, type}}),
         select: async (title, options) => {{
           selections.push({{title, options}});
+          if (selections.filter(item => item.title === title).length > 1) return undefined;
           if (title === 'Harness rules') return options[0];
           return 'Close';
         }},
@@ -39,8 +40,8 @@ def test_harness_menu_lists_rule_and_shows_bounded_details(tmp_path: Path) -> No
     assert any("long-guidance" in option for option in result["selections"][0]["options"])
     assert "Create or update rule" in result["selections"][0]["options"]
     assert not any("diagnostic" in option.lower() for option in result["selections"][0]["options"])
-    assert any("Full guidance that must be visible" in item["message"] for item in result["notices"])
-    assert any(".pi/harness.json" in item["message"] for item in result["notices"])
+    assert any("Full guidance that must be visible" in item["title"] for item in result["selections"])
+    assert any(".pi/harness.json" in item["title"] for item in result["selections"])
 
 
 def test_harness_menu_cancel_does_not_send_a_follow_up(tmp_path: Path) -> None:
@@ -60,6 +61,7 @@ def test_harness_menu_cancel_does_not_send_a_follow_up(tmp_path: Path) -> None:
         notify() {{}},
         select: async (title, options) => {{
           selections.push({{title, options}});
+          if (selections.filter(item => item.title === title).length > 1) return undefined;
           if (title === 'Harness rules') return 'Create or update rule';
           return 'Cancel';
         }},
@@ -107,6 +109,7 @@ def test_harness_menu_exposes_bounded_diagnostics_for_invalid_config(tmp_path: P
         notify: (message, type) => notices.push({{message, type}}),
         select: async (title, options) => {{
           selections.push({{title, options}});
+          if (selections.filter(item => item.title === title).length > 1) return undefined;
           return options.find(option => option.toLowerCase().includes('diagnostic')) ?? 'Close';
         }},
         input: async () => undefined,
@@ -115,7 +118,7 @@ def test_harness_menu_exposes_bounded_diagnostics_for_invalid_config(tmp_path: P
       console.log(JSON.stringify({{notices, selections}}));
     ''')
     assert any("diagnostic" in option.lower() for option in result["selections"][0]["options"])
-    assert any("errors:" in item["message"].lower() or "harness config" in item["message"].lower() for item in result["notices"])
+    assert any("errors:" in item["title"].lower() or "harness config" in item["title"].lower() for item in result["selections"])
 
 
 def test_harness_menu_pages_all_rules_and_keeps_page_count(tmp_path: Path) -> None:
@@ -134,6 +137,7 @@ def test_harness_menu_pages_all_rules_and_keeps_page_count(tmp_path: Path) -> No
         notify: (message, type) => notices.push({{message, type}}),
         select: async (title, options) => {{
           selections.push({{title, options}});
+          if (selections.filter(item => item.title === title).length > 1) return undefined;
           if (title.startsWith('Harness rules')) {{
             const rule = options.find(option => option.includes('rule-41'));
             if (rule) return rule;
@@ -150,7 +154,7 @@ def test_harness_menu_pages_all_rules_and_keeps_page_count(tmp_path: Path) -> No
     assert len(menus) >= 2, menus
     assert all("/" in item["title"] for item in menus), menus
     assert any("rule-41" in option for option in menus[-1]["options"]), menus[-1]
-    assert any("guidance-41" in item["message"] for item in result["notices"])
+    assert any("guidance-41" in item["title"] for item in result["selections"])
 
 
 def test_harness_menu_long_ids_have_unique_selectable_labels(tmp_path: Path) -> None:
@@ -172,6 +176,7 @@ def test_harness_menu_long_ids_have_unique_selectable_labels(tmp_path: Path) -> 
         notify: (message, type) => notices.push({{message, type}}),
         select: async (title, options) => {{
           selections.push({{title, options}});
+          if (selections.filter(item => item.title === title).length > 1) return undefined;
           if (title === 'Harness rules') {{
             const rules = options.filter(option => !['Create or update rule', 'Close'].includes(option));
             const colliding = rules.filter(option => option.includes(' · #'));
@@ -186,7 +191,7 @@ def test_harness_menu_long_ids_have_unique_selectable_labels(tmp_path: Path) -> 
     ''')
     rule_options = [option for option in result["selections"][0]["options"] if option not in ["Create or update rule", "Close"]]
     assert len(rule_options) == len(set(rule_options)), rule_options
-    assert any("second guidance" in item["message"] for item in result["notices"])
+    assert any("second guidance" in item["title"] for item in result["selections"])
 
 
 def test_harness_menu_empty_request_uses_empty_default_and_does_not_send(tmp_path: Path) -> None:
@@ -223,7 +228,7 @@ def test_scoped_user_menu_shows_the_actual_config_file(tmp_path: Path) -> None:
       fs.mkdirSync(path.dirname(paths.userScoped),{{recursive:true}});
       fs.writeFileSync(paths.userScoped,JSON.stringify({{rules:[{{id:'scoped-view',text:'needle',instructions:'Scoped guidance'}}]}}));
       await commands.harness.handler('',{{cwd,hasUI:true,ui:{{
-        select:async(title,options)=>title==='Harness rules'?options.find(option=>option.includes('scoped-view')):'Close',
+        select:async(title,options)=>{{notices.push(title);return title==='Harness rules'&&notices.filter(t=>t==='Harness rules').length===1?options.find(option=>option.includes('scoped-view')):undefined;}},
         notify:message=>notices.push(message),input:async()=>undefined,
       }}}});
       console.log(JSON.stringify({{notices,file:paths.userScoped}}));

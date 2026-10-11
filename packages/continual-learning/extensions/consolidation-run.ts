@@ -898,14 +898,16 @@ function balancedJsonObjects(text: string): string[] {
       depth += 1;
       continue;
     }
-    if (char !== "}" || depth === 0) continue;
+    if (char !== "}") continue;
+    if (depth === 0) return [];
     depth -= 1;
     if (depth === 0 && start >= 0) {
       objects.push(text.slice(start, index + 1));
       start = -1;
     }
   }
-  return objects;
+  // A complete old draft cannot mask a truncated or unmatched later object.
+  return depth === 0 && !inString ? objects : [];
 }
 
 function parseJsonCandidate(text: string): unknown | undefined {
@@ -915,10 +917,12 @@ function parseJsonCandidate(text: string): unknown | undefined {
   if (direct) return direct;
   const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
   if (fenced) return parsedObject(fenced[1].trim());
-  const candidates = balancedJsonObjects(trimmed)
-    .map(parsedObject)
-    .filter((value): value is Record<string, unknown> => Boolean(value))
-    .filter((value) => value.kind === "memory-consolidation-plan" || value.type === "memory-consolidation-plan" || value.kind === "incremental-memory-plan" || value.kind === "harness-consolidation-plan" || value.kind === "agents-md-consolidation-plan");
+  const objects = balancedJsonObjects(trimmed).map(parsedObject);
+  // A damaged object cannot be discarded to select an earlier draft. Preserve
+  // established compatibility with valid JSON metadata beside one unique plan.
+  if (objects.some(value => !value)) return undefined;
+  const candidates = objects.filter((value): value is Record<string, unknown> => Boolean(value))
+    .filter(value => ["memory-consolidation-plan", "incremental-memory-plan", "harness-consolidation-plan", "agents-md-consolidation-plan"].includes(String(value.kind ?? value.type)));
   return candidates.length === 1 ? candidates[0] : undefined;
 }
 
@@ -1436,13 +1440,20 @@ const PLACEHOLDER_CREDENTIAL_VALUES = new Set([
   "password", "passwd", "pass", "secret", "token", "credential", "credentials", "apikey", "apitoken",
   "accesstoken", "clientsecret", "example", "dummy", "placeholder", "changeme", "redacted", "yourpassword",
   "yourtoken", "notasecret", "string", "value", "none", "null", "undefined",
+  "fixture", "mock", "fake", "stub", "default",
 ]);
 
+const CODE_OR_ENV_PATTERN = /^(?:\(?\s*(?:process\.env|os\.environ|System\.getenv|Deno\.env|\$[A-Z_]+|\$\{[A-Z_]+\})|(?:config|options|opts|params|props|settings|this|self|ctx)\.[A-Za-z0-9_]+|\(|.*(?:\?|\|\||&&|\+\s*["']))/i;
+
 function placeholderCredentialValue(key: string, assigned: string): boolean {
-  const value = assigned.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const trimmed = assigned.trim();
+  if (CODE_OR_ENV_PATTERN.test(trimmed)) return true;
+  const unquoted = trimmed.replace(/^["'`\\]+|["'`\\]+$/g, "");
+  const value = unquoted.toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!value) return true;
   if (PLACEHOLDER_CREDENTIAL_VALUES.has(value)) return true;
   if (new Set(value).size === 1) return true;
+  if (/^(?:fixture|mock|fake|stub|test|dummy|example|sample)[0-9a-z_]*$/.test(value)) return true;
   const keyWord = key.toLowerCase().replace(/[^a-z0-9]/g, "");
   return value.startsWith(keyWord) && /^[0-9]*(?:value|string|here|example|placeholder)?$/.test(value.slice(keyWord.length));
 }

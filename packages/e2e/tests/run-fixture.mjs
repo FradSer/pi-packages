@@ -73,3 +73,4 @@ try {
   await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
 }
 if (mode === "fail") process.exitCode = 1;
+if (mode === "unmet") process.stderr.write("expected value false\n");

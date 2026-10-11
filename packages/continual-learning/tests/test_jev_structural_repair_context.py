@@ -49,7 +49,7 @@ def test_structural_worker_receives_grounding_context_in_same_read_only_call() -
     ''')
     assert value['outcome'] == 'repaired' and value['calls'] == 1
     assert value['tools'] == [] and value['structural'] and value['temporary']
-    assert len(value['context']['frozenEvidence']['entries']) == 1
+    assert value['context']['frozenEvidence']['entries'] == [{'snapshotIndex': 0, 'entry': {'role': 'user', 'content': 'Project uses pnpm. Only this task: summarize failures.'}}]
 
 
 def test_production_structural_repair_holds_tampering_and_accounts_paid_attempt() -> None:

@@ -115,6 +115,9 @@ class NativeTui:
             if predicate():
                 return
             if self.process.poll() is not None:
+                # Exit can occur between the predicate and this poll.
+                if predicate():
+                    return
                 break
         if self.process.poll() is not None:
             message = f"{message} (native Pi exit={self.process.returncode}, terminalBytes={len(self.transcript)})"

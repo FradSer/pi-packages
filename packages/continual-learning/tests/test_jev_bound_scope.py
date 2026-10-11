@@ -97,7 +97,7 @@ def test_bound_scope_keeps_memory_wire_and_privacy_preflight_unchanged(variant: 
       try {
         const quote='This project uses pnpm.';
         const candidate={name:'fact.md',kind:'project',classification:'safe',content:'---\nname: fact\ndescription: '+quote+'\ntype: project\n---\n'+quote,evidence:[{index:0,quote,role:'user'}]};
-        for(const [i,factory]of [createJevJudge,r.createJevJudge].entries()){
+        for(const [i,factory]of [r.baselineCreateJevJudge,r.createJevJudge].entries()){
           const judge=factory({enabled:true,apiKey:'fixture',scopes:['memory','harness'],fetch:async(_url,init)=>{
             sent[i].push(String(init.body));const req=JSON.parse(String(init.body));const answers={};for(const [k,q]of Object.entries(req.questions)){
               const label=k.startsWith('supported')?'grounded':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};
@@ -109,16 +109,9 @@ def test_bound_scope_keeps_memory_wire_and_privacy_preflight_unchanged(variant: 
           results.push({result,outbound:sent[i].length-before});
         }
       }finally{await r.dispose();}
-      // One documented, authorized delta is allowed in the support question: a
-      // successful tool result grounds the command claim, and a failed run is
-      // transient. Every other wire byte must stay identical, so undocumented
-      // drift still fails this invariance check.
-      const DELTA=[' A successful tool result that ran the command grounds the claim that the command works for this project.',' A failed, interrupted or erroring run is a transient observation: it does not ground a lasting claim about the command.',' A successful tool result that ran the command counts as that verified observation for the command it ran.'];
-      const strip=(value)=>DELTA.reduce((acc,part)=>acc.split(part).join(''),value);
-      const production=JSON.stringify(sent[0]),shadow=JSON.stringify(sent[1]);
-      console.log(JSON.stringify({sameWire:strip(production)===strip(shadow),deltaCount:DELTA.filter(part=>production.includes(part)&&!shadow.includes(part)).length,results}));
-    '''.replace('await loadBoundScopeJudge()', 'await loadBoundScopeJudge(boundScopeSourceV2)' if variant == 'v2' else '{createJevJudge:productionJudge,dispose:async()=>{}}' if variant == 'production' else 'await loadBoundScopeJudge()'))
-    # The production variant compares production with itself, so the documented
-    # delta appears on both sides and the count is 0 there and 3 against a shadow.
-    assert row['sameWire'] and row['deltaCount'] in (0, 3)
+      // Compare each frozen research transform with its own original source.
+      // Current production contracts are covered in test_learning_failure_recovery.py.
+      console.log(JSON.stringify({sameWire:JSON.stringify(sent[0])===JSON.stringify(sent[1]),results}));
+    '''.replace('await loadBoundScopeJudge()', 'await loadBoundScopeJudge(boundScopeSourceV2)' if variant == 'v2' else '{createJevJudge:productionJudge,baselineCreateJevJudge:productionJudge,dispose:async()=>{}}' if variant == 'production' else 'await loadBoundScopeJudge()'))
+    assert row['sameWire']
     assert all(r['outbound'] == 0 and r['result']['telemetry']['reason'] == 'sensitive' for r in row['results'])

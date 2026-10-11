@@ -16,7 +16,7 @@ def main() -> None:
     """Run real Pi loops against isolated projects; the provider is scripted."""
     node = subprocess.check_output(["node", "-p", "process.execPath"], text=True).strip()
     results: dict[str, object] = {}
-    for mode in ("fresh", "inline", "failed", "retry"):
+    for mode in ("fresh", "inline", "failed", "retry", "requested-inline"):
         with tempfile.TemporaryDirectory(prefix="pi-e2e-live-") as folder:
             cwd = Path(folder)
             (cwd / ".e2e").mkdir()
@@ -25,13 +25,15 @@ def main() -> None:
                 (cwd / "adapter.mjs").write_text(f'process.argv[2]="unmet"; await import({json.dumps((PACKAGE / "tests/run-fixture.mjs").as_uri())});')
                 (cwd / ".e2e/runner.json").write_text(json.dumps({"executable":node,"args":["adapter.mjs"],"adapterFiles":["adapter.mjs",str(PACKAGE / "tests/run-fixture.mjs")]}))
             (cwd / "test.feature").write_text("Feature: Test\nScenario: Before\nThen value is true\n")
-            env = {**os.environ, "PI_E2E_CASE": mode, "PI_E2E_AUTH": "isolated-test-provider", "PI_TELEMETRY": "0"}
+            env = {**os.environ, "HOME": str(cwd / "home"), "PI_CODING_AGENT_DIR": str(cwd / "agent"), "PI_OFFLINE": "1", "PI_E2E_CASE": mode, "PI_E2E_AUTH": "isolated-test-provider", "PI_TELEMETRY": "0"}
             process = subprocess.run([
                 *isolated_pi_command(), "--no-extensions", "--no-skills", "--no-context-files",
                 "--no-prompt-templates", "--no-session", "--offline", "--thinking", "off", "--mode", "json", "--print",
                 "-e", str(PACKAGE / "index.ts"), "-e", str(PACKAGE / "tests/live-fixture.ts"),
                 "--provider", "e2e-gate-scripted", "--model", "deterministic", "--tools", "write,e2e_verify,e2e_gate_probe",
-                "Update this feature and verify its e2e acceptance.",
+                ("Do not change existing expected behavior merely to make tests pass. "
+                 "Run acceptance for test.feature with e2e_verify." if mode == "requested-inline"
+                 else "Update this feature and verify its e2e acceptance."),
             ], cwd=cwd, env=env, capture_output=True, text=True, timeout=90)
             assert process.returncode == 0, process.stderr + process.stdout[-2000:]
             events = [json.loads(line) for line in process.stdout.splitlines() if line.startswith("{")]

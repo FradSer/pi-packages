@@ -65,8 +65,8 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
     master, slave = pty.openpty()
     transcript = bytearray()
 
-    def resize(width: int) -> None:
-        fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", 40, width, 0, 0))
+    def resize(width: int, height: int = 40) -> None:
+        fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", height, width, 0, 0))
 
     resize(120)
     process = subprocess.Popen(command, cwd=cwd, env=env, stdin=slave, stdout=slave, stderr=slave)
@@ -124,6 +124,11 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
             assert menus, "expected a captured native menu"
             return menus[-1]
 
+        def close_root() -> None:
+            before = sum(row["kind"] == "menu-closed" for row in snapshots(output))
+            os.write(master, b"\x03")
+            wait_for(lambda: sum(row["kind"] == "menu-closed" for row in snapshots(output)) > before)
+
         def open_memory_menu() -> dict:
             before = menu_count()
             os.write(master, b"/memory\r")
@@ -131,6 +136,8 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
             return latest_menu()
 
         root = open_memory_menu()
+        resize(48, 24)
+        process.send_signal(signal.SIGWINCH)
         before = menu_count()
         os.write(master, b"\r")  # Browse memories.
         wait_for(lambda: menu_count() == before + 1)
@@ -146,17 +153,35 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
         before = menu_count()
         os.write(master, b"\r")
         wait_for(lambda: menu_count() == before + 1)
-        assert "Next page" in latest_menu()["options"], latest_menu()
+        def reader_has(marker: str) -> bool:
+            return any(row["kind"] == "management-render" and marker in " ".join(row["lines"]) for row in snapshots(output))
+
+        wait_for(lambda: reader_has("CL_MEMORY_BODY_START"))
+        resize(120)
+        process.send_signal(signal.SIGWINCH)
+        wait_for(lambda: any(row["kind"] == "management-render" and row["title"].startswith("Memory entry") and row["width"] == 80 for row in snapshots(output)))
+        for _ in range(10):
+            if reader_has("CL_MEMORY_BODY_TAIL"):
+                break
+            before_render = len(snapshots(output))
+            os.write(master, b"\x1b[6~")
+            wait_for(lambda: len(snapshots(output)) > before_render)
+        assert reader_has("CL_MEMORY_BODY_TAIL")
         before = menu_count()
-        os.write(master, b"\r")
-        wait_for(lambda: menu_count() == before + 1 and has_notice("CL_MEMORY_BODY_TAIL"))
-        current = latest_menu()
-        os.write(master, b"\x1b[B" * current["options"].index("Close") + b"\r")
+        os.write(master, b"\r")  # Close reader, return to the same list page.
+        wait_for(lambda: menu_count() == before + 1)
+        assert "page 5/5" in latest_menu()["title"]
+        before = menu_count()
+        os.write(master, b"\x1b")  # Back to Memory's root.
+        wait_for(lambda: menu_count() == before + 1)
+        close_root()  # Wait until the selector releases input ownership.
 
         root = open_memory_menu()
         assert root["options"][:3] == ["Browse memories", "Learning settings", "Recent learning"], root
+        before = menu_count()
         os.write(master, b"\x1b[B" * root["options"].index("Recent learning") + b"\r")
-        wait_for(lambda: has_notice("No recent learning changes"))
+        wait_for(lambda: has_notice("No recent learning changes") and menu_count() == before + 1)
+        close_root()
 
         root = open_memory_menu()
         assert root["options"][:3] == ["Browse memories", "Learning settings", "Recent learning"], root
@@ -176,7 +201,11 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
         # sending the next command while a just-opened menu is still painting.
         time.sleep(0.2)
         os.write(master, b"\x03")
-        time.sleep(0.5)
+        wait_for(lambda: latest_menu()["title"].startswith("Learning settings"))
+        before = menu_count()
+        os.write(master, b"\x03")
+        wait_for(lambda: menu_count() > before and latest_menu()["title"].startswith("Memory"))
+        close_root()
         assert process.poll() is None
 
         # /harness with no request must open the real native rule picker. Closing
@@ -192,6 +221,10 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
         os.write(master, b"\x1b[B" * harness_menu["options"].index("Close") + b"\r")
         wait_for(lambda: process.poll() is None)
         assert not any(row["kind"] == "follow-up" for row in snapshots(output))
+        management = [row for row in snapshots(output) if row["kind"] == "management-render"]
+        assert any(row["width"] == 48 and row["height"] == 24 for row in management)
+        assert all(len(row["lines"]) <= row["height"] for row in management)
+        assert not any(row["kind"] == "notification" and "CL_MEMORY_BODY" in row["message"] for row in snapshots(output))
         assert not (cwd / ".pi" / "harness.json").exists()
         resize(120)
         process.send_signal(signal.SIGWINCH)
@@ -244,8 +277,8 @@ def main() -> None:
         env["PI_DETAILS_LIVE_SNAPSHOTS"] = str(tui_rows)
         verify_tui(command, env, cwd, tui_rows)
         print(json.dumps({"print": "passed", "tui": "passed", "keyboardExpand": "passed", "resize48": "passed",
-                          "full65LinePrompt": "passed", "agentsSummary": "passed", "managementMenus": "passed",
-                          "phasePolicyPersistence": "passed", "jevReceiptDetails": "passed", "remoteRequests": 0}))
+                          "full65LinePrompt": "passed", "agentsSummary": "passed", "managementMenus": "passed", "management48x24": "passed", "readerResize": "passed",
+                          "phasePolicyMenu": "passed", "jevReceiptDetails": "passed", "remoteRequests": 0}))
 
 
 if __name__ == "__main__":

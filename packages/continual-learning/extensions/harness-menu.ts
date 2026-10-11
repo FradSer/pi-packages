@@ -1,4 +1,4 @@
-import { showDetailPages } from "./detail-pages";
+import { managementUI, selectMenu, showDetailPages, type ManagementUI } from "./detail-pages";
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import { safeDisplayText } from "@fradser/pi-kit";
 import type { ConfigPaths } from "./guardrail-config.ts";
@@ -7,7 +7,7 @@ import type { ResolvedHarnessConfig, Rule } from "./guardrail-types.ts";
 const RULES_PER_PAGE = 20;
 const MAX_DISPLAY_CHARS = 2_000;
 
-type HarnessMenuUI = Pick<ExtensionUIContext, "select" | "input" | "notify">;
+type HarnessMenuUI = ManagementUI & Pick<ExtensionUIContext, "input">;
 export type HarnessMenuScope = "project" | "project.local" | "user";
 
 export interface HarnessMenuRequest {
@@ -105,9 +105,9 @@ function hasDiagnostics(config: ResolvedHarnessConfig): boolean {
 
 function diagnosticsText(config: ResolvedHarnessConfig): string {
   const lines = ["Harness diagnostics"];
-  if (config.errors.length) lines.push("errors:", ...config.errors.slice(0, 8).map(error => `- ${display(error, 600)}`));
-  if (config.notices.length) lines.push("notices:", ...config.notices.slice(0, 8).map(notice => `- ${display(notice, 600)}`));
-  if (config.invalidRules.length) lines.push("invalid rules:", ...config.invalidRules.slice(0, 8).map(rule => `- ${label(rule.id)}: ${display(rule.errors.join("; "), 600)}`));
+  if (config.errors.length) lines.push("errors:", ...config.errors.map(error => `- ${safeDisplayText(error)}`));
+  if (config.notices.length) lines.push("notices:", ...config.notices.map(notice => `- ${safeDisplayText(notice)}`));
+  if (config.invalidRules.length) lines.push("invalid rules:", ...config.invalidRules.map(rule => `- ${label(rule.id)}: ${safeDisplayText(rule.errors.join("; "))}`));
   if (config.legacy.policies.length) lines.push(`legacy policies: ${config.legacy.policies.length} (read-only)`);
   if (config.legacy.invalidPolicies.length) lines.push(`invalid legacy policies: ${config.legacy.invalidPolicies.length}`);
   if (Object.keys(config.legacy.skillPrompts).length) lines.push(`legacy skill guidance: ${Object.keys(config.legacy.skillPrompts).length} (read-only)`);
@@ -115,7 +115,7 @@ function diagnosticsText(config: ResolvedHarnessConfig): string {
   if (config.legacy.unavailable) lines.push("legacy configuration is unavailable");
   if (config.configReadIncomplete) lines.push("configuration read is incomplete; missing layers remain indeterminate");
   if (!config.bashEvaluationComplete) lines.push("Bash evaluation is incomplete until the affected configuration is repaired");
-  return display(lines.join("\n"), 8_000);
+  return safeDisplayText(lines.join("\n"));
 }
 
 /** Run the small interactive Harness surface. All content is bounded and sanitized. */
@@ -124,9 +124,11 @@ export async function runHarnessMenu(
   config: ResolvedHarnessConfig,
   paths: ConfigPaths,
   onRequest: (request: HarnessMenuRequest) => Promise<void> | void,
+  mode?: string,
 ): Promise<void> {
   const pageCount = Math.max(1, Math.ceil(config.rules.length / RULES_PER_PAGE));
   let page = 0;
+  let selectedIndex = 0;
   while (true) {
     const visibleRules = config.rules.slice(page * RULES_PER_PAGE, (page + 1) * RULES_PER_PAGE);
     const labels = uniqueRuleLabels(visibleRules);
@@ -136,30 +138,32 @@ export async function runHarnessMenu(
     ];
     const actions = ["Create or update rule", ...(hasDiagnostics(config) ? ["View diagnostics"] : []), "Close"];
     const title = pageCount > 1 ? `Harness rules · page ${page + 1}/${pageCount} · ${config.rules.length} rules` : "Harness rules";
-    const choice = await ui.select(title, [...labels, ...navigation, ...actions]);
+    const choice = await selectMenu(managementUI(ui, mode), title, [...labels, ...navigation, ...actions], selectedIndex);
     if (!choice || choice === "Close") return;
     if (choice === "Next page") {
       page = Math.min(page + 1, pageCount - 1);
+      selectedIndex = 0;
       continue;
     }
     if (choice === "Previous page") {
       page = Math.max(page - 1, 0);
+      selectedIndex = 0;
       continue;
     }
     if (choice === "View diagnostics") {
-      await showDetailPages(ui, "Harness diagnostics", diagnosticsText(config), ["Close"], "warning");
-      return;
+      await showDetailPages(managementUI(ui, mode), "Harness diagnostics", diagnosticsText(config), ["Close"], "warning");
+      continue;
     }
     if (choice === "Create or update rule") {
       await requestRule(ui, onRequest);
       return;
     }
-    const selectedIndex = labels.indexOf(choice);
-    if (selectedIndex < 0) return;
-    const selected = visibleRules[selectedIndex];
+    const ruleIndex = labels.indexOf(choice);
+    if (ruleIndex < 0) return;
+    const selected = visibleRules[ruleIndex];
     if (!selected) return;
-    const next = await showDetailPages(ui, `Harness rule: ${label(selected.id)}`, ruleDetails(selected, paths), ["Create or update rule", "Close"]);
-    if (next === "Create or update rule") await requestRule(ui, onRequest);
-    return;
+    selectedIndex = labels.indexOf(choice);
+    const next = await showDetailPages(managementUI(ui, mode), `Harness rule: ${label(selected.id)}`, ruleDetails(selected, paths), ["Close", "Create or update rule"]);
+    if (next === "Create or update rule") { await requestRule(ui, onRequest); return; }
   }
 }

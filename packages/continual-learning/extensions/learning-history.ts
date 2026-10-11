@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { constants } from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
@@ -11,11 +12,24 @@ import type { LearningSurface } from "./learning-controls";
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_HISTORY_BYTES = 32 * 1024 * 1024;
 const ID = /^change_[a-z0-9]+_[a-f0-9]{16}$/;
+const BATCH_ID = /^batch_[a-f0-9]{32}$/;
+const learningBatch = new AsyncLocalStorage<string>();
+
+export function currentLearningBatch(): string | undefined {
+  return learningBatch.getStore();
+}
+
+/** Presentation identity only; undo remains bound to one validated change. */
+export function withLearningBatch<T>(work: () => Promise<T>): Promise<T> {
+  return learningBatch.run(`batch_${randomBytes(16).toString("hex")}`, work);
+}
+
 type Target = { root: "private" | "public" | "project"; name: string };
 type FileState = { bytes: string; mode: number; digest: string } | null;
 interface Change { target: Target; before: FileState; after: FileState }
 export interface LearningHistory {
   version: 1;
+  batchId?: string;
   id: string;
   cwd: string;
   agentDir: string;
@@ -121,7 +135,7 @@ async function newRecord(cwd: string, phase: LearningSurface, status: LearningHi
   // Stabilize canonical spelling before binding a first record to its scope.
   await fs.mkdir(resolveMemoryPaths(cwd).agentDir, { recursive: true, mode: 0o700 });
   const paths = resolveMemoryPaths(cwd);
-  return { version: 1, id: `change_${Date.now().toString(36)}_${randomBytes(8).toString("hex")}`, cwd: paths.cwd, agentDir: paths.agentDir, phase, createdAt: new Date().toISOString(), status, changes: [] };
+  return { version: 1, ...(currentLearningBatch() ? { batchId: currentLearningBatch() } : {}), id: `change_${Date.now().toString(36)}_${randomBytes(8).toString("hex")}`, cwd: paths.cwd, agentDir: paths.agentDir, phase, createdAt: new Date().toISOString(), status, changes: [] };
 }
 
 function assertNoSensitiveHistory(value: unknown, depth = 0): void {
@@ -229,6 +243,7 @@ export async function readLearningHistory(cwd: string, id: string): Promise<Lear
   const record = raw as LearningHistory;
   const paths = resolveMemoryPaths(cwd);
   if (record.version !== 1 || record.id !== id || record.cwd !== paths.cwd || record.agentDir !== paths.agentDir || !["memory", "harness", "agents"].includes(record.phase) || !["pending", "applied", "proposed", "undoing", "undone", "abandoned"].includes(record.status) || !Array.isArray(record.changes) || record.changes.length > 8194) throw new Error("Invalid or foreign history record");
+  if (record.batchId !== undefined && (typeof record.batchId !== "string" || !BATCH_ID.test(record.batchId))) throw new Error("Invalid history batch identity");
   const seen = new Set<string>();
   for (const change of record.changes) {
     if (!change || !validState(change.before) || !validState(change.after)) throw new Error("Invalid history bytes");

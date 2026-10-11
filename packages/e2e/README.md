@@ -167,7 +167,7 @@ below the confidence gate to a person.
 
 MIT
 
-Default tool results show complete wrapped reports and errors, without ctrl+o or clipping. Checkpoints use the shared `[e2e] continue` row; unresolved normal settlement uses `[e2e] waiting`. User cancellation adds neither a continuation nor a generic acceptance warning. See [TUI cases](TUI.zh-CN.md).
+Status rows contain only `[e2e] running`, `[e2e] passed`, `[e2e] needs review`, `[e2e] failed`, `[e2e] error`, `[e2e] continue`, or `[e2e] waiting`, without a separator or subject. Native tools update the current execution phase; their body puts evidence origin and feature acceptance counts before complete wrapped clause lists, with failures first. Provider blockers include their actual diagnostic and a recovery action. Supplied-evidence passes use `needs review` while the machine verdict remains `fulfilled`. `/e2e` uses the same persistent result renderer and does not start an agent turn. Waiting names remaining work, the continuation stopping reason, and the next action. Full diagnostics remain visible without ctrl+o or clipping. User cancellation adds neither a continuation nor a generic acceptance warning. See [TUI cases](TUI.zh-CN.md).
 
 ### Project observation producers
 
@@ -184,9 +184,12 @@ The tool judges one scenario per call. Checkpoints list the remaining scenario
 names; whole-feature acceptance requires all of them. A verified fulfilled tool
 report completes acceptance without a duplicate success notification. Evidence
 gaps request observations/checks; behavioral failures request implementation
-repairs. Plain `pwd` and restricted `git status` calls do not invalidate proof,
-while unknown shell commands remain conservatively invalidating. File and
-adapter drift checks still run at settlement.
+repairs. Simple `pwd`, `ls`, `cat`, `rg`, and restricted `git status` inspection
+commands preserve acceptance. Unknown shell programs still conservatively withdraw
+it because existing adapters may omit imported application inputs. Settlement
+additionally checks feature and declared adapter fingerprints. Declare implementation
+and test inputs in `adapterFiles`; direct Pi file edits to an involved feature
+package still withdraw acceptance immediately.
 
 ### Complete Goal contract coverage
 
@@ -221,3 +224,21 @@ Every scenario runs the configured project adapter and must be fulfilled with
 fresh proof and zero model questions. The final feature checkpoint must clear.
 Runs do not reuse receipts. Native CLI/TUI acceptance uses a scripted provider;
 these results do not establish real-model decision quality.
+
+### Verification planning
+
+The capability note requests early focused verification through the authorized
+`.e2e/runner.json`, leaving time for repairs and a fresh retry. The tool executes
+tests itself: avoid running the same suite separately immediately before it.
+If the suite cannot fit the budget, report the blocker rather than weakening
+coverage. A started or interrupted call is not completed verification; report
+covered scenarios and remaining requirements separately.
+
+Execution opt-outs are scoped to testing directives, not behavior-preservation
+constraints such as "do not change behavior merely to make tests pass". Later
+explicit execution directives take precedence within a request. This bounded
+intent heuristic is not a general natural-language authorization parser.
+
+Fresh runner evidence with unmet checks includes bounded adapter diagnostics for repair; the diagnostics do not change acceptance status.
+
+Verification planning maps every public requirement to observable checks, labels uncovered behavior, and stops repeated checks without new evidence. After repairs, verify the final changed code again. Passing a regression command alone does not establish complete task acceptance.

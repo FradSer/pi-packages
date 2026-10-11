@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 from urllib.parse import urlsplit
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -120,10 +121,14 @@ class InferenceProxy:
     """Transparent streaming transport, not a provider fixture or model stub."""
 
     def __init__(self, config_root: Path, *, jev_key: str | None = None, request_budget: int = 180,
-                 selection: dict[str, str] | None = None) -> None:
+                 selection: dict[str, str] | None = None, jev_transport: str = "python-http") -> None:
+        if jev_transport not in ("python-http", "bun-fetch"):
+            raise ValueError("Unknown Jev transport")
+        self.jev_transport = jev_transport
         self.request_budget = request_budget
         self.jev_requests = 0
         self.jev_usage: list[dict] = []
+        self.jev_observations: list[dict] = []
         self.jev_key = jev_key
         self.selection = dict(selection) if selection is not None else json.loads((config_root / "memory.json").read_text())
         provider = json.loads((config_root / "models.json").read_text())["providers"][self.selection["provider"]]
@@ -139,7 +144,7 @@ class InferenceProxy:
         self.jev_slots = threading.BoundedSemaphore(12)
         self.requests = 0
         self.errors = 0
-        self.counter_lock = threading.Lock()
+        self.counter_lock = threading.RLock()
         selected_model = next(model for model in provider["models"] if model["id"] == self.selection["model"])
         self.model = {name: value for name, value in selected_model.items()
                       if name in {"id", "name", "api", "contextWindow", "maxTokens", "input", "cost", "reasoning", "compat", "thinkingLevelMap"}}
@@ -179,18 +184,66 @@ class InferenceProxy:
                 slots = owner.jev_slots if is_jev else owner.slots
                 if not slots.acquire(timeout=5):
                     with owner.counter_lock:
-                        owner.errors += 1
+                        owner.record_error()
                     self.send_error(429)
                     return
                 connection: http.client.HTTPConnection | None = None
+                started = time.monotonic()
+                observation = None
+                if is_jev:
+                    observation = {'wireHash': hashlib.sha256(body).hexdigest(), 'wireBytes': len(body), 'status': 'running'}
+                    with owner.counter_lock:
+                        if len(owner.jev_observations) < owner.request_budget:
+                            owner.jev_observations.append(observation)
                 try:
                     with owner.counter_lock:
                         if owner.requests >= owner.request_budget:
+                            if observation is not None:
+                                observation['status'] = 'budget-exhausted'
                             self.send_error(429, "Experiment request budget exhausted")
                             return
                         owner.requests += 1
                         if is_jev:
                             owner.jev_requests += 1
+                    if is_jev and owner.jev_transport == "bun-fetch":
+                        if len(body) > 64000:
+                            self.send_error(413)
+                            return
+                        forward_env = {key: value for key, value in os.environ.items() if key in
+                                       ("PATH", "HOME", "SSL_CERT_FILE", "SSL_CERT_DIR", "HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "NO_PROXY")}
+                        forward_env["TYPESAFE_API_KEY"] = owner.jev_key
+                        forwarded = subprocess.run([shutil.which("bun") or "bun", str(Path(__file__).with_name("jev-http-forward.mjs"))],
+                                                   input=body, env=forward_env, capture_output=True, timeout=35)
+                        if forwarded.returncode:
+                            observation['status'] = 'forwarder-error'
+                            raise OSError("Host Jev forwarder failed")
+                        value = json.loads(forwarded.stdout)
+                        if value.get("transportFailure") in ("connection-timeout", "connection-reset", "connection-closed", "connection-refused",
+                                                              "dns-failure", "request-timeout", "aborted", "transport-unavailable"):
+                            observation['status'] = 'forwarder-error'
+                            observation['failureCategory'] = value['transportFailure']
+                            raise OSError("Host Jev transport failed")
+                        if type(value.get("status")) is not int or not 200 <= value["status"] <= 599 or not isinstance(value.get("body"), str):
+                            raise ValueError("Invalid forwarding response")
+                        observation['durationMs'] = round((time.monotonic() - started) * 1000)
+                        observation['httpStatus'] = value['status']
+                        observation['status'] = 'completed' if value['status'] < 400 else 'http-error'
+                        data = value["body"].encode()
+                        if len(data) > 2 * 1024 * 1024:
+                            raise ValueError("Oversized forwarding response")
+                        if value["status"] < 400:
+                            owner.record_jev_usage(data)
+                        else:
+                            owner.record_error()
+                            data = data.replace(owner.key.encode(), b"[redacted]").replace(owner.jev_key.encode(), b"[redacted]")
+                        self.send_response(value["status"])
+                        self.send_header("Content-Type", "application/json")
+                        self.send_header("Content-Length", str(len(data)))
+                        self.send_header("Connection", "close")
+                        self.end_headers()
+                        self.close_connection = True
+                        self.wfile.write(data)
+                        return
                     upstream = urlsplit("https://api.typesafe.ai") if is_jev else owner.upstream
                     connection_type = http.client.HTTPSConnection if upstream.scheme == "https" else http.client.HTTPConnection
                     connection = connection_type(upstream.hostname, upstream.port, timeout=300)
@@ -198,12 +251,16 @@ class InferenceProxy:
                     connection.request("POST", endpoint, body, headers={**({} if is_jev else owner.headers),
                         "Authorization": f"Bearer {owner.jev_key if is_jev else owner.key}", "Content-Type": "application/json"})
                     response = connection.getresponse()
+                    if observation is not None:
+                        observation['durationMs'] = round((time.monotonic() - started) * 1000)
+                        observation['httpStatus'] = response.status
+                        observation['status'] = 'receiving' if response.status < 400 else 'http-error'
                     self.send_response(response.status)
                     self.send_header("Content-Type", response.getheader("Content-Type", "application/json"))
                     self.send_header("Connection", "close")
                     self.end_headers()
                     if response.status >= 400:
-                        owner.errors += 1
+                        owner.record_error()
                         self.wfile.write(response.read(65536).replace(owner.key.encode(), b"[redacted]").replace((owner.jev_key or owner.key).encode(), b"[redacted]"))
                     else:
                         jev_body = bytearray()
@@ -212,6 +269,8 @@ class InferenceProxy:
                                 jev_body.extend(block)
                             self.wfile.write(block)
                             self.wfile.flush()
+                        if observation is not None:
+                            observation['status'] = 'completed'
                         if is_jev:
                             try:
                                 answer = json.loads(jev_body)
@@ -221,10 +280,19 @@ class InferenceProxy:
                                         owner.jev_usage.append({"model": "jev-1.13.0", **{k: usage[k] for k in ("input_tokens", "output_tokens")}})
                             except (ValueError, TypeError, AttributeError):
                                 pass
-                except (OSError, http.client.HTTPException):
-                    owner.errors += 1
+                except (OSError, http.client.HTTPException, ValueError, subprocess.SubprocessError) as error:
+                    if observation is not None:
+                        if isinstance(error, (BrokenPipeError, ConnectionResetError)):
+                            observation['status'] = 'client-disconnected'
+                        elif isinstance(error, subprocess.TimeoutExpired):
+                            observation['status'] = 'forwarder-timeout'
+                        elif observation['status'] in ('running', 'receiving'):
+                            observation['status'] = 'transport-error'
+                    owner.record_error()
                     self.close_connection = True
                 finally:
+                    if observation is not None:
+                        observation['durationMs'] = round((time.monotonic() - started) * 1000)
                     if connection:
                         connection.close()
                     slots.release()
@@ -241,6 +309,20 @@ class InferenceProxy:
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=5)
+
+    def record_error(self) -> None:
+        with self.counter_lock:
+            self.errors += 1
+
+    def record_jev_usage(self, data: bytes) -> None:
+        try:
+            answer = json.loads(data)
+            usage = answer.get("usage", {})
+            if answer.get("model") == "jev-1.13.0" and all(type(usage.get(k)) is int and usage[k] >= 0 for k in ("input_tokens", "output_tokens")):
+                with self.counter_lock:
+                    self.jev_usage.append({"model": "jev-1.13.0", **{k: usage[k] for k in ("input_tokens", "output_tokens")}})
+        except (ValueError, TypeError, AttributeError):
+            pass
 
     def jev_environment(self) -> dict[str, str]:
         if not self.jev_key:

@@ -40,7 +40,7 @@ def test_preservation_failure_and_evidence_tamper_prevent_all_subset_writes() ->
         assert value['registryReceipt']['operations'] == 0
         assert 'tools.md' not in value['privateFiles'] and 'license.md' not in value['publicFiles']
         assert any(a['outcome'] == 'failed' for a in value['registryReceipt']['attempts'])
-        assert value['summarySubject'] == 'finished with issues'
+        assert value['summarySubject'] == 'finished with issues: memory failed'
         assert not value['lock']
 
 
@@ -53,7 +53,7 @@ def test_final_validator_failure_rolls_back_written_subset_and_preserves_origina
     assert not ({'tools.md', 'license.md', 'cache.md'} & set(value['publicFiles']))
     assert value['newAppliedHistoryRecords'] == 0
     assert any(r.get('proposal', {}).get('kind') == 'independent-memory-review' for r in value['history'])
-    assert value['summarySubject'] == 'finished with issues' and not value['lock']
+    assert value['summarySubject'] == 'finished with issues: memory failed' and not value['lock']
 
 
 def test_composed_parent_recovers_only_supported_records_and_preserves_full_proposal() -> None:

@@ -32,8 +32,9 @@ or any `skill`/`text` instruction, supplies scoped guidance alongside the real
 context and is not proof of compliance. Memory is for untrusted knowledge and
 AGENTS.md is for concise always-loaded project guidance, so route those outcomes
 to their own planner instead of duplicating them here. Keep manual, built-in,
-personal, disabled, invalid, and legacy declarations protected; automatic
-learning cannot replace, weaken, or re-enable them.
+personal, invalid, and legacy declarations protected. Existing automatically learned
+project rules may be corrected or retired only through the reviewed correction
+contract below; disabled rules cannot be silently re-enabled.
 
 Every operation needs `evidence` entries:
 `{"index":0,"source":"user","quote":"exact content","count":1}`.
@@ -56,7 +57,8 @@ verification surface never authorizes editing it.
 
 ## Flat rule protocol
 
-An operation is exactly `{"op":"addRule"|"updateRule","rule":{...},"cases":{...}}`.
+An ordinary operation is exactly `{"op":"addRule"|"updateRule","rule":{...},"cases":{...}}`.
+An owned `updateRule` correction additionally carries `correction` as specified below.
 The complete rule carries a stable, non-empty `id` (at most 128 chars), optional
 `enabled`, and exactly one selector:
 
@@ -94,7 +96,8 @@ The complete rule carries a stable, non-empty `id` (at most 128 chars), optional
   prints text without executing git. Include such quoted operator-and-argument
   strings as negative cases, rather than treating a semicolon or pipe as proof of
   an invocation. A broader unproved matcher must not add false restrictions;
-  existing rules must not be weakened to pass these examples.
+  existing rules must not be weakened merely to pass these examples. An explicit
+  durable user correction requires the separate reviewed correction contract.
   The bare-command example does not establish whole-family coverage. Git permits
   global options before its subcommand. For a cited project-wide push-family
   prohibition, retain same-project positive cases such as `git -C . push --dry-run`,
@@ -162,10 +165,11 @@ Automatic additions cannot reuse an id from any layer or entrypoint, including
 disabled/invalid declarations and the supplied reservedLegacyNames. Updates require a single project-owned entry
 whose current revision matches parent-owned `learnedRules` provenance. Never
 write that metadata. Manual, built-in, global and personal declarations are
-protected. Updates preserve selector bytes and enabled state; only guidance
+protected. Ordinary updates preserve selector bytes and enabled state; only guidance
 revision or stronger Bash action is allowed. Selector changes, disabling,
-re-enabling, weaker execution conditions, and unknown ownership require an
-explicit `/harness` decision, even if a quote appears to authorize them.
+re-enabling and weaker execution conditions require the exact reviewed correction
+contract below. Unknown ownership always requires an explicit `/harness` decision;
+a quote alone never substitutes for provenance or semantic approval.
 Propose each id once per plan.
 
 ## Result
@@ -226,3 +230,24 @@ For a no-op, omit report entirely: the parent receipt already records that no
 rule changed. For non-empty operations only, an optional report must use the
 object-shaped summary protocol above. A plan states intent,
 never proof that changes were applied, guidance was delivered, or commands ran.
+
+
+## Correcting and retiring automatically learned rules
+
+Current explicit user corrections may change an owned learned rule's selector,
+action or lasting permission boundary. Use updateRule with the complete new
+rule and correction: {eventIndex, quote, priorRevision}. quote must be verbatim
+current user text authorizing this change; priorRevision is the exact value in
+the parent-supplied learnedRules. A tool failure or assistant suggestion cannot
+authorize permission changes. Do not turn a temporary exception into retirement.
+The parent supplies the complete predecessor to semantic review; uncertainty
+keeps a proposal. Never change manual, edited, other-layer or built-in rules.
+
+To retire an owned rule, keep its id and complete selector/body, set enabled:false,
+and supply the same correction fields. This is a retained disabled revision,
+not deletion. Positive cases exercise the former selector and must now execute
+(for Bash); negatives remain outside that selector. A selector correction must
+include a negative regression case previously caught by the mistaken selector,
+plus positive cases for the remaining required restriction. Current explicit
+corrections take precedence over contradictory older policy; do not keep both
+as competing active rules. Exact semantic approval is required before apply.

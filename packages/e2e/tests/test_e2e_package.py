@@ -568,7 +568,7 @@ def test_changed_feature_starts_a_bounded_truthful_acceptance_checkpoint() -> No
         "secondContinue": True,
         "thirdContinue": None,
         "notification": {
-            "message": "[e2e] waiting · 1 feature(s) need verification",
+            "message": "[e2e] waiting\nFeature: apps/shop/features/checkout.feature\nAutomatic continuation allowance exhausted.\nNext: run the remaining scenarios with the configured e2e_verify runner; report a blocker if tests cannot run.",
             "level": "warning",
         },
     }

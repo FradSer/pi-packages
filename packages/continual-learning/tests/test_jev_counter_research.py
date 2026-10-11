@@ -22,7 +22,7 @@ def test_counter_research_changes_only_counter_question_and_preserves_all_holds(
         }});
         outcomes.push({mode,result:await judge.validate('harness',row.snapshot,row.plan.operations,[],undefined,row.plan.evidence),sent});
       }
-      console.log(JSON.stringify(outcomes));
+      process.stdout.write(JSON.stringify(outcomes));
     ''')
     for row in value:
         assert row['result']['decision'] == ('allow' if row['mode'] == 'supported' else 'propose')

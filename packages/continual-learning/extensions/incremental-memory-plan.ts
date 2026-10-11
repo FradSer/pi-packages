@@ -7,6 +7,7 @@ import {
   MAX_MEMORY_BYTES,
   MAX_SNAPSHOT_BYTES,
   normalizeNewMemoryProposals,
+  normalizeSnapshotEvidence,
   parseMemoryIndexLine,
   sha256Digest,
   validatePlanIdentity,
@@ -39,6 +40,7 @@ export interface IncrementalMemoryOperation {
   verdict?: IncrementalDeleteVerdict;
   preservedIn?: string[];
   observations?: RepositoryObservation[];
+  evidence?: IncrementalNewMemoryEvidence[];
 }
 
 export interface IncrementalNewMemoryEvidence {
@@ -256,6 +258,7 @@ async function normalizeOperations(
   selected: readonly string[],
   classifications: ReadonlyMap<string, IncrementalMemoryClassification>,
   repoRoot: string,
+  snapshot?: unknown,
 ): Promise<IncrementalMemoryOperation[]> {
   if (!Array.isArray(raw)) throw new Error("Incremental Memory delta has invalid operations");
   const selectedByKey = new Map(selected.map((name) => [name.toLowerCase(), name]));
@@ -265,7 +268,7 @@ async function normalizeOperations(
     const value = raw[index];
     assertRecord(value, `operations[${index}]`);
     assertExactKeys(value, [
-      "name", "kind", "classification", "content", "contentSha256", "verdict", "preservedIn", "observations",
+      "name", "kind", "classification", "content", "contentSha256", "verdict", "preservedIn", "observations", "evidence",
     ], `operations[${index}]`);
     const name = value.name;
     if (typeof name !== "string" || !isMemoryFilename(name)) throw new Error(`operations[${index}].name is invalid`);
@@ -318,6 +321,7 @@ async function normalizeOperations(
       } : { content: value.content as string }),
       ...(typeof value.contentSha256 === "string" ? { contentSha256: value.contentSha256 } : {}),
       ...(observations.length > 0 ? { observations } : {}),
+      ...(value.evidence !== undefined ? { evidence: normalizeSnapshotEvidence(value.evidence, snapshot) } : {}),
     });
   }
   await validateDeletePreservation(operations, repoRoot);
@@ -351,13 +355,7 @@ async function validateDeletePreservation(operations: readonly IncrementalMemory
   }
 }
 
-async function normalizeNewMemories(
-  value: unknown,
-  selected: readonly string[],
-  run: ConsolidationRun,
-): Promise<NewMemoryProposal[]> {
-  if (!Array.isArray(value)) throw new Error("Incremental Memory delta newMemories must be an array");
-  if (value.length === 0) return [];
+async function incrementalSnapshot(run: ConsolidationRun): Promise<unknown> {
   const snapshotFile = run.paths.snapshotFile || run.manifest.snapshotPath;
   const snapshotBytes = await readBoundedRegularFile(snapshotFile, MAX_SNAPSHOT_BYTES, "Incremental Memory snapshot");
   if (sha256Digest(snapshotBytes) !== run.manifest.snapshotDigest) {
@@ -377,7 +375,13 @@ async function normalizeNewMemories(
   ) {
     throw new Error("Incremental Memory snapshot identity does not match the consolidation run");
   }
-  return normalizeNewMemoryProposals({ newMemories: value }, snapshot, selected);
+  return snapshot;
+}
+
+async function normalizeNewMemories(value: unknown, selected: readonly string[], run: ConsolidationRun): Promise<NewMemoryProposal[]> {
+  if (!Array.isArray(value)) throw new Error("Incremental Memory delta newMemories must be an array");
+  if (value.length === 0) return [];
+  return normalizeNewMemoryProposals({ newMemories: value }, await incrementalSnapshot(run), selected);
 }
 
 function groundingReason(name: string): string {
@@ -399,7 +403,9 @@ export async function expandIncrementalMemoryPlan(
   const selected = assertSelectedNames(selectedNames);
   const delta = validateDeltaIdentity(run, deltaPlan);
   const classifications = await readPrivateClassifications(run.manifest.harnessDir, selected);
-  const operations = await normalizeOperations(delta.operations, selected, classifications, run.manifest.cwd);
+  const snapshot = Array.isArray(delta.operations) && delta.operations.some(value => value && typeof value === "object" && "evidence" in value)
+    ? await incrementalSnapshot(run) : undefined;
+  const operations = await normalizeOperations(delta.operations, selected, classifications, run.manifest.cwd, snapshot);
   const newMemories = await normalizeNewMemories(delta.newMemories, selected, run);
   const operationByName = new Map(operations.map((operation) => [operation.name.toLowerCase(), operation]));
   const inventory = selected.map((name) => ({ name, classification: classifications.get(name.toLowerCase())! }));

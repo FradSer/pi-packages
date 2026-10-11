@@ -18,10 +18,10 @@ def test_shutdown_during_preparation_never_starts_a_worker() -> None:
     assert result["selectors"] == 0 and result["lock"] is False, result
 
 
-def test_shutdown_during_zero_screen_receipt_never_queues_a_task() -> None:
+def test_shutdown_during_zero_screen_receipt_retains_prequeued_recovery_reference() -> None:
     result = run_bun_script(PREPARATION, "shutdown-zero-receipt")
     assert result["selectors"] == 0 and result["reported"] == 0, result
-    assert result["backlog"]["pending"] == 0 and result["lock"] is False, result
+    assert result["backlog"]["pending"] == 1 and result["lock"] is False, result
 
 
 def test_shutdown_during_selector_receipt_never_reports_a_result() -> None:

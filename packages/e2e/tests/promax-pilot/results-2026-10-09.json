@@ -1,0 +1,147 @@
+{
+  "status": "finished_with_unscored_pair",
+  "protocol": {
+    "dataset": "swe-bench-promax/SWE-Bench-ProMax",
+    "datasetRevision": "014a4113c86327beacee3b85e567d32afd56ba56",
+    "model": "cli-proxy/opencode/deepseek-v4.1-flash",
+    "thinking": "high",
+    "piVersion": "1.0.4",
+    "treatmentExtensions": [
+      "@fradser/pi-e2e"
+    ],
+    "baselineExtensions": [],
+    "secondsPerAttempt": 1200,
+    "requestsPerAttempt": 80,
+    "seed": "pi-e2e-promax-pilot-v1",
+    "finalSample": "runs/2026-10-09/sample-v5-private.json",
+    "initialSample": "runs/2026-10-09/sample-initial-reconstructed-private.json",
+    "initialSampleNote": "Reconstructed original selection from unchanged frozen dataset and sampling seed; substitutions preserve old task IDs."
+  },
+  "counts": {
+    "plannedTasks": 8,
+    "completedPairs": 7,
+    "baselinePassed": 3,
+    "e2ePassed": 5,
+    "e2eOnlyPassed": 2,
+    "baselineOnlyPassed": 0,
+    "pairedTreatmentsWithVerification": 3,
+    "pairedTreatmentsWithCompletedFreshVerification": 2,
+    "verificationCallsStarted": 4,
+    "freshVerificationCallsCompleted": 3
+  },
+  "attempts": {
+    "completedValidModelArms": 16,
+    "invalidResourceOrLostWorkerArms": 2,
+    "invalidCapacityStartupArms": 1,
+    "invalidZeroInferenceProxyStartups": 2,
+    "note": "Invalid attempts retained and excluded; lost worker request totals are lower bounds, complete usage unknown."
+  },
+  "tasks": [
+    {
+      "instance_id": "stanfordnlp__dspy-8105",
+      "language": "python",
+      "baseline": "passed",
+      "e2e": "passed",
+      "treatmentVerificationCalls": 2,
+      "treatmentVerifiedRuns": [
+        true,
+        true
+      ]
+    },
+    {
+      "instance_id": "huggingface__transformers-38332",
+      "language": "python",
+      "baseline": "infrastructure_blocked",
+      "e2e": "failed",
+      "treatmentVerificationCalls": 0,
+      "treatmentVerifiedRuns": []
+    },
+    {
+      "instance_id": "ant-design__ant-design-53739",
+      "language": "typescript",
+      "baseline": "failed",
+      "e2e": "passed",
+      "treatmentVerificationCalls": 0,
+      "treatmentVerifiedRuns": []
+    },
+    {
+      "instance_id": "ant-design__ant-design-54813",
+      "language": "typescript",
+      "baseline": "failed",
+      "e2e": "failed",
+      "treatmentVerificationCalls": 1,
+      "treatmentVerifiedRuns": []
+    },
+    {
+      "instance_id": "samber__lo-739",
+      "language": "go",
+      "baseline": "passed",
+      "e2e": "passed",
+      "treatmentVerificationCalls": 1,
+      "treatmentVerifiedRuns": [
+        true
+      ]
+    },
+    {
+      "instance_id": "go-gitea__gitea-35775",
+      "language": "go",
+      "baseline": "failed",
+      "e2e": "failed",
+      "treatmentVerificationCalls": 0,
+      "treatmentVerifiedRuns": []
+    },
+    {
+      "instance_id": "qdrant__qdrant-c_83bb3a3",
+      "language": "rust",
+      "baseline": "passed",
+      "e2e": "passed",
+      "treatmentVerificationCalls": 0,
+      "treatmentVerifiedRuns": []
+    },
+    {
+      "instance_id": "astral-sh__ruff-19884",
+      "language": "rust",
+      "baseline": "failed",
+      "e2e": "passed",
+      "treatmentVerificationCalls": 0,
+      "treatmentVerifiedRuns": []
+    }
+  ],
+  "interpretation": "Independent strict grading: baseline 3/7, E2E 5/7; exploratory assignment observation, not demonstrated general correctness improvement. Actual verification calls and scoring limitations must be examined separately.",
+  "limitations": [
+    "Eight-task exploratory pilot cannot establish small general gains.",
+    "Linux/amd64 task images run under emulation on an arm64 Docker host.",
+    "Public command evidence measures regression-suite execution, not full requirement coverage.",
+    "Offline deterministic E2E evaluation does not measure Jev judgment quality.",
+    "Sharedprompt negativeconstraint suppresses requestedverification checkpoint; probe retained, no causal attribution of skippedtoolcalls.",
+    "Oldcollector on earlyworkers lacksretainedbaselineIDs/stderr; auditedtraces noobservedGitcommit/index mutations; latercollector hostbaseline/independentindex verified.",
+    "Environment substitutions reducedTypeScript repository diversity; Angular92 failedconservativecapacitybudget, notactualpullfailure.",
+    "Transformers repeatedbaseline samepatch gradingtimeout: partialimporterror observed, laterhangcause unknown; pairunscored.",
+    "Ruff wholepublicsuite31-32min controls vs8minadapter: verificationfeasibilitylimit.",
+    "Both last-task arms pass 66 selected functional tests but strict official grade fails absent style-class demo; public statement does not explicitly require that named artifact. Retain strict grade and disclose public/hidden scope mismatch.",
+    "Recovery changed final valid arm order to baseline then E2E; same per-valid-attempt budget, unequal total inference consumption including invalid attempts.",
+    "A subsequent worker and temporary directory disappeared after turn interruption, cause unknown; only 6-request 1001.6-second heartbeat remains. No final patch or tool trace, excluded. Non-deleting archive left stale previous-attempt files, explicitly labeled in lost-worker receipt."
+  ],
+  "evidence": "runs/2026-10-09/cohort/summary.json",
+  "verification": {
+    "e2ePackageTests": 130,
+    "pilotTests": 23,
+    "typecheck": "passed",
+    "packDryRun": "passed",
+    "freshReadOnlyReview": "Approved bounded final patch/report evidence-integrity review; no remaining blocking findings. Receipt runs/2026-10-09/final-readonly-review.json.",
+    "finalChecks": "runs/2026-10-09/final-verification.json"
+  },
+  "historicalResourceBlocker": "runs/2026-10-09/resource-blocker.json",
+  "cacheCleanup": {
+    "authorizedIDs": 122,
+    "releasedGiB": 4.319245128892362,
+    "evidence": "runs/2026-10-09/approved-cache-cleanup-summary.json"
+  },
+  "lastTaskTreatmentVerification": {
+    "started": 1,
+    "completed": 0,
+    "outcome": "unknown: attempt deadline interrupted running project tests"
+  },
+  "lastTaskBaselineDiagnostic": "runs/2026-10-09/button/ant-design__ant-design-54813/baseline/grading-diagnostic.json",
+  "lastTaskTreatmentDiagnostic": "runs/2026-10-09/button/ant-design__ant-design-54813/e2e/grading-diagnostic.json"
+}

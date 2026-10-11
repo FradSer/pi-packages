@@ -42,8 +42,17 @@ pi install npm:pi-continual-learning
 
 The `/memory` panel has three top-level entries: **Browse memories**, **Learning
 settings**, and **Recent learning**. Phase policies are under **Advanced** in
-Learning settings. A history item opens its preview and its **Undo** action;
-headless undo still requires the exact id and `--yes`.
+Learning settings. Lists scroll with keyboard focus; history targets precede
+compact dates. Readers preserve the logical text position when resized and
+default to Close. Settings and policies return to their direct parent with
+selection retained; closing a detail returns to
+its previous list position. The native reader supports Up/Down and Page Up/Down
+without copying document bodies into the chat. History lists show numbered dates,
+phases, targets and outcomes. A history item opens its preview and its **Undo** action;
+headless undo still requires the exact id and `--yes`. Policy menus show effective
+values and explain that they control automatic phases; explicit consolidation uses
+validated plans and still honors AGENTS.md disablement. Existing Memory retrieval
+continues when automatic learning is off. RPC hosts retain native select dialogs.
 
 An explicit `/memory <request>` asks the parent to retain the user's request as
 Memory. It can be used while automatic learning is off, and it changes only the
@@ -77,7 +86,7 @@ surface. Older forms remain available for scripts and recovery:
 | `/memory history [change-id]` | List private learning history or inspect one record |
 | `/memory undo <change-id> [--yes]` | Restore one applied change after preview and conflict checks; headless use requires `--yes` |
 | `/memory evaluate <suite.json>` | Compare supplied baseline and candidate rules without model calls |
-| `/consolidate backfill` | Report skipped-task references and unavailable evidence; it does not replay history or call a model |
+| `/consolidate backfill` | Retry up to three eligible source-verified learning references; retain failures and costs without repeating task tools |
 
 `/harness` compatibility flags remain accepted: `--local`/`-l` and
 `--project-local` select project personal configuration; `--shared`,
@@ -219,6 +228,11 @@ actual trigger verification, and unverified behavior separately.
 
 ### Transcript display
 
+Harness authoring starts with one `[harness] started · <request>` row; the full
+procedure stays in model context. Failed and incomplete events use error and warning
+tones. Learning receipts retain failed/rejected/cancelled phases beside applied
+changes, so a partial success never appears as an unqualified success.
+
 Expanded policy rows keep the policy, action, outcome, tool, source and file;
 check rows keep their phase, policy and artifact path. Reasons already shown in
 the title and check statuses already shown in its label are not repeated as
@@ -293,7 +307,9 @@ auto-memory off stops learning without disabling Memory retrieval. Receipts coun
 every selector/planner attempt, applied operations, duration, input/output tokens,
 cache reads/writes, and provider cost availability.
 Selector failures also retain a parent-generated diagnostic in the attempt;
-raw model output and worker stderr are not copied into that diagnostic.
+raw model output and worker stderr are not copied into that diagnostic. A rejected
+selector response is retained separately in its private run directory, bounded to
+64,000 characters with the frozen context digest and a truncation flag.
 
 An explicit `/consolidate` always reaches selection, including tasks without
 automatic-screen keywords. Explicit continuation prompts retain the original
@@ -310,9 +326,33 @@ evidence, so it starts no planner.
 
 The zero-token screen is an opportunity filter, not a completeness claim. It
 can miss a lesson; when it starts no pipeline, the parent may store a bounded
-backlog reference to the settled session slice. `/consolidate backfill` currently
-reports pointer status only. It does not drain or replay those tasks
-automatically, and a missing session file is reported as unlearnable.
+backlog reference to the settled session slice. Failed learning also stays pending.
+`/consolidate backfill` retries up to three eligible, source-verified references;
+auto-learning can recover one eligible reference after a normal attempt. It never
+repeats task tools. Individual acknowledgments preserve failed siblings, project
+leases prevent duplicate concurrent learning, and attempt ledgers retain failures
+and known usage. Automatic retries stop after three attempts with backoff; explicit
+backfill still has a finite attempt cap. Missing or changed source stays unresolved.
+An interrupted provider call without returned usage has unknown cost, not zero cost.
+A latest phase with pending candidates cannot acknowledge its task as learned,
+even if other candidates applied or that phase returned noop. Summaries warn and
+show the latest unresolved count; a later completed phase supersedes its earlier
+pending disposition. Source-verified backfill with an empty index uses the same
+parent routing for explicit durable evidence as automatic learning, preserving all
+mutation validation and semantic review.
+
+Fresh tasks receive at most three complete relevant Memory bodies, each at most
+4,000 characters and 8,000 characters for the complete reference block. Lexical
+metadata ranking can miss useful entries; larger bodies remain on-demand reads.
+Delivery records filename and revision, not proof that the model used or benefited
+from the knowledge. Current evidence and instructions take precedence. Ordinary
+correction planning revisits recently delivered entries; an explicit `/memory`
+request retains its selected scope.
+
+An automatically learned project Harness rule may be revised or retired only with
+an exact predecessor revision, current user correction, positive/negative fixtures
+and approval of the exact replacement by semantic review. A retired rule remains
+as a disabled revision and in history. Manual or changed rules remain protected.
 
 ### Phase policies and history
 
@@ -338,6 +378,44 @@ both worker attempts contribute to receipt usage, cost, and retry counts.
 Identity mismatches, ambiguous plans, output bounds, and cancellation remain
 terminal rejections.
 
+Incremental Memory planners receive a parent-rendered JSON identity envelope;
+models fill the delta without calculating or retyping snapshot hashes. The parent
+still rejects any changed identity. Memory support questions retain each
+candidate's parent-validated original citation indexes and exact quotes alongside
+complete source entries. Quotes do not establish additional claims by themselves.
+Harness counter-evidence windows check contradictions, narrowing and revocation;
+lasting authority and matcher scope remain separate checks against the cited user
+evidence. An irrelevant window need not repeat authorization. These changes retain
+the existing probability, confidence, privacy and complete-evidence gates; they do
+not establish that learning improves later tasks.
+Source comments establish reported source reasoning, not independent proof of an
+external defect. Planning and bounded repair distinguish that from observed
+configuration/conditional behavior and avoid persisting historical test counts as
+lasting guarantees.
+
+For a new literal `addRule` only, a nonempty message that is a strict prefix of its
+single validated original user quote may be completed to that exact quote before
+semantic review. Only display wording changes. Corrections, updates, complex
+matchers, multiple citations and sensitive text are excluded. Both pre-completion
+and completed plans are retained privately; the completed actual candidate is
+revalidated and passes the same authorization, scope, privacy and complete
+counter-evidence checks before application. The exact-quote wording check grants
+no execution authority.
+
+The opt-in real continuous-project study gives both arms the same experimental
+parent tool cap: eighteen admitted calls, followed by an empty active tool set.
+Excess calls already in a batch are blocked and counted as task failures. Original
+observations remain in the same session; independent learning workers and semantic
+review are unchanged. The standalone version-execution instruction is scoped to correction/retirement
+tasks: both orientation models had interpreted a conditional shared instruction
+as an immediate request, so that earlier cohort remains a distinct protocol.
+Earlier prompt-only-budget cohorts and their failures/costs
+remain separate evidence because this changes the experimental protocol. This
+study cap is not a production default or an automatically learned project rule.
+Correction/retirement tasks must also produce a successful standalone version
+probe in the real model session. An attempted call or a post-learning rule-engine
+decision does not establish that the task actually executed its requested probe.
+
 Settings are strictly schema- and path-validated. A missing settings file keeps
 automatic learning enabled; malformed, unknown, unsafe, or unreadable settings
 disable learning and show a repair diagnostic instead of silently using defaults.
@@ -349,13 +427,19 @@ scope check; the historical global cursor is consulted only for those legacy
 records and never consumes a scoped record. Unscoped or malformed records are
 reported. Appends and cursor updates share a private process lock; contention
 refuses the write without delaying the user task, and cursors cannot decrease.
-Backfill is status-only and does not replay model work. Full state
+Backlog inspection is status-only; `/consolidate backfill` retries bounded
+learning work from verified original evidence and does not replay task tools. Full state
 checks validate settings, backlog limits, scope binding, malformed references,
 and cursor updates before status is shown.
 
 Applied mutations and proposals are recorded privately under
 `<agent-dir>/memory/history/<escaped-canonical-cwd>/`. History includes exact
-before/after bytes, including indexes and mirror repairs. `/memory history`
+before/after bytes, including indexes and mirror repairs. New pipelines attach an
+exact parent-owned batch identity; the native Recent learning menu groups these
+records and distinguishes index setup from learned knowledge. One learning can
+therefore create several file-change records. Older records stay individually
+accessible, and undo still previews and confirms one exact change at a time;
+there is no batch mutation or grouping inferred from timestamps. `/memory history`
 lists the latest 50 records; passing an id shows a bounded preview. Proposal
 records are inspection artifacts; running `/consolidate` creates a fresh plan
 against current evidence instead of replaying a stale proposal.
@@ -630,9 +714,9 @@ Enabling a scope sends bounded frozen task evidence and permitted Memory content
 
 The integration uses `@typesafe-ai/sdk` 0.6.0. Independent Noul questions detect durable knowledge and lasting behavioral constraints; both can apply. Score questions rank metadata in the same request; selection uses the probability mass across both relevant levels, so ambiguity between two acceptable levels does not itself force fallback. Memory bodies are read only after selection. Empty-index explicit evidence keeps its local route with no semantic selector request. Disabled, missing-key, uncertain or failed selection uses the existing selector; explicit `/memory <request>` always retains Memory processing and excludes Harness and AGENTS.md.
 
-After parent structure, identity and frozen-quote validation, another batch checks candidate support using the knowledge body or rule rather than administrative frontmatter/evidence bookkeeping (while scanning the full original candidate for credentials). For fully cited new Memory, the support question includes only the complete knowledge body; filenames and write/storage metadata cannot become claims requiring user evidence. Rewrite/delete/mixed batches retain the complete preservation context. This batch also checks Memory grounding and relationships against already-read bodies (Choice), and general Harness scope (Choice). For an absolute-end anchored literal block or confirmation rule, parent code proves the exact command matcher and Jev separately checks lasting user authorization and message fidelity. A confirmation rule requires the real native Allow once or Block decision for each invocation; a one-time grant cannot revoke future confirmation, and confirmation cannot weaken an unconditional ban. Plain `$`, whitespace classes and operators never qualify for that proof. Duplicates, conflicts, unsupported or uncertain candidates become proposals; an unavailable candidate judge also produces proposals. For a proved literal/family rule whose message is byte-identical to its validated original user quote, code proves wording equality and omits only the paraphrase judgment. Authorization, matcher scope, complete counterevidence and parent write checks remain mandatory; changed messages still require semantic verification. In the proved ASCII command-family grammar, literal TAB and its regex escape have identical meaning. Counterevidence review receives the exact code-proved command range, block action and original explanation; unproved regexes retain full matching review. Generated fixtures and rule identifiers do not establish user permission. No Jev answer permits a write by itself or disables existing Harness rules. Legal requests have at most 32 questions and 64,000 wire bytes, with at most four requests running concurrently. For quoted new Memory candidates and parent-validated Harness citations, support uses the complete cited entries and existing bodies; a separate counterevidence review covers **every** indexed original entry in windows targeting 24,000 bytes; a larger complete entry occupies its own window and must still fit the unchanged complete-request wire limit. Entries are never truncated or summarized. Every review also receives the original cited support to interpret meaning and scope; later corrections still override that support. There are at most eight windows and twelve requests, including split support requests. All original evidence and all planned requests are checked for sensitive material and bounds and copied before the first transport. Only fully successful windows count toward coverage, and any failed, uncertain or conflicting judgment holds the entire plan. Rewrite/delete/mixed Memory plans and uncited legacy inputs retain full-evidence transport with at most four batches. This is a wire-byte cap, not a token count; API context failures remain proposals rather than discarding possible later contradictions. A batch is atomic for this policy: one questionable candidate holds the whole plan for review. Supported supplements can be applied only under the existing apply policy. Full maintenance also checks its validated candidates; too much evidence falls back to proposals.
+After parent structure, identity and frozen-quote validation, another batch checks candidate support using the knowledge body or rule rather than administrative frontmatter/evidence bookkeeping (while scanning the full original candidate for credentials). For fully cited new Memory, the support question includes only the complete knowledge body; filenames and write/storage metadata cannot become claims requiring user evidence. Rewrite/delete/mixed batches retain the complete preservation context. This batch also checks Memory grounding and relationships against already-read bodies (Choice), and general Harness scope (Choice). For an absolute-end anchored literal block or confirmation rule, parent code proves the exact command matcher and Jev separately checks lasting user authorization and message fidelity. A confirmation rule requires the real native Allow once or Block decision for each invocation; a one-time grant cannot revoke future confirmation, and confirmation cannot weaken an unconditional ban. Plain `$`, whitespace classes and operators never qualify for that proof. Duplicates, conflicts, unsupported or uncertain candidates become proposals; an unavailable candidate judge also produces proposals. For a proved literal/family rule whose message is byte-identical to its validated original user quote, code proves wording equality and omits only the paraphrase judgment. Authorization, matcher scope, complete counterevidence and parent write checks remain mandatory; changed messages still require semantic verification. In the proved ASCII command-family grammar, literal TAB and its regex escape have identical meaning. Counterevidence review receives the exact code-proved command range, block action and original explanation; unproved regexes retain full matching review. Generated fixtures and rule identifiers do not establish user permission. No Jev answer permits a write by itself or disables existing Harness rules. Legal requests have at most 32 questions and 64,000 wire bytes, with at most four requests running concurrently. For quoted new Memory candidates and parent-validated Harness citations, support uses the complete cited entries and existing bodies; a separate counterevidence review covers **every** indexed original entry in windows targeting 20,000 bytes; a larger complete entry occupies its own window and must still fit the unchanged complete-request wire limit. Entries are never truncated or summarized. Every review also receives the original cited support to interpret meaning and scope; later corrections still override that support. There are at most sixteen windows and 68 logical requests, including split support requests (up to four batches per job); the existing connection-only retry permits at most 136 transport attempts. Windows are never merged based only on raw entry bytes. If a cited support entry is also in the current review window, supportEvidence.reviewEntryIndexes points to that exact original entry instead of transmitting it twice; the complete cited context remains present across both fields. All original evidence and all planned requests are checked for sensitive material and bounds and copied before the first transport. Only fully successful windows count toward coverage, and any failed, uncertain or conflicting judgment holds the entire plan. Rewrite/delete/mixed Memory plans and uncited legacy inputs retain full-evidence transport with at most four batches. This is a wire-byte cap, not a token count; API context failures remain proposals rather than discarding possible later contradictions. A batch is atomic for this policy: one questionable candidate holds the whole plan for review. Supported supplements can be applied only under the existing apply policy. Full maintenance also checks its validated candidates; too much evidence falls back to proposals.
 
-Requests are limited to 64,000 serialized UTF-8 wire bytes and 32 questions; cited evidence windows prefer 24,000 bytes. Oversized evidence is not silently truncated: selection falls back, candidates become proposals. Requests have a 5-second timeout, zero SDK retries, cancellation propagation and disabled SDK body logging. Starting thresholds are Noul ≤0.1 / ≥0.9. Memory relation acceptance uses P(unrelated or supplement) ≥0.9; general Harness scope uses P(same or narrower) ≥0.9. Ambiguity between these compatible classes is acceptable; this does not require high confidence in one class. Memory grounding, literal-command authorization and message fidelity require confidence ≥0.8 and winning probability ≥0.9. Harness review includes parent-validated blocked/allowed examples, with frozen evidence remaining the sole source of authorization. Metadata uses P(level 2 or 3) ≥0.9 to select and ≤0.1 to omit on a 0–3 rubric; intermediate probability falls back. These are conservative policy parameters, **not calibrated accuracy claims**. Validate them on your workload before relying on the integration, especially for Chinese.
+Requests are limited to 64,000 serialized UTF-8 wire bytes and 32 questions; cited evidence windows prefer 20,000 bytes. Oversized evidence is not silently truncated: selection falls back, candidates become proposals. Requests default to a 15-second timeout, honor explicit shorter deadlines, use zero SDK retries and at most one connection-only retry, propagate cancellation and disable SDK body logging. Starting thresholds are Noul ≤0.1 / ≥0.9. Memory relation acceptance uses P(unrelated or supplement) ≥0.9; general Harness scope uses P(same or narrower) ≥0.9. Ambiguity between these compatible classes is acceptable; this does not require high confidence in one class. Memory grounding, literal-command authorization and message fidelity require confidence ≥0.8 and winning probability ≥0.9. Harness review includes parent-validated blocked/allowed examples, with frozen evidence remaining the sole source of authorization. Metadata uses P(level 2 or 3) ≥0.9 to select and ≤0.1 to omit on a 0–3 rubric; intermediate probability falls back. These are conservative policy parameters, **not calibrated accuracy claims**. Validate them on your workload before relying on the integration, especially for Chinese.
 
 For an apply-policy Harness plan or incremental Memory plan, an unsupported or uncertain semantic hold may use the existing single read-only repair slot, shared with structural repair. With Jev enabled, the first incremental Memory structural repair also receives the original hash-checked snapshot and selected Memory dossier; it must not turn one-task instructions into lasting preferences. Both files are rechecked after repair, valid original privacy classifications must remain unchanged, and a rejected completed call still retains its usage. This does not add a second repair slot or relax subsequent validation. Memory correction uses frozen evidence and already-read bodies, preserves names, intents and privacy classifications, and retains the original proposal if correction remains held. Duplicate, conflict and service failure do not trigger another correction. A semantic Harness repair may omit unsupported operations, but their exact original evidence is reindexed and saved as private pending proposals. Semantic repair receives an explicit table of the original operation kind, rule identity and complete evidence objects. Retained rule identities and all citation properties must stay unchanged apart from operation indexes; an empty or replacement repair retains the original proposal. Repaired candidates repeat parent validation and Jev judgment; service failures do not cause retries, and unresolved candidates remain proposals. Frozen evidence is checked after each judgment and again in the mutation queue before writing. A direct apply cannot bypass a semantic proposal. Memory index descriptions receive independent support, existing-Memory relationship and full-evidence checks alongside the original body checks. A duplicate description can accompany a body that adds supported knowledge; duplicate bodies and conflicting descriptions remain proposals. All additional questions fit the existing request limits before any call; budget exhaustion retains a proposal.
 
@@ -668,6 +752,8 @@ The same-original-input native Docker repair comparison then reproduced citation
 A subsequent 96-request real Jev deadline comparison used the same known 24-case English/Chinese corpus and exact paired request bodies. Five- and fifteen-second budgets both completed 24/24, with zero unsafe accepts and the same one valid candidate held for authority uncertainty. Longer deadlines were not adopted; the production default remains five seconds. All 96 responses verified Jev 1.13, with 71,564 input tokens and approximately $0.003005688 estimated cost, excluding unverified account billing. This direct SDK small-corpus result does not explain the earlier Docker/large-evidence timeout. See @tests/jev-deadline-real-results.json and @tests/jev-deadline-adoption-decision.json.
 
 A same-host large-original-input diagnostic completed all twelve Jev requests across direct/forwarded and five/fifteen-second arms. Every arm covered all seventeen entries and both counter windows, but all retained the candidate for uncertainty. This run did not reproduce the historical timeout or justify increasing the default deadline. See @tests/jev-original-transport-real-results.json and @tests/jev-original-transport-adoption-decision.json.
+
+A later real continuous-project cohort retained a different frozen request whose connection retry returned HTTP 200 in 6.872 seconds, beyond the five-second default, and the SDK held the Memory repair for timeout. That observed deadline mismatch motivated the current bounded fifteen-second default; the historical unsuccessful diagnostics above remain unchanged. Explicit deadlines, cancellation, connection-only retry bounds and all semantic thresholds remain. Deadline recovery does not establish that a candidate is grounded or that later tasks improve. A subsequent frozen continuous cohort completed all thirteen Jev responses, including two beyond five seconds, but still learned no Memory or Harness changes: semantic holds remained, and its single explicit backfill failed the selector schema. Those failures and costs remain in the study; no downstream effectiveness claim follows.
 
 The original generator used literal tabs in the exact parent-bound project push template. Matching proof now recognizes those tabs and escaped tabs as equivalent spelling, without rewriting the rule or accepting other regex changes. All existing authority, argument-scope, explanation, privacy and full counterevidence checks remain. A subsequent three-request real replay of the same candidate and snapshot allowed the candidate, with full coverage, Jev 1.13, 1.725 seconds and approximately $0.000726558 estimated cost. This is one known-input observation compared with preserved earlier results, not randomized, heldout or full-workflow superiority. See @tests/jev-template-tab-original-real-results.json.
 
@@ -887,3 +973,210 @@ Application rechecks predecessor bytes and verifies readback. Rollback restores 
 `/memory` browsing has 32-row pages and a separate 4,096-entry management limit. Selected bodies, history and Harness details support full bounded pagination. Proposed history explains the fresh `/consolidate` next step. Automatic applied/proposed/failed/rejected/cancelled outcomes show a compact receipt. Omitted Task Slice evidence downgrades apply to propose and is shown in receipts. None of these safety checks establishes improved model task success.
 
 Private run artifacts are retained without automatic expiry; this repair does not remove existing snapshots or history.
+
+### Real-model downstream evaluation
+
+Memory persistence and passing package tests do not establish improved task
+quality. The explicit paired study at
+`tests/live_memory_task_quality.py` learns through the actual Pi parent pipeline,
+then runs fresh sessions with and without learned Memory using the same model,
+current files and task. It scores a written task artifact against an oracle fixed
+before requests, covering settled facts, uncertain claims, one-task instructions,
+superseding decisions, expired exceptions and corrections. It records learning
+failures, technical-invalid pairs, unsupported answers and regressions separately.
+The small authored development/held-out template instances are bounded evidence,
+not a general capability or statistical reliability claim. Jev is explicitly off.
+
+These commands use the configured real provider and incur model usage:
+
+```bash
+uv run --no-project packages/continual-learning/tests/live_memory_task_quality.py /tmp/memory-quality --split development
+uv run --no-project packages/continual-learning/tests/live_memory_task_quality.py /tmp/memory-quality --split heldout
+uv run --no-project packages/continual-learning/tests/live_memory_task_quality.py /tmp/memory-quality --split heldout --task-type resolve
+```
+
+The `resolve` task combines the learned opaque alias with a fresh five-entry
+catalogue to produce a new handoff value. The value never appears in training;
+opaque project names and varied catalogue positions prevent category/position
+shortcuts. Both arms receive the same complete current-file inventory.
+
+Each run creates a new directory containing the frozen corpus, source hashes,
+per-case learning plans/receipts, fresh sessions, task artifacts and report.
+Do not merge exploratory, source-drifted or failed runs into the final results.
+Ordinary model `write`/`edit` calls cannot modify the current private or shared
+Memory roots; maintain knowledge through `/memory` or `/consolidate` so the parent
+can validate it and preserve history/undo. This tool boundary is not an OS or
+shell sandbox.
+Empty scoped discovery is also explicit, including when automatic learning is
+off. Retrieval guidance uses supplied roots/indexes and discourages guessed
+Memory locations; no available Memory is not evidence for a project fact.
+
+For intermittent AGENTS failures, `tests/live_agents_reliability.py` retains
+actual planner-child JSONL, failure output, receipts and before/after documents.
+Use `--full-pipeline` to include Memory and Harness. The parent grants the exact
+dossier file alongside the frozen snapshot; it does not grant sibling agent
+files. Successful retries do not establish the cause of an earlier failure.
+
+`tests/live_real_project_memory.py` is a separate explicit Jev-on Docker study
+using pinned p-limit and pluggy source. A real model first performs bounded
+read-only source orientation (at most twelve tool calls), runs upstream checks
+and learns through the parent pipeline. All original source remains unchanged.
+Earlier audit-and-test training cohorts are retained as invalid attempts; the
+orientation protocol does not expose the later feature tasks or hidden checks.
+A successful applied Memory attempt with real Jev usage is required before any
+downstream model task. Fresh sessions implement pause/resume scheduling or a
+temporary-plugin context manager with identical post-training code, dependencies,
+model and task prompts. The only arm difference is scoped Memory availability.
+Hidden behavior and type probes enter containers after model execution; full
+upstream checks and original test/configuration hashes prevent weakened checks
+from scoring as success. Failures and ties remain results. These authored feature
+tasks on previously used public projects are a small experiment, not upstream
+issue acceptance or evidence of general model improvement.
+
+The study requires Docker, the isolated Pi 1.0 runtime image
+`cl-real-project-runtime:20261010-base`, pinned local source checkouts matching
+`tests/real_project_tasks.py`, configured inference, and `TYPESAFE_API_KEY`.
+Real keys stay in the host proxy. Do not mount host project or agent directories.
+Run the environment/oracle gate before incurring model usage:
+
+```bash
+docker build -f packages/continual-learning/tests/docker/real-task.Dockerfile -t cl-real-project-runtime:20261010-base .
+uv run --no-project packages/continual-learning/tests/live_real_project_memory.py /tmp/real-memory --preflight-only
+uv run --no-project packages/continual-learning/tests/live_real_project_memory.py /tmp/real-memory --repeats 2
+```
+
+Each directory freezes the protocol/oracles, source hashes, runtime image digest,
+actual sessions, learned Memory, receipts, candidate source and independent check
+logs. An invalid training run stops later paid work; it is not a losing baseline
+or a Memory improvement. Native terminal interaction, safe application/undo and
+downstream task quality remain separate acceptance claims.
+
+Incremental learning retains at most 256 complete entries and 512,000 serialized
+UTF-8 bytes. User/tool evidence and assistant tool-call provenance take priority
+over plain assistant narration. Any missing primary evidence still forces
+proposals-only handling; omitting plain assistant narration alone does not. Exact
+citations and Jev validation remain required. Receipts distinguish these omissions
+and retain the original session source/count, including runs that apply nothing.
+
+Jev full-evidence review budgets up to four batches for the support job and each
+of at most sixteen evidence windows (68 logical requests). The existing single
+connection-only retry permits at most 136 transport attempts. Concurrency remains
+four, each request stays within 64,000 wire bytes and 32 questions, and every
+support/body/description/counterevidence judgment must complete successfully.
+
+Malformed incremental JSON with one explicit plan marker may use the existing
+structural correction slot only when the extractor found no structured plan and
+the selected existing scope is empty. Ambiguous plans and transport/model failures
+remain rejected. Regenerated proposals are always private because damaged output
+cannot establish trustworthy sharing intent; exact citations, frozen evidence and
+Jev gates still apply. The isolated public-source study explicitly allows Jev to
+review these private records; it contains no private user data.
+
+To retry learning after a confirmed runtime fix without repeating a successful
+source audit, pass `--resume-from /path/to/prior/cohort`. The prior source hashes,
+project protocol, original-file checks, upstream tests, model and sole original
+source-orientation request must match. The runner copies that real session into
+a fresh identical checkout and uses the product's `continue` contract, with only
+a final-summary instruction appended to the system prompt. The parent summary
+turn disables tools with `--no-tools` instead of relying on that instruction;
+learning workers keep their independent read authorization. A new actual model
+turn and normal automatic learning run again. One actual parent-bound dossier
+must retain every original user/tool observation byte-for-byte as JSON; otherwise
+training is invalid. It never seeds Memory or future answers. Usage for resumed
+training includes the prior session and is labeled accordingly.
+
+Memory planners receive a model-facing projection that labels each original
+Task Slice entry with its parent-generated `snapshotIndex`. The existing repair
+uses the same labels. Raw dossiers/snapshots, hashes, citation roles and exact
+quote validation remain authoritative and unchanged; other scoped readers only
+use this projection when explicitly opted in. This reduces manual array counting
+without correcting or accepting a model's invalid citations automatically.
+
+Semantic Memory repair changes only candidates marked by parent-controlled review
+results. Omitted delta entries remain unchanged in the parent-owned full plan;
+omission cannot delete a proposal or clear pending learning. Full identity,
+citation, privacy and semantic validation still runs on the merged plan. Bounded
+repair responses are retained privately for diagnosis, omitting sensitive text.
+Counterevidence questions retain each candidate's original citation association
+alongside the complete evidence windows.
+
+Cited result support also carries the original matching tool call when its id,
+tool name and chronology pair uniquely. This establishes invocation provenance,
+not success or factual authority for assistant prose. Harness support questions
+identify the candidate's exact original quotation; complete context and later
+corrections still govern authorization. Automatic source learning favors
+non-obvious reusable contracts and pitfalls over routine inventories. Explicit
+knowledge requests and personal preferences remain eligible in full.
+
+The continuous study's coverage version 2 includes six real maintenance tasks;
+wrapper mapping consumes the corrected type contract in a subsequent fresh
+session. Actual failed hidden/type/upstream verification is retained completely
+and read once through a source-bound continuation of the original session in both
+arms. The learning arm can then perform one explicit bounded backfill; failures
+remain failures and feedback/recovery usage is counted. No verifier answer or
+Memory is seeded. Processing a failed job differs from learning a lesson: the
+latter requires the exact acknowledgment digest, an applied change from that
+receipt's parent mutation batch, and later consumption. Legacy receipts without a
+batch identity remain readable but cannot establish this stronger attribution.
+Correction coverage additionally audits complete old/new Memory against complete
+current source through Jev at the unchanged 0.90 probability/0.80 confidence
+thresholds, then requires delivery of that exact revision in the next task.
+Completed execution with missing evidence is `incomplete-coverage`; positive
+coverage alone does not establish a task-quality improvement.
+
+Bounded semantic repair now preserves each independently accepted Memory field:
+when only the body is held, the original description/frontmatter and citations
+remain; when only the description is held, the body remains. A complete original
+review determines the repairable fields; the complete merged plan is validated
+again. Promise adoption must not be confused with observable early completion.
+
+Cited rewrites and deletions now use the same complete evidence windows as new
+Memory. Support retains the operation target, preservation intent and existing
+bodies; every original snapshot entry still receives counterevidence review.
+This avoids rejecting long maintenance tasks solely because they were sent as
+one request. Invalid citations, oversized whole entries and incomplete review
+remain failures, with the same 64,000-byte request bound and semantic thresholds.
+
+Repair responses now use the same bounded unique-plan framing as initial planning.
+An explanatory prefix is discarded as framing, never treated as evidence or
+permission. Multiple plans and truncated later objects are rejected; the complete
+extracted object still passes identity, scope, citations, intent retention, privacy
+and full semantic validation. Fixed parent-controlled repair diagnostics identify
+framing/intent rejection without recording arbitrary worker errors. Index planning
+and repair preserve type-level versus runtime scope and use one independently
+supported clause rather than compressing several claims into an ambiguous label.
+
+A selector response with the current identity but missing required routing fields may receive one structural correction using the unchanged task and metadata. Every present authoritative field must already be valid; corrected responses pass full selection and dossier validation. Preserve the original failed attempt and both calls’ usage in receipts, and omit sensitive response material from private diagnostics.
+
+Complete evidence windows are additionally split using the actual encoded wire
+size and existing per-window question-batch limit. Every split preserves whole
+original entries, full cited support, predecessor bodies and proposed operations;
+all resulting requests are checked before transport. Indivisible oversized
+requests remain failures. Structural correction retains its bounded private
+response with the same sensitive-material omission as semantic correction.
+
+Independent summary support and counterevidence judgments explicitly preserve
+scope, conditions and observable meaning. An API call or source comment does not
+by itself establish an observable runtime outcome. Promise descriptions must
+distinguish resolver invocation/adoption from fulfillment or settlement, including
+synchronous and already-settled cases; materially misleading ambiguity remains
+unclear at the unchanged semantic thresholds.
+
+Memory question batches carry the complete original citations and uniquely paired
+tool invocations for the candidates in that batch, rather than repeating the
+union of unrelated candidates' citations in every request. Body, description and
+relationship questions are grouped by candidate before wire sizing. Every candidate
+still receives every original snapshot entry in counterevidence review; exact old
+Memory bodies and all same-plan operations remain in every mutation request.
+Privacy is checked on the full original snapshot before projection. The existing
+64,000-byte, four-batch, sixteen-window and sixty-eight-request limits remain.
+
+Backlog replay can combine verified prefix extensions of the same original task
+so later verifier feedback reaches failure learning. Each queued digest must match
+its original session range; new tasks, changed evidence, exhausted/deferred retries
+and truncated slices are not silently combined. One parent receipt lists exact
+covered backlog identities. Siblings are acknowledged before its owning reference,
+and completed receipts are recovered before new work is selected. The unique
+cost-bearing ledger preserves earlier failures and avoids duplicate model calls or
+usage when acknowledgment is interrupted. Replay retains omission metadata so
+incomplete evidence keeps its proposals-only policy.

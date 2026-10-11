@@ -79,7 +79,7 @@ def test_large_task_slice_preserves_the_final_result() -> None:
     serialized = json.dumps(result)
     assert "large task" in serialized
     assert "FINAL_RESULT" in serialized
-    assert result["count"] <= 96
+    assert result["count"] <= 256
 
 
 def test_explicit_continuations_keep_the_original_task_but_not_other_tasks() -> None:
@@ -129,13 +129,13 @@ def test_task_slice_bounds_whole_json_and_keeps_unmodified_evidence() -> None:
       console.log(JSON.stringify({
         final: summarize([original, message('toolResult', 'Verified recovery'), message('assistant', '界'.repeat(180000))]),
         middle: summarize([original, message('toolResult', 'x'.repeat(600000)), message('toolResult', 'Verified recovery'), message('assistant', 'FINAL_RESULT')]),
-        many: summarize([original, ...Array.from({length: 120}, (_, index) => message('toolResult', `evidence ${index}`)), message('assistant', 'FINAL_RESULT')]),
+        many: summarize([original, ...Array.from({length: 300}, (_, index) => message('toolResult', `evidence ${index}`)), message('assistant', 'FINAL_RESULT')]),
         oversizedRequest,
       }));
     """)
     for name in ("final", "middle", "many"):
         assert result[name]["bytes"] <= 512_000
-        assert result[name]["count"] <= 96
+        assert result[name]["count"] <= 256
         assert result[name]["first"] == "Original request"
         assert result[name]["omitted"] > 0
         assert result[name]["unchanged"] is True
@@ -552,3 +552,39 @@ def test_dossier_harness_events_come_from_harness_owned_entries_only() -> None:
     assert "HARNESS-DESIGN.md" not in recorded
     assert "harness delta" not in recorded
     assert "harness policy stage" not in recorded
+
+
+def test_long_real_task_preserves_primary_evidence_before_assistant_context() -> None:
+    result = isolated_run_bun(r"""
+      import { currentTaskSlice } from './packages/continual-learning/extensions/incremental-learning.ts';
+      const message = (role, content) => ({ message: { role, content } });
+      const entries = [message('user', 'Audit the actual lifecycle')];
+      for (let n=0;n<66;n++) { for(let a=0;a<4;a++) entries.push(message('assistant', `Inspect ${n}/${a}`)); entries.push(message('toolResult', `SOURCE_${n}`)); }
+      entries.push(message('assistant', 'FINAL_RESULT'));
+      const slice = currentTaskSlice(entries);
+      console.log(JSON.stringify({count:slice.entries.length, omitted:slice.omittedEntries,
+        evidenceOmitted:slice.omittedEvidenceEntries, last:slice.entries.at(-1).message.content,
+        evidence:slice.entries.filter(e=>e.message.role!=='assistant').map(e=>e.message.content),
+        unchanged:slice.entries.every(e=>entries.includes(e))}));
+    """)
+    assert result['count'] <= 256
+    assert result['omitted'] > 0
+    assert result.get('evidenceOmitted') == 0
+    assert result['evidence'] == ['Audit the actual lifecycle', *[f'SOURCE_{n}' for n in range(66)]]
+    assert result['last'] == 'FINAL_RESULT'
+    assert result['unchanged'] is True
+
+
+def test_omitted_tool_calls_are_primary_evidence_loss() -> None:
+    result = isolated_run_bun(r"""
+      import { currentTaskSlice } from './packages/continual-learning/extensions/incremental-learning.ts';
+      const entries=[{message:{role:'user',content:'Audit source'}}];
+      for(let n=0;n<160;n++) {
+        entries.push({message:{role:'assistant',content:[{type:'toolCall',id:`c${n}`,name:'read',arguments:{path:`src/${n}.ts`}}]}});
+        entries.push({message:{role:'toolResult',toolCallId:`c${n}`,toolName:'read',content:`SOURCE_${n}`}});
+      }
+      const slice=currentTaskSlice(entries);
+      console.log(JSON.stringify({count:slice.entries.length,omitted:slice.omittedEntries,evidence:slice.omittedEvidenceEntries}));
+    """)
+    assert result['count'] <= 256
+    assert result['evidence'] == result['omitted'] > 0

@@ -1012,11 +1012,10 @@ def test_one_fixed_candidate_set_shows_the_judge_is_the_only_support_gate() -> N
     assert value['requestCounts']['off'] == 0 and value['requestCounts']['on'] >= 1
 
 
-def test_window_packing_guarantees_staying_inside_window_cap_for_large_evidence() -> None:
+def test_complete_small_windows_fit_without_unsafe_count_merging() -> None:
     # Given an evidence set with 10 entries of 13 KB each (total 130 KB, well within context)
-    # where naive packing creates 10 windows exceeding MAX_EVIDENCE_WINDOWS (8),
-    # When packaging cited evidence windows,
-    # Then windows are packed/merged to stay within the cap of 8 windows rather than tripping bounds.
+    # When ten complete windows are required, keep them separate within the
+    # bounded review budget rather than merging raw entries without wire overhead.
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const offline=async()=>{throw new Error('NO TRANSPORT');};
@@ -1028,3 +1027,102 @@ def test_window_packing_guarantees_staying_inside_window_cap_for_large_evidence(
       console.log(JSON.stringify({reason:res.telemetry.reason,windows:res.telemetry.evidenceWindows,boundsKind:res.telemetry.boundsKind}));
     ''')
     assert value['reason'] != 'bounds'
+
+
+def test_full_review_budget_counts_batches_per_window_without_skipping_late_evidence() -> None:
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const evidence={contextEnabled:true,entries:Array.from({length:10},(_,i)=>({message:{role:'user',content:`FACT_${i} `+'z'.repeat(13000)}}))};
+      const candidates=Array.from({length:7},(_,i)=>({name:`fact_${i}.md`,kind:'project',classification:'safe',
+        content:`---\nname: fact_${i}\ndescription: FACT_${i} is documented in the project\ntype: project\n---\n`+'A documented project fact. '.repeat(96),
+        evidence:[{index:0,quote:'FACT_0',role:'user'},{index:1,quote:'FACT_1',role:'user'}]}));
+      let mode='allow',active=0,peak=0; const requests=[];
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+        active++;peak=Math.max(peak,active); const r=JSON.parse(init.body);requests.push(r);await Promise.resolve();
+        const state=JSON.parse(r.state),late=state.reviewEvidence?.entries.some(e=>e.index===9),answers={};
+        for(const [k,q] of Object.entries(r.questions)){
+          let choice='grounded' in q.criteria?'grounded':'compatible';
+          if(mode==='late-conflict'&&late&&k.startsWith('counter_description_0_'))choice='contradicts';
+          answers[k]={type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(label=>[label,label===choice?1:0]))};
+        }
+        active--;if(mode==='late-error'&&late)throw new Error('Local fixture transport failure');
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:100,output_tokens:10}}));
+      }});
+      const allowed=await judge.validate('memory',evidence,candidates,[]); const first=[...requests];requests.length=0;
+      mode='late-conflict';const conflict=await judge.validate('memory',evidence,candidates,[]);
+      mode='late-error';const error=await judge.validate('memory',evidence,candidates,[]);
+      console.log(JSON.stringify({allowed,conflict,error,count:first.length,peak,
+        bounded:first.every(r=>Buffer.byteLength(JSON.stringify(r))<=64000&&Object.keys(r.questions).length<=32),
+        descriptionSupport:first.flatMap(r=>Object.keys(r.questions)).filter(k=>k.startsWith('supported_description_')).length,
+        descriptionWindows:[...new Set(first.flatMap(r=>Object.keys(r.questions)).filter(k=>k.startsWith('counter_description_')).map(k=>k.split('_').at(-1)))].length,
+        indexes:[...new Set(first.flatMap(r=>JSON.parse(r.state).reviewEvidence?.entries.map(e=>e.index)??[]))].sort((a,b)=>a-b)}));
+    ''')
+    assert value['allowed']['decision'] == 'allow', value
+    assert 12 < value['count'] <= 68
+    assert value['peak'] <= 4 and value['bounded'] is True
+    assert value['indexes'] == list(range(10))
+    assert value['descriptionSupport'] == 7
+    assert value['descriptionWindows'] == value['allowed']['telemetry']['evidenceWindows']
+    assert value['conflict']['decision'] == value['error']['decision'] == 'propose'
+
+
+def test_real_pluggy_trace_preserves_complete_evidence_within_actual_wire_budget() -> None:
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const {evidence,candidates}=await Bun.file('./packages/continual-learning/tests/fixtures/real-project-wire.json').json();
+      let mode='allow',active=0,peak=0;const calls=[];
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+        active++;peak=Math.max(peak,active);const r=JSON.parse(init.body);calls.push(r);await Promise.resolve();
+        const state=JSON.parse(r.state),late=state.reviewEvidence?.entries.some(e=>e.index===204),answers={};
+        for(const [k,q]of Object.entries(r.questions)){
+          let choice='grounded' in q.criteria?'grounded':'compatible';
+          if(((mode==='conflict'&&late)||(mode==='cited-conflict'&&state.reviewEvidence?.entries.some(e=>e.index===6)))&&k.startsWith('counter_description_0_'))choice='contradicts';
+          answers[k]={type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===choice?1:0]))};
+        }
+        active--;if(mode==='error'&&late)throw new Error('fixture failure');
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:100,output_tokens:10}}));
+      }});
+      const allowed=await judge.validate('memory',evidence,candidates,[]);const first=[...calls];
+      mode='conflict';const conflict=await judge.validate('memory',evidence,candidates,[]);
+      mode='error';const error=await judge.validate('memory',evidence,candidates,[]);
+      mode='cited-conflict';const citedConflict=await judge.validate('memory',evidence,candidates,[]);
+      const citedIndexes=[...new Set(candidates.flatMap(c=>c.evidence.map(e=>e.index)))].sort((a,b)=>a-b);
+      const supportUnchanged=first.every(r=>{
+        const s=JSON.parse(r.state);if(!s.reviewEvidence)return true;
+        const relocated=(s.supportEvidence.reviewEntryIndexes??[]).map(index=>s.reviewEvidence.entries.find(e=>e.index===index));
+        const all=[...s.supportEvidence.entries,...relocated];
+        const batchCandidates=[...new Set(Object.keys(r.questions).map(key=>Number(/^counter(?:_description)?_(\d+)_/.exec(key)?.[1])))];
+        const batchCitations=[...new Set(batchCandidates.flatMap(index=>candidates[index].evidence.map(e=>e.index)))].sort((a,b)=>a-b);
+        return JSON.stringify(all.map(e=>e?.index).sort((a,b)=>a-b))===JSON.stringify(batchCitations)
+          &&all.every(e=>e&&JSON.stringify(e.entry)===JSON.stringify(evidence.entries[e.index]))
+          &&(!s.supportEvidence.reviewEntryIndexes||s.supportEvidence.entries.every(e=>!s.reviewEvidence.entries.some(w=>w.index===e.index)));
+      });
+      const reviewed=first.flatMap(r=>JSON.parse(r.state).reviewEvidence?.entries??[]);
+      console.log(JSON.stringify({allowed,conflict,error,citedConflict,supportUnchanged,peak,count:first.length,maxWire:Math.max(0,...first.map(r=>Buffer.byteLength(JSON.stringify(r)))),
+        indexes:[...new Set(reviewed.map(x=>x.index))].sort((a,b)=>a-b),
+        unchanged:reviewed.every(x=>JSON.stringify(x.entry)===JSON.stringify(evidence.entries[x.index])),
+        descriptions:first.flatMap(r=>Object.keys(r.questions)).filter(k=>k.startsWith('counter_description_')).length}));
+    ''')
+    assert value['allowed']['decision'] == 'allow', value
+    assert value['indexes'] == list(range(205)) and value['unchanged'] is True
+    assert value['maxWire'] <= 64000 and value['peak'] <= 4
+    assert value['supportUnchanged'] is True
+    assert value['citedConflict']['decision'] == 'propose'
+    assert value['descriptions'] == 5 * value['allowed']['telemetry']['evidenceWindows']
+    assert value['conflict']['decision'] == value['error']['decision'] == 'propose'
+
+
+def test_wire_bounds_diagnostic_reports_the_encoded_request_size():
+    value=isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      let calls=0;
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>{calls++;throw new Error('must preflight first');}});
+      const evidence={contextEnabled:true,entries:[{message:{role:'toolResult',content:'Known project fact '+String.fromCharCode(92).repeat(17000)}}]};
+      const candidate={name:'fact.md',kind:'project',classification:'safe',content:'Known project fact',evidence:[{index:0,quote:'Known project fact'}]};
+      const result=await judge.validate('memory',evidence,[candidate],[]);
+      console.log(JSON.stringify({result,calls}));
+    ''')
+    assert value['calls']==0
+    assert value['result']['decision']=='propose'
+    assert value['result']['telemetry']['boundsKind']=='question-bytes'
+    assert value['result']['telemetry']['boundsCount']>64000

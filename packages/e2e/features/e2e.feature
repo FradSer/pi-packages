@@ -215,7 +215,11 @@ Feature: Simple and actionable acceptance feedback
     Given a feature has fresh fulfilled acceptance
     When the agent reads git status without changing files
     Then acceptance stays complete
-    When an unclassified shell mutation occurs
+    When another shell inspection leaves the declared inputs unchanged
+    Then acceptance stays complete
+    When a shell command changes a declared adapter input
+    Then freshness revalidation withdraws acceptance
+    When an unknown shell program could change unlisted application inputs
     Then acceptance is conservatively revoked
 
   Scenario: Missing evidence asks for observations rather than speculative repairs
@@ -248,3 +252,67 @@ Feature: Actionable runner errors
     When it exits with a nonzero code
     Then the tool reports the exit code and diagnostic
     And no successful proof is created
+
+Feature: Consistent terminal feedback
+
+  Scenario: Status headers contain only the package and readable state
+    Given native verification or a manual e2e command
+    When progress or a result is displayed
+    Then the header contains only e2e and the readable status without a separator or subject
+    And feature scenario evidence and recovery information appear in the body
+
+  Scenario: Verification phases update one running result
+    Given an authorized fresh runner for a feature with multiple scenarios
+    When the native tool executes and evaluates its evidence
+    Then running updates identify the current verification phase
+    And a passed result reports the feature acceptance count and remaining scenarios
+
+  Scenario: Supplied passes do not look like verified acceptance
+    Given caller-supplied evidence that fulfills every clause
+    When its verdict is displayed
+    Then the header says needs review while the machine verdict remains fulfilled
+    And the evidence source and fresh-run requirement precede the clause list
+
+  Scenario: Provider blockers remain visible in default results
+    Given a semantic clause and an unavailable provider
+    When verification returns needs_review
+    Then its default body includes the actual provider error and recovery action
+    And it uses warning feedback rather than a business-failure style
+
+  Scenario: Settlement waiting identifies unfinished work
+    Given acceptance still has unverified scenarios
+    When automatic continuation cannot proceed
+    Then the waiting body names remaining work and the next action
+    And a repeated unchanged settlement does not repeat the message
+
+Feature: Verification intent and efficient acceptance
+
+  Scenario: Behavior-preservation constraints do not cancel verification
+    Given a request forbids changing behavior just to pass tests
+    And it explicitly requests fresh verification of acceptance.feature
+    When the gate records the request
+    Then an unverified requested feature receives a settlement checkpoint
+
+  Scenario: Explicit execution prohibitions remain respected
+    Given the user explicitly forbids running acceptance tests
+    When the gate records the request
+    Then it does not request a verification run
+
+  Scenario: Verification is planned before the final budget boundary
+    Given the E2E capability is injected into a coding session
+    When the agent plans tests for an authorized acceptance adapter
+    Then guidance requests early focused fresh verification without duplicate suite execution
+    And guidance distinguishes scenario coverage from complete request acceptance
+
+  Scenario: Failed fresh evidence carries adapter diagnostics to repair
+    Given a runner exits successfully while recording unmet checks
+    When e2e_verify reads the fresh evidence
+    Then bounded stdout and stderr accompany the unmet verdict as diagnostic data
+    And the diagnostics cannot mint fulfilled acceptance
+
+  Scenario: Verification guides a complete repair without repeated unproductive checks
+    Given a public request with several requirements and a configured runner
+    When the agent plans acceptance and receives verification diagnostics
+    Then it maps each requirement to an observable check and labels missing coverage
+    And it repairs observed defects and verifies the final changed code again
+    And it stops repeated unchanged checks with an explicit remaining limitation

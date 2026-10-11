@@ -2,12 +2,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { canonicalProjectCwd, resolveMemoryPaths } from "./memory-paths";
 
 export const MAX_BACKLOG_BYTES = 4 * 1024 * 1024;
 const MAX_BACKLOG_RECORD_BYTES = 4_096;
-export type BacklogReason = "auto-memory-off" | "screen-found-nothing" | "no-session-reference";
+export type BacklogReason = "auto-memory-off" | "screen-found-nothing" | "no-session-reference" | "learning-failed" | "learning-proposed" | "learning-pending";
 export interface BacklogEntry {
   version: 1;
   sessionFile: string;
@@ -20,6 +21,43 @@ export interface BacklogEntry {
   scopeKey?: string;
 }
 
+export function backlogIdentity(scopeKey: string, entry: Pick<BacklogEntry, "sessionFile" | "from" | "to" | "digest">): string {
+  return createHash("sha256").update(JSON.stringify([scopeKey, entry.sessionFile, entry.from, entry.to, entry.digest])).digest("hex");
+}
+
+function acknowledgments(cwd: string, agentDir: string): { file: string; ids: Record<string, string> } {
+  const paths = resolveMemoryPaths(cwd, agentDir);
+  const file = path.join(paths.agentDir, "learning", paths.scopeKey, "backlog-completed.json");
+  safeStorage(file, paths.agentDir);
+  let ids: Record<string, string> = {};
+  try { ids = JSON.parse(readBounded(file, MAX_BACKLOG_BYTES)); }
+  catch (error) { if (!missing(error)) throw error; }
+  if (!ids || typeof ids !== "object" || Array.isArray(ids)
+    || Object.entries(ids).some(([id, digest]) => !/^[a-f0-9]{64}$/.test(id) || typeof digest !== "string" || !/^[a-f0-9]{64}$/.test(digest))) throw new Error("Invalid backlog acknowledgments");
+  return {file, ids};
+}
+
+/** Parent supplies a verified completion receipt digest; no cursor can skip a failed sibling. */
+export function acknowledgeBacklog(cwd: string, entry: BacklogEntry, receiptDigest: string, agentDir = getAgentDir()): boolean {
+  if (!/^[a-f0-9]{64}$/.test(receiptDigest)) return false;
+  try { return withBacklogLock(cwd, agentDir, () => {
+    const paths = resolveMemoryPaths(cwd, agentDir);
+    if (entry.scopeKey !== undefined && entry.scopeKey !== paths.scopeKey) return false;
+    const {file, ids} = acknowledgments(cwd, agentDir);
+    ids[backlogIdentity(paths.scopeKey, entry)] = receiptDigest;
+    const text = JSON.stringify(ids);
+    if (Buffer.byteLength(text) > MAX_BACKLOG_BYTES) return false;
+    safeStorage(file, paths.agentDir, true);
+    const temporary = `${file}.${randomBytes(8).toString("hex")}.tmp`;
+    try {
+      fs.writeFileSync(temporary, text, {flag:"wx",mode:0o600});
+      safeStorage(file, paths.agentDir);
+      fs.renameSync(temporary, file);
+    } finally { try { fs.unlinkSync(temporary); } catch (error) { if (!missing(error)) throw error; } }
+    return true;
+  }); } catch { return false; }
+}
+
 export function backlogFile(cwd: string, agentDir = getAgentDir()): string {
   return path.join(resolveMemoryPaths(cwd, agentDir).agentDir, "learning", "backlog.jsonl");
 }
@@ -28,7 +66,7 @@ function missing(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
 }
 
-function safeStorage(file: string, root: string, create = false): void {
+export function safeBacklogStorage(file: string, root: string, create = false): void {
   const relative = path.relative(root, file);
   if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error("Backlog path escapes its root");
   if (create) fs.mkdirSync(root, { recursive: true, mode: 0o700 });
@@ -45,8 +83,9 @@ function safeStorage(file: string, root: string, create = false): void {
     }
   }
 }
+const safeStorage = safeBacklogStorage;
 
-function readBounded(file: string, limit: number): string {
+export function readBoundedBacklogFile(file: string, limit: number): string {
   const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
   try {
     const before = fs.fstatSync(fd);
@@ -63,9 +102,10 @@ function readBounded(file: string, limit: number): string {
     return bytes.toString("utf8");
   } finally { fs.closeSync(fd); }
 }
+const readBounded = readBoundedBacklogFile;
 
 /** Serialize the shared capacity check and all scoped cursor updates. */
-function withBacklogLock<T>(cwd: string, agentDir: string | undefined, operation: () => T): T {
+export function withBacklogLock<T>(cwd: string, agentDir: string | undefined, operation: () => T): T {
   const paths = resolveMemoryPaths(cwd, agentDir);
   const file = path.join(paths.agentDir, "learning", "backlog.lock");
   safeStorage(file, paths.agentDir, true);
@@ -116,7 +156,7 @@ function validEntry(value: unknown): value is BacklogEntry {
   return entry.version === 1 && typeof entry.sessionFile === "string" && path.isAbsolute(entry.sessionFile)
     && Number.isSafeInteger(entry.from) && entry.from >= 0 && Number.isSafeInteger(entry.to) && entry.to >= entry.from
     && typeof entry.digest === "string" && entry.digest.length > 0 && entry.digest.length <= 128
-    && ["auto-memory-off", "screen-found-nothing", "no-session-reference"].includes(entry.reason)
+    && ["auto-memory-off", "screen-found-nothing", "no-session-reference", "learning-failed", "learning-proposed", "learning-pending"].includes(entry.reason)
     && typeof entry.queuedAt === "string" && Number.isFinite(Date.parse(entry.queuedAt))
     && (entry.scopeKey === undefined || (typeof entry.scopeKey === "string" && Buffer.byteLength(entry.scopeKey) <= 240))
     && Object.keys(entry).every(key => ["version", "sessionFile", "from", "to", "digest", "reason", "queuedAt", "scopeKey"].includes(key));
@@ -143,6 +183,10 @@ function appendBacklog(input: {
       digest: input.digest, reason: input.reason, queuedAt: new Date().toISOString(), scopeKey: paths.scopeKey,
     };
     if (!validEntry(entry)) return false;
+    const prior = readBacklog(input.cwd, input.agentDir);
+    if (prior.error) return false;
+    if ([...prior.entries, ...prior.unlearnable].some(old => old.scopeKey === entry.scopeKey && old.sessionFile === entry.sessionFile
+      && old.from === entry.from && old.to === entry.to && old.digest === entry.digest)) return true;
     const bytes = Buffer.from(`${JSON.stringify(entry)}\n`);
     if (bytes.length > MAX_BACKLOG_RECORD_BYTES) return false;
     const file = backlogFile(input.cwd, input.agentDir);
@@ -192,15 +236,17 @@ export interface BacklogRead {
   pending: number;
   unscoped: number;
   error?: string;
+  pendingEntries: Array<{ entry: BacklogEntry; position: number }>;
 }
 
 export function readBacklog(cwd: string, agentDir = getAgentDir()): BacklogRead {
-  const result: BacklogRead = { entries: [], unlearnable: [], malformed: 0, consumed: 0, pending: 0, unscoped: 0 };
+  const result: BacklogRead = { entries: [], unlearnable: [], malformed: 0, consumed: 0, pending: 0, unscoped: 0, pendingEntries: [] };
   try {
     const paths = resolveMemoryPaths(cwd, agentDir), file = backlogFile(cwd, agentDir);
     safeStorage(file, paths.agentDir);
     result.consumed = readCursor(cwd, agentDir);
     const legacyConsumed = readStoredCursor(path.join(path.dirname(file), CURSOR_FILE), paths.agentDir);
+    const completed = acknowledgments(cwd, agentDir).ids;
     const raw = readBounded(file, MAX_BACKLOG_BYTES);
     let ordinal = 0;
     for (const line of raw.split("\n")) {
@@ -216,7 +262,7 @@ export function readBacklog(cwd: string, agentDir = getAgentDir()): BacklogRead 
         if (readableSession(entry.sessionFile)) {
           result.entries.push(entry);
           const consumed = entry.scopeKey === undefined ? Math.max(result.consumed, legacyConsumed) : result.consumed;
-          if (position >= consumed) result.pending += 1;
+          if (position >= consumed && !completed[backlogIdentity(paths.scopeKey, entry)]) { result.pending += 1; result.pendingEntries.push({entry, position}); }
         } else result.unlearnable.push(entry);
       } catch { result.malformed += 1; }
     }

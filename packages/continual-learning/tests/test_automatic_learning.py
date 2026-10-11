@@ -790,3 +790,49 @@ def test_harness_repair_does_not_preserve_unauthorized_generated_positive_cases(
     assert 'Generated positive cases are not authorization' in prompt
     assert 'extra arguments must be negative' in prompt
     assert 'while retaining\nthe required positives' not in prompt
+
+
+def test_shutdown_while_reading_settings_cannot_start_old_session_backfill() -> None:
+    result = run_bun(r'''
+      import fs from 'node:fs';
+      const source=fs.readFileSync('./packages/continual-learning/extensions/inject-memory.ts','utf8');
+      const end=source.indexOf('\n    reportError: (error, ctx) => notifyPi(ctx.ui, `Automatic learning failed:');
+      const start=source.lastIndexOf('} finally { release(); }',end)+'} finally { release(); }'.length;
+      const body=source.slice(start,end).replace(/\n    },\s*$/,'');
+      const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
+      const run=new AsyncFunction('runtimeSettings','replayPending','ctx',`let sessionGeneration=1;const generation=1;${body}`);
+      let calls=0;
+      // Complete the settings await only after the old session is invalidated.
+      const interrupted=new AsyncFunction('replayPending',`let sessionGeneration=1;const generation=1;const ctx={};const runtimeSettings=async()=>{sessionGeneration++;return {autoMemory:true};};${body}`);
+      await interrupted(async()=>calls++);
+      const interruptedCalls=calls;await run(async()=>({autoMemory:true}),async()=>calls++,{});
+      console.log(JSON.stringify({interruptedCalls,normalCalls:calls-interruptedCalls}));
+    ''')
+    assert result == {'interruptedCalls': 0, 'normalCalls': 1}
+
+
+@pytest.mark.parametrize('failure', ['shutdown', 'settings-error'])
+def test_settled_task_is_retained_before_asynchronous_settings(failure: str) -> None:
+    result = run_bun(r'''
+      import {registerAutomaticLearning} from './packages/continual-learning/extensions/automatic-learning.ts';
+      const hooks=new Map(),queued=[],runs=[],errors=[];
+      let release,entered;const gate=new Promise(r=>release=r);const reading=new Promise(r=>entered=r);
+      registerAutomaticLearning({on:(name,fn)=>hooks.set(name,fn)}, {
+        snapshot:ctx=>({...ctx}),onPending:(ctx,revision)=>queued.push({value:ctx.value,revision}),
+        enabled:async()=>{entered();await gate;if(process.env.TEST_FAILURE==='settings-error')throw Error('settings failed');return true;},
+        run:async ctx=>runs.push(ctx.value),reportError:error=>errors.push(String(error)),
+      });
+      const ctx={value:'failed user task evidence',hasUI:false};
+      await hooks.get('agent_settled')({},ctx);
+      hooks.get('input')({source:'extension'});await hooks.get('agent_settled')({},ctx);
+      hooks.get('input')({source:'interactive'});
+      const settled=hooks.get('agent_settled')({},ctx);await reading;
+      const retainedBeforeSettings=queued.length;
+      if(process.env.TEST_FAILURE==='shutdown')hooks.get('session_shutdown')({},ctx);
+      release();await settled;await hooks.get('agent_settled')({},ctx);
+      console.log(JSON.stringify({queued,runs,errors,retainedBeforeSettings}));
+    ''', {'TEST_FAILURE': failure})
+    assert result['queued'] == [{'value': 'failed user task evidence', 'revision': 1}]
+    assert result['retainedBeforeSettings'] == 1
+    assert result['runs'] == []
+    assert len(result['errors']) == (failure == 'settings-error')

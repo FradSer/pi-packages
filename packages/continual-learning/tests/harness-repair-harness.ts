@@ -31,7 +31,7 @@ fs.writeFileSync(
 );
 fs.mkdirSync(path.join(cwd, ".pi"), { recursive: true });
 
-const QUOTE = "Never run the retired compiler through bash";
+const QUOTE = scenario === "semantic-message-completion" ? "Never run the retired compiler through bash. This restriction lasts for future project tasks." : "Never run the retired compiler through bash";
 /** The run identity is generated inside the run, so the child recovers it from
  *  the bound task file the way the real planner reads the same protocol. */
 const identityFrom = (text: string) => ({
@@ -64,7 +64,7 @@ const goodPlan = (ids: ReturnType<typeof identity>) => ({
   operations: [
     {
       op: "addRule",
-      rule: { id: "no-retired-compiler", bash: "^retired-compiler ", action: "block", message: "Use the current compiler." },
+      rule: { id: "no-retired-compiler", bash: scenario === "semantic-message-completion" ? String.raw`^retired-compiler(?:[ \t]|$(?![\s\S]))` : "^retired-compiler ", action: "block", message: scenario === "semantic-message-completion" ? "Never run the retired compiler through bash." : "Use the current compiler." },
       cases: {
         positive: [{ bash: "retired-compiler build", expected: "block" }],
         negative: [{ bash: "printf safe" }],
@@ -101,6 +101,7 @@ const taskTexts: string[] = [];
 const modelArgs: string[] = [];
 let cancelled = false;
 let semanticCalls = 0;
+const judgedOperations: unknown[] = [];
 
 const kit = await import("../../kit/src/index.ts");
 mock.module("../../kit/src/index.ts", () => ({
@@ -223,8 +224,9 @@ try {
       ...(scenario.startsWith("semantic-") ? {semanticRepair: scenario !== "semantic-off", validateSemantics: async (snapshot: unknown, _operations: readonly unknown[], _citations: unknown, parentScope: import("../extensions/jev-learning").BoundScopeContext | undefined) => {
         const evidence = snapshot as { runId: string; scopeKey: string };
         boundScopeChecks.push(!!parentScope && Object.isFrozen(parentScope) && parentScope.repoRoot === cwd && parentScope.runId === evidence.runId && parentScope.scopeKey === evidence.scopeKey && parentScope.evidenceDigest === createHash("sha256").update(JSON.stringify(snapshot)).digest("hex"));
+        judgedOperations.push(structuredClone(_operations));
         semanticCalls++; if (scenario === "semantic-cancel") cancelled = true;
-        if (scenario === "semantic-judge-tamper" && semanticCalls === 2) fs.rmSync(path.join(path.dirname(taskFiles.at(-1)!.slice(1)),"snapshot.json")); const allow = semanticCalls > 1 && scenario !== "semantic-still" && scenario !== "semantic-pruned-still";
+        if (scenario === "semantic-judge-tamper" && semanticCalls === 2) fs.rmSync(path.join(path.dirname(taskFiles.at(-1)!.slice(1)),"snapshot.json")); const allow = scenario === "semantic-message-completion" || semanticCalls > 1 && scenario !== "semantic-still" && scenario !== "semantic-pruned-still";
         return {decision:allow ? "allow" : "propose",telemetry:{stage:"harness",status:allow?"decided":"propose",reason:allow?"supported":scenario==="semantic-unavailable"?"unavailable":"uncertain",durationMs:1,model:"jev-1.13.0",inputTokens:10,outputTokens:2,estimatedCostUsd:0.00000042,...(!allow ? {candidateFailures:[{candidateIndex:0,dimension:"support",reason:"uncertain"}]} : {})}};
       }} : {}),
       ...( ["repair-model", "missing-model"].includes(scenario) ? { model: "provider/frozen" } : {}),
@@ -234,7 +236,7 @@ try {
   );
 
   if (result.ok && scenario === "semantic-apply-tamper") fs.rmSync(result.value.run.manifest.snapshotPath);
-  const directApply = result.ok && (result.value.semanticDecision === "propose" || scenario === "semantic-apply-tamper") ? await applyHarnessConsolidationPlan(result.value) : undefined;
+  const directApply = result.ok && (result.value.semanticDecision === "propose" || scenario === "semantic-apply-tamper" || scenario === "semantic-message-completion") ? await applyHarnessConsolidationPlan(result.value) : undefined;
   console.log(
     JSON.stringify({
       scenario,
@@ -242,6 +244,14 @@ try {
       semanticCalls,
       boundScopeChecks,
       directApply,
+      messageCompletionEvidence: result.ok && scenario === "semantic-message-completion" ? {
+        before: JSON.parse(fs.readFileSync(path.join(result.value.run.manifest.runDir, "pre-message-completion-plan.json"), "utf8")),
+        after: JSON.parse(fs.readFileSync(path.join(result.value.run.manifest.runDir, "message-completed-plan.json"), "utf8")),
+        judgedOperations,
+        receipt: JSON.parse(fs.readFileSync(path.join(result.value.run.manifest.runDir, "harness-post-receipt.json"), "utf8")),
+        stored: JSON.parse(fs.readFileSync(result.value.target, "utf8")),
+        history: (await listLearningHistory(cwd)).filter(entry => entry.phase === "harness" && entry.status === "applied"),
+      } : undefined,
       semanticDecision: result.ok ? result.value.semanticDecision : undefined,
       deferredPlan: result.ok ? result.value.deferredPlan : undefined,
       storedProposals: (await listLearningHistory(cwd)).filter(entry => entry.phase === "harness" && entry.status === "proposed").map(entry => entry.proposal),

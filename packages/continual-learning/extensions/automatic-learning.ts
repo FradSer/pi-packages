@@ -2,6 +2,7 @@
 export type AutomaticLearningSkipReason = "auto-memory-off";
 
 export interface AutomaticLearningOptions<T> {
+  onPending?: (context: T, revision: number) => void;
   /**
    * Called once for each real-user revision that settles while automatic
    * learning is disabled. `context` is the already-frozen snapshot captured
@@ -58,6 +59,7 @@ export function createAutomaticLearning<T>(
         skipped = skipped.catch((error) => reportError(error, context));
         return Promise.all([active ?? Promise.resolve(), skipped]).then(() => undefined);
       }
+      try { options.onPending?.(context, settledRevision); } catch (error) { reportError(error, context); }
       pending = { context };
       active ??= drain().finally(() => { active = undefined; });
       return active;
@@ -71,6 +73,7 @@ export function createAutomaticLearning<T>(
 }
 
 interface AutomaticLearningDependencies {
+  onPending?: (context: ExtensionContext, revision: number) => void;
   enabled: (ctx: ExtensionContext) => Promise<boolean>;
   snapshot: (ctx: ExtensionContext) => ExtensionContext;
   run: (ctx: ExtensionContext) => Promise<void>;
@@ -83,11 +86,13 @@ interface AutomaticLearningDependencies {
 }
 
 export function registerAutomaticLearning(pi: ExtensionAPI, dependencies: AutomaticLearningDependencies): void {
+  let retainedRevision = 0;
   let learning = createAutomaticLearning(dependencies.run, dependencies.reportError, {
     onSkipped: dependencies.onSkipped,
   });
   pi.on("session_start", () => {
     learning.stop();
+    retainedRevision = 0;
     learning = createAutomaticLearning(dependencies.run, dependencies.reportError, {
       onSkipped: dependencies.onSkipped,
     });
@@ -98,7 +103,12 @@ export function registerAutomaticLearning(pi: ExtensionAPI, dependencies: Automa
     const current = learning;
     const revision = current.revision;
     try {
+      if (revision <= retainedRevision) return;
       const snapshot = dependencies.snapshot(ctx);
+      // Retention precedes asynchronous policy reads: shutdown or a settings
+      // failure may prevent learning, but must not discard a settled task.
+      dependencies.onPending?.(snapshot, revision);
+      retainedRevision = revision;
       const enabled = await dependencies.enabled(ctx);
       if (current !== learning) return;
       const completion = current.settle(snapshot, enabled, revision);

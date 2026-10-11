@@ -12,7 +12,7 @@ Feature: Select the minimum sufficient scope for incremental learning
   Scenario: Task evidence stays within its serialized byte bound
     Given one task contains an oversized intermediate or final entry
     When the parent constructs the Task Slice
-    Then its complete serialized object is at most 512000 UTF-8 bytes and 96 entries
+    Then its complete serialized object is at most 512000 UTF-8 bytes and 256 entries
     And the original request is retained without changing evidence text
     And omitted entries are explicitly counted
     And fitting recent evidence and the final result are retained
@@ -127,3 +127,39 @@ Feature: Select the minimum sufficient scope for incremental learning
     When the parent writes the Learning Dossier
     Then each Harness event appears with its decision and recorded prose
     But repository or conversation text that merely names the harness is not an event
+
+  Scenario: Only plain assistant narration may be omitted without losing primary evidence
+    Given a task exceeds the entry or byte budget
+    When bounding omits only plain assistant narration
+    Then report context omission without forcing proposals-only mode
+    But when user, tool-result, assistant tool-call provenance or unknown-role entries are omitted
+    Then report primary evidence loss and force proposals-only mode
+    And retain exact citation and semantic validation in both cases
+
+  Scenario: Malformed JSON on an empty Memory scope uses one bounded correction
+    Given the selected existing Memory scope is empty
+    And a completed planner returns one marked incremental plan with invalid JSON syntax
+    When no cancellation, model error or output limit occurred
+    Then use the existing single structural correction slot with frozen original evidence
+    And never apply malformed text directly
+    And corrected identities, exact citations, privacy and Jev judgments must pass
+    But malformed output with an existing selected scope remains rejected
+
+  Scenario: Damaged output cannot authorize shared new memory
+    Given an empty selected scope and one syntax-damaged incremental plan
+    When the bounded correction returns a project memory classified safe
+    Then the parent classifies regenerated records as private before validation
+    And no regenerated record is mirrored into project shared memory
+
+  Scenario: Multiple extracted plans remain ambiguous
+    Given two structured plans followed by a syntax-damaged plan
+    When the child exits successfully
+    Then malformed recovery does not override the extractor ambiguity rejection
+
+  Scenario: Real-source counterevidence fits the complete wire budget
+    Given 205 complete frozen pluggy entries and five cited memory candidates
+    When support context and review windows are packaged for Jev
+    Then every original entry is reviewed unchanged within actual wire limits
+    And cited entries colocated in a window remain available by exact index
+    And late or cited-window contradictions and transport failures hold the plan
+    And windows are not merged using raw entry size alone

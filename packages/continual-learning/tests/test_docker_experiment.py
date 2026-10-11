@@ -263,3 +263,97 @@ def test_real_jev_proxy_route_and_model_stream_do_not_compete_for_slots(tmp_path
         upstream.shutdown()
         upstream.server_close()
         thread.join(timeout=5)
+
+
+@pytest.mark.parametrize("status", [200, 502])
+def test_jev_bun_forwarder_preserves_wire_and_keeps_secret_out_of_arguments(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int) -> None:
+    root=tmp_path/'host';root.mkdir()
+    (root/'memory.json').write_text(json.dumps({'provider':'fixture','model':'selected'}))
+    (root/'models.json').write_text(json.dumps({'providers':{'fixture':{'apiKey':'MODEL_SECRET','baseUrl':'https://example.invalid/v1','models':[{'id':'selected'}]}}}))
+    observed=[]
+    def run(args, **kwargs):
+        observed.append((args,kwargs))
+        body=json.dumps({'model':'jev-1.13.0','usage':{'input_tokens':17,'output_tokens':3},'answers':{}}) if status==200 else 'error HOST_JEV_SECRET MODEL_SECRET'
+        return __import__('subprocess').CompletedProcess(args,0,json.dumps({'status':status,'body':body}).encode(),b'')
+    monkeypatch.setattr(docker_experiment.subprocess,'run',run)
+    payload=json.dumps({'model':'jev-1.13.0','state':'complete frozen evidence','questions':{}}).encode()
+    with InferenceProxy(root,jev_key='HOST_JEV_SECRET',jev_transport='bun-fetch') as proxy:
+        conn=http.client.HTTPConnection('127.0.0.1',proxy.server.server_address[1],timeout=5)
+        conn.request('POST','/jev/v1/systemone',payload,headers={'Authorization':f'Bearer {proxy.token}'})
+        response=conn.getresponse();assert response.status==status
+        body=response.read();assert int(response.getheader('Content-Length'))==len(body);conn.close()
+        assert b'HOST_JEV_SECRET' not in body and b'MODEL_SECRET' not in body
+        assert proxy.jev_usage==([{'model':'jev-1.13.0','input_tokens':17,'output_tokens':3}] if status==200 else [])
+        assert len(proxy.jev_observations) == 1
+        observation = proxy.jev_observations[0]
+        assert observation['wireHash'] == __import__('hashlib').sha256(payload).hexdigest()
+        assert observation['wireBytes'] == len(payload)
+        assert observation['status'] == ('completed' if status == 200 else 'http-error')
+        assert observation['httpStatus'] == status and observation['durationMs'] >= 0
+        assert 'HOST_JEV_SECRET' not in str(observation) and 'complete frozen evidence' not in str(observation)
+
+    assert len(observed)==1
+    args,kwargs=observed[0]
+    assert 'HOST_JEV_SECRET' not in str(args)
+    assert kwargs['input']==payload and kwargs['env']['TYPESAFE_API_KEY']=='HOST_JEV_SECRET'
+    assert 'MODEL_SECRET' not in str(kwargs)
+
+
+def test_jev_forwarder_rejects_redirects_and_keeps_the_complete_wire(tmp_path: Path) -> None:
+    preload=tmp_path/'preload.mjs'
+    preload.write_text('''globalThis.fetch=async(url,options)=>{
+      if(url!=='https://api.typesafe.ai/v1/systemone'||options.redirect!=='error'||!options.signal
+         ||JSON.parse(options.body).state!=='complete wire')throw Error('Invalid transparent transport');
+      return new Response(JSON.stringify({model:'jev-1.13.0'}));
+    };''')
+    result=__import__('subprocess').run(['bun','--preload',str(preload),str(Path(docker_experiment.__file__).with_name('jev-http-forward.mjs'))],
+        input=json.dumps({'model':'jev-1.13.0','state':'complete wire'}).encode(),capture_output=True,
+        env={**__import__('os').environ,'TYPESAFE_API_KEY':'synthetic-host-only-key'},timeout=10)
+    assert result.returncode==0, result.stderr.decode()
+    assert json.loads(result.stdout)['status']==200
+
+
+@pytest.mark.parametrize("failure", ["error", "timeout", "classified", "untrusted"])
+def test_jev_forwarder_failure_has_controlled_diagnostics(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str) -> None:
+    # Given a failed host forwarder, When the original connection closes,
+    # Then retain only controlled metadata and never child stderr or credentials.
+    import subprocess
+    root = tmp_path / 'host'
+    root.mkdir()
+    (root / 'memory.json').write_text(json.dumps({'provider': 'fixture', 'model': 'selected'}))
+    (root / 'models.json').write_text(json.dumps({'providers': {'fixture': {'apiKey': 'MODEL_SECRET',
+        'baseUrl': 'https://example.invalid/v1', 'models': [{'id': 'selected'}]}}}))
+    def run(args, **kwargs):
+        if failure == 'timeout':
+            raise subprocess.TimeoutExpired(args, 35, stderr=b'HOST_JEV_SECRET private context')
+        if failure in ('classified', 'untrusted'):
+            category = 'connection-timeout' if failure == 'classified' else 'HOST_JEV_SECRET private context'
+            return subprocess.CompletedProcess(args, 0, json.dumps({'transportFailure': category}).encode(), b'')
+        return subprocess.CompletedProcess(args, 1, b'', b'HOST_JEV_SECRET private context')
+    monkeypatch.setattr(docker_experiment.subprocess, 'run', run)
+    with InferenceProxy(root, jev_key='HOST_JEV_SECRET', jev_transport='bun-fetch') as proxy:
+        conn = http.client.HTTPConnection('127.0.0.1', proxy.server.server_address[1], timeout=5)
+        conn.request('POST', '/jev/v1/systemone', json.dumps({'model': 'jev-1.13.0', 'state': 'private context'}),
+                     headers={'Authorization': f'Bearer {proxy.token}'})
+        with pytest.raises(http.client.RemoteDisconnected):
+            conn.getresponse()
+        conn.close()
+        assert proxy.jev_observations[0]['status'] == ('forwarder-timeout' if failure == 'timeout' else 'transport-error' if failure == 'untrusted' else 'forwarder-error')
+        assert proxy.jev_observations[0]['durationMs'] >= 0
+        if failure == 'classified':
+            assert proxy.jev_observations[0]['failureCategory'] == 'connection-timeout'
+        assert proxy.jev_usage == [] and proxy.errors == 1
+        assert 'HOST_JEV_SECRET' not in str(proxy.jev_observations)
+        assert 'private context' not in str(proxy.jev_observations)
+
+
+@pytest.mark.parametrize("code,category", [("ETIMEDOUT", "connection-timeout"), ("ECONNRESET", "connection-reset"), ("ConnectionClosed", "connection-closed"), ("ConnectionRefused", "connection-refused"), ("PRIVATE_SECRET", "transport-unavailable")])
+def test_forwarder_emits_only_controlled_fetch_failure_categories(tmp_path: Path, code: str, category: str) -> None:
+    preload = tmp_path / 'preload.mjs'
+    preload.write_text('globalThis.fetch=async()=>{throw Object.assign(new Error("private context"),{code:'+json.dumps(code)+'});};')
+    result = __import__('subprocess').run(['bun', '--preload', str(preload), str(Path(docker_experiment.__file__).with_name('jev-http-forward.mjs'))],
+        input=json.dumps({'model':'jev-1.13.0'}).encode(), capture_output=True,
+        env={**__import__('os').environ,'TYPESAFE_API_KEY':'synthetic-host-only-key'},timeout=10)
+    assert result.returncode == 0
+    assert json.loads(result.stdout) == {'transportFailure': category}
+    assert result.stderr == b''

@@ -55,10 +55,13 @@ writeFileSync("pnpm-workspace.yaml", yaml.replace("overrides:\n",
 OVERRIDE
 pnpm install
 apt-get update -qq
-apt-get install -y -qq python3 python3-venv >/dev/null
+apt-get install -y -qq git python3 python3-venv >/dev/null
 python3 -m venv /verify/venv
 /verify/venv/bin/pip install -q pyte pytest
-cp -R /e2e-tests/. /verify/packages/e2e/tests/
+tar -C /e2e-tests --exclude='./runs' --exclude='./promax-pilot/runs' -cf - . | tar -C /verify/packages/e2e/tests -xf -
+# Pure pilot collector tests import this transport library; no provider is created.
+mkdir -p /verify/packages/continual-learning/tests
+cp /pilot-transport /verify/packages/continual-learning/tests/docker_experiment.py
 cp /root-agents /verify/AGENTS.md
 mkdir -p /verify/tests/e2e /verify/packages/goal /verify/packages/tasks /verify/.e2e
 cp /runner-config /verify/.e2e/runner.json
@@ -114,7 +117,7 @@ console.log(JSON.stringify({autoloadStatuses:statuses,verifiedRun:true}));
 ACCEPT
 node --input-type=module -e 'import {readFileSync} from "node:fs"; import {createHash} from "node:crypto"; const settings=JSON.parse(readFileSync("/isolated/agent/settings.json")); if(settings.packages.length!==1) throw Error("Expected only the E2E package"); console.log(JSON.stringify({packages:settings.packages,e2eSha256:createHash("sha256").update(readFileSync(process.env.E2E_TARBALL)).digest("hex"),kitSha256:createHash("sha256").update(readFileSync(process.env.TASK_KIT_TARBALL)).digest("hex")}));'
 SETUP
-docker run -d --init --name "$container_name" -v "$receipt_dir:/receipts" -v "$repo_root/packages/e2e/tests:/e2e-tests:ro" -v "$repo_root/AGENTS.md:/root-agents:ro" -v "$repo_root/package.json:/root-manifest:ro" -v "$repo_root/pnpm-lock.yaml:/root-lockfile:ro" -v "$repo_root/tests/e2e/support:/shared-support:ro" -v "$repo_root/.e2e/runner.json:/runner-config:ro" -v "$repo_root/packages/goal/index.ts:/goal-entry:ro" -v "$repo_root/packages/goal/package.json:/goal-manifest:ro" -v "$repo_root/packages/goal/src:/goal-source:ro" -v "$repo_root/packages/goal/tests:/goal-tests:ro" -v "$repo_root/packages/tasks/src:/task-source:ro" -v "$repo_root/packages/tasks/tests:/task-tests:ro" -v "$repo_root/packages/goal/features:/goal-features:ro" -v "$repo_root/packages/tasks/features:/task-features:ro" -v "$repo_root/packages/e2e/package.json:/source-manifest:ro" -v "$repo_root/packages/e2e/AGENTS.md:/package-agents:ro" node:24-bookworm-slim sleep infinity > "$receipt_dir/container-id"
+docker run -d --init --name "$container_name" -v "$receipt_dir:/receipts" -v "$repo_root/packages/e2e/tests:/e2e-tests:ro" -v "$repo_root/packages/continual-learning/tests/docker_experiment.py:/pilot-transport:ro" -v "$repo_root/AGENTS.md:/root-agents:ro" -v "$repo_root/package.json:/root-manifest:ro" -v "$repo_root/pnpm-lock.yaml:/root-lockfile:ro" -v "$repo_root/tests/e2e/support:/shared-support:ro" -v "$repo_root/.e2e/runner.json:/runner-config:ro" -v "$repo_root/packages/goal/index.ts:/goal-entry:ro" -v "$repo_root/packages/goal/package.json:/goal-manifest:ro" -v "$repo_root/packages/goal/src:/goal-source:ro" -v "$repo_root/packages/goal/tests:/goal-tests:ro" -v "$repo_root/packages/tasks/src:/task-source:ro" -v "$repo_root/packages/tasks/tests:/task-tests:ro" -v "$repo_root/packages/goal/features:/goal-features:ro" -v "$repo_root/packages/tasks/features:/task-features:ro" -v "$repo_root/packages/e2e/package.json:/source-manifest:ro" -v "$repo_root/packages/e2e/AGENTS.md:/package-agents:ro" node:24-bookworm-slim sleep infinity > "$receipt_dir/container-id"
 if docker exec "$container_name" sh /receipts/setup.sh > "$receipt_dir/verification.log" 2>&1; then
   printf 'E2E_DOCKER_OK %s\n' "$receipt_dir"
 else

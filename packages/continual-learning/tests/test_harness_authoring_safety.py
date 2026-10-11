@@ -16,7 +16,7 @@ def test_command_never_precreates_a_target_before_expressibility(tmp_path: Path,
       const {{default: register}} = await import('./packages/continual-learning/extensions/guardrails.ts');
       const commands = {{}}; const messages = [];
       register({{on(){{}}, registerEntryRenderer(){{}}, registerCommand:(n,c)=>commands[n]=c,
-        getCommands:()=>[], sendUserMessage:(content)=>messages.push(content)}});
+        getCommands:()=>[], sendMessage:(message)=>messages.push(message.content)}});
       await commands.harness.handler({json.dumps(rule_request)}, {{cwd:{json.dumps(str(tmp_path))},ui:{{notify(){{}}}}}});
       console.log(JSON.stringify({{files:fs.readdirSync({json.dumps(str(tmp_path))}),messages}}));
     ''')

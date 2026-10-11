@@ -42,3 +42,15 @@ def test_memory_tree_rejects_nested_symlink(tmp_path: Path) -> None:
 
     with pytest.raises(AssertionError, match="symlink"):
         _assert_safe_memory_tree(root)
+
+
+def test_native_wait_accepts_exit_between_predicate_and_process_poll():
+    from live_manual_memory import NativeTui
+    from types import SimpleNamespace
+    polls = iter([None, 0, 0])
+    process = SimpleNamespace(poll=lambda: next(polls, 0), returncode=0)
+    tui = NativeTui.__new__(NativeTui)
+    tui.process = process
+    tui.transcript = bytearray()
+    tui._pump = lambda: None
+    tui.wait_until(lambda: process.poll() is not None, 1, 'Exited successfully')

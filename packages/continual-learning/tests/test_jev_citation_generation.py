@@ -28,13 +28,15 @@ def test_actual_semantic_worker_receives_guidance_without_new_write_authority() 
       const identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h'};
       const payload={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[{name:'fact.md',kind:'project',classification:'safe',content:'Project uses Vitest.',evidence:[{index:1,quote:'Verified migration to Vitest.',role:'toolResult'}]}]};
       const context={frozenEvidence:{contextEnabled:true,entries:[{role:'user',content:'Use Vitest for future tasks.'},{role:'toolResult',content:'Verified migration to Vitest.'}]},existingMemories:[]};
+      const original=JSON.stringify(context);
       const semantic=await repairIncrementalMemoryPlan({identity,rejectedPlan:payload,errors:['uncertain'],selectedNames:[],semanticContext:context});
       const structural=await repairIncrementalMemoryPlan({identity,rejectedPlan:payload,errors:['schema'],selectedNames:[]});
-      console.log(JSON.stringify({semantic,structural,semanticGuidance:inputs[0].prompt.includes(MEMORY_CITATION_GUIDANCE),structuralGuidance:inputs[1].prompt.includes(MEMORY_CITATION_GUIDANCE),tools:inputs.map(i=>i.tools),contextUnchanged:JSON.stringify(JSON.parse(inputs[0].prompt.split('\n').at(-1)).semanticContext)===JSON.stringify(context)}));
+      console.log(JSON.stringify({semantic,structural,semanticGuidance:inputs[0].prompt.includes(MEMORY_CITATION_GUIDANCE),structuralGuidance:inputs[1].prompt.includes(MEMORY_CITATION_GUIDANCE),tools:inputs.map(i=>i.tools),contextUnchanged:JSON.stringify(context)===original,shownContext:JSON.parse(inputs[0].prompt.split('\n').at(-1)).semanticContext}));
     ''')
     assert value['semanticGuidance'] and not value['structuralGuidance']
     assert value['semantic']['outcome'] == 'repaired'
     assert value['contextUnchanged']
+    assert value['shownContext'] == {'frozenEvidence': {'contextEnabled': True, 'entries': [{'snapshotIndex': 0, 'entry': {'role': 'user', 'content': 'Use Vitest for future tasks.'}}, {'snapshotIndex': 1, 'entry': {'role': 'toolResult', 'content': 'Verified migration to Vitest.'}}]}, 'existingMemories': []}
     assert all(tools == [] for tools in value['tools'])
 
 

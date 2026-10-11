@@ -131,9 +131,9 @@ async function executeRunner(
   evidencePath: string,
   scenario: { featurePath: string; name: string },
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<string> {
   signal?.throwIfAborted();
-  await new Promise<void>((resolve, reject) => {
+  return await new Promise<string>((resolve, reject) => {
     const child = spawn(runner.executable, [...runner.args ?? []], {
       cwd,
       env: {
@@ -174,7 +174,7 @@ async function executeRunner(
       const diagnostic = output.length > 0 ? `\nRunner output${bytes > 8192 ? " (last 8192 bytes)" : ""}:\n${output.toString("utf8").trimEnd()}` : "";
       if (failure) reject(new Error(failure.message + diagnostic));
       else if (code !== 0) reject(new Error(`Test runner exited with ${String(code)}${diagnostic}`));
-      else resolve();
+      else resolve(output.toString("utf8").trimEnd());
     });
   });
 }
@@ -184,8 +184,10 @@ export async function runAndVerify(options: {
   runner: TestRunner; cwd: string; featurePath: string; scenario?: string;
   offline?: boolean; policy?: VerifyOptions["policy"]; signal?: AbortSignal;
   validateRunner?: (snapshot: string) => void;
+  onProgress?: (phase: string) => void;
 }): Promise<VerifyResult> {
   const featurePath = path.resolve(options.cwd, options.featurePath);
+  options.onProgress?.("Checking runner configuration");
   const configuration = await runnerSnapshot(options.cwd);
   const assertStableRunner = async (): Promise<void> => {
     const current = await runnerSnapshot(options.cwd);
@@ -208,13 +210,15 @@ export async function runAndVerify(options: {
     const evidencePath = path.join(folder, "evidence.json");
     await assertStableRunner();
     options.validateRunner?.(configuration);
-    await executeRunner(
+    options.onProgress?.("Running project tests");
+    const runnerOutput = await executeRunner(
       { ...configured, timeoutMs: options.runner.timeoutMs ?? configured.timeoutMs },
       options.cwd,
       evidencePath,
       { featurePath, name: scenario.name },
       options.signal,
     );
+    options.onProgress?.("Reading fresh test evidence");
     const raw = await readBoundedFile(evidencePath);
     options.signal?.throwIfAborted();
     if (await readFile(featurePath, "utf8") !== source) throw new Error("Feature changed during test run; rerun tests");
@@ -225,13 +229,15 @@ export async function runAndVerify(options: {
       offline: options.offline,
       policy: options.policy,
       signal: options.signal,
+      onProgress: options.onProgress,
     });
     options.signal?.throwIfAborted();
     if (await readFile(featurePath, "utf8") !== source) throw new Error("Feature changed during verification; rerun tests");
+    options.onProgress?.("Checking run freshness");
     await assertStableRunner();
     options.validateRunner?.(configuration);
     proofs.set(result.verdict, { featurePath, source, configuration, cwd: options.cwd, scenarios: feature.scenarios.map((item) => item.name) });
-    return result;
+    return runnerOutput && result.verdict.status !== "fulfilled" ? { ...result, runnerOutput } : result;
   } finally { await rm(folder, { recursive: true, force: true }); }
 }
 

@@ -1,3 +1,4 @@
+import { resolveToolTargetPath as harnessTargetPath } from "./tool-target-path";
 /**
  * Guardrails — the harness surface of continual learning: declarative
  * Bash gates and flat rules that evolve through layered JSON config.
@@ -11,11 +12,9 @@ import fs from "node:fs";
 import type { Stats } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { fileURLToPath } from "node:url";
-import { homedir } from "node:os";
 import { keyHint, ToolExecutionComponent, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { bindLifecycleRenderers, eventToolLifecycle, fieldLine, notifyPi, safeDisplayText } from "@fradser/pi-kit";
+import { bindLifecycleRenderers, eventToolLifecycle, fieldLine, notifyPi, safeDisplayText, startedToolLifecycle } from "@fradser/pi-kit";
 
 /** Geometry bound once: every guardrail row shares hint and wrapping. */
 const guardrailRows = bindLifecycleRenderers({
@@ -51,19 +50,7 @@ interface HarnessPolicyEvent {
 
 type HarnessEventData = HarnessPolicyEvent;
 
-// Pi exposes no native path resolver; keep this gate-local normalization
-// covered against createWriteTool rather than loading private runtime modules.
-function harnessTargetPath(input: string, cwd: string): string {
-  let target = input.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ").replace(/^@/, "");
-  if (process.platform === "win32" && target.startsWith("/") && !target.startsWith("//") && !target.includes("\\")) {
-    const drive = target.match(/^\/(?:mnt\/|cygdrive\/)?([a-z])(?:\/(.*))?$/i);
-    if (drive) target = `${drive[1].toUpperCase()}:\\${drive[2]?.replaceAll("/", "\\") ?? ""}`;
-  }
-  if (target === "~") target = homedir();
-  else if (target.startsWith("~/") || (process.platform === "win32" && target.startsWith("~\\"))) target = path.join(homedir(), target.slice(2));
-  else if (target.startsWith("file://")) target = fileURLToPath(target);
-  return path.resolve(cwd, target);
-}
+
 
 function harnessSourcePath(source: string | undefined, paths: ReturnType<typeof configPaths>): string {
   switch (source) {
@@ -306,6 +293,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         : details.action === "confirm" && details.outcome === "allowed once" ? "policy allowed" : "policy blocked";
       return guardrailRows.message(() => eventToolLifecycle("harness", reason, {
         label,
+        tone: label === "policy blocked" ? "error" : label === "policy observed" ? "warning" : "success",
         details: [
           fieldLine("policy", details.policy),
           fieldLine("action", details.action),
@@ -319,6 +307,11 @@ export default function registerGuardrails(pi: ExtensionAPI) {
     const message = "harness policy event";
     return guardrailRows.message(() => eventToolLifecycle("harness", message, { label: "event" }))({ content: "", details }, { expanded }, theme);
   });
+
+  pi.registerMessageRenderer?.("harness-procedure", guardrailRows.message(message => startedToolLifecycle("harness", String((message.details as { subject?: string } | undefined)?.subject ?? "rule request"), { label: "started" })));
+  const startRuleProcedure = (request: string, target: string, scope: string, skills: readonly string[]): void => {
+    pi.sendMessage({ customType: "harness-procedure", content: buildHarnessRulePrompt(request, target, scope, skills), display: true, details: { subject: safeDisplayText(request) } }, { deliverAs: "followUp", triggerTurn: true });
+  };
 
   pi.on("tool_call", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
@@ -587,7 +580,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         const availableSkills = pi.getCommands()
           .filter((command) => command.source === "skill")
           .map((command) => command.name.replace(/^skill:/, ""));
-        pi.sendUserMessage(buildHarnessRulePrompt(request, targetFile, scopeLabel, availableSkills), { deliverAs: "followUp" });
+        startRuleProcedure(request, targetFile, scopeLabel, availableSkills);
         return;
       }
       const availableSkills = new Set(pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')));
@@ -606,8 +599,8 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           const skills = pi.getCommands()
             .filter((command) => command.source === "skill")
             .map((command) => command.name.replace(/^skill:/, ""));
-          pi.sendUserMessage(buildHarnessRulePrompt(menuRequest, target.targetFile, target.scopeLabel, skills), { deliverAs: "followUp" });
-        });
+          startRuleProcedure(menuRequest, target.targetFile, target.scopeLabel, skills);
+        }, ctx.mode);
         return;
       }
       const describe = (r: (typeof config.rules)[number]): string => {

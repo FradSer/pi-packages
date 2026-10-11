@@ -15,9 +15,12 @@ export interface VerifyOptions {
   readonly offline?: boolean;
   readonly client?: ClientOptions;
   readonly signal?: AbortSignal;
+  readonly onProgress?: (phase: string) => void;
 }
 
 export interface VerifyResult {
+  /** Bounded fresh adapter output for diagnosing an unmet verification. */
+  readonly runnerOutput?: string;
   readonly verdict: Verdict;
   /** Question ids the model was asked about. Empty in offline mode. */
   readonly asked: readonly string[];
@@ -53,6 +56,7 @@ export async function verifyScenario(options: VerifyOptions): Promise<VerifyResu
   }
   const clauses = thenClauses(options.scenario);
   if (clauses.length === 0) throw new Error("Scenario needs a Then clause");
+  options.onProgress?.("Checking deterministic clauses");
   const deterministic = evaluateChecks(clauses, options.evidence);
   const pending = clauses.filter((clause) => !deterministic.has(clause.index)).map((clause) => clause.index);
   const results = new Map<number, ClauseResult>(deterministic);
@@ -67,6 +71,7 @@ export async function verifyScenario(options: VerifyOptions): Promise<VerifyResu
   const asked: string[] = [];
 
   if (pending.length > 0 && options.offline !== true) {
+    options.onProgress?.("Evaluating semantic clauses with Jev");
     const request = buildRequest(options.scenario, options.evidence, pending);
     asked.push(...Object.keys(request.questions));
     try {

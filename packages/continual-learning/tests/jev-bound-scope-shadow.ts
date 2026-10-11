@@ -33,14 +33,16 @@ export interface JevJudge {`);
  replace('candidate: counterevidenceMeaning(stage, candidate),','candidate: stage === "harness" && boundPush(candidate, evidence, parentScope) && record(candidate) && record(candidate.rule)\n                ? { rule: { commandWords: "git push", action: "block", message: candidate.rule.message as JsonValue, matching: boundMatching, scope: "current project" } }\n                : counterevidenceMeaning(stage, candidate),');
  return source;
 }
-export async function loadBoundScopeJudge(transform:(source:string)=>string = boundScopeSource):Promise<{createJevJudge:BoundScopeFactory;sourceSha256:string;patchedSha256:string;directory:string;dispose():Promise<void>}> {
+export async function loadBoundScopeJudge(transform:(source:string)=>string = boundScopeSource):Promise<{createJevJudge:BoundScopeFactory;baselineCreateJevJudge:typeof createJevJudge;sourceSha256:string;patchedSha256:string;directory:string;dispose():Promise<void>}> {
  const source=await fs.readFile(new URL('./fixtures/jev-learning-before-bound-scope.ts.txt',import.meta.url),'utf8');const patched=transform(source);
  const directory=await fs.mkdtemp(new URL('./.jev-bound-scope-',import.meta.url).pathname);const dispose=()=>fs.rm(directory,{recursive:true,force:true});
  try {
   await fs.cp(new URL('../extensions/',import.meta.url),`${directory}/extensions`,{recursive:true});
   const file=`${directory}/extensions/jev-learning.ts`;await fs.writeFile(file,patched,'utf8');
+  const baselineFile=`${directory}/extensions/baseline-jev-learning.ts`;await fs.writeFile(baselineFile,source);
+  const baseline:{createJevJudge:typeof createJevJudge}=await import(baselineFile);
   const loaded:{createJevJudge:BoundScopeFactory}=await import(file);const hash=(s:string)=>createHash('sha256').update(s).digest('hex');
-  return {createJevJudge:loaded.createJevJudge,sourceSha256:hash(source),patchedSha256:hash(patched),directory,dispose};
+  return {createJevJudge:loaded.createJevJudge,baselineCreateJevJudge:baseline.createJevJudge,sourceSha256:hash(source),patchedSha256:hash(patched),directory,dispose};
  }catch(error){await dispose();throw error;}
 }
 

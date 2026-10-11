@@ -63,7 +63,7 @@ const HARNESS_PROMPT = loadPrompt("harness-consolidator");
 const AGENTS_MD_PROMPT = loadPrompt("agents-md-consolidator");
 const PLANNER_SYSTEM_PROMPT = loadPrompt("planner-system");
 
-export const MEMORY_CITATION_GUIDANCE = `For each body and description claim, cite the relevant original user or tool-result source that establishes it. A future-task instruction does not prove a verified current state or successful execution. For current configuration or verification claims, include the actual configuration observation or successful tool result when present in the supplied frozen evidence; otherwise keep only the supported intended use and do not claim verification. Preserve later corrections, revocations and exceptions relevant to the same claim. Quotes must be verbatim with their original snapshot indexes. Do not attach all entries or unrelated observations to every candidate. Keep at most 8 evidence items per proposal and 2,000 characters per quote; select complete relevant quoted statements within those bounds, never invent or truncate away a condition. Preserve privacy classifications, candidate identity and independently grounded durable knowledge. Never quote secrets, infer success from missing evidence, add knowledge outside the requested scope or create Harness constraints. During semantic repair, an additional relevant original citation may resolve incomplete support without changing an already grounded fact; all parent structure, quote, privacy and full semantic checks still apply.`;
+export const MEMORY_CITATION_GUIDANCE = `For each index description use one independently supported clause, not a compressed bundle of claims. Preserve the evidence level: a type declaration establishes a type-level restriction, not necessarily a runtime restriction; label declared or type-level claims accordingly. A Promise and a PromiseLike are distinct contracts and must not be conflated. For each body and description claim, cite the relevant original user or tool-result source that establishes it. A future-task instruction does not prove a verified current state or successful execution. For current configuration or verification claims, include the actual configuration observation or successful tool result when present in the supplied frozen evidence; otherwise keep only the supported intended use and do not claim verification. Do not infer execution or completion timing from a call or assignment alone; distinguish scheduling, invocation and settlement, grounding timing claims in inspected control flow. Resolving with a task Promise adopts its eventual state; it does not establish that the caller observes completion before the task settles. A source comment about immediate resolution is not proof of early fulfillment. Source comments establish what the source says; they do not independently verify an external defect or its cause. Prefer the configured command or observed conditional behavior, and attribute an unverified explanation to its source rather than asserting it as a verified cause. Successful test counts are historical observations, not durable project facts or future guarantees; preserve the grounded command or behavior without attaching that run's count to a lasting entry. A task-local verification instruction does not establish a standing project convention, even when a nearby instruction is explicitly permanent. An observed script definition may be retained as an observed configuration fact without inventing a standing workflow or package-manager requirement. When source work establishes reusable source behavior and public contracts, consider that independently grounded knowledge with its own original tool citations; do not reduce source learning to a record of the task's tool-use instructions. Preserve later corrections, revocations and exceptions relevant to the same claim. Quotes must be verbatim with their original snapshot indexes. Do not attach all entries or unrelated observations to every candidate. Keep at most 8 evidence items per proposal and 2,000 characters per quote; select complete relevant quoted statements within those bounds, never invent or truncate away a condition. Preserve privacy classifications, candidate identity and independently grounded durable knowledge. Never quote secrets, infer success from missing evidence, add knowledge outside the requested scope or create Harness constraints. Executable block, confirm or deny requirements belong to Harness even when permanent; do not relabel them as project knowledge, a verification workflow or a package-manager preference. Independently observed configuration, source contracts and genuine personal preferences remain eligible knowledge. During semantic repair, an additional relevant original citation may resolve incomplete support without changing an already grounded fact; all parent structure, quote, privacy and full semantic checks still apply.`;
 
 export function learningPlannerArgs(): string[] {
   return ["--append-system-prompt", PLANNER_SYSTEM_PROMPT];
@@ -100,6 +100,7 @@ export function buildIncrementalMemoryConsolidatorPrompt(
     "ARTIFACT_HASH",
     "SNAPSHOT_DIGEST",
     "DOSSIER_PATH",
+    "OUTPUT_SCHEMA",
   ] as const, {
     RUN_ID: bindings.runId,
     SCOPE_KEY: bindings.scopeKey,
@@ -107,6 +108,12 @@ export function buildIncrementalMemoryConsolidatorPrompt(
     ARTIFACT_HASH: bindings.artifactHash,
     SNAPSHOT_DIGEST: bindings.snapshotDigest,
     DOSSIER_PATH: bindings.dossierPath,
+    OUTPUT_SCHEMA: JSON.stringify({
+      kind: "incremental-memory-plan", version: 1, schemaVersion: 1,
+      runId: bindings.runId, scopeKey: bindings.scopeKey, scopeDigest: bindings.scopeDigest,
+      artifactHash: bindings.artifactHash, snapshotDigest: bindings.snapshotDigest,
+      operations: [], newMemories: [],
+    }, null, 2),
   }) + "\n\n" + MEMORY_CITATION_GUIDANCE;
 }
 

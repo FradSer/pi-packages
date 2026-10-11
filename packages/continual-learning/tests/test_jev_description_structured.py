@@ -116,7 +116,7 @@ def test_structured_description_leaves_plain_absent_and_harness_wire_identical()
         const inputs=[{id:'plain',stage:'memory',snapshot,plan:{operations:[{name:'fact.md',kind:'project',classification:'safe',content:quote,evidence:[{index:0,quote,role:'user'}]}]}},{id:'absent',stage:'memory',snapshot,plan:{operations:[{name:'fact.md',kind:'project',classification:'safe',content:'---\nname: fact\ntype: project\n---\n'+quote,evidence:[{index:0,quote,role:'user'}]}]}},{id:'harness',stage:'harness',snapshot:sample.snapshot,plan:sample.plan}];
         for(const row of inputs){
           const arms=[];
-          for(const factory of [createJevJudge,research.createJevJudge]){
+          for(const factory of [research.baselineCreateJevJudge,research.createJevJudge]){
             const requests=[];const judge=factory({enabled:true,apiKey:'fixture',scopes:['memory','harness'],fetch:async(_url,init)=>{
               requests.push(String(init.body));const r=JSON.parse(String(init.body));const answers={};
               for(const [k,q]of Object.entries(r.questions)){
@@ -127,17 +127,37 @@ def test_structured_description_leaves_plain_absent_and_harness_wire_identical()
             }});
             const verdict=await judge.validate(row.stage,row.snapshot,row.plan.operations,[],undefined,row.stage==='harness'?row.plan.evidence:undefined);arms.push({requests,decision:verdict.decision});
           }
-          // One documented, authorized delta is allowed in the support question;
-          // every other wire byte must stay identical, so undocumented drift
-          // still fails. The harness row carries no support question.
-          const DELTA=[' A successful tool result that ran the command grounds the claim that the command works for this project.',' A failed, interrupted or erroring run is a transient observation: it does not ground a lasting claim about the command.',' A successful tool result that ran the command counts as that verified observation for the command it ran.'];
-          const strip=(value)=>DELTA.reduce((acc,part)=>acc.split(part).join(''),value);
-          const productionWire=JSON.stringify(arms[0].requests),shadowWire=JSON.stringify(arms[1].requests);
-          results.push({id:row.id,wireIdentical:strip(productionWire)===strip(shadowWire),deltaCount:DELTA.filter(part=>productionWire.includes(part)&&!shadowWire.includes(part)).length,requests:arms[0].requests.length,decisions:arms.map(x=>x.decision)});
+          // Historical transforms must preserve their own frozen baseline wire.
+          // Production citation/counter contracts have separate regression coverage.
+          results.push({id:row.id,wireIdentical:JSON.stringify(arms[0].requests)===JSON.stringify(arms[1].requests),requests:arms[0].requests.length,decisions:arms.map(x=>x.decision)});
         }
       }finally{await research.dispose();}
       console.log(JSON.stringify(results));
     ''')
     for row in rows:
         assert row['requests'] == 2
-        assert row['wireIdentical'] and row['deltaCount'] == (0 if row['id'] == 'harness' else 3) and row['decisions'] == ['allow', 'allow']
+        assert row['wireIdentical'] and row['decisions'] == ['allow', 'allow']
+
+
+def test_description_judge_requires_unambiguous_observable_temporal_meaning() -> None:
+    result = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const quote='const result = (async () => function_())(); resolve(result); await result;';
+      const candidate={name:'resolver.md',kind:'project',classification:'safe',content:'---\ndescription: caller completes at dispatch before the function completes\ntype: project\n---\nThe source calls resolve(result) before await result.',evidence:[{index:0,quote}]};
+      let instructions=[];
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_u,init)=>{
+        const req=JSON.parse(init.body);
+        return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
+          if(key.startsWith('supported_description'))instructions.push(q.instructions.question);
+          const choice=key.startsWith('counter')?'compatible':key.startsWith('supported_description')&&q.instructions.question.includes('observable')&&q.instructions.question.includes('synchronous')?'unclear':'grounded';
+          return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];
+        }))}));
+      }});
+      const verdict=await judge.validate('memory',{contextEnabled:true,entries:[{role:'toolResult',content:quote}]},[candidate],[]);
+      console.log(JSON.stringify({verdict,instructions}));
+    ''')
+    assert result['verdict']['decision'] == 'propose'
+    assert result['verdict']['telemetry']['dimension'] == 'support'
+    assert result['verdict']['candidateReview']['candidates'][0]['heldChecks'] == ['supported_description_0']
+    assert result['verdict']['telemetry']['reason'] == 'uncertain'
+    assert all('adoption' in text and 'synchronous' in text for text in result['instructions'])

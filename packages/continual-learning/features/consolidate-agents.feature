@@ -158,3 +158,17 @@ Feature: AGENTS.md consolidation as the third pipeline phase
     Then memory and harness results remain untouched
     And the user receives an AGENTS.md-specific diagnostic instead of an overall failure
 
+  Scenario: The supplied dossier is readable without granting its directory
+    Given the parent supplies a dossier outside the project working directory
+    When the AGENTS planner reads its frozen evidence through learning_read
+    Then the exact dossier and snapshot files are approved
+    And sibling agent files remain outside the approved scope
+
+  Scenario: Failed AGENTS attempts retain a safe diagnostic
+    Given planning or application returns a failure detail
+    When the pipeline writes its learning receipt
+    Then the AGENTS attempt retains a fixed parent-controlled diagnostic category
+    And arbitrary worker text never enters that diagnostic
+    And successful or skipped attempts do not receive failure diagnostics
+    And no retry or earlier-stage success erases the failure
+
