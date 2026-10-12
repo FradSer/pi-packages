@@ -169,13 +169,13 @@ Supported titles by route (not a mandatory execution order):
 | `hard-bug` | Reproducing & Diagnostics; Implementation; Code Review |
 | `architecture` | Architecture Survey; Architecture Design; Implementation; Code Review |
 
-Route and phase ids remain unchanged in tool arguments, model guidance, result details, and persisted state. Expanding a workflow-start row shows only a distinct `route · <Readable Route Title>` (for example, `route · Hard Bug Diagnosis`), using `readableRouteTitle()`. When the route title equals the phase title, as at the Task Triage entry, that field is omitted too. It does not repeat the phase id or expose procedure bodies.
+Route and phase ids remain unchanged in tool arguments, model guidance, result details, and persisted state. A workflow-start row shows the readable phase title only. The row does not repeat the route id or its title, and it does not expose procedure bodies.
 
-Expansion shows information not already visible in the row:
+No Matt Pocock row hides a field body behind expansion. Every row shows its facts in the collapsed transcript:
 
 - Transitions, completion, and reference loads omit repetitive `action` fields; standalone capability and reference rows do not repeat their subjects as fields. When the title fits, these rows have no expand hint or extra detail body.
-- Cancellation expands to `reason · <stored reason>` only when that result's terminal snapshot has a nonblank reason. The reason appears once, never as `action · cancel`, and is not taken from the current workflow. Missing, empty, or whitespace-only reasons add no detail or hint.
-- At narrower widths, Pi-kit's shared renderer can offer expansion to wrap a clipped title or summary with Pi's native wrapping. Model-only content and metadata do not themselves create an expand hint.
+- A cancellation row carries `reason · <stored reason>` inline when that result's terminal snapshot has a nonblank reason. The reason appears once, never as `action · cancel`, and it does not come from the current workflow. A missing, empty, or whitespace-only reason adds no body line.
+- At narrower widths, Pi-kit's shared renderer can offer expansion to wrap a clipped title or body line with Pi's native wrapping. Model-only content does not itself create an expand hint.
 
 The `matt-pocock-procedure` message renderer owns that block layout. A `/matt-pocock` route or capability start (including a freeform routing request and the menu's "Start a task") delivers the procedure through this displayed message instead of posting the procedure text as a user message, while the model still receives the complete body plus any `User target/request:` section. Session restoration reinjects guidance silently (`display: false`), without a duplicate lifecycle event. Saved active-tool results with old route-based subjects are rendered from their recorded phase and action, not the session's current workflow; no session-data migration is needed.
 
@@ -186,7 +186,7 @@ These operations keep their own subjects rather than substituting a workflow pha
 - **Reference loading (`load`)**: `[matt pocock] event · loaded <reference>` (e.g. `[matt pocock] event · loaded HTML Report`).
 - **Standalone capability**: `[matt pocock] started · <capability>` (e.g. `[matt pocock] started · Diagnosing Bugs`).
 - **Standalone reference**: `[matt pocock] started · <capability> · <reference>`.
-- **`matt_pocock_ask`**: `[matt pocock] ask · <question>`, with the answer or pending status below. The model-facing result includes the full question followed by the chosen answer as a block quote (`> <answer>`); `(Recommended)` is only a choice label and is omitted from the answer. Timeout, no-UI, and custom-input metadata remain available on expansion without repeating the answer.
+- **`matt_pocock_ask`**: `[matt pocock] ask · <question>`, with the answer or pending status below. The model-facing result includes the full question followed by the chosen answer as a block quote (`> <answer>`); `(Recommended)` is only a choice label and is omitted from the answer. Timeout, no-UI, and custom-input metadata appear as inline body lines below the answer, which is never repeated.
 - **Fallback**: `[matt pocock] event · workflow updated` when no action or subject is available.
 
 Capability and reference names use readable catalog labels consistently. Transition-menu choices use their destination phase titles, matching lifecycle rows. Command identifiers and saved resource ids remain unchanged; user-supplied tasks are displayed verbatim.

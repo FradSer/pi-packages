@@ -133,13 +133,20 @@ def assert_phase_block(rows: list[str], phase: str, route: str) -> None:
 def test_workflow_start_rows_use_only_entry_phase(lifecycle_results: dict[str, object], route: str) -> None:
     start = next(item for item in lifecycle_results["starts"] if item["route"] == route)
     assert_phase_row(start["rows"], "started", start["details"]["phase"], route, start["routeTitle"])
+    collapsed = "\n".join(start["rows"])
     expanded = "\n".join(start["expanded"])
-    has_distinct_route = start["routeTitle"] != PHASE_TITLES[start["details"]["phase"]]
-    assert (f"route · {start['routeTitle']}" in expanded) is has_distinct_route
-    assert f"route · {route}" not in expanded
+    # The start row is the whole message: nothing is held back for Ctrl+O, so the
+    # first screen a user sees is the complete row. Phase titles of entry phases
+    # are unique per route, so the row needs no route field to stay unambiguous.
+    assert "to expand" not in collapsed
+    assert "route ·" not in collapsed
+    # The row is exactly the label and the entry phase title: no route title rides
+    # along, which the triage entry would otherwise duplicate as a substring.
+    assert [row.strip() for row in start["rows"]] == ["", f"[matt pocock] started · {PHASE_TITLES[start['details']['phase']]}", ""]
+    assert start["expanded"] == start["rows"]
+    assert "route ·" not in expanded
     assert "phase ·" not in expanded
     assert "procedure-source" not in expanded
-    assert ("to expand" in "\n".join(start["rows"])) is has_distinct_route
     assert start["details"]["route"] == route
 
 
@@ -203,16 +210,19 @@ def test_terminal_rows_use_actual_phase_and_keep_workflow_contract(
         for key in ("expanded", "historicalExpanded", "rerenderedExpanded"):
             expanded = "\n".join(item[key])
             assert "action ·" not in expanded
+            assert "to expand" not in expanded
             assert_phase_row(item[key], "event", phase, route, item["routeTitle"], f" {status}")
-            if action == "cancel":
-                assert expanded.count("reason · test cancellation") == 1
-                assert expanded.count("test cancellation") == 1
-            else:
-                assert item[key] == item["rows"]
+            # Every Matt Pocock row shows its facts by default: nothing is held back
+            # for Ctrl+O, so the expanded render repeats the collapsed one.
+            assert item[key] == item["rows"]
         for key in ("rows", "historicalRows", "rerenderedRows"):
             collapsed = "\n".join(item[key])
-            assert ("to expand" in collapsed) is (action == "cancel")
-            assert "test cancellation" not in collapsed
+            assert "to expand" not in collapsed
+            if action == "cancel":
+                assert collapsed.count("reason · test cancellation") == 1
+                assert collapsed.count("test cancellation") == 1
+            else:
+                assert "test cancellation" not in collapsed
 
 
 def test_cancellation_without_nonblank_reason_does_not_expand(lifecycle_results: dict[str, object]) -> None:

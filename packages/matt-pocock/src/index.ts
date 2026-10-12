@@ -587,9 +587,10 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         : details.mode === "reference"
           ? `${readableProcedureTitle(details.capability ?? "capability")} · ${readableProcedureTitle(details.reference ?? "reference")}`
           : readableProcedureTitle(details.capability ?? "standalone capability");
-      const routeTitle = details.mode === "workflow" ? readableRouteTitle(details.route ?? "workflow") : undefined;
-      const fields = routeTitle && routeTitle !== subject ? [fieldLine("route", routeTitle)] : [];
-      return mattPocockRows.result(() => eventToolLifecycle("matt pocock", subject, { label: "started", details: fields }))(result, options, theme, context);
+      // A start row is the whole message: the phase title alone, with nothing held
+      // back for Ctrl+O. Entry phase titles are unique per route, so the row needs no
+      // route field. The route id stays in the result details for model context.
+      return mattPocockRows.result(() => eventToolLifecycle("matt pocock", subject, { label: "started" }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       signal?.throwIfAborted();
@@ -652,9 +653,11 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
           ? `loaded ${readableProcedureTitle(details.reference ?? details.subject?.replace(/^loaded /, "") ?? "reference")}`
           : details.subject ?? details.action ?? "workflow updated";
       const reason = details.action === "cancel" ? safeDisplayText(details.state?.reason ?? "").trim() : undefined;
+      // Every Matt Pocock row shows its facts by default, so a cancellation reason is
+      // an inline body line, never a body that waits behind Ctrl+O.
       return mattPocockRows.result(() => eventToolLifecycle("matt pocock", subject, {
         label: "event",
-        details: reason ? [fieldLine("reason", reason)] : [],
+        summary: reason ? [fieldLine("reason", reason)] : [],
       }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
@@ -727,8 +730,9 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
       ].filter((line): line is string => Boolean(line));
       return mattPocockRows.result(() => eventToolLifecycle("matt pocock", safeDisplayText(params.question ?? "question"), {
         label: "ask",
-        summary: summary.length > 0 ? summary : ["Answer: (none)"],
-        details: metadata,
+        // Decision metadata joins the answer body: one collapsed row carries the
+        // question, the answer, and how that answer was obtained.
+        summary: [...(summary.length > 0 ? summary : ["Answer: (none)"]), ...metadata],
       }))(result, options, theme, context);
     },
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {

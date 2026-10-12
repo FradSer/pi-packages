@@ -121,32 +121,23 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, snapshots: Pa
         os.write(master, b"\x0f")  # Actual Ctrl+O through Pi's editor.
         # Pi renders rows sequentially; one expanded row does not mean the entire
         # transcript has been redrawn yet.
-        wait_for(lambda: all(expected in "\n".join(
-            line for row in read_snapshots(snapshots)
-            if row["kind"] == "render" and row["expanded"] for line in row["lines"]
-        ) for expected in ("route · Hard Bug Diagnosis", "route · Codebase Architecture",
-                           "reason · Offline fixture finished")))
+        wait_for(lambda: has_render(120, True))
         expanded = "\n".join(line for row in read_snapshots(snapshots)
                              if row["kind"] == "render" and row["expanded"] for line in row["lines"])
-        assert "route · Hard Bug Diagnosis" in expanded
-        assert "route · Codebase Architecture" in expanded
-        assert "route · hard-bug" not in expanded
+        # No Matt Pocock row hides a field body, so expansion adds nothing.
+        assert "reason · Offline fixture finished" in expanded
+        assert "route ·" not in expanded
         assert "phase ·" not in expanded
         assert "action ·" not in expanded
-        assert "reason · Offline fixture finished" in expanded
         assert "procedure-source" not in expanded
         for row in read_snapshots(snapshots):
             if row["kind"] != "render" or row["width"] != 120:
                 continue
             details = row.get("details") or {}
             text = "\n".join(row["lines"])
-            if details.get("action") in ("transition", "complete"):
-                assert "to expand" not in text, row
+            assert "to expand" not in text, row
             if details.get("action") == "cancel":
-                if row["expanded"]:
-                    assert text.count("reason · Offline fixture finished") == 1, row
-                else:
-                    assert "to expand" in text and "Offline fixture finished" not in text, row
+                assert text.count("reason · Offline fixture finished") == 1, row
         resize(48)
         process.send_signal(signal.SIGWINCH)
         wait_for(lambda: has_render(48, True))

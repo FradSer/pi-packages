@@ -435,7 +435,7 @@ def test_tool_and_message_rendering_preserves_compact_lifecycle_rows() -> None:
     assert "Restored body" not in "\n".join(result["messageRows"])
 
 
-def test_ask_expands_only_genuine_decision_metadata() -> None:
+def test_ask_shows_decision_metadata_inline() -> None:
     result = run_typescript(RUNTIME_HARNESS + """
         const { tools, renderers } = runtime();
         const theme = { fg: (_color, text) => text, bg: (_color, text) => text, bold: (text) => text };
@@ -467,13 +467,12 @@ def test_ask_expands_only_genuine_decision_metadata() -> None:
         summary = "Status: pending user decision" if name in ("pendingTimeout", "noUi") else "Answer:"
         assert summary in collapsed
         assert "Model-only decision guidance" not in expanded
-        if name == "selected":
-            assert "to expand" not in collapsed
-            assert rendered["rows"] == rendered["expanded"]
-        else:
-            assert "to expand" in collapsed
-            assert metadata[name] not in collapsed
-            assert expanded.count(metadata[name]) == 1
+        # Every Matt Pocock row shows its facts by default: metadata is part of the
+        # collapsed row and never waits behind Ctrl+O.
+        assert "to expand" not in collapsed
+        assert rendered["rows"] == rendered["expanded"]
+        if name != "selected":
+            assert collapsed.count(metadata[name]) == 1
 
 
 def test_native_macos_dialog_environment_guards() -> None:

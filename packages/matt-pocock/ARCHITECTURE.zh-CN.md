@@ -78,13 +78,13 @@ version / workItemId / route / procedure / phase / status / loadedReferences / d
 | `hard-bug` | Reproducing & Diagnostics；Implementation；Code Review |
 | `architecture` | Architecture Survey；Architecture Design；Implementation；Code Review |
 
-route、procedure、phase、workItemId 和状态的持久化结构不变，模型 guidance、工具参数与结果 details 仍使用原标识。展开启动提示时仅显示不同于阶段标题的 `route · <Readable Route Title>`，例如 `route · Hard Bug Diagnosis`，标题复用 `readableRouteTitle()`；若两者相同（如 Task Triage 入口），也省略该字段。不再重复 phase id，也不会展示 procedure 正文。
+route、procedure、phase、workItemId 和状态的持久化结构不变，模型 guidance、工具参数与结果 details 仍使用原标识。启动提示行只显示可读的阶段标题，不再重复 route id 或 route 标题，也不会展示 procedure 正文。
 
-展开仅补充当前提示尚未显示的信息：
+所有 Matt Pocock 行都在折叠状态显示全部事实，不使用展开隐藏字段正文：
 
 - 迁移、完成和参考资料加载不显示重复的 `action` 字段；独立能力和独立参考资料也不把标题再复制为字段。标题完整可见时，这些提示没有展开提示或额外正文。
-- 取消提示只在该结果保存的终止快照包含非空白原因时，展开显示一次 `reason · <stored reason>`，不显示 `action · cancel`，也不读取当前工作流的原因。缺失、空字符串或纯空白原因均不会新增详情或展开提示。
-- 窄终端中的标题或摘要被截断时，由 Pi-kit 共享渲染器提供展开，并使用 Pi 原生换行恢复完整文本；本包不自行计算宽度。仅供模型使用的正文与 metadata 不会触发展开提示。
+- 取消提示在该结果保存的终止快照包含非空白原因时，直接在折叠行内联显示一次 `reason · <stored reason>`，不显示 `action · cancel`，也不读取当前工作流的原因。缺失、空字符串或纯空白原因不会新增正文。
+- 窄终端中的标题或正文行被截断时，由 Pi-kit 共享渲染器提供展开，并使用 Pi 原生换行恢复完整文本；本包不自行计算宽度。仅供模型使用的正文不会触发展开提示。
 
 `matt-pocock-procedure` 消息渲染器负责这条块状提示。用户从 `/matt-pocock` 启动 route/独立能力、用自由文本触发路由、或在菜单里选 “Start a task” 时，procedure 都通过这条可见消息交付，而不是把正文当 user message 贴出：
 

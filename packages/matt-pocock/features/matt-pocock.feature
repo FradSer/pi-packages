@@ -319,9 +319,9 @@ Feature: Matt Pocock workflow harness
     Given a Matt Pocock workflow tool result contains a loaded procedure for the model
     When Pi renders the user-facing workflow row
     Then it shows [matt pocock] started · followed only by the readable current phase title on the shared band
-    And expanding the row shows only a distinct readable route title as a `route · value` field
-    And it does not repeat the phase id as a detail
-    And it does not render the procedure text as user-facing details
+    And the row is one line that carries no expand hint
+    And expanding the row reveals no route title, no phase id, and no procedure text
+    And the route id stays in the result details for model context and status reporting
 
   Scenario: User-invoked procedure starts use the impeccable lifecycle block
     Given the user starts a catalog workflow route, transitions one, or starts a standalone capability from /matt-pocock or its menu
@@ -369,12 +369,13 @@ Feature: Matt Pocock workflow harness
     And expanding it does not repeat the title or reveal model-only content or metadata
     And native Pi-kit wrapping remains responsible for titles clipped at narrower widths
 
-  Scenario: Cancellation expands only its recorded nonblank reason
+  Scenario: Cancellation shows its recorded nonblank reason in the collapsed row
     Given a saved cancellation result records its terminal phase and a nonblank cancellation reason
     And a different workflow is now active
-    When Pi renders and expands the saved result
+    When Pi renders the saved result
     Then its lifecycle subject still uses the recorded terminal phase
-    And its stored reason appears exactly once as a reason field
+    And its stored reason appears exactly once as an inline reason field with no expand hint
+    And expanding it reveals nothing more
     And it does not repeat action cancel or read the active workflow state
     And model-visible content and persisted result details remain unchanged
 
@@ -404,7 +405,14 @@ Feature: Matt Pocock workflow harness
     When Pi renders the collapsed ask row
     Then its first row shows the question
     And its second row shows the answer
-    And the row remains expandable for non-duplicated metadata
+    And the collapsed row carries its non-duplicated metadata inline with no expand hint
+
+  Scenario: Every Matt Pocock row shows its facts without expanding
+    Given any Matt Pocock tool result or procedure message at a width where its text fits
+    When Pi renders that row collapsed
+    Then the collapsed row carries every fact the row has
+    And it advertises no expand hint for a hidden field body
+    And only Pi-kit's clipped-title wrapping can offer expansion at narrower widths
 
   Scenario: A multiline structured answer renders each line cleanly without raw newlines
     Given a Matt Pocock structured interview result contains a multiline answer
