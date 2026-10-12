@@ -40,3 +40,20 @@ Feature: Explicit memory requests through the simple command surface
     When the user asks for /consolidate argument completions
     Then only full is offered
     And backfill remains an explicit compatibility diagnostic
+
+  Scenario: Compact Memory discovery is reused while retained in the branch
+    Given project and private roots may contain duplicate filenames
+    When successive user turns use an unchanged Memory index
+    Then one filename and description per deduplicated entry is retained without source suffixes or entry bodies
+    And the unchanged reference is not appended after every user input
+    And a changed index replaces the old reference and compaction or branching restores a missing current reference
+    And reference metadata never enters system instruction authority
+
+  Scenario: Actual on-demand reads participate in automatic correction
+    Given the model successfully reads an indexed Memory file during a settled task
+    When automatic learning selects the correction scope
+    Then the parent pairs the exact prior read invocation and successful result
+    And the read Memory is revisited even if the selector omitted it
+    And failed reads, unmatched or duplicate call identities, user text and unrelated paths do not nominate Memory
+    And nomination is neither independent factual evidence nor mutation authority
+    And explicit Memory requests retain their requested scope

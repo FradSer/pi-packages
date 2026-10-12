@@ -133,7 +133,7 @@ New memories live in a separate `newMemories` proposal array while `selected` re
 
 Skill guidance names its invocation task in the model-visible message. Text guidance retains its selector and subject scope even when triggered by historical conversation. New flat guidance uses persistent tail messages, never per-turn system-prompt changes; installed legacy skill targets preserve their configured delivery semantics. A delivery revision includes its message format, so a restored unscoped delivery receives one scoped replacement without rewriting history. Matching and delivery do not prove semantic compliance. Output/artifact checks remain available for installed declarations, without becoming a fourth flat-rule selector or replacing project verification.
 
-Memory injection additionally exposes at most three complete relevant bodies, capped at 4,000 characters per body and 8,000 characters for the complete body reference block. Metadata ranking is a lexical heuristic, not guaranteed relevance. Revisions identify exposed bytes; exposure is not proof of adoption or correctness. Ordinary correction planning revisits recent delivered entries, while explicit Memory requests retain their selected scope. Memory injection carries bounded relevance descriptions, one declared body root per source, omission counts, and discovery pointers. Complete indexes are parent-rebuilt, stale-capable discovery metadata; loading never writes them. Descriptions front-load when the memory is relevant, and cues give way before entries when the budget is tight. The per-turn loader sizes its read buffer from each file, reuses unchanged entry metadata in-process against a device/inode/size/mtime/ctime identity check on a regular non-symlink file, re-verifies root identity for every real read, and memoizes the `git` root probe per canonical project path; a rewritten or replaced entry is never served from reuse. AGENTS extraction can retain a bounded conditional `replacementText` pointer in the same evidence-checked, budgeted transaction instead of losing discoverability.
+Memory injection contains only deduplicated filenames and bounded descriptions, with a compact root precedence list. It reuses an unchanged reference in place, refreshes changed indexes, and restores a missing reference after branching or compaction. Entry bodies require explicit relevant reads; index exposure does not establish Memory use. Automatic correction revisits actual successful reads paired by unique call identities and indexed paths, including validated same-name mirrors; it rechecks the current preferred body and preserves the old observation. Failed or ambiguous reads nominate nothing, and explicit Memory requests keep their scope. Nomination grants no factual or mutation authority. Per-entry source suffixes are omitted; omission counts and discovery pointers appear only when needed. Complete indexes are parent-rebuilt, stale-capable discovery metadata; loading never writes them. Cues give way before entries when the budget is tight. The per-turn loader sizes its read buffer from each file, reuses unchanged entry metadata in-process against a device/inode/size/mtime/ctime identity check on a regular non-symlink file, re-verifies root identity for every real read, and memoizes the `git` root probe per canonical project path; a rewritten or replaced entry is never served from reuse. AGENTS extraction can retain a bounded conditional `replacementText` pointer in the same evidence-checked, budgeted transaction instead of losing discoverability.
 
 ## Design assessment
 
@@ -173,3 +173,27 @@ When a bounded Task Slice omits evidence, every apply policy is downgraded to pr
 Management uses an independent 4,096-entry inventory, 32-row pages and on-demand body reads. Memory, history and Harness details page their full supported text in bounded 4,000-character pages and retain exact paths. Saved proposals explain how to obtain a fresh plan; they are never blindly applied.
 
 Run snapshots, planner output, receipts and history remain private audit artifacts and have no automatic expiry. This change does not delete existing artifacts or claim an aggregate disk cap; owners decide retention separately from learning correctness.
+
+Semantic correction of an already proposed Memory candidate uses a parent-bound
+`incremental-memory-amendment`: the worker returns only a candidate ID, corrected
+content and original-source citations. The ID binds its original array, position
+and complete predecessor. The parent retains its name, operation kind, privacy
+and other metadata; held-field preservation and full citation/semantic validation
+still follow. Omission retains an unresolved candidate, and an empty amendment
+cannot acknowledge correction. Previously valid incremental deltas remain readable
+under their existing intent checks; moving a new candidate into rewrite operations
+remains rejected.
+
+Worker cost evidence uses parent-owned numeric ledgers. Completed requests are summed across the worker, rather than taking the last reply. A failed or incomplete worker keeps its known prefix separately and does not claim complete receipt usage. Each ledger has an opaque parent identity; the continuous study excludes it from additional costs only when an actual persistent receipt contains the same identity and identical usage. A completed worker without that receipt remains a cost-bearing orphan. Historical missing usage, interrupted calls and unverified billing remain unknown. These accounting records never authorize learning or prove downstream improvement.
+
+A proposed or rewritten Memory body receives an independent internal-consistency judgment in addition to source support and complete counterevidence review. Correct main clauses cannot compensate for incompatible negated clauses or observable outcomes. Contradiction is unsupported candidate content, so the existing bounded semantic amendment can correct it without changing targets, privacy or intent. Uncertain or absent answers still hold the candidate. Candidate review checklists bind the additional judgment; older incomplete reviews cannot authorize independent application.
+
+Incremental Memory planners receive the complete digest-checked Learning Dossier directly, using the same lossless indexed evidence projection as the scoped reader. They have no tools; the original snapshot, predecessor bodies, namespace, citations and all parent mutation gates remain authoritative. No entries are trimmed for this transport. Numeric worker usage is queued to private atomic ledgers as assistant events complete, and queue draining precedes cleanup. Full maintenance retains its existing scoped-reader path. This reduces redundant evidence retrieval, not a claim that the v33 timeout's exact read sequence is known.
+
+Explicit private Memory review requires per-run native confirmation before
+maintenance audit/selection; newly generated private candidates ask before
+semantic review. Clone the original judge's frozen service/model/scopes and only
+change private review permission. Never re-read configuration after confirmation
+and accidentally disable validation. Headless/declined preflight has zero model
+calls and known zero usage, remains failed, and preserves backlog. Controlled
+consent/write tests prove routing only; actual learning quality is separate.

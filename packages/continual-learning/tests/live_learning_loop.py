@@ -126,7 +126,7 @@ class LoopbackProvider(BaseHTTPRequestHandler):
         payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         self.requests.append(payload)
         text = message_text(payload)
-        if "incremental-memory-selection" in text:
+        if "incremental-memory-selection" in text and "Context digest:" in text:
             self.responses.append("selection")
             answer = {
                 "kind": "incremental-memory-selection",
@@ -195,12 +195,12 @@ class LoopbackProvider(BaseHTTPRequestHandler):
             type(self).runtime_calls += 1
             if type(self).runtime_calls == 1:
                 self.responses.append("runtime-read-memory")
-                memory_root = re.search(r'^harness root: ("[^"\n]+")$', text, re.MULTILINE)
-                if not memory_root or "loopback_memory_fact.md (harness)" not in text:
+                memory_root = re.search(r'^Read roots \(first wins\): (\[[^\n]*\])$', text, re.MULTILINE)
+                if not memory_root or "- loopback_memory_fact.md" not in text:
                     stream_response(self, "LOOPBACK_MEMORY_INDEX_MISSING")
                     return
                 stream_response(self, [{"id": "runtime-read-memory", "name": "read", "arguments": {
-                    "path": str(Path(json.loads(memory_root.group(1))) / "loopback_memory_fact.md"),
+                    "path": str(Path(json.loads(memory_root.group(1))[0]) / "loopback_memory_fact.md"),
                     "offset": 1, "limit": 100,
                 }}])
             elif type(self).runtime_calls == 2:
@@ -358,7 +358,7 @@ def run() -> dict[str, object]:
             if future_responses != ["runtime-read-memory", "runtime-blocked", "runtime-safe", "runtime-done"]:
                 raise AssertionError(f"autoMemory=false still caused learning calls: {future_responses}")
             first_runtime_request = LoopbackProvider.runtime_request_texts[0]
-            if "# Active Project Memories" not in first_runtime_request or "loopback_memory_fact.md (harness)" not in first_runtime_request:
+            if "# Project memories" not in first_runtime_request or "- loopback_memory_fact.md" not in first_runtime_request:
                 raise AssertionError("persisted Memory index was not injected into the first future request")
             if "The settled local verification command is `printf CL_OFFLINE_SAFE`." in first_runtime_request:
                 raise AssertionError("the future request unexpectedly injected the full Memory body")

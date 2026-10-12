@@ -18,7 +18,7 @@ def test_cited_rewrites_and_deletions_keep_full_review_and_mutation_intent() -> 
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);calls.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const selected=key.startsWith('counter_')?(mode==='conflict'&&state.reviewEvidence.entries.some(e=>e.index===36)?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';
+          const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(mode==='conflict'&&state.reviewEvidence.entries.some(e=>e.index===36)?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
         }));
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:2},answers}));
@@ -72,7 +72,7 @@ def test_cited_memory_requires_complete_bounded_review() -> None:
         if(mode==='offline'&&review?.entries.some(e=>e.index===36))throw new Error('provider private detail');
         const answers={};
         for(const [key,q] of Object.entries(req.questions)) {
-          const selected=key.startsWith('counter_')?(mode==='conflict'&&review.entries.some(e=>e.index===36)?'contradicts':mode==='uncertain'?'unclear':'compatible'):key.startsWith('relation_')?'unrelated':'grounded';
+          const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(mode==='conflict'&&review.entries.some(e=>e.index===36)?'contradicts':mode==='uncertain'?'unclear':'compatible'):key.startsWith('relation_')?'unrelated':'grounded';
           answers[key]={type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))};
         }
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers}));
@@ -128,7 +128,7 @@ def test_cited_review_freezes_every_request_before_first_transport() -> None:
         const contradiction=state.reviewEvidence?.entries.some(e=>JSON.stringify(e.entry).includes('Verified source schema: PostgreSQL'));
         if(contradiction)retained=true;
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const selected=key.startsWith('counter_')?(contradiction?'contradicts':'compatible'):'grounded';
+          const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(contradiction?'contradicts':'compatible'):'grounded';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
         }));
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers}));
@@ -149,7 +149,7 @@ def test_harness_citations_use_complete_review_without_losing_authority_checks()
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body),state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);calls.push(req);keys.push(...Object.keys(req.questions));
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const selected=key.startsWith('counter_')?(mode==='exception'&&state.reviewEvidence.entries.some(e=>e.index===31)?'contradicts':'compatible'):key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':'faithful';
+          const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(mode==='exception'&&state.reviewEvidence.entries.some(e=>e.index===31)?'contradicts':'compatible'):key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':'faithful';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
         }));
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers}));
@@ -178,7 +178,7 @@ def test_early_window_contradiction_is_not_overwritten_by_later_compatibility() 
         const req=JSON.parse(init.body), state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const conflict=state.reviewEvidence?.entries.some(e=>e.index===1);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const selected=key.startsWith('counter_')?(conflict?'contradicts':'compatible'):'grounded';
+          const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(conflict?'contradicts':'compatible'):'grounded';
           if(key.startsWith('counter_'))responses.push({key,selected});
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
         }));
@@ -219,7 +219,7 @@ def test_twelve_cited_harness_operations_split_support_with_atomic_results() -> 
         await Promise.resolve();active--;
         if(fail&&Object.hasOwn(req.questions,'family_11'))throw new Error('offline');
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const selected=key.startsWith('counter_')?'compatible':key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':'faithful';
+          const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?'compatible':key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':'faithful';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
         }));
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers}));
@@ -266,7 +266,7 @@ def test_full_review_keeps_support_context_and_oversized_whole_entries() -> None
         const req=JSON.parse(init.body);requests.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const supported=state.supportEvidence?.entries.some(e=>e.index===0&&e.entry.content===source);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const selected=key.startsWith('counter_')?(supported?'compatible':'unclear'):'grounded';
+          const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(supported?'compatible':'unclear'):'grounded';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
         }));
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers}));
@@ -293,7 +293,7 @@ def test_verbatim_harness_explanation_keeps_authority_and_scope_checks() -> None
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);keys.push(...Object.keys(req.questions));
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const selected=key.startsWith('counter_')?'compatible':key.startsWith('authority_')?authority:key.startsWith('family_')?family:'faithful';
+          const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?'compatible':key.startsWith('authority_')?authority:key.startsWith('family_')?family:'faithful';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
         }));return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers}));
       }});
@@ -323,7 +323,7 @@ def test_memory_counterevidence_judges_content_without_write_metadata() -> None:
         const req=JSON.parse(init.body);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const counter=key.startsWith('counter_');if(counter)counterMeanings.push(q.instructions.candidate);
-          const selected=counter?(Object.keys(q.instructions.candidate).join(',')==='content'?'compatible':'unclear'):'grounded';
+          const selected=key.startsWith('coherence_')?'compatible':counter?(Object.keys(q.instructions.candidate).join(',')==='content'?'compatible':'unclear'):'grounded';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
         }));return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers}));
       }});
@@ -344,7 +344,7 @@ def test_literal_tab_classes_keep_proved_family_without_widening_grammar() -> No
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         calls++;const req=JSON.parse(init.body);keys.push(...Object.keys(req.questions));
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const choice=key.startsWith('authority_')?(mode==='approval'?'conditional':'lasting'):key.startsWith('family_')?(mode==='exact'?'extra':'authorized'):key.startsWith('counter_')?(mode==='revoked'?'contradicts':'compatible'):'unclear';
+          const choice=key.startsWith('coherence_')?'compatible':key.startsWith('authority_')?(mode==='approval'?'conditional':'lasting'):key.startsWith('family_')?(mode==='exact'?'extra':'authorized'):key.startsWith('counter_')?(mode==='revoked'?'contradicts':'compatible'):'unclear';
           return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(label=>[label,label===choice?1:0]))}];
         }));
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:10},answers}));
@@ -453,7 +453,7 @@ def test_single_executable_family_proves_only_matching_and_retains_semantic_hold
         for(const [key,q] of Object.entries(req.questions)){
           if(key.startsWith('counter_'))meanings.push(q.instructions.candidate);
           if(key.startsWith('family_'))familyMatching=q.instructions.candidate.matching;
-          const choice=key.startsWith('authority_')?(mode==='temporary'?'temporary':'lasting'):key.startsWith('family_')?(mode==='narrow'?'extra':'authorized'):key.startsWith('counter_')?(mode==='revoked'?'contradicts':'compatible'):key.startsWith('explanation_')?'faithful':'unclear';
+          const choice=key.startsWith('coherence_')?'compatible':key.startsWith('authority_')?(mode==='temporary'?'temporary':'lasting'):key.startsWith('family_')?(mode==='narrow'?'extra':'authorized'):key.startsWith('counter_')?(mode==='revoked'?'contradicts':'compatible'):key.startsWith('explanation_')?'faithful':'unclear';
           answers[key]={type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(label=>[label,label===choice?1:0]))};
         }
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:10},answers}));
@@ -491,7 +491,7 @@ def test_encoded_mutation_context_splits_whole_review_windows_before_transport()
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_u,init)=>{
         const req=JSON.parse(init.body);calls.push(req);const s=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const choice=key.startsWith('counter_')?(conflict&&s.reviewEvidence.entries.some(e=>e.index===16)?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';
+          const choice=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(conflict&&s.reviewEvidence.entries.some(e=>e.index===16)?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';
           return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];
         }))}));
       }});

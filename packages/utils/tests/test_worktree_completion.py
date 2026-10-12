@@ -209,6 +209,36 @@ console.log(JSON.stringify(filterForeignWorktreeItems(items, {json.dumps(str(sel
         self.assertTrue(self.is_foreign("../../.pi/worktrees/", wt_foo))
         self.assertTrue(self.is_foreign("../../README.md", wt_foo))
 
+    def test_in_repo_worktree_outside_managed_dir_keeps_own_files(self) -> None:
+        # A linked worktree nested inside the main checkout must keep its own
+        # files: the deepest enclosing worktree decides, not membership of the
+        # main root alone.
+        subprocess.run(["git", "worktree", "add", "vendor/wt", "-b", "vendorwt"],
+                       cwd=self.main, capture_output=True, text=True, check=True)
+        wt = self.main / "vendor" / "wt"
+        self.assertFalse(self.is_foreign("src/index.ts", wt))
+        self.assertFalse(self.is_foreign(str(wt / "src" / "index.ts"), wt))
+        self.assertTrue(self.is_foreign("vendor/wt/src/index.ts", self.main))
+        self.assertTrue(self.is_foreign(str(wt / "src" / "index.ts"), self.main))
+
+    def test_in_repo_worktree_session_may_edit_its_own_file(self) -> None:
+        subprocess.run(["git", "worktree", "add", "vendor/wt", "-b", "vendorwt"],
+                       cwd=self.main, capture_output=True, text=True, check=True)
+        wt = self.main / "vendor" / "wt"
+        own = wt / "src" / "index.ts"
+        script = f"""
+import registerWorktreeCompletion from {json.dumps(COMPLETION_EXTENSION.as_uri())};
+const handlers = new Map();
+registerWorktreeCompletion({{ on: (event, handler) => handlers.set(event, handler) }});
+const guard = handlers.get("tool_call");
+const ownResult = guard({{ toolName: "edit", input: {{ path: {json.dumps(str(own))} }} }}, {{ cwd: {json.dumps(str(wt))} }});
+const foreignResult = guard({{ toolName: "edit", input: {{ path: {json.dumps(str(own))} }} }}, {{ cwd: {json.dumps(str(self.main))} }});
+console.log(JSON.stringify({{ own: ownResult ?? null, foreign: foreignResult ?? null }}));
+"""
+        result = run_ts(script)
+        self.assertIsNone(result["own"])
+        self.assertTrue(result["foreign"]["block"])
+
     def test_bare_repository_session_filters_linked_worktrees(self) -> None:
         source = self.base / "bare-source"
         source.mkdir()

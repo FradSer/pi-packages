@@ -1,7 +1,7 @@
 import {
-  DESK_LINK_PROTOCOL,
-  type DeskLinkConfig,
-  type DeskLinkRecord,
+  ODK_LINK_PROTOCOL,
+  type OdkLinkConfig,
+  type OdkLinkRecord,
   type ReportedSession,
   type SessionEvent,
   type SessionStatus,
@@ -13,18 +13,18 @@ import { type DeskTransport } from "./transport.ts";
 export type LinkState = "offline" | "connecting" | "connected";
 
 export interface DeskReporterOptions {
-  config: DeskLinkConfig;
-  createTransport: (config: DeskLinkConfig) => DeskTransport;
+  config: OdkLinkConfig;
+  createTransport: (config: OdkLinkConfig) => DeskTransport;
   now?: () => number;
   /** Injected so reconnect scheduling is asserted without waiting. */
   schedule?: (run: () => void, delayMs: number) => (() => void) | void;
   /** Authentication deadline, separate from capped reconnect scheduling. */
   scheduleHandshake?: (run: () => void, delayMs: number) => (() => void) | void;
   /** Called on every link-state change, so a surface can stop showing a stale one. */
-  onChange?: (snapshot: DeskLinkSnapshot) => void;
+  onChange?: (snapshot: OdkLinkSnapshot) => void;
 }
 
-export interface DeskLinkSnapshot {
+export interface OdkLinkSnapshot {
   link: LinkState;
   machine: string;
   sessions: number;
@@ -79,12 +79,12 @@ interface SessionEntry {
  * An outage therefore costs freshness, never an unbounded backlog.
  */
 export class DeskReporter {
-  readonly #config: DeskLinkConfig;
-  readonly #createTransport: (config: DeskLinkConfig) => DeskTransport;
+  readonly #config: OdkLinkConfig;
+  readonly #createTransport: (config: OdkLinkConfig) => DeskTransport;
   readonly #now: () => number;
   readonly #schedule: NonNullable<DeskReporterOptions["schedule"]>;
   readonly #scheduleHandshake: NonNullable<DeskReporterOptions["scheduleHandshake"]>;
-  readonly #onChange: ((snapshot: DeskLinkSnapshot) => void) | undefined;
+  readonly #onChange: ((snapshot: OdkLinkSnapshot) => void) | undefined;
   readonly #sessions = new Map<string, SessionEntry>();
 
   #transport: DeskTransport | null = null;
@@ -146,7 +146,7 @@ export class DeskReporter {
     this.#cancelReconnect = undefined;
     this.#cancelHandshake?.();
     this.#cancelHandshake = undefined;
-    if (this.#link === "connected") this.#send({ v: DESK_LINK_PROTOCOL, type: "bye", machine: this.#config.machine });
+    if (this.#link === "connected") this.#send({ v: ODK_LINK_PROTOCOL, type: "bye", machine: this.#config.machine });
     const transport = this.#transport;
     this.#transport = null;
     transport?.close();
@@ -281,7 +281,7 @@ export class DeskReporter {
     return this.#sessions.get(sessionId)?.events ?? [];
   }
 
-  snapshot(): DeskLinkSnapshot {
+  snapshot(): OdkLinkSnapshot {
     const record = this.#sessionRecord();
     let events = 0;
     for (const entry of this.#sessions.values()) events += entry.events.length;
@@ -319,7 +319,7 @@ export class DeskReporter {
     transport.onOpen(() => {
       if (!this.#active || this.#transport !== transport || opened) return;
       opened = true;
-      this.#send({ v: DESK_LINK_PROTOCOL, type: "hello", machine: this.#config.machine, token: this.#config.token });
+      this.#send({ v: ODK_LINK_PROTOCOL, type: "hello", machine: this.#config.machine, token: this.#config.token });
       if (this.#transport !== transport || this.#link === "connected") return;
       this.#cancelHandshake = this.#scheduleHandshake(() => {
         if (this.#transport !== transport || this.#link !== "connecting") return;
@@ -336,7 +336,7 @@ export class DeskReporter {
       // backoff on a bare TCP connect would make a refused token retry forever.
       if (typeof record !== "object" || record === null) return;
       const reply = record as { v?: unknown; type?: unknown; reason?: unknown };
-      if (reply.v !== DESK_LINK_PROTOCOL) return;
+      if (reply.v !== ODK_LINK_PROTOCOL) return;
       if (reply.type === "error") {
         this.#failTransport(transport, boundEventText(reply.reason) || "reporting link refused");
         return;
@@ -383,9 +383,9 @@ export class DeskReporter {
     }, delayMs);
   }
 
-  #sessionRecord(): Extract<DeskLinkRecord, { type: "sessions" }> {
-    const record: Extract<DeskLinkRecord, { type: "sessions" }> = {
-      v: DESK_LINK_PROTOCOL,
+  #sessionRecord(): Extract<OdkLinkRecord, { type: "sessions" }> {
+    const record: Extract<OdkLinkRecord, { type: "sessions" }> = {
+      v: ODK_LINK_PROTOCOL,
       type: "sessions",
       machine: this.#config.machine,
       sessions: [...this.#sessions.values()].map((entry) => entry.session),
@@ -442,8 +442,8 @@ export class DeskReporter {
 
   /** Unlike replacing sessions frames, append-only events may split between events. */
   #sendEventBatches(sessionId: string, events: readonly SessionEvent[]): void {
-    const record: Extract<DeskLinkRecord, { type: "events" }> = {
-      v: DESK_LINK_PROTOCOL,
+    const record: Extract<OdkLinkRecord, { type: "events" }> = {
+      v: ODK_LINK_PROTOCOL,
       type: "events",
       machine: this.#config.machine,
       sessionId,
@@ -472,7 +472,7 @@ export class DeskReporter {
     if (record.events.length > 0 && this.#link === "connected") this.#send(record);
   }
 
-  #send(record: DeskLinkRecord): void {
+  #send(record: OdkLinkRecord): void {
     const transport = this.#transport;
     if (transport === null) return;
     try {

@@ -178,6 +178,51 @@ class TestWorktreeExtension(unittest.TestCase):
                 "mkdir -p .pi/worktrees && git worktree add .pi/worktrees/foo feature/foo",
             )
 
+    def test_notification_names_the_directory_the_worktree_lands_in(self) -> None:
+        # From a subdirectory the redirect is absolute, so the report must not
+        # repeat the relative spelling that the command did not use.
+        with tempfile.TemporaryDirectory() as base:
+            root = Path(base) / "repo"
+            nested = root / "packages" / "app"
+            nested.mkdir(parents=True)
+            make_git_repo(root)
+            managed = Path(os.path.realpath(root)) / ".pi" / "worktrees"
+            script = f"""
+import fs from "node:fs";
+import register from {json.dumps(WORKTREE_EXTENSION.as_uri())};
+const handlers = new Map();
+const notifications = [];
+register({{ on: (name, handler) => handlers.set(name, handler) }});
+const event = {{ toolName: "bash", input: {{ command: "git worktree add ../feature feature" }} }};
+const ctx = {{
+  cwd: {json.dumps(str(nested))},
+  ui: {{ notify: (message, type) => notifications.push({{ message, type }}) }},
+}};
+const blocked = await handlers.get("tool_call")(event, ctx);
+console.log(JSON.stringify({{
+  command: event.input.command,
+  blocked: blocked ?? null,
+  notifications,
+  managed: {json.dumps(str(managed))},
+}}));
+"""
+            result = subprocess.run(
+                ["bun", "run", "-"],
+                cwd=REPO,
+                input=script,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if result.returncode:
+                raise AssertionError(f"TypeScript runner failed:\n{result.stderr}")
+            report = json.loads(result.stdout)
+            self.assertIn(f"{report['managed']}/feature", report["command"])
+            info = [entry for entry in report["notifications"] if entry["type"] == "info"]
+            self.assertEqual(len(info), 1)
+            self.assertIn(f"{report['managed']}/feature", info[0]["message"])
+            self.assertNotIn("redirected to .pi/worktrees/", info[0]["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

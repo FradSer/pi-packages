@@ -31,6 +31,11 @@ fs.writeFileSync(
 );
 fs.mkdirSync(path.join(cwd, ".pi"), { recursive: true });
 
+const originalDossier = path.join(agentDir, "selector-run", "incremental-learning-dossier.json");
+fs.mkdirSync(path.dirname(originalDossier), {recursive:true});
+fs.writeFileSync(originalDossier, '{"observed":"original selector evidence"}\n');
+let recoveryRead: {dossier:boolean; unrelatedRefused:boolean} | undefined;
+
 const QUOTE = scenario === "semantic-message-completion" ? "Never run the retired compiler through bash. This restriction lasts for future project tasks." : "Never run the retired compiler through bash";
 /** The run identity is generated inside the run, so the child recovers it from
  *  the bound task file the way the real planner reads the same protocol. */
@@ -124,6 +129,22 @@ mock.module("../../kit/src/index.ts", () => ({
     child.stderr = stderr;
     child.kill = () => true;
     child.unref = () => child;
+    if (scenario === "missing-dossier" && spawned === 2) {
+      const extension = args.find(arg => arg.includes("/planner-read-") && arg.endsWith(".mjs"))!;
+      const source = fs.readFileSync(extension, "utf8");
+      const scope = JSON.parse(/registerPlannerRead\(pi, (.*)\);/.exec(source)![1]);
+      void import("../extensions/planner-read-scope.ts").then(async ({readPlannerFileSnapshot}) => {
+        const reads = await Promise.allSettled([
+          readPlannerFileSnapshot(originalDossier, scope),
+          readPlannerFileSnapshot(path.join(agentDir, "unapproved.json"), scope),
+        ]);
+        recoveryRead = {dossier:reads[0].status === "fulfilled" && reads[0].value.text.includes("original selector evidence"), unrelatedRefused:reads[1].status === "rejected" && String(reads[1].reason).includes("outside the parent-approved scope")};
+        const identity = identityFrom(fs.readFileSync(taskFile!.slice(1), "utf8"));
+        stdout.emit("data", Buffer.from((recoveryRead.dossier ? jsonlPlan(goodPlan(identity), identity, usageFor(2)) : jsonlNoPlan(usageFor(2))) + "\n"));
+        child.emit("close", 0);
+      }).catch(error => { stderr.emit("data", Buffer.from(String(error))); child.emit("close", 1); });
+      return child;
+    }
     setTimeout(() => {
       const text = fs.existsSync(taskFile!.slice(1))
         ? fs.readFileSync(taskFile!.slice(1), "utf8")
@@ -157,7 +178,11 @@ mock.module("../../kit/src/index.ts", () => ({
         return;
       }
       let body: string;
-      if (scenario.startsWith("semantic-pruned")) {
+      if (scenario.startsWith("semantic-duplicate")) {
+        const plan = goodPlan(identity);
+        plan.operations[0].cases.negative.push({bash: "retired-compiler build"});
+        body = jsonlPlan(plan, identity, childUsage);
+      } else if (scenario.startsWith("semantic-pruned")) {
         const plan = repair ? goodPlan(identity) : mixedPlan(identity);
         if (repair && scenario === "semantic-pruned-foreign") plan.operations[0].rule.id = "invented-replacement";
         if (repair && scenario === "semantic-pruned-requoted") plan.evidence[0].quote = QUOTE.slice(0, -5);
@@ -168,7 +193,7 @@ mock.module("../../kit/src/index.ts", () => ({
         const plan = { kind: "harness-consolidation-plan", ...identity, operations: [], evidence: [],
           ...(!repair || !text.includes("If validation errors cite report") ? { report: [{ reason: "No supported rule" }] } : {}) };
         body = jsonlPlan(scenario === "semantic-report" && repair ? {...plan,report:[{summary:"x".repeat(401)}]} : plan, identity, childUsage);
-      } else if (!repair && ["missing-output", "missing-twice", "missing-invalid", "missing-model", "missing-recovery-cancel"].includes(scenario)) {
+      } else if (!repair && ["missing-dossier", "missing-output", "missing-twice", "missing-invalid", "missing-model", "missing-recovery-cancel"].includes(scenario)) {
         body = jsonlNoPlan(childUsage);
       } else if (repair && scenario === "missing-twice") {
         body = jsonlNoPlan(childUsage);
@@ -226,9 +251,10 @@ try {
         boundScopeChecks.push(!!parentScope && Object.isFrozen(parentScope) && parentScope.repoRoot === cwd && parentScope.runId === evidence.runId && parentScope.scopeKey === evidence.scopeKey && parentScope.evidenceDigest === createHash("sha256").update(JSON.stringify(snapshot)).digest("hex"));
         judgedOperations.push(structuredClone(_operations));
         semanticCalls++; if (scenario === "semantic-cancel") cancelled = true;
-        if (scenario === "semantic-judge-tamper" && semanticCalls === 2) fs.rmSync(path.join(path.dirname(taskFiles.at(-1)!.slice(1)),"snapshot.json")); const allow = scenario === "semantic-message-completion" || semanticCalls > 1 && scenario !== "semantic-still" && scenario !== "semantic-pruned-still";
+        if (scenario === "semantic-judge-tamper" && semanticCalls === 2) fs.rmSync(path.join(path.dirname(taskFiles.at(-1)!.slice(1)),"snapshot.json")); const allow = scenario === "semantic-duplicate-allow" || scenario === "semantic-message-completion" || semanticCalls > 1 && scenario !== "semantic-still" && scenario !== "semantic-pruned-still" && scenario !== "semantic-duplicate-hold";
         return {decision:allow ? "allow" : "propose",telemetry:{stage:"harness",status:allow?"decided":"propose",reason:allow?"supported":scenario==="semantic-unavailable"?"unavailable":"uncertain",durationMs:1,model:"jev-1.13.0",inputTokens:10,outputTokens:2,estimatedCostUsd:0.00000042,...(!allow ? {candidateFailures:[{candidateIndex:0,dimension:"support",reason:"uncertain"}]} : {})}};
       }} : {}),
+      ...(scenario === "missing-dossier" ? {explorationPath:originalDossier, explorationDigest:createHash("sha256").update(fs.readFileSync(originalDossier)).digest("hex")} : {}),
       ...( ["repair-model", "missing-model"].includes(scenario) ? { model: "provider/frozen" } : {}),
       ...(["initial-timeout", "recovery-timeout"].includes(scenario) ? { timeoutMs: 10 } : {}),
     } as never,
@@ -240,6 +266,7 @@ try {
   console.log(
     JSON.stringify({
       scenario,
+      recoveryRead,
       spawned,
       semanticCalls,
       boundScopeChecks,
@@ -271,6 +298,8 @@ try {
       repairSeen,
       modelArgs,
       usage: result.ok ? result.value.usage ?? null : result.usage ?? null,
+      normalizations: taskFiles.flatMap(task => fs.readdirSync(path.dirname(task.slice(1))).filter(name => /^harness-case-normalization-/.test(name)).map(name => ({name,proof:JSON.parse(fs.readFileSync(path.join(path.dirname(task.slice(1)),name),"utf8")),mode:fs.statSync(path.join(path.dirname(task.slice(1)),name)).mode & 0o777}))).filter((value,index,all)=>all.findIndex(other=>other.name===value.name)===index),
+      usageLedgers: [...new Set(taskFiles.flatMap(task => fs.readdirSync(path.dirname(task.slice(1))).filter(name => /^harness-(?:task|repair)-usage.*\.json$/.test(name)).map(name => path.join(path.dirname(task.slice(1)),name))))].map(file => ({file, ...JSON.parse(fs.readFileSync(file,"utf8"))})),
       attempts: result.ok ? result.value.attempts ?? [] : result.attempts ?? [],
       cancelled,
       repairContainsRawOutput: taskTexts.slice(1).some((task) => task.includes("RAW-SECRET-DO-NOT-RELAY")),

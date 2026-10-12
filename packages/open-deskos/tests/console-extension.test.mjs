@@ -16,13 +16,13 @@ function harness(env) {
   // are what the extension reports to, and the fixture proves nothing about itself.
   const desksFile = join(mkdtempSync(join(tmpdir(), "odk-console-fixture-")), "desks.json");
   writeFileSync(desksFile, JSON.stringify({
-    desks: env.ODK_DESK_LINK_ADDRESS === undefined ? [] : [{
-      address: env.ODK_DESK_LINK_ADDRESS,
-      token: env.ODK_DESK_LINK_TOKEN ?? "",
-      ...(env.ODK_DESK_LINK_CONTROL_TOKEN ? { controlToken: env.ODK_DESK_LINK_CONTROL_TOKEN } : {}),
+    desks: env.ODK_LINK_ADDRESS === undefined ? [] : [{
+      address: env.ODK_LINK_ADDRESS,
+      token: env.ODK_LINK_TOKEN ?? "",
+      ...(env.ODK_LINK_CONTROL_TOKEN ? { controlToken: env.ODK_LINK_CONTROL_TOKEN } : {}),
     }],
   }));
-  Object.assign(process.env, { ODK_DESK_LINK_DESKS_FILE: desksFile, ...env });
+  Object.assign(process.env, { ODK_LINK_DESKS_FILE: desksFile, ...env });
   const hooks = new Map();
   const commands = new Map();
   const tools = new Map();
@@ -48,31 +48,31 @@ function harness(env) {
 }
 
 test("desk tools use the required snake_case surface without status or detach", () => {
-  const h = harness({ ODK_DESK_LINK_ADDRESS: "127.0.0.1:8765", ODK_DESK_LINK_TOKEN: "report", ODK_DESK_LINK_CONTROL_TOKEN: "control" });
+  const h = harness({ ODK_LINK_ADDRESS: "127.0.0.1:8765", ODK_LINK_TOKEN: "report", ODK_LINK_CONTROL_TOKEN: "control" });
   try {
-    assert.deepEqual([...h.tools.keys()], ["desk_list", "desk_start", "desk_attach", "desk_prompt", "desk_cancel", "desk_end", "desk_history"]);
-    assert.equal(h.tools.has("desk_status"), false);
-    assert.equal(h.tools.has("desk_detach"), false);
-    assert.deepEqual(h.renderers, ["open-deskos-hosted-pi"]);
+    assert.deepEqual([...h.tools.keys()], ["odk_list", "odk_start", "odk_attach", "odk_prompt", "odk_cancel", "odk_end", "odk_history"]);
+    assert.equal(h.tools.has("odk_status"), false);
+    assert.equal(h.tools.has("odk_detach"), false);
+    assert.deepEqual(h.renderers, ["odk-hosted-pi"]);
   } finally { h.restore(); }
 });
 
 test("without a Control Credential the machine stays report-only and registers no desk tools", () => {
-  const h = harness({ ODK_DESK_LINK_ADDRESS: "127.0.0.1:8765", ODK_DESK_LINK_TOKEN: "report", ODK_DESK_LINK_CONTROL_TOKEN: "" });
+  const h = harness({ ODK_LINK_ADDRESS: "127.0.0.1:8765", ODK_LINK_TOKEN: "report", ODK_LINK_CONTROL_TOKEN: "" });
   try {
     assert.deepEqual([...h.tools.keys()], []);
     assert.deepEqual(h.renderers, []);
-    assert.equal(h.commands.has("open-deskos"), true);
+    assert.equal(h.commands.has("odk"), true);
   } finally { h.restore(); }
 });
 
 test("session restore accepts the persisted attached identity and last applied position", () => {
-  const h = harness({ ODK_DESK_LINK_ADDRESS: "127.0.0.1:8765", ODK_DESK_LINK_TOKEN: "report", ODK_DESK_LINK_CONTROL_TOKEN: "control" });
+  const h = harness({ ODK_LINK_ADDRESS: "127.0.0.1:8765", ODK_LINK_TOKEN: "report", ODK_LINK_CONTROL_TOKEN: "control" });
   try {
     h.hooks.get("session_start")({}, {
       sessionManager: {
         getSessionId() { return "console-a"; },
-        getBranch() { return [{ type: "custom", customType: "open-deskos-console-state", data: { sessionId: "hosted-1", attachmentId: "attachment-old", lastApplied: 17 } }]; },
+        getBranch() { return [{ type: "custom", customType: "odk-console-state", data: { sessionId: "hosted-1", attachmentId: "attachment-old", lastApplied: 17 } }]; },
       },
     });
     h.hooks.get("agent_settled")({}, {});
@@ -116,19 +116,19 @@ test("console surface uses the Pi TUI Input seam for focused IME text", async ()
   assert.doesNotMatch(source, /❯/);
 });
 
-test("open-deskos no-argument fallback stays usable without TUI and names stable rows", async () => {
-  const h = harness({ ODK_DESK_LINK_ADDRESS: "", ODK_DESK_LINK_TOKEN: "", ODK_DESK_LINK_CONTROL_TOKEN: "" });
+test("odk no-argument fallback stays usable without TUI and names stable rows", async () => {
+  const h = harness({ ODK_LINK_ADDRESS: "", ODK_LINK_TOKEN: "", ODK_LINK_CONTROL_TOKEN: "" });
   const notices = [];
   try {
-    await h.commands.get("open-deskos").handler("", {
+    await h.commands.get("odk").handler("", {
       mode: "print",
       hasUI: false,
       cwd: "/workspace",
       ui: { notify(message) { notices.push(message); } },
     });
-    assert.match(notices[0], /ODK_DESK_LINK_ADDRESS/);
-    assert.match(notices[0], /ODK_DESK_LINK_TOKEN/);
-    assert.match(notices[0], /Control Credential|ODK_DESK_LINK_CONTROL_TOKEN/);
+    assert.match(notices[0], /ODK_LINK_ADDRESS/);
+    assert.match(notices[0], /ODK_LINK_TOKEN/);
+    assert.match(notices[0], /Control Credential|ODK_LINK_CONTROL_TOKEN/);
   } finally { h.restore(); }
 });
 
@@ -158,7 +158,7 @@ test("console session reload closes an old hosted attachment", async () => {
   });
   const ctx = id => ({ sessionManager: { getSessionId: () => id, getBranch: () => [] } });
   hooks.get("session_start")({}, ctx("first"));
-  await tools.get("desk_attach").execute("fixture", { session_id: "hosted" });
+  await tools.get("odk_attach").execute("fixture", { session_id: "hosted" });
   hooks.get("session_start")({}, ctx("second"));
   assert.equal(transports[0].closed, true);
   hooks.get("session_shutdown")({}, ctx("second"));
@@ -194,10 +194,10 @@ for (const verb of ["prompt", "cancel", "end"]) {
     });
     const ctx = (id) => ({ sessionManager: { getSessionId: () => id, getBranch: () => [] } });
     hooks.get("session_start")({}, ctx("console-old"));
-    await tools.get("desk_attach").execute("attach-old", { session_id: "hosted-old" });
-    const pending = tools.get(`desk_${verb}`).execute("mutation", { prompt: "fixture" });
+    await tools.get("odk_attach").execute("attach-old", { session_id: "hosted-old" });
+    const pending = tools.get(`odk_${verb}`).execute("mutation", { prompt: "fixture" });
     hooks.get("session_start")({}, ctx("console-new"));
-    await tools.get("desk_attach").execute("attach-new", { session_id: "hosted-new" });
+    await tools.get("odk_attach").execute("attach-new", { session_id: "hosted-new" });
     complete();
     const result = await pending;
     assert.match(result.content[0].text, /hosted-old/, "the acknowledgement belongs to the original target");

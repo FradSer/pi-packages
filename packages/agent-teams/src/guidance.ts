@@ -76,7 +76,7 @@ export function buildIdleLeaderGuidance(cwd?: string): string {
 Use the selected subagent interface. The five intent tools are the only child
 tool surface: \`agent_start\` with a prompt, \`agent_input\` with delivery next or steer,
 \`agent_inspect\`/\`agent_list\` for Presence, and \`agent_stop\` for exact-session close.
-Identity selects saved \`agent.md\`; label is display only. Temporary instructions stay in memory. Role reference: \`${AGENT_REFERENCE_PATH}\`.
+Identity selects saved \`agent.md\`; label is display only, as one lowercase hyphenated token. Temporary instructions stay in memory. Role reference: \`${AGENT_REFERENCE_PATH}\`.
 
 Choose minimal canonical tools: ${AGENT_BUILTIN_TOOLS.join(", ")}.
 Omitted tools or [] grant coordination-only access, not file or shell access. Check the returned effective grant.

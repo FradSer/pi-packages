@@ -1,4 +1,29 @@
 Feature: Learn, use, correct and recover across real tasks
+  Scenario: Semantic review distinguishes selector matching from enforcement
+    Given a retained real guidance rule with matching and nonmatching examples
+    And a correction retires an owned blocking rule with positive cases that now execute
+    When the parent frames those examples for semantic support, scope and counterevidence review
+    Then examples describe selector membership and retain their explicit expected outcomes
+    And guidance, confirmation and retired matches are never relabeled as blocked actions
+    And the complete rule, correction, predecessor and original evidence remain unchanged
+    And all original authorization thresholds and parent validation gates remain required
+
+  Scenario: Backfill accounts for every learned surface and history transition
+    Given a frozen actual before-state and one admitted recovery
+    When validating its results
+    Then bind all private, public and project file bytes and permissions to live metadata
+    And require complete history chains owned by new parent receipt batches
+    And reject unrecorded changes even if one private Memory change is valid
+    And preserve every prior history record unchanged
+
+  Scenario: Successful feedback is proved from the actual frozen read
+    Given an actually failed project task and its successful feedback summary
+    When admitting that observation for independent learning
+    Then verify the immutable session prefix, one exact complete verifier read and successful terminal result
+    And bind complete original source, log bytes and pending slice identity and digest
+    And reject a report modified after the actual read
+    And observation proof does not authorize another recovery or promote the failed task
+
   Scenario: Replay carries a rejected Memory plan without promoting it to evidence
     Given a partial failed learning receipt and its parent-recorded held Memory proposal
     And the proposal snapshot is byte-bound to the unchanged original task evidence
@@ -403,6 +428,12 @@ Feature: Learn, use, correct and recover across real tasks
     And a contradiction or uncertain review prevents successful acknowledgment
     And any correction still requires the ordinary cited mutation validation
 
+  Scenario: The extension's own Memory reference is never review evidence
+    Given a task slice that carries the injected Memory reference and its result summary
+    When the parent prepares the retained Memory review
+    Then that injected text stays routing context instead of review evidence
+    And every original session entry keeps its own snapshot index for citation
+
   Scenario: An unresolved real failure can teach bounded project knowledge
     Given complete tool evidence reports an actual failed project verification
     And no successful correction has been observed
@@ -557,3 +588,97 @@ Feature: Learn, use, correct and recover across real tasks
     And the parent may extract an explicit bounded character span inside one source line
     And cross-line offsets, decoding, partial quote hints and oversized spans are refused
     And complete evidence and unchanged semantic review still decide whether the claim is supported
+
+  Scenario: New proposal spelling corrections preserve a parent-bound identity
+    Given an original new Memory proposal with a repeated md extension inside its basename
+    When the existing single structural correction returns the parent's unique canonical spelling
+    Then that same proposed knowledge may continue through all original validation gates
+    And selected existing mutation targets, privacy, missing proposals and unrelated names remain protected
+    And traversal, ambiguous names, occupied names and semantic-only renames are refused
+
+  Scenario: Empty repair of uncertain retained Memory does not claim intent drift
+    Given selected existing Memory is held by an uncertain semantic review
+    And the original delta has no operations or new proposals
+    When the repair returns the same identity and empty delta arrays
+    Then the review remains unresolved with no file changes
+    And the receipt says no corrective operation was proposed
+    And it does not claim protected intent changed
+    And malformed, foreign-target and changed-identity responses still fail
+
+  Scenario: Read-only failure diagnosis preserves incorrect original command cases
+    Given frozen failed Harness plans and independently observed actual Bash command boundaries
+    When a diagnostic repairs incorrect case classifications
+    Then every original command and evidence quote is retained
+    And only commands with exact observed outcomes may change classification
+    And the destination and model must match explicit authorization
+    And request and time limits remain enforced without mutation or learning-benefit credit
+
+  Scenario: Automatic Harness case previews expose structured tool arguments
+    Given an actual model returned serialized strings for unconstrained preview fields
+    When the learning worker exposes the case preview tool
+    Then rule and cases are declared as structured objects with named fields
+    And case arrays declare object entries and selector types
+    And serialized strings remain rejected rather than bypassing parent validation
+    And preview budgets and all semantic and mutation gates remain unchanged
+
+  Scenario: Missing Harness output recovery retains the original dossier read binding
+    Given an authoritative dossier owned by the preceding selector run outside the project root
+    And the initial Harness child returned no structured plan
+    When the existing single recovery child reads the supplied evidence
+    Then its exact original dossier and current snapshot are readable
+    And unrelated agent files remain outside its approved scope
+    And no fabricated dossier path or extra recovery attempt replaces the original evidence
+
+  Scenario: Semantic Memory corrections cannot reclassify original candidates
+    Given a held new Memory proposal with frozen source evidence
+    When a semantic worker returns content and citation patches for parent-bound candidate IDs
+    Then the parent retains each original target, operation kind and privacy
+    And omitted proposals remain unchanged and require their ordinary semantic review
+    And foreign, stale, duplicate or metadata-changing patches are rejected
+    And all citation, preservation and semantic gates still apply before writing
+
+  Scenario: Repeated identical Harness inputs cannot contradict their own cases
+    Given an unchanged proposed rule with the exact same input in a valid positive and failing negative case
+    And other distinct negative cases remain
+    When the parent removes only the contradictory repeated negative
+    Then every unique original input and the exact rule and evidence remain
+    And other failing negative cases cannot be removed
+    And ordinary source, scope and semantic approval still precede any write
+
+  Scenario: A malformed positional selector cannot strand a safe bounded correction
+    Given one bounded selector response uses selectedEntries with valid frozen numeric positions and delta mode
+    When its strict schema is rejected
+    Then it may request the existing single structural correction from unchanged evidence
+    And the malformed positions and phase flags are never accepted as a decision
+    And only a separately validated complete selectedIndices response can route learning
+    And foreign identities, filenames, duplicate positions and full mode remain ineligible
+
+  Scenario: A correct main claim cannot conceal a contradictory body clause
+    Given a frozen real Memory proposal whose body describes incompatible observable outcomes
+    When ordinary source-support judgments would otherwise pass
+    Then an independent complete-body consistency judgment must also pass
+    And a contradiction, uncertainty or missing answer holds the original candidate
+    And original evidence, thresholds and all mutation gates remain unchanged
+
+  Scenario: Incremental planners receive the complete already-frozen dossier once
+    Given the parent has a digest-bound complete incremental Learning Dossier
+    When the read-only Memory planner starts
+    Then its prompt contains the full lossless indexed evidence and selected predecessor bodies
+    And it has no tools to repeatedly retrieve the same dossier
+    And the original raw snapshot, citations, source hashes and all mutation gates remain authoritative
+    And no original entry is trimmed to fit transport
+
+  Scenario: Explicit private Memory maintenance asks before any model work
+    Given Jev Memory review is enabled and private review is not allowed by default
+    And the project has canonical-only Memory
+    When the user requests Memory maintenance
+    Then native Pi asks for this run's TypeSafe Jev review permission before source auditing or selection
+    And declining, cancelling, or running headlessly leaves Memory unchanged with zero planner calls and zero added cost
+    And the run remains failed rather than claiming learned knowledge
+
+  Scenario: One-time private review preserves the semantic gate
+    Given the user allows the current explicit Memory review
+    When global configuration changes while confirmation is open
+    Then the review uses the original model, credentials, and scopes
+    And candidates still pass full evidence, privacy, semantic and mutation validation
+    And the next run does not inherit this run's private review permission

@@ -20,6 +20,7 @@ Feature: git worktree path redirect
     Given the agent runs `git worktree add ../foo feature/foo` in a repository subdirectory
     When the bash tool call is intercepted
     Then the rewritten path is the absolute `<repo root>/.pi/worktrees/foo`
+    And the redirect notice names that absolute directory, not a relative spelling
     And no `.pi` directory is created inside the subdirectory
 
   Scenario: An unignored managed directory is reported

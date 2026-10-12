@@ -33,7 +33,7 @@ export function partitionReviewedNewMemory(
     // A record without a description line gets no description judgment, so the
     // expected checklist must shrink with it rather than deny the plan.
     const described = memoryDescriptionClaim(candidate) !== undefined;
-    const expected = [`supported_${index}`, ...(described ? [`supported_description_${index}`] : []),
+    const expected = [`supported_${index}`, `coherence_${index}`, ...(described ? [`supported_description_${index}`] : []),
       ...(existing.length ? [`relation_${index}`, ...(described ? [`relation_description_${index}`] : [])] : []),
       ...prepared.windows.flatMap((_, window) => [`counter_${index}_${window}`, ...(described ? [`counter_description_${index}_${window}`] : [])])];
     if (!observation || !Array.isArray(observation.passedChecks) || !Array.isArray(observation.heldChecks)) return denied();

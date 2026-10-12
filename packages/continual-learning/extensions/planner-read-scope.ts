@@ -1,5 +1,5 @@
 import { locatedMemoryEvidence } from "./memory-citation-locations";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { constants } from "node:fs";
 import * as path from "node:path";
@@ -8,7 +8,7 @@ import { Type } from "typebox";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { containsSensitiveMemoryMaterial } from "./consolidation-run";
 
-export interface PlannerReadScope { cwd: string; files: string[]; roots: string[]; indexedEvidence?: boolean }
+export interface PlannerReadScope { cwd: string; files: string[]; roots: string[]; indexedEvidence?: boolean; excludedComponents?: string[] }
 const FORBIDDEN = /^(?:\.git|\.env(?:\..*)?|auth\.json|credentials(?:\..*)?|id_(?:rsa|ed25519)|.*\.(?:pem|key))$/i;
 function inside(file: string, root: string): boolean {
   const relative = path.relative(root, file);
@@ -17,6 +17,7 @@ function inside(file: string, root: string): boolean {
 async function safePath(input: string, scope: PlannerReadScope): Promise<string> {
   const file = path.resolve(scope.cwd, input);
   const exact = scope.files.some(item => path.resolve(item) === file);
+  if (!exact && path.relative(scope.cwd, file).split(path.sep).some(part => scope.excludedComponents?.includes(part))) throw new Error("Planner read refused: excluded source root");
   const root = scope.roots.map(item => path.resolve(item)).filter(item => inside(file, item)).sort((a, b) => b.length - a.length)[0];
   if (!exact && !root) throw new Error("Planner read refused: outside the parent-approved scope");
   // Check every component, including the approved root. realpath containment
@@ -30,7 +31,7 @@ async function safePath(input: string, scope: PlannerReadScope): Promise<string>
   }
   return file;
 }
-export async function readPlannerFile(input: string, scope: PlannerReadScope, offset = 1, limit = 200, signal?: AbortSignal): Promise<string> {
+export async function readPlannerFileSnapshot(input: string, scope: PlannerReadScope, offset = 1, limit = 200, signal?: AbortSignal): Promise<{text: string; sha256?: string}> {
   if (!Number.isSafeInteger(offset) || offset < 1 || !Number.isSafeInteger(limit) || limit < 1 || limit > 2000) throw new Error("Invalid planner read range");
   signal?.throwIfAborted();
   const file = await safePath(input, scope);
@@ -38,12 +39,13 @@ export async function readPlannerFile(input: string, scope: PlannerReadScope, of
   try {
     const before = await handle.stat();
     if (before.isDirectory()) {
-      const entries = (await fs.readdir(file, {withFileTypes:true})).filter(entry => !entry.isSymbolicLink() && !FORBIDDEN.test(entry.name) && (entry.isFile() || entry.isDirectory())).sort((a,b) => a.name.localeCompare(b.name));
+      const entries = (await fs.readdir(file, {withFileTypes:true})).filter(entry => !entry.isSymbolicLink() && !FORBIDDEN.test(entry.name)
+        && !scope.excludedComponents?.includes(entry.name) && (entry.isFile() || entry.isDirectory())).sort((a,b) => a.name.localeCompare(b.name));
       await safePath(input, scope);
       signal?.throwIfAborted();
       const named = await fs.lstat(file);
       if (named.dev !== before.dev || named.ino !== before.ino) throw new Error("Planner directory changed");
-      return entries.slice(offset - 1, offset - 1 + limit).map(entry => `${entry.name}${entry.isDirectory() ? "/" : ""}`).join("\n").slice(0, 64_000) + `\n[${entries.length} entries; use offset/limit to page]`;
+      return {text: entries.slice(offset - 1, offset - 1 + limit).map(entry => `${entry.name}${entry.isDirectory() ? "/" : ""}`).join("\n").slice(0, 64_000) + `\n[${entries.length} entries; use offset/limit to page]`};
     }
     if (!before.isFile() || before.size > 32 * 1024 * 1024) throw new Error("Planner read refused: unsupported file");
     const bytes = Buffer.alloc(before.size);
@@ -66,15 +68,35 @@ export async function readPlannerFile(input: string, scope: PlannerReadScope, of
     const lines = shown.split("\n");
     const selected = lines.slice(offset - 1, offset - 1 + limit).join("\n");
     const bounded = Buffer.from(selected).subarray(0, 64_000).toString("utf8");
-    return `${bounded}\n[lines ${offset}-${Math.min(lines.length, offset + limit - 1)} of ${lines.length}${bounded.length < selected.length ? "; byte limit reached" : ""}]`;
+    return {text: `${bounded}\n[lines ${offset}-${Math.min(lines.length, offset + limit - 1)} of ${lines.length}${bounded.length < selected.length ? "; byte limit reached" : ""}]`,
+      sha256: createHash("sha256").update(bytes).digest("hex")};
   } finally { await handle.close(); }
 }
-export function registerPlannerRead(pi: ExtensionAPI, scope: PlannerReadScope): void {
+export async function readPlannerFile(input: string, scope: PlannerReadScope, offset = 1, limit = 200, signal?: AbortSignal): Promise<string> {
+  return (await readPlannerFileSnapshot(input, scope, offset, limit, signal)).text;
+}
+export interface PlannerReadObservation { path: string; offset: number; limit: number; result?: string; sha256?: string; error?: string }
+export function registerPlannerRead(pi: ExtensionAPI, scope: PlannerReadScope, observe?: (read: PlannerReadObservation) => Promise<void>, maxReads?: number): void {
+  let reads = 0;
   pi.registerTool({
     name: "learning_read", label: "Read scoped evidence", description: "Read a parent-approved regular text file or list an approved directory. Paths outside the frozen scope, symlinks and sensitive files are refused. Use offset/limit to page.",
     parameters: Type.Object({ path: Type.String(), offset: Type.Optional(Type.Integer({minimum:1})), limit: Type.Optional(Type.Integer({minimum:1,maximum:2000})) }),
     async execute(_id, params, signal) {
-      return {content:[{type:"text", text:await readPlannerFile(params.path, scope, params.offset, params.limit, signal)}], details:{}};
+      const read = {path: path.resolve(scope.cwd, params.path), offset: params.offset ?? 1, limit: params.limit ?? 200};
+      reads += 1;
+      if (maxReads !== undefined && reads >= maxReads) pi.setActiveTools([]);
+      if (maxReads !== undefined && reads > maxReads) {
+        await observe?.({...read, error: "Source audit read budget exceeded"});
+        throw new Error("Source audit read budget exceeded");
+      }
+      let snapshot: {text: string; sha256?: string};
+      try { snapshot = await readPlannerFileSnapshot(params.path, scope, params.offset, params.limit, signal); }
+      catch (error) {
+        await observe?.({...read, error: "Scoped source read refused"});
+        throw error;
+      }
+      await observe?.({...read, result: snapshot.text, sha256: snapshot.sha256});
+      return {content:[{type:"text", text: snapshot.text}], details:{}};
     },
   });
   pi.on("session_start", async () => { pi.setActiveTools(["learning_read"]); });

@@ -1,12 +1,12 @@
 /**
- * The Desk Link wire contract, version 1.
+ * The Open DeskOS Link wire contract, version 1.
  *
- * A Desk Link carries one Reporting Machine's Reported Sessions to one
+ * A Open DeskOS Link carries one Reporting Machine's Reported Sessions to one
  * Open DeskOS runtime. Records are newline-delimited JSON over one connection
  * the package opens; Open DeskOS never reaches back to this machine.
  */
 
-export const DESK_LINK_PROTOCOL = 1;
+export const ODK_LINK_PROTOCOL = 1;
 
 /** Event bounds, identical to the runtime's local session collector. */
 export const MAX_EVENTS_PER_SESSION = 300;
@@ -53,7 +53,7 @@ export interface ReportedSession {
   activity?: string;
 }
 
-export interface DeskLinkConfig {
+export interface OdkLinkConfig {
   /** Reporting machine identity, as shown on the desk. */
   machine: string;
   host: string;
@@ -98,14 +98,14 @@ export interface HistoryPage {
 }
 
 export interface HelloRecord {
-  v: typeof DESK_LINK_PROTOCOL;
+  v: typeof ODK_LINK_PROTOCOL;
   type: "hello";
   machine: string;
   token: string;
 }
 
 export interface SessionsRecord {
-  v: typeof DESK_LINK_PROTOCOL;
+  v: typeof ODK_LINK_PROTOCOL;
   type: "sessions";
   machine: string;
   sessions: ReportedSession[];
@@ -113,7 +113,7 @@ export interface SessionsRecord {
 
 /** Append-only events; a new connection replays the bounded retained tail. */
 export interface EventsRecord {
-  v: typeof DESK_LINK_PROTOCOL;
+  v: typeof ODK_LINK_PROTOCOL;
   type: "events";
   machine: string;
   sessionId: string;
@@ -121,12 +121,12 @@ export interface EventsRecord {
 }
 
 export interface ByeRecord {
-  v: typeof DESK_LINK_PROTOCOL;
+  v: typeof ODK_LINK_PROTOCOL;
   type: "bye";
   machine: string;
 }
 
-export type DeskLinkRecord = HelloRecord | SessionsRecord | EventsRecord | ByeRecord;
+export type OdkLinkRecord = HelloRecord | SessionsRecord | EventsRecord | ByeRecord;
 
 /**
  * The message parts this package reads. Pi streams these shapes for user,

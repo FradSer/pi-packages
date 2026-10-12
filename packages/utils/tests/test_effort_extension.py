@@ -36,10 +36,17 @@ HARNESS = """
 const notifications = [];
 const setCalls = [];
 const commands = new Map();
+// The host clamps a request to the model's ceiling and returns nothing from
+// setThinkingLevel, so the harness reports only what was actually applied.
+let effectiveLevel = "high";
+const clamp = (level) => (level === "xhigh" || level === "max" ? "high" : level);
 const pi = {
   registerCommand: (name, spec) => commands.set(name, spec),
-  getThinkingLevel: () => "high",
-  setThinkingLevel: (level) => setCalls.push(level),
+  getThinkingLevel: () => effectiveLevel,
+  setThinkingLevel: (level) => {
+    setCalls.push(level);
+    effectiveLevel = clamp(level);
+  },
 };
 effort.default(pi);
 
@@ -65,6 +72,9 @@ export async function run(args, ctx) {
 export function reset() {
   setCalls.length = 0;
   notifications.length = 0;
+}
+export function effective() {
+  return effectiveLevel;
 }
 export async function completions(prefix) {
   return commands.get("effort").getArgumentCompletions(prefix);
@@ -191,6 +201,26 @@ console.log(JSON.stringify({ result, opened }));
         self.assertFalse(report["opened"])
         self.assertEqual(report["result"]["setCalls"], [])
         self.assertIn("medium", report["result"]["notifications"][0]["message"])
+
+    def test_reports_the_level_pi_actually_applied(self) -> None:
+        report = run_effort(
+            effort_script(
+                """
+const requested = await run("max", makeContext());
+const applied = effective();
+const clampedReport = requested.notifications.at(-1).message;
+reset();
+const direct = await run("low", makeContext());
+console.log(JSON.stringify({ applied, clampedReport, directReport: direct.notifications.at(-1).message }));
+"""
+            )
+        )
+        # The model ceiling clamps `max` to `high`; the confirmation must not
+        # repeat the request as though pi had applied it.
+        self.assertEqual(report["applied"], "high")
+        self.assertIn("high", report["clampedReport"])
+        self.assertNotIn("max", report["clampedReport"])
+        self.assertIn("low", report["directReport"])
 
     def test_argument_completions_offer_aliases(self) -> None:
         report = run_effort(

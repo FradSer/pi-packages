@@ -120,8 +120,8 @@ test("the endpoint is private to the user who owns it", async (t) => {
   const h = await session(t);
   assert.equal(h.started.bound, true);
   assert.equal(h.started.published, true);
-  assert.equal(h.socketPath, join(h.runtimeDir, "open-deskos", "sessions", `${h.ctx.sessionManager.getSessionId()}.sock`));
-  assert.equal((await stat(join(h.runtimeDir, "open-deskos", "sessions"))).mode & 0o777, 0o700, "the parent directory is private");
+  assert.equal(h.socketPath, join(h.runtimeDir, "odk", "sessions", `${h.ctx.sessionManager.getSessionId()}.sock`));
+  assert.equal((await stat(join(h.runtimeDir, "odk", "sessions"))).mode & 0o777, 0o700, "the parent directory is private");
   assert.equal((await stat(h.socketPath)).mode & 0o777, 0o600, "the socket is private");
   assert.equal((await stat(h.descriptorPath)).mode & 0o777, 0o600, "the descriptor is private");
   const descriptor = JSON.parse(await readFile(h.descriptorPath, "utf8"));
@@ -138,14 +138,14 @@ test("the socket path is the override, then the runtime directory", () => {
   assert.equal(override.socketPath, `/tmp/odk/${id}.sock`, "the declared directory holds this session's own socket");
   assert.equal(override.descriptorPath, `/tmp/odk/${id}.json`, "and its own descriptor beside it");
   const relative = resolveSessionEndpoint({ XDG_RUNTIME_DIR: "/run/user/1000", ODK_SESSION_HOST_SOCKET: "relative.sock" }, "linux", id);
-  assert.equal(relative.socketPath, `/run/user/1000/open-deskos/sessions/${id}.sock`, "a relative override is not honored");
+  assert.equal(relative.socketPath, `/run/user/1000/odk/sessions/${id}.sock`, "a relative override is not honored");
   assert.equal(sessionRuntimeDir({ XDG_RUNTIME_DIR: "/run/user/1000" }, "linux"), "/run/user/1000");
   assert.equal(sessionRuntimeDir({ XDG_RUNTIME_DIR: "run/user/1000" }, "linux"), join(homedir(), ".local", "run"), "a relative XDG runtime directory is not a runtime directory");
   assert.equal(sessionRuntimeDir({}, "darwin"), join(homedir(), ".local", "run"), "macOS falls back to its own run directory");
   assert.equal(sessionRuntimeDir({ LOCALAPPDATA: "C:\\Users\\me\\AppData\\Local" }, "win32"), "C:\\Users\\me\\AppData\\Local");
   const windows = resolveSessionEndpoint({ LOCALAPPDATA: "C:\\Users\\me\\AppData\\Local" }, "win32", id);
-  assert.equal(windows.socketPath, `C:\\Users\\me\\AppData\\Local\\open-deskos\\sessions\\${id}.sock`);
-  assert.equal(windows.descriptorPath, `C:\\Users\\me\\AppData\\Local\\open-deskos\\sessions\\${id}.json`);
+  assert.equal(windows.socketPath, `C:\\Users\\me\\AppData\\Local\\odk\\sessions\\${id}.sock`);
+  assert.equal(windows.descriptorPath, `C:\\Users\\me\\AppData\\Local\\odk\\sessions\\${id}.json`);
 });
 
 test("list answers with this one session and nothing invented", async (t) => {
@@ -193,7 +193,7 @@ test("a project scope is this project or an ancestor directory", async (t) => {
     ["p3", join(h.root, "other")],
     ["p4", "src"],
     ["p5", join(h.cwd, "src")],
-    ["p6", "/opt/open-deskos"],
+    ["p6", "/opt/odk"],
     ["p7", join(h.cwd, "missing")],
   ]) {
     const refusedProject = await ask(h.socketPath, { version: 1, requestId, command: "list", project });
@@ -441,7 +441,7 @@ test("the extension binds its own session and never a reported one twice", async
   await writeFile(desksFile, JSON.stringify({ desks: [{ address: "127.0.0.1:1", token: "isolated-fixture" }] }));
   const saved = { ...process.env };
   t.after(() => { process.env = { ...saved }; });
-  process.env.ODK_DESK_LINK_DESKS_FILE = desksFile;
+  process.env.ODK_LINK_DESKS_FILE = desksFile;
   process.env.PI_DIRECTORY_SESSIONS_DIR = root;
   process.env.XDG_RUNTIME_DIR = join(root, "run");
   // The endpoint is a declared capability, so this fixture declares one inside its own
@@ -561,16 +561,15 @@ test("a machine that declared no endpoint has none to reach", async (t) => {
   const previous = process.env.ODK_SESSION_HOST_SOCKET;
   delete process.env.ODK_SESSION_HOST_SOCKET;
   t.after(() => { if (previous === undefined) delete process.env.ODK_SESSION_HOST_SOCKET; else process.env.ODK_SESSION_HOST_SOCKET = previous; });
+  const desks = join(root, "desks.json");
+  await writeFile(desks, JSON.stringify({ desks: [] }));
+  const previousDesks = process.env.ODK_LINK_DESKS_FILE;
+  process.env.ODK_LINK_DESKS_FILE = desks;
+  t.after(() => { if (previousDesks === undefined) delete process.env.ODK_LINK_DESKS_FILE; else process.env.ODK_LINK_DESKS_FILE = previousDesks; });
   const handlers = new Map();
   const extension = (await import("../index.ts")).default;
   extension({ on(name, fn) { handlers.set(name, fn); }, registerCommand() {}, registerMessageRenderer() {}, registerEntryRenderer() {}, registerTool() {} });
-  await handlers.get("session_start")({ reason: "startup" }, {
-    cwd: join(root, "project"),
-    isIdle: () => true,
-    abort() {},
-    sessionManager: { getSessionId: () => SESSION, getSessionName: () => undefined, getHeader: () => undefined, getBranch: () => [] },
-    ui: { notify() {}, setStatus() {} },
-  });
+  assert.equal(handlers.has("session_start"), false, "an unconfigured extension registers no session host");
   assert.equal(await access(join(root, "run")).then(() => true, () => false), false, "nothing was bound without a declared endpoint");
 });
 
@@ -773,7 +772,7 @@ test("manual input with identical text cannot certify remote mutation delivery",
 test("a live endpoint dropping its list reply yields an incomplete inventory", async (t) => {
   const root = await fixtureRoot(t, "odk-part-");
   const runtimeDir = join(root, "run");
-  const directory = join(runtimeDir, "open-deskos", "sessions");
+  const directory = join(runtimeDir, "odk", "sessions");
   const project = join(root, "project");
   const socketPath = join(root, "live.sock");
   await mkdir(directory, { recursive: true });
@@ -806,7 +805,7 @@ test("a live endpoint dropping its list reply yields an incomplete inventory", a
 test("aggregate inventory budgets the longest boolean metadata and newline", async (t) => {
   const root = await fixtureRoot(t, "odk-budget-");
   const runtimeDir = join(root, "run");
-  const directory = join(runtimeDir, "open-deskos", "sessions");
+  const directory = join(runtimeDir, "odk", "sessions");
   const project = join(root, "project");
   const socketPath = join(root, "budget.sock");
   await mkdir(directory, { recursive: true });
@@ -841,7 +840,7 @@ test("restricted relay refuses outside, broad, symlink and invalid requests befo
   const inside = join(approved, "project");
   const outside = join(root, "outside");
   const runtimeDir = join(root, "run");
-  const directory = join(runtimeDir, "open-deskos", "sessions");
+  const directory = join(runtimeDir, "odk", "sessions");
   await mkdir(inside, { recursive: true });
   await mkdir(outside);
   await mkdir(directory, { recursive: true });

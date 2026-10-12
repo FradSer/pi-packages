@@ -1,4 +1,4 @@
-from test_open_deskos_package import report
+from test_odk_package import report
 
 
 def test_configured_transitions_keep_diagnostics_command_only() -> None:
@@ -21,9 +21,9 @@ def test_configured_transitions_keep_diagnostics_command_only() -> None:
           });
         });
         await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-        process.env.ODK_DESK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
-        process.env.ODK_DESK_LINK_TOKEN = "local-test";
-        process.env.ODK_DESK_LINK_MACHINE = "diagnostic-probe";
+        process.env.ODK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
+        process.env.ODK_LINK_TOKEN = "local-test";
+        process.env.ODK_LINK_MACHINE = "diagnostic-probe";
         const { default: extension } = await import("./packages/open-deskos/index.ts");
         const handlers = new Map(), commands = new Map();
         const statuses = [], footers = [], notices = [], transitions = [];
@@ -47,14 +47,14 @@ def test_configured_transitions_keep_diagnostics_command_only() -> None:
         };
         const diagnose = async () => {
           diagnosticCommands += 1;
-          await commands.get("open-deskos").handler("", ctx);
+          await commands.get("odk").handler("", ctx);
         };
         async function diagnoseState(state) {
           const deadline = Date.now() + 4000;
           while (true) {
             await diagnose();
             const notice = notices.at(-1);
-            if (notice?.[0].includes(`[open-deskos] ${state}`)) {
+            if (notice?.[0].includes(`[odk] ${state}`)) {
               transitions.push(notice);
               return;
             }
@@ -101,7 +101,7 @@ def test_configured_transitions_keep_diagnostics_command_only() -> None:
     notices = result["transitions"]
     assert len(notices) == 5
     for notice, state in zip(notices, ["connecting", "connected", "offline", "connected", "offline"]):
-        assert f"[open-deskos] {state}" in notice[0]
+        assert f"[odk] {state}" in notice[0]
         assert "diagnostic-probe" in notice[0]
         assert "1 session(s)" in notice[0]
     assert "1 event(s)" in notices[1][0]

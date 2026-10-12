@@ -24,6 +24,10 @@ export interface LearningAttempt {
   /** Pending original records preserved separately from applied operations. */
   pendingOperations?: number;
   usage?: PiWorkerUsage;
+  /** Parent-owned numeric ledger identity; included only with this attempt. */
+  usageLedgerId?: string;
+  /** A parent preflight can fail before any planner call. Legacy attempts count as one. */
+  modelCalls?: 0;
   costAvailable?: boolean;
   /** Controlled parent diagnostic; never raw worker stderr or model output. */
   diagnostic?: string;
@@ -425,7 +429,7 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
     typeof receipt.mode === "string" && modes.includes(receipt.mode as LearningMode) &&
     Boolean(screen && typeof screen.memory === "boolean" && typeof screen.harness === "boolean" && typeof screen.agents === "boolean" && Array.isArray(screen.reasons) && screen.reasons.every((reason) => typeof reason === "string")) &&
     Array.isArray(receipt.attempts) && receipt.attempts.every((attempt) =>
-      Boolean(attempt && phases.includes(attempt.phase) && outcomes.includes(attempt.outcome) && Number.isSafeInteger(attempt.attempt) && attempt.attempt >= 0 && finiteNumber(attempt.durationMs) && finiteNumber(attempt.operations) && (attempt.pendingOperations === undefined || Number.isSafeInteger(attempt.pendingOperations) && attempt.pendingOperations >= 0) && (attempt.usage === undefined || validUsage(attempt.usage)))) &&
+      Boolean(attempt && phases.includes(attempt.phase) && outcomes.includes(attempt.outcome) && Number.isSafeInteger(attempt.attempt) && attempt.attempt >= 0 && finiteNumber(attempt.durationMs) && finiteNumber(attempt.operations) && (attempt.modelCalls === undefined || attempt.modelCalls === 0) && (attempt.pendingOperations === undefined || Number.isSafeInteger(attempt.pendingOperations) && attempt.pendingOperations >= 0) && (attempt.usage === undefined || validUsage(attempt.usage)))) &&
     (receipt.usageAvailable === undefined || typeof receipt.usageAvailable === "boolean") &&
     validUsage(receipt.totals) && finiteNumber(receipt.operations) && typeof receipt.retries === "number" && Number.isSafeInteger(receipt.retries) && receipt.retries >= 0 && typeof receipt.costAvailable === "boolean";
 }
@@ -557,7 +561,7 @@ export function learningSummaryDetails(receipt: LearningPipelineReceipt): string
     ...(input ? [fieldLine("source", `${input.source} · ${input.entryCount} entries${omission ? ` · ${omission}` : ""}${input.sessionId ? ` · ${input.sessionId}` : ""}`)] : []),
     ...(receipt.screen.reasons.includes("no-learning-inputs") ? ["No session evidence or existing Memory. Resume a task session or use /memory <request>."] : []),
     fieldLine("operations", receipt.operations),
-    fieldLine("calls", receipt.attempts.length),
+    fieldLine("calls", receipt.attempts.reduce((count, attempt) => count + (attempt.modelCalls ?? 1), 0)),
     fieldLine("usage", receiptUsageText(receipt)),
     fieldLine("cost", receiptCostText(receipt)),
     fieldLine("directions", [receipt.screen.memory ? "memory" : "", receipt.screen.harness ? "harness" : "", receipt.screen.agents ? "agents" : ""].filter(Boolean).join(", ") || "none"),

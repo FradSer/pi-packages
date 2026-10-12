@@ -16,7 +16,7 @@ def test_complete_candidate_review_is_bound_and_never_partial_write_permission()
         if(mode==='unavailable')throw Error('fixture unavailable');const r=JSON.parse(String(init.body));const answers={};
         for(const [k,q]of Object.entries(r.questions)){
          if(mode==='missing'&&k==='supported_description_1')continue;
-         const label=k==='supported_description_1'&&mode==='held'?'unclear':k.startsWith('supported')?'grounded':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};
+         const label=k.startsWith('coherence_')?'compatible':k==='supported_description_1'&&mode==='held'?'unclear':k.startsWith('supported')?'grounded':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};
         }
         if(mode==='mutation'&&!changed){candidates[0].content+=' altered';changed=true;}
         return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
@@ -53,7 +53,7 @@ def test_candidate_review_absent_for_incomplete_or_ineligible_inputs() -> None:
        const controller=new AbortController();if(mode==='cancelled')controller.abort();let calls=0;
        const judge=createJevJudge({enabled:mode!=='disabled',apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
         calls++;const r=JSON.parse(String(init.body));const answers={};
-        for(const [k,q]of Object.entries(r.questions)){if(q.type==='noul')answers[k]={type:'noul',noul:.99};else {const label=k.startsWith('supported')?'grounded':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};}}
+        for(const [k,q]of Object.entries(r.questions)){if(q.type==='noul')answers[k]={type:'noul',noul:.99};else {const label=k.startsWith('coherence_')?'compatible':k.startsWith('supported')?'grounded':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};}}
         if(mode==='evidence-mutation')snapshot.entries[0].content+=' altered';if(mode==='existing-mutation')existing.push({name:'altered',content:'altered'});
         return new Response(JSON.stringify({model:mode==='model-mismatch'&&calls>1?'jev-1.12.0':'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
        }});rows.push({mode,result:await judge.validate('memory',snapshot,[candidate],existing,controller.signal)});
@@ -72,7 +72,7 @@ def test_candidate_review_includes_existing_relationship_and_all_windows() -> No
       const candidate={name:'fact.md',kind:'project',classification:'safe',content:`---\nname: fact\ndescription: ${quote}\ntype: project\n---\n${quote}`,evidence:[{index:0,quote,role:'user'}]};
       const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
        const r=JSON.parse(String(init.body)),answers={};for(const [k,q]of Object.entries(r.questions)){
-        const label=k.startsWith('supported')?'grounded':k.startsWith('relation')?'supplement':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};
+        const label=k.startsWith('coherence_')?'compatible':k.startsWith('supported')?'grounded':k.startsWith('relation')?'supplement':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};
        }return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
       }});console.log(JSON.stringify(await judge.validate('memory',snapshot,[candidate],existing)));
     ''')
@@ -80,7 +80,7 @@ def test_candidate_review_includes_existing_relationship_and_all_windows() -> No
     assert value['telemetry']['evidenceWindows'] == 2
     assert value['telemetry']['completedWindows'] == 2
     assert set(value['candidateReview']['candidates'][0]['passedChecks']) == {
-        'supported_0', 'supported_description_0', 'relation_0',
+        'coherence_0', 'supported_0', 'supported_description_0', 'relation_0',
         'relation_description_0', 'counter_0_0', 'counter_description_0_0',
         'counter_0_1', 'counter_description_0_1',
     }

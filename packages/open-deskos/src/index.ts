@@ -1,17 +1,17 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { open } from "node:fs/promises";
-import { readDeskLinkConfigs } from "./config.ts";
+import { readOdkLinkConfigs } from "./config.ts";
 import { registerConsoleExtension } from "./console-extension.ts";
 import { createControlTcpTransport } from "./control-transport.ts";
 import { aggregateDeskSnapshots, selectConsoleDesk } from "./desk-set.ts";
 import { eventsFromMessage, promptFromMessage } from "./events.ts";
 import { scanDirectorySessions, SessionDiscovery } from "./discovery.ts";
-import { DeskReporter, type DeskLinkSnapshot } from "./reporter.ts";
+import { DeskReporter, type OdkLinkSnapshot } from "./reporter.ts";
 import { SessionHost } from "./session-host.ts";
 import { CurrentSessionReplay } from "./session-replay.ts";
 import { createTcpTransport } from "./transport.ts";
 
-const CONFIG_HINT = "set ODK_DESK_LINK_ADDRESS and ODK_DESK_LINK_TOKEN, or list desks in ~/.config/open-deskos/desks.json, to report this machine";
+const CONFIG_HINT = "set ODK_LINK_ADDRESS and ODK_LINK_TOKEN, or list desks in ~/.config/odk/desks.json, to report this machine";
 /** Read only a bounded tail before it enters the reporter's own 300-event/1MiB retention pipeline. */
 const MAX_DURABLE_SESSION_BYTES = 4 * 1024 * 1024;
 
@@ -76,10 +76,10 @@ async function durableSessionEvents(sessionFile: string | undefined): Promise<Re
 
 /**
  * Report this machine's Pi sessions and, with an independent credential, drive
- * Hosted Pi sessions over a separate Desk Link v2 control connection.
+ * Hosted Pi sessions over a separate Open DeskOS Link v2 control connection.
  */
 export default function (pi: ExtensionAPI): void {
-  const { configs, refusals } = readDeskLinkConfigs();
+  const { configs, refusals } = readOdkLinkConfigs();
   const reporters = configs.map((config) => new DeskReporter({ config, createTransport: createTcpTransport }));
   const endpoints = configs.map((config) => `${config.host}:${config.port}`);
   // This is one machine reporting, however many desks listen: discovery runs
@@ -88,7 +88,7 @@ export default function (pi: ExtensionAPI): void {
   const each = (run: (reporter: DeskReporter) => void): void => {
     for (const reporter of reporters) run(reporter);
   };
-  const aggregate = (): DeskLinkSnapshot | null =>
+  const aggregate = (): OdkLinkSnapshot | null =>
     aggregateDeskSnapshots(reporters.map((reporter, index) => ({ ...reporter.snapshot(), endpoint: endpoints[index] ?? "desk" })));
   const discovery = reporters.length === 0 ? null : new SessionDiscovery({
     discover: () => scanDirectorySessions(),
@@ -197,7 +197,7 @@ export default function (pi: ExtensionAPI): void {
     pi,
     // The Console drives one desk: the one that issued a control credential,
     // unless the operator named the desk they mean.
-    config: selectConsoleDesk(configs, process.env.ODK_DESK_LINK_CONSOLE_DESK ?? ""),
+    config: selectConsoleDesk(configs, process.env.ODK_LINK_CONSOLE_DESK ?? ""),
     desks: configs,
     refusals,
     createControlTransport: createControlTcpTransport,

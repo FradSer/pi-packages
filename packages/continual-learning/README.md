@@ -61,6 +61,12 @@ privacy checks, mutation and the receipt remain parent-owned. A request can
 correctly produce no write when it is not durable, safe, or sufficiently
 grounded.
 
+If review holds existing Memory and the repair returns no correction, the receipt
+says `Retained Memory review remains unresolved; no corrective operation was
+proposed. No files changed.` The review remains incomplete; an empty response
+does not prove that the records are correct or that protected intent changed.
+Source evidence supporting the change is still required for a validated correction.
+
 Learning uses the current session model unless a separate provider/model pair
 is configured. An explicit invalid or empty pair in `memory.json` is diagnosed
 and prevents a worker from silently using a different model; `{}` retains the
@@ -71,7 +77,7 @@ for discovery when the injected list omits entries.
 The Harness panel lets the user choose the target layer before submitting a
 rule request. Project shared configuration remains the default authoring target
 for `/harness <request>`; personal and user-shared scopes require an explicit
-choice in the panel.
+choice in the panel. A missing target is a normal first-use state: a supported request creates one complete validated configuration without an empty placeholder. Broad operational safeguards can use scoped contextual guidance when no exact command gate is established; guidance does not enforce a traffic rate limit. Essential unknowns lead to an actionable clarification, not a missing-file dead end. Project tool access uses the relative target path. Authoring activates a read-only `harness_preview` tool: each changed enabled rule needs passing plain positive/negative fixtures before the exact candidate can be written. A preview is bound to predecessor bytes and consumed once; it never bypasses effective configuration or native replacement authorization. Verification never requires scratch files or a second write. The tool is removed when authoring ends.
 
 ### Advanced and compatibility commands
 
@@ -357,13 +363,12 @@ pending disposition. Source-verified backfill with an empty index uses the same
 parent routing for explicit durable evidence as automatic learning, preserving all
 mutation validation and semantic review.
 
-Fresh tasks receive at most three complete relevant Memory bodies, each at most
-4,000 characters and 8,000 characters for the complete reference block. Lexical
-metadata ranking can miss useful entries; larger bodies remain on-demand reads.
-Delivery records filename and revision, not proof that the model used or benefited
-from the knowledge. Current evidence and instructions take precedence. Ordinary
-correction planning revisits recently delivered entries; an explicit `/memory`
-request retains its selected scope.
+Fresh tasks receive a compact index of deduplicated Memory filenames and
+one-line descriptions. An unchanged index stays in place across user turns;
+changed indexes replace stale references and missing context restores discovery.
+Entry bodies are read on demand, never automatically injected. Metadata exposure
+is not proof of use or benefit; current evidence and instructions take precedence.
+Automatic correction revisits Memory actually read through unique successful read calls; failed or ambiguous reads do not nominate entries. Revisit is not factual evidence or permission to mutate. Explicit `/memory` requests retain their selected maintenance scope.
 
 An automatically learned project Harness rule may be revised or retired only with
 an exact predecessor revision, current user correction, positive/negative fixtures
@@ -392,7 +397,7 @@ if complete review holds the accepted plan. Neither phase replans or loops. Each
 correction keeps its own receipt usage and cost, and only the final accepted
 attempt owns applied operations. Structural rejection metadata and screened
 structural response remain available even if later semantic correction succeeds.
-All original final validation and mutation gates remain mandatory. Citation-location rejection supplies up to eight parent-controlled candidate/citation positions and reasons to that same correction, including range and extracted-quote bounds; it never includes source text in diagnostics or raises the 2,000-character quote limit.
+All original final validation and mutation gates remain mandatory. Citation-location rejection supplies up to eight parent-controlled candidate/citation positions and reasons to that same correction, including range and extracted-quote bounds; it never includes source text in diagnostics or raises the 2,000-character quote limit. Long encoded source lines are shown as complete numbered chunks; explicit offsets inside one line let the parent extract original characters without model transcription or decoding.
 
 Harness also permits one read-only repair when structured output is missing or
 a parsed plan fails validation. It uses the original frozen evidence and model;
@@ -561,13 +566,11 @@ under the existing parent-owned validation contract.
 
 ### Retrieval and descriptions
 
-The default index injection budget is 6,000 characters. Separately, task relevance
-can deliver up to three complete Memory bodies: at most 4,000 characters each
-and 8,000 characters total including framing. Compound API names remain
-searchable, and generic instruction words do not earn relevance. Bodies that
-cannot fit completely stay available through their delivered read paths; claims
-and conditions are never cut into arbitrary excerpts. Each injected body records
-its exact SHA-256 revision. Delivery proves exposure, not correct use or benefit.
+The default index injection budget is 6,000 characters. Entries list only a
+filename and description, without per-entry source suffixes. Case-insensitive
+filename deduplication prefers the private copy across locations. A compact root
+list supplies read routing; omission counts and complete-index pointers appear
+only when entries are omitted. Relevant bodies require explicit bounded reads.
 
 Each body root is declared once and every entry row names its filename, so the
 budget reaches relevance metadata instead of repeating an absolute read path per
@@ -1282,3 +1285,12 @@ explicit gateway capability opt-in; confirm that the gateway forwards and suppor
 `response_format` before enabling it. Existing provider output constraints remain
 authoritative. The parent still checks the unique plan, exact citations, semantics,
 privacy and authorization. Valid JSON alone does not establish valid learning.
+
+When an explicit `/memory <request>` encounters private Memory and Jev review
+is enabled, Pi asks permission to send the relevant private bodies and task
+evidence to TypeSafe Jev for that run. Confirmation happens before source auditing
+and selection when private entries are already known, or before semantic review
+for a newly proposed private entry. Declining or cancelling preserves knowledge;
+headless runs cannot grant permission. A preflight refusal starts no planner and
+reports zero added calls/cost, with learning still incomplete. Permission does
+not change configuration, carry into another run, or bypass validation.

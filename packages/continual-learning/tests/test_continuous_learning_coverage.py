@@ -9,6 +9,7 @@ def test_partial_real_receipt_retains_known_cost_and_counts_unknown_usage(tmp_pa
     import live_continuous_project_learning as study
 
     receipt = json.loads((Path(__file__).parent / 'fixtures/real-interrupted-learning-receipt.json').read_text())
+    receipt['attempts'][0]['usageLedgerId'] = 'already-in-receipt'
     assert receipt['usageAvailable'] is False and receipt['costAvailable'] is False
 
     def export_tree(container, root, output, proxy):
@@ -18,14 +19,19 @@ def test_partial_real_receipt_retains_known_cost_and_counts_unknown_usage(tmp_pa
                 item = tarfile.TarInfo('replay-real.json')
                 item.size = len(data)
                 archive.addfile(item, io.BytesIO(data))
+                for name, included in [('harness-repair-usage-failed.json', False), ('harness-task-usage.json', True), ('memory-repair-usage-orphan.json', False)]:
+                    data = json.dumps({'knownUsage': receipt['attempts'][0]['usage'] if included else {'input': 1, 'output': 2, 'cacheRead': 0, 'cacheWrite': 0, 'totalTokens': 3, 'cost': .012}, 'assistantMessages': 1, 'complete': included or name.startswith('memory-'), 'ledgerId': 'already-in-receipt' if included else name}).encode()
+                    item = tarfile.TarInfo('run/' + name); item.size = len(data)
+                    archive.addfile(item, io.BytesIO(data))
 
     monkeypatch.setattr(study.base, 'export_tree', export_tree)
     monkeypatch.setattr(study.base, 'put', lambda *args: None)
     monkeypatch.setattr(study.base, 'shell', lambda *args: b'')
-    monkeypatch.setattr(study.base, 'checked', lambda args: b'[null]' if 'node' in args else b'{"pending":2}')
+    monkeypatch.setattr(study.base, 'checked', lambda args: b'{}' if 'python3' in args else b'[null]' if 'node' in args else b'{"pending":2}')
     result = study.artifacts('isolated-fixture', None, tmp_path)
-    assert result['knownLearningTokens'] == 31549
-    assert result['knownLearningCost'] == receipt['totals']['cost']
+    assert result['knownLearningTokens'] == 31555
+    assert result['knownLearningCost'] == receipt['totals']['cost'] + .024
+    assert len(result['partialWorkerUsageLedgers']) == 2
     assert result['interruptedUnknownUsage'] == 1
     assert result['allLearningCostsPriced'] is False
 
@@ -175,3 +181,17 @@ def test_operational_failure_with_passing_checks_requires_same_backfill_proof():
     assert continuous_coverage(report)['failedTaskProcessed']
     arm['learning']['completedBacklog']['failure-job']='wrong-ack'
     assert not continuous_coverage(report)['failedTaskProcessed']
+
+
+def test_index_only_protocol_requires_actual_exact_revision_reads() -> None:
+    from continuous_project_evidence import continuous_coverage
+    report = full_evidence()
+    report['protocol'] = {'coverageVersion': 3}
+    coverage = continuous_coverage(report)
+    assert not coverage['memoryUsed']
+    assert not coverage['memoryCorrectedAndUsed']
+    for stage in report['stages']:
+        inference = stage['arms']['with-learning']['inference']
+        inference['observedMemoryReads'] = inference.get('deliveredMemoryEntries', [])
+    assert continuous_coverage(report)['memoryUsed']
+    assert continuous_coverage(report)['memoryCorrectedAndUsed']

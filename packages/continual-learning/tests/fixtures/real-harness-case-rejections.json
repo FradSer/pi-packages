@@ -1,0 +1,145 @@
+[
+  {
+    "source": "/Users/FradSer/.codex/visualizations/2026/10/08/01a11d01-ec97-7620-923c-0ce430ba8fb3/continuous-learning-recovery-20261011/continuous-v30-fresh/20261012T090018Z-5e6b3dfc0ed1/orientation/with-learning/memory.tar.gz",
+    "member": "./runs/--work-p-limit--/run_mv50z5p1_6908d7a47a5c083a/harness-repair.md",
+    "rule": {
+      "id": "block-npm-use-pnpm",
+      "bash": "^(?:env[ \t]+(?:[A-Za-z_][A-Za-z0-9_]*=[^ \t\n]*[ \t]+)*|NODE_ENV=[A-Za-z_][A-Za-z0-9_]*[ \t]+|command[ \t]+|npx[ \t]+)?npm(?:[ \t]|$(?![\\s\\S]))",
+      "action": "block",
+      "message": "Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead."
+    },
+    "cases": {
+      "positive": [
+        {
+          "bash": "npm test",
+          "expected": "block"
+        },
+        {
+          "bash": "npm install",
+          "expected": "block"
+        },
+        {
+          "bash": "npm run build",
+          "expected": "block"
+        },
+        {
+          "bash": "npm ci --no-audit",
+          "expected": "block"
+        },
+        {
+          "bash": "npm",
+          "expected": "block"
+        },
+        {
+          "bash": "npm\r",
+          "expected": "block"
+        },
+        {
+          "bash": "npm install",
+          "expected": "block"
+        },
+        {
+          "bash": "command npm test",
+          "expected": "block"
+        },
+        {
+          "bash": "env NODE_ENV=test npm ci",
+          "expected": "block"
+        }
+      ],
+      "negative": [
+        {
+          "bash": "pnpm test"
+        },
+        {
+          "bash": "printf 'npm test'"
+        },
+        {
+          "bash": "echo npm install"
+        },
+        {
+          "bash": "grep -rn '\"scripts\": {' package.json | head -30"
+        },
+        {
+          "bash": "cat package.json | head -30"
+        },
+        {
+          "bash": "npmx test"
+        },
+        {
+          "bash": "npm2 test"
+        },
+        {
+          "bash": "yarn add left-pad"
+        }
+      ]
+    },
+    "parentErrors": [
+      "operations[0].cases.positive[5] did not match proposed rule",
+      "operations[0].cases.positive[5] expected block, evaluator returned execute",
+      "operations[0].cases.positive[6] did not match proposed rule",
+      "operations[0].cases.positive[6] expected block, evaluator returned execute"
+    ]
+  },
+  {
+    "source": "/Users/FradSer/.codex/visualizations/2026/10/08/01a11d01-ec97-7620-923c-0ce430ba8fb3/continuous-learning-recovery-20261011/continuous-v30-fresh/20261012T090018Z-5e6b3dfc0ed1/orientation/with-learning/memory.tar.gz",
+    "member": "./runs/--work-p-limit--/run_mv511zus_64c3e03a7e4f4762/harness-repair.md",
+    "rule": {
+      "id": "block-npm-first-executable",
+      "bash": "^npm(?:[ \\t]|$(?![\\s\\S]))",
+      "action": "block",
+      "message": "Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference."
+    },
+    "cases": {
+      "positive": [
+        {
+          "bash": "npm test",
+          "expected": "block"
+        },
+        {
+          "bash": "npm install",
+          "expected": "block"
+        },
+        {
+          "bash": "npm run test",
+          "expected": "block"
+        }
+      ],
+      "negative": [
+        {
+          "bash": "pnpm test"
+        },
+        {
+          "bash": "echo npm test"
+        },
+        {
+          "bash": "printf '%s' 'npm test'"
+        },
+        {
+          "bash": "npx ava"
+        },
+        {
+          "bash": "cat package.json | grep npm"
+        },
+        {
+          "bash": "cd /work/p-limit && pnpm test"
+        },
+        {
+          "bash": "npm\ninstall"
+        },
+        {
+          "bash": "npm test"
+        },
+        {
+          "bash": "npm test\r"
+        },
+        {
+          "bash": "corepack pnpm install"
+        }
+      ]
+    },
+    "parentErrors": [
+      "operations[0].cases.negative[8] matched but must remain unmatched"
+    ]
+  }
+]

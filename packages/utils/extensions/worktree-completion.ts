@@ -128,10 +128,19 @@ export function isInForeignWorktree(
 		}
 	}
 
-	for (const root of roots.foreignRoots) {
-		if (isInside(canonicalAbsolute, root)) return true;
+	// A linked worktree can be nested inside another checkout, so plain
+	// membership of a foreign root would also hide the active worktree's own
+	// files. The most specific enclosing worktree decides instead: the candidate
+	// is foreign only when a deeper root than the current one contains it.
+	let deepest: string | null = null;
+	const containing = roots.currentRoot
+		? [...roots.foreignRoots, roots.currentRoot]
+		: roots.foreignRoots;
+	for (const root of containing) {
+		if (!isInside(canonicalAbsolute, root)) continue;
+		if (deepest === null || root.length > deepest.length) deepest = root;
 	}
-	return false;
+	return deepest !== null && deepest !== roots.currentRoot;
 }
 
 export function isItemInForeignWorktree<T extends AutocompleteItem>(

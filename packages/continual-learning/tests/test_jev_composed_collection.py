@@ -1,5 +1,8 @@
 from support import isolated_run_bun
-from test_jev_independent_subset_research import SETUP
+from test_jev_independent_subset_research import SETUP as LEGACY_SETUP
+
+# Current production review adds body coherence; preserve the frozen research setup.
+SETUP = LEGACY_SETUP.replace("const checks=i=>[", "const checks=i=>[`coherence_${i}`,")
 
 BASE = SETUP + r'''
 import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';

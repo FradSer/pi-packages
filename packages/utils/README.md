@@ -56,6 +56,10 @@ history. An optional argument adds focus:
 /init focus on package release commands
 ```
 
+An idle session runs the guide task at once; a busy one queues it as a follow-up
+and says so. A delivery that is rejected reports the reason instead of leaving
+the task looking queued.
+
 ### `sessions` — cross-session directory awareness
 
 `/sessions` lists active and recent Pi coding sessions in the current directory (`cwd`), including their PID, status, latest goal, and recent work.
@@ -100,7 +104,9 @@ level directly:
 
 Valid levels: `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.
 Unknown values are rejected with a hint listing the valid levels. The level
-is clamped to the model's capabilities, and the menu is narrowed with the same
+is clamped to the model's capabilities, and the confirmation reports the level
+pi actually applied, so a clamped request never reads back as the requested one.
+The menu is narrowed with the same
 rule pi itself applies (a model without reasoning only gets `off`; a `null`
 `thinkingLevelMap` entry hides a level; `xhigh`/`max` need explicit entries).
 Argument completions list the canonical levels and their aliases regardless of
@@ -187,7 +193,10 @@ The `/live-sessions` command is the capability's only entry point:
 ```
 
 Session ids are offered as argument completions, the listing is capped at ten
-rows, and delivery arguments are length-checked before any socket call.
+rows, and delivery arguments are length-checked before any socket call. A
+discovery failure reports its cause, and a session that cannot open its socket
+says so when it starts, so an unusable control directory never reads as an
+empty one.
 
 Sockets live in `~/.pi/live-sessions`, overridable for integration hosts with
 `PI_UTILS_LIVE_SESSIONS_DIR`. The user-owned directory is mode 0700 and sockets
@@ -270,6 +279,12 @@ by one compact event row, for example `[worktree] enter · feature-auth` or
 asks whether to keep or remove the worktree; dirty work is kept unless the user
 explicitly chooses forced removal. Existing worktrees are never removed by
 this command.
+
+Both commands wait for a running turn to finish before they switch, because a
+session replacement aborts the active turn. A cancelled switch removes the
+worktree, branch, and forked session file it created. A switch that fails after
+replacement was requested keeps the worktree for its edits and reports the path,
+branch, and removal command, so nothing is silently left behind.
 
 ## License
 

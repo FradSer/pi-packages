@@ -76,12 +76,14 @@ def test_complete_corrected_failure_plan_fits_without_dropping_source_or_preserv
         if(s.proposedMemoryOperations)exactBodies &&= s.proposedMemoryOperations.length===next.length && s.proposedMemoryOperations.every((x,i)=>x.name===next[i].name&&x.kind===next[i].kind&&x.content===next[i].content&&JSON.stringify(x.preservedIn)===JSON.stringify(next[i].preservedIn));
       }
       console.log(JSON.stringify({telemetry:verdict.telemetry,requests:calls.length,maxBytes:Math.max(0,...calls.map(r=>Buffer.byteLength(JSON.stringify(r)))),
-        covered:entries.size,sourceExact:f.snapshot.entries.every((x,i)=>JSON.stringify(entries.get(i))===JSON.stringify(x)),exactBodies,exactCitations,exactAssociations,inputUnchanged:JSON.stringify(next)===before,cited:cited.size,candidates:next.length}));
+        covered:entries.size,indexes:[...entries.keys()].sort((a,b)=>a-b),excludedTypes:[1,41,45].map(i=>f.snapshot.entries[i].customType),sourceExact:f.snapshot.entries.every((x,i)=>[1,41,45].includes(i)||JSON.stringify(entries.get(i))===JSON.stringify(x)),exactBodies,exactCitations,exactAssociations,inputUnchanged:JSON.stringify(next)===before,cited:cited.size,candidates:next.length}));
     ''')
     assert result['telemetry']['reason'] != 'bounds'
     assert 0 < result['requests'] <= 68
     assert result['maxBytes'] <= 64_000
-    assert result['covered'] == 51 and result['sourceExact']
+    assert result['covered'] == 48 and result['sourceExact']
+    assert result['indexes'] == [i for i in range(51) if i not in {1, 41, 45}]
+    assert result['excludedTypes'] == ['continual-learning-memory-reference', 'continual-learning-result', 'continual-learning-memory-reference']
     assert result['exactBodies'] and result['exactCitations']
     assert result['exactAssociations'] and result['inputUnchanged']
     assert result['cited'] == result['candidates']

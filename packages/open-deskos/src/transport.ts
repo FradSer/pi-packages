@@ -1,14 +1,14 @@
 import { connect, type Socket } from "node:net";
-import { DESK_LINK_PROTOCOL, type DeskLinkConfig, type DeskLinkRecord } from "./types.ts";
+import { ODK_LINK_PROTOCOL, type OdkLinkConfig, type OdkLinkRecord } from "./types.ts";
 
 const MAX_INBOUND_FRAME_BYTES = 1024 * 1024;
 
 /**
- * A Desk Link transport. The reporter never touches a socket directly, so the
+ * A Open DeskOS Link transport. The reporter never touches a socket directly, so the
  * wire contract is testable without a network.
  */
 export interface DeskTransport {
-  send(record: DeskLinkRecord): void;
+  send(record: OdkLinkRecord): void;
   close(): void;
   onOpen(handler: () => void): void;
   onClose(handler: (reason: string) => void): void;
@@ -33,8 +33,8 @@ export function parseRecords(chunk: string, remainder: string): { records: unkno
   return { records, pending };
 }
 
-/** The real Desk Link: one outbound TCP connection with newline-delimited JSON. */
-export function createTcpTransport(config: DeskLinkConfig, options: { connectTimeoutMs?: number } = {}): DeskTransport {
+/** The real Open DeskOS Link: one outbound TCP connection with newline-delimited JSON. */
+export function createTcpTransport(config: OdkLinkConfig, options: { connectTimeoutMs?: number } = {}): DeskTransport {
   const openHandlers: Array<() => void> = [];
   const closeHandlers: Array<(reason: string) => void> = [];
   const recordHandlers: Array<(record: unknown) => void> = [];
@@ -84,7 +84,7 @@ export function createTcpTransport(config: DeskLinkConfig, options: { connectTim
   socket.on("close", () => announceClose("link closed"));
 
   return {
-    send(record: DeskLinkRecord) {
+    send(record: OdkLinkRecord) {
       if (closed || socket.destroyed) return;
       socket.write(`${JSON.stringify(record)}\n`);
     },
@@ -106,4 +106,4 @@ export function createTcpTransport(config: DeskLinkConfig, options: { connectTim
   };
 }
 
-export const DESK_LINK_PROTOCOL_DECLARATION = DESK_LINK_PROTOCOL;
+export const ODK_LINK_PROTOCOL_DECLARATION = ODK_LINK_PROTOCOL;

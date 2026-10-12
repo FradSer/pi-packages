@@ -2,25 +2,25 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { Container, Input, Key, SelectList, Text, matchesKey, truncateToWidth, type Focusable, type SelectItem } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import { DeskConsoleClient, type ConsoleAttachment } from "./console-client.ts";
-import type { DeskLinkSnapshot } from "./reporter.ts";
-import type { DeskLinkConfig, HistoryPage, HostedPiSession, PositionedSessionEvent } from "./types.ts";
+import type { OdkLinkSnapshot } from "./reporter.ts";
+import type { OdkLinkConfig, HistoryPage, HostedPiSession, PositionedSessionEvent } from "./types.ts";
 import type { ControlTransport } from "./control-transport.ts";
 
-const CONSOLE_STATE_ENTRY = "open-deskos-console-state";
-const CONSOLE_CONTEXT_MESSAGE = "open-deskos-hosted-pi";
+const CONSOLE_STATE_ENTRY = "odk-console-state";
+const CONSOLE_CONTEXT_MESSAGE = "odk-hosted-pi";
 const CONTEXT_EVENTS = 24;
 const CONTEXT_BYTES = 24 * 1024;
 const TOOL_OUTPUT_BYTES = 48 * 1024;
 
 export interface ConsoleExtensionOptions {
   pi: ExtensionAPI;
-  config: DeskLinkConfig | null;
+  config: OdkLinkConfig | null;
   /** Every desk this machine reports to, in configuration order. */
-  desks?: DeskLinkConfig[];
+  desks?: OdkLinkConfig[];
   /** Entries the configuration stated and this machine refuses to use, with the reason. */
   refusals?: string[];
-  createControlTransport: (config: DeskLinkConfig) => ControlTransport;
-  reporterSnapshot: () => DeskLinkSnapshot | null;
+  createControlTransport: (config: OdkLinkConfig) => ControlTransport;
+  reporterSnapshot: () => OdkLinkSnapshot | null;
   configHint: string;
 }
 
@@ -121,8 +121,8 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
 
   const controlConfigured = (): boolean => config !== null && Boolean(config.controlToken);
   const unavailable = (): string => config !== null
-    ? "set ODK_DESK_LINK_CONTROL_TOKEN to enable the Console"
-    : `${configHint}; set ODK_DESK_LINK_CONTROL_TOKEN to enable the Console`;
+    ? "set ODK_LINK_CONTROL_TOKEN to enable the Console"
+    : `${configHint}; set ODK_LINK_CONTROL_TOKEN to enable the Console`;
   const requireClient = (): DeskConsoleClient => {
     if (!controlConfigured() || !client) throw new Error(unavailable());
     return client;
@@ -134,7 +134,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
       state.sessionId ? `Hosted Pi ${state.sessionId}` : "Hosted Pi",
       ...tail.map(eventLine),
       ...(terminal === undefined ? [] : [`terminal ${JSON.stringify(terminal)}`]),
-      "Complete content remains available through desk_history.",
+      "Complete content remains available through odk_history.",
     ].join("\n");
     // Persist the bounded observation in context without autonomously starting
     // another model turn. The next user turn sees it, and a terminal result is
@@ -175,7 +175,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
 
   if (controlConfigured()) {
     pi.registerMessageRenderer(CONSOLE_CONTEXT_MESSAGE, (message, _renderOptions, theme) =>
-      new Text(`${theme.fg("customMessageLabel", "[open-deskos] ")}${theme.fg("customMessageText", firstLine(typeof message.content === "string" ? message.content : "Hosted Pi update", 160))}`, 0, 0));
+      new Text(`${theme.fg("customMessageLabel", "[odk] ")}${theme.fg("customMessageText", firstLine(typeof message.content === "string" ? message.content : "Hosted Pi update", 160))}`, 0, 0));
 
     pi.on("session_start", (_event, ctx) => {
     generation += 1;
@@ -199,7 +199,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     });
 
     pi.registerTool({
-    name: "desk_list",
+    name: "odk_list",
     label: "Desk List",
     description: "List the Hosted Pi sessions on Open DeskOS, including state, project, goal, and age.",
     parameters: Type.Object({}),
@@ -210,7 +210,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     },
   });
   pi.registerTool({
-    name: "desk_start",
+    name: "odk_start",
     label: "Desk Start",
     description: "Start a Hosted Pi on Open DeskOS with a project and prompt. Returns its durable identity immediately.",
     parameters: Type.Object({ project: Type.String(), prompt: Type.String(), session_id: Type.Optional(Type.String()), mutation_id: Type.Optional(Type.String()) }),
@@ -225,7 +225,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     },
   });
   pi.registerTool({
-    name: "desk_attach",
+    name: "odk_attach",
     label: "Desk Attach",
     description: "Attach this Pi session to one Hosted Pi and follow it from the last applied log position.",
     parameters: Type.Object({ session_id: Type.String(), position: Type.Optional(Type.Integer({ minimum: 0 })) }),
@@ -235,7 +235,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     },
   });
   pi.registerTool({
-    name: "desk_prompt",
+    name: "odk_prompt",
     label: "Desk Prompt",
     description: "Send a further instruction to the attached Hosted Pi; while running this steers the current turn.",
     parameters: Type.Object({ prompt: Type.String(), mutation_id: Type.Optional(Type.String()) }),
@@ -248,7 +248,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     },
   });
   pi.registerTool({
-    name: "desk_cancel",
+    name: "odk_cancel",
     label: "Desk Cancel",
     description: "Cancel the attached Hosted Pi's running turn without ending the session.",
     parameters: Type.Object({
@@ -269,7 +269,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     },
   });
   pi.registerTool({
-    name: "desk_end",
+    name: "odk_end",
     label: "Desk End",
     description: "End the attached Hosted Pi and release its host slot.",
     parameters: Type.Object({ mutation_id: Type.Optional(Type.String()) }),
@@ -288,7 +288,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     },
   });
     pi.registerTool({
-      name: "desk_history",
+      name: "odk_history",
       label: "Desk History",
       description: "Read a bounded page of complete Hosted Pi history from a session-log position.",
       parameters: Type.Object({ session_id: Type.String(), position: Type.Optional(Type.Integer({ minimum: 0 })) }),
@@ -308,13 +308,13 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     // cannot hide behind a set that is otherwise healthy, and a refused entry is said out loud.
     const perDesk = snapshot?.desks && snapshot.desks.length > 1 ? ` · ${snapshot.desks.map((desk) => `${desk.endpoint} ${desk.link}`).join(", ")}` : "";
     const refused = refusals.length > 0 ? ` · ${refusals[0]}` : "";
-    ctx.ui.notify(`[open-deskos] ${snapshot?.link ?? "offline"} · ${desks[0]?.machine ?? config?.machine ?? "machine"} → ${endpoint} · ${report.replace(/^(offline|connecting|connected) · /, "")}${perDesk}${refused} · ${control}${snapshot?.lastError ? ` · ${snapshot.lastError}` : ""}`, snapshot?.link === "connected" ? "info" : "warning");
+    ctx.ui.notify(`[odk] ${snapshot?.link ?? "offline"} · ${desks[0]?.machine ?? config?.machine ?? "machine"} → ${endpoint} · ${report.replace(/^(offline|connecting|connected) · /, "")}${perDesk}${refused} · ${control}${snapshot?.lastError ? ` · ${snapshot.lastError}` : ""}`, snapshot?.link === "connected" ? "info" : "warning");
   };
 
   const chooseSession = async (ctx: ExtensionContext): Promise<string | undefined> => {
     const sessions = (await requireClient().list()).sessions;
     if (sessions.length === 0) {
-      ctx.ui.notify("[open-deskos] no Hosted Pi sessions", "info");
+      ctx.ui.notify("[odk] no Hosted Pi sessions", "info");
       return undefined;
     }
     const labels = sessions.map((session) => `${session.sessionId} · ${sessionLabel(session)}`);
@@ -324,23 +324,23 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
   };
 
   const launchInteractive = async (ctx: ExtensionContext): Promise<void> => {
-    if (!ctx.hasUI) throw new Error("launch requires interactive UI or desk_start");
+    if (!ctx.hasUI) throw new Error("launch requires interactive UI or odk_start");
     const project = await ctx.ui.input("Hosted Pi project", ctx.cwd);
     if (!project) return;
     const prompt = await ctx.ui.editor("Hosted Pi prompt", "");
     if (!prompt?.trim()) return;
     const reply = await requireClient().launch({ project, prompt });
-    ctx.ui.notify(`[open-deskos] started ${String(reply.sessionId ?? "Hosted Pi")}`, "info");
+    ctx.ui.notify(`[odk] started ${String(reply.sessionId ?? "Hosted Pi")}`, "info");
   };
 
   const openConsole = async (ctx: ExtensionContext): Promise<void> => {
     if (!controlConfigured()) {
-      ctx.ui.notify(`[open-deskos] Console unavailable · ${unavailable()}`, "warning");
+      ctx.ui.notify(`[odk] Console unavailable · ${unavailable()}`, "warning");
       return;
     }
     if (ctx.mode !== "tui") {
       const sessions = await requireClient().list();
-      ctx.ui.notify(`[open-deskos] ${sessions.sessions.length} Hosted Pi session(s)`, "info");
+      ctx.ui.notify(`[odk] ${sessions.sessions.length} Hosted Pi session(s)`, "info");
       return;
     }
     const sessions = (await requireClient().list()).sessions;
@@ -426,7 +426,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
     });
   };
 
-  pi.registerCommand("open-deskos", {
+  pi.registerCommand("odk", {
     description: "Open DeskOS menu or use console/status/attach/launch/cancel/history fast paths",
     handler: async (raw, ctx) => {
       const [action, ...rest] = raw.trim().split(/\s+/).filter(Boolean);
@@ -443,7 +443,7 @@ export function registerConsoleExtension(options: ConsoleExtensionOptions): void
         const sessionId = rest[0] ?? state.sessionId ?? await chooseSession(ctx);
         if (!sessionId) return;
         const page = await requireClient().history({ sessionId, position: Number.parseInt(rest[1] ?? "0", 10) || 0 });
-        ctx.ui.notify(`[open-deskos] ${formatHistory(page)}`, "info");
+        ctx.ui.notify(`[odk] ${formatHistory(page)}`, "info");
         return;
       }
       if (ctx.mode !== "tui") {

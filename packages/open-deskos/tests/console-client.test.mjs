@@ -14,7 +14,7 @@ const config = {
 };
 
 function proof(nonce, sessionId = "console-a") {
-  const transcript = `open-deskos-control-v2\n2\n${nonce}\ndesk-mac\n${sessionId}`;
+  const transcript = `odk-control-v2\n2\n${nonce}\ndesk-mac\n${sessionId}`;
   return createHmac("sha256", "control-secret").update(transcript, "utf8").digest("hex");
 }
 

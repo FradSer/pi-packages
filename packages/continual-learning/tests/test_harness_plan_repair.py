@@ -67,7 +67,7 @@ def test_missing_structured_output_gets_one_bounded_recovery() -> None:
     assert value["ok"] is True, value
     assert value["operations"] == 1, value
     assert value["modelArgs"] == ["(default)", "(default)"], value
-    assert value["usage"] == {"input": 3, "output": 3, "cacheRead": 3, "cacheWrite": 0, "totalTokens": 6, "cost": 0.03}, value
+    assert value["usage"] == {"input": 5, "output": 5, "cacheRead": 5, "cacheWrite": 0, "totalTokens": 10, "cost": 0.05}, value
     assert value["repairContainsRawOutput"] is False, value
     assert [attempt["attempt"] for attempt in value["attempts"]] == [0, 1], value
     assert [attempt["outcome"] for attempt in value["attempts"]] == ["rejected", "noop"], value
@@ -110,30 +110,39 @@ def test_recovery_child_cancellation_is_not_reported_as_transport_failure() -> N
     assert value["ok"] is False, value
     assert value["spawned"] == 2, value
     assert value["attempts"][-1]["outcome"] == "cancelled", value
-    assert value["usage"]["input"] == 3, value
-    assert value["attempts"][-1]["usage"]["input"] == 2, value
+    assert value["usage"]["input"] == 1, value
+    assert "usage" not in value["attempts"][-1], value
+    assert next(row for row in value["usageLedgers"] if "harness-repair-usage-" in row["file"])["knownUsage"]["input"] == 2
+    assert not next(row for row in value["usageLedgers"] if "harness-repair-usage-" in row["file"])["complete"]
 
 
 def test_initial_timeout_keeps_usage_from_the_terminated_child() -> None:
     value = run("initial-timeout")
     assert value["ok"] is False, value
     assert value["attempts"][-1]["outcome"] == "failed", value
-    assert value["usage"] == {"input": 1, "output": 1, "cacheRead": 1, "cacheWrite": 0, "totalTokens": 2, "cost": 0.01}, value
+    assert value["usage"] is None, value
+    assert value["usageLedgers"][0]["knownUsage"]["input"] == 1
+    assert not value["usageLedgers"][0]["complete"]
 
 
 def test_recovery_timeout_keeps_prior_and_recovery_usage_once() -> None:
     value = run("recovery-timeout")
     assert value["ok"] is False, value
     assert value["spawned"] == 2, value
-    assert value["usage"] == {"input": 3, "output": 3, "cacheRead": 3, "cacheWrite": 0, "totalTokens": 6, "cost": 0.03}, value
-    assert [attempt["usage"]["input"] for attempt in value["attempts"]] == [1, 2], value
+    assert value["usage"] == {"input": 2, "output": 2, "cacheRead": 2, "cacheWrite": 0, "totalTokens": 4, "cost": 0.02}, value
+    assert value["attempts"][0]["usage"]["input"] == 2
+    assert "usage" not in value["attempts"][1]
+    assert next(row for row in value["usageLedgers"] if "harness-repair-usage-" in row["file"])["knownUsage"]["input"] == 2
+    assert not next(row for row in value["usageLedgers"] if "harness-repair-usage-" in row["file"])["complete"]
 
 
 def test_stdout_limit_keeps_usage_from_the_bounded_prefix() -> None:
     value = run("stdout-limit")
     assert value["ok"] is False, value
     assert "stdout exceeded" in value["detail"], value
-    assert value["usage"] == {"input": 1, "output": 1, "cacheRead": 1, "cacheWrite": 0, "totalTokens": 2, "cost": 0.01}, value
+    assert value["usage"] is None, value
+    assert value["usageLedgers"][0]["knownUsage"]["input"] == 1
+    assert not value["usageLedgers"][0]["complete"]
 
 
 def test_null_exit_signal_while_current_is_failed_not_cancelled() -> None:
@@ -265,3 +274,11 @@ def test_semantic_scope_comes_from_frozen_parent_identity_on_both_attempts() -> 
     assert value['boundScopeChecks'] == [True, True]
     assert value['semanticDecision'] == 'allow'
     assert not value['targetExists']
+
+
+def test_missing_plan_recovery_reads_exact_previous_selector_dossier_only() -> None:
+    value = run("missing-dossier")
+    assert value["recoveryRead"] == {"dossier": True, "unrelatedRefused": True}, value
+    assert value["ok"] is True, value
+    assert value["spawned"] == 2, value
+    assert value["operations"] == 1, value

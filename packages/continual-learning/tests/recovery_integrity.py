@@ -4,7 +4,94 @@ import base64
 import hashlib
 import json
 import os
+import tarfile
+from collections import Counter
 from pathlib import Path
+
+
+def archive_surface_snapshots(memory: Path, project: Path, live_metadata: dict) -> dict:
+    """Retained bytes must equal raw live hashes; redaction cannot hide drift."""
+    snapshots = {}
+    for file in (memory, project):
+        with tarfile.open(file) as archive:
+            for item in archive:
+                name = Path(item.name)
+                if name.is_absolute() or '..' in name.parts:
+                    raise ValueError('Unsafe retained archive path')
+                parts = name.parts
+                if file == memory:
+                    if not parts or parts[0] != '--work-p-limit--':
+                        continue
+                    key = 'private/' + '/'.join(parts[1:])
+                else:
+                    if not parts or not (parts[0] in ('.memory', '.pi') or str(name) == 'AGENTS.md'):
+                        continue
+                    key = 'project/' + str(name)
+                if item.isdir():
+                    continue
+                if not item.isfile() or key in snapshots:
+                    raise ValueError('Unsafe or duplicate learned surface')
+                body = archive.extractfile(item).read()
+                snapshots[key] = {'bytes': base64.b64encode(body).decode(),
+                                  'digest': hashlib.sha256(body).hexdigest(), 'mode': item.mode & 0o777}
+    metadata = {key: {k: v for k, v in value.items() if k != 'bytes'} for key, value in snapshots.items()}
+    if metadata != live_metadata:
+        raise ValueError('Retained learned surfaces differ from raw live metadata')
+    return snapshots
+
+
+def collect_surface_metadata(private: Path, project: Path) -> dict:
+    """Read only learned surfaces; emit hashes and modes, never private bodies."""
+    def safe(file: Path) -> None:
+        if any(parent.is_symlink() for parent in (file, *file.parents)):
+            raise ValueError('Learned surface contains a symlink')
+    result = {}
+    for root, prefix in ((private, 'private/'), (project / '.memory', 'project/.memory/'), (project / '.pi', 'project/.pi/')):
+        safe(root)
+        if root.exists():
+            for file in root.rglob('*'):
+                safe(file)
+                if file.is_dir():
+                    continue
+                if not file.is_file():
+                    raise ValueError('Non-regular learned surface')
+                result[prefix + str(file.relative_to(root))] = {
+                    'digest': hashlib.sha256(file.read_bytes()).hexdigest(), 'mode': file.stat().st_mode & 0o777}
+    for name in ('AGENTS.md',):
+        file = project / name
+        safe(file)
+        if file.exists():
+            if not file.is_file():
+                raise ValueError('Non-regular project learned surface')
+            result['project/' + name] = {'digest': hashlib.sha256(file.read_bytes()).hexdigest(), 'mode': file.stat().st_mode & 0o777}
+    return result
+
+
+def verify_recovery_delta(before: dict, after: dict) -> dict:
+    """Only new receipt-owned history may explain a recovery's full endpoint."""
+    try:
+        encode = lambda attempt: json.dumps(attempt, sort_keys=True, separators=(',', ':'))
+        old_attempts = Counter(encode(attempt) for attempt in before['attempts'])
+        new_attempts = Counter(encode(attempt) for attempt in after['attempts'])
+        if old_attempts - new_attempts:
+            return {'passed': False, 'reason': 'prior-attempt-changed-or-lost'}
+        old = {record['id']: record for record in before['history']}
+        new = {record['id']: record for record in after['history']}
+        if len(old) != len(before['history']) or len(new) != len(after['history']):
+            return {'passed': False, 'reason': 'duplicate-history'}
+        if any(new.get(id) != record for id, record in old.items()):
+            return {'passed': False, 'reason': 'prior-history-changed'}
+        old_digests = {attempt.get('receiptDigest') for attempt in before['attempts']}
+        old_batches = {attempt.get('receipt', {}).get('batchId') for attempt in before['attempts'] if attempt.get('receipt')}
+        owners = {attempt['receipt']['batchId'] for attempt in after['attempts']
+                  if attempt.get('receiptDigest') and attempt['receiptDigest'] not in old_digests
+                  and (attempt.get('receipt') or {}).get('batchId') and attempt['receipt']['batchId'] not in old_batches}
+        histories = [record for id, record in new.items() if id not in old and record.get('status') == 'applied']
+        if any(record.get('status') not in ('applied', 'proposed', 'abandoned') for id, record in new.items() if id not in old):
+            return {'passed': False, 'reason': 'unfinished-history'}
+        return verify_recovery_chains(before['surfaceSnapshots'], after['surfaceSnapshots'], histories, owners)
+    except (KeyError, TypeError, ValueError):
+        return {'passed': False, 'reason': 'incomplete-recovery-state'}
 
 
 def claim_recovery(root: Path, session_digest: str, backlog_id: str, output_dir: str) -> Path:
@@ -63,3 +150,8 @@ def verify_recovery_chains(before: dict, after: dict, histories: list[dict], own
         if not changed.issubset(chains):return {'passed':False,'reason':'unrecorded-mutation'}
         return {'passed':True,'verifiedPaths':sorted(chains),'changedPaths':sorted(changed)}
     except (KeyError,TypeError,ValueError):return {'passed':False,'reason':'malformed-history'}
+
+
+if __name__ == '__main__':
+    import sys
+    print(json.dumps(collect_surface_metadata(Path(sys.argv[1]), Path(sys.argv[2]))))

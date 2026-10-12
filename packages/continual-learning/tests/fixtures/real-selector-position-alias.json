@@ -1,0 +1,15 @@
+{
+  "provenance": {
+    "archiveSha256": "fe97099c5aa74199e895ec99b0b1f6d3848a9bb1e44986a33205330e3e152590",
+    "member": "./runs/--work-p-limit--/run_mv57o3l9_cc1250866959fee9/selector-rejected.json",
+    "memberSha256": "b420ea8073121d4b40948891929366359636226bb6d62c1ea5081e9361020694"
+  },
+  "rejection": {
+    "kind": "rejected-memory-selection",
+    "version": 1,
+    "contextDigest": "a3a999f0e7ac2377753a6cd1a68943130bcdd8a5c7d6090b2c4a6de65e17040b",
+    "error": "fields do not match the selection schema (missing: contextDigest, kind, selected, version)",
+    "output": "{\"mode\":\"delta\",\"memory\":true,\"harness\":false,\"agents\":false,\"selectedEntries\":[0,1,2,3],\"reason\":\"The slice inspects p-limit source, index.d.ts declarations, and tests covering clearQueue/rejectOnClear, limitFunction wrapper surface, its public type contract, and run()'s resolve-before-completion behavior. All four Memory entries are directly relevant to the inspected evidence; no adjacent-only entries included.\"}",
+    "truncated": false
+  }
+}

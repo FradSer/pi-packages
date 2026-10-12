@@ -162,3 +162,42 @@ def test_complete_plan_cannot_hide_truncated_or_unmatched_second_object() -> Non
       console.log(JSON.stringify(tails.map(tail=>extractChildPlan(JSON.stringify({type:'message_end',message:{role:'assistant',stopReason:'stop',content:[{type:'text',text:plan+tail}]}})).ok)));
     ''')
     assert result==[False]*6
+
+
+def test_failed_planner_keeps_known_cost_without_claiming_complete_usage() -> None:
+    value = isolated_run_bun(r'''
+      import {createConsolidationEvidence,recordConsolidationEvent} from './packages/continual-learning/extensions/inject-memory.ts';
+      const evidence=createConsolidationEvidence();
+      recordConsolidationEvent(evidence,{type:'message_end',message:{role:'assistant',stopReason:'toolUse',content:[],usage:{input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:{total:.03}}}});
+      recordConsolidationEvent(evidence,{type:'message_end',message:{role:'assistant',stopReason:'error',content:[],usage:{input:0,output:0}}});
+      console.log(JSON.stringify(evidence));
+    ''')
+    assert 'attemptUsage' not in value
+    assert value['usageLedger']['knownUsage']['cost'] == .03
+    assert value['usageLedger']['knownUsage']['totalTokens'] == 12
+    assert not value['usageLedger']['complete']
+
+
+def test_successful_reply_with_missing_usage_does_not_claim_complete_cost() -> None:
+    value = isolated_run_bun(r'''
+      import {createConsolidationEvidence,recordConsolidationEvent} from './packages/continual-learning/extensions/inject-memory.ts';
+      const evidence=createConsolidationEvidence();
+      recordConsolidationEvent(evidence,{type:'message_end',message:{role:'assistant',stopReason:'stop',content:[],usage:{input:7,output:2,cost:{total:.04}}}});
+      console.log(JSON.stringify(evidence));
+    ''')
+    assert 'attemptUsage' not in value
+    assert value['usageLedger']['knownUsage']['cost'] == .04
+    assert not value['usageLedger']['complete']
+
+
+def test_retry_failure_without_text_keeps_prefix_but_cannot_claim_complete_usage() -> None:
+    value = isolated_run_bun(r'''
+      import {createConsolidationEvidence,recordConsolidationEvent} from './packages/continual-learning/extensions/inject-memory.ts';
+      const evidence=createConsolidationEvidence();
+      recordConsolidationEvent(evidence,{type:'message_end',message:{role:'assistant',stopReason:'toolUse',content:[],usage:{input:10,output:2,totalTokens:12,cost:{total:.03}}}});
+      recordConsolidationEvent(evidence,{type:'auto_retry_end',success:false});
+      console.log(JSON.stringify(evidence));
+    ''')
+    assert 'attemptUsage' not in value
+    assert value['usageLedger']['knownUsage']['cost'] == .03
+    assert not value['usageLedger']['complete']

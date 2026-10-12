@@ -62,6 +62,8 @@ pi install npm:@fradser/pi-context
 
 ### [`pi-continual-learning`](packages/continual-learning/)
 
+Explicit private Memory review asks for native, one-run permission before model work when existing private entries are known. Refusing preserves knowledge and does not change privacy defaults; see the package README for the review boundary.
+
 Learning now enforces worker read scope and transaction ownership. Legacy populated scopes bind automatically to the first accessing canonical project; Memory metadata remains untrusted reference context. See the package upgrade notes.
 
 
@@ -143,16 +145,16 @@ The [TUI review](packages/monitor/README.md#tui-rendering-review) adds outcome-s
 pi install npm:@fradser/pi-monitor
 ```
 
-### [`pi-open-deskos`](packages/open-deskos/)
+### [`pi-odk`](packages/open-deskos/)
 
-Reports this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Desk Link, using the same bounded event rules as the runtime's local collector. With a separate control credential it also becomes a Console that lists, launches, attaches to, steers, cancels, ends, and reads the history of the Pi sessions the desk hosts.
+Reports this machine's Pi sessions and their operating events to Open DeskOS over a package-initiated Open DeskOS Link, using the same bounded event rules as the runtime's local collector. With a separate control credential it also becomes a Console that lists, launches, attaches to, steers, cancels, ends, and reads the history of the Pi sessions the desk hosts.
 
-**Command:** `/open-deskos`
+**Command:** `/odk`
 
 **Install:**
 
 ```bash
-pi install npm:pi-open-deskos
+pi install npm:pi-odk
 ```
 
 ### [`@fradser/pi-tasks`](packages/tasks/)

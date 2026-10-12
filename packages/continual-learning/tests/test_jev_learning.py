@@ -11,6 +11,7 @@ def test_jev_directions_relationships_and_failures() -> None:
         if(mode==='offline') throw new Error('PRIVATE PROVIDER ERROR');
         const answers={};
         for(const [key,q] of Object.entries(request.questions)) {
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           if(q.type==='noul') answers[key]={type:'noul',noul:mode==='uncertain'?0.5:mode==='unsupported'?0.01:key.includes('expands')?(mode==='broad'?0.99:0.01):0.99};
           if(q.type==='score') answers[key]={type:'score',score:2.88,confidence:0.95,probabilities:{0:0.01,1:0.01,2:0.07,3:0.91},legend:{0:"a",1:"b",2:"c",3:"d"}};
           if(q.type==='choice') answers[key]=key.startsWith('expands')?{type:'choice',choice:mode==='broad'?'broader':'same',confidence:0.99,probabilities:{same:mode==='broad'?0:1,narrower:0,broader:mode==='broad'?1:0,unclear:0}}:key.startsWith('supported')?{type:'choice',choice:mode==='unsupported'?'unsupported':'grounded',confidence:0.99,probabilities:{grounded:mode==='unsupported'?0:1,speculative:0,transient:0,unsupported:mode==='unsupported'?1:0,unclear:0}}:{type:'choice',choice:mode==='good'?'supplement':mode,confidence:0.99,
@@ -200,7 +201,7 @@ def test_unified_jev_section_supplies_auth_model_and_scope_without_environment()
       fs.writeFileSync(file,raw);
       let calls=0,requestedModel;
       const fetch=async(_url,init)=>{calls++;const q=JSON.parse(init.body);requestedModel=q.model;
-        return new Response(JSON.stringify({model:'jev-1.13.0',answers:{supported_0:{type:'choice',choice:'grounded',confidence:0.99,probabilities:{grounded:1,speculative:0,transient:0,unsupported:0,unclear:0}}},usage:{input_tokens:10,output_tokens:1}}));};
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:'grounded',confidence:0.99,probabilities:{grounded:1,speculative:0,transient:0,unsupported:0,unclear:0}}},usage:{input_tokens:10,output_tokens:1}}));};
       const judge=createJevJudge({fetch});
       const denied=await judge.select('Public evidence',[],false);
       const allowed=await judge.validate('memory','Public evidence',[{content:'Public fact'}],[]);
@@ -226,6 +227,7 @@ def test_adjacent_relevance_levels_share_one_decision_and_semantic_content_exclu
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);calls.push(request);
         const answers={};for(const [key,q] of Object.entries(request.questions)) {
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           answers[key]=key.startsWith('expands')?{type:'choice',choice:'same',confidence:0.99,probabilities:{same:1,narrower:0,broader:0,unclear:0}}:q.type==='choice'?{type:'choice',choice:'grounded',confidence:0.99,probabilities:{grounded:1,speculative:0,transient:0,unsupported:0,unclear:0}}:q.type==='score'?{type:'score',score:2.44,confidence:0.44,legend:{0:'Unrelated',1:'Generic',2:'Useful',3:'Direct'},probabilities:{0:0.01,1:0.09,2:0.36,3:0.54}}:{type:'noul',noul:key.startsWith('expands')?0.01:0.99};
         }
         return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:10,output_tokens:1}}));
@@ -244,7 +246,7 @@ def test_adjacent_relevance_levels_share_one_decision_and_semantic_content_exclu
     assert 'evidence' not in memory_question['candidate']
     harness_question = value['requests'][2]['questions']['supported_0']['instructions']
     assert 'cases' not in harness_question['candidate']
-    assert harness_question['candidate']['behaviorExamples']['blocked'][0]['bash'] == 'git push production'
+    assert harness_question['candidate']['behaviorExamples']['selectorMatches'][0]['bash'] == 'git push production'
     assert value['secret']['telemetry']['reason'] == 'sensitive'
     rewrite = value['requests'][3]['questions']['supported_0']['instructions']['candidate']
     assert rewrite['action'] == 'rewrite' and rewrite['target'] == 'known.md'
@@ -256,7 +258,7 @@ def test_adjacent_relevance_levels_share_one_decision_and_semantic_content_exclu
 def test_compatible_choice_probability_mass_does_not_reject_grounded_knowledge() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:{supported_0:{type:'choice',choice:'grounded',confidence:0.97,probabilities:{grounded:0.98,speculative:0,transient:0,unsupported:0.02,unclear:0}},relation_0:{type:'choice',choice:'supplement',confidence:0.59,probabilities:{unrelated:0.32,supplement:0.68,duplicate:0,conflict:0,unclear:0}}}}))});
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:'grounded',confidence:0.97,probabilities:{grounded:0.98,speculative:0,transient:0,unsupported:0.02,unclear:0}},relation_0:{type:'choice',choice:'supplement',confidence:0.59,probabilities:{unrelated:0.32,supplement:0.68,duplicate:0,conflict:0,unclear:0}}}}))});
       console.log(JSON.stringify(await judge.validate('memory','Verified command',[{content:'Verified command'}],[{name:'known.md',classification:'safe',type:'project',description:'Dependency manager',content:'Uses pnpm'}])));
     ''')
     assert value['decision'] == 'allow'
@@ -335,7 +337,7 @@ def test_memory_grounding_uses_explicit_evidence_categories() -> None:
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let category='grounded';const requests=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
-        requests.push(JSON.parse(init.body));return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:1},answers:{supported_0:{type:'choice',choice:category,confidence:0.99,probabilities:Object.fromEntries(['grounded','speculative','transient','unsupported','unclear'].map(k=>[k,k===category?1:0]))}}}));
+        requests.push(JSON.parse(init.body));return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:1},answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:category,confidence:0.99,probabilities:Object.fromEntries(['grounded','speculative','transient','unsupported','unclear'].map(k=>[k,k===category?1:0]))}}}));
       }});
       const results={};for(const c of ['grounded','speculative','transient','unsupported','unclear']){category=c;results[c]=await judge.validate('memory','Public facts',[{content:'The project uses uv.'}],[]);}
       console.log(JSON.stringify({results,requests}));
@@ -367,6 +369,7 @@ def test_command_family_proof_preserves_exact_only_authority_and_shell_boundarie
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);requests.push(request);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           if(q.type==='noul'){answers[key]={type:'noul',noul:0.5};continue}
           const selected=key.startsWith('authority')?'lasting':key.startsWith('explanation')?'faithful':key.startsWith('family')?scope:'unclear';
           answers[key]={type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))};
@@ -397,6 +400,7 @@ def test_rewrite_still_requires_grounding_and_private_review_without_self_novelt
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);requests.push(request);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           const content=q.instructions?.candidate?.content??'';
           const selected=String(content).includes('Always use') || String(content).includes('A different claim')?'unsupported':'grounded';
           answers[key]={type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))};
@@ -417,8 +421,8 @@ def test_rewrite_still_requires_grounding_and_private_review_without_self_novelt
     ''')
     assert value['format']['decision'] == 'allow'
     assert value['body']['decision'] == value['metadata']['decision'] == value['privacy']['decision'] == 'propose'
-    assert value['questions'][0] == ['supported_0', 'supported_description_0']
-    assert value['questions'][1] == value['questions'][2] == ['supported_0', 'supported_description_0']
+    assert value['questions'][0] == ['coherence_0', 'supported_0', 'supported_description_0']
+    assert value['questions'][1] == value['questions'][2] == ['coherence_0', 'supported_0', 'supported_description_0']
     assert value['privacy']['telemetry']['reason'] == 'private-memory-denied'
 
     # Parent structural validation owns malformed metadata; novelty is not that gate.
@@ -432,6 +436,7 @@ def test_literal_confirmation_judges_per_run_authority_without_weakening_a_ban()
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);questions.push(Object.keys(request.questions));const answers={};
         for(const [key,q] of Object.entries(request.questions)){
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           if(q.type==='noul')answers[key]={type:'noul',noul:.71};
           else{
             const selected=key.startsWith('authority')?authority:key.startsWith('explanation')?explanation:'narrower';
@@ -511,6 +516,7 @@ def test_legal_family_batch_is_atomic_bounded_and_accounts_partial_failures() ->
         await new Promise(resolve=>setTimeout(resolve,5));active--;
         if(mode==='failure' && Object.keys(r.questions).includes('family_11')) throw new Error('private provider text');
         const answers={};for(const [key,q] of Object.entries(r.questions)){
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           const choice=key.startsWith('authority')?'lasting':key.startsWith('explanation')?'faithful':'authorized';
           answers[key]={type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))};
         }
@@ -567,6 +573,7 @@ def test_parallel_batch_never_accepts_mixed_versions_or_invalid_late_answers() -
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         calls++;const r=JSON.parse(init.body),late='family_11' in r.questions,answers={};
         for(const [key,q] of Object.entries(r.questions)){
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           const choice=key.startsWith('authority')?'lasting':key.startsWith('explanation')?'faithful':'authorized';
           answers[key]={type:'choice',choice,confidence:mode==='uncertain'&&late?.5:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))};
         }
@@ -595,7 +602,7 @@ def test_realistic_frozen_tool_evidence_is_preserved_with_bounded_transport() ->
         {message:{role:'user',content:'Correction: the timeout is now 31 seconds, superseding the earlier value.'}}]};
       let sent;
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
-        sent=JSON.parse(init.body);return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:11000,output_tokens:20},answers:{supported_0:{type:'choice',choice:'unsupported',confidence:1,
+        sent=JSON.parse(init.body);return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:11000,output_tokens:20},answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:'unsupported',confidence:1,
           probabilities:{grounded:0,speculative:0,transient:0,unsupported:1,unclear:0}}}}));
       }});
       const result=await judge.validate('memory',evidence,[{name:'fact.md',content:'The timeout is 17 seconds.'}],[]);
@@ -631,7 +638,7 @@ def test_private_memory_judgment_knows_the_parent_bound_storage_scope() -> None:
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let sent;
       const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{sent=JSON.parse(init.body);
-        return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers:{supported_0:{type:'choice',choice:'grounded',confidence:1,probabilities:{grounded:1,speculative:0,transient:0,unsupported:0,unclear:0}}}}));
+        return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:'grounded',confidence:1,probabilities:{grounded:1,speculative:0,transient:0,unsupported:0,unclear:0}}}}));
       }});
       const result=await judge.validate('memory','For my private reports always finish with PUBLIC_SYNTHETIC_MARKER. Keep it out of project files.',
         [{name:'preference.md',kind:'preference',classification:'private',content:'Finish my reports with PUBLIC_SYNTHETIC_MARKER.'}],[]);
@@ -666,6 +673,7 @@ def test_all_candidate_failures_are_reported_without_partial_permission() -> Non
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         requests++;const request=JSON.parse(init.body);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           const selected=key==='supported_0'?'unclear':'unsupported';
           answers[key]={type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))};
         }
@@ -710,6 +718,7 @@ def test_proven_finite_git_matching_is_separate_from_support_and_authorization()
       const judge=createJevJudge({enabled:true,apiKey:'fixture',defaultModel:'jev-1.13.0',scopes:['harness'],fetch:async(_url,init)=>{
         const r=JSON.parse(String(init.body));requests.push(r);const answers={};
         for(const [key,q] of Object.entries(r.questions)) {
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           if(q.type==='noul') answers[key]={type:'noul',noul:.99};
           else {const label=key.startsWith('counter')?'compatible':'same';answers[key]={type:'choice',choice:label,confidence:.99,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===label?1:0]))};}
         }
@@ -754,6 +763,7 @@ def test_finite_git_proof_never_bypasses_semantic_holds_or_service_failure() -> 
           if(mode==='unavailable')throw Error('fixture service unavailable');
           const r=JSON.parse(String(init.body));const answers={};
           for(const [key,q] of Object.entries(r.questions)) {
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
             if(q.type==='noul') answers[key]={type:'noul',noul:mode==='unsupported'?.01:mode==='uncertain'?.5:.99};
             else {const label=key.startsWith('counter')?(mode==='counter'?'contradicts':'compatible'):(mode==='scope'?'broader':'same');answers[key]={type:'choice',choice:label,confidence:.99,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===label?1:0]))};}
           }
@@ -808,6 +818,7 @@ def test_http_status_survives_split_and_cited_partial_failures() -> None:
         if((kind==='split'&&Object.hasOwn(r.questions,'family_11'))||(kind==='cited'&&Object.hasOwn(r.questions,'counter_0_1')))
           return new Response('PRIVATE_DIAGNOSTIC_DO_NOT_LOG',{status:503});
         const answers={};for(const [key,q]of Object.entries(r.questions)){
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           if(q.type==='noul')answers[key]={type:'noul',noul:.99};else{
             const label=['lasting','faithful','authorized','grounded','compatible','same'].find(x=>Object.hasOwn(q.criteria,x));
             answers[key]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};
@@ -846,6 +857,7 @@ def test_held_candidate_records_the_controlled_choice_and_probability() -> None:
       const build=(choice,distribution,confidence)=>createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           if(q.type==='noul')answers[key]={type:'noul',noul:0.99};
           if(q.type==='score')answers[key]={type:'score',score:2.88,confidence:0.95,probabilities:{0:0.01,1:0.01,2:0.07,3:0.91},legend:{0:"a",1:"b",2:"c",3:"d"}};
           if(q.type==='choice'){
@@ -907,6 +919,7 @@ def test_placeholder_credentials_in_tool_output_do_not_refuse_a_review() -> None
         requests++;
         const request=JSON.parse(init.body);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           if(q.type==='noul')answers[key]={type:'noul',noul:0.99};
           if(q.type==='score')answers[key]={type:'score',score:2.88,confidence:0.95,probabilities:{0:0.01,1:0.01,2:0.07,3:0.91},legend:{0:"a",1:"b",2:"c",3:"d"}};
           if(q.type==='choice')answers[key]=key.startsWith('supported_')
@@ -992,6 +1005,7 @@ def test_one_fixed_candidate_set_shows_the_judge_is_the_only_support_gate() -> N
       const on=await createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
         requestCounts.on++;const request=JSON.parse(init.body);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           if(q.type==='noul')answers[key]={type:'noul',noul:0.99};
           if(q.type==='score')answers[key]={type:'score',score:2.88,confidence:0.95,probabilities:{0:0.01,1:0.01,2:0.07,3:0.91},legend:{0:"a",1:"b",2:"c",3:"d"}};
           if(q.type==='choice')answers[key]=key.startsWith('supported_1')
@@ -1047,6 +1061,7 @@ def test_full_review_budget_counts_batches_per_window_without_skipping_late_evid
         active++;peak=Math.max(peak,active); const r=JSON.parse(init.body);requests.push(r);await Promise.resolve();
         const state=(typeof r.state === "string" ? JSON.parse(r.state) : r.state),late=state.reviewEvidence?.entries.some(e=>e.index===9),answers={};
         for(const [k,q] of Object.entries(r.questions)){
+          if(k.startsWith('coherence_')){answers[k]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           let choice='grounded' in q.criteria?'grounded':'compatible';
           if(mode==='late-conflict'&&late&&k.startsWith('counter_description_0_'))choice='contradicts';
           answers[k]={type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(label=>[label,label===choice?1:0]))};
@@ -1081,6 +1096,7 @@ def test_real_pluggy_trace_preserves_complete_evidence_within_actual_wire_budget
         active++;peak=Math.max(peak,active);const r=JSON.parse(init.body);calls.push(r);await Promise.resolve();
         const state=(typeof r.state === "string" ? JSON.parse(r.state) : r.state),late=state.reviewEvidence?.entries.some(e=>e.index===204),answers={};
         for(const [k,q]of Object.entries(r.questions)){
+          if(k.startsWith('coherence_')){answers[k]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           let choice='grounded' in q.criteria?'grounded':'compatible';
           if(((mode==='conflict'&&late)||(mode==='cited-conflict'&&state.reviewEvidence?.entries.some(e=>e.index===6)))&&k.startsWith('counter_description_0_'))choice='contradicts';
           answers[k]={type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===choice?1:0]))};
@@ -1110,7 +1126,8 @@ def test_real_pluggy_trace_preserves_complete_evidence_within_actual_wire_budget
         descriptions:first.flatMap(r=>Object.keys(r.questions)).filter(k=>k.startsWith('counter_description_')).length}));
     ''')
     assert value['allowed']['decision'] == 'allow', value
-    assert value['indexes'] == list(range(205)) and value['unchanged'] is True
+    # Original index 1 is the extension's injected reference, never source evidence.
+    assert value['indexes'] == [i for i in range(205) if i != 1] and value['unchanged'] is True
     assert value['maxWire'] <= 64000 and value['peak'] <= 4
     assert value['supportUnchanged'] is True
     assert value['citedConflict']['decision'] == 'propose'

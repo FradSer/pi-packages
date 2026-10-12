@@ -77,6 +77,8 @@ Memory、Harness 和 AGENTS.md 默认仍自动应用通过验证的变更。即�
 
 在用户级 `continual-learning.json` 中配置 `jev`，或提供 `TYPESAFE_API_KEY` 环境变量，即可启用可选的 Jev 判断：选择学习方向并审查已通过代码校验的候选；证据、隐私、写入权限和 Harness 执行仍由父进程控制。不确定或不可用时沿用现有选择器或保存提案，不新增命令。详见[配置与评估说明](packages/continual-learning/README.md#optional-jev-judgments)。 [改善验收报告](packages/continual-learning/tests/jev-improvement-evaluation.md)分别记录真实中英文判断、插件实际效果和剩余误拦，不把模拟测试算作效果提升。 [严格全流程审计](packages/continual-learning/tests/jev-workflow-strict-evaluation.md)要求真实配对效果提升；此前四场公开样本的真实同版本对照为 36/50 → 50/50 效果，十四项改善、零退步；费用增加，不能推广为所有项目都更好。 [扩大的中英文与 Docker 评估](packages/continual-learning/tests/jev-expanded-evaluation.md)保留新的真实项目失败和修复；短候选的安全性改善不能证明大型仓库轨迹的自动学习产出提高。 [最新冻结复测](packages/continual-learning/tests/jev-cited-followup-evaluation.md)保留失败轮次与独立 Git 选项探针：误拦减少仍未证明漏拦或完整流程改善。完整候选停止信号现在帮助已有的有界修复，不授予部分写入权限。
 
+显式 `/memory <请求>` 涉及私有记忆且启用了 Jev 时，先由原生对话确认是否允许本次发送相关私有记忆和任务证据至 TypeSafe Jev。已有私有记忆在审计和选择前确认；新私有候选在语义审查前确认。拒绝、取消或无交互界面时保留原知识；前置拒绝新增模型调用和费用均为零，学习仍未完成。许可仅本次有效，不修改配置或跳过校验。
+
 完整维护也会从空 Memory 中提取新知识。当前会话没有有效证据时，可冻结同一项目最近的一份有界会话，并在回执中记录来源摘要；没有证据也没有已有 Memory 时，零模型调用，报告 `no learning input`。
 
 Harness 编写与自动学习默认写入项目 `.pi/harness.json`；明确请求个人配置时使用 `.pi/harness.local.json`（`/harness --local`）。用户层包括 `~/.pi/agent/harness.json` 和按项目隔离的 `~/.pi/agent/harness/<scopeKey>.json`，项目层优先。Skill 指导需要已注册的 skill 及其展开后的调用；文件保存成功不等于触发验证通过，更不代表全局语义强制执行。
@@ -145,16 +147,16 @@ pi install npm:pi-matt-pocock
 pi install npm:@fradser/pi-monitor
 ```
 
-### [`pi-open-deskos`](packages/open-deskos/)
+### [`pi-odk`](packages/open-deskos/)
 
-把本机的 Pi 会话及其运作事件经 package 主动打开的 Desk Link 上报给 Open DeskOS，事件规则与运行时本地采集器完全一致。另外持有独立控制凭据时，可作为 Console 列出、启动、进入、改向、取消、结束并读取 desk 托管的 Pi 会话历史。
+把本机的 Pi 会话及其运作事件经 package 主动打开的 Open DeskOS Link 上报给 Open DeskOS，事件规则与运行时本地采集器完全一致。另外持有独立控制凭据时，可作为 Console 列出、启动、进入、改向、取消、结束并读取 desk 托管的 Pi 会话历史。
 
-**命令：** `/open-deskos`
+**命令：** `/odk`
 
 **安装：**
 
 ```bash
-pi install npm:pi-open-deskos
+pi install npm:pi-odk
 ```
 
 ### [`@fradser/pi-tasks`](packages/tasks/)

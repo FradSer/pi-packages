@@ -34,19 +34,19 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const saved = { ...process.env };
-  // A host that runs the Desk Link service exports control credentials; this
+  // A host that runs the Open DeskOS Link service exports control credentials; this
   // fixture declares its own surface and must not inherit a configured one.
-  delete process.env.ODK_DESK_LINK_CONTROL_TOKEN;
+  delete process.env.ODK_LINK_CONTROL_TOKEN;
   // The extension reads the machine's desk list when one exists, and that default
   // path is computed when this package is imported, before a fixture can isolate
   // HOME. The fixture states its own list so the host's real desks cannot be what
   // it reports to.
   const desksFile = join(root, "desks.json");
   await writeFile(desksFile, JSON.stringify({ desks: [{ address: `127.0.0.1:${server.address().port}`, token: "isolated-fixture" }] }));
-  process.env.ODK_DESK_LINK_DESKS_FILE = desksFile;
-  process.env.ODK_DESK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
-  process.env.ODK_DESK_LINK_TOKEN = "isolated-fixture";
-  process.env.ODK_DESK_LINK_MACHINE = "isolated-machine";
+  process.env.ODK_LINK_DESKS_FILE = desksFile;
+  process.env.ODK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
+  process.env.ODK_LINK_TOKEN = "isolated-fixture";
+  process.env.ODK_LINK_MACHINE = "isolated-machine";
   process.env.PI_DIRECTORY_SESSIONS_DIR = root;
   const ownId = "a1234567-1234-1234-1234-123456789abc";
   const ownAlias = `2026-01-01T00-00-00_${ownId}`;
@@ -114,7 +114,7 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
 
     // Fork is a distinct session_start reason with an already-populated branch.
     // It must replay that branch just like resume, without relying on a later
-    // live message to make the Desk Link detail useful.
+    // live message to make the Open DeskOS Link detail useful.
     const forkId = "f1234567-1234-1234-1234-123456789abc";
     const forkCtx = {
       ...ctx,
@@ -153,7 +153,7 @@ test("extension discovers older sessions, periodically refreshes, preserves own 
     handlers.get("session_shutdown")({}, ctx);
     for (const peer of peers) peer.destroy();
     await new Promise((resolve) => server.close(resolve));
-    for (const key of ["ODK_DESK_LINK_DESKS_FILE", "ODK_DESK_LINK_ADDRESS", "ODK_DESK_LINK_TOKEN", "ODK_DESK_LINK_MACHINE", "PI_DIRECTORY_SESSIONS_DIR"]) {
+    for (const key of ["ODK_LINK_DESKS_FILE", "ODK_LINK_ADDRESS", "ODK_LINK_TOKEN", "ODK_LINK_MACHINE", "PI_DIRECTORY_SESSIONS_DIR"]) {
       if (saved[key] === undefined) delete process.env[key];
       else process.env[key] = saved[key];
     }

@@ -14,12 +14,12 @@
       "nonce": "nonce-fixture",
       "algorithm": "hmac-sha256"
     },
-    "transcript": "open-deskos-control-v2\n2\nnonce-fixture\ndesk-mac\nconsole-session",
+    "transcript": "odk-control-v2\n2\nnonce-fixture\ndesk-mac\nconsole-session",
     "credential": "control-secret",
     "proof": {
       "v": 2,
       "type": "control-proof",
-      "proof": "e79db86eb17756f4509691dccfd543f8dd3678fc78ae6a4ec9169503d322530c"
+      "proof": "9d6021124c1d0ad40f28080d202921b696845fec6c09286758f69d52d7b025dd"
     },
     "accepted": {
       "v": 2,

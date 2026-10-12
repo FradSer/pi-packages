@@ -1,4 +1,4 @@
-Feature: Preserve complete bounded Pi result Markdown over Desk Link
+Feature: Preserve complete bounded Pi result Markdown over Open DeskOS Link
 
   Scenario: Plain user messages retain the same multiline body as text parts
     Given a user message carries a pasted multiline prompt as a string

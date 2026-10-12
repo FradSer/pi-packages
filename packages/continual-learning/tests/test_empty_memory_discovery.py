@@ -20,7 +20,7 @@ def test_empty_memory_discovery_is_explicit_with_or_without_an_empty_index(tmp_p
     ''',env={'PI_CODING_AGENT_DIR':str(tmp_path / 'agent')})
     for state in ('missing','emptyIndex'):
         assert result[state] is not None, 'Empty Memory discovery was omitted'
-        assert 'No established project Memory entries are available' in result[state]['message']['content']
-        assert result[state]['message']['display'] is False
+        assert 'message' not in result[state], 'Empty discovery must not append a placeholder reference'
+        assert 'If no established entries are available' in result[state]['systemPrompt']
         assert 'do not search guessed or alternative Memory locations' in result[state]['systemPrompt']
     assert result['missing'] == result['emptyIndex']

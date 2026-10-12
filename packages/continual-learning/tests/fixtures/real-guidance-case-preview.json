@@ -1,0 +1,35 @@
+{
+  "provenance": {
+    "source": "/private/tmp/harness-first-use-current-real/harness-first-0w7rnk5p/session.jsonl",
+    "sha256": "42737f6f22457fcb5f1a148272fd2328257c823242a1acfac85cf13d053cddca",
+    "entryId": "e47b1c86",
+    "toolCallId": "call_4e3895a918a7451e8fddd7dc",
+    "scope": "Actual real-provider guidance candidate; automatic candidate shape adapts text inputs to segment arrays without changing text. No claim of real automatic retirement."
+  },
+  "rule": {
+    "id": "avoid-overloading-d0-traffic",
+    "text": "\\bD0\\b",
+    "instructions": "D0 是需要重点保护的下游资源，用户明确要求避免后续 D0 的流量被打爆。这是一条文本提示，不设置、不声称强制任何具体速率限制或并发数字（这些阈值未在会话中给出）。在与 D0 相关的后续工作中：优先复用已有连接与响应，采用缓存/批量/聚合请求，避免无界扇出、递归重试和紧密循环调用；限流、退避、并发上限等机制的具体数值需先确认现有配额或 SLO 后再定，不要凭空假定；若改动可能提高对 D0 的请求量或放大突发流量，先说明预估影响并取得确认再执行。该提示不适用于其他资源的同类操作。"
+  },
+  "cases": {
+    "positive": [
+      {
+        "text": [
+          "接下来给 D0 加一层缓存，并把多次单条查询合并成一次批量请求，减少对 D0 的压力。"
+        ]
+      },
+      {
+        "text": [
+          "改造 D0 的重试逻辑，避免失败时立即高频重发把 D0 流量打爆。"
+        ]
+      }
+    ],
+    "negative": [
+      {
+        "text": [
+          "为 D34 增加同样的批量查询与缓存策略来降低其负载。"
+        ]
+      }
+    ]
+  }
+}

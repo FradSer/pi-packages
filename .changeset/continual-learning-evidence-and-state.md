@@ -2,6 +2,10 @@
 "pi-continual-learning": patch
 ---
 
+Give automatic Harness planning and repair a bounded read-only case evaluator using the same parent validation. Retain real rejected cases as regressions; passing a preview grants no evidence, semantic approval, ownership or mutation authorization.
+
+Describe Harness case selector membership accurately during semantic review. Matching guidance, confirmation and retired-rule cases are no longer mislabeled as blocked actions; retain complete expected outcomes, predecessor rules and all authorization gates.
+
 Clarify knowledge, executable validation and scoped guidance throughout learning protocols. Recognize explicit knowledge and verification lessons, preserve skipped task references by project, and stop safely on invalid settings or session shutdown. Freeze evidence before asynchronous preparation, reject Memory creation that bypasses new-knowledge evidence, protect mirror roots, and prevent Harness annotations from triggering their own rules. Preserve installed rule protections and consistent scoped-user precedence.
 
 Keep one model across planning and repair, serialize bounded backlog writes and monotonic scoped cursors, and prevent legacy cursors from consuming new scoped references. Extend sensitive-material rejection to direct AGENTS extraction and expose effective learning state through `/memory status`. Add real Pi offline learning-loop and interactive verification without external provider calls.
@@ -120,3 +124,35 @@ Preserve parent-validated rewrite and retention context when reviewing Memory in
 Preserve held Memory feedback across independently verified same-task prefix extensions, bind diagnostics to the original whole or subset plan, and reject foreign completion receipts. Stop new learning calls when cancellation arrives during durable attempt saving. Rank complete Memory bodies using compound API cues without awarding relevance to generic instructions; preserve existing budgets and validation thresholds.
 
 Report bounded citation-location failures together to the existing single Memory correction, preserving quote limits and parent validation.
+
+Expose complete long evidence lines as numbered chunks and extract explicit same-line character spans without decoding or raising citation bounds.
+
+Bind structural new-Memory filename spelling corrections to a parent-supplied identity map, preserving privacy and existing-target validation.
+
+Clarify first-time `/harness` authoring and scoped operational safeguards when the target configuration is absent, without claiming that contextual guidance enforces traffic limits.
+
+Distinguish an unresolved empty retained-Memory correction from protected-intent drift, preserving the failed review and all mutation gates. Include retained-record review context when the initial delta is empty.
+
+Keep first-use Harness authoring on the project-relative target and prevent verification from requiring scratch files or additional configuration writes. Retain unavailable trigger checks as unverified; native acceptance checks plain positive/negative selectors and fresh-session delivery separately.
+
+Require read-only parent Harness trigger previews before authoring writes. Bind each preview to exact candidate and predecessor bytes, consume it once across concurrent calls and legacy confirmations, and reject empty first-use placeholders. Keep existing mutation authorization and effective-configuration validation.
+
+Reuse unchanged Memory indexes in context, list deduplicated filenames and descriptions without source suffixes, and read bodies only on demand. Restore missing references after compaction or branching.
+
+Revisit indexed Memory actually read by the model during automatic correction, using unique successful call/result pairs and keeping explicit maintenance scope and mutation gates unchanged.
+
+Declare automatic Harness preview arguments as structured rule and case objects so providers receive concrete transport types; preserve rejection of serialized strings and all parent validation gates.
+
+Bind missing-output Harness recovery reads to the original authoritative dossier path instead of inventing a dossier in the Harness run directory; preserve exact-file scope and the single recovery budget.
+- Bind semantic Memory claim corrections to parent-owned candidate IDs, preserving original targets, operation kinds and privacy while retaining citation, field-preservation and semantic gates. Empty corrections remain failures.
+- Remove only self-contradictory duplicate Harness negatives already covered by valid positives under the unchanged rule; retain all unique cases and semantic approval, and preserve the original plan in the private normalization record.
+- Account for all completed Harness worker calls and retain known incomplete usage separately instead of reporting a last-call cost as a run total.
+
+Allow one independent correction for the observed numeric selector field alias without accepting the malformed decision. Preserve complete and incomplete worker costs through parent-owned ledger identities and actual receipt matching, including crashes between worker completion and receipt persistence.
+
+Review complete Memory bodies for internal contradictions independently of source support, using the existing semantic correction slot for unsupported clauses. Give incremental planners the full frozen dossier without retrieval tools, preserving lossless original evidence and mutation gates. Persist numeric worker usage incrementally so later timeouts retain known costs.
+
+Ask native per-run consent before explicit private Memory maintenance can spend
+model calls on a plan that Jev privacy policy will refuse. Keep the original
+judge configuration frozen, preserve all semantic gates and refused proposals,
+and report preflight refusals with zero calls and known zero added cost.

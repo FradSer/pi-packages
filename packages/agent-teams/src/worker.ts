@@ -116,10 +116,10 @@ function dependenciesMet(task: Task, tasks: Map<string, Task>): boolean {
 }
 
 function taskCounts(tasks: Task[], byId: Map<string, Task>): string {
-  const counts: Record<TaskStatus, number> = { pending: 0, in_progress: 0, blocked: 0, completed: 0 };
+  const counts: Record<TaskStatus, number> = { pending: 0, in_progress: 0, blocked: 0, completed: 0, cancelled: 0 };
   for (const task of tasks) if (!isTaskReplaced(task)) counts[task.status] += 1;
   const claimable = tasks.filter((task) => !isTaskReplaced(task) && task.status === "pending" && dependenciesMet(task, byId)).length;
-  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · in_progress=${counts.in_progress} · blocked=${counts.blocked} · completed=${counts.completed} · superseded=${tasks.filter(isTaskReplaced).length}`;
+  return `tasks=${tasks.length} · pending=${counts.pending} (${claimable} claimable) · in_progress=${counts.in_progress} · blocked=${counts.blocked} · completed=${counts.completed} · cancelled=${counts.cancelled} · superseded=${tasks.filter(isTaskReplaced).length}`;
 }
 
 function claimRejection(binding: WorkerBinding, task: Task): string | undefined {

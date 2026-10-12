@@ -13,6 +13,7 @@ from support import isolated_run_bun
 GOOD_ANSWERS = """
         const answers={};
         for(const [key,q] of Object.entries(request.questions)) {
+          if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
           if(q.type==='noul') answers[key]={type:'noul',noul:0.99};
           if(q.type==='score') answers[key]={type:'score',score:2.88,confidence:0.95,probabilities:{0:0.01,1:0.01,2:0.07,3:0.91},legend:{0:"a",1:"b",2:"c",3:"d"}};
           if(q.type==='choice') answers[key]=key.startsWith('supported')

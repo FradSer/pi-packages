@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import path from "node:path";
+import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import type { MemoryEntry } from "./memory-files";
 
 const MAX_BODY_CHARS = 4_000;
@@ -53,6 +56,21 @@ export function retrieveMemory(query: string, entries: readonly MemoryEntry[]): 
     ? header + blocks.join("\n") : "" };
 }
 
+const MEMORY_REFERENCE_CUSTOM_TYPE = "continual-learning-memory-reference";
+
+/** This extension injects its own Memory reference and learning result. That
+ * text indexes the records a review judges, so it routes and revisits knowledge
+ * but is never factual support for a claim about those same records. */
+export function selfInjectedContextEntry(entry: unknown): boolean {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
+  const row = entry as { message?: unknown; customType?: unknown; role?: unknown };
+  const message = row.message && typeof row.message === "object" && !Array.isArray(row.message)
+    ? row.message as { customType?: unknown; role?: unknown } : row;
+  if (row.role === "user" || row.role === "toolResult" || message.role === "user" || message.role === "toolResult") return false;
+  const customType = row.customType ?? message.customType;
+  return customType === MEMORY_REFERENCE_CUSTOM_TYPE || customType === "continual-learning-result";
+}
+
 /** Revisit exposed knowledge during correction without treating it as evidence. */
 export function deliveredMemoryNames(entries: readonly unknown[]): string[] {
   const names = new Set<string>();
@@ -60,10 +78,75 @@ export function deliveredMemoryNames(entries: readonly unknown[]): string[] {
     if (!entry || typeof entry !== "object") continue;
     const row = entry as { message?: { customType?: unknown; details?: { retrieved?: unknown } }; customType?: unknown; details?: { retrieved?: unknown } };
     const message = row.message ?? row;
-    if (message.customType !== "continual-learning-memory-reference" || !Array.isArray(message.details?.retrieved)) continue;
+    if (message.customType !== MEMORY_REFERENCE_CUSTOM_TYPE || !Array.isArray(message.details?.retrieved)) continue;
     for (const item of message.details.retrieved) {
       if (item && typeof item === "object" && typeof item.filename === "string" && typeof item.revision === "string" && /^[a-f0-9]{64}$/.test(item.revision) && typeof item.readPath === "string" && /^[A-Za-z0-9][A-Za-z0-9_-]*\.md$/.test(item.filename) && item.filename !== "MEMORY.md") names.add(item.filename);
     }
   }
   return [...names].slice(0, MAX_ENTRIES);
+}
+
+/** Pi 1.0 does not publicly export its read resolver. Match its lexical
+ * aliases only; do not probe paths or follow symlinks to infer read success. */
+function observedReadPath(input: string, cwd: string): string | undefined {
+  let normalized = input.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ");
+  if (normalized.startsWith("@")) normalized = normalized.slice(1);
+  if (process.platform === "win32" && normalized.startsWith("/") && !normalized.startsWith("//") && !normalized.includes("\\")) {
+    const drive = normalized.match(/^\/(?:mnt\/|cygdrive\/)?([a-z])(?:\/(.*))?$/i);
+    if (drive) normalized = `${drive[1].toUpperCase()}:\\${drive[2]?.replaceAll("/", "\\") ?? ""}`;
+  }
+  if (normalized === "~") normalized = homedir();
+  else if (normalized.startsWith("~/") || (process.platform === "win32" && normalized.startsWith("~\\"))) normalized = path.join(homedir(), normalized.slice(2));
+  if (normalized.startsWith("file://")) {
+    try { normalized = fileURLToPath(normalized); } catch { return undefined; }
+  }
+  return path.resolve(cwd, normalized);
+}
+
+/** A successful read nominates existing knowledge for review, never for mutation
+ * or factual support. Pair frozen session records, not filenames mentioned in
+ * prose; a failed, pending or ambiguous invocation proves no exposure. */
+export function observedMemoryReadNames(
+  entries: readonly unknown[],
+  cwd: string,
+  indexed: readonly { name: string; file: string }[],
+): string[] {
+  const files = new Map(indexed.map(entry => [path.resolve(entry.file), entry.name]));
+  const calls = new Map<string, { name?: string; file?: string; position: number }[]>();
+  const results = new Map<string, { message: Record<string, unknown>; position: number }[]>();
+  entries.forEach((entry, position) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
+    const row = entry as Record<string, unknown>;
+    const message = row.message && typeof row.message === "object" && !Array.isArray(row.message)
+      ? row.message as Record<string, unknown> : row;
+    if (message.role === "assistant" && Array.isArray(message.content)) {
+      for (const block of message.content) {
+        if (!block || typeof block !== "object" || block.type !== "toolCall" || typeof block.id !== "string") continue;
+        const args = block.arguments;
+        const file = args && typeof args === "object" && !Array.isArray(args) && typeof args.path === "string"
+          ? observedReadPath(args.path, cwd) : undefined;
+        const previous = calls.get(block.id) ?? [];
+        previous.push({ name: block.name, file, position });
+        calls.set(block.id, previous);
+      }
+    }
+    if (message.role === "toolResult" && typeof message.toolCallId === "string") {
+      const previous = results.get(message.toolCallId) ?? [];
+      previous.push({ message, position });
+      results.set(message.toolCallId, previous);
+    }
+  });
+  const observed: Array<{ name: string; position: number }> = [];
+  for (const [id, invocations] of calls) {
+    const outcomes = results.get(id);
+    if (invocations.length !== 1 || outcomes?.length !== 1) continue;
+    const call = invocations[0], result = outcomes[0];
+    if (call.name !== "read" || !call.file || call.position >= result.position || result.message.toolName !== "read" || result.message.isError !== false) continue;
+    const name = files.get(call.file);
+    const content = result.message.content;
+    if (name && Array.isArray(content) && content.some(block => block && typeof block === "object" && block.type === "text" && typeof block.text === "string" && block.text.trim())) {
+      observed.push({ name, position: result.position });
+    }
+  }
+  return [...new Set(observed.sort((a, b) => b.position - a.position).map(entry => entry.name))];
 }

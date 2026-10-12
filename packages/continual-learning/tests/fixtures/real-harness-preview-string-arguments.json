@@ -1,0 +1,10 @@
+{
+  "sourceSha256": "24c83131d16747976f1e51a3244cc0b55040546e1adc444402ab54c8cd632dbb",
+  "toolCallId": "call_5ff93e0ecdc74810aa173eff",
+  "arguments": {
+    "rule": "{\"id\": \"block-npm-use-pnpm\", \"bash\": \"^(?:env[ \\t]+(?:[A-Za-z_][A-Za-z0-9_]*=[^ \\t\\n]*[ \\t]+)*|command[ \\t]+)?npm(?:[ \\t]|$(?![\\\\s\\\\S]))\", \"action\": \"block\", \"message\": \"Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead.\"}",
+    "cases": "{\"positive\": [{\"bash\": \"npm test\", \"expected\": \"block\"}, {\"bash\": \"npm install\", \"expected\": \"block\"}, {\"bash\": \"npm run build\", \"expected\": \"block\"}, {\"bash\": \"npm ci --no-audit\", \"expected\": \"block\"}, {\"bash\": \"npm\", \"expected\": \"block\"}, {\"bash\": \"npm test\\r\", \"expected\": \"block\"}, {\"bash\": \"npm\\ninstall\", \"expected\": \"block\"}, {\"bash\": \"command npm test\", \"expected\": \"block\"}, {\"bash\": \"env NODE_ENV=test npm ci\", \"expected\": \"block\"}], \"negative\": [{\"bash\": \"pnpm test\"}, {\"bash\": \"printf 'npm test'\"}, {\"bash\": \"echo npm install\"}, {\"bash\": \"grep -rn '\\\"scripts\\\": {' package.json | head -30\"}, {\"bash\": \"cat package.json | head -30\"}, {\"bash\": \"npmx test\"}, {\"bash\": \"npm2 test\"}, {\"bash\": \"yarn add left-pad\"}, {\"bash\": \"npm\\r\"}, {\"bash\": \"npm\\u00a0install\"}, {\"bash\": \"npx npm test\"}]}"
+  },
+  "observedError": "operations[0].rule rule must be an object",
+  "scope": "Real model tool argument transport failure, not valid learned rule"
+}

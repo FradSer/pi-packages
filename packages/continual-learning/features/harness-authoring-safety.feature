@@ -72,3 +72,42 @@ Feature: Outcome-based harness authoring without speculative writes
     And --local explicitly selects .pi/harness.local.json
     And --global selects the user shared harness.json and never user harness.local.json
     And symlinked target files or parent paths are rejected before any mutation
+
+  Scenario: A first operational safeguard request starts authoring without a config file
+    Given the project has no .pi directory or Harness configuration
+    When the user requests a future resource-protection safeguard through /harness
+    Then the procedure identifies the target as absent and explicitly permits first creation
+    And it considers scoped text guidance when no exact Bash interception is established
+    And it must not invent traffic limits or claim that guidance enforces a rate limit
+    And unsupported ambiguity requests actionable clarification rather than stopping at file absence
+    And only one complete validated write may create the file and its parents
+
+  Scenario: First creation does not require unrelated verification writes
+    Given an absent project target in a directory with an arbitrary generated name
+    When authoring instructions are generated
+    Then native tool access uses the project-relative exact target
+    And verification must not create scratch files or rewrite the saved candidate
+    And an unavailable evaluator is reported as unverified rather than bypassing scope
+
+  Scenario: Authoring evaluates candidate triggers before mutation
+    Given an active /harness request and no target configuration
+    When a candidate selector is syntactically valid but fails plain positive or negative fixtures
+    Then the read-only parent preview rejects it without filesystem or service mutations
+    And write remains blocked until the exact candidate passes fixtures for each changed enabled rule
+    And preview does not bypass effective configuration, replacement authorization or file containment checks
+    And its tool is removed when the authoring turn ends
+
+  Scenario: Resource guidance remains scoped on same-action counterexamples
+    Given a Harness request for one named resource
+    When previewing its positive and negative examples
+    Then a same-action request about another resource remains unmatched
+    And a near-name resource remains unmatched
+    And standalone incident phrases must not broaden the named-resource scope
+
+  Scenario: Automatic planners check real fixture mismatches before final proposals
+    Given retained real automatic plans whose regex disagrees with their own positive or negative cases
+    When an automatic planner calls its read-only harness_check_cases tool
+    Then it receives the same case rejection as the parent evaluator without executing any command
+    And the tool grants no evidence, semantic approval or mutation authorization
+    And at most eight previews are admitted per worker, retaining scoped evidence reads
+    And final proposals still pass every original parent validation and semantic gate

@@ -23,7 +23,7 @@ def test_memory_batches_keep_candidate_citations_and_complete_global_counterrevi
         const req=JSON.parse(init.body);calls.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const conflict=mode==='conflict'&&/^counter(?:_description)?_0_/.test(key)&&state.reviewEvidence.entries.some(e=>e.index===entries.length-1);
-          const selected=key.startsWith('counter_')?(conflict?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';
+          const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(conflict?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
         }));
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers}));

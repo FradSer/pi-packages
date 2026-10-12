@@ -32,7 +32,7 @@ if (process.env.CL_JEV_FIXTURE?.startsWith("subset-name-collision")) {
 }
 fs.writeFileSync(path.join(agent, "memory", "settings.json"), JSON.stringify({ autoMemory: !isRemember, automaticPhases: isRemember ? {memory:"off",harness:"off",agents:"off"} : policies }));
 if (isModelFreeze) fs.writeFileSync(path.join(agent, "memory.json"), JSON.stringify(scenario === "model-freeze" ? { provider: "old", model: "one" } : {}));
-const quote = scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : (scenario === "remember-shared" || process.env.CL_JEV_FIXTURE === "syntax-privacy-downgrade") ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
+const quote = scenario === "remember-private-maintenance" ? "整理记忆" : scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : (scenario === "remember-shared" || process.env.CL_JEV_FIXTURE === "syntax-privacy-downgrade") ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
 const oldAgents = "- Run tests with npm test\n";
 if (isAgents || isModelFreeze || isRemember) fs.writeFileSync(path.join(cwd,"AGENTS.md"),oldAgents);
 // Attribution and pluggability seam: install the absence before any extension
@@ -43,6 +43,7 @@ if (process.env.CL_ABSENT_TYPESAFE_SDK === "1") {
 const kit = await import("../../kit/src/index.ts");
 let selectors = 0;
 let semanticRepairs = 0;
+const repairErrors: string[][] = [];
 let structuralContextReceived = false;
 let receivedFailureHints = false;
 let totalRepairs = 0;
@@ -57,6 +58,7 @@ const tamperFrozen = (dossier = false, runId?: string): void => {
   fs.appendFileSync(path.join(agent, "memory", "runs", String(file)), " ");
 };
 const planners: string[] = [];
+const initialMemoryInputs: {noTools:boolean;hasToolAllowlist:boolean;scopedReadExtension:boolean;completeInline:boolean}[] = [];
 const plannerSystemInstructions: boolean[] = [];
 const modelCalls: string[] = [];
 let requestCaptured = false;
@@ -67,6 +69,7 @@ mock.module("../../kit/src/index.ts", () => ({
     if (prompt.startsWith("Task: repair one rejected incremental Memory delta plan.")) {
       totalRepairs += 1;
       const payload = JSON.parse(prompt.split("\n").at(-1)!);
+      repairErrors.push(payload.errors);
       if (payload.semanticContext && !prompt.includes("existing structural correction slot")) { semanticRepairs += 1; receivedFailureHints = payload.errors.some((error: string) => error.includes("Candidate failures: 0:support:uncertain")); }
       else { selectors += 1; structuralContextReceived = !!payload.semanticContext?.frozenEvidence && Array.isArray(payload.semanticContext?.existingMemories); }
       if (fixtureReason === "subset-repair-invalid" && !prompt.includes("existing structural correction slot")) return {exitCode:1,stderr:"",text:""};
@@ -127,6 +130,7 @@ mock.module("../../kit/src/index.ts", () => ({
     const harness = taskFile.endsWith("harness-task.md") || taskFile.endsWith("harness-repair.md");
     const harnessRepair = taskFile.endsWith("harness-repair.md");
     const agents = taskFile.endsWith("agents-task.md");
+    if (!agents && !harness) initialMemoryInputs.push({noTools:args.includes("--no-tools"),hasToolAllowlist:args.includes("--tools"),scopedReadExtension:args.some(arg=>arg.includes("planner-read-")),completeInline:fs.readFileSync(taskFile,"utf8").includes("End of complete Learning Dossier.")});
     planners.push(agents ? "agents" : harness ? "harness" : "memory");
     const identity = { version: 1, schemaVersion: 1, runId: manifest.runId, scopeKey: manifest.scopeKey, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, snapshotDigest: manifest.snapshotDigest };
     const plan = isManual ? {
@@ -175,9 +179,14 @@ mock.module("../../kit/src/index.ts", () => ({
         child.exitCode = 0; child.emit("close", 0);
         return;
       }
+      const costTrace = !harness && !agents && process.env.CL_MEMORY_COST_TRACE;
+      if (costTrace) {
+        child.stdout.emit("data",Buffer.from(JSON.stringify({type:"message_end",message:{role:"assistant",stopReason:"toolUse",content:[],usage:{input:10,output:2,totalTokens:12,cost:{total:.01}}}})+"\n"));
+        if (costTrace === "malformed") child.stdout.emit("data",Buffer.from('{"type":"message_end",bad\n'));
+      }
       const tracksRepair = scenario === "harness-repair-cost" && harness;
       const text = scenario.startsWith("remember-syntax") ? JSON.stringify(plan).replace('"concise.md"', '"concise.md') : tracksRepair && !harnessRepair ? "The planner returned prose instead of a plan." : JSON.stringify(plan);
-      const usage = tracksRepair ? { input: harnessRepair ? 20 : 10, output: harnessRepair ? 4 : 2, cacheRead: harnessRepair ? 6 : 3, cacheWrite: 0, totalTokens: harnessRepair ? 30 : 15, cost: {total: harnessRepair ? 0.02 : 0.01} } : undefined;
+      const usage = tracksRepair ? { input: harnessRepair ? 20 : 10, output: harnessRepair ? 4 : 2, cacheRead: harnessRepair ? 6 : 3, cacheWrite: 0, totalTokens: harnessRepair ? 30 : 15, cost: {total: harnessRepair ? 0.02 : 0.01} } : costTrace ? {input:10,output:2,totalTokens:12,cost:{total:.01}} : undefined;
       if (scenario === "remember-syntax-multiple") for (let i=0;i<2;i++) child.stdout.emit("data", Buffer.from(JSON.stringify({type:"message_end",message:{role:"assistant",content:[{type:"text",text:JSON.stringify(plan)}]}})+"\n"));
       child.stdout.emit("data", Buffer.from(JSON.stringify({type:"message_end",message:{role:"assistant",content:[{type:"text",text}],...(usage ? {usage} : {})}}) + "\n"));
       child.exitCode = 0; child.emit("close", 0);
@@ -185,6 +194,24 @@ mock.module("../../kit/src/index.ts", () => ({
     return child;
   },
 }));
+const privateAccepted = scenario === "remember-private-accepted" || scenario === "remember-new-private-accepted";
+let consentCount = 0;
+let reviewWireCalls = 0;
+let receiptDelivered: (() => void) | undefined;
+const receiptDelivery = new Promise<void>(resolve => {receiptDelivered=resolve;});
+if (privateAccepted) {
+  const production = await import("../extensions/jev-learning.ts");
+  const productionFactory = production.createJevJudge;
+  mock.module("../extensions/jev-learning.ts", () => ({...production, createJevJudge: options => productionFactory({...options, fetch: async (_url, init) => {
+    reviewWireCalls++;
+    const request=JSON.parse(String(init.body));const answers={};
+    for(const [key,question] of Object.entries(request.questions)) {
+      const keys=Object.keys(question.criteria);const label=keys.find(k=>["grounded","compatible","unrelated"].includes(k))??keys[0];
+      answers[key]={type:"choice",choice:label,confidence:1,probabilities:Object.fromEntries(keys.map(k=>[k,k===label?1:0]))};
+    }
+    return new Response(JSON.stringify({model:request.model,answers,usage:{input_tokens:1,output_tokens:1}}));
+  }})}));
+}
 let jevValidations: string[] = [];
 let reviewTelemetry: unknown[] = [];
 let relationValidations = 0;
@@ -224,7 +251,7 @@ if (process.env.CL_JEV_FIXTURE) {
       validate: async (stage: string, evidence: unknown, candidates: unknown[], existing: unknown[]) => {
         if(reason.startsWith("subset-")) {
           jevValidations.push(stage);
-          const checks=(i:number)=>[`supported_${i}`,`supported_description_${i}`, ...(existing.length?[`relation_${i}`,`relation_description_${i}`]:[]),`counter_${i}_0`,`counter_description_${i}_0`];
+          const checks=(i:number)=>[`coherence_${i}`,`supported_${i}`,`supported_description_${i}`, ...(existing.length?[`relation_${i}`,`relation_description_${i}`]:[]),`counter_${i}_0`,`counter_description_${i}_0`];
           if (reason === "subset-retention-fallback" && (!candidates.length || candidates.some(c=>JSON.stringify(c).includes('"kind":"rewrite"'))))
             return {decision:"propose",telemetry:{stage,status:"propose",reason:"uncertain",durationMs:2,model:"jev-1.13.0",
               candidateFailures:[{candidateIndex:0,dimension:"support",reason:"uncertain"}]}};
@@ -312,13 +339,18 @@ if (scenario === "harness-rejected") {
 }
 try {
   const { default: register, resolveMemoryPaths } = await import("../extensions/inject-memory.ts");
+  if (scenario === "remember-private-maintenance" || scenario === "remember-private-request" || privateAccepted) {
+    const paths=resolveMemoryPaths(cwd);fs.mkdirSync(paths.harnessDir,{recursive:true});
+    if (scenario !== "remember-new-private-accepted") fs.writeFileSync(path.join(paths.harnessDir,"private.md"),"---\nname: private\ndescription: Local preference\ntype: feedback\n---\nLocal preference.\n");
+    fs.writeFileSync(path.join(agent,"continual-learning.json"),JSON.stringify({jev:{enabled:true,apiKey:"fixture-only",scopes:["memory"],allowPrivateMemory:false}}));
+  }
   const { listLearningHistory } = await import("../extensions/learning-history.ts");
   const hooks = new Map();
   const commands = new Map<string, (args: string, ctx: unknown) => Promise<void> | void>();
   const notices: string[] = [];
   register({ on: (name, fn) => hooks.set(name, [...(hooks.get(name) ?? []), fn]),
     registerCommand: (name, definition) => commands.set(name, definition.handler),
-    sendMessage: () => {}, appendEntry: () => {}, getCommands: () => [],
+    sendMessage: (message) => {if(message.customType==="continual-learning-result")receiptDelivered?.();}, appendEntry: () => {}, getCommands: () => [],
     registerEntryRenderer: () => {},
     exec: async () => ({ stdout: "", stderr: "", code: 0 }) } as unknown as Parameters<typeof register>[0]);
   const tool = (content: string, extra: Record<string, unknown> = {}) => ({ message: { role: "toolResult", toolName: "bash", content, ...extra } });
@@ -333,7 +365,7 @@ try {
       : [{ message: { role: "user", content: quote } }];
   if (fixtureReason?.startsWith("patch-")) entries.push({message:{role:"toolResult",toolName:"edit",isError:false,
     content:"Successfully replaced text.",details:{patch:"+The project build convention is CL_MANUAL_SHARED."}}} as typeof entries[number]);
-  const ctx = {cwd,mode:"json",hasUI:false,model:{provider:"session",id:"active"},ui:{notify:(text:string)=>notices.push(text),setWidget:()=>{}},modelRegistry:{getAll:()=>[{provider:"old",id:"one"},{provider:"new",id:"two"}],getAvailable:()=>[]},sessionManager:{getBranch:()=>entries,buildContextEntries:()=>entries}};
+  const ctx = {cwd,mode:"json",hasUI:privateAccepted,model:{provider:"session",id:"active"},ui:{notify:(text:string)=>notices.push(text),setWidget:()=>{},confirm:async()=>{consentCount++;return true;}},modelRegistry:{getAll:()=>[{provider:"old",id:"one"},{provider:"new",id:"two"}],getAvailable:()=>[]},sessionManager:{getBranch:()=>entries,buildContextEntries:()=>entries}};
   (globalThis as { changeMemoryModel?: () => Promise<void> }).changeMemoryModel = async () => {
     await commands.get("memory")!("model new/two", ctx);
   };
@@ -357,6 +389,7 @@ try {
       await runHook("agent_settled", {});
     }
   }
+  if (privateAccepted) await receiptDelivery;
   await cancellation;
   const nextMemory: unknown[] = [];
   if (scenario === "remember-subset") for (const fn of hooks.get("before_agent_start") ?? []) {
@@ -376,11 +409,12 @@ try {
     dossier: receiptOf(path.join(paths.runsDir, dir, "incremental-learning-dossier.json")),
   }));
   if (isRemember) requestCaptured = runs.some(run => run.dossier?.taskSlice?.entries[0]?.message?.content === quote);
-  console.log(JSON.stringify({ newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
+  console.log(JSON.stringify({ consentCount,reviewWireCalls,consentConfigUnchanged:!privateAccepted || JSON.parse(fs.readFileSync(path.join(agent,"continual-learning.json"),"utf8")).jev.allowPrivateMemory===false,newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,initialMemoryInputs,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
     privateFiles: fs.existsSync(paths.harnessDir) ? fs.readdirSync(paths.harnessDir) : [],
     publicFiles: fs.existsSync(paths.publicDir!) ? fs.readdirSync(paths.publicDir!) : [],
+    numericUsageLedgers: fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir,{recursive:true}).filter(name=>String(name).endsWith("memory-task-usage.json")).map(name=>{const file=path.join(paths.runsDir,String(name));return {mode:fs.statSync(file).mode & 0o777,...JSON.parse(fs.readFileSync(file,"utf8"))};}) : [],
     runs, registryReceipt: savedReceipt, receiptComplete: !!savedReceipt && learningReceiptComplete(savedReceipt),
-    semanticRepairs, totalRepairs, receivedFailureHints, structuralContextReceived,
+    semanticRepairs, totalRepairs, receivedFailureHints, structuralContextReceived, repairErrors,
     structuralRejectionRecorded: fs.existsSync(path.join(agent,"memory","runs")) && fs.readdirSync(path.join(agent,"memory","runs"), {recursive:true}).some(name => String(name).endsWith("structural-rejection.json")),
     structuralResponseRetained: fs.existsSync(path.join(agent,"memory","runs")) && fs.readdirSync(path.join(agent,"memory","runs"), {recursive:true}).some(name => String(name).endsWith("structural-repair-response.json")),
     originalProposalRetained: history.some(record => {

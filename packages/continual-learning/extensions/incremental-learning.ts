@@ -1,5 +1,5 @@
 import { createJevJudge, type JevJudge, type JevTelemetry } from "./jev-learning";
-import { deliveredMemoryNames } from "./memory-retrieval";
+import { deliveredMemoryNames, observedMemoryReadNames } from "./memory-retrieval";
 import { constants as fsConstants } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -93,6 +93,8 @@ interface FileIdentity {
 interface IndexedMemory {
   metadata: MemoryMetadata;
   file: string;
+  /** Regular indexed aliases nominate this name, not the preferred body bytes. */
+  readFiles?: string[];
   identity: FileIdentity;
 }
 
@@ -182,6 +184,15 @@ export function requestedMemoryTaskSlice(request: string, entries: readonly unkn
     { type: "message", message: { role: "user", content: request } },
     ...projectLearningEvidence(currentTaskEntries(entries)),
   ]);
+}
+
+/** Fresh scoped observations extend the requested task without dropping its evidence. */
+export function appendMemorySourceObservations(slice: TaskSlice, observations: readonly unknown[]): TaskSlice {
+  const extended = {...slice, entries: [...slice.entries, ...observations]};
+  if (extended.entries.length > MAX_TASK_SLICE_ENTRIES || jsonBytes(extended) > MAX_TASK_SLICE_BYTES) {
+    throw new Error("Maintenance source evidence exceeds the unchanged task slice bound");
+  }
+  return extended;
 }
 
 function boundTaskSlice(taskEntries: readonly unknown[]): TaskSlice {
@@ -343,7 +354,9 @@ async function indexMemoryCorpus(cwd: string): Promise<IndexedMemory[]> {
     const key = name.toLowerCase();
     return privateNames.has(key) || !indexed.has(key) ? "private" : "safe";
   })) {
-    indexed.set(entry.metadata.name.toLowerCase(), entry);
+    const key = entry.metadata.name.toLowerCase();
+    const publicEntry = indexed.get(key);
+    indexed.set(key, { ...entry, readFiles: publicEntry ? [publicEntry.file, entry.file] : [entry.file] });
   }
   return [...indexed.values()].sort((left, right) => left.metadata.name.localeCompare(right.metadata.name));
 }
@@ -588,6 +601,15 @@ function repairableSelection(text: string, digest: string, available: ReadonlyMa
   if (objects.length !== 1) return false;
   try {
     const value = JSON.parse(objects[0]);
+    if (value && !Array.isArray(value) && "selectedEntries" in value && !("kind" in value)) {
+      const keys = ["selectedEntries", "mode", "memory", "harness", "agents", "reason"];
+      if (Object.keys(value).some(key => !keys.includes(key)) ||
+          (value.mode !== undefined && value.mode !== "delta")) return false;
+      // This observed positional alias only admits one fresh correction. It is
+      // never converted into a routing decision or given missing-field defaults.
+      const { selectedEntries, mode: _mode, ...flags } = value;
+      return parseSelection(JSON.stringify({ selectedIndices: selectedEntries, ...flags }), digest, available).ok;
+    }
     if (value && !Array.isArray(value) && "selectedIndices" in value) {
       const keys = ["selectedIndices", "memory", "harness", "agents", "reason"];
       if (Object.keys(value).some(key => !keys.includes(key)) || keys.every(key => key in value)) return false;
@@ -631,7 +653,10 @@ export async function selectIncrementalLearning(input: {
   if (input.signal?.aborted) return { outcome: "cancelled", durationMs: Date.now() - startedAt, diagnostic: "selector cancelled" };
   const metadata = indexed.map((entry) => entry.metadata);
   const available = new Map(metadata.map((entry) => [entry.name.toLowerCase(), entry.name]));
-  const delivered = (input.memoryOnly ? [] : deliveredMemoryNames(input.taskSlice.entries))
+  const delivered = (input.memoryOnly ? [] : [
+    ...observedMemoryReadNames(input.taskSlice.entries, input.cwd, indexed.flatMap(entry => (entry.readFiles ?? [entry.file]).map(file => ({ name: entry.metadata.name, file })))),
+    ...deliveredMemoryNames(input.taskSlice.entries),
+  ])
     .filter(name => available.get(name.toLowerCase()) === name);
   let selection: MemorySelection | undefined;
   let jev: JevTelemetry | undefined;

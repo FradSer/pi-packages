@@ -99,6 +99,25 @@ Feature: EnterWorktree and ExitWorktree session switching
     Then the active worktree and its edits are kept
     And error reporting does not access an invalidated session context
 
+  Scenario: EnterWorktree and ExitWorktree wait for a running turn before switching
+    Given the user runs a worktree command while the agent is still streaming
+    When the command starts the replacement
+    Then it waits for the session to settle before forking
+    And the user is told the switch is waiting for the current turn
+    And the fork includes the finished turn
+
+  Scenario: A cancelled switch removes this command's own leftovers
+    Given EnterWorktree created a worktree and forked a session for the switch
+    When the replacement is cancelled
+    Then the created worktree and its branch are removed
+    And the forked session file is removed
+
+  Scenario: A failed switch never leaves an unreported worktree
+    Given the replacement failed after the switch was requested
+    When EnterWorktree had created a worktree for it
+    Then the worktree is kept because its edits may be needed
+    And a warning names the worktree path, its branch, and how to remove it
+
   Scenario: Stale absolute file paths cannot modify a foreign checkout
     Given a session inside the selected worktree
     When edit or write targets an absolute path in the original checkout

@@ -56,11 +56,22 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const prompt = buildInitPrompt(ctx.cwd, args);
 
-      if (ctx.isIdle()) {
-        pi.sendUserMessage(prompt);
-      } else {
-        pi.sendUserMessage(prompt, { deliverAs: "followUp" });
-        notifyPi(ctx.ui, "Repository guide task queued as a follow-up", "info");
+      // The idle check and the delivery are not atomic: a turn that starts between
+      // them rejects the send. A guide task that was never delivered must not be
+      // reported as though it were queued.
+      try {
+        if (ctx.isIdle()) {
+          await pi.sendUserMessage(prompt);
+        } else {
+          await pi.sendUserMessage(prompt, { deliverAs: "followUp" });
+          notifyPi(ctx.ui, "Repository guide task queued as a follow-up", "info");
+        }
+      } catch (error) {
+        notifyPi(
+          ctx.ui,
+          `Repository guide task was not sent: ${error instanceof Error ? error.message : String(error)}`,
+          "error",
+        );
       }
     },
   });

@@ -2,6 +2,68 @@
 from support import run_bun
 
 
+def successful_proof(mutation=''):
+    return run_bun('''
+      import fs from 'node:fs';
+      import {successfulFailureObservationReady} from './packages/continual-learning/tests/failure-observation-proof.ts';
+      const input=JSON.parse(fs.readFileSync('./packages/continual-learning/tests/fixtures/real-successful-verifier-feedback.json','utf8'));
+    '''+mutation+'''console.log(JSON.stringify(successfulFailureObservationReady(input)));''')
+
+
+def test_actual_successful_feedback_proves_observation_without_retry_authorization():
+    # Given the retained v28 session, When proving its successful feedback read,
+    # Then bind original bytes and pending slice without promoting the failed task.
+    value = successful_proof()
+    assert value['ready'], value
+    assert value['reason'] == 'complete-successful-failure-observation'
+
+
+@__import__('pytest').mark.parametrize('mutation',[
+    "input.originalSession+=' ';",
+    "input.sourceAfter={'index.js':'changed'};",
+    "const o=JSON.parse(input.verifierText);o.verification.afterRecovery={passed:true};input.verifierText=JSON.stringify(o);",
+    "input.currentSession=input.currentSession.replace(input.verifierPath,input.verifierPath+'other');",
+    "input.queued.to--;",
+    "input.queued.digest='different';",
+    "input.explicitBackfills=1;",
+    "input.currentSession=input.currentSession.replace('tools-removed','other');",
+    "input.currentSession=input.currentSession.replace('\\\"stopReason\\\":\\\"stop\\\"','\\\"stopReason\\\":\\\"error\\\"');",
+])
+def test_successful_feedback_rejects_changed_report_source_slice_or_failed_summary(mutation):
+    assert not successful_proof(mutation)['ready']
+
+
+@__import__('pytest').mark.parametrize('edit',[
+    "rows.at(-1).message.errorMessage='provider failed';",
+    "rows.find(row=>row.message?.role==='assistant').message.stopReason='error';",
+    "rows.find(row=>row.message?.role==='assistant').message.stopReason='aborted';",
+])
+def test_successful_feedback_rejects_errors_stripped_by_context_projection(edit):
+    assert not successful_proof(r'''
+      const rows=input.currentSession.slice(input.originalSession.length).trimEnd().split('\n').map(JSON.parse);
+    '''+edit+r'''
+      input.currentSession=input.originalSession+rows.map(JSON.stringify).join('\n')+'\n';
+    ''')['ready']
+
+
+def test_successful_feedback_rejects_an_extra_continue_even_with_valid_backlog():
+    assert not successful_proof(r'''
+      const {parseSessionEntries,buildContextEntries}=await import('@earendil-works/pi-coding-agent');
+      const {currentTaskSlice}=await import('./packages/continual-learning/extensions/incremental-learning.ts');
+      const {backlogIdentity}=await import('./packages/continual-learning/extensions/learning-backlog.ts');
+      const {createHash}=await import('node:crypto');
+      const rows=input.currentSession.trimEnd().split('\n').map(JSON.parse);
+      const last=rows.pop();const id='extra-continue';
+      rows.push({type:'message',id,parentId:last.parentId,timestamp:last.timestamp,
+        message:{role:'user',content:[{type:'text',text:'continue'}],timestamp:0}});
+      rows.push({...last,parentId:id});input.currentSession=rows.map(JSON.stringify).join('\n')+'\n';
+      const context=buildContextEntries(parseSessionEntries(input.currentSession).filter(row=>row.type!=='session'));
+      input.queued.to=context.length-1;
+      input.queued.digest=createHash('sha256').update(JSON.stringify(currentTaskSlice(context.slice(input.queued.from)))).digest('hex');
+      input.queued.id=backlogIdentity(input.queued.scopeKey,input.queued);
+    ''')['ready']
+
+
 def proof(mutation=''):
     return run_bun('''
       import fs from 'node:fs';

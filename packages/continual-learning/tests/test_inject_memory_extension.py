@@ -116,7 +116,7 @@ def test_consolidation_contract_is_parent_owned() -> None:
     assert "getSessionFile" in backlog
     outside = content[:content.index("function queueSettledTask(")]
     assert outside.count("getSessionFile") == 1
-    fallback = outside[outside.index('if (fullMode)'):outside.index("const taskSlice", outside.index('if (fullMode)'))]
+    fallback = outside[outside.index('if (fullMode)'):outside.index("let taskSlice", outside.index('if (fullMode)'))]
     assert "recentProjectLearningInput" in fallback
     assert "currentSessionFile: invocationContext.sessionManager.getSessionFile?.()" in fallback
     assert "snapshotSessionContext(invocationContext, recent.entries)" in fallback
@@ -135,7 +135,7 @@ def test_memory_planner_prompts_are_mode_specific_and_read_only() -> None:
     assert "incremental-memory-plan" in incremental
     assert "Do not emit `selected`, `inventory`," in incremental
     assert "read-only" in full.lower() and "read-only" in incremental.lower()
-    assert "Read `dossierPath` only" in incremental
+    assert "{{DOSSIER_INPUT}}" in incremental
     assert "No repository exploration or discovery is granted" in incremental
 
 
@@ -935,7 +935,7 @@ def test_child_task_uses_selector_scope_for_incremental_and_full_scope_for_full_
     assert "const selectedScope = parentSelectedScope(run, opts.selectedScope);" in content
     assert "Authoritative selected Memory names" in content
     incremental = (MEMORY_PKG_DIR / "prompts" / "incremental-memory-consolidator.md").read_text(encoding="utf-8")
-    assert "Read `dossierPath` only by default" in incremental
+    assert "{{DOSSIER_INPUT}}" in incremental
     assert "...formatSelectedScopeTaskLines(selectedScope)," in content
     procedure = (MEMORY_PKG_DIR / "prompts" / "memory-consolidator.md").read_text(encoding="utf-8")
     assert "authoritative selected memory scope" in procedure and "newMemories" in procedure
@@ -1035,7 +1035,7 @@ def test_memory_block_is_an_index_without_entry_bodies() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         repo, agent = _memory_repo(Path(tmp))
         block = _format_block(repo, agent)["block"]
-        assert "- git-agent-commits.md (public) — How to commit via git-agent" in block
+        assert "- git-agent-commits.md — How to commit via git-agent" in block
         assert "must not be injected" not in block
         assert "Body only" not in block
         assert "read" in block.lower()
@@ -1045,7 +1045,7 @@ def test_memory_block_without_description_still_indexed() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         repo, agent = _memory_repo(Path(tmp))
         block = _format_block(repo, agent)["block"]
-        assert "- no-description.md (public)" in block
+        assert "- no-description.md" in block
 
 
 def test_memory_index_is_bounded_at_entry_boundaries() -> None:
@@ -1058,19 +1058,13 @@ def test_memory_index_is_bounded_at_entry_boundaries() -> None:
         full_block = _format_block(repo, agent)["block"]
         full_lines = full_block.splitlines()
         first_entry = next(index for index, line in enumerate(full_lines) if line.startswith("- "))
-        # Omission counts and discovery pointers are part of the final budget.
-        summary_budget = len(full_lines[-1]) + 2
-        first_budget = len("\n".join(full_lines[:first_entry])) + 1 + len(full_lines[first_entry]) + 1 + summary_budget
+        # A roomy budget lists complete filenames; bounded cues may give way.
+        bare = [line.split(" — ")[0] for line in full_lines[first_entry:]]
+        first_budget = len("\n".join(full_lines[:first_entry])) + 1 + sum(len(line) + 1 for line in bare)
         block = _format_block(repo, agent, f", {first_budget}")["block"]
-        # The bounded block stops buying relevance cues while entries are still
-        # being dropped, so two filenames fit where one cue-bearing row did.
-        assert "git-agent-commits.md" in block
-        assert "huge.md" in block
-        assert "no-description.md" not in block
         lines = [line for line in block.splitlines() if line.startswith("- ")]
-        assert all(len(line) <= 500 for line in lines)
-        assert lines == ["- git-agent-commits.md (public)", "- huge.md (public)"]
-        assert "2 shown, 1 omitted of 3 total" in block
+        assert lines == bare
+        assert "omitted" not in block
         assert len(block) <= first_budget
 
 

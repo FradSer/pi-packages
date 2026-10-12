@@ -84,7 +84,7 @@ Feature: Discover this machine's existing session metadata without reading histo
     When the next session starts
     Then exactly one new refresh loop and one link can start
 
-  Scenario: Full inventories fit the Desk Link frame limit
+  Scenario: Full inventories fit the Open DeskOS Link frame limit
     Given 55 or 64 sessions with long multi-byte descriptive metadata
     And the reporter owns the current live identity and events
     When the reporter writes a complete sessions snapshot
@@ -94,9 +94,9 @@ Feature: Discover this machine's existing session metadata without reading histo
     And the current live identity and events remain intact
     When exact identity fields alone cannot fit the frame budget
     Then the current session remains and lower-priority whole records are omitted
-    And the open-deskos command reports the omitted count instead of silently losing the complete inventory
+    And the odk command reports the omitted count instead of silently losing the complete inventory
 
   Scenario: Missing configuration never starts discovery
-    Given either Desk Link address or token is absent
+    Given either Open DeskOS Link address or token is absent
     When the extension loads
     Then no discovery timer, metadata scan, or socket is started

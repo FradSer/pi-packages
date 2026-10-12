@@ -28,12 +28,25 @@ const MAX_DELIVERY_CHARS = 4_000;
 /** Longest accepted instance id, matching the protocol's own bound. */
 const MAX_ID_CHARS = 128;
 
-function listLiveSessions(): Promise<Session[]> {
-	return execute({
+/**
+ * Live instances, or why discovery failed.
+ *
+ * An unusable control directory and an empty one look identical to the user, so
+ * the reason is carried to the command instead of being collapsed into "no
+ * sessions".
+ */
+type LiveSessionListing =
+	| { ok: true; sessions: Session[] }
+	| { ok: false; error: string };
+
+async function listLiveSessions(): Promise<LiveSessionListing> {
+	const response = await execute({
 		version: 1,
 		requestId: randomUUID(),
 		command: "list",
-	}).then((response) => (response.ok ? (response.sessions ?? []) : []));
+	});
+	if (!response.ok) return { ok: false, error: response.error?.message ?? "live-session discovery failed" };
+	return { ok: true, sessions: response.sessions ?? [] };
 }
 
 /** One bounded line per live instance; every field is another process's text. */
@@ -94,24 +107,35 @@ export default function registerLiveSessions(pi: ExtensionAPI): void {
 		await server?.close();
 		const sessionId = randomUUID();
 		const piSessionId = ctx.sessionManager.getSessionId();
-		server = await startServer(
-			controlDirectory(),
-			sessionId,
-			() => ({
+		try {
+			server = await startServer(
+				controlDirectory(),
 				sessionId,
-				piSessionId,
-				cwd: ctx.cwd,
-				pid: process.pid,
-				name: pi.getSessionName()?.slice(0, 256),
-				state: ctx.isIdle() ? "idle" : "running",
-			}),
-			(text, deliverAs) => {
-				if (ctx.sessionManager.getSessionId() !== piSessionId) {
-					throw new Error("Session changed");
-				}
-				pi.sendUserMessage(text, { deliverAs });
-			},
-		);
+				() => ({
+					sessionId,
+					piSessionId,
+					cwd: ctx.cwd,
+					pid: process.pid,
+					name: pi.getSessionName()?.slice(0, 256),
+					state: ctx.isIdle() ? "idle" : "running",
+				}),
+				(text, deliverAs) => {
+					if (ctx.sessionManager.getSessionId() !== piSessionId) {
+						throw new Error("Session changed");
+					}
+					pi.sendUserMessage(text, { deliverAs });
+				},
+			);
+		} catch (error) {
+			// Live control is optional, but a session that silently serves nothing
+			// makes every /live-sessions call look like an empty directory.
+			server = undefined;
+			notifyPi(
+				ctx.ui,
+				`Live session control is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+				"warning",
+			);
+		}
 	});
 
 	pi.on("session_shutdown", async () => {
@@ -128,8 +152,9 @@ export default function registerLiveSessions(pi: ExtensionAPI): void {
 			if (/\s/.test(prefix)) return null;
 			try {
 				const typed = prefix.toLowerCase();
-				const sessions = await listLiveSessions();
-				return sessions
+				const listing = await listLiveSessions();
+				if (!listing.ok) return null;
+				return listing.sessions
 					.filter((session) => session.sessionId.toLowerCase().startsWith(typed))
 					.map((session) => ({ value: session.sessionId, label: session.sessionId }));
 			} catch {
@@ -138,17 +163,22 @@ export default function registerLiveSessions(pi: ExtensionAPI): void {
 		},
 		handler: async (args: string, ctx: ExtensionCommandContext) => {
 			if (!args.trim()) {
-				const sessions = await listLiveSessions();
+				const listing = await listLiveSessions();
+				if (!listing.ok) {
+					notifyPi(ctx.ui, `Live session discovery failed: ${listing.error}`, "error");
+					return;
+				}
+				const sessions = listing.sessions;
 				if (sessions.length === 0) {
 					notifyPi(ctx.ui, "No live Pi sessions found.", "info");
 					return;
 				}
-				const listing = formatLiveSessionList(sessions);
+				const text = formatLiveSessionList(sessions);
 				if (ctx.hasUI) {
-					await ctx.ui.select(`Live Pi sessions\n\n${listing}`, ["Close"]);
+					await ctx.ui.select(`Live Pi sessions\n\n${text}`, ["Close"]);
 					return;
 				}
-				notifyPi(ctx.ui, listing, "info");
+				notifyPi(ctx.ui, text, "info");
 				return;
 			}
 

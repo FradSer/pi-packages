@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import net from "node:net";
-import { readDeskLinkConfig, readDeskLinkConfigs } from "../src/config.ts";
+import { readOdkLinkConfig, readOdkLinkConfigs } from "../src/config.ts";
 import { createTcpTransport } from "../src/transport.ts";
 import { DeskReporter } from "../src/reporter.ts";
 import { eventsFromMessage } from "../src/events.ts";
@@ -48,11 +48,11 @@ test("console selection refuses ambiguous host preferences and accepts bracketed
 });
 
 test("configuration parses exact decimal ports and bracketed IPv6 endpoints", () => {
-  const load = (address) => readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: address, ODK_DESK_LINK_TOKEN: "fixture" });
+  const load = (address) => readOdkLinkConfig({ ODK_LINK_ADDRESS: address, ODK_LINK_TOKEN: "fixture" });
   assert.equal(load("[::1]:8765").host, "::1");
   for (const address of ["host:8765suffix", "host:8765.5", "host:+8765", "http://host:8765", "[::1:8765", "host:0"]) {
     assert.equal(load(address), null, address);
-    assert.equal(readDeskLinkConfigs({}, { readFile: () => JSON.stringify([{ address, token: "fixture" }]) }).configs.length, 0);
+    assert.equal(readOdkLinkConfigs({}, { readFile: () => JSON.stringify([{ address, token: "fixture" }]) }).configs.length, 0);
   }
 });
 

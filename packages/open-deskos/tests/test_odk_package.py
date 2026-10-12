@@ -20,14 +20,14 @@ def run_typescript(script: str) -> subprocess.CompletedProcess[str]:
     with tempfile.TemporaryDirectory(prefix="desk-test-registry-") as registry:
         # The default desks file is resolved from the home directory, so stripping
         # ODK_ environment variables is not enough on its own: a developer machine
-        # that actually runs Desk Link would have its real desks read instead of the
+        # that actually runs Open DeskOS Link would have its real desks read instead of the
         # configuration each script declares, and the harness would silently report
         # to a real desk rather than to its own local server. Isolating HOME keeps
         # the declared environment authoritative.
         home = os.path.join(registry, "home")
         os.makedirs(home, exist_ok=True)
         env = dict(os.environ, PI_DIRECTORY_SESSIONS_DIR=registry, HOME=home)
-        # A developer machine that runs the Desk Link host exports its own control
+        # A developer machine that runs the Open DeskOS Link host exports its own control
         # credentials; the suite must never inherit them, or it silently tests a
         # configured control surface instead of the one each script declares.
         for key in [key for key in env if key.startswith("ODK_") and key != "ODK_TEST_NATIVE_TS"]:
@@ -58,11 +58,11 @@ def report(script: str) -> dict:
 def test_manifest_declares_native_pi_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]
-    assert manifest["name"] == "pi-open-deskos"
+    assert manifest["name"] == "pi-odk"
     assert manifest["pi"]["extensions"] == ["./index.ts"]
     assert set(manifest["files"]) >= {"index.ts", "src", "fixtures", "README.md", "README.zh-CN.md", "session-control"}
     fixture = json.loads((PACKAGE / "fixtures" / "control-v2.json").read_text(encoding="utf-8"))
-    assert fixture["handshake"]["transcript"] == "open-deskos-control-v2\n2\nnonce-fixture\ndesk-mac\nconsole-session"
+    assert fixture["handshake"]["transcript"] == "odk-control-v2\n2\nnonce-fixture\ndesk-mac\nconsole-session"
     assert fixture["requests"]["attachFresh"]["after"] is None
 
 
@@ -129,7 +129,7 @@ def test_every_documented_install_command_can_actually_work() -> None:
                 assert result.returncode == 0, f"{filename}: {result.stdout}{result.stderr}"
                 assert record.read_text().splitlines() == ["install", str(package.resolve())], filename
 
-            for variable in ("ODK_DESK_LINK_ADDRESS", "ODK_DESK_LINK_TOKEN", "ODK_DESK_LINK_CONTROL_TOKEN"):
+            for variable in ("ODK_LINK_ADDRESS", "ODK_LINK_TOKEN", "ODK_LINK_CONTROL_TOKEN"):
                 assert variable in readme, f"{filename} must document {variable}"
 
 
@@ -138,13 +138,13 @@ def test_every_documented_install_command_can_actually_work() -> None:
 def test_configuration_is_all_or_nothing() -> None:
     result = report(
         r'''
-        import { readDeskLinkConfig, defaultMachineName, tokenDigest } from "./packages/open-deskos/src/config.ts";
-        const configured = readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: "10.0.0.5:8765", ODK_DESK_LINK_TOKEN: "t" });
-        const controlled = readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: "10.0.0.5:8765", ODK_DESK_LINK_TOKEN: "t", ODK_DESK_LINK_CONTROL_TOKEN: "control" });
-        const noToken = readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: "10.0.0.5:8765" });
-        const noAddress = readDeskLinkConfig({ ODK_DESK_LINK_TOKEN: "t" });
-        const badPort = readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: "10.0.0.5:", ODK_DESK_LINK_TOKEN: "t" });
-        const noPort = readDeskLinkConfig({ ODK_DESK_LINK_ADDRESS: "10.0.0.5", ODK_DESK_LINK_TOKEN: "t" });
+        import { readOdkLinkConfig, defaultMachineName, tokenDigest } from "./packages/open-deskos/src/config.ts";
+        const configured = readOdkLinkConfig({ ODK_LINK_ADDRESS: "10.0.0.5:8765", ODK_LINK_TOKEN: "t" });
+        const controlled = readOdkLinkConfig({ ODK_LINK_ADDRESS: "10.0.0.5:8765", ODK_LINK_TOKEN: "t", ODK_LINK_CONTROL_TOKEN: "control" });
+        const noToken = readOdkLinkConfig({ ODK_LINK_ADDRESS: "10.0.0.5:8765" });
+        const noAddress = readOdkLinkConfig({ ODK_LINK_TOKEN: "t" });
+        const badPort = readOdkLinkConfig({ ODK_LINK_ADDRESS: "10.0.0.5:", ODK_LINK_TOKEN: "t" });
+        const noPort = readOdkLinkConfig({ ODK_LINK_ADDRESS: "10.0.0.5", ODK_LINK_TOKEN: "t" });
         console.log(JSON.stringify({
           configured,
           controlled,
@@ -486,8 +486,8 @@ def test_a_reconnected_link_sends_current_state_and_the_reporter_stops_cleanly()
 def test_an_unconfigured_machine_reports_nothing_but_says_why() -> None:
     result = report(
         r'''
-        delete process.env.ODK_DESK_LINK_ADDRESS;
-        delete process.env.ODK_DESK_LINK_TOKEN;
+        delete process.env.ODK_LINK_ADDRESS;
+        delete process.env.ODK_LINK_TOKEN;
         const mod = await import("./packages/open-deskos/index.ts?unconfigured=2");
         const hooks = [];
         const handlers = new Map();
@@ -506,18 +506,18 @@ def test_an_unconfigured_machine_reports_nothing_but_says_why() -> None:
         const ctx = { cwd: "/w", ui: { notify(message, level) { notices.push([message, level]); }, setStatus(key, value) { statuses.push([key, value]); } } };
         handlers.get("session_start")?.({}, ctx);
         handlers.get("session_shutdown")?.({}, ctx);
-        await commands.get("open-deskos")?.handler("", ctx);
+        await commands.get("odk")?.handler("", ctx);
         console.log(JSON.stringify({
           statuses,
           hooks,
           commands: [...commands.keys()],
           unseenHooks: hooks.filter((name) => name !== "session_start" && name !== "session_shutdown"),
           notices,
-          describesTheGap: notices.some(([message]) => message.includes("ODK_DESK_LINK_ADDRESS") && message.includes("ODK_DESK_LINK_TOKEN")),
+          describesTheGap: notices.some(([message]) => message.includes("ODK_LINK_ADDRESS") && message.includes("ODK_LINK_TOKEN")),
         }));
         '''
     )
-    assert result["commands"] == ["open-deskos"], "an unconfigured machine must still be diagnosable"
+    assert result["commands"] == ["odk"], "an unconfigured machine must still be diagnosable"
     assert result["unseenHooks"] == [], "reporting hooks stay off while unconfigured"
     assert result["statuses"] == [], "unconfigured sessions must never set or clear footer status"
     assert result["hooks"] == [], "unconfigured sessions need no automatic UI hooks"
@@ -527,8 +527,8 @@ def test_an_unconfigured_machine_reports_nothing_but_says_why() -> None:
 def test_a_configured_machine_registers_the_reporting_hooks() -> None:
     result = report(
         r'''
-        process.env.ODK_DESK_LINK_ADDRESS = "127.0.0.1:1";
-        process.env.ODK_DESK_LINK_TOKEN = "t";
+        process.env.ODK_LINK_ADDRESS = "127.0.0.1:1";
+        process.env.ODK_LINK_TOKEN = "t";
         const mod = await import("./packages/open-deskos/index.ts?configured=2");
         const hooks = [];
         const commands = [];
@@ -558,7 +558,7 @@ def test_a_configured_machine_registers_the_reporting_hooks() -> None:
         "message_end",
         "session_shutdown",
     ]
-    assert result["commands"] == ["open-deskos"]
+    assert result["commands"] == ["odk"]
 
 
 def test_the_reporter_never_acts_inside_the_session() -> None:
@@ -647,9 +647,9 @@ def test_a_session_switch_keeps_reporting() -> None:
           });
         });
         await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-        process.env.ODK_DESK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
-        process.env.ODK_DESK_LINK_TOKEN = "t";
-        process.env.ODK_DESK_LINK_MACHINE = "probe";
+        process.env.ODK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
+        process.env.ODK_LINK_TOKEN = "t";
+        process.env.ODK_LINK_MACHINE = "probe";
         const mod = await import("./packages/open-deskos/index.ts?switch=1");
         const handlers = new Map();
         mod.default({ on(name, handler) { handlers.set(name, handler); }, registerCommand() {}, registerMessageRenderer() {}, registerEntryRenderer() {}, registerTool() {} });

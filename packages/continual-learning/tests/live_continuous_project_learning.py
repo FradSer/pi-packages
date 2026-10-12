@@ -22,7 +22,8 @@ import live_real_project_memory as base
 from continuous_project_tasks import COMMON, TASKS, SOURCE_COMMIT, ORACLE, TYPES, SIGNAL_TYPES, REASON_TYPES, SYNC_TYPES, MAP_TYPES
 from docker_experiment import InferenceProxy, redact_transport_bytes
 from live_acceptance_support import EvidenceRun
-from continuous_project_evidence import continuous_coverage, verifier_observation, task_outcome, feedback_accepted, exact_failure_processed
+from continuous_project_evidence import continuous_coverage, verifier_observation, task_outcome, feedback_accepted, exact_failure_processed, observed_memory_reads
+from recovery_integrity import archive_surface_snapshots, verify_recovery_delta, claim_recovery
 
 
 def executed_version_probes(messages: list[dict]) -> list[dict[str, str]]:
@@ -143,6 +144,7 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
             'reportedCost':sum(u.get('cost',{}).get('total',0) for u in usage),
             'exposedMemoryReferences':len(references),
             'deliveredMemoryEntries':[item for row in references for item in row.get('details',{}).get('retrieved',[])],
+            'observedMemoryReads':observed_memory_reads(rows,cwd='/work/p-limit',home='/home/node',roots=(base.AGENT+'/memory/--work-p-limit--','/work/p-limit/.memory')),
             'toolBudgetEvents':[r.get('data') for r in rows if r.get('customType')=='continuous-study-tool-budget'],
             'toolBudgetExceeded':any(r.get('customType')=='continuous-study-tool-budget' and r.get('data',{}).get('outcome') in ('blocked','summary-tool-loop-stopped') for r in rows),
             'harnessEvents':[r for r in rows if str(r.get('customType','')).startswith('harness-')],
@@ -165,7 +167,7 @@ def install_failure_observation_proof(c: str) -> str:
 
 
 def failure_observation_ready(c: str, original_session: bytes, observation: dict, feedback: dict, source_after: dict) -> dict:
-    """Prove failed feedback evidence, without accepting the failed task itself."""
+    """Prove actual feedback evidence, without accepting the failed task itself."""
     queued=feedback.get('queuedFailure')
     if not queued:return {'ready':False,'reason':'no-pending-failure'}
     proof_cli=install_failure_observation_proof(c)
@@ -174,7 +176,8 @@ def failure_observation_ready(c: str, original_session: bytes, observation: dict
            'verifierText':json.dumps(observation,ensure_ascii=False,indent=2),
            'verifierPath':'/home/node/project-verification.json',
            'sourceBefore':observation['sourceHashes'],'sourceAfter':source_after,
-           'queued':queued,'explicitBackfills':0}
+           'queued':queued,'explicitBackfills':0,
+           'observationOutcome':'successful' if feedback.get('taskPassed') is True else 'failed'}
     base.put(c,input_file,json.dumps(value,ensure_ascii=False).encode())
     try:
         return json.loads(base.checked(['docker','exec',c,'tsx',
@@ -184,14 +187,22 @@ def failure_observation_ready(c: str, original_session: bytes, observation: dict
 
 def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
     output.mkdir(parents=True,exist_ok=True)
+    # Runtime images deliberately omit all tests and hidden task probes.
+    base.put(c,'/home/node/learned-surface-metadata.py',Path(__file__).with_name('recovery_integrity.py').read_bytes())
+    metadata_args=['docker','exec',c,'python3','/home/node/learned-surface-metadata.py',
+                   base.AGENT+'/memory/--work-p-limit--','/work/p-limit']
+    metadata_before=json.loads(base.checked(metadata_args))
     base.export_tree(c,base.AGENT+'/memory',output/'memory.tar.gz',proxy)
     base.export_tree(c,base.AGENT+'/learning',output/'backlog.tar.gz',proxy)
     base.export_tree(c,'/work/p-limit',output/'source.tar.gz',proxy)
+    metadata_after=json.loads(base.checked(metadata_args))
+    if metadata_before!=metadata_after:raise RuntimeError('Learned surfaces changed during artifact capture')
+    surface_snapshots=archive_surface_snapshots(output/'memory.tar.gz',output/'source.tar.gz',metadata_after)
     probe="import {backlogStatus,readBacklog,backlogIdentity} from '/opt/experiment/packages/continual-learning/extensions/learning-backlog.ts';const read=readBacklog('/work/p-limit','/home/node/agent');console.log(JSON.stringify({...backlogStatus('/work/p-limit','/home/node/agent'),pendingEntries:read.pendingEntries.map(({entry})=>({...entry,id:backlogIdentity('--work-p-limit--',entry)}))}));"
     base.put(c,'/home/node/backlog-probe.mts',probe.encode())
     backlog=json.loads(base.checked(['docker','exec',c,'tsx','/home/node/backlog-probe.mts']))
     base.shell(c,'rm -f /home/node/backlog-probe.mts')
-    receipts=[];states=[];memory_entries=[];history=[];dossiers=[];completed_backlog={}
+    receipts=[];states=[];memory_entries=[];history=[];dossiers=[];completed_backlog={};partial_worker_usage=[]
     for filename in ('memory.tar.gz','backlog.tar.gz'):
         with tarfile.open(output/filename) as archive:
             for item in archive:
@@ -202,6 +213,10 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
                 try: value=json.loads(archive.extractfile(item).read())
                 except (ValueError,UnicodeError):continue
                 if not isinstance(value,dict):continue
+                if re.fullmatch(r'(?:harness-(?:task|repair)|memory-(?:task|repair))-usage.*\.json', Path(item.name).name) and isinstance(value.get('ledgerId'),str):
+                    usage=value.get('knownUsage',{})
+                    if isinstance(usage,dict) and all(isinstance(usage.get(k), (int,float)) and not isinstance(usage.get(k),bool) and 0<=usage[k]<float('inf') for k in ('input','output','cacheRead','cacheWrite','totalTokens','cost')):
+                        partial_worker_usage.append({'archive':filename,'path':item.name,**value})
                 if value.get('kind')=='learning-pipeline-receipt':receipts.append(value)
                 if value.get('version')==1 and isinstance(value.get('changes'),list) and value.get('phase') in ('memory','harness','agents'):history.append(value)
                 if Path(item.name).name=='backlog-completed.json':completed_backlog.update(value)
@@ -226,11 +241,20 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
     base.shell(c,'rm -f /home/node/study-receipts.json')
     for attempt,digest in zip(attempts,digests):attempt['receiptDigest']=digest
     known=[a['receipt'] for a in attempts if a.get('receipt')]
-    return {'memoryEntries':memory_entries,'history':history,'dossiers':dossiers,'completedBacklog':completed_backlog,'receipts':receipts,'attempts':attempts,'knownLearningTokens':sum(r['totals']['totalTokens'] for r in known),
-            'knownLearningCost':sum(r['totals']['cost'] for r in known),'interruptedUnknownUsage':sum(not a.get('receipt') or a['receipt'].get('usageAvailable') is not True for a in attempts),
+    included={a.get('usageLedgerId'):a.get('usage') for receipt in known for a in receipt.get('attempts',[]) if a.get('usageLedgerId') and a.get('usage')}
+    unique_ledgers={}
+    for row in partial_worker_usage:
+        previous=unique_ledgers.get(row['ledgerId'])
+        if previous and previous['knownUsage']!=row['knownUsage']:raise RuntimeError('Conflicting worker usage ledger identity')
+        unique_ledgers[row['ledgerId']]=row
+    # Only an actual persistent receipt with matching numeric usage proves
+    # inclusion; a completed worker can crash before the parent records it.
+    partial_worker_usage=[row for identity,row in unique_ledgers.items() if included.get(identity)!=row['knownUsage']]
+    return {'surfaceSnapshots':surface_snapshots,'memoryEntries':memory_entries,'history':history,'dossiers':dossiers,'completedBacklog':completed_backlog,'receipts':receipts,'attempts':attempts,'partialWorkerUsageLedgers':partial_worker_usage,'knownLearningTokens':sum(r['totals']['totalTokens'] for r in known)+sum(row['knownUsage']['totalTokens'] for row in partial_worker_usage),
+            'knownLearningCost':sum(r['totals']['cost'] for r in known)+sum(row['knownUsage']['cost'] for row in partial_worker_usage),'interruptedUnknownUsage':sum(not a.get('receipt') or a['receipt'].get('usageAvailable') is not True for a in attempts),
             'pendingLearningJobs':backlog['pending'],'backlogStatus':backlog,
             'actualLearningOperations':sum(r.get('operations',0) for r in known),
-            'allLearningCostsPriced':all(r.get('costAvailable') is True for r in known)}
+            'allLearningCostsPriced':not partial_worker_usage and all(row.get('complete') is True for row in unique_ledgers.values()) and len(known)==len(attempts) and all(r.get('costAvailable') is True for r in known)}
 
 
 def harness_probe(c: str, stage: int, enabled: bool) -> dict:
@@ -273,7 +297,7 @@ def totals(report: dict) -> dict:
 
 
 def run(args: argparse.Namespace) -> dict:
-    paths=[base.PACKAGE/'index.ts',Path(__file__),Path(__file__).with_name('continuous_failure_retention.py'),Path(__file__).with_name('continuous-tool-budget.ts'),Path(__file__).with_name('continuous-verifier-reference.ts'),Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('failure-observation-proof.ts'),Path(__file__).with_name('failure-observation-proof-cli.ts'),Path(__file__).with_name('continuous-memory-audit.ts'),Path(__file__).with_name('docker_experiment.py'),Path(__file__).with_name('jev-http-forward.mjs'),Path(__file__).with_name('live_acceptance_support.py'),Path(__file__).with_name('continuous_project_tasks.py'),Path(base.__file__),
+    paths=[base.PACKAGE/'index.ts',Path(__file__),Path(__file__).with_name('recovery_integrity.py'),Path(__file__).with_name('continuous_failure_retention.py'),Path(__file__).with_name('continuous-tool-budget.ts'),Path(__file__).with_name('continuous-verifier-reference.ts'),Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('failure-observation-proof.ts'),Path(__file__).with_name('failure-observation-proof-cli.ts'),Path(__file__).with_name('continuous-memory-audit.ts'),Path(__file__).with_name('docker_experiment.py'),Path(__file__).with_name('jev-http-forward.mjs'),Path(__file__).with_name('live_acceptance_support.py'),Path(__file__).with_name('continuous_project_tasks.py'),Path(base.__file__),
            *base.PACKAGE.joinpath('extensions').glob('*.ts'),*base.PACKAGE.joinpath('prompts').glob('*.md'),
            *base.REPO.joinpath('packages/kit/src').glob('*.ts')]
     evidence=EvidenceRun(args.output,{str(p):p for p in paths})
@@ -284,6 +308,7 @@ def run(args: argparse.Namespace) -> dict:
               'oracle':ORACLE,'types':[TYPES,SIGNAL_TYPES,REASON_TYPES,SYNC_TYPES,MAP_TYPES],
               'invalidLearning':'retained as operational failure; stop dependent stages after any invalid learning',
               'recovery':'one bounded explicit backfill after initial pending, retirement, or actual task verification failure; failures enter source-bound same-session read-only continuation first, no repeat-until-pass',
+              'recoveryIntegrity':'complete live hash/mode-bound private/public/project snapshots and new receipt-owned history chains; prior attempts retained; exact feedback slice claimed in the shared output parent before backfill',
               'costs':'sum leader usage plus cumulative per-job learning ledger plus Jev usage; missing pricing/interrupt usage remain unknown',
               'failureFeedbackAdmission':'feedback task failure remains failure; one complete same-session verifier read plus byte-bound original and pending slice and proven removed-tool rejection can admit independent backfill without a successful parent summary; no extra parent retries; earlier v18/v19 failures retained',
               'verifierReadBoundary':'exact source/session-bound file, no offset or limit, one admitted read; rejected calls retained, at most three rejected boundary attempts before abort; earlier prompt-only cohort retained',
@@ -292,14 +317,18 @@ def run(args: argparse.Namespace) -> dict:
               'commonPrompt':COMMON,
               'versionVerification':'correction and retirement tasks require a unique matching successful standalone npm --version result, not merely an attempted call or a post-learning pure rule probe',
               'limitations':['one project, one sequence, no statistical generalization','task difficulty changes; no within-arm slope claim','source convergence is an intervention','parent resource cap is an experimental intervention']}
-    protocol['coverageVersion']=2
+    protocol['coverageVersion']=3
+    protocol['memoryEvidence']='index only; actual successful read with exact retained revision; read exposure alone is not behavioral use or benefit'
     evidence.write('protocol.json',json.dumps(protocol,ensure_ascii=False,indent=2))
-    report={'status':'running','stages':[],'preflight':{}};containers=[];proxy=None
+    report={'status':'running','coverageVersion':3,'stages':[],'preflight':{}};containers=[];proxy=None
     try:
         image=base.runtime_image(args.base_image);report['image']=image
         pristine=base.checked(['git','-C',str(args.source),'archive',SOURCE_COMMIT])
         for _ in range(2):
             c=base.container(image);containers.append(c)
+            version=base.checked(['docker','exec',c,'node',base.PI,'--version']).decode().strip()
+            if version!='1.0.0':raise RuntimeError('Pi compatibility baseline changed')
+            report.setdefault('piVersions',[]).append(version)
             base.shell(c,'mkdir -p /work/p-limit; find /work/p-limit -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +; rm -rf /home/node/agent /home/node/results; mkdir -p /home/node/agent/memory /home/node/agent/learning /home/node/results')
             base.checked(['docker','exec','-i',c,'tar','-xf','-','-C','/work/p-limit'],data=pristine)
             base.shell(c,'cd /work/p-limit && git init -q')
@@ -370,13 +399,17 @@ def run(args: argparse.Namespace) -> dict:
                             verifier_feedback['observation']=observation
                             verifier_feedback['taskSourceUnchanged']=source_before_feedback==base.protected(c,'p-limit',include_source=True)
                             verifier_feedback['taskPassed']=feedback_accepted(verifier_feedback)
-                            if not verifier_feedback['taskPassed']:
-                                proof=failure_observation_ready(c,original_session,observation,verifier_feedback,
-                                    base.protected(c,'p-limit',include_source=True))
-                                verifier_feedback['failureObservationProof']=proof
-                                if proof.get('ready') is not True:
-                                    raise RuntimeError('Actual verifier feedback was not preserved and safely observed')
+                            proof=failure_observation_ready(c,original_session,observation,verifier_feedback,
+                                base.protected(c,'p-limit',include_source=True))
+                            verifier_feedback['failureObservationProof']=proof
+                            if proof.get('ready') is not True:
+                                raise RuntimeError('Actual verifier feedback was not preserved and safely observed')
                         if arm=='with-learning' and (index==3 or verifier_feedback is not None or (initial_state and initial_state['pendingLearningJobs']>0)):
+                            recovery_before=feedback_state or artifacts(c,proxy,out/'before-explicit-backfill')
+                            if verifier_feedback is not None:
+                                claim=claim_recovery(args.output.parent/'failed-slice-claims',proof['sessionDigest'],
+                                                     verifier_feedback['queuedFailure']['id'],str(out/'explicit-recovery'))
+                                verifier_feedback['recoveryClaim']=str(claim)
                             source_before_recovery=base.protected(c,'p-limit',include_source=True)
                             recovery_jev_start=len(proxy.jev_usage);recovery_request_start=proxy.requests
                             recovery=run_session(c,'/consolidate backfill',proxy,out/'explicit-recovery','recovery-'+str(index),command=True)
@@ -393,6 +426,10 @@ def run(args: argparse.Namespace) -> dict:
                             verification['afterRecovery']=recovered
                             verification['passed']=verification['passed'] and recovered['passed'] and recovery['taskSourceUnchanged']
                         state=artifacts(c,proxy,out)
+                        if recovery is not None:
+                            recovery['historyIntegrity']=verify_recovery_delta(recovery_before,state)
+                            if recovery['historyIntegrity'].get('passed') is not True:
+                                raise RuntimeError('Recovery history or learned surface integrity failed')
                         harness=harness_probe(c,index,arm=='with-learning')
                         memory_audits=[];memory_audit_inputs=[]
                         if arm=='with-learning' and index==4:

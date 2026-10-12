@@ -24,6 +24,7 @@ Feature: /effort thinking-level command
     When the user runs /effort max
     Then setThinkingLevel("max") is called
     And a confirmation is shown
+    And the confirmation reports the level pi applied, not the clamped-away request
 
   Scenario: Short aliases map to canonical levels
     Given the aliases min, med, xh, none, and 0

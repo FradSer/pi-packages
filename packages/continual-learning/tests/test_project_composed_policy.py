@@ -15,6 +15,10 @@ def test_policy_patch_is_exact_and_default_preserves_bytes() -> None:
     composed = experiment.memory_policy_bytes(original, 'composed')
     assert b'independentMemoryApplication: true, composedMemoryApplication: true' in composed
     assert experiment.memory_policy_bytes(composed, "composed") == composed
+    per_run = composed.replace(b"const jevJudge =", b"let jevJudge: JevJudge =")
+    assert experiment.memory_policy_bytes(per_run, "composed") == per_run
+    with pytest.raises(ValueError, match="constructor"):
+        experiment.memory_policy_bytes(per_run + composed, "composed")
     with pytest.raises(ValueError, match="constructor"):
         experiment.memory_policy_bytes(original + composed, "composed")
     assert composed.startswith(b'before\n  ') and composed.endswith(b'\nafter\n')

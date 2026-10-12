@@ -137,10 +137,10 @@ function sessionsDir() {
   const override = process.env.ODK_SESSION_HOST_SOCKET ?? ''
   if (isAbsolute(override)) return override
   const runtimeDir = process.env.XDG_RUNTIME_DIR
-  if (typeof runtimeDir === 'string' && runtimeDir.length > 0 && isAbsolute(runtimeDir)) return join(runtimeDir, 'open-deskos', 'sessions')
+  if (typeof runtimeDir === 'string' && runtimeDir.length > 0 && isAbsolute(runtimeDir)) return join(runtimeDir, 'odk', 'sessions')
   return process.platform === 'win32'
-    ? join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'open-deskos', 'sessions')
-    : join(homedir(), '.local', 'run', 'open-deskos', 'sessions')
+    ? join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'odk', 'sessions')
+    : join(homedir(), '.local', 'run', 'odk', 'sessions')
 }
 
 /** True when a requested project is a session's own project or lies inside it. */

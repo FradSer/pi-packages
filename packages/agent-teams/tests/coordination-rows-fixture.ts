@@ -369,30 +369,29 @@ assert.ok(listedRow.includes("Fix the spacing under the started row"), `task lis
 assert.ok(listedRow.includes("(in progress)"), `task list row missing state:\n${listedRow}`);
 assert.ok(!listedRow.includes("@main"), `task list row must not name a holder:\n${listedRow}`);
 
-// A long Work subject stays whole: the row fits it to the terminal and
-// expansion reveals it, so no fixed character cap may cut it short.
+// A long Work subject stays whole in the row: the row fits it to the terminal
+// and expansion reveals it, so the renderer may not clip it. The model-facing
+// create tool caps a subject at 60 characters, so this seeds the store directly:
+// the rendering contract covers every stored subject, not only tool-created ones.
 const longSubject = `${"keep the widget aligned ".repeat(5)}TAIL-SUBJECT`.trim();
 assert.ok(longSubject.length > 110, "the long-subject regression must exceed the removed 90-character cap");
-const longCreated = await tools.get("leader:create_task").execute(
-  "row",
-  { subject: longSubject },
-  undefined,
-  undefined,
-  { cwd: process.cwd(), ui: {}, mode: "print" } as never,
-);
-assert.equal(longCreated.details.ok, true, longCreated.content[0].text);
-const longCreatedRow = render("leader:create_task", { subject: longSubject }, { details: longCreated.details, text: longCreated.content[0].text });
+const longTask = createTask({ subject: longSubject });
+assert.equal(longTask.ok, true, longTask.ok ? longTask.task.id : longTask.reason);
+const longTaskId = longTask.ok ? longTask.task.id : "";
+const longTaskStatus = longTask.ok ? longTask.task.status : "pending";
+const longDetails = {
+  tool: "create_task", ok: true, id: longTaskId, status: longTaskStatus,
+  ...(longTask.ok ? { task: longTask.task } : {}),
+};
+const longText = `TASK · ${longTaskId} · ${longTaskStatus}`;
+const longCreatedRow = render("leader:create_task", { subject: longSubject }, { details: longDetails, text: longText });
 expectReadable(longCreatedRow, "long-subject task create row");
 assert.ok(longCreatedRow.includes("TAIL-SUBJECT"), `collapsed work row clipped the subject at a fixed width:\n${longCreatedRow}`);
-const longCreatedExpanded = render("leader:create_task", { subject: longSubject }, {
-  details: longCreated.details,
-  text: longCreated.content[0].text,
-  expanded: true,
-});
+const longCreatedExpanded = render("leader:create_task", { subject: longSubject }, { details: longDetails, text: longText, expanded: true });
 assert.ok(longCreatedExpanded.includes(longSubject), `expanded work row lost the complete subject:\n${longCreatedExpanded}`);
 const narrowLongRow = stripVTControlCharacters(renderComponent("leader:create_task", { subject: longSubject }, {
-  details: longCreated.details,
-  text: longCreated.content[0].text,
+  details: longDetails,
+  text: longText,
 }).render(80).join("\n"));
 assert.ok(!narrowLongRow.includes("to expand"), `Task titles are complete by default:\n${narrowLongRow}`);
 assert.ok(narrowLongRow.includes("TAIL-SUBJECT"), `default Task title lost its tail:\n${narrowLongRow}`);

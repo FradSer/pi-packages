@@ -118,7 +118,7 @@ def test_study_failure_keeps_container_when_retention_is_incomplete(tmp_path, mo
     monkeypatch.setattr(study.base, 'container', lambda image: next(containers))
     monkeypatch.setattr(study.base, 'shell', lambda *args: b'')
     monkeypatch.setattr(study.base, 'put', lambda *args: None)
-    monkeypatch.setattr(study.base, 'checked', lambda args, **kwargs: b'{"ready":true}' if 'tsx' in args else b'')
+    monkeypatch.setattr(study.base, 'checked', lambda args, **kwargs: b'1.0.0' if '--version' in args else b'{"ready":true}' if 'tsx' in args else b'')
     monkeypatch.setattr(study.base, 'configuration', fail_configuration)
     monkeypatch.setattr(study.base, 'process', process)
     monkeypatch.setattr(study, 'retain_failure_container', retain, raising=False)

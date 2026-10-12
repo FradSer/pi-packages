@@ -12,7 +12,7 @@ SESSIONS_EXTENSION = UTILS_PKG_DIR / "extensions" / "sessions.ts"
 class TestSessionsExtension(unittest.TestCase):
     def test_list_directory_sessions_is_disclosed_only_while_peer_sessions_exist(self) -> None:
         script = f"""
-import ext, {{ getSessionFileKey, writeSessionInfo }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+import ext, {{ getRegistryDir, getSessionFileKey, writeSessionInfo }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -36,7 +36,7 @@ writeSessionInfo({{
 }});
 await handlers.before_agent_start({{ prompt: "work", systemPrompt: "base" }}, {{ cwd, sessionManager: {{ getSessionFile: () => "self.jsonl" }} }});
 const peerActive = [...activeTools];
-fs.rmSync(path.join(os.homedir(), ".pi", "agent", "directory-sessions", getSessionFileKey(cwd)), {{ recursive: true, force: true }});
+fs.rmSync(path.join(getRegistryDir(), getSessionFileKey(cwd)), {{ recursive: true, force: true }});
 await handlers.agent_settled({{}}, {{ cwd }});
 console.log(JSON.stringify({{ initiallyInactive, peerActive, settled: activeTools }}));
 sleeper.kill();
@@ -148,7 +148,7 @@ console.log(JSON.stringify({{
 
     def test_registry_write_read_clean_via_bun(self) -> None:
         script = f"""
-import {{ writeSessionInfo, cleanAndListDirectorySessions, isProcessAlive, getSessionFileKey }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+import {{ writeSessionInfo, cleanAndListDirectorySessions, isProcessAlive, getRegistryDir, getSessionFileKey }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
@@ -188,7 +188,7 @@ console.log(JSON.stringify({{
   isSelfAlive: isProcessAlive(process.pid),
   isFakeDead: isProcessAlive(9999999),
 }}));
-fs.rmSync(path.join(os.homedir(), ".pi", "agent", "directory-sessions", getSessionFileKey(tmpCwd)), {{ recursive: true, force: true }});
+fs.rmSync(path.join(getRegistryDir(), getSessionFileKey(tmpCwd)), {{ recursive: true, force: true }});
 fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
 """
         data = run_typescript(script)
@@ -293,7 +293,7 @@ console.log(JSON.stringify({{
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import ext, {{ writeSessionInfo, getSessionFileKey }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+import ext, {{ getRegistryDir, writeSessionInfo, getSessionFileKey }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
 import {{ initTheme }} from "@earendil-works/pi-coding-agent";
 
 initTheme("dark");
@@ -364,7 +364,7 @@ console.log(JSON.stringify({{
 }}));
 
 sleeper.kill();
-fs.rmSync(path.join(os.homedir(), ".pi", "agent", "directory-sessions", getSessionFileKey(tmpCwd)), {{ recursive: true, force: true }});
+fs.rmSync(path.join(getRegistryDir(), getSessionFileKey(tmpCwd)), {{ recursive: true, force: true }});
 fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
 """
         data = run_typescript(script)
@@ -408,7 +408,7 @@ fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {{ writeSessionInfo, cleanAndListDirectorySessions, getSessionFileKey }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+import {{ writeSessionInfo, cleanAndListDirectorySessions, getRegistryDir, getSessionFileKey }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
 
 const tmpCwd = path.join(os.tmpdir(), "sd-merge-" + Date.now());
 fs.mkdirSync(tmpCwd, {{ recursive: true }});
@@ -434,7 +434,7 @@ writeSessionInfo({{
 }});
 // Corrupt record written directly: OSC payload in status, string pid/timestamps.
 // Must normalize (not crash/prune) and merge into the sleeper's logical session.
-const regDir = path.join(os.homedir(), ".pi", "agent", "directory-sessions", getSessionFileKey(tmpCwd));
+const regDir = path.join(getRegistryDir(), getSessionFileKey(tmpCwd));
 fs.writeFileSync(path.join(regDir, "corrupt-1.json"), JSON.stringify({{
   sessionId: "corrupt-1", pid: String(sleeper.pid), cwd: tmpCwd,
   startedAt: "x", updatedAt: "y", status: "\u001b]0;pwned\u0007running",
@@ -457,7 +457,7 @@ console.log(JSON.stringify({{
 }}));
 
 sleeper.kill();
-fs.rmSync(path.join(os.homedir(), ".pi", "agent", "directory-sessions", getSessionFileKey(tmpCwd)), {{ recursive: true, force: true }});
+fs.rmSync(path.join(getRegistryDir(), getSessionFileKey(tmpCwd)), {{ recursive: true, force: true }});
 fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
 """
         data = run_typescript(script)
@@ -476,12 +476,114 @@ fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
             "noPwnedAnywhere": True,
         })
 
+    def test_exited_record_never_merges_into_a_live_session_that_reused_its_pid(self) -> None:
+        script = f"""
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {{ writeSessionInfo, cleanAndListDirectorySessions, getDirectoryRegistryPath }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+
+const tmpCwd = fs.mkdtempSync(path.join(os.tmpdir(), "sd-reuse-"));
+const now = Date.now();
+const sleeper = Bun.spawn(["sleep", "30"], {{ stdout: "ignore", stderr: "ignore" }});
+
+// The crashed session's record outlived its process, and a new session reused
+// that pid before the record aged out.
+writeSessionInfo({{
+  sessionId: "dead-session", pid: sleeper.pid, cwd: tmpCwd,
+  startedAt: now - 120_000, updatedAt: now - 90_000, status: "exited",
+  latestGoal: "Crashed goal", recap: "Crashed recap",
+}});
+writeSessionInfo({{
+  sessionId: "live-session", pid: sleeper.pid, cwd: tmpCwd,
+  startedAt: now, updatedAt: now, status: "running",
+}});
+
+const sessions = cleanAndListDirectorySessions(tmpCwd);
+const live = sessions.find((session) => session.sessionId === "live-session");
+const dead = sessions.find((session) => session.sessionId === "dead-session");
+console.log(JSON.stringify({{
+  count: sessions.length,
+  liveGoal: live?.latestGoal ?? null,
+  liveRecap: live?.recap ?? null,
+  deadGoal: dead?.latestGoal ?? null,
+  deadStatus: dead?.status,
+}}));
+
+sleeper.kill();
+fs.rmSync(getDirectoryRegistryPath(tmpCwd), {{ recursive: true, force: true }});
+fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
+"""
+        data = run_typescript(script)
+        self.assertEqual(data["count"], 2)
+        self.assertIsNone(data["liveGoal"])
+        self.assertIsNone(data["liveRecap"])
+        self.assertEqual(data["deadGoal"], "Crashed goal")
+        self.assertEqual(data["deadStatus"], "exited")
+
+    def test_registry_dir_follows_the_agent_dir_overrides(self) -> None:
+        # A sandboxed session must not read or write the user's real registry:
+        # pi-kit owns the location and every writer here must share it.
+        script = f"""
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {{
+  cleanAndListDirectorySessions,
+  getDirectoryRegistryPath,
+  getRegistryDir,
+  getSessionFileKey,
+  writeSessionInfo,
+}} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+
+const realRegistry = path.join(os.homedir(), ".pi", "agent", "directory-sessions");
+const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "session-override-"));
+const now = Date.now();
+
+process.env.PI_DIRECTORY_SESSIONS_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "session-registry-"));
+const explicitDir = getRegistryDir();
+writeSessionInfo({{ sessionId: "peer", pid: 9999999, cwd, startedAt: now, updatedAt: now, status: "running" }});
+const explicitListed = cleanAndListDirectorySessions(cwd).map((session) => session.sessionId);
+const explicitWrote = fs.existsSync(path.join(getDirectoryRegistryPath(cwd), "peer.json"));
+
+delete process.env.PI_DIRECTORY_SESSIONS_DIR;
+process.env.PI_CODING_AGENT_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "session-agent-dir-"));
+const agentDirRegistry = getRegistryDir();
+writeSessionInfo({{ sessionId: "peer2", pid: 9999999, cwd, startedAt: now, updatedAt: now, status: "running" }});
+const agentDirListed = cleanAndListDirectorySessions(cwd).map((session) => session.sessionId);
+const agentDirWrote = fs.existsSync(path.join(getDirectoryRegistryPath(cwd), "peer2.json"));
+
+// A regression would write into the real registry; report it and then clean it
+// up so a failing test never leaves user data behind.
+const leakedPath = path.join(realRegistry, getSessionFileKey(cwd));
+const leaked = fs.existsSync(leakedPath);
+fs.rmSync(leakedPath, {{ recursive: true, force: true }});
+fs.rmSync(explicitDir, {{ recursive: true, force: true }});
+fs.rmSync(agentDirRegistry, {{ recursive: true, force: true }});
+fs.rmSync(cwd, {{ recursive: true, force: true }});
+console.log(JSON.stringify({{
+  agentDirIsAgentDir: agentDirRegistry.startsWith(process.env.PI_CODING_AGENT_DIR),
+  explicitListed,
+  agentDirListed,
+  explicitWrote,
+  agentDirWrote,
+  leaked,
+}}));
+"""
+        data = run_typescript(script)
+        self.assertEqual(data["explicitListed"], ["peer"])
+        self.assertEqual(data["agentDirListed"], ["peer2"])
+        self.assertTrue(data["explicitWrote"])
+        self.assertTrue(data["agentDirWrote"])
+        self.assertTrue(data["agentDirIsAgentDir"])
+        self.assertFalse(data["leaked"])
+
     def test_shutdown_removes_the_record_from_every_registered_directory(self) -> None:
         # Session replacement (enter/exit worktree) moves the cwd without
         # reloading extensions, so shutdown must clean the directories this
         # session registered under, not only the last one.
         script = f"""
-import ext, {{ getDirectoryRegistryPath, getSessionFileKey }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+import ext, {{ getDirectoryRegistryPath, getRegistryDir, getSessionFileKey }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -512,7 +614,7 @@ const parentRemoved = !fs.existsSync(parentRecord);
 const worktreeRemoved = !fs.existsSync(worktreeRecord);
 
 for (const key of [getSessionFileKey(parent), getSessionFileKey(worktree)]) {{
-  fs.rmSync(path.join(os.homedir(), ".pi", "agent", "directory-sessions", key), {{ recursive: true, force: true }});
+  fs.rmSync(path.join(getRegistryDir(), key), {{ recursive: true, force: true }});
 }}
 fs.rmSync(base, {{ recursive: true, force: true }});
 console.log(JSON.stringify({{ afterParentStart, bothRegistered, parentRemoved, worktreeRemoved }}));

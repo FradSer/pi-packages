@@ -166,3 +166,32 @@ def test_character_locations_never_decode_json_or_accept_a_partial_quote_hint() 
     ''')
     assert value['result']['operations'][0]['evidence'][0]['quote'] == value['expected']
     assert all(value['rejected'])
+
+
+def test_actual_encoded_verifier_line_has_exact_bounded_parent_citations() -> None:
+    value = isolated_run_bun(r'''
+      import {locatedMemoryEvidence,resolveMemoryPlanCitations} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const fixture=await Bun.file('./packages/continual-learning/tests/fixtures/real-long-verifier-line.json').json();
+      const snapshot={entries:[fixture.entry]},before=JSON.stringify(snapshot);
+      const message=fixture.entry.message??fixture.entry;const source=message.content[0].text.split('\n')[22];
+      const shown=locatedMemoryEvidence(snapshot).entries[0].entry;
+      const line=(shown.message??shown).content[0].citationLines.lines[22];
+      const citations=line.chunks.map(chunk=>resolveMemoryPlanCitations({operations:[{evidence:[{index:0,lines:{block:0,start:23,end:23,characters:{start:chunk.start,end:chunk.end}}}]}]},snapshot).operations[0].evidence[0].quote);
+      console.log(JSON.stringify({sourceLength:source.length,lossless:citations.join('')===source,bounded:citations.every(q=>q.length<=512),unchanged:JSON.stringify(snapshot)===before}));
+    ''')
+    assert value['sourceLength'] > 2000
+    assert value['lossless'] and value['bounded'] and value['unchanged']
+
+
+def test_unicode_spans_and_chunk_edges_preserve_original_characters() -> None:
+    value = isolated_run_bun(r'''
+      import {locatedMemoryEvidence,resolveMemoryPlanCitations} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const source='a'.repeat(511)+String.fromCodePoint(0x20000)+'b'.repeat(2000),snapshot={entries:[{role:'user',content:source}]};
+      const chunks=locatedMemoryEvidence(snapshot).entries[0].entry.content.citationLines.lines[0].chunks;
+      const ref=characters=>({index:0,lines:{block:0,start:1,end:1,characters}});
+      const accepted=resolveMemoryPlanCitations({operations:[{evidence:[ref({start:511,end:513})]}]},snapshot).operations[0].evidence[0].quote;
+      const bad=[{start:511,end:512},{start:512,end:513}].map(c=>{try{resolveMemoryPlanCitations({operations:[{evidence:[ref(c)]}]},snapshot);return false;}catch{return true;}});
+      console.log(JSON.stringify({chunkEnd:chunks[0].end,restored:chunks.map(c=>c.text).join('')===source,accepted:accepted===String.fromCodePoint(0x20000),bad}));
+    ''')
+    assert value['chunkEnd'] == 511
+    assert value['restored'] and value['accepted'] and all(value['bad'])

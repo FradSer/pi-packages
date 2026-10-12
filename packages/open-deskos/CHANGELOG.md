@@ -2,7 +2,7 @@
 
 - A desk's voice agent can drive the Pi session this machine is running. When `ODK_SESSION_HOST_SOCKET` names a directory, every session on this machine publishes its own endpoint from `session_start` and withdraws it on `session_shutdown`, serving the task protocol a desk already speaks: `list`, `status`, `prompt` and `cancel`, with `start`/`launch`/`end`/`history` refused as a session that is not a session host. Each session has its own socket and descriptor, so several sessions on one machine are all reachable and none is refused for an endpoint another holds. The `session-control` launcher finds a node runtime itself, because a login session's PATH is not the one an interactive shell has, and resolves the session from the request's project when no socket is named.
 
-# pi-open-deskos
+# pi-odk
 
 ## 0.3.0
 
@@ -22,7 +22,7 @@
 ### Minor Changes
 
 - b0231e3: Report this machine's Pi sessions and their operating events to Open DeskOS over a
-  package-initiated Desk Link. The package observes the session lifecycle and message
+  package-initiated Open DeskOS Link. The package observes the session lifecycle and message
   stream in process, bounds every retained event exactly like the runtime's local
   collector (60 per session, one single line each, tool results reduced to their first
   line), reconnects with a growing capped wait, and holds one bounded snapshot across an
@@ -31,7 +31,7 @@
 
 ### Patch Changes
 
-- b0231e3: Remove automatic Desk Link footer status updates in every configuration and connection state. Keep reporting unchanged and expose link and configuration diagnostics through `/open-deskos` only.
+- b0231e3: Remove automatic Open DeskOS Link footer status updates in every configuration and connection state. Keep reporting unchanged and expose link and configuration diagnostics through `/odk` only.
 - 5dda2df: Document local installation from any checkout using a quoted absolute package path,
   without relying on a personal home-directory layout. Verify both language recipes
   in a disposable checkout whose path contains spaces.

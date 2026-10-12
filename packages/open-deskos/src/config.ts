@@ -3,7 +3,7 @@ import { isIP } from "node:net";
 import { readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { type DeskLinkConfig } from "./types.ts";
+import { type OdkLinkConfig } from "./types.ts";
 
 /** A reporting machine identity stable across restarts of the same machine. */
 export function defaultMachineName(hostname = os.hostname()): string {
@@ -34,18 +34,18 @@ function readEndpoint(address: string): { host: string; port: number } | null {
 }
 
 /**
- * Read the Desk Link configuration. An unconfigured machine reports nothing:
+ * Read the Open DeskOS Link configuration. An unconfigured machine reports nothing:
  * a missing address or token is silent, never a partially configured link.
  */
-export function readDeskLinkConfig(env: NodeJS.ProcessEnv = process.env): DeskLinkConfig | null {
-  const address = (env.ODK_DESK_LINK_ADDRESS ?? "").trim();
-  const token = (env.ODK_DESK_LINK_TOKEN ?? "").trim();
+export function readOdkLinkConfig(env: NodeJS.ProcessEnv = process.env): OdkLinkConfig | null {
+  const address = (env.ODK_LINK_ADDRESS ?? "").trim();
+  const token = (env.ODK_LINK_TOKEN ?? "").trim();
   if (address.length === 0 || token.length === 0) return null;
   const endpoint = readEndpoint(address);
   if (endpoint === null) return null;
-  const controlToken = (env.ODK_DESK_LINK_CONTROL_TOKEN ?? "").trim();
+  const controlToken = (env.ODK_LINK_CONTROL_TOKEN ?? "").trim();
   return {
-    machine: (env.ODK_DESK_LINK_MACHINE ?? "").trim() || defaultMachineName(),
+    machine: (env.ODK_LINK_MACHINE ?? "").trim() || defaultMachineName(),
     ...endpoint,
     token,
     ...(controlToken.length > 0 ? { controlToken } : {}),
@@ -58,17 +58,17 @@ export function tokenDigest(token: string): string {
 }
 
 /** Where a machine that reports to more than one desk states them. */
-export const DEFAULT_DESKS_FILE = path.join(os.homedir(), ".config", "open-deskos", "desks.json");
+export const DEFAULT_DESKS_FILE = path.join(os.homedir(), ".config", "odk", "desks.json");
 
-export interface DeskLinkConfigSet {
-  configs: DeskLinkConfig[];
+export interface OdkLinkConfigSet {
+  configs: OdkLinkConfig[];
   /** Entries a desks file stated that this machine will not use, with the reason. */
   refusals: string[];
   source: "desks-file" | "environment" | "none";
 }
 
 /** One entry of a desks file, or the reason it is not usable. */
-function configFromEntry(entry: unknown, machine: string): DeskLinkConfig | string {
+function configFromEntry(entry: unknown, machine: string): OdkLinkConfig | string {
   if (entry === null || typeof entry !== "object") return "an entry is not an object";
   const record = entry as Record<string, unknown>;
   const address = typeof record.address === "string" ? record.address.trim() : "";
@@ -109,13 +109,13 @@ function entriesFrom(text: string): unknown[] | null {
  * then has it not used is told, because silence there would look like a link
  * that simply never connects.
  */
-export function readDeskLinkConfigs(
+export function readOdkLinkConfigs(
   env: NodeJS.ProcessEnv = process.env,
   options: { readFile?: (file: string) => string } = {},
-): DeskLinkConfigSet {
+): OdkLinkConfigSet {
   const readFile = options.readFile ?? ((file: string) => readFileSync(file, "utf8"));
-  const explicit = (env.ODK_DESK_LINK_DESKS_FILE ?? "").trim();
-  const machine = (env.ODK_DESK_LINK_MACHINE ?? "").trim() || defaultMachineName();
+  const explicit = (env.ODK_LINK_DESKS_FILE ?? "").trim();
+  const machine = (env.ODK_LINK_MACHINE ?? "").trim() || defaultMachineName();
   const file = explicit.length > 0 ? explicit : DEFAULT_DESKS_FILE;
   const refusals: string[] = [];
 
@@ -136,7 +136,7 @@ export function readDeskLinkConfigs(
       refusals.push(`refusing ${file}: it states no list of desks`);
       return { configs: [], refusals, source: "desks-file" };
     }
-    const configs: DeskLinkConfig[] = [];
+    const configs: OdkLinkConfig[] = [];
     const seen = new Set<string>();
     for (const entry of entries) {
       const result = configFromEntry(entry, machine);
@@ -155,7 +155,7 @@ export function readDeskLinkConfigs(
     return { configs, refusals, source: "desks-file" };
   }
 
-  const single = readDeskLinkConfig(env);
+  const single = readOdkLinkConfig(env);
   return single === null
     ? { configs: [], refusals, source: "none" }
     : { configs: [single], refusals, source: "environment" };

@@ -9,10 +9,12 @@ import { resolveToolTargetPath as harnessTargetPath } from "./tool-target-path";
  */
 
 import fs from "node:fs";
+import {Type} from "typebox";
+import {previewHarnessCandidate} from "./harness-authoring-preview.ts";
 import type { Stats } from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { keyHint, ToolExecutionComponent, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { keyHint, ToolExecutionComponent, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { bindLifecycleRenderers, eventToolLifecycle, fieldLine, notifyPi, safeDisplayText, startedToolLifecycle } from "@fradser/pi-kit";
 
@@ -24,6 +26,13 @@ const guardrailRows = bindLifecycleRenderers({
   expandHint: () => keyHint("app.tools.expand", "to expand"),
   hostComponent: ToolExecutionComponent,
 });
+const renderHarnessPreview = guardrailRows.result<{content: unknown; details?: {passed?: boolean; errors?: string[]; cases?: unknown[]}}>(result => eventToolLifecycle("harness", "rule preview", {
+      label: result.details?.passed === undefined ? "checking" : result.details.passed ? "verified" : "rejected",
+      tone: result.details?.passed === undefined ? undefined : result.details.passed ? "success" : "error",
+      details: [fieldLine("fixtures", result.details?.cases?.length ?? 0), ...(result.details?.errors ?? []).map(error => safeDisplayText(error))],
+      detailLimit: 5,
+    }));
+
 import {
   evaluateBash,
   validateRuleDeclaration,
@@ -225,22 +234,29 @@ export function resolveHarnessTarget(
   return { request, targetFile, scope, scopeLabel };
 }
 
-export function buildHarnessRulePrompt(request: string, targetFile: string, scopeLabel?: string, availableSkills: readonly string[] = []): string {
+export function buildHarnessRulePrompt(request: string, targetFile: string, scopeLabel?: string, availableSkills: readonly string[] = [], targetState?: "absent" | "existing", cwd?: string): string {
+  const relative = cwd ? path.relative(cwd, targetFile) : undefined;
+  const accessPath = relative && !path.isAbsolute(relative) && relative !== ".." && !relative.startsWith(`..${path.sep}`) ? relative : targetFile;
   return [
     "Create or update one Pi harness rule only when the requested outcome is safely expressible.",
     `User request: ${request}`,
-    `Work exclusively in ${targetFile} (${scopeLabel ?? "harness.json"}); keep all target access on this supplied path. Preserve other harness files, memory, and unrelated files unchanged.`,
-    "Global configuration uses ~/.pi/agent/harness.json (honoring PI_CODING_AGENT_DIR). The default is project shared .pi/harness.json; project .pi/harness.local.json is an explicit personal choice.",
+    `Work exclusively in ${accessPath} (${scopeLabel ?? "harness.json"}). Use the exact tool path ${accessPath}; do not expand or substitute it. Preserve other harness files, memory, and unrelated files unchanged.`,
+    "Read only the exact target; do not read AGENTS.md or explore other files. The supplied target resolves the chosen layer. Do not inspect other layers, home configuration, or the parent directory. A missing target requires no directory read; write creates its parents.",
+    ...(targetState ? [`Target state checked by the parent: ${targetState}. Recheck before writing; this observation does not bypass validation or authorize overwriting intervening changes.`] : []),
+    "Missing configuration is not a blocker: this command authorizes first creation of the requested supported rule. ENOENT means an absent predecessor; continue. Do not create an empty placeholder.",
+    "For resource protection, identify the resource and safeguards from the current conversation. Without exact command interception, consider scoped text guidance for future relevant work. Do not invent service identity, quotas, numeric concurrency, or rate limits; guidance must not claim to enforce a rate limit. If essential scope or behavior is still ambiguous, ask one concise actionable question and explain the proposed mechanism instead of ending at file absence. Report impossible guarantees.",
+    "Use the schema below. Do not search SDK documentation or source for another schema. The parent validates the complete candidate before write; report rejections honestly.",
     "Required protocol, in order:",
-    `1. Read the exact target ${targetFile}. If it returns ENOENT, treat the predecessor as absent in memory; no preliminary empty file or parent directory creation.`,
-    "2. Assess expressibility and preserve scope before mutation. Preserve the user's semantic boundary; clarify ambiguity rather than adding restrictions or narrowing a project-wide requirement to one skill. Unsupported or ambiguous means no file writes, even when the target is missing. Recommending AGENTS.md, a skill document, or independent verification does not authorize editing those files. Report the limitation and preserve existing rules unchanged.",
+    `1. Read the exact target ${accessPath}. If it returns ENOENT, treat the predecessor as absent in memory; no preliminary empty file or parent directory creation.`,
+    "2. Assess expressibility before mutation. Preserve the user's semantic boundary; clarify rather than add restrictions or narrow a project-wide request to one skill. Unsupported or ambiguous means no file writes. Recommending AGENTS.md, skills or verification does not authorize editing them. Report the limitation; preserve existing rules.",
     "3. Construct one complete candidate. Preserve every existing rule outside the requested change. Compatible legacy policies/disabled/skillPrompts/learnedPolicies remain active read-only: flat additions must preserve every legacy container value unchanged. Never author or modify legacy entries or translate them into weaker flat rules. Removing legacy containers requires native before/after protection-loss preview and explicit user authorization. Invalid entries require authorized repair; otherwise leave original bytes unchanged. Validate every declaration, regex, registered skill and the effective merge; preview same-id replacement, changed execution conditions and nearer-layer shadowing. If only unchanged other layers have remaining diagnostics, submit the valid target-only replacement via write for native confirmation; report incomplete activation and leave other layers unchanged. This exception requires an invalid target and explicit approval, never a malformed candidate or headless repair. Keep parent-owned learnedRules metadata unchanged.",
-    `4. Write once: only after a supported valid candidate is complete, use write at ${targetFile} with the entire JSON including the requested rule. The write tool creates missing parents; use no preliminary initialization and no edit bypass.`,
-    `5. Read back ${targetFile} and compare the complete structure. Persistence is not trigger verification. Use a non-executing evaluator with positive/negative fixtures or controlled fixtures for actual invocation paths; never execute dangerous or side-effecting example commands merely to test a rule. Report unverified triggers honestly.`,
+    `4. Call harness_preview with content (the entire JSON text) and cases:[{ruleId,input,matches}]. Use plain future text/command/skill strings, not regex literals or authoring discussion; every changed enabled rule needs positive and negative cases. Include another resource with the same action as a negative when scope is resource-specific. Never broaden a resource-specific rule with a standalone incident phrase. Repair failures before mutation. Write once: after validation and passing preview, use write at ${accessPath} with the entire JSON including the requested rule. Write creates missing parents; never use edit or preliminary initialization.`,
+    `5. Read back ${accessPath} and compare the complete structure. Persistence is not trigger verification. The non-executing evaluator is harness_preview. Do not create verification scripts or scratch files or rewrite the saved candidate. If no non-executing evaluator is available, report trigger verification as unverified and do not write. Never execute dangerous or side-effecting example commands merely to test a rule.`,
     'Schema: a flat "rules" array; each rule has a stable non-empty "id", optional boolean "enabled", and exactly one selector. A minimal disable is {"id":"existing-id","enabled":false}. Same id in a nearer layer replaces the whole definition.',
     `Registered skill values (exact keys only): ${availableSkills.length ? availableSkills.join(", ") : "(none registered in this session)"}. A skill rule uses id, skill, instructions; it applies only on that expanded skill invocation, not a plain read of SKILL.md. It is contextual guidance, not global interception or guaranteed compliance.`,
-    'A bash rule uses id, bash (JavaScript regex over the raw command), message, and optional action:"confirm"|"block". Omit "action" to execute the command and deliver the message with its real result. Confirm requires approval for that call; block keeps it unexecuted with corrective guidance.',
+    'New bash positive fixtures must be exact backtick-quoted user commands or successful Bash calls from this session; otherwise use text guidance or ask for an example. A bash rule uses id, bash (JavaScript regex over the raw command), message, and optional action:"confirm"|"block". Omit "action" to execute the command and deliver the message with its real result. Confirm requires approval for that call; block keeps it unexecuted with corrective guidance.',
     "A text rule uses id, text (regex over retained model-visible conversation), instructions. It provides relevant guidance, not semantic enforcement. New output/artifact and arbitrary tool-argument checks are unsupported; existing persisted legacy checks remain enforced.",
+    `Regex JSON escaping: ${JSON.stringify({text: String.raw`\bRESOURCE\b`})} means word boundaries; ${JSON.stringify({text: String.raw`\\bRESOURCE\\b`})} means literal backslashes. Prefer a simple literal selector. Test plain positive/negative strings without authoring history or regex literals.`,
     "Generalize evidence -> reusable error class -> supported mechanism. Incident document tokens, row numbers, or verbatim phrases are evidence, not automatic boundaries; retain identifiers only for an explicit resource-specific user requirement. Transfer-test another same-kind document and a rephrasing; unrelated actions remain allowed, keeping confirmation scoped to the requested action surface.",
     "Perform the supported change and report the exact rule id and file changed. Distinguish saved, resolved, delivered and executed outcomes; a successful save is not proof the model followed guidance. If personal configuration was requested, check existing ignore settings and report whether the file is ignored, without changing ignore files.",
   ].join("\n");
@@ -282,7 +298,68 @@ function incompleteActivationNotice(config: ReturnType<typeof mergeLayers>): str
  * hanging. pi renders the remaining time as a live countdown. */
 const GUARDRAILS_CONFIRM_TIMEOUT_MS = 60_000;
 
+export function harnessCommandExamples(request: string, ctx: Pick<ExtensionContext, "sessionManager">): Set<string> {
+  const examples = new Set<string>();
+  for (const match of request.matchAll(/`([^`\n]+)`/g)) examples.add(match[1]);
+  for (const match of request.matchAll(/```(?:bash|sh|shell)?\n([\s\S]*?)```/g)) if (match[1].trim()) examples.add(match[1].trim());
+  const calls = new Map<string, {command: string; results: number; succeeded: boolean; duplicate: boolean}>();
+  for (const entry of ctx.sessionManager?.getBranch?.() ?? []) {
+    if (entry.type !== "message") continue;
+    const message = entry.message;
+    if (message.role === "assistant") {
+      for (const part of message.content) if (part.type === "toolCall" && part.name === "bash" && typeof part.arguments.command === "string") {
+        const prior = calls.get(part.id);
+        if (prior) prior.duplicate = true;
+        else calls.set(part.id, {command:part.arguments.command, results:0, succeeded:false, duplicate:false});
+      }
+    } else if (message.role === "toolResult" && message.toolName === "bash") {
+      const call = calls.get(message.toolCallId);
+      if (call) { call.results += 1; call.succeeded = message.isError === false; }
+    }
+  }
+  for (const call of calls.values()) if (call.succeeded && call.results === 1 && !call.duplicate) examples.add(call.command);
+  return examples;
+}
+
 export default function registerGuardrails(pi: ExtensionAPI) {
+  let authoring: {cwd: string; target: string; previewed?: string; predecessor?: Buffer | null; commandExamples: Set<string>} | undefined;
+  const finishAuthoring = () => {
+    authoring = undefined;
+    if (pi.getActiveTools && pi.setActiveTools) pi.setActiveTools(pi.getActiveTools().filter(name => name !== "harness_preview"));
+  };
+  pi.on("agent_end", finishAuthoring);
+  pi.on("session_start", finishAuthoring);
+  pi.on("session_shutdown", finishAuthoring);
+  pi.registerTool?.({
+    name: "harness_preview", label: "Preview Harness rule", description: "Read-only parent evaluator for the active /harness candidate. Executes plain positive/negative string fixtures without commands, network calls or file writes. Every changed enabled rule needs both outcomes. This does not authorize mutation.",
+    renderShell: "self",
+    renderCall: () => guardrailRows.emptyCall(),
+    renderResult(result, options, theme, context) {
+      // A rejected fixture is a structured outcome, not an unexpected tool
+      // exception. Keep model isError unchanged while showing its bounded row.
+      const details = result.details;
+      const passed = details && typeof details === "object" && "passed" in details && typeof details.passed === "boolean" ? details.passed : undefined;
+      const errors: unknown[] = details && typeof details === "object" && "errors" in details && Array.isArray(details.errors) ? details.errors : [];
+      const cases: unknown[] = details && typeof details === "object" && "cases" in details && Array.isArray(details.cases) ? details.cases : [];
+      return renderHarnessPreview({content:result.content, details:passed === undefined ? undefined : {passed, errors:errors.filter((value): value is string => typeof value === "string"), cases}}, options, theme, passed === undefined ? context : {...context, isError:false});
+    },
+    parameters: Type.Object({content: Type.String({maxLength:128000}), cases: Type.Array(Type.Object({ruleId: Type.String(), input: Type.String({maxLength:8000}), matches: Type.Boolean()}), {maxItems:64})}),
+    async execute(_id, params, signal, _update, ctx) {
+      const current = authoring;
+      if (!current || current.cwd !== (ctx.cwd || process.cwd()) || signal?.aborted) return {content:[{type:"text", text:"No active Harness authoring request"}], details:{passed:false}, isError:true};
+      current.previewed = undefined;
+      await assertHarnessTargetContained(current.target, current.target === path.resolve(configPaths(current.cwd).user) ? undefined : current.cwd);
+      const bytes = await readHarnessTarget(current.target);
+      let previous: unknown;
+      try { previous = bytes ? JSON.parse(bytes.toString("utf8")) : undefined; } catch { /* Native repair authorization still governs invalid predecessors. */ }
+      const skills = new Set(pi.getCommands().filter(command => command.source === "skill").map(command => command.name.replace(/^skill:/, "")));
+      const errors = validateHarnessWrite({content:params.content}, skills, previous);
+      const result = errors.length ? {passed:false, errors, cases:[]} : previewHarnessCandidate(params.content, params.cases, skills, previous, current.commandExamples);
+      if (authoring !== current || signal?.aborted) return {content:[{type:"text", text:"Harness authoring request changed or cancelled"}], details:{passed:false}, isError:true};
+      if (result.passed) { current.previewed = params.content; current.predecessor = bytes; }
+      return {content:[{type:"text", text:JSON.stringify(result)}], details:result, isError:!result.passed};
+    },
+  });
   const pendingBashMessages = new Map<string, Array<{ id: string; message: string }>>();
 
   pi.registerEntryRenderer("harness-event", (entry, { expanded }, theme) => {
@@ -309,25 +386,40 @@ export default function registerGuardrails(pi: ExtensionAPI) {
   });
 
   pi.registerMessageRenderer?.("harness-procedure", guardrailRows.message(message => startedToolLifecycle("harness", String((message.details as { subject?: string } | undefined)?.subject ?? "rule request"), { label: "started" })));
-  const startRuleProcedure = (request: string, target: string, scope: string, skills: readonly string[]): void => {
-    pi.sendMessage({ customType: "harness-procedure", content: buildHarnessRulePrompt(request, target, scope, skills), display: true, details: { subject: safeDisplayText(request) } }, { deliverAs: "followUp", triggerTurn: true });
+  const startRuleProcedure = (request: string, target: string, scope: string, skills: readonly string[], targetState: "absent" | "existing", cwd: string, commandExamples: Set<string>): void => {
+    authoring = {cwd, target:path.resolve(target), commandExamples};
+    if (pi.getActiveTools && pi.setActiveTools) pi.setActiveTools([...new Set([...pi.getActiveTools(), "harness_preview"])]);
+    pi.sendMessage({ customType: "harness-procedure", content: buildHarnessRulePrompt(request, target, scope, skills, targetState, cwd), display: true, details: { subject: safeDisplayText(request) } }, { deliverAs: "followUp", triggerTurn: true });
   };
 
   pi.on("tool_call", async (event, ctx) => {
     const cwd = ctx.cwd || process.cwd();
     const paths = configPaths(cwd);
     let configRecovery = false;
+    const authoringRequest = authoring?.cwd === cwd ? authoring : undefined;
+    const authoringInput = JSON.stringify(event.input);
+    const finalizeAuthoring = async () => {
+      if (!authoringRequest || event.toolName !== "write") return undefined;
+      const bytes = await readHarnessTarget(authoringRequest.target);
+      // Compare and consume synchronously after the last await, including when
+      // another admitted call or confirmation overlaps this one.
+      if (authoring !== authoringRequest || ctx.signal?.aborted || JSON.stringify(event.input) !== authoringInput || authoringRequest.previewed !== (event.input as Record<string, unknown>).content || !isDeepStrictEqual(bytes, authoringRequest.predecessor)) return {block:true, reason:"Harness preview changed, expired, was consumed, or its predecessor changed. Preview again before writing."};
+      authoringRequest.previewed = undefined;
+      return undefined;
+    };
     let writeApproval: HarnessWriteApproval | undefined;
     if (event.toolName === "write" || event.toolName === "edit") {
       const input = (event.input ?? {}) as Record<string, unknown>;
       const inputSnapshot = JSON.stringify(input);
       const target = typeof input.path === "string" ? input.path : "";
       const targetPath = harnessTargetPath(target, cwd);
+      if (authoringRequest && targetPath !== authoringRequest.target) return {block:true, reason:"Active Harness authoring permits only its chosen target. No file was written."};
       if (targetPath === path.join(path.dirname(paths.user), "harness.local.json")) {
         return { block: true, reason: "Use ~/.pi/agent/harness.json for global configuration. Project shared .pi/harness.json is the default; select .pi/harness.local.json for explicitly requested personal configuration." };
       }
       const harnessPaths = new Set(Object.values(paths).map((file) => path.resolve(file)));
       if (harnessPaths.has(targetPath)) {
+        if (authoring?.cwd === cwd && authoring.target === targetPath && authoring.previewed !== input.content) return {block:true, reason:"Run harness_preview with this exact complete candidate and passing positive/negative fixtures before writing. No file was written."};
         if (event.toolName === "edit") return { block: true, reason: "Harness configuration requires a complete validated JSON write. Read the target, preserve its entries, and use write instead of edit." };
         try {
           await assertHarnessTargetContained(targetPath, targetPath === path.resolve(paths.user) ? undefined : cwd);
@@ -338,6 +430,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         let priorBytes: Buffer | null;
         try { priorBytes = await readHarnessTarget(targetPath); }
         catch (error) { return { block: true, reason: `Unsafe harness target: ${(error as Error).message}` }; }
+        if (authoringRequest && !isDeepStrictEqual(priorBytes, authoringRequest.predecessor)) return {block:true, reason:"Harness predecessor changed since preview; read and preview again. No file was written."};
         let previous: unknown;
         let predecessorErrors: string[] = [];
         if (priorBytes) {
@@ -505,7 +598,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           if (flat?.messages.length) {
             pendingBashMessages.set(event.toolCallId, flat.matchedRules.map((r) => ({ id: r.id, message: r.message })));
           }
-          return undefined;
+          return await finalizeAuthoring();
         }
 
         const timedOut = choice === undefined;
@@ -536,6 +629,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       const changed = await recheckHarnessWriteApproval(writeApproval, () => event.input, ctx.signal);
       if (changed) return { block: true, reason: changed };
     }
+    return await finalizeAuthoring();
   });
 
   pi.on("tool_result", async (event, ctx) => {
@@ -570,9 +664,10 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       const cwd = ctx.cwd || process.cwd();
       const { request, targetFile, scope, scopeLabel } = resolveHarnessTarget(rawArgs, cwd);
       if (request) {
+        let targetState: "absent" | "existing";
         try {
           await assertHarnessTargetContained(targetFile, scope === "user" ? undefined : cwd);
-          await readHarnessTarget(targetFile);
+          targetState = await readHarnessTarget(targetFile) === null ? "absent" : "existing";
         } catch (error) {
           notifyPi(ctx.ui, `Cannot prepare harness target: ${(error as Error).message}`, "error");
           return;
@@ -580,7 +675,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         const availableSkills = pi.getCommands()
           .filter((command) => command.source === "skill")
           .map((command) => command.name.replace(/^skill:/, ""));
-        startRuleProcedure(request, targetFile, scopeLabel, availableSkills);
+        startRuleProcedure(request, targetFile, scopeLabel, availableSkills, targetState, cwd, harnessCommandExamples(request, ctx));
         return;
       }
       const availableSkills = new Set(pi.getCommands().filter(command => command.source === 'skill').map(command => command.name.replace(/^skill:/, '')));
@@ -589,9 +684,10 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         await runHarnessMenu(ctx.ui, config, paths, async ({ request: menuRequest, scope: menuScope }: { request: string; scope: HarnessMenuScope }) => {
           const scopeArg = menuScope === "user" ? "--global" : menuScope === "project.local" ? "--local" : "";
           const target = resolveHarnessTarget(scopeArg, cwd);
+          let targetState: "absent" | "existing";
           try {
             await assertHarnessTargetContained(target.targetFile, target.scope === "user" ? undefined : cwd);
-            await readHarnessTarget(target.targetFile);
+            targetState = await readHarnessTarget(target.targetFile) === null ? "absent" : "existing";
           } catch (error) {
             notifyPi(ctx.ui, `Cannot prepare harness target: ${(error as Error).message}`, "error");
             return;
@@ -599,7 +695,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           const skills = pi.getCommands()
             .filter((command) => command.source === "skill")
             .map((command) => command.name.replace(/^skill:/, ""));
-          startRuleProcedure(menuRequest, target.targetFile, target.scopeLabel, skills);
+          startRuleProcedure(menuRequest, target.targetFile, target.scopeLabel, skills, targetState, cwd, harnessCommandExamples(menuRequest, ctx));
         }, ctx.mode);
         return;
       }

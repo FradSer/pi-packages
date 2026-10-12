@@ -1,8 +1,8 @@
 import { connect, type Socket } from "node:net";
 import { StringDecoder } from "node:string_decoder";
-import type { DeskLinkConfig } from "./types.ts";
+import type { OdkLinkConfig } from "./types.ts";
 
-export const DESK_LINK_CONTROL_PROTOCOL = 2;
+export const ODK_LINK_CONTROL_PROTOCOL = 2;
 export const MAX_CONTROL_RECORD_BYTES = 1024 * 1024;
 
 export interface ControlTransport {
@@ -52,7 +52,7 @@ export function createControlRecordReader(maxBytes = MAX_CONTROL_RECORD_BYTES): 
   };
 }
 
-export function createControlTcpTransport(config: DeskLinkConfig): ControlTransport {
+export function createControlTcpTransport(config: OdkLinkConfig): ControlTransport {
   const openHandlers: Array<() => void> = [];
   const closeHandlers: Array<(reason: string) => void> = [];
   const recordHandlers: Array<(record: unknown) => void> = [];

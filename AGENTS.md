@@ -104,6 +104,20 @@ fixture data; it does not perform real undo, policy writes or remote learning.
 After a user reloads Pi, also reproduce the reported case in that reloaded
 session; an isolated process is not evidence that their session loaded the fix.
 
+For first-use Harness authoring, run
+@packages/continual-learning/tests/live_harness_first_run.py with a disposable output
+parent. The offline provider exercises rejected preview, corrected preview, one
+complete write, readback and fresh-session revision delivery. `--real-model`
+repeats the original `/harness 避免后续 D0 的流量被打爆` request with the configured
+provider and records every call and reported cost without accessing D0. Admit
+`harness_preview` explicitly when using a CLI tool allowlist; the command activates
+this read-only tool and authoring completion removes it. Keep plain positive,
+unrelated-action, same-action/different-resource and near-name negatives. A
+syntax-valid selector, saved file or delivered guidance alone does not establish
+scope correctness or enforced traffic limits. Preserve failed runs, including
+acceptance withdrawn after stronger counterexamples; never broaden the filesystem
+allowlist or remove failing cases to manufacture a pass.
+
 For intermittent AGENTS learning failures, use
 @packages/continual-learning/tests/live_agents_reliability.py with `--full-pipeline`.
 Retain actual planner-child transport, receipts and before/after documents in
@@ -139,9 +153,24 @@ resumed usage and the changed protocol; never seed Memory or future answers.
 For citation failures, compare raw dossier entries with the frozen snapshot before
 assuming an offset bug. Incremental Memory model inputs label each unchanged entry
 with its original `snapshotIndex`; validate against raw evidence, not the display
-projection. For Jev bounds, measure the fully encoded wire request, retain the
+projection. For long encoded verifier-line citation changes, also run
+`uv run --no-project packages/continual-learning/tests/live_memory_citations.py`.
+It drives actual Pi 1.0 scoped reads with a deterministic local provider and
+checks complete chunk reconstruction, exact parent extraction and unchanged
+source. This proves the citation interface only, not model selection or learning
+effectiveness; keep failed whole-line/partial-quote plans rejected.
+For Jev bounds, measure the fully encoded wire request, retain the
 rejection, and never trim original evidence or lower thresholds to manufacture
 a valid experimental arm.
+For private Memory maintenance, run
+@packages/continual-learning/tests/live_private_memory_consent.py with a disposable
+output parent. It exercises actual workspace Pi `/memory 整理记忆` through native
+PTY cancellation and an id-bound RPC refusal, with external requests forbidden.
+Require zero planner runs, unchanged Memory and unchanged privacy configuration.
+Controlled consent/write tests establish authorization wiring only; actual private
+model review requires explicit human permission for that data and service. Never
+reuse public-project experiment consent for a different private project.
+
 For Memory maintenance bounds, replay the actual rewrite/delete mixed plan and
 its frozen selected predecessor bodies; a create-only test does not cover this
 path. Verify every original entry is reviewed, including final revocations, with
@@ -337,3 +366,13 @@ that claim on failure/interruption. Verify every owner history chain and actual
 endpoint across private/public/project roots, including permissions and changes
 that return to their original bytes. These checks admit evidence only; task
 success, valid learned changes and downstream benefit remain separate claims.
+
+
+Continuous coverage version 3 uses index-only Memory discovery and permits both
+arms to read only Memory paths declared by the plugin. Record actual unique,
+successful read calls and result hashes; require equality with retained learned
+file revisions for Memory exposure and correction coverage. Partial reads,
+truncation notices, index rows, and legacy injected bodies do not satisfy this
+version. Read exposure is not adoption or task benefit; keep the hidden behavioral
+outcomes and cumulative costs separate. Preserve older version 2 cohorts and
+disclose this protocol change before new real calls.

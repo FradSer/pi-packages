@@ -5,7 +5,7 @@
 ## 覆盖范围
 
 - `src/`：配置、多 desk 路由、发现与进程身份、事件序列化、上报与 TCP 传输、控制认证、Console、当前会话端点、SSH relay、历史回放及协议类型；同时检查入口与发布清单。
-- Open DeskOS 的直接服务端：`runtime/shell/src/desk-link-service.js`、`desk-link-host-adapter.js`、`desk-link-client.js`，以及相关平台、本地通道、Pi Sessions 消费契约。
+- Open DeskOS 的直接服务端：`runtime/shell/src/odk-link-service.js`、`odk-link-host-adapter.js`、`odk-link-client.js`，以及相关平台、本地通道、Pi Sessions 消费契约。
 - 实际设备：读取 CM5 的活动服务与运行时快照；读取 Windows 运行时命名管道快照；比较每 desk 凭据是否匹配；从开发机执行 CM5 控制认证和只读列表。凭据内容不进入报告或日志。
 
 ## 修复与验收场景
@@ -23,9 +23,9 @@
 | 同一项目有多个当前会话，或一条请求继续收到分片 | 按请求的 taskId 选择会话；同一请求最多分派一次 |
 | Unix 仅声明当前会话端点，未配置上报 | 当前会话端点独立工作；shutdown 等待清理并使迟到 startup 失效 |
 | Windows 试图启用当前进程 SessionHost | 明确拒绝不受支持的私有 IPC，并通过命令诊断显示原因 |
-| Hosted Pi 晚于 Desk Link 启动，或更新其端点 | 按请求重新发现；已挂接连接继续使用自己的原端点 |
+| Hosted Pi 晚于 Open DeskOS Link 启动，或更新其端点 | 按请求重新发现；已挂接连接继续使用自己的原端点 |
 | 大会话快照含长目录或 JSON 转义文本 | 完整保留 cwd、workspaceName、sessionId；只缩短描述，无法容纳的记录整体拒绝并报告数量 |
-| 多机器合计响应超过 2 MiB | 返回可关联的 `desk-link-response-too-large`，运行时客户端保留该原因 |
+| 多机器合计响应超过 2 MiB | 返回可关联的 `odk-link-response-too-large`，运行时客户端保留该原因 |
 | 安装发布包，或运行跨仓库协议检查 | 包含 `session-control` 启动器；协议检查使用当前 `runtime/shell` 路径，实际执行而非误跳过 |
 
 所有行为修复先建立失败回归，再修复并重跑相关检查。独立代理复审额外复现了旧控制请求操作新会话、长目录被截短两个问题；两者均补修并通过复查。
@@ -34,7 +34,7 @@
 
 | 检查层次 | CM5 | Windows 掌机 |
 | --- | --- | --- |
-| 访问与服务 | SSH 可达，Desk Link 用户服务 active / running，TCP 8765 在监听；活动 release 为 `20261003-personal-bot-v6` | 早先只读检查时 SSH 可达，既有 Desk Link 计划任务存在；后续预检 SSH 超时，当前可达性未确认 |
+| 访问与服务 | SSH 可达，Open DeskOS Link 用户服务 active / running，TCP 8765 在监听；活动 release 为 `20261003-personal-bot-v6` | 早先只读检查时 SSH 可达，既有 Open DeskOS Link 计划任务存在；后续预检 SSH 超时，当前可达性未确认 |
 | 运行时通道 | Unix socket 快照成功，观察到 6 个上报会话；Hosted Pi 列表成功且为空 | 命名管道及通道令牌握手成功，快照成功；当时没有上报机器或会话 |
 | 凭据匹配 | 本机配置中的上报和控制凭据均与运行服务一致 | 上报凭据匹配；控制凭据文件内容为空，属于只接受上报的配置 |
 | 开发机控制链路 | 真实挑战认证与只读 `list` 成功，返回 0 个 Hosted Pi | 当前配置未启用控制 |
@@ -46,11 +46,11 @@ Windows 返回 0 个 Pi 进程只证明该查询能执行；真实 Pi 进程识�
 
 - 包的 Node 全套：119 passed，0 failed，0 skipped。
 - 包的 Python 全套：24 passed，0 skipped。此前因旧路径误跳过的跨仓库协议 fixture 检查已恢复。
-- Desk Link 服务端及客户端相关测试：75 passed，0 failed。
+- Open DeskOS Link 服务端及客户端相关测试：75 passed，0 failed。
 - 扩大到 Pi Sessions source/events、Windows host、本地通道：117 passed，1 skipped，1 unrelated failure。失败是另一个任务删除或搬移了 `docs/wayfinding/windows-x64-shell-host/SPEC-WINDOWS-SHELL-HOST.md`，相应文档引用测试尚未完成调整。
 - 包的独立 TypeScript 检查及全仓最终 `pnpm typecheck` 均通过。期间曾遇到并行任务在 monitor 包中的两处错误，最终复跑时已消失；本次未修改该包。
 - `pnpm check:install` 通过；发布清单 dry-run 通过，包含 `session-control`。
-- 实际安装的 Pi v1.0.0：隔离环境下 `--print /open-deskos status` 成功；真实 TUI 菜单及 Link status 操作成功。环境没有模型和凭据，没有模型请求。
+- 实际安装的 Pi v1.0.0：隔离环境下 `--print /odk status` 成功；真实 TUI 菜单及 Link status 操作成功。环境没有模型和凭据，没有模型请求。
 - 本任务改动的差异格式检查通过；独立审查最终未发现新的可确认阻塞项。
 
 ## 反思
@@ -67,7 +67,7 @@ Windows 返回 0 个 Pi 进程只证明该查询能执行；真实 Pi 进程识�
 
 ## 原 Pi 会话续接补充检查
 
-本节检查 Personal Agent 经 SSH 把新 prompt 送入远端原有 Pi 会话的路径。它与 Desk Link 上报、Hosted Pi 新建任务分别验收。
+本节检查 Personal Agent 经 SSH 把新 prompt 送入远端原有 Pi 会话的路径。它与 Open DeskOS Link 上报、Hosted Pi 新建任务分别验收。
 
 修复包括：
 
@@ -83,7 +83,7 @@ Windows 返回 0 个 Pi 进程只证明该查询能执行；真实 Pi 进程识�
 原 Pi 续接阶段验证（受限入口补充结果见下节）：
 
 - 包的 Node 全套：132 passed，0 failed，0 skipped；Python 全套：24 passed。
-- Personal Bot 续接、任务客户端、会话控制、路由及集成相关测试：43 passed，0 failed，0 skipped；Desk Link 相关最终复跑：75 passed。
+- Personal Bot 续接、任务客户端、会话控制、路由及集成相关测试：43 passed，0 failed，0 skipped；Open DeskOS Link 相关最终复跑：75 passed。
 - 原生 SDK 端到端：闲置续接、运行中 followUp、运行中默认 steer 均实际写入临时项目标记；三条用户 prompt 持久化，原 UUID 和 sessionFile 不变，没有替代任务。
 - 该端到端测试在默认及故意加长 TMPDIR 下通过。使用实际已安装 Pi SDK、公共扩展 API、实际工具和 relay，模型及 Jev 判断为离线脚本夹具。
 - 包与 Personal Bot 类型检查、打包及差异检查通过。全新独立复核的三项发现均已补修并复查。
@@ -107,8 +107,8 @@ Windows 返回 0 个 Pi 进程只证明该查询能执行；真实 Pi 进程识�
 - Windows 验收新增显式启用的测试。默认跳过实机操作；启用后先检查现有目标、目录所有权及连接，再创建独立 Mac 临时项目，只调用该项目的准确原会话 UUID。验收使用离线模型夹具，覆盖闲置续接、followUp 和默认 steer，不操作已有演示会话。
 - 验收响应使用独立 nonce、版本、命令和准确任务身份校验；UTF-8 分片、超限、错误关联、连接未关闭及观察超时均有本地回归。传输失败不重放变更。
 - 两次显式 Windows 验收均在只读 SSH 预检阶段超时，发生在临时项目、socket 或 prompt 创建之前。因此没有 Windows → Mac 实际续接成功证据；也没有真实模型判断、Personal Agent 自然语言路由、设备 UI 或物理输入验收。
-- CM5 的三个 Desk Link 生产源文件与本地 HEAD 基线逐字节匹配。Windows 服务端基线因 SSH 超时而未知；设备 Personal Bot v6 的基线证据来自早先成功读取，不能替代部署前的新校验。
-- 已生成本地候选包 `/tmp/odesk-connection-bundle-itfzjeso.tar.gz` 及其 `manifest.json`，包含范围清单、逐文件哈希、受限控制参数与远端基线限制。该阶段尚未部署；package 快照仍含 `workspace:*` 依赖，不能直接作为独立 npm 安装包。
+- CM5 的三个 Open DeskOS Link 生产源文件与本地 HEAD 基线逐字节匹配。Windows 服务端基线因 SSH 超时而未知；设备 Personal Bot v6 的基线证据来自早先成功读取，不能替代部署前的新校验。
+- 已生成本地候选包 `/tmp/odk-connection-bundle-itfzjeso.tar.gz` 及其 `manifest.json`，包含范围清单、逐文件哈希、受限控制参数与远端基线限制。该阶段尚未部署；package 快照仍含 `workspace:*` 依赖，不能直接作为独立 npm 安装包。
 - 候选包只包含本任务的生产源文件和明确列出的验证资料，排除两个仓库内其他任务的改动；该阶段未修改索引、提交、授权文件、主机信任文件或驻留服务。
 
 最新本地验证：
@@ -125,12 +125,12 @@ Windows 返回 0 个 Pi 进程只证明该查询能执行；真实 Pi 进程识�
 - Mac 为 CM5 新增专用受限 SSH 控制入口，固定开发根目录及演示根目录。原有只读 monitor 身份保留。私钥只保留在 CM5；主机公钥经过指纹核对并固定，严格主机校验保持启用。
 - Mac 的 `.zshenv` 为之后启动的 Pi 设置 `ODK_SESSION_HOST_SOCKET`。已注册的本地包由新 Pi 会话加载；现有旧会话没有被重启或改发 prompt。原文件及授权文件均有备份。
 - CM5 新增 Mac 任务目标，修复原有本地目标指向过时 voice-agent 路径的问题。真实本地列表由调用失败恢复为空列表。目标配置与 SSH 配置均有回滚副本。
-- CM5 最终活动版本为 `/opt/open-deskos/releases/20261004-connection-fixes-v2`。此前活动 v6 的六个生产源文件已恢复原始哈希，全部 17 个版本目录保留。最终候选使用原项目 updater 激活，目录归 root 所有且不可写，`previous` 指向第一版修复版本。
-- 部署仅复制本任务的三个 Desk Link 源文件及三个 Personal Bot 源文件；没有复制另一个任务正在修改的 `agent.mjs`。新版本另外修正发布标识及环境变量文档，默认值与实际源码一致。
+- CM5 最终活动版本为 `/opt/odk/releases/20261004-connection-fixes-v2`。此前活动 v6 的六个生产源文件已恢复原始哈希，全部 17 个版本目录保留。最终候选使用原项目 updater 激活，目录归 root 所有且不可写，`previous` 指向第一版修复版本。
+- 部署仅复制本任务的三个 Open DeskOS Link 源文件及三个 Personal Bot 源文件；没有复制另一个任务正在修改的 `agent.mjs`。新版本另外修正发布标识及环境变量文档，默认值与实际源码一致。
 - 首次操作曾写入活动 v6；复核发现违反不可变发布规则后，已从逐文件备份恢复。后续更正与默认值修复均建立新版本，经过完整预检后激活，没有继续编辑活动版本。
 - 最终版本完整预检：706 passed，0 failed，4 skipped；样式构建和 Electron 图形 smoke 通过。激活后五个用户服务均为 active/running。父代理另行核对活动路径、发布标识、六个源文件哈希、只读权限及驻留进程目录。
 - 最终 v2 激活前，驻留 Personal Bot 为 idle，本地 Hosted Pi 清单为零。第一版激活缺少重启前即时任务清单，不能补造该证据；当时持久化任务目录没有任务记录。最终版本已补做即时检查。
-- 最终部署、预检、保护检查与回滚资料保留在 CM5 `/opt/open-deskos/rollback/connection-fixes-v2/`。最初六个源文件备份另保留在 `/opt/open-deskos/rollback/connection-ea0ov0bw/`。
+- 最终部署、预检、保护检查与回滚资料保留在 CM5 `/opt/odk/rollback/connection-fixes-v2/`。最初六个源文件备份另保留在 `/opt/odk/rollback/connection-ea0ov0bw/`。
 - Windows 的现有 Tailscale、MagicDNS 和旧局域网地址均无法连接，Tailscale 显示设备离线。另从 CM5 所在局域网检查 SSH 公钥，没有发现与既有可信 Windows 主机公钥一致的端点。没有放宽主机信任，也没有部署 Windows 修复。已请求用户唤醒设备。
 - 真实设备验收 helper 已补充五类失败回归：变更错误保留实际 mutationId、畸形服务响应、独立有界清理、原生 fixture 清理、其他变更工具拒绝。另补充结算后的迟到 socket 错误回归。相关组合检查为 9 passed、1 Windows optional skip、0 failed；独立复核通过。
 
@@ -179,8 +179,8 @@ Windows 返回 0 个 Pi 进程只证明该查询能执行；真实 Pi 进程识�
 ## 剩余能力与验证边界
 
 - 源码保留在两个本地仓库，尚未提交或对外发布。CM5 与 Windows 均已激活本次修复。前文早期只读结果描述的是其当时运行版本。
-- Windows 当前进程 SessionHost 仍未实现安全私有 IPC；Windows Desk Link 上报与远程 Hosted Pi 控制的代码路径继续受支持。
-- Desk Link v1 事件没有全局事件身份。当同一机器仍有其他连接保留服务状态时，重连回放可能重复已有事件；本次保留协议兼容性，未承诺 exactly-once。
+- Windows 当前进程 SessionHost 仍未实现安全私有 IPC；Windows Open DeskOS Link 上报与远程 Hosted Pi 控制的代码路径继续受支持。
+- Open DeskOS Link v1 事件没有全局事件身份。当同一机器仍有其他连接保留服务状态时，重连回放可能重复已有事件；本次保留协议兼容性，未承诺 exactly-once。
 - CM5 的真实模型自然语言路由、实际 SSH、原 Pi 消息及文件执行已通过。输入使用注入转录文字；驻留服务完整交互、设备 UI 像素、物理输入及音视频采集未验收。Windows 的部署及真实续接现已完成，证据见下一节。
 - 用户已让 Windows 恢复联网，随后明确现场讲话暂时不方便。全量授权继续有效；物理麦克风与驻留 STT 入口留待现场输入时验收。
 - Windows 模拟平台的失败复现触发了旧实现对当前目录执行 `chmod(0700)`；错误路径产生的测试描述文件已清理，修复后的代码在 Windows 分支提前拒绝。当前 `pi-packages` 工作树目录权限为 `0700`，复现前没有权限基线，无法确认是否发生变化，因此未猜测恢复。
@@ -189,11 +189,11 @@ Windows 返回 0 个 Pi 进程只证明该查询能执行；真实 Pi 进程识�
 ## Windows 恢复、修复与实际验收（2026-10-04）
 
 - 用户确认 Windows 已开机联网后，沿用既有 SSH 身份及严格主机信任完成连接。部署前重新读取实际任务、路径、六个源文件基线与空闲状态。
-- 新增平台回归发现：Windows 路径标准化会绕过 `/opt/open-deskos` 的保留目录配置限制，包括 `//opt/open-deskos/current`。两次实机 RED 后统一保留目录比较，原始远端项目路径仍原样传递。最终本地相关组合为 38 passed、0 failed；Personal Bot typecheck 通过。
-- Windows 活动版本为 `%LOCALAPPDATA%\open-deskos\connection-releases\20261004-connection-fixes-v3`。只更新六个生产模块；原 v6 `agent.mjs`、原依赖目录、设备配置与凭据均保留。候选依赖使用原目录 junction。活动版本 11 个传输条目逐一匹配发布清单哈希。
+- 新增平台回归发现：Windows 路径标准化会绕过 `/opt/odk` 的保留目录配置限制，包括 `//opt/odk/current`。两次实机 RED 后统一保留目录比较，原始远端项目路径仍原样传递。最终本地相关组合为 38 passed、0 failed；Personal Bot typecheck 通过。
+- Windows 活动版本为 `%LOCALAPPDATA%\odk\connection-releases\20261004-connection-fixes-v3`。只更新六个生产模块；原 v6 `agent.mjs`、原依赖目录、设备配置与凭据均保留。候选依赖使用原目录 junction。活动版本 11 个传输条目逐一匹配发布清单哈希。
 - Windows 针对性回归：Shell 6 passed、2 Unix-only skips；目标配置/项目携带 4 passed；Jev intent 12 passed。完整旧 task-client Unix fixture 在 Windows 不能作为通过证据，相关失败日志保留。本次没有宣称 Windows 全套或物理输入通过。
 - 第一次切换因计划任务 `/tr` 长度限制失败，第二次因预先存在的孤立 Shell 窗口占用应用会话而失败。两次均记录退出、任务恢复与原路径/通道复核；旧服务已恢复。最终使用保留原属性的 XML 注册，并准确停止旧监督进程、所属子进程及孤立的原 Shell 窗口后激活成功。
-- 最终进程：Personal Bot `3908`、Desk Link `17968`、Shell 窗口 `10600`、renderer `11852`。实际候选路径、认证后的 Bot idle 与 Desk Link snapshot 均已验证。任务的 principal、triggers、settings、working directory 与单一 Exec 属性逐项保持原值。
+- 最终进程：Personal Bot `3908`、Open DeskOS Link `17968`、Shell 窗口 `10600`、renderer `11852`。实际候选路径、认证后的 Bot idle 与 Open DeskOS Link snapshot 均已验证。任务的 principal、triggers、settings、working directory 与单一 Exec 属性逐项保持原值。
 - 离线 Electron 窗口 smoke 为实际 1280×720、exit 0。此前 1280×800 smoke 被 Windows work area 限为 1280×776，失败记录保留；它没有走驻留窗口的全屏进入路径。部署后实际 Shell 窗口及屏幕均为 1280×800，坐标 0,0，并保存窗口截图。这不是完整 UI 交互或像素断言。
 - Windows 建立独立 Session Control SSH 密钥，仅授权 Mac 固定 helper 与演示/开发根目录。私钥仅在 Windows，按 Windows ACL 限制访问；既有监视/隧道身份保留。Mac 原 authorized_keys 前缀与备份保留；不接受任意原始 SSH 命令或放宽主机信任。
 - 两次真实 agent fixture 在建立测试私有通道前失败，`codingTrace:[]`，原 Mac JSONL 原始哈希不变且没有新 marker。复现定位为夹具中的 Windows named-pipe 转义；使用 `String.raw` 生成正确端点并补充 RED/GREEN。支持与回复观察器本地为 10 passed；Windows 支持夹具为 7 passed。Windows 针对性检查合计 29 passed、2 Unix-only skips；独立复核通过。
@@ -201,7 +201,7 @@ Windows 返回 0 个 Pi 进程只证明该查询能执行；真实 Pi 进程识�
 - Jev 实际选择 `session_continue`，随后调用 targets、准确列表、一次 prompt、一次 status；未创建替代任务。Mac 原生实际模型为 `openai-codex/gpt-6-luna`，会话 UUID `01a10739-7a00-75fd-90cd-79c23dc44419`，原项目 `/private/tmp/odk-session-demo/real-native-MjMPWv`。
 - 父代理直接读取原 JSONL 与项目文件，确认只有一个会话文件、原始字节前缀未改变、远端提示恰好一次、实际 write 成功一次，`windows-marker.txt` 精确为 `windows-continued`，没有换行。初始准备回合没有写入文件；一次初始 read 错误另行保留。实际完整会话结果不等于某次 mutation 的入队证明。
 - 回执 mutation `e69a5de9-a357-44b7-9775-60300ec38bd0` 保持 `submitted:true / accepted:false / delivery:unknown / retry:never`。父代理比较远端最终回执所有主要字段，并单独验证原会话执行结果，没有凭匹配文字改称 admitted 或重发。
-- 本轮本地证据为 `/tmp/odk-win-connection-current/`，原生回执另在 `/tmp/odk-native-evidence-0tweT1/receipt.json`。远端部署/恢复/窗口证据在 `%LOCALAPPDATA%\open-deskos\deploy-backups\connection-20261004`，成功 actor 回执在其 `real-acceptance-v3\odk-personal-evidence-kEjdHX\receipt.json`。均保留，不进入提交。
+- 本轮本地证据为 `/tmp/odk-win-connection-current/`，原生回执另在 `/tmp/odk-native-evidence-0tweT1/receipt.json`。远端部署/恢复/窗口证据在 `%LOCALAPPDATA%\odk\deploy-backups\connection-20261004`，成功 actor 回执在其 `real-acceptance-v3\odk-personal-evidence-kEjdHX\receipt.json`。均保留，不进入提交。
 - 最终重新读取双端 Bot 均 idle，服务 active；Windows 原 runtime 三个模块仍保持部署前基线哈希。原生测试正常退出，cleanup failures 为空；自建项目、对应 descriptor 与 socket 已由父代理确认删除。Windows actor 清理为空，独立 smoke/窗口检查任务已删除，实际部署任务及回滚记录保留。
 - 此阶段用户暂时无法现场讲话，完整语音入口尚未验收。下节记录后续 Windows 受控音频验收；CM5 现场麦克风仍未验收。
 
@@ -224,7 +224,7 @@ Windows 返回 0 个 Pi 进程只证明该查询能执行；真实 Pi 进程识�
 - Two observer setup attempts ended before recording. One imported an unexported helper; the other omitted the initial status request.
 - Both setup failures preserved the original Mac session without an extra prompt. The successful observer used only published protocol messages.
 - Local evidence is in `/tmp/odk-win-connection-current/resident-result.json`, `resident-parent-verification.json`, and `resident-native-receipt.json`.
-- Device evidence is under `%LOCALAPPDATA%\open-deskos\deploy-backups\connection-20261004\resident-voice-v3`.
+- Device evidence is under `%LOCALAPPDATA%\odk\deploy-backups\connection-20261004\resident-voice-v3`.
 - The original native test session closed normally. Its temporary project, descriptor, and socket were removed.
 - Seven owned audio test tasks were removed. Their scripts and diagnostic records were archived; production tasks remained active.
 - This proves Windows resident microphone, STT, agent, restricted SSH, original Mac Pi continuation, and returned service feedback.

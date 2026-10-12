@@ -132,7 +132,7 @@ export function resolveSessionEndpoint(
   const override = env.ODK_SESSION_HOST_SOCKET ?? "";
   const flavour = platform === "win32" ? win32 : posix;
   // The variable names the directory, which is what keeps two sessions apart inside it.
-  const directory = flavour.isAbsolute(override) ? override : flavour.join(runtimeDir, "open-deskos", "sessions");
+  const directory = flavour.isAbsolute(override) ? override : flavour.join(runtimeDir, "odk", "sessions");
   return {
     socketPath: flavour.join(directory, `${sessionId}.sock`),
     descriptorPath: flavour.join(directory, `${sessionId}.json`),
@@ -312,7 +312,7 @@ export class SessionHost {
     await this.#unbind();
     if (this.#platform === "win32") {
       const paths = resolveSessionEndpoint(this.#env, this.#platform, ctx.sessionManager.getSessionId());
-      return { bound: false, ...paths, published: false, reason: "Windows 当前 Pi 会话控制尚未支持私有 IPC；Desk Link 报告与 Hosted Pi 控制仍可使用" };
+      return { bound: false, ...paths, published: false, reason: "Windows 当前 Pi 会话控制尚未支持私有 IPC；Open DeskOS Link 报告与 Hosted Pi 控制仍可使用" };
     }
     const previousSessionId = this.#sessionId;
     this.#interrupted = this.#state === "running";
@@ -419,7 +419,7 @@ export class SessionHost {
   static listEndpoints(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string[] {
     const flavour = platform === "win32" ? win32 : posix;
     const override = env.ODK_SESSION_HOST_SOCKET ?? "";
-    const directory = flavour.isAbsolute(override) ? override : flavour.join(sessionRuntimeDir(env, platform), "open-deskos", "sessions");
+    const directory = flavour.isAbsolute(override) ? override : flavour.join(sessionRuntimeDir(env, platform), "odk", "sessions");
     try {
       return readdirSync(directory).filter((name) => name.endsWith(".json")).map((name) => flavour.join(directory, name));
     } catch {

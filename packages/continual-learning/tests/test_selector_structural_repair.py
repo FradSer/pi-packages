@@ -90,3 +90,31 @@ def test_real_position_response_requires_independent_missing_phase_correction() 
     assert corrected['out']['usage']['cost'] == 0.02
     assert [a['outcome'] for a in corrected['out']['attempts']] == ['failed', 'applied']
     assert missing['calls'] == 2 and missing['out']['outcome'] == 'failed'
+
+
+def test_real_position_alias_can_request_one_correction_but_is_never_a_decision() -> None:
+    with tempfile.TemporaryDirectory() as root:
+        result = isolated_run_bun(r'''
+          import {mock} from 'bun:test';import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+          const fixture=await Bun.file('./packages/continual-learning/tests/fixtures/real-selector-position-alias.json').json();
+          const cwd=path.join(process.env.TEST_ROOT,'project');fs.mkdirSync(path.join(cwd,'.memory'),{recursive:true});execFileSync('git',['init','-q',cwd]);
+          for(const name of ['a.md','b.md','c.md','d.md'])fs.writeFileSync(path.join(cwd,'.memory',name),'---\ndescription: Established fact\ntype: project\n---\nOriginal knowledge.');
+          const kit=await import('./packages/kit/src/index.ts');let calls=0,first,stillInvalid=false;
+          const usage={input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:0.01};
+          mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async()=>({text:++calls===1||stillInvalid?JSON.stringify(first):JSON.stringify({selectedIndices:[1],memory:true,harness:true,agents:false,reason:'Fresh independent correction.'}),exitCode:0,stderr:'',cancelled:false,usage})}));
+          const {selectIncrementalLearning}=await import('./packages/continual-learning/extensions/incremental-learning.ts');
+          const actual=JSON.parse(fixture.rejection.output),rows=[];
+          const values=[actual,{...actual,selectedEntries:['a.md']},{...actual,selectedEntries:[0,0]},{...actual,contextDigest:'stale'},{...actual,mode:'full'},actual];
+          for(const [index,value] of values.entries()){
+            first=value;calls=0;stillInvalid=index===5;
+            const out=await selectIncrementalLearning({cwd,outputDir:path.join(process.env.TEST_ROOT,String(index)),contextDigest:fixture.rejection.contextDigest,taskSlice:{kind:'learning-task-slice',version:1,entries:[{role:'user',content:'Observed project change.'}]},jevJudge:{select:async()=>({telemetry:{status:'disabled'}})}});rows.push({out,calls});
+          }
+          console.log(JSON.stringify(rows));
+        ''', env={'TEST_ROOT': root})
+    assert result[0]['calls'] == 2 and result[0]['out']['outcome'] == 'selected'
+    assert result[0]['out']['selection']['selected'] == ['b.md']
+    assert result[0]['out']['selection']['harness'] is True
+    assert result[0]['out']['usage']['cost'] == 0.02
+    for row in result[1:5]:
+        assert row['calls'] == 1 and row['out']['outcome'] == 'failed'
+    assert result[5]['calls'] == 2 and result[5]['out']['outcome'] == 'failed'

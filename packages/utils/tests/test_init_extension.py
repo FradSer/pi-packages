@@ -73,6 +73,40 @@ console.log(JSON.stringify({{ sent, notifications }}));
         self.assertEqual(len(report["notifications"]), 1)
         self.assertEqual(report["notifications"][0]["type"], "info")
 
+    def test_rejected_delivery_is_reported_instead_of_lost(self) -> None:
+        script = f'''
+import ext from {json.dumps(INIT_EXTENSION.as_uri())};
+const commands = {{}};
+const notifications = [];
+ext({{
+  registerCommand: (name, spec) => commands[name] = spec,
+  sendUserMessage: () => {{ throw new Error("Agent is already processing. Specify streamingBehavior."); }},
+}});
+const ctx = {{
+  cwd: "/tmp/example-repo",
+  ui: {{ notify: (message, type) => notifications.push({{ message, type }}) }},
+  isIdle: () => true,
+}};
+await commands["init"].handler("", ctx);
+console.log(JSON.stringify({{ notifications }}));
+'''
+        result = subprocess.run(
+            ["bun", "run", "-"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
+        notifications = json.loads(result.stdout)["notifications"]
+        # A lost guide task must not read as queued work.
+        self.assertEqual(len(notifications), 1)
+        self.assertEqual(notifications[0]["type"], "error")
+        self.assertIn("was not sent", notifications[0]["message"])
+        self.assertIn("already processing", notifications[0]["message"])
+
     def test_prompt_covers_repository_guides_and_nested_scopes(self) -> None:
         prompt = self.built_prompt()
         for phrase in (

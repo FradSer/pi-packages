@@ -72,3 +72,113 @@ def test_global_personal_write_is_blocked(tmp_path: Path) -> None:
     ''')
     assert result['block'] is True
     assert result['reason'].startswith('Use ~/.pi/agent/harness.json')
+
+
+def test_first_resource_safeguard_request_carries_absent_target_and_supported_path(tmp_path: Path) -> None:
+    result = run_bun(f'''
+      import fs from 'node:fs';
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path / 'agent'))};
+      const {{default:register}}=await import('./packages/continual-learning/extensions/guardrails.ts');
+      const commands={{}},messages=[];
+      register({{on(){{}},registerEntryRenderer(){{}},registerCommand:(n,c)=>commands[n]=c,
+        getCommands:()=>[],sendMessage:m=>messages.push(m)}});
+      await commands.harness.handler('避免后续 D0 的流量被打爆',{{cwd:{json.dumps(str(tmp_path))},ui:{{notify(){{}}}}}});
+      console.log(JSON.stringify({{messages,files:fs.readdirSync({json.dumps(str(tmp_path))})}}));
+    ''')
+    assert result['files'] == []
+    assert len(result['messages']) == 1
+    prompt = result['messages'][0]['content']
+    assert 'Target state checked by the parent: absent' in prompt
+    assert 'Missing configuration is not a blocker' in prompt
+    assert 'scoped text guidance' in prompt
+    assert 'Do not invent' in prompt and 'rate limit' in prompt
+    assert 'ask one concise' in prompt
+    assert '避免后续 D0 的流量被打爆' in prompt
+
+
+def test_native_first_run_fixture_enforces_exact_target_boundary(tmp_path: Path) -> None:
+    result = run_bun(f'''
+      process.env.PI_HARNESS_REAL='1';
+      process.env.PI_HARNESS_SCHEMA_DOCS=JSON.stringify(['/tmp/public-sdk/README.md']);
+      const {{default:register}}=await import('./packages/continual-learning/tests/harness-first-run-fixture.ts');
+      const hooks={{}},events=[];
+      register({{on:(n,f)=>(hooks[n]??=[]).push(f),registerEntryRenderer(){{}},registerCommand(){{}},
+        getCommands:()=>[],appendEntry:(type,data)=>events.push({{type,data}})}});
+      const gate=hooks.tool_call.at(-1);
+      const target=process.cwd()+'/.pi/harness.json';
+      const docRead=gate({{toolName:'read',input:{{path:'/tmp/public-sdk/README.md'}}}});
+      const docWrite=gate({{toolName:'write',input:{{path:'/tmp/public-sdk/README.md',content:'x'}}}});
+      const results=[gate({{toolName:'read',input:{{path:'/tmp/host-private'}}}}),
+        gate({{toolName:'write',input:{{path:'/tmp/production',content:'x'}}}}),
+        gate({{toolName:'bash',input:{{command:'true'}}}}),
+        gate({{toolName:'read',input:{{path:target,offset:1}}}}),
+        gate({{toolName:'read',input:{{path:'.pi/harness.json'}}}}),
+        gate({{toolName:'write',input:{{path:target,content:'{{"rules":[]}}'}}}}),
+        gate({{toolName:'write',input:{{path:target,content:'{{"rules":[]}}'}}}})];
+      process.env.PI_HARNESS_FOLLOWUP='1';
+      register({{on:(n,f)=>(hooks[n]??=[]).push(f),registerEntryRenderer(){{}},registerCommand(){{}},getCommands:()=>[],appendEntry:(type,data)=>events.push({{type,data}})}});
+      const followup=hooks.tool_call.at(-1)({{toolName:'write',input:{{path:target,content:'{{"rules":[]}}'}}}});
+      console.log(JSON.stringify({{results,events,followup,docRead:docRead??null,docWrite}}));
+    ''')
+    assert all(row and row['block'] for row in result['results'][:4])
+    assert result['results'][4:6] == [None, None]
+    assert result['results'][6]['block']
+    assert len(result['events']) == 7
+    assert result['docRead'] is None and result['docWrite']['block']
+    assert result['followup']['block']
+
+
+def test_regex_json_examples_decode_to_the_described_selector() -> None:
+    prompt = run_bun('''
+      import {buildHarnessRulePrompt} from './packages/continual-learning/extensions/guardrails.ts';
+      console.log(JSON.stringify(buildHarnessRulePrompt('resource safeguard','/tmp/project/.pi/harness.json')));
+    ''')
+    import re
+    examples = [json.loads(value)['text'] for value in re.findall(r'\{"text":"[^\n]*?"\}', prompt)]
+    assert len(examples) == 2
+    assert re.search(examples[0], 'plain RESOURCE mention')
+    assert not re.search(examples[1], 'plain RESOURCE mention')
+
+
+def test_first_creation_uses_project_relative_access_and_no_scratch_verification() -> None:
+    prompt = run_bun('''
+      import {buildHarnessRulePrompt} from './packages/continual-learning/extensions/guardrails.ts';
+      console.log(JSON.stringify(buildHarnessRulePrompt('避免后续 D0 的流量被打爆', '/tmp/random-project/.pi/harness.json', 'project shared harness.json (git-tracked)', [], 'absent', '/tmp/random-project')));
+    ''')
+    assert 'Read the exact target .pi/harness.json' in prompt
+    assert 'use write at .pi/harness.json' in prompt
+    assert 'Read back .pi/harness.json' in prompt
+    assert 'Do not create verification scripts or scratch files' in prompt
+    assert 'If no non-executing evaluator is available' in prompt
+    assert 'report trigger verification as unverified' in prompt
+
+
+def test_global_target_outside_project_keeps_exact_absolute_access() -> None:
+    prompt = run_bun('''
+      import {buildHarnessRulePrompt} from './packages/continual-learning/extensions/guardrails.ts';
+      console.log(JSON.stringify(buildHarnessRulePrompt('resource safeguard', '/tmp/agent/harness.json', 'global shared harness.json', [], 'absent', '/tmp/project')));
+    ''')
+    assert 'Read the exact target /tmp/agent/harness.json' in prompt
+    assert 'use write at /tmp/agent/harness.json' in prompt
+    assert 'Read back /tmp/agent/harness.json' in prompt
+    assert '../agent' not in prompt
+
+
+def test_project_protocol_has_one_canonical_tool_path_and_parent_schema_authority() -> None:
+    prompt = run_bun('''
+      import {buildHarnessRulePrompt} from './packages/continual-learning/extensions/guardrails.ts';
+      console.log(JSON.stringify(buildHarnessRulePrompt('resource safeguard', '/tmp/random-project/.pi/harness.json', 'project shared harness.json (git-tracked)', [], 'absent', '/tmp/random-project')));
+    ''')
+    assert '/tmp/random-project' not in prompt
+    assert 'Use the exact tool path .pi/harness.json; do not expand' in prompt
+    assert 'Do not search SDK documentation' in prompt
+    assert 'parent validates the complete candidate before write' in prompt
+
+
+def test_authoring_requires_same_kind_resource_negative_not_only_unrelated_topic() -> None:
+    prompt = run_bun('''
+      import {buildHarnessRulePrompt} from './packages/continual-learning/extensions/guardrails.ts';
+      console.log(JSON.stringify(buildHarnessRulePrompt('resource safeguard','/tmp/project/.pi/harness.json')));
+    ''')
+    assert 'another resource with the same action' in prompt
+    assert 'Never broaden a resource-specific rule with a standalone incident phrase' in prompt

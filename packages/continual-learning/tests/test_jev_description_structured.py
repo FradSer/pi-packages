@@ -16,7 +16,7 @@ def test_structured_description_is_grounded_separately_from_unchanged_body() -> 
           const sent=[];const judge=factory({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
             const r=JSON.parse(String(init.body));sent.push(r);const answers={};
             for(const [k,q]of Object.entries(r.questions)){
-              const text=q.instructions.candidate.content;const label=k.startsWith('supported')?((text+' '+(q.instructions.candidate.description??'')).includes('always pass')?'unsupported':'grounded'):'compatible';
+              const text=q.instructions.candidate.content;const label=k.startsWith('coherence_')?'compatible':k.startsWith('supported')?((text+' '+(q.instructions.candidate.description??'')).includes('always pass')?'unsupported':'grounded'):'compatible';
               answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};
             }
             return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
@@ -53,7 +53,7 @@ def test_structured_description_preserves_body_and_original_privacy_guards() -> 
           const candidate={name:'fact.md',kind:'project',classification:'safe',content:header+body,evidence:[{index:0,quote:body,role:'user'}]};
           const judge=research.createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
             calls++;const r=JSON.parse(String(init.body));const answers={};
-            for(const [key,q]of Object.entries(r.questions)){meaning=q.instructions.candidate.content;description=q.instructions.candidate.description;const label=key.startsWith('supported')?'grounded':'compatible';answers[key]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};}
+            for(const [key,q]of Object.entries(r.questions)){meaning=q.instructions.candidate.content;description=q.instructions.candidate.description;const label=key.startsWith('coherence_')?'compatible':key.startsWith('supported')?'grounded':'compatible';answers[key]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};}
             return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
           }});
           const result=await judge.validate('memory',{contextEnabled:true,entries:[{role:'user',content:body}]},[candidate],[]);
@@ -85,7 +85,7 @@ def test_structured_description_keeps_complete_first_summary() -> None:
         for(const [mode,fields]of [['duplicate','name: fact\ndescription: FIRST_DESCRIPTION\ndescription: SECOND_DESCRIPTION\ntype: project'],['long','name: fact\ndescription: '+ 'x'.repeat(4000)+'TAIL_MARKER\ntype: project'],['absent','name: fact\ntype: project']]){
           const body='This project uses pnpm.\n';let meaning;let description;
           const judge=research.createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
-            const r=JSON.parse(String(init.body));const answers={};for(const [k,q]of Object.entries(r.questions)){meaning=q.instructions.candidate.content;description=q.instructions.candidate.description;const label=k.startsWith('supported')?'grounded':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};}
+            const r=JSON.parse(String(init.body));const answers={};for(const [k,q]of Object.entries(r.questions)){meaning=q.instructions.candidate.content;description=q.instructions.candidate.description;const label=k.startsWith('coherence_')?'compatible':k.startsWith('supported')?'grounded':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};}
             return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
           }});
           await judge.validate('memory',{contextEnabled:true,entries:[{role:'user',content:body}]},[{name:'fact.md',kind:'project',classification:'safe',content:'---\n'+fields+'\n---\n'+body,evidence:[{index:0,quote:body,role:'user'}]}],[]);
@@ -149,7 +149,7 @@ def test_description_judge_requires_unambiguous_observable_temporal_meaning() ->
         const req=JSON.parse(init.body);
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           if(key.startsWith('supported_description'))instructions.push(q.instructions.question);
-          const choice=key.startsWith('counter')?'compatible':key.startsWith('supported_description')&&q.instructions.question.includes('observable')&&q.instructions.question.includes('synchronous')?'unclear':'grounded';
+          const choice=key.startsWith('coherence_')?'compatible':key.startsWith('counter')?'compatible':key.startsWith('supported_description')&&q.instructions.question.includes('observable')&&q.instructions.question.includes('synchronous')?'unclear':'grounded';
           return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];
         }))}));
       }});

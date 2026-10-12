@@ -42,6 +42,20 @@ Feature: git worktree-aware @ completions
     When the built-in provider suggests "src/index.ts"
     Then the suggestion is kept
 
+  Scenario: A linked worktree nested inside another checkout keeps its own files
+    Given a git repository with a linked worktree at "vendor/wt"
+    And a pi session running inside "vendor/wt"
+    When the built-in provider suggests "src/index.ts" or its absolute path
+    Then both suggestions are kept
+    And the read, edit, and write tools are allowed for them
+
+  Scenario: A nested linked worktree is still foreign to the checkout containing it
+    Given a git repository with a linked worktree at "vendor/wt"
+    And a pi session running in the repository root
+    When the built-in provider suggests "vendor/wt/src/index.ts"
+    Then the suggestion is dropped
+    And the read tool is blocked for that path
+
   Scenario: Quoted and @-prefixed values are filtered like plain paths
     Given a session in main with a linked worktree at .pi/worktrees/foo
     When the provider suggests '@".pi/worktrees/foo/src/index.ts"'

@@ -1,0 +1,326 @@
+{
+  "provenance": {
+    "cohort": "continuous-v28-resume/20261012T033313Z-f8e624f03e23",
+    "purpose": "Actual rejected planner and its real bounded correction; test data only, never cohort input."
+  },
+  "original": {
+    "kind": "incremental-memory-plan",
+    "version": 1,
+    "schemaVersion": 1,
+    "runId": "run_mv4p77fz_603532c5456d59f5",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "66492ca2ff87028ce53afd360bfe0f8a941739b7c2b7a29a3624a2d9a4913b6c",
+    "artifactHash": "de1838e6b0ad1680579f4dc955abfa14abd8db7c292fa2ceaa0041b6b90a8083",
+    "snapshotDigest": "de1838e6b0ad1680579f4dc955abfa14abd8db7c292fa2ceaa0041b6b90a8083",
+    "operations": [
+      {
+        "name": "package_test_scripts.md",
+        "kind": "rewrite",
+        "classification": "safe",
+        "content": "---\ndescription: p-limit's package.json test script is \"xo && ava && tsd\"; its tsd file type-checks reject limitFunction on a sync-returning function\n---\nThe inspected `package.json` of the p-limit project at /work/p-limit defines `\"test\": \"xo && ava && tsd\"`, so the test command runs the xo linter first and then the ava tests and the tsd type-declaration checks. The tsd file `index.test-d.ts` contains `expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));`, i.e. the tsd type check expects a sync-returning (non-PromiseLike) function to be rejected as `limitFunction` input at the type level. `index.test-d.ts` imports `expectType`/`expectError` from tsd.\n\nIn this run's independent verification record the project test command (logged as running `$ xo && ava && tsd`) exited non-zero while the separate behavior and types checks passed: the reported failures were 21 lint errors in the newly added `test-on-idle.js` — mostly `promise/prefer-await-to-then` plus one `@stylistic/arrow-parens` — together with 1 pre-existing non-blocking `no-warning-comments` warning for the TODO comment in `scripts/benchmarker.js`. This records that the lint stage of the same script can fail the test command independently of test results; the failure was left unresolved in the verified source state.\n",
+        "evidence": [
+          {
+            "index": 11,
+            "lines": {
+              "block": 0,
+              "start": 33,
+              "end": 33
+            }
+          },
+          {
+            "index": 13,
+            "lines": {
+              "block": 0,
+              "start": 63,
+              "end": 63
+            }
+          },
+          {
+            "index": 13,
+            "lines": {
+              "block": 0,
+              "start": 91,
+              "end": 91
+            }
+          },
+          {
+            "index": 49,
+            "lines": {
+              "block": 0,
+              "start": 23,
+              "end": 23,
+              "characters": {
+                "start": 0,
+                "end": 512
+              }
+            }
+          },
+          {
+            "index": 49,
+            "lines": {
+              "block": 0,
+              "start": 23,
+              "end": 23,
+              "characters": {
+                "start": 2048,
+                "end": 2544
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "newMemories": [
+      {
+        "name": "limiter_on_idle_semantics.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: limiter_on_idle_semantics\ndescription: p-limit onIdle() treats activeCount 0 with an empty queue as idle; reserved slots keep it non-idle\ntype: project\n---\nIn the p-limit project at /work/p-limit, the added `onIdle()` on the limiter tests idleness as `const isIdle = () => activeCount === 0 && queue.size === 0;`, so a slot already reserved by a queued call counts as busy and keeps `onIdle()` pending until that job finishes.\n\nWaiters are released by `checkIdle()`, which re-reads those live counters on each state change rather than using a cached flag; the added source calls it at the end of `resumeNext()`, at the end of `enqueue()`, in both `clearQueue()` branches, and after the `concurrency` setter's drain loop. Waiters are registered with `idleWaiters.unshift(resolve)` and released with `idleWaiters.pop()()`.\n\nObserved in this run's probes against the modified source: several waiters made while jobs were pending resolved after the job bodies (`a,b,idle1,idle2 0 0`); after `clearQueue()` reported `pending after clear 0 active 1` the waiter was still `result: still pending`; and a job that enqueued another job did not report idle early (`chain result 1`).\n\nLeft unresolved here: the probe output labels only the resolution order, so the FIFO release claim rests on the added `unshift`/`pop()` source plus that ordering observation, not on an assertion. The added `index.d.ts` entry `onIdle: () => Promise<void>;` and the widened `limitFunction` result type `& Pick<LimitFunction, 'clearQueue' | 'onIdle'>` are declared type-level contracts read from the declarations, not evidence of runtime enforcement or of a passing test.\n",
+        "evidence": [
+          {
+            "index": 23,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 11,
+              "end": 11
+            }
+          },
+          {
+            "index": 23,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 68,
+              "end": 79
+            }
+          },
+          {
+            "index": 23,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 102,
+              "end": 108
+            }
+          },
+          {
+            "index": 25,
+            "lines": {
+              "block": 0,
+              "start": 1,
+              "end": 2
+            }
+          },
+          {
+            "index": 27,
+            "lines": {
+              "block": 0,
+              "start": 1,
+              "end": 2
+            }
+          },
+          {
+            "index": 31,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 18,
+              "end": 18
+            }
+          },
+          {
+            "index": 31,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 30,
+              "end": 31
+            }
+          }
+        ]
+      },
+      {
+        "name": "pnpm_test_node20_skip.md_keep_note.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "placeholder\n",
+        "evidence": [
+          {
+            "index": 11,
+            "quote": "197:const testClearQueueRejects = process.versions.node.startsWith('20.') ? test.skip : test;"
+          }
+        ]
+      }
+    ]
+  },
+  "corrected": {
+    "kind": "incremental-memory-plan",
+    "version": 1,
+    "schemaVersion": 1,
+    "runId": "run_mv4p77fz_603532c5456d59f5",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "66492ca2ff87028ce53afd360bfe0f8a941739b7c2b7a29a3624a2d9a4913b6c",
+    "artifactHash": "de1838e6b0ad1680579f4dc955abfa14abd8db7c292fa2ceaa0041b6b90a8083",
+    "snapshotDigest": "de1838e6b0ad1680579f4dc955abfa14abd8db7c292fa2ceaa0041b6b90a8083",
+    "operations": [
+      {
+        "name": "package_test_scripts.md",
+        "kind": "rewrite",
+        "classification": "safe",
+        "content": "---\ndescription: p-limit's package.json test script is \"xo && ava && tsd\"; its tsd file type-checks reject limitFunction on a sync-returning function\n---\nThe inspected `package.json` of the p-limit project at /work/p-limit defines `\"test\": \"xo && ava && tsd\"`, so the test command runs the xo linter first and then the ava tests and the tsd type-declaration checks. The tsd file `index.test-d.ts` contains `expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));`, i.e. the tsd type check expects a sync-returning (non-PromiseLike) function to be rejected as `limitFunction` input at the type level. `index.test-d.ts` imports `expectType`/`expectError` from tsd.\n\nIn this run's independent verification record the project test command (logged as running `$ xo && ava && tsd`) exited non-zero while the separate behavior and types checks passed: the reported failures were 21 lint errors in the newly added `test-on-idle.js` — mostly `promise/prefer-await-to-then` plus one `@stylistic/arrow-parens` — together with 1 pre-existing non-blocking `no-warning-comments` warning for the TODO comment in `scripts/benchmarker.js`. This records that the lint stage of the same script can fail the test command independently of test results; the failure was left unresolved in the verified source state.\n",
+        "evidence": [
+          {
+            "index": 11,
+            "lines": {
+              "block": 0,
+              "start": 33,
+              "end": 33
+            }
+          },
+          {
+            "index": 13,
+            "lines": {
+              "block": 0,
+              "start": 63,
+              "end": 63
+            }
+          },
+          {
+            "index": 13,
+            "lines": {
+              "block": 0,
+              "start": 91,
+              "end": 91
+            }
+          },
+          {
+            "index": 49,
+            "lines": {
+              "block": 0,
+              "start": 23,
+              "end": 23,
+              "characters": {
+                "start": 0,
+                "end": 512
+              }
+            }
+          },
+          {
+            "index": 49,
+            "lines": {
+              "block": 0,
+              "start": 23,
+              "end": 23,
+              "characters": {
+                "start": 2048,
+                "end": 2544
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "newMemories": [
+      {
+        "name": "limiter_on_idle_semantics.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: limiter_on_idle_semantics\ndescription: p-limit onIdle() treats activeCount 0 with an empty queue as idle; reserved slots keep it non-idle\ntype: project\n---\nIn the p-limit project at /work/p-limit, the added `onIdle()` on the limiter tests idleness as `const isIdle = () => activeCount === 0 && queue.size === 0;`, so a slot already reserved by a queued call counts as busy and keeps `onIdle()` pending until that job finishes.\n\nWaiters are released by `checkIdle()`, which re-reads those live counters on each state change rather than using a cached flag; the added source calls it at the end of `resumeNext()`, at the end of `enqueue()`, in both `clearQueue()` branches, and after the `concurrency` setter's drain loop. Waiters are registered with `idleWaiters.unshift(resolve)` and released with `idleWaiters.pop()()`.\n\nObserved in this run's probes against the modified source: several waiters made while jobs were pending resolved after the job bodies (`a,b,idle1,idle2 0 0`); after `clearQueue()` reported `pending after clear 0 active 1` the waiter was still `result: still pending`; and a job that enqueued another job did not report idle early (`chain result 1`).\n\nLeft unresolved here: the probe output labels only the resolution order, so the FIFO release claim rests on the added `unshift`/`pop()` source plus that ordering observation, not on an assertion. The added `index.d.ts` entry `onIdle: () => Promise<void>;` and the widened `limitFunction` result type `& Pick<LimitFunction, 'clearQueue' | 'onIdle'>` are declared type-level contracts read from the declarations, not evidence of runtime enforcement or of a passing test.\n",
+        "evidence": [
+          {
+            "index": 23,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 11,
+              "end": 11
+            }
+          },
+          {
+            "index": 23,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 68,
+              "end": 79
+            }
+          },
+          {
+            "index": 23,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 102,
+              "end": 108
+            }
+          },
+          {
+            "index": 25,
+            "lines": {
+              "block": 0,
+              "start": 1,
+              "end": 2
+            }
+          },
+          {
+            "index": 27,
+            "lines": {
+              "block": 0,
+              "start": 1,
+              "end": 2
+            }
+          },
+          {
+            "index": 31,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 18,
+              "end": 18
+            }
+          },
+          {
+            "index": 31,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 30,
+              "end": 31
+            }
+          }
+        ]
+      },
+      {
+        "name": "pnpm_test_node20_skip_keep_note.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: pnpm_test_node20_skip_keep_note\ndescription: p-limit's Node-20 test.skip gate is present in test.js and the current Node version does not match it\ntype: project\n---\nThe existing Memory entry `pnpm_test_node20_skip.md` describes the gate selected for reconsideration in this scope: `const testClearQueueRejects = process.versions.node.startsWith('20.') ? test.skip : test;`. That line is still shown among the `testClearQueueRejects` matches in the grep output collected during this task, and the same snapshot reports `node -v` as `v22.23.2`, so on this run's Node version the `'20.'` prefix condition is not met.\n\nThe supplied evidence covers only that conditional selection and the observed Node version; it does not show whether either gated test ran or passed in this run, so no execution outcome is claimed here.\n",
+        "evidence": [
+          {
+            "index": 11,
+            "lines": {
+              "block": 0,
+              "start": 3,
+              "end": 3
+            }
+          },
+          {
+            "index": 11,
+            "lines": {
+              "block": 0,
+              "start": 69,
+              "end": 69
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "selected": [
+    "limit_function_type_contract.md",
+    "package_manager_pnpm.md",
+    "package_test_scripts.md",
+    "pnpm_test_node20_skip.md"
+  ]
+}

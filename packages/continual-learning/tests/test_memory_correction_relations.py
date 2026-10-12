@@ -11,7 +11,7 @@ def test_real_failed_correction_never_compares_a_proposal_with_itself() -> None:
       await createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);requests.push(request);
         const answers=Object.fromEntries(Object.entries(request.questions).map(([key,q])=>{
-          const choice=key.startsWith('counter_')?'compatible':key.startsWith('relation_')?'unrelated':'grounded';
+          const choice=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?'compatible':key.startsWith('relation_')?'unrelated':'grounded';
           return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];
         }));return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:0,output_tokens:0}}));
       }}).validate('memory',snapshot,candidates,existing);
@@ -27,7 +27,9 @@ def test_real_failed_correction_never_compares_a_proposal_with_itself() -> None:
         assert 'relation_0' not in row['keys'] and 'relation_description_0' not in row['keys']
         assert not row['hasProposals']
         assert row['comparatorsExact']
-    assert value['counter'] == list(range(value['entries']))
+    # Preserve raw indexes while excluding only this frozen fixture's own injected reference.
+    assert value['entries'] == 42
+    assert value['counter'] == [i for i in range(42) if i != 1]
 
 
 def test_rewrite_excludes_only_its_predecessor_and_preserves_mutation_checks() -> None:
@@ -41,7 +43,7 @@ def test_rewrite_excludes_only_its_predecessor_and_preserves_mutation_checks() -
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);requests.push(req);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const choice=key.startsWith('counter_')?mode:key.startsWith('relation_')?'unrelated':'grounded';
+          const choice=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?mode:key.startsWith('relation_')?'unrelated':'grounded';
           return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];
         }));return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:0,output_tokens:0}}));
       }});
@@ -73,7 +75,7 @@ def test_deletion_has_preservation_checks_without_a_novelty_question() -> None:
       const result=await createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);keys.push(...Object.keys(req.questions));const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         if(req.questions.counter_0_0)preservation=state.existingMemories[0].content===old.content && state.proposedMemoryOperations[0].kind==='delete';
-        const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{const choice=key.startsWith('counter_')?'contradicts':'grounded';return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];}));
+        const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{const choice=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?'contradicts':'grounded';return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];}));
         return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:0,output_tokens:0}}));
       }}).validate('memory',snapshot,[candidate],[old]);
       console.log(JSON.stringify({keys,preservation,decision:result.decision}));

@@ -394,7 +394,8 @@ console.log(JSON.stringify({ outcome, elapsed: Date.now() - started }));
             ),
         )
         self.assertFalse(report["outcome"]["ok"])
-        self.assertEqual(report["outcome"]["reason"], "aborted")
+        # The deadline is this command's own limit, not the caller's abort.
+        self.assertEqual(report["outcome"]["reason"], "timeout")
         self.assertLess(report["elapsed"], 5000)
 
     def test_an_already_aborted_signal_short_circuits(self) -> None:
@@ -426,6 +427,7 @@ console.log(JSON.stringify({ outcome, calls: registry.calls.length }));
 const registry = makeRegistry("Worktree Redirect Fix", { neverSettles: true });
 const controller = new AbortController();
 setTimeout(() => controller.abort(), 100);
+const started = Date.now();
 const outcome = await autoname.generateSessionName(
   registry,
   { provider: "test", id: "test-model" },
@@ -434,12 +436,14 @@ const outcome = await autoname.generateSessionName(
   controller.signal,
   10_000,
 );
-console.log(JSON.stringify({ outcome }));
+console.log(JSON.stringify({ outcome, elapsed: Date.now() - started }));
 """
             )
         )
         self.assertFalse(report["outcome"]["ok"])
         self.assertEqual(report["outcome"]["reason"], "aborted")
+        # The caller's abort reports itself instead of waiting out the deadline.
+        self.assertLess(report["elapsed"], 5000)
 
 
 class AutonameRequestTests(unittest.TestCase):
@@ -491,6 +495,8 @@ console.log(JSON.stringify({ sent: ctx.modelRegistry.calls[0].context.messages[0
         sent = report["sent"]
         self.assertIn("Start with a noun", sent)
         self.assertIn("Never begin with a verb", sent)
+        # The digest carries the project name, so the rule must forbid copying it.
+        self.assertIn("even when the project name appears in the session context", sent)
         self.assertIn('Good: "Worktree root selection"', sent)
         self.assertIn('Bad: "Fix the utils package"', sent)
 
@@ -503,6 +509,7 @@ const messages = {
   provider: autoname.FAILURE_MESSAGES["provider"],
   unusable: autoname.FAILURE_MESSAGES["unusable"],
   aborted: autoname.FAILURE_MESSAGES["aborted"],
+  timeout: autoname.FAILURE_MESSAGES["timeout"],
 };
 console.log(JSON.stringify({ messages }));
 """
@@ -510,8 +517,12 @@ console.log(JSON.stringify({ messages }));
         )
         messages = report["messages"]
         self.assertIn("credentials", messages["noCredentials"])
-        for label in ("provider", "unusable", "aborted"):
+        for label in ("provider", "unusable", "aborted", "timeout"):
             self.assertNotIn("credentials", messages[label], label)
+        # A deadline and a user abort are different events and read differently.
+        self.assertIn("timed out", messages["timeout"])
+        self.assertIn("cancelled", messages["aborted"])
+        self.assertNotEqual(messages["timeout"], messages["aborted"])
 
     def test_the_request_is_a_bounded_one_shot_without_reasoning(self) -> None:
         report = run_autoname(

@@ -2,6 +2,9 @@
 from __future__ import annotations
 import hashlib
 import json
+import posixpath
+import re
+from urllib.parse import urlsplit, unquote
 from pathlib import Path
 
 
@@ -45,8 +48,65 @@ def verifier_observation(task: str, verification: dict, output: Path, source_has
             **({'taskOutcome':task_outcome(inference,verification)} if inference is not None else {})}
 
 
+def observed_memory_reads(rows: list[dict], *, cwd: str, home: str, roots: tuple[str, ...]) -> list[dict]:
+    """Bind actual successful reads to known study roots; hashes must separately
+    equal retained learned bytes before coverage credits a complete revision.
+    Partial reads or truncation notices will not equal the frozen file digest.
+    This proves exposure through read, not adoption or useful task performance.
+    """
+    calls: dict[str, list[tuple[int, dict]]] = {}
+    results: dict[str, list[tuple[int, dict]]] = {}
+    for position, row in enumerate(rows):
+        message = row.get('message', row)
+        if not isinstance(message, dict):
+            continue
+        if message.get('role') == 'assistant' and isinstance(message.get('content'), list):
+            for part in message['content']:
+                if isinstance(part, dict) and part.get('type') == 'toolCall' and isinstance(part.get('id'), str):
+                    calls.setdefault(part['id'], []).append((position, part))
+        elif message.get('role') == 'toolResult' and isinstance(message.get('toolCallId'), str):
+            results.setdefault(message['toolCallId'], []).append((position, message))
+    observed = []
+    for identity, invocations in calls.items():
+        outcomes = results.get(identity, [])
+        if len(invocations) != 1 or len(outcomes) != 1:
+            continue
+        call_position, call = invocations[0]
+        result_position, result = outcomes[0]
+        args = call.get('arguments')
+        if (call.get('name') != 'read' or result.get('toolName') != 'read' or result.get('isError') is not False
+                or call_position >= result_position or not isinstance(args, dict) or args.get('offset', 1) != 1
+                or not isinstance(args.get('path'), str)):
+            continue
+        file = re.sub(r'[\u00A0\u2000-\u200A\u202F\u205F\u3000]', ' ', args['path']).removeprefix('@')
+        if file.startswith('~/'):
+            file = posixpath.join(home, file[2:])
+        if file.startswith('file://'):
+            try:
+                uri = urlsplit(file)
+                if uri.netloc.lower() not in ('', 'localhost') or re.search(r'%2f', uri.path, re.I):
+                    continue
+                file = unquote(uri.path, errors='strict')
+            except (ValueError, UnicodeError):
+                continue
+        file = posixpath.normpath(posixpath.join(cwd, file))
+        name = posixpath.basename(file)
+        if posixpath.dirname(file) not in roots or name.lower() == 'memory.md' or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]*\.md', name):
+            continue
+        content = result.get('content')
+        if not isinstance(content, list) or not content or any(not isinstance(part, dict) or part.get('type') != 'text' or not isinstance(part.get('text'), str) for part in content):
+            continue
+        text = ''.join(part['text'] for part in content)
+        if text:
+            observed.append({'filename': name, 'revision': hashlib.sha256(text.encode()).hexdigest(),
+                             'readPath': file, 'toolCallId': identity, 'callPosition': call_position, 'resultPosition': result_position})
+    return observed
+
+
 def continuous_coverage(report: dict) -> dict:
     stages=report.get('stages',[])
+    version=report.get('coverageVersion',report.get('protocol',{}).get('coverageVersion',2))
+    memory_evidence='observedMemoryReads' if version>=3 else 'deliveredMemoryEntries'
     arms={stage['id']:stage.get('arms',{}).get('with-learning',{}) for stage in stages}
     first=arms.get('orientation',{})
     entries=first.get('learning',{}).get('memoryEntries',[])
@@ -55,9 +115,9 @@ def continuous_coverage(report: dict) -> dict:
     for stage in stages[1:]:
         arm=stage.get('arms',{}).get('with-learning',{})
         if any(ref.get('filename')==entry['filename'] and ref.get('revision')==entry['revision']
-               for ref in arm.get('inference',{}).get('deliveredMemoryEntries',[]) for entry in entries):used=True
+               for ref in arm.get('inference',{}).get(memory_evidence,[]) for entry in entries):used=True
     corrected=arms.get('repair-and-sync-wrapper',{}).get('learning',{}).get('memoryEntries',[])
-    next_refs=arms.get('wrapper-map',{}).get('inference',{}).get('deliveredMemoryEntries',[])
+    next_refs=arms.get('wrapper-map',{}).get('inference',{}).get(memory_evidence,[])
     audits=arms.get('repair-and-sync-wrapper',{}).get('memoryAudits',[])
     corrected_used=any(old['filename']==new['filename'] and old['revision']!=new['revision']
                        and hashlib.sha256(new.get('content','').encode()).hexdigest()==new['revision']
@@ -113,7 +173,7 @@ def continuous_coverage(report: dict) -> dict:
             for change in changed:
                 target=change.get('target',{});digest=change['after'].get('digest')
                 if target.get('root') in ('public','private') and target.get('name')!='MEMORY.md':
-                    if any(ref.get('filename')==target.get('name') and ref.get('revision')==digest for ref in candidate.get('inference',{}).get('deliveredMemoryEntries',[])):return True
+                    if any(ref.get('filename')==target.get('name') and ref.get('revision')==digest for ref in candidate.get('inference',{}).get(memory_evidence,[])):return True
                 if target=={'root':'project','name':'.pi/harness.json'} and candidate.get('harness',{}).get('documentDigest')==digest and candidate.get('harness',{}).get('passed'):return True
         return False
     processed=any(failure_backfilled(arm,learned=False) for arm in arms.values())

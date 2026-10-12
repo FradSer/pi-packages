@@ -41,7 +41,8 @@ def memory_policy_bytes(original: bytes, policy: str) -> bytes:
         raise ValueError("Unknown Memory policy")
     old = b"const jevJudge = createJevJudge();"
     enabled = b"const jevJudge = createJevJudge({ independentMemoryApplication: true, composedMemoryApplication: true });"
-    if original.count(old) + original.count(enabled) != 1:
+    per_run = b"let jevJudge: JevJudge = createJevJudge({ independentMemoryApplication: true, composedMemoryApplication: true });"
+    if original.count(old) + original.count(enabled) + original.count(per_run) != 1:
         raise ValueError("Expected exactly one recognized Jev constructor")
     return original.replace(old, enabled)
 

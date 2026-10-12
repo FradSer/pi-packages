@@ -28,8 +28,8 @@ def test_memory_judge_distinguishes_unresolved_source_defects_from_permanent_fai
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);requests.push(request);
         const answers=Object.fromEntries(Object.entries(request.questions).map(([key,q])=>[key,
-          {type:'choice',choice:category,confidence:1,probabilities:Object.fromEntries(
-            ['grounded','speculative','transient','unsupported','unclear'].map(k=>[k,k===category?1:0]))}]));
+          {type:'choice',choice:key.startsWith('coherence_')?'compatible':category,confidence:1,probabilities:Object.fromEntries(
+            Object.keys(q.criteria).map(k=>[k,k===(key.startsWith('coherence_')?'compatible':category)?1:0]))}]));
         return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:10,output_tokens:1}}));
       }});
       const evidence='Inspected index.js exposes onIdle. Inspected index.d.ts omits onIdle. Actual tsd failed: Property onIdle does not exist on type LimitFunction.';

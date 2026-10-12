@@ -26,7 +26,7 @@ def test_harness_counter_windows_check_revocation_without_repeating_authority() 
       const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['harness'],fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);requests.push(req);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const choice=key.startsWith('counter_')?mode:key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':'faithful';
+          const choice=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?mode:key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':'faithful';
           return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];
         }));return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:1}}));
       }});
@@ -52,7 +52,7 @@ def test_support_questions_keep_each_candidates_validated_citation_association()
       const snapshot={contextEnabled:true,entries:quotes.map(content=>({role:'toolResult',content}))};
       const candidates=quotes.map((content,index)=>({name:`fact-${index}.md`,kind:'project',classification:'safe',content:`---\nname: fact-${index}\ndescription: ${content}\ntype: project\n---\n${content}`,evidence:[{index,quote:content}]}));
       let support;const counters=[];
-      await createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{const req=JSON.parse(init.body);if(req.questions.supported_0)support=req;if(req.questions.counter_0_0)counters.push(req);const answers=Object.fromEntries(Object.entries(req.questions).map(([k,q])=>{const choice=k.startsWith('counter_')?'compatible':'grounded';return[k,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===choice?1:0]))}];}));return new Response(JSON.stringify({model:'jev-1.13.0',answers}));}}).validate('memory',snapshot,candidates,[]);
+      await createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{const req=JSON.parse(init.body);if(req.questions.supported_0)support=req;if(req.questions.counter_0_0)counters.push(req);const answers=Object.fromEntries(Object.entries(req.questions).map(([k,q])=>{const choice=k.startsWith('coherence_')?'compatible':k.startsWith('counter_')?'compatible':'grounded';return[k,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===choice?1:0]))}];}));return new Response(JSON.stringify({model:'jev-1.13.0',answers}));}}).validate('memory',snapshot,candidates,[]);
       console.log(JSON.stringify({quotes,questions:support.questions,citations:support.state.originalCitationsByCandidate,counters,entries:(typeof support.state === "string" ? JSON.parse(support.state) : support.state).frozenEvidence.entries}));
     ''')
     for index, quote in enumerate(result['quotes']):
@@ -98,7 +98,7 @@ def test_default_review_deadline_accepts_delayed_complete_response_without_relax
       const candidates=[{name:'wrapper.md',kind:'project',classification:'safe',content:'The wrapper exposes clearQueue.',evidence:[{index:0,quote:'The wrapper exposes clearQueue.'}]}];
       const fetch=async(_url,init)=>{
         await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,6200);init.signal.addEventListener('abort',()=>{clearTimeout(timer);reject(new DOMException('Aborted','AbortError'));},{once:true});});
-        const req=JSON.parse(init.body),answers=Object.fromEntries(Object.entries(req.questions).map(([k,q])=>{const choice=k.startsWith('counter_')?'compatible':'grounded';return[k,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===choice?1:0]))}];}));
+        const req=JSON.parse(init.body),answers=Object.fromEntries(Object.entries(req.questions).map(([k,q])=>{const choice=k.startsWith('coherence_')?'compatible':k.startsWith('counter_')?'compatible':'grounded';return[k,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===choice?1:0]))}];}));
         return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:1}}));
       };
       const defaultResult=await createJevJudge({enabled:true,apiKey:'fixture',fetch}).validate('memory',evidence,candidates,[]);
@@ -262,7 +262,7 @@ def test_harness_support_questions_keep_their_original_user_citation() -> None:
       let support;
       await createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const r=JSON.parse(init.body);if(r.questions.authority_0)support=r;
-        const answers=Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{const choice=key.startsWith('counter_')?'compatible':key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':'faithful';return[key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];}));return new Response(JSON.stringify({model:'jev-1.13.0',answers}));
+        const answers=Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{const choice=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?'compatible':key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':'faithful';return[key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];}));return new Response(JSON.stringify({model:'jev-1.13.0',answers}));
       }}).validate('harness',evidence,[candidate],[],undefined,[{index:0,eventIndex:0,source:'user',quote,count:1}]);
       console.log(JSON.stringify({questions:support.questions,quote}));
     ''')

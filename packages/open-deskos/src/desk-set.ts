@@ -1,8 +1,8 @@
-import type { DeskLinkSnapshot } from "./reporter.ts";
-import type { DeskLinkConfig } from "./types.ts";
+import type { OdkLinkSnapshot } from "./reporter.ts";
+import type { OdkLinkConfig } from "./types.ts";
 
 /** A desk's own snapshot plus the endpoint it belongs to, so an aggregate can name it. */
-export interface DeskSnapshot extends DeskLinkSnapshot {
+export interface DeskSnapshot extends OdkLinkSnapshot {
   endpoint: string;
 }
 
@@ -12,7 +12,7 @@ export interface DeskSnapshot extends DeskLinkSnapshot {
  * that one, even when it has no credential, because quietly driving a different
  * desk than the one asked for would be worse than saying a credential is needed.
  */
-export function selectConsoleDesk(configs: DeskLinkConfig[], preferred = ""): DeskLinkConfig | null {
+export function selectConsoleDesk(configs: OdkLinkConfig[], preferred = ""): OdkLinkConfig | null {
   const wanted = preferred.trim();
   if (wanted.length > 0) {
     const exact = configs.find((config) => `${config.host}:${config.port}` === wanted
@@ -32,7 +32,7 @@ export function selectConsoleDesk(configs: DeskLinkConfig[], preferred = ""): De
  * come from the desks that are up, so a desk that is down cannot make this
  * machine look like it is reporting nothing.
  */
-export function aggregateDeskSnapshots(snapshots: DeskSnapshot[]): DeskLinkSnapshot | null {
+export function aggregateDeskSnapshots(snapshots: DeskSnapshot[]): OdkLinkSnapshot | null {
   if (snapshots.length === 0) return null;
   if (snapshots.length === 1) {
     const only = snapshots[0];
@@ -42,7 +42,7 @@ export function aggregateDeskSnapshots(snapshots: DeskSnapshot[]): DeskLinkSnaps
   }
 
   const connected = snapshots.filter((snapshot) => snapshot.link === "connected");
-  const link: DeskLinkSnapshot["link"] = connected.length === snapshots.length
+  const link: OdkLinkSnapshot["link"] = connected.length === snapshots.length
     ? "connected"
     : connected.length === 0 && snapshots.every((snapshot) => snapshot.link === "offline")
       ? "offline"

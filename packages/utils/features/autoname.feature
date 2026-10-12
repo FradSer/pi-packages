@@ -46,6 +46,7 @@ Feature: /autoname model-generated session name
   Scenario: The name request asks for a subject, not a restatement
     When the user runs /autoname
     Then the request forbids a leading verb such as Fix
+    And the request forbids naming the project even though the digest carries it
     And the request shows one good name against one bad name
 
   Scenario: A refused or empty model answer sets no name
@@ -58,6 +59,14 @@ Feature: /autoname model-generated session name
     Given the provider never answers, or the session is aborted first
     When /autoname waits for the name
     Then it returns without a name instead of hanging
+
+  Scenario: A deadline and a caller abort report different causes
+    Given a provider that ignores its abort signal
+    When the 20 second deadline expires
+    Then the error says name generation timed out
+    When the caller aborts the run instead
+    Then the error says name generation was cancelled
+    And the abort reports itself instead of waiting for the deadline
 
   Scenario: Missing model or credentials fail closed
     Given the session has no current model, or the model has no credentials

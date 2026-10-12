@@ -1,5 +1,8 @@
 from support import isolated_run_bun
-from test_jev_independent_subset_research import SETUP
+from test_jev_independent_subset_research import SETUP as LEGACY_SETUP
+
+# Current production review adds body coherence; preserve the frozen research setup.
+SETUP = LEGACY_SETUP.replace("const checks=i=>[", "const checks=i=>[`coherence_${i}`,")
 
 
 BASE = SETUP + r'''
@@ -51,7 +54,7 @@ def test_only_the_composed_self_containment_proof_recovers_a_proven_candidate() 
        content:'---\nname: build\ndescription: Run make build.\ntype: project\n---\nRun make build.',
        evidence:[{index:0,role:'user',quote:'Use pnpm.'}]};
       const all=[...candidates,third];
-      const own=i=>[`supported_${i}`,`supported_description_${i}`,`counter_${i}_0`,`counter_description_${i}_0`];
+      const own=i=>[`coherence_${i}`,`supported_${i}`,`supported_description_${i}`,`counter_${i}_0`,`counter_description_${i}_0`];
       const held=2;
       const review3={...review,candidatesDigest:digest(all),candidates:all.map((c,index)=>({index,candidateDigest:digest(c),
        outcome:index===held?'held':'passed',passedChecks:own(index).filter(k=>index!==held||k!==`supported_${index}`),
@@ -80,7 +83,7 @@ def test_a_candidate_without_a_description_line_is_not_denied() -> None:
     value = isolated_run_bun(BASE + r'''
       const all=[{...candidates[0],content:'---\nname: tools\ntype: project\n---\nUse pnpm.'},
         {...candidates[1],content:'---\nname: report\ntype: preference\n---\nReport in Chinese.'}];
-      const own=i=>[`supported_${i}`,`counter_${i}_0`];
+      const own=i=>[`coherence_${i}`,`supported_${i}`,`counter_${i}_0`];
       const r={...review,candidatesDigest:digest(all),candidates:all.map((c,index)=>({index,candidateDigest:digest(c),
         outcome:'passed',passedChecks:own(index),heldChecks:[]}))};
       const p={...relations,candidatesDigest:digest(all),
@@ -100,3 +103,14 @@ def test_operations_or_bad_original_citations_never_become_subset_permission() -
       }console.log(JSON.stringify(rows));
     ''')
     assert all(row['eligible'] == [] for row in value)
+
+
+def test_missing_or_held_body_coherence_cannot_authorize_subset() -> None:
+    value = isolated_run_bun(BASE + r'''
+      const legacy=structuredClone(review);for(const c of legacy.candidates)c.passedChecks=c.passedChecks.filter(key=>!key.startsWith('coherence_'));
+      const held=structuredClone(review);held.candidates[0].passedChecks=held.candidates[0].passedChecks.filter(key=>key!=='coherence_0');held.candidates[0].heldChecks=['coherence_0'];held.candidates[0].outcome='held';
+      console.log(JSON.stringify({legacy:partitionReviewedNewMemory(evidence,candidates,existing,legacy,relations),held:partitionReviewedNewMemory(evidence,candidates,existing,held,relations)}));
+    ''')
+    for row in value.values():
+        assert row['eligible'] == [] and row['held'] == [0, 1]
+        assert row['writeAuthorized'] is False

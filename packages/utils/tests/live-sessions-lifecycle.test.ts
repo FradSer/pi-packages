@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, chmod, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import registerLiveSessions, { parseDelivery } from '../extensions/live-sessions.ts';
@@ -116,6 +116,43 @@ test('the /live-sessions command is the capability entry point and never claims 
     assert.match(missing[0].message, /Live delivery failed/);
   } finally {
     await hooks.get('session_shutdown')?.({}, sessionCtx);
+    if (previous === undefined) delete process.env.PI_UTILS_LIVE_SESSIONS_DIR;
+    else process.env.PI_UTILS_LIVE_SESSIONS_DIR = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('a broken control directory is reported instead of an empty listing', async () => {
+  const directory = await mkdtemp(join('/tmp', 'psc-broken-'));
+  const previous = process.env.PI_UTILS_LIVE_SESSIONS_DIR;
+  process.env.PI_UTILS_LIVE_SESSIONS_DIR = directory;
+  const hooks = new Map<string, (event: unknown, ctx: ExtensionContext) => Promise<void>>();
+  const commands = new Map<string, { handler: (args: string, ctx: ExtensionContext) => Promise<void> }>();
+  const ctx = (notifications: { message: string; level: string }[]) =>
+    ({ cwd: '/work', isIdle: () => true, sessionManager: { getSessionId: () => 'durable-broken' }, ui: { notify: (message: string, level: string) => notifications.push({ message, level }) } }) as unknown as ExtensionContext;
+  try {
+    registerLiveSessions(fakePi(hooks, commands as unknown as Map<string, unknown>, []));
+
+    // An unusable control directory must not read as "no live sessions".
+    await chmod(directory, 0o755);
+    const unsafe: { message: string; level: string }[] = [];
+    await commands.get('live-sessions')!.handler('', commandCtx(unsafe));
+    assert.equal(unsafe[0].level, 'error');
+    assert.match(unsafe[0].message, /Live session discovery failed/);
+    assert.match(unsafe[0].message, /0700/);
+
+    // A session that cannot open its socket says so when it starts.
+    process.env.PI_UTILS_LIVE_SESSIONS_DIR = join(directory, 'not-a-directory');
+    await writeFile(process.env.PI_UTILS_LIVE_SESSIONS_DIR, 'x');
+    const start: { message: string; level: string }[] = [];
+    await hooks.get('session_start')!({}, ctx(start));
+    assert.equal(start[0].level, 'warning');
+    assert.match(start[0].message, /Live session control is unavailable/);
+    const after: { message: string; level: string }[] = [];
+    await commands.get('live-sessions')!.handler('', commandCtx(after));
+    assert.equal(after[0].level, 'error');
+    await hooks.get('session_shutdown')?.({}, ctx([]));
+  } finally {
     if (previous === undefined) delete process.env.PI_UTILS_LIVE_SESSIONS_DIR;
     else process.env.PI_UTILS_LIVE_SESSIONS_DIR = previous;
     await rm(directory, { recursive: true, force: true });

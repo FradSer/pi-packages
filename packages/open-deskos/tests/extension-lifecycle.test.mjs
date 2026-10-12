@@ -20,7 +20,7 @@ async function fixture(t, reporting = false) {
   const desks = reporting ? [{ address: `127.0.0.1:${server.address().port}`, token: "fixture" }] : [];
   await writeFile(join(root, "desks.json"), JSON.stringify({ desks }));
   await writeFile(join(root, "history.jsonl"), `${JSON.stringify({ type: "message", message: { role: "user", content: "history" } })}\n`);
-  process.env.ODK_DESK_LINK_DESKS_FILE = join(root, "desks.json");
+  process.env.ODK_LINK_DESKS_FILE = join(root, "desks.json");
   process.env.ODK_SESSION_HOST_SOCKET = join(root, "run");
   process.env.PI_DIRECTORY_SESSIONS_DIR = join(root, "registry");
   const { default: extension } = await import("../index.ts");

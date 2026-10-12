@@ -22,6 +22,15 @@ const pythonString = (text: string) => JSON.stringify(text).replace(/[^\x00-\x7f
   char => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
 
 export function failureObservationReady(input: FailureObservationInput): { ready: boolean; reason: string; sessionDigest?: string; backlogDigest?: string } {
+  return observationReady(input, false);
+}
+
+/** Proves the successful full feedback read, never authorizes another backfill. */
+export function successfulFailureObservationReady(input: FailureObservationInput): ReturnType<typeof failureObservationReady> {
+  return observationReady(input, true);
+}
+
+function observationReady(input: FailureObservationInput, successful: boolean): ReturnType<typeof failureObservationReady> {
   const reject = (reason: string) => ({ ready: false, reason });
   try {
     if (input.explicitBackfills !== 0) return reject("backfill-already-consumed");
@@ -43,7 +52,8 @@ export function failureObservationReady(input: FailureObservationInput): { ready
     const calls = rows.flatMap((row, index) => row.message?.role === "assistant"
       ? (row.message.content ?? []).filter((part: { type: string }) => part.type === "toolCall").map((part: object) => ({ ...part, index })) : []);
     const results = rows.flatMap((row, index) => row.message?.role === "toolResult" ? [{ ...row.message, index }] : []);
-    if (calls.length !== 2 || results.length !== 2 || new Set(calls.map(call => call.id)).size !== calls.length) return reject("unexpected-execution");
+    const expectedCalls = successful ? 1 : 2;
+    if (calls.length !== expectedCalls || results.length !== expectedCalls || new Set(calls.map(call => call.id)).size !== calls.length) return reject("unexpected-execution");
     const [read, denied] = calls;
     if (read.name !== "read" || !isDeepStrictEqual(read.arguments, { path: input.verifierPath })) return reject("verifier-read-boundary");
     const result = results.find(item => item.toolCallId === read.id);
@@ -53,11 +63,22 @@ export function failureObservationReady(input: FailureObservationInput): { ready
       && isDeepStrictEqual(row.data, { limit: 1, admitted: 1, outcome: "tools-removed" }));
     const stopped = rows.findIndex(row => row.customType === "continuous-study-tool-budget"
       && isDeepStrictEqual(row.data, { limit: 1, admitted: 1, outcome: "summary-tool-loop-stopped" }));
-    const deniedResult = results.find(item => item.toolCallId === denied.id);
-    if (removed <= read.index || denied.index <= result.index || denied.index <= removed || !deniedResult
-      || deniedResult.index <= denied.index || deniedResult.toolName !== denied.name || deniedResult.isError !== true
-      || !isDeepStrictEqual(deniedResult.content, [{ type: "text", text: `Tool ${denied.name} not found` }])
-      || stopped <= deniedResult.index || rows.at(-1)?.message?.stopReason !== "error") return reject("unproven-tool-rejection");
+    if (successful) {
+      const last = rows.at(-1)?.message;
+      const users = rows.filter(row => row.message?.role === "user");
+      if (users.length !== 1 || !isDeepStrictEqual(users[0].message.content, [{type: "text", text: "continue"}])
+        || rows.indexOf(users[0]) >= read.index) return reject("unexpected-feedback-turn");
+      if (rows.some(row => row.message?.role === "assistant" &&
+        (["error", "aborted"].includes(row.message.stopReason) || row.message.errorMessage))) return reject("failed-feedback-summary");
+      if (removed <= read.index || stopped !== -1 || last?.role !== "assistant" || last.stopReason !== "stop"
+        || rows.filter(row => row.customType === "continuous-study-tool-budget").length !== 1) return reject("unproven-successful-summary");
+    } else {
+      const deniedResult = results.find(item => item.toolCallId === denied.id);
+      if (removed <= read.index || denied.index <= result.index || denied.index <= removed || !deniedResult
+        || deniedResult.index <= denied.index || deniedResult.toolName !== denied.name || deniedResult.isError !== true
+        || !isDeepStrictEqual(deniedResult.content, [{ type: "text", text: `Tool ${denied.name} not found` }])
+        || stopped <= deniedResult.index || rows.at(-1)?.message?.stopReason !== "error") return reject("unproven-tool-rejection");
+    }
     if (rows.some(row => row.customType === "continuous-study-tool-budget"
       && !["tools-removed", "summary-tool-loop-stopped"].includes(row.data?.outcome))) return reject("repeated-boundary-violation");
     const parsed = parseSessionEntries(input.currentSession);
@@ -71,7 +92,7 @@ export function failureObservationReady(input: FailureObservationInput): { ready
     if (rows.some(row => row.message && !ids.has(row.id))) return reject("backlog-missing-feedback");
     const originalRows = input.originalSession.trimEnd().split("\n").map(line => JSON.parse(line));
     if (originalRows.some(row => ["user", "toolResult"].includes(row.message?.role) && !ids.has(row.id))) return reject("backlog-missing-original-evidence");
-    return { ready: true, reason: "complete-observation-with-bounded-rejected-tool", sessionDigest: digest(input.currentSession), backlogDigest: queued.digest };
+    return { ready: true, reason: successful ? "complete-successful-failure-observation" : "complete-observation-with-bounded-rejected-tool", sessionDigest: digest(input.currentSession), backlogDigest: queued.digest };
   } catch { return reject("malformed-evidence"); }
 }
 

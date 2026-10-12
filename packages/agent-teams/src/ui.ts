@@ -506,7 +506,7 @@ export function openTeamConsole(ctx: {
     const headerLine = (): string => {
       const alive = livingAgents();
       const tasks = listTasks();
-      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · tasks ${tasks.filter((task) => !isTaskReplaced(task) && task.status === "pending").length}p/${tasks.filter((task) => !isTaskReplaced(task) && task.status === "in_progress").length}c/${tasks.filter((task) => !isTaskReplaced(task) && task.status === "blocked").length}b/${tasks.filter((task) => task.status === "completed").length}d/${tasks.filter((task) => isTaskReplaced(task)).length}s · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
+      return `team  ${alive.length} alive · ${alive.filter(isWorking).length} working · ${getRoles().length} roles · tasks ${tasks.filter((task) => !isTaskReplaced(task) && task.status === "pending").length}p/${tasks.filter((task) => !isTaskReplaced(task) && task.status === "in_progress").length}c/${tasks.filter((task) => !isTaskReplaced(task) && task.status === "blocked").length}b/${tasks.filter((task) => !isTaskReplaced(task) && task.status === "cancelled").length}x/${tasks.filter((task) => task.status === "completed").length}d/${tasks.filter((task) => isTaskReplaced(task)).length}s · model ${getTeamDefaultModel() ?? "auto"} · ${page}`;
     };
 
     interface ContentLine {
@@ -553,7 +553,8 @@ export function openTeamConsole(ctx: {
           ? style.dim("replaced")
           : task.status === "in_progress"
             ? theme.fg("warning", "in progress")
-            : task.status === "blocked" ? style.dim("blocked") : style.dim("pending");
+            : task.status === "blocked" ? style.dim("blocked")
+              : task.status === "cancelled" ? style.dim("cancelled") : style.dim("pending");
       return `${marker}${label} ${statusText} ${theme.fg("customMessageText", task.subject)}${holder}`;
     };
 

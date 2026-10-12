@@ -36,7 +36,7 @@ def test_semantic_guidance_does_not_claim_universal_enforcement(guidance: str) -
     assert "plain read of SKILL.md" in guidance
     assert "not global interception" in guidance
     assert "report the limitation" in guidance.lower()
-    assert any(text in guidance for text in ("preserve existing rules unchanged", "do not add a rule"))
+    assert any(text in guidance for text in ("preserve existing rules unchanged", "preserve existing rules.", "do not add a rule"))
 
 
 def test_consolidation_does_not_claim_bare_git_matcher_covers_global_options() -> None:

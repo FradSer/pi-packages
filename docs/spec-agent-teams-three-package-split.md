@@ -571,7 +571,7 @@ Landed as `src/child-env.ts` plus wiring in `spawner.ts`, `types.ts`,
 tests in `tests/test_child_env.py` and `tests/live-child-env.ts`.
 The measured leader environment held **134 variables**, of which at least 40 were
 credential-bearing (`CF_S3_KEY`, `NOTE_ENCRYPTION_KEY`, `EVENT_ENCRYPTION_KEY`,
-`FIGMA_TOKEN`, `ODK_DESK_LINK_CONTROL_TOKEN`, an npm registry auth token whose
+`FIGMA_TOKEN`, `ODK_LINK_CONTROL_TOKEN`, an npm registry auth token whose
 name embeds a private host, and others). All of them reached every spawned Agent
 before this step.
 

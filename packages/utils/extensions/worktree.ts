@@ -174,26 +174,38 @@ export interface WorktreeRedirectOptions {
 	cwd?: string;
 }
 
+export interface WorktreeRedirectPlan {
+	/** The rewritten command text. */
+	command: string;
+	/** The worktree name the redirect used. */
+	name: string;
+	/** The directory the linked worktree actually lands in. */
+	target: string;
+}
+
 /**
- * Rewrites a simple `git worktree add` command. The implementation only
- * understands the options shown by `git worktree add -h`; all other command
- * forms are deliberately returned unchanged.
+ * Plans the redirect for a simple `git worktree add` command, or returns null
+ * when the command form is unsupported and must stay unchanged.
+ *
+ * The plan carries the directory it actually used: the short relative spelling
+ * only holds for a command issued at the repository root, so a caller that
+ * assumed it would misreport where the worktree landed.
  */
-export function rewriteWorktreeAddCommand(
+export function planWorktreeAddRedirect(
 	command: string,
 	options: WorktreeRedirectOptions = {},
-): string {
+): WorktreeRedirectPlan | null {
 	const tokens = tokenizeSimpleShell(command);
-	if (!tokens || tokens.length < 4) return command;
+	if (!tokens || tokens.length < 4) return null;
 	if (
 		tokens[0]?.value !== "git" ||
 		tokens[1]?.value !== "worktree" ||
 		tokens[2]?.value !== "add"
 	) {
-		return command;
+		return null;
 	}
 
-	if (tokens.some((token) => token.hasUnsafeExpansion)) return command;
+	if (tokens.some((token) => token.hasUnsafeExpansion)) return null;
 
 	let pathToken: ShellToken | undefined;
 	let commitIsh: ShellToken | undefined;
@@ -201,7 +213,7 @@ export function rewriteWorktreeAddCommand(
 
 	for (let index = 3; index < tokens.length; index++) {
 		const token = tokens[index];
-		if (!token) return command;
+		if (!token) return null;
 
 		if (!pathToken && !optionsEnded) {
 			if (token.value === "--") {
@@ -216,7 +228,7 @@ export function rewriteWorktreeAddCommand(
 					optionValue.value === "--" ||
 					optionValue.value.startsWith("-")
 				) {
-					return command;
+					return null;
 				}
 				continue;
 			}
@@ -228,7 +240,7 @@ export function rewriteWorktreeAddCommand(
 			) {
 				continue;
 			}
-			if (token.value.startsWith("-")) return command;
+			if (token.value.startsWith("-")) return null;
 		}
 
 		if (!pathToken) {
@@ -239,15 +251,15 @@ export function rewriteWorktreeAddCommand(
 			commitIsh = token;
 			continue;
 		}
-		return command;
+		return null;
 	}
 
 	if (!pathToken || pathToken.hasUnsafeExpansion || pathToken.raw.startsWith("~"))
-		return command;
-	if (isAlreadyRedirected(pathToken.value)) return command;
+		return null;
+	if (isAlreadyRedirected(pathToken.value)) return null;
 
 	const name = worktreeName(pathToken.value);
-	if (!name) return command;
+	if (!name) return null;
 
 	// The managed directory belongs to the repository, not to wherever the
 	// command happened to run. Only a command already at the repository root
@@ -261,8 +273,24 @@ export function rewriteWorktreeAddCommand(
 			? path.join(root, MANAGED_WORKTREES_DIR)
 			: MANAGED_WORKTREES_SHELL_PATH;
 
-	const targetPath = shellQuote(path.posix.join(directory, name));
-	return `mkdir -p ${shellQuote(directory)} && ${command.slice(0, pathToken.start)}${targetPath}${command.slice(pathToken.end)}`;
+	const target = path.posix.join(directory, name);
+	return {
+		command: `mkdir -p ${shellQuote(directory)} && ${command.slice(0, pathToken.start)}${shellQuote(target)}${command.slice(pathToken.end)}`,
+		name,
+		target,
+	};
+}
+
+/**
+ * Rewrites a simple `git worktree add` command. The implementation only
+ * understands the options shown by `git worktree add -h`; all other command
+ * forms are deliberately returned unchanged.
+ */
+export function rewriteWorktreeAddCommand(
+	command: string,
+	options: WorktreeRedirectOptions = {},
+): string {
+	return planWorktreeAddRedirect(command, options)?.command ?? command;
 }
 
 export default function (pi: ExtensionAPI) {
@@ -270,13 +298,13 @@ export default function (pi: ExtensionAPI) {
 		if (!isToolCallEventType("bash", event)) return;
 
 		const command = event.input.command || "";
-		const rewritten = rewriteWorktreeAddCommand(command, { cwd: ctx.cwd });
-		if (rewritten === command) return;
+		const plan = planWorktreeAddRedirect(command, { cwd: ctx.cwd });
+		if (!plan || plan.command === command) return;
 
-		event.input.command = rewritten;
+		event.input.command = plan.command;
 		notifyPi(
 			ctx.ui,
-			`worktree path redirected to ${MANAGED_WORKTREES_SHELL_PATH}/ — linked worktrees stay inside the repo`,
+			`worktree path redirected to ${plan.target} — linked worktrees stay inside the repo`,
 			"info",
 		);
 		// Never edit a user's .gitignore without being asked; report the

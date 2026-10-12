@@ -40,4 +40,5 @@ def test_actual_rewrite_description_retains_parent_validated_operation_context()
             if key.startswith('counter_description_'):
                 assert q['instructions']['candidate']['action']=='rewrite'
                 assert q['instructions']['candidate']['target']==body['target']
-        assert row['result']['telemetry']['coveredEntries']==43
+        # The raw snapshot remains intact; its own injected reference is routing, not counterevidence.
+        assert row['result']['telemetry']['coveredEntries']==42

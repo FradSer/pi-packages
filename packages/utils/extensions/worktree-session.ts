@@ -277,13 +277,14 @@ async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWo
 	state.parentSession = sourceSession;
 
 	let replacement: SessionManager;
+	let replacementFile: string | undefined;
 	let switchRequested = false;
 	// UI handles are not session-bound getters; never access the old ctx after
 	// switchSession has invalidated it, even when a host callback rejects.
 	let outcomeUI = ctx.ui;
 	try {
 		replacement = SessionManager.forkFrom(sourceSession, state.path);
-		const replacementFile = replacement.getSessionFile();
+		replacementFile = replacement.getSessionFile() ?? undefined;
 		if (!replacementFile) throw new Error("replacement session has no file");
 		replacement.appendCustomEntry(WORKTREE_SESSION_ENTRY, state);
 		switchRequested = true;
@@ -298,17 +299,46 @@ async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWo
 				}, { triggerTurn: true });
 			},
 		});
-		if (result.cancelled && state.created) {
-			removeWorktree(state);
+		if (result.cancelled) {
+			// A cancelled replacement applied nothing, so the created worktree and
+			// the forked session file are both this command's own leftovers.
+			const cleanupError = state.created ? removeWorktree(state) : null;
 			fs.rmSync(replacementFile, { force: true });
+			if (cleanupError) {
+				notifyPi(outcomeUI, `Cancelled, but worktree cleanup failed: ${cleanupError}`, "warning");
+			}
 		}
 	} catch (error) {
 		// switchSession may apply the new runtime before host rebinding fails.
-		// Only an explicit cancellation proves rollback is safe after requesting
-		// replacement; ambiguous failures must preserve the checkout and edits.
-		if (!switchRequested && state.created) removeWorktree(state);
+		// Only a failure before the replacement was requested proves rollback is
+		// safe; an ambiguous failure must preserve the checkout and its edits, but
+		// a created worktree must never be left behind unreported either.
+		if (!switchRequested) {
+			const cleanupError = state.created ? removeWorktree(state) : null;
+			if (replacementFile) fs.rmSync(replacementFile, { force: true });
+			if (cleanupError) {
+				notifyPi(outcomeUI, `Rollback failed, worktree left at ${state.path}: ${cleanupError}`, "warning");
+			}
+		} else if (state.created) {
+			notifyPi(
+				outcomeUI,
+				`The session may not have switched; the created worktree is kept: ${formatTargetLabel(state)}. Remove it with \`git worktree remove --force ${state.path}\` if it is not in use.`,
+				"warning",
+			);
+		}
 		notifyPi(outcomeUI, error instanceof Error ? error.message : String(error), "error");
 	}
+}
+
+/**
+ * Pi runs an extension command immediately, even while the agent streams, and a
+ * session replacement aborts the running turn. Wait for the session to settle so
+ * the fork includes the finished turn and nothing is cut off by the switch.
+ */
+async function settleBeforeSwitching(ctx: ExtensionCommandContext): Promise<void> {
+	if (ctx.isIdle()) return;
+	notifyPi(ctx.ui, "Waiting for the current turn to finish before switching sessions…", "info");
+	await ctx.waitForIdle();
 }
 
 async function switchOutOfWorktree(ctx: ExtensionCommandContext): Promise<void> {
@@ -464,6 +494,11 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 				notifyPi(ctx.ui, "Invalid EnterWorktree request JSON.", "error");
 				return;
 			}
+			await settleBeforeSwitching(ctx);
+			if (pendingCommand) {
+				notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) was queued while the turn finished — it has not been applied yet.`, "warning");
+				return;
+			}
 			await switchIntoWorktree(ctx, request);
 		},
 	});
@@ -473,6 +508,11 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 		handler: async (_args, ctx) => {
 			if (pendingCommand) {
 				notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) is queued and has not been applied yet — wait for it before starting another.`, "warning");
+				return;
+			}
+			await settleBeforeSwitching(ctx);
+			if (pendingCommand) {
+				notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) was queued while the turn finished — it has not been applied yet.`, "warning");
 				return;
 			}
 			await switchOutOfWorktree(ctx);

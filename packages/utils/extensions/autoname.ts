@@ -172,7 +172,8 @@ export function textFromResponse(message: AssistantMessage): string {
 const NAME_RULES = `- Answer with the name only: no quotes, no punctuation at the end, no explanation.
 - Use 2 to 4 words naming the subject of the work.
 - Start with a noun. Never begin with a verb such as Fix, Repair, Debug, or Investigate.
-- Never name the repository, the directory, the package, the model, or the assistant.
+- Never name the repository, the directory, the package, the model, or the assistant, not
+even when the project name appears in the session context.
 - Prefer the words a developer would use when searching for this work again.
 - Write plain words. Do not use emoji.
 - Good: "Worktree root selection". Bad: "Fix the utils package".`;
@@ -187,7 +188,7 @@ function buildPrompt(digest: string, hint: string | undefined): string {
 }
 
 /** Why a name could not be produced, so the command can report the real cause. */
-export type AutonameFailure = "aborted" | "no-credentials" | "provider" | "reasoning" | "unusable";
+export type AutonameFailure = "aborted" | "no-credentials" | "provider" | "reasoning" | "timeout" | "unusable";
 
 /** Result of one name request: a name, or the reason there is none. */
 export type AutonameOutcome =
@@ -196,10 +197,11 @@ export type AutonameOutcome =
 
 /** Report each failure the way the user can act on it. */
 export const FAILURE_MESSAGES: Record<AutonameFailure, string> = {
-  aborted: "Name generation timed out — set one with /name <name>",
+  aborted: "Name generation was cancelled — set one with /name <name>",
   "no-credentials": "The current model has no usable credentials — set one with /name <name>",
   provider: "The model could not produce a session name — set one with /name <name>",
   reasoning: "The model spent the whole answer on reasoning — set one with /name <name>",
+  timeout: "Name generation timed out — set one with /name <name>",
   unusable: "The model returned no usable name — set one with /name <name>",
 };
 
@@ -228,17 +230,23 @@ export async function generateSessionName(
   if (signal?.aborted) return { ok: false, reason: "aborted" };
 
   const controller = new AbortController();
-  const onAbort = (): void => controller.abort();
+
+  // Both endings settle the race themselves: a provider that ignores its abort
+  // signal must not hold the command open, and a caller's abort must not wait for
+  // the deadline to be reported. The first caller of `settle` wins.
+  let settle: (reason: AutonameFailure) => void = () => {};
+  const settled = new Promise<AutonameOutcome>((resolve) => {
+    settle = (reason) => resolve({ ok: false, reason });
+  });
+  const onAbort = (): void => {
+    controller.abort();
+    settle("aborted");
+  };
   signal?.addEventListener("abort", onAbort, { once: true });
 
-  // `expired` settles on the deadline so the request can be raced against it.
-  let expire: () => void = () => {};
-  const expired = new Promise<AutonameOutcome>((resolve) => {
-    expire = () => resolve({ ok: false, reason: "aborted" });
-  });
   const timer = setTimeout(() => {
     controller.abort();
-    expire();
+    settle("timeout");
   }, timeoutMs);
 
   const work = (async (): Promise<AutonameOutcome> => {
@@ -313,7 +321,7 @@ export async function generateSessionName(
 
   try {
     // The race, not just the abort signal, is what guarantees settlement.
-    return await Promise.race([work, expired]);
+    return await Promise.race([work, settled]);
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", onAbort);

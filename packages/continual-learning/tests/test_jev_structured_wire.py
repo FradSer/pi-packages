@@ -12,7 +12,7 @@ def test_review_wire_preserves_structured_state_and_shared_exact_citations() -> 
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);requests.push(req);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
-          const choice=key.startsWith('counter')&&req.state.reviewEvidence?.entries.some(e=>e.index===1)?'contradicts':key.startsWith('counter')?'compatible':key.startsWith('relation')?'novel':'grounded';
+          const choice=key.startsWith('coherence_')?'compatible':key.startsWith('counter')&&req.state.reviewEvidence?.entries.some(e=>e.index===1)?'contradicts':key.startsWith('counter')?'compatible':key.startsWith('relation')?'novel':'grounded';
           return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];
         }));return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:1}}));
       }});

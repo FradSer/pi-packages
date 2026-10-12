@@ -4,7 +4,7 @@ import os
 import subprocess
 import tempfile
 
-from test_open_deskos_package import PACKAGE, REPO
+from test_odk_package import PACKAGE, REPO
 
 
 def test_multiline_result_regressions() -> None:
@@ -15,12 +15,12 @@ def test_multiline_result_regressions() -> None:
         env = dict(os.environ, PI_DIRECTORY_SESSIONS_DIR=registry, HOME=home)
         # The default desks file is resolved from the home directory, so stripping
         # ODK_ environment variables is not enough on its own: a developer machine
-        # that actually runs Desk Link would have its real desks read instead of the
+        # that actually runs Open DeskOS Link would have its real desks read instead of the
         # configuration each script declares, and the harness would silently report
         # to a real desk rather than to its own local server. Isolating HOME keeps
         # the declared environment authoritative.
-        env.pop("ODK_DESK_LINK_ADDRESS", None)
-        env.pop("ODK_DESK_LINK_TOKEN", None)
+        env.pop("ODK_LINK_ADDRESS", None)
+        env.pop("ODK_LINK_TOKEN", None)
         result = subprocess.run(
             ["node", *loader, "--test", str(PACKAGE / "tests/multiline-results.test.mjs"), str(PACKAGE / "tests/telemetry-reliability.test.mjs")],
             cwd=REPO,

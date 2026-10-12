@@ -1,4 +1,5 @@
 import { plannerReadArgs } from "./planner-read-scope";
+import { harnessPlannerPreviewArgs } from "./harness-planner-preview";
 /**
  * Harness consolidation phase — the second half of the /consolidate pipeline.
  *
@@ -14,18 +15,21 @@ import { plannerReadArgs } from "./planner-read-scope";
 import { completeLiteralRuleMessage, jevRepairFailureHints, type BoundScopeContext } from "./jev-learning";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import type { ChildProcess } from "node:child_process";
 import { withFileMutationQueue, type ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { recordLearningMutation, recordLearningProposal } from "./learning-history";
 import {
   minimalPiWorkerArgs,
   notifyPi,
-  parsePiWorkerOutput,
+  parsePiWorkerUsageLedger,
   resolvePiCli,
   spawnPiChild,
   type PiWorkerUsage,
+  type PiWorkerUsageLedger,
 } from "@fradser/pi-kit";
 import {
+  containsSensitiveMemoryMaterial,
   createConsolidationRun,
   extractChildPlan,
   releaseConsolidationRun,
@@ -451,6 +455,48 @@ function validateRuleCases(rule: Record<string, unknown>, cases: HarnessRuleCase
   }
 }
 
+/** Drop only an identical negative input already covered by a valid positive
+ * under the unchanged rule. No unique input or restriction is removed. A broad
+ * selector's distinct failing negatives still require repair and semantic review. */
+export function repairDuplicateHarnessCases(plan: HarnessConsolidationPlan): {
+  plan: HarnessConsolidationPlan;
+  corrections: {operationIndex: number; negativeIndex: number; positiveIndex: number; inputSha256: string}[];
+} {
+  const corrections: {operationIndex: number; negativeIndex: number; positiveIndex: number; inputSha256: string}[] = [];
+  if (!Array.isArray(plan.operations) || plan.operations.length > MAX_HARNESS_OPS
+    || containsSensitiveMemoryMaterial(JSON.stringify(plan))) return {plan, corrections};
+  const operations = plan.operations.map((operation, operationIndex) => {
+    if (!isRecord(operation) || !isRecord(operation.rule) || validateRuleDeclaration(operation.rule).length) return operation;
+    const errors: string[] = [], label = `operations[${operationIndex}]`;
+    const cases = parseRuleCases(operation.cases, label, errors, true);
+    if (!cases || errors.length) return operation;
+    validateRuleCases(operation.rule, cases, label, errors);
+    if (!errors.length) return operation;
+    const key = (fixture: HarnessRuleCase) => JSON.stringify([fixture.bash ?? null, fixture.skill ?? null, fixture.text ?? null]);
+    const duplicates = cases.negative.flatMap((fixture, negativeIndex) => {
+      const positiveIndex = cases.positive.findIndex(positive => key(positive) === key(fixture));
+      return positiveIndex < 0 ? [] : [{operationIndex, negativeIndex, positiveIndex, inputSha256: sha256Digest(key(fixture))}];
+    });
+    if (!duplicates.length || duplicates.length === cases.negative.length
+      || errors.length !== duplicates.length || errors.some(error => !duplicates.some(item =>
+        error === `${label}.cases.negative[${item.negativeIndex}] matched but must remain unmatched`))) return operation;
+    corrections.push(...duplicates);
+    const raw = operation.cases as {positive: unknown[]; negative: unknown[]};
+    return {...operation, cases: {...raw, negative: raw.negative.filter((_value, index) => !duplicates.some(item => item.negativeIndex === index))}};
+  });
+  return {plan: corrections.length ? {...plan, operations} : plan, corrections};
+}
+
+/** Case execution only. This never approves evidence, ownership or mutation. */
+export function previewHarnessRuleCases(rule: unknown, rawCases: unknown): {passed: boolean; errors: string[]} {
+  const errors = validateRuleDeclaration(rule).map(error => `operations[0].rule ${error}`);
+  if (!isRecord(rule)) return {passed:false, errors};
+  if (Buffer.byteLength(JSON.stringify(rule)) > MAX_RULE_BYTES) errors.push(`operations[0].rule exceeds ${MAX_RULE_BYTES} bytes`);
+  const cases = parseRuleCases(rawCases, "operations[0]", errors, true);
+  if (!errors.length && cases) validateRuleCases(rule, cases, "operations[0]", errors);
+  return {passed:errors.length === 0, errors};
+}
+
 function ruleWeakens(existing: Record<string, unknown>, proposed: Record<string, unknown>): boolean {
   if (existing.enabled === false || proposed.enabled === false) return true;
   for (const field of ["skill", "bash", "text"] as const) if (existing[field] !== proposed[field]) return true;
@@ -838,14 +884,17 @@ async function runHarnessPlannerChild(
     model?: string;
     onChild?: (child: ChildProcess) => void;
     onUsage?: (usage: PiWorkerUsage | undefined) => void;
+    onUsageLedger?: (ledger: PiWorkerUsageLedger) => void;
   },
 ): Promise<{ ok: true; stdout: string } | { ok: false; detail: string }> {
   const child = spawnPiChild(cli.command, [
     ...cli.args,
-    ...minimalPiWorkerArgs(["learning_read"]),
+    ...minimalPiWorkerArgs(["learning_read", "harness_check_cases"]),
     ...await plannerReadArgs(path.dirname(taskFile), { cwd, files: options.files, roots: [cwd] }),
+    ...await harnessPlannerPreviewArgs(path.dirname(taskFile)),
     ...learningPlannerArgs(),
     ...(options.model ? ["--model", options.model] : []),
+    "Check each proposed rule and its exact positive/negative cases with harness_check_cases before final JSON. Correct evaluator mismatches in this worker. Passing cases do not approve evidence, scope, semantics, ownership or mutation.",
     `@${taskFile}`,
   ], { cwd, stdio: ["ignore", "pipe", "pipe"] });
   options.onChild?.(child);
@@ -858,20 +907,23 @@ async function runHarnessPlannerChild(
     let stderr = "";
     let done = false;
     let usageReported = false;
-    const reportUsage = (): void => {
+    const reportUsage = (complete = true): void => {
       if (usageReported) return;
       usageReported = true;
       // A limit breach may leave one oversized chunk in memory. Parse only the
       // safely captured prefix so a complete usage event before the breach is
       // retained without accepting unbounded child output.
       const bounded = Buffer.from(stdout, "utf8").subarray(0, MAX_STDOUT_BYTES).toString("utf8");
-      options.onUsage?.(parsePiWorkerOutput(bounded).usage);
+      const parsedLedger = parsePiWorkerUsageLedger(bounded);
+      const ledger = {...parsedLedger, complete: complete && parsedLedger.complete};
+      options.onUsageLedger?.(ledger);
+      options.onUsage?.(ledger.complete ? ledger.knownUsage : undefined);
     };
     const finish = (value: { ok: true; stdout: string } | { ok: false; detail: string }) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      reportUsage();
+      reportUsage(value.ok);
       resolve(value);
     };
     const terminateAndFinish = async (detail: string): Promise<void> => {
@@ -879,7 +931,7 @@ async function runHarnessPlannerChild(
       done = true;
       clearTimeout(timer);
       await terminateConsolidationChild(child, 5_000).catch(() => false);
-      reportUsage();
+      reportUsage(false);
       resolve({ ok: false, detail });
     };
     const timer = setTimeout(() => {
@@ -929,6 +981,7 @@ async function repairHarnessPlan(input: {
   run: ConsolidationRun;
   rejected?: unknown;
   missingOutput?: boolean;
+  explorationPath?: string;
   allowOmissions?: boolean;
   errors: readonly string[];
   taskText: string;
@@ -981,13 +1034,14 @@ async function repairHarnessPlan(input: {
     }),
   ].join("\n");
   const childStartedAt = Date.now();
+  const usageLedgerId = randomUUID();
   let childUsage: PiWorkerUsage | undefined;
   const recordAttempt = (outcome: LearningOutcome): void => {
     input.onAttempt?.({
       outcome,
       durationMs: Date.now() - childStartedAt,
       operations: 0,
-      ...(childUsage ? { usage: childUsage } : {}),
+      ...(childUsage ? { usage: childUsage, usageLedgerId } : {}),
     });
   };
   try {
@@ -996,17 +1050,21 @@ async function repairHarnessPlan(input: {
     recordAttempt("failed");
     return { ok: false, detail: `harness repair task could not be written: ${(error as Error).message}` };
   }
+  let usageLedger: PiWorkerUsageLedger | undefined;
   const child = await runHarnessPlannerChild(input.cli, taskFile, input.cwd, {
     timeoutMs: input.timeoutMs,
-    files: input.missingOutput ? [input.run.manifest.snapshotPath, path.join(input.run.manifest.runDir, "incremental-learning-dossier.json")] : [],
+    // The dossier belongs to the original selector run, not this Harness run.
+    files: input.missingOutput ? [input.run.manifest.snapshotPath, ...(input.explorationPath ? [input.explorationPath] : [])] : [],
     current: input.current,
     ...(input.model ? { model: input.model } : {}),
     onChild: input.onChild,
+    onUsageLedger: value => { usageLedger = value; },
     onUsage: (value) => {
       childUsage = value;
       input.onUsage?.(value);
     },
   });
+  if (usageLedger) await writeFileAtomic(path.join(input.run.manifest.runDir, `harness-repair-usage-${usageLedgerId}.json`), JSON.stringify({...usageLedger, complete: child.ok && usageLedger.complete, ledgerId: usageLedgerId}));
   if (!child.ok) {
     recordAttempt(/cancelled/i.test(child.detail) ? "cancelled" : "failed");
     return child;
@@ -1110,17 +1168,21 @@ export async function planHarnessConsolidationPhase(
       : HARNESS_PHASE_TIMEOUT_MS;
     const childStartedAt = Date.now();
     let childUsage: PiWorkerUsage | undefined;
+    const usageLedgerId = randomUUID();
+    let usageLedger: PiWorkerUsageLedger | undefined;
     const childResult = await runHarnessPlannerChild(cli, taskFile, opts.cwd, {
       timeoutMs,
       files: [run.manifest.snapshotPath, ...(opts.explorationPath ? [opts.explorationPath] : [])],
       current,
       ...(opts.model ? { model: opts.model } : {}),
       onChild: hooks.onChild,
+      onUsageLedger: value => { usageLedger = value; },
       onUsage: (value) => {
         childUsage = value;
         usage = addPiWorkerUsage(usage, value);
       },
     });
+    if (usageLedger) await writeFileAtomic(path.join(run.manifest.runDir, "harness-task-usage.json"), JSON.stringify({...usageLedger, complete: childResult.ok && usageLedger.complete, ledgerId: usageLedgerId}));
     const recordInitialAttempt = (outcome: LearningOutcome): number => {
       attempts.push({
         phase: "harness",
@@ -1128,7 +1190,7 @@ export async function planHarnessConsolidationPhase(
         outcome,
         durationMs: Date.now() - childStartedAt,
         operations: 0,
-        ...(childUsage ? { usage: childUsage } : {}),
+        ...(childUsage ? { usage: childUsage, usageLedgerId } : {}),
       });
       return attempts.length - 1;
     };
@@ -1164,6 +1226,7 @@ export async function planHarnessConsolidationPhase(
         cwd: opts.cwd,
         run,
         missingOutput: true,
+        explorationPath: opts.explorationPath,
         errors: [MISSING_PLAN_ERROR],
         taskText,
         timeoutMs,
@@ -1212,16 +1275,23 @@ export async function planHarnessConsolidationPhase(
     // not discard otherwise valid rules or consume the shared repair slot.
     // Revalidate after removal; identity, evidence and executable cases remain
     // exact, and any non-report error still follows the normal rejection path.
-    const validateCandidate = (candidate: HarnessConsolidationPlan) => {
+    const normalizationRunDir = run.manifest.runDir;
+    let normalizationAttempt = 0;
+    const validateCandidate = async (candidate: HarnessConsolidationPlan) => {
+      const originalPlan = candidate;
+      const beforeSha256 = sha256Digest(JSON.stringify(candidate));
+      const duplicateRepair = repairDuplicateHarnessCases(candidate);
+      candidate = duplicateRepair.plan;
       let errors = validateHarnessPlan(candidate, validationOptions);
       if (errors.length && errors.every(error => /^report(?:\[|\s|\.)/.test(error))) {
         const { report: _report, ...withoutReport } = candidate;
         candidate = withoutReport;
         errors = validateHarnessPlan(candidate, validationOptions);
       }
-      return { candidate, errors };
+      if (duplicateRepair.corrections.length) await writeFileAtomic(path.join(normalizationRunDir, `harness-case-normalization-${normalizationAttempt++}.json`), JSON.stringify({originalPlan, beforeSha256, afterSha256: sha256Digest(JSON.stringify(candidate)), corrections: duplicateRepair.corrections}));
+      return { candidate, errors, caseRepair: {originalPlan, beforeSha256, afterSha256: sha256Digest(JSON.stringify(candidate)), corrections: duplicateRepair.corrections} };
     };
-    const initialValidation = validateCandidate(plan);
+    const initialValidation = await validateCandidate(plan);
     plan = initialValidation.candidate;
     const errors = initialValidation.errors;
     if (errors.length) {
@@ -1262,7 +1332,7 @@ export async function planHarnessConsolidationPhase(
         },
       });
       if (!repair.ok) return fail(`${repair.detail} (after repair attempt)`);
-      const repairedValidation = validateCandidate(repair.plan);
+      const repairedValidation = await validateCandidate(repair.plan);
       const repairedErrors = repairedValidation.errors;
       if (repairedErrors.length) {
         if (repairAttempt >= 0) {
@@ -1298,7 +1368,7 @@ export async function planHarnessConsolidationPhase(
         },
       });
       if (coverage.ok) {
-        const coverageValidation = validateCandidate(coverage.plan);
+        const coverageValidation = await validateCandidate(coverage.plan);
         const coverageOperations = Array.isArray(coverageValidation.candidate.operations) ? coverageValidation.candidate.operations.length : 0;
         if (coverageRepairAccepted(coverageValidation.errors, coverageOperations)) {
           plan = coverageValidation.candidate;
@@ -1311,7 +1381,7 @@ export async function planHarnessConsolidationPhase(
     if (opts.validateSemantics) {
       const completed = completeHarnessLiteralMessages(plan);
       if (completed !== plan) {
-        const checked = validateCandidate(completed);
+        const checked = await validateCandidate(completed);
         if (checked.errors.length) return fail(parentValidationDiagnostic(checked.errors));
         if (!current()) return fail("harness message completion cancelled");
         await fs.writeFile(path.join(run.manifest.runDir, "pre-message-completion-plan.json"), JSON.stringify(plan, null, 2), { mode: 0o600 });
@@ -1367,7 +1437,7 @@ export async function planHarnessConsolidationPhase(
         const freshSnapshot = await readLayerFileBytes(run.manifest.snapshotPath, MAX_SNAPSHOT_BYTES);
         if (!freshSnapshot || sha256Digest(freshSnapshot) !== run.manifest.snapshotDigest) return fail("immutable harness evidence snapshot changed during semantic repair");
         if (repair.ok) {
-          const repairedValidation = validateCandidate(repair.plan);
+          const repairedValidation = await validateCandidate(repair.plan);
           const repairedErrors = repairedValidation.errors;
           // An empty repair must not silently erase the original opportunity.
           if (repairedErrors.length || !Array.isArray(repair.plan.operations) || !repair.plan.operations.length) {

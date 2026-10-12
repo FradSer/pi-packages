@@ -14,18 +14,21 @@ def test_real_noop_cannot_skip_review_of_retained_outdated_memory() -> None:
       const before=JSON.stringify({snapshot,existing});
       const held=await judge.validate('memory',snapshot,[],existing);const first=requests.splice(0);
       mode='compatible';const allowed=await judge.validate('memory',snapshot,[],existing);
-      console.log(JSON.stringify({held,allowed,rows:first.map(r=>({keys:Object.keys(r.questions),existingExact:JSON.stringify((typeof r.state === "string" ? JSON.parse(r.state) : r.state).existingMemories)===JSON.stringify(existing),indexes:(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence.entries.map(e=>e.index)})),entries:snapshot.entries.length,unchanged:before===JSON.stringify({snapshot,existing})}));
+      console.log(JSON.stringify({held,allowed,rows:first.map(r=>({keys:Object.keys(r.questions),existingExact:JSON.stringify((typeof r.state === "string" ? JSON.parse(r.state) : r.state).existingMemories)===JSON.stringify(existing),indexes:(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence.entries.map(e=>e.index)})),entries:snapshot.entries.length,evidenceIndexes:snapshot.entries.flatMap((e,i)=>(e.customType??'').startsWith('continual-learning-')?[]:[i]),injected:snapshot.entries.filter(e=>(e.customType??'').startsWith('continual-learning-')).length,unchanged:before===JSON.stringify({snapshot,existing})}));
     ''')
     assert result['held']['decision'] == 'propose'
     assert result['held']['telemetry']['reason'] == 'conflict'
     assert result['allowed']['decision'] == 'allow'
-    assert result['rows'] and result['unchanged']
+    assert result['rows'] and result['unchanged'] and result['injected'] == 1
     covered = set()
     for row in result['rows']:
         assert all(k.startswith('counter_') for k in row['keys'])
         covered.update(row['indexes'])
         assert row['existingExact']
-    assert covered == set(range(result['entries']))
+    # Every original session entry is reviewed. The extension's own injected
+    # reference is routed and revisited, never judged as evidence.
+    assert result['entries'] == 42
+    assert covered == set(range(42)) - {1}
 
 
 def test_retention_amendment_is_bounded_to_reviewed_existing_names_and_privacy() -> None:
@@ -53,7 +56,9 @@ def test_retention_amendment_is_bounded_to_reviewed_existing_names_and_privacy()
     ''')
     assert result['results'][0]['outcome'] == 'repaired'
     assert result['results'][0]['plan']['operations'][0]['evidence'][0]['quote'] == 'The wrapper now declares onIdle and clearQueue.'
-    for row in result['results'][1:]:
+    assert result['results'][1]['outcome'] == 'failed'
+    assert result['results'][1]['failureKind'] == 'no-correction'
+    for row in result['results'][2:]:
         assert row['outcome'] == 'failed' and row['failureKind'] == 'intent'
     assert result['invalid']['outcome'] == 'failed' and result['invalidCalls'] == 0
     assert result['partial']['outcome'] == 'failed' and result['partial']['failureKind'] == 'intent'
@@ -72,11 +77,15 @@ def test_parent_keeps_failed_retention_as_failure_and_applies_valid_amendment() 
         receipt = result['registryReceipt']
         attempts = [row for row in receipt['attempts'] if row['phase'] == 'memory']
         assert result['semanticRepairs'] == 1 and not result['lock']
+        errors = result['repairErrors'][-1]
+        assert len(errors) == len(set(errors))
+        assert any(error == 'Retained existing records: known.md' for error in errors)
         if mode == 'retention-held':
             assert result['receiptComplete'] is False
             assert receipt['operations'] == 0
             assert all(row['outcome'] not in ('noop', 'applied') for row in attempts)
             assert 'Existing knowledge.' in result['knownMemory']
+            assert attempts[-1]['diagnostic'] == 'Retained Memory review remains unresolved; no corrective operation was proposed. No files changed.'
         else:
             assert result['receiptComplete'] is True
             assert receipt['operations'] == 1
@@ -162,7 +171,9 @@ def test_actual_mixed_failure_scopes_allow_only_held_replacements_and_retained_a
     assert result['good']['plan']['newMemories'][0] == result['proposal']
     assert result['payload']['repairableNames'] == [result['proposal']['name'], result['rewrite']['name']]
     assert result['payload']['retainedRepairNames'] == [result['retained']['name']]
-    assert all(row['outcome'] == 'failed' and row['failureKind'] == 'intent' for row in result['errors'])
+    assert all(row['outcome'] == 'failed' and row['failureKind'] == 'intent' for row in result['errors'][:-1])
+    assert result['errors'][-1]['outcome'] == 'failed'
+    assert result['errors'][-1]['failureKind'] == 'intent'  # New proposal remains in this malformed mixed delta.
 
 
 def test_each_retained_and_mutation_review_is_recorded_once_when_only_retention_holds() -> None:
@@ -299,3 +310,75 @@ def test_correcting_both_held_claim_fields_does_not_union_rejected_citation_foot
     assert result['partialValid'] == [False, False]
     for partial in result['partial']:
         assert partial['newMemories'][0]['evidence'][:6] == result['old']['evidence']
+
+
+def test_injected_memory_reference_is_never_review_evidence() -> None:
+    """The extension's own reference indexes the records under review, so it is
+    context for routing, never factual support for a retained-record judgment."""
+    result = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const reference={type:'custom_message',customType:'continual-learning-memory-reference',content:'# Active Project Memories\n- fact.md (harness) — A fact.'};
+      const snapshot={contextEnabled:true,entries:[
+        {type:'message',message:{role:'user',content:[{type:'text',text:'Review fact.md.'}]}},
+        reference,
+        {type:'message',message:{role:'assistant',content:[{type:'text',text:'Noted.'}]}},
+        {type:'message',message:{role:'toolResult',content:[{type:'text',text:'Unrelated output.'}]}}]};
+      const existing=[{name:'fact.md',classification:'safe',type:'project',description:'A fact',
+        content:'---\nname: fact\ndescription: A fact\ntype: project\n---\nA fact.'}];
+      const requests=[];
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+        const r=JSON.parse(init.body);requests.push(r);
+        const answers=Object.fromEntries(Object.entries(r.questions).map(([key,q])=>[key,{type:'choice',choice:'compatible',confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k==='compatible'?1:0]))}]));
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:1}}));
+      }});
+      const before=JSON.stringify({snapshot,existing});
+      const verdict=await judge.validate('memory',snapshot,[],existing);
+      const states=requests.map(r=>typeof r.state==='string'?JSON.parse(r.state):r.state);
+      console.log(JSON.stringify({verdict,requests:requests.length,
+        indexes:(states[0]?.reviewEvidence?.entries??[]).map(e=>e.index),totalEntries:states[0]?.reviewEvidence?.totalEntries,
+        leaked:requests.some(r=>JSON.stringify(r).includes('Active Project Memories')),
+        unchanged:before===JSON.stringify({snapshot,existing})}));
+    ''')
+    assert result['verdict']['decision'] == 'allow'
+    assert result['requests'] >= 1
+    assert result['indexes'] == [0, 2, 3]
+    assert result['totalEntries'] == 3
+    assert result['leaked'] is False and result['unchanged'] is True
+
+
+def test_only_known_owned_references_are_excluded_from_source_review() -> None:
+    result = isolated_run_bun(r'''
+      import {selfInjectedContextEntry} from './packages/continual-learning/extensions/memory-retrieval.ts';
+      const types=['continual-learning-memory-reference','continual-learning-result','continual-learning-observed-failure'];
+      const entries=types.flatMap(customType=>[{customType},{customType,role:'user'},
+        {customType,message:{role:'toolResult'}},{message:{customType,role:'user'}},
+        {message:{customType,role:'toolResult'}}]);
+      console.log(JSON.stringify(entries.map(selfInjectedContextEntry)));
+    ''')
+    assert result == [True, False, False, False, False, True, False, False, False, False, False, False, False, False, False]
+
+
+def test_real_empty_retention_repair_reports_missing_correction_not_intent_drift() -> None:
+    # The reported manual run returned identical empty delta arrays twice.
+    # Names/bodies are replaced; the parent boundary and response shape are exact.
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';
+      const kit=await import('./packages/kit/src/index.ts');let next;
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async()=>({text:JSON.stringify(next),exitCode:0,stderr:'',cancelled:false})}));
+      const {repairIncrementalMemoryPlan}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const identity={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'a'};
+      const original={...identity,operations:[],newMemories:[]};
+      const names=['architecture.md','billing.md','deploy.md','runtime.md'];
+      const input={identity,rejectedPlan:original,errors:['Retained records: uncertain counterevidence'],selectedNames:names,retainedRepairNames:names,semanticContext:{frozenEvidence:{entries:[]},existingMemories:names.map(name=>({name,classification:'private',content:'Existing knowledge'}))}};
+      next=original;const empty=await repairIncrementalMemoryPlan(input);
+      next={...original,operations:null};const malformed=await repairIncrementalMemoryPlan(input);
+      next={...original,operations:[{name:'outside.md',kind:'delete',classification:'private'}]};const drift=await repairIncrementalMemoryPlan(input);
+      next={...original,scopeDigest:'changed'};const identityDrift=await repairIncrementalMemoryPlan(input);
+      console.log(JSON.stringify({empty,malformed,drift,identityDrift}));
+    ''')
+    assert result['empty']['outcome'] == 'failed'
+    assert result['empty']['failureKind'] == 'no-correction'
+    assert 'plan' not in result['empty']
+    for key in ('malformed', 'drift', 'identityDrift'):
+        assert result[key]['outcome'] == 'failed'
+        assert result[key]['failureKind'] == 'intent'

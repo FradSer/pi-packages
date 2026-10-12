@@ -34,3 +34,10 @@ Feature: Failed or aborted planner output cannot become a learning candidate
     Given a legacy structured plan was emitted while the child was failed
     When a successful fresh assistant reply contains no plan
     Then the failed-state plan is not accepted
+
+  Scenario: Incomplete planner cost keeps its known prefix without claiming a full receipt
+    Given a planner completed paid replies before an error or an incomplete usage record
+    When the parent records the attempt
+    Then the numeric ledger retains all known usage and cost
+    And the receipt does not mark the attempt usage as complete
+    And only an actual matching persistent receipt excludes a ledger from additional known costs

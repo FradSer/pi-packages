@@ -1,17 +1,17 @@
-# pi-open-deskos
+# pi-odk
 
 Report this machine's Pi sessions and their operating events to Open DeskOS, and optionally drive a Pi session that Open DeskOS hosts.
 
 **English** | [简体中文](README.zh-CN.md)
 
-Open DeskOS normally learns about Pi sessions by scanning a machine locally or over SSH. That direction is not always available, and a scan cannot see what a session is actually doing. This package inverts it: the machine that owns the sessions opens one **Desk Link** out to Open DeskOS and reports them itself.
+Open DeskOS normally learns about Pi sessions by scanning a machine locally or over SSH. That direction is not always available, and a scan cannot see what a session is actually doing. This package inverts it: the machine that owns the sessions opens one **Open DeskOS Link** out to Open DeskOS and reports them itself.
 
 A machine may also hold a **Control Credential** and become a **Console**: it opens a separate control connection to the same listener, lists the **Hosted Pi** sessions the desk hosts, launches new ones, attaches to them, steers a running turn, cancels it, ends the session, and reads its complete history on demand.
 
 ## Install
 
 ```bash
-pi install npm:pi-open-deskos
+pi install npm:pi-odk
 ```
 
 To install from this checkout instead, run the following from the repository root:
@@ -24,20 +24,20 @@ The command records an absolute package path, so the checkout can live anywhere,
 
 ## Configure
 
-A machine reports nothing until an address **and** a token are both set. A partially configured link stays silent. Control stays off until a separate control credential is also set. Run `/open-deskos` for configuration guidance.
+A machine reports nothing until an address **and** a token are both set. A partially configured link stays silent. Control stays off until a separate control credential is also set. Run `/odk` for configuration guidance.
 
 ```bash
-export ODK_DESK_LINK_ADDRESS="192.168.88.161:8765"   # Open DeskOS Desk Link Service
-export ODK_DESK_LINK_TOKEN="<per-link token>"
-export ODK_DESK_LINK_MACHINE="desk-mac"              # optional, defaults to the hostname
-export ODK_DESK_LINK_CONTROL_TOKEN="<control credential>"   # optional: makes this machine a Console
+export ODK_LINK_ADDRESS="192.168.88.161:8765"   # Open DeskOS Link Service
+export ODK_LINK_TOKEN="<per-link token>"
+export ODK_LINK_MACHINE="desk-mac"              # optional, defaults to the hostname
+export ODK_LINK_CONTROL_TOKEN="<control credential>"   # optional: makes this machine a Console
 ```
 
 Put them in the environment Pi runs with (for a desktop session, the same place that starts `pi`). The control credential is never transmitted: the desk challenges with a one-time nonce and this machine answers with a proof over it.
 
 ### Report to more than one desk
 
-Each desk has its own token, so a machine that feeds several desks states them in one file: `~/.config/open-deskos/desks.json`, or the file named by `ODK_DESK_LINK_DESKS_FILE`.
+Each desk has its own token, so a machine that feeds several desks states them in one file: `~/.config/odk/desks.json`, or the file named by `ODK_LINK_DESKS_FILE`.
 
 ```json
 {
@@ -51,13 +51,13 @@ Each desk has its own token, so a machine that feeds several desks states them i
 - Discovery runs once. Every desk receives the same sessions, statuses, events, and replayed history.
 - One desk being unreachable never stops the others. The status row names every desk with its own link state, and a set that is only half up is never stated as connected.
 - When this file exists it is the one source of truth: the single-desk environment variables are not read beside it. With no such file the environment form above still works exactly as before.
-- An entry with no token, with an address that is not `host:port`, or listed twice is refused with a reason the `/open-deskos` menu shows, and the other desks still report. A file the operator named but that cannot be read is refused with the same visibility instead of looking like a link that never connects.
-- The Console drives one desk: the first desk with a control credential, or the desk named by `ODK_DESK_LINK_CONSOLE_DESK` (`host:port` or a bare host). A named desk without a credential reports that a credential is needed rather than quietly driving a different desk.
-- `machine` may be stated per desk; it defaults to `ODK_DESK_LINK_MACHINE`, then to the hostname.
+- An entry with no token, with an address that is not `host:port`, or listed twice is refused with a reason the `/odk` menu shows, and the other desks still report. A file the operator named but that cannot be read is refused with the same visibility instead of looking like a link that never connects.
+- The Console drives one desk: the first desk with a control credential, or the desk named by `ODK_LINK_CONSOLE_DESK` (`host:port` or a bare host). A named desk without a credential reports that a credential is needed rather than quietly driving a different desk.
+- `machine` may be stated per desk; it defaults to `ODK_LINK_MACHINE`, then to the hostname.
 
 ## What is reported
 
-- The current session's live identity, goal, activity, and events, plus other sessions registered on this machine in `directory-sessions` metadata (written by `pi-utils` and `pi-keyboard`). On resumed, reloaded, or forked reporter start, the current session replays its bounded durable JSONL tail before forwarding later live messages, so a resumed Pi does not appear as running with an empty Desk Link stream. UUID and timestamp-prefixed UUID aliases merge into one session.
+- The current session's live identity, goal, activity, and events, plus other sessions registered on this machine in `directory-sessions` metadata (written by `pi-utils` and `pi-keyboard`). On resumed, reloaded, or forked reporter start, the current session replays its bounded durable JSONL tail before forwarding later live messages, so a resumed Pi does not appear as running with an empty Open DeskOS Link stream. UUID and timestamp-prefixed UUID aliases merge into one session.
 - State: `running` requires working metadata, a live Pi process, and timestamps compatible with that process's lifetime; live idle/settled records are `settled`. Dead/invalid/reused PIDs, unverifiable processes, and explicitly exited records are `exited`. One bounded process-table read (1 MiB; a 2-second deadline on Unix, 5 seconds for Windows CIM) checks all PIDs; only the newest unambiguous session registered to a PID can be live. Quoted Windows launcher paths retain spaces. A failed or stalled query cannot leave discovery waiting indefinitely. For the current session, Pi's own idle/agent events take precedence.
 - Original metadata start/update times, optional session name, goal, and activity/recap. Scanning does not invent a new activity timestamp or read session histories.
 - Bounded session events: the newest contiguous tail of at most 300 events and 1,048,576 UTF-8 bytes per session, counting text and tool names. Event bodies preserve line structure with per-kind limits: user 8 KiB, thinking 4 KiB, tool call 4 KiB, assistant 16 KiB, and tool result 64 KiB.
@@ -67,13 +67,13 @@ The inventory refreshes on session start and every 5 seconds after each scan, in
 
 At most 64 sessions are reported. Only the current session is pinned; other entries favor running, then settled, then exited state, with recency breaking ties. Newer metadata can refresh a formerly observed session resumed elsewhere without dropping its retained events. The cap can evict old history and its events—it is not an archive.
 
-Each scan visits at most 256 workspaces, 2,048 JSON files, and 8,192 directory entries, reading at most 16 KiB per file. Malformed, oversized, linked, and non-regular files are skipped. Name, goal, and activity are limited to 200 characters each and may shorten further on the wire toward the 65,536-byte snapshot budget. Session IDs, exact working directories, workspace names, and timestamps are never shortened or collapsed. If exact identity fields still exceed that budget, the reporter omits whole lowest-priority entries from that snapshot and `/open-deskos` reports the omitted count. The current session is preserved. A single current identity larger than the frame budget cannot be represented without changing that identity; this remains a pathological limit.
+Each scan visits at most 256 workspaces, 2,048 JSON files, and 8,192 directory entries, reading at most 16 KiB per file. Malformed, oversized, linked, and non-regular files are skipped. Name, goal, and activity are limited to 200 characters each and may shorten further on the wire toward the 65,536-byte snapshot budget. Session IDs, exact working directories, workspace names, and timestamps are never shortened or collapsed. If exact identity fields still exceed that budget, the reporter omits whole lowest-priority entries from that snapshot and `/odk` reports the omitted count. The current session is preserved. A single current identity larger than the frame budget cannot be represented without changing that identity; this remains a pathological limit.
 
 The default registry is `~/.pi/agent/directory-sessions`. `PI_DIRECTORY_SESSIONS_DIR` selects an explicit registry; otherwise `PI_CODING_AGENT_DIR` (or legacy `PI_AGENT_DIR`) overrides the agent directory. Metadata writers must use the same registry. Discovery never edits or prunes registry files. Sessions without registry metadata are not invented, and removed metadata disappears on the next refresh unless this reporter observed that session directly.
 
 ## Driving a Hosted Pi
 
-`/open-deskos` opens a menu, and its console row lists the Hosted Pi sessions the desk hosts, each with its state, goal, project, and age, and lets you launch a new one, attach to an existing one, send it a further instruction (including while a turn is running, which steers that turn rather than starting a second one), cancel the running turn, end the session, and read its complete history.
+`/odk` opens a menu, and its console row lists the Hosted Pi sessions the desk hosts, each with its state, goal, project, and age, and lets you launch a new one, attach to an existing one, send it a further instruction (including while a turn is running, which steers that turn rather than starting a second one), cancel the running turn, end the session, and read its complete history.
 
 - **One Console drives one Hosted Pi.** Attaching replaces rather than shares any previous Console. Attaching is idempotent and repeatable by session identity, so a resumed Pi session can attach again.
 - **Nothing is repeated and nothing is skipped.** An event's position is the physical position of the corresponding complete entry in the Hosted Pi's own session log, so positions are strictly increasing but need not be consecutive when non-message entries intervene. A fresh attach sends `after: null` and begins at the desk's current boundary; older content is fetched explicitly through history. A resumed attach sends the last applied position and receives ordered catch-up through a `caught_up` boundary before live events. There is no replay window and no resync record to interpret.
@@ -89,7 +89,7 @@ A reported session is read-only: a desk can see what this session is doing, and 
 Declare where this machine's session endpoints live, and every Pi session on this machine publishes its own endpoint from `session_start` and withdraws it on `session_shutdown`:
 
 ```bash
-export ODK_SESSION_HOST_SOCKET="$HOME/.local/run/open-deskos/sessions"
+export ODK_SESSION_HOST_SOCKET="$HOME/.local/run/odk/sessions"
 ```
 
 An existing Pi process keeps the environment from its launch. If it has no endpoint, exit Pi when idle.
@@ -103,7 +103,7 @@ Use the original file, and keep only one live process for that session. Resuming
 
 Each session then serves the task protocol a desk's voice agent already speaks — `list`, `status`, `prompt`, `cancel` — on `<directory>/<sessionId>.sock`, with a `0600` descriptor beside it naming its socket, project and state. `start`, `launch`, `end` and `history` are refused with one fixed reason: this process is one session, not a session host.
 
-This endpoint works independently of reporting credentials on Unix. On Windows it is explicitly unavailable until private IPC is supported; `/open-deskos status` reports the refusal. Windows Desk Link reporting and remote Hosted Pi control remain supported. The packaged `session-control` launcher selects the requested task identity when several sessions share a project.
+This endpoint works independently of reporting credentials on Unix. On Windows it is explicitly unavailable until private IPC is supported; `/odk status` reports the refusal. Windows Open DeskOS Link reporting and remote Hosted Pi control remain supported. The packaged `session-control` launcher selects the requested task identity when several sessions share a project.
 
 - **It is a declared capability, never a default.** A machine that declares no endpoint has none to reach. An endpoint that lets something else hand a session work is a decision, not something a package turns on.
 - **Ownership is the only gate.** The socket lives in a `0700` directory with a `0600` socket. There is no token to present, and nothing listens on the network.
@@ -129,18 +129,18 @@ The root check restricts session selection. Pi keeps its original tools and perm
 
 ## What is not
 
-- **Reporting is never management.** A machine holding only the reporting token can report and nothing else: the package never sends a prompt, blocks a turn, or mutates a message on a reported session, and visibility through a Desk Link never makes a session controllable.
+- **Reporting is never management.** A machine holding only the reporting token can report and nothing else: the package never sends a prompt, blocks a turn, or mutates a message on a reported session, and visibility through a Open DeskOS Link never makes a session controllable.
 - **Control is a separate capability.** It needs the Control Credential, it never travels on the reporting connection, and a machine without it cannot become a Console.
 - **No management of reported sessions.** Even as a Console, the package does not manage the sessions it reports. Control applies to Hosted Pi sessions the desk hosts, which are a different thing.
 - **No answering a Hosted Pi mid-turn.** The desk's Pi host loads no extensions, and the SDK exposes no permission, approval, or ask-user surface, so a Hosted Pi cannot raise a request for you to answer. This is a limit of the host's configuration, not a missing feature.
 - **No network discovery or pairing.** Local session metadata is discovered, but a machine that does not already know the address and token cannot register, and a Console must already know the control credential.
 - **No other-session history or credential scan.** On resumed, reloaded, or forked start, the current Pi reads only the bounded tail of its own `sessionManager.getSessionFile()` JSONL file through the same event bounds; it never reads other sessions' histories, auth files, or arbitrary extra metadata. Other sessions contribute registry metadata only, not synthetic events. Current-session tool-result text **is sent** within the bounds above; it may include file contents or sensitive output returned by a tool. Configure the link only when that sharing is intended.
-- **No encryption.** The Desk Link is a plain connection to a LAN-only listener. The control credential is kept off the wire so a capture yields no reusable execution token, but content itself is not encrypted. Do not expose the Desk Link Service beyond the local network.
+- **No encryption.** The Open DeskOS Link is a plain connection to a LAN-only listener. The control credential is kept off the wire so a capture yields no reusable execution token, but content itself is not encrypted. Do not expose the Open DeskOS Link Service beyond the local network.
 
 ## Check the link from inside Pi
 
 ```
-/open-deskos
+/odk
 ```
 
 The menu is the same in every configuration, and a row that is unavailable names the reason instead of disappearing. Its status row shows the link state, the machine identity, the endpoint, the reported session count, the event count, the control state, and the latest connection error when present; its console row opens the Hosted Pi list. Arguments are the fast path: `console`, `status`, `attach`, `launch`, `cancel`, and `history`. Diagnostics are command-only in every configuration: Open DeskOS adds no footer status line, custom footer, or working-directory suffix, even when offline or unconfigured.
@@ -157,7 +157,7 @@ The control connection is separate and does not reproduce that behavior: list, l
 
 Newline-delimited JSON over one TCP connection, version 1 for reporting. Inventory sessions carry `discovered: true`; direct current-session observations do not. The service can therefore prefer active direct observations over later-written metadata from another reporter. The reporter writes `hello`, `sessions`, `events`, and `bye`; the service may reply `ack` or `error`. The `prompt` reply reserved in version 1 is still unimplemented, and control does not use it. Frames split on LF only and tolerate a trailing CR. Result events carry raw Markdown in `text`, plus optional `toolName`, `toolCallId`, `isError: true`, and `truncated: true`; a tool call event carries the same optional `toolCallId` as the result that answers it. Append-only event records are split between whole events into frames of at most 1 MiB, including JSON escaping and the final LF; bodies are never split or flattened to fit a frame. Replacing `sessions` snapshots retain their separate 65,536-byte producer budget. An event whose exact identity envelope alone makes it impossible to fit is not sent, and the command reports the frame-limit error.
 
-Control uses version 2 on its own connection to the same listener. The `control-hello` record carries the reporting token, protocol version, machine name, and this Pi session's identity, so two Pi sessions on one machine are distinguishable Consoles. The desk replies with a one-time `hmac-sha256` challenge; the proof binds `open-deskos-control-v2`, version `2`, nonce, machine, and Console session ID as newline-separated UTF-8 text. The separate Control Credential is the HMAC key and is never sent. Every request has a `requestId`; mutations also have a retry-stable `mutationId`; held attach traffic has an `attachmentId`; session-log events have a physical `position`. List, launch, and history are one-shot, while attach holds its connection. A version the desk does not accept is refused explicitly before credential failure. The canonical fixture is bundled at `fixtures/control-v2.json`. There is no detach record, no replay window, and no resync record.
+Control uses version 2 on its own connection to the same listener. The `control-hello` record carries the reporting token, protocol version, machine name, and this Pi session's identity, so two Pi sessions on one machine are distinguishable Consoles. The desk replies with a one-time `hmac-sha256` challenge; the proof binds `odk-control-v2`, version `2`, nonce, machine, and Console session ID as newline-separated UTF-8 text. The separate Control Credential is the HMAC key and is never sent. Every request has a `requestId`; mutations also have a retry-stable `mutationId`; held attach traffic has an `attachmentId`; session-log events have a physical `position`. List, launch, and history are one-shot, while attach holds its connection. A version the desk does not accept is refused explicitly before credential failure. The canonical fixture is bundled at `fixtures/control-v2.json`. There is no detach record, no replay window, and no resync record.
 
 ## License
 

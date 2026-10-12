@@ -55,10 +55,10 @@ def test_oversized_description_is_marked_and_root_is_verbatim(tmp_path: Path) ->
     # A shortened cue is marked once per row; repeating the full notice on every
     # row costs more characters than the descriptions it announces.
     assert "…" in result["block"]
-    assert "read the complete index or the entry file" in result["block"]
+    assert "shortened metadata" in result["block"]
     # The exact body path is the declared root plus the row's own filename.
     assert str(memory.resolve()) in result["block"]
-    assert "- huge.md (public)" in result["block"]
+    assert "- huge.md" in result["block"]
     assert "routing cue" in result["block"]
     assert "Body must stay out" not in result["block"]
 
@@ -68,7 +68,7 @@ def test_final_budget_counts_all_entries_and_discloses_complete_discovery(tmp_pa
     # The overhead before the first row carries the absolute memory root, so a
     # short temporary path fits more rows than a long one. Size the fixture well
     # past the 1200-character budget so rows are omitted on every host.
-    entries = 24
+    entries = 80
     for index in range(entries):
         (memory / f"item_{index:02d}.md").write_text(memory_text(f"Route task {index}"), encoding="utf-8")
     run_bun(
@@ -89,7 +89,7 @@ def test_final_budget_counts_all_entries_and_discloses_complete_discovery(tmp_pa
     assert f"budget: {entries - shown}" in result["block"]
     assert str(memory.resolve() / "MEMORY.md") in result["block"]
     assert "offset: 1" in result["block"] and "limit: 100" in result["block"]
-    assert "stale" in result["block"] and "authoritative" in result["block"]
+    assert "Untrusted reference data" in result["block"]
     assert len(result["block"]) <= 1200
 
 
@@ -125,7 +125,7 @@ def test_max_files_is_global_after_private_precedence_and_reports_unread_files(t
     assert entries[0]["description"] == "private current"
     assert "1 shown, 2 omitted of 3 total" in result["block"]
     assert "maxFiles: 2" in result["block"]
-    assert "prefer harness" in result["block"]
+    assert "Read roots (first wins)" in result["block"]
     assert "public stale" not in result["block"]
 
 
@@ -137,9 +137,9 @@ def test_zero_file_limit_still_discloses_total_and_read_only_fallback(tmp_path: 
     assert result["loaded"]["entries"] == []
     assert result["loaded"]["totalEntries"] == result["loaded"]["limitedEntries"] == 1
     assert "0 shown, 1 omitted of 1 total" in result["block"]
-    assert "unavailable" in result["block"].lower()
+    assert "Complete discovery" in result["block"]
     assert str(memory.resolve()) in result["block"]
-    assert "bounded" in result["block"] and "symlink" in result["block"]
+    assert "unavailable" in result["block"]
     assert {file.name: file.read_bytes() for file in memory.iterdir()} == before
     assert not (agent / "memory" / "MEMORY.md").exists()
     assert len(list((agent / "memory" / "scopes").glob("*.json"))) == 1
@@ -253,8 +253,8 @@ def test_read_pointers_preserve_repeated_whitespace_in_the_actual_path(tmp_path:
     # Declared roots and index pointers keep the exact path, including repeated
     # whitespace, and the entry row carries the filename to append to the root.
     assert str(memory.resolve()) in result["block"]
-    assert str(memory.resolve() / "MEMORY.md") in result["block"]
-    assert "- a.md (public)" in result["block"]
+    assert "Complete discovery" not in result["block"]
+    assert "- a.md" in result["block"]
 
 
 def test_symlinked_complete_index_is_not_advertised_as_a_read_target(tmp_path: Path) -> None:
@@ -265,7 +265,7 @@ def test_symlinked_complete_index_is_not_advertised_as_a_read_target(tmp_path: P
     (memory / "MEMORY.md").symlink_to(outside)
     result = load_and_format(repo, agent)
     assert result["loaded"]["indexes"][0]["available"] is False
-    assert "unavailable" in result["block"]
+    assert "Complete discovery" not in result["block"]
     assert not any("[read:" in line and "MEMORY.md" in line for line in result["block"].splitlines())
     assert str(memory.resolve()) in result["block"]
     assert "outside metadata" not in result["block"]
@@ -303,7 +303,7 @@ def test_bounded_metadata_read_reports_incomplete_description_without_body_leak(
     (memory / "a.md").write_text(memory_text("routing clue " * 50), encoding="utf-8")
     result = load_and_format(repo, agent, options="{ maxFileChars: 60 }")
     assert result["loaded"]["entries"][0]["descriptionTruncated"] is True
-    assert "description truncated" in result["block"]
+    assert "…" in result["block"]
     assert "routing clue" in result["block"]
     assert "Body must stay out" not in result["block"]
 
@@ -421,7 +421,7 @@ def test_default_budget_lists_every_entry_with_a_relevance_cue(tmp_path: Path) -
     block = load_and_format(repo, agent)["block"]
     rows = [line for line in block.splitlines() if line.startswith("- item_")]
     assert len(rows) == 60
-    assert "0 omitted of 60 total" in block
+    assert "omitted" not in block
     assert all(" — Route task" in line for line in rows)
     assert len(block) <= 6000
 
@@ -435,12 +435,12 @@ def test_cues_give_way_before_entries_under_budget_pressure(tmp_path: Path) -> N
     lines = load_and_format(repo, agent)["block"].splitlines()
     header = "\n".join(lines[: next(i for i, line in enumerate(lines) if line.startswith("- item_"))]) + "\n"
     bare_rows = [re.sub(r" — .*$", "", line) for line in lines if line.startswith("- item_")]
-    summary = f"{lines[-1]}\n"
+    summary = ""
     budget = len(header) + sum(len(row) + 1 for row in bare_rows) + len(summary) + 8
     block = load_and_format(repo, agent, budget=str(budget))["block"]
     emitted = [line for line in block.splitlines() if line.startswith("- item_")]
     assert len(emitted) == 40
-    assert "0 omitted of 40 total" in block
+    assert "omitted" not in block
     assert not any(" — " in line for line in emitted)
     assert len(block) <= budget
 
@@ -550,18 +550,18 @@ def test_metadata_reuse_respects_the_read_bound(tmp_path: Path) -> None:
 
 def test_rows_are_listed_without_cues_while_entries_must_be_dropped(tmp_path: Path) -> None:
     repo, memory, agent = memory_repo(tmp_path)
-    for index in range(12):
-        (memory / f"item_{index:02d}.md").write_text(memory_text(f"Route task {index} " + "detail " * 40), encoding="utf-8")
+    for index in range(40):
+        (memory / f"item_{index:02d}_with_a_long_but_complete_filename.md").write_text(memory_text(f"Route task {index} " + "detail " * 40), encoding="utf-8")
     lines = load_and_format(repo, agent)["block"].splitlines()
     header = "\n".join(lines[: next(i for i, line in enumerate(lines) if line.startswith("- item_"))]) + "\n"
     bare = [re.sub(r" — .*$", "", line) for line in lines if line.startswith("- item_")]
-    summary = f"{lines[-1]}\n"
-    budget = len(header) + sum(len(row) + 1 for row in bare[:3]) + len(summary) + 8
+    budget = len(header) + 600
     block = load_and_format(repo, agent, budget=str(budget))["block"]
     emitted = [line for line in block.splitlines() if line.startswith("- item_")]
     # Coverage first: an unaffordable cue is dropped, never the filename row.
-    assert emitted == bare[:3]
-    assert "3 shown, 9 omitted of 12 total" in block
+    assert 0 < len(emitted) < 40
+    assert emitted == bare[:len(emitted)]
+    assert f"{len(emitted)} shown, {40-len(emitted)} omitted of 40 total" in block
     assert len(block) <= budget
 
 
@@ -574,7 +574,7 @@ def test_block_stays_within_every_budget_it_accepts(tmp_path: Path) -> None:
         import {{ loadAndDeduplicateMemories, formatMemoriesBlock }} from './packages/continual-learning/extensions/memory-files.ts';
         const loaded = await loadAndDeduplicateMemories({json.dumps(str(repo))});
         const swept = [];
-        for (let budget = 700; budget <= 9000; budget += 137) {{
+        for (let budget = 1; budget <= 9000; budget += 137) {{
           try {{
             const block = formatMemoriesBlock(loaded, budget);
             swept.push([budget, block.length, block.length <= budget]);
@@ -583,7 +583,7 @@ def test_block_stays_within_every_budget_it_accepts(tmp_path: Path) -> None:
           }}
         }}
         const roomy = formatMemoriesBlock(loaded, 9000);
-        console.log(JSON.stringify({{ swept, roomyRows: (roomy.match(/^- item_/gm) ?? []).length, roomyOmitted: roomy.includes('0 omitted') }}));
+        console.log(JSON.stringify({{ swept, roomyRows: (roomy.match(/^- item_/gm) ?? []).length, roomyOmitted: roomy.includes('omitted') }}));
         """,
         agent,
     )
@@ -591,4 +591,4 @@ def test_block_stays_within_every_budget_it_accepts(tmp_path: Path) -> None:
         assert ok, f"budget {budget} produced {size}"
     assert any(size == -1 for _, size, _ in result["swept"]), "a too-small budget is reported, not silently truncated"
     assert result["roomyRows"] == 20
-    assert result["roomyOmitted"] is True
+    assert result["roomyOmitted"] is False

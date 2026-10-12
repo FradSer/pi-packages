@@ -349,4 +349,4 @@ def test_private_memory_exposes_its_root_and_entry_filename() -> None:
         # path is that root plus the row's filename, so no per-row repetition is
         # needed to keep the entry reachable.
         assert result["harness"] in result["block"]
-        assert "- private.md (harness)" in result["block"]
+        assert "- private.md" in result["block"]

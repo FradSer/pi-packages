@@ -11,13 +11,13 @@
 
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
-import os from "node:os";
 import path from "node:path";
 import { keyHint, type ExtensionAPI, type ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   bindLifecycleRenderers,
   detailField,
+  directorySessionsDir,
   eventToolLifecycle,
   fieldLine,
   formatAgentTaskName,
@@ -59,9 +59,13 @@ export interface SessionInfo {
 
 /**
  * Returns the base directory where session registry files are stored.
+ *
+ * The location comes from pi-kit so every writer and reader in the session
+ * agrees: a hardcoded home path keeps writing to the real registry while the
+ * session runs against an isolated agent directory.
  */
 export function getRegistryDir(): string {
-  return path.join(os.homedir(), ".pi", "agent", "directory-sessions");
+  return directorySessionsDir();
 }
 
 /** Shared directory-session key used by every registry writer and reader. */
@@ -88,6 +92,16 @@ export function isProcessAlive(pid: number): boolean {
 }
 
 /**
+ * Replace one registry record atomically, so a concurrent reader never parses a
+ * half-written file. Every writer in this module must use it.
+ */
+function writeRegistryRecord(filePath: string, info: SessionInfo): void {
+  const tmpPath = `${filePath}.tmp.${process.pid}.${randomUUID()}`;
+  fs.writeFileSync(tmpPath, JSON.stringify(info, null, 2), "utf-8");
+  fs.renameSync(tmpPath, filePath);
+}
+
+/**
  * Writes or updates a session's metadata in the registry.
  */
 export function writeSessionInfo(info: SessionInfo): void {
@@ -96,10 +110,7 @@ export function writeSessionInfo(info: SessionInfo): void {
     // Recursive mkdir is its own race guard; the temp name is unique per write so
     // two writers in the same millisecond cannot collide on it.
     fs.mkdirSync(dir, { recursive: true });
-    const filePath = path.join(dir, `${info.sessionId}.json`);
-    const tmpPath = `${filePath}.tmp.${process.pid}.${randomUUID()}`;
-    fs.writeFileSync(tmpPath, JSON.stringify(info, null, 2), "utf-8");
-    fs.renameSync(tmpPath, filePath);
+    writeRegistryRecord(path.join(dir, `${info.sessionId}.json`), info);
   } catch {
     // Best-effort registry write
   }
@@ -123,6 +134,18 @@ export function removeSessionInfo(cwd: string, sessionId: string): void {
 
 /** Known session statuses; registry JSON is not type-checked at rest. */
 const SESSION_STATUSES: readonly SessionInfo["status"][] = ["running", "idle", "settled", "exited"];
+
+/**
+ * Marks a record whose own writer declared the process gone.
+ *
+ * The reader also writes "exited" when it finds a dead pid, but an unreadable or
+ * unknown status is normalized to "exited" too. Only the writer's own claim
+ * distinguishes an earlier process generation from a live session whose record
+ * carried a status this module does not know.
+ */
+const CLAIMED_EXITED: unique symbol = Symbol("piUtilsClaimedExited");
+
+type RegistryRecord = SessionInfo & { [CLAIMED_EXITED]?: boolean };
 
 /**
  * Coerces an untrusted registry record into the SessionInfo contract: numeric
@@ -167,7 +190,9 @@ export function cleanAndListDirectorySessions(
     const filePath = path.join(dir, file);
     try {
       const raw = fs.readFileSync(filePath, "utf-8");
-      const info = normalizeSessionRecord(JSON.parse(raw));
+      const parsed = JSON.parse(raw) as Partial<SessionInfo> & { status?: unknown };
+      const info: RegistryRecord = normalizeSessionRecord(parsed as SessionInfo);
+      if (parsed.status === "exited") info[CLAIMED_EXITED] = true;
 
       // A registry directory is keyed by the requested cwd. Ignore records
       // whose stored canonical cwd belongs to another project.
@@ -193,7 +218,7 @@ export function cleanAndListDirectorySessions(
           // Mark as exited and update
           info.status = "exited";
           try {
-            fs.writeFileSync(filePath, JSON.stringify(info, null, 2), "utf-8");
+            writeRegistryRecord(filePath, info);
           } catch {}
         }
       } else if (now - info.updatedAt > maxStaleAgeMs) {
@@ -221,14 +246,28 @@ export function cleanAndListDirectorySessions(
  * Collapses registry records that share an owning process into one record.
  * The newest record wins mutable scalars; optional detail fields are filled
  * from the other record when missing.
+ *
+ * A pid is not a session identity. Two cases must stay apart:
+ *
+ * - a record whose writer declared the process gone describes an earlier
+ *   process generation, and its pid can be reused inside the hour a fresh
+ *   record survives;
+ * - a record with an unknown status is normalized to "exited" while its own
+ *   process is still running, and must keep merging with that process.
+ *
+ * Records therefore merge only when they agree on the process generation:
+ * gone (dead pid or a writer's exit claim) or live.
  */
 function mergeSessionsByPid(sessions: SessionInfo[]): SessionInfo[] {
-  const byPid = new Map<number, SessionInfo>();
+  const byKey = new Map<string, SessionInfo>();
   for (const session of sessions) {
-    const existing = byPid.get(session.pid);
-    byPid.set(session.pid, existing ? mergeSessionPair(existing, session) : session);
+    const claimedGone = (session as RegistryRecord)[CLAIMED_EXITED] === true;
+    const gone = claimedGone || !isProcessAlive(session.pid);
+    const key = `${gone ? "gone" : "live"}:${session.pid}`;
+    const existing = byKey.get(key);
+    byKey.set(key, existing ? mergeSessionPair(existing, session) : session);
   }
-  return Array.from(byPid.values());
+  return Array.from(byKey.values());
 }
 
 function mergeSessionPair(a: SessionInfo, b: SessionInfo): SessionInfo {

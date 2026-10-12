@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { DEFAULT_DESKS_FILE, readDeskLinkConfigs } from "../src/config.ts";
+import { DEFAULT_DESKS_FILE, readOdkLinkConfigs } from "../src/config.ts";
 import { aggregateDeskSnapshots, selectConsoleDesk } from "../src/desk-set.ts";
 
 function deeper() {
@@ -22,12 +22,12 @@ function missing(code = "ENOENT") {
   return error;
 }
 
-const DESKS_FILE = "/home/desk/.config/open-deskos/desks.json";
+const DESKS_FILE = "/home/desk/.config/odk/desks.json";
 
 test("a desks file configures one link per desk, each with its own token", () => {
   const { readFile } = deeper();
-  const env = { ODK_DESK_LINK_DESKS_FILE: DESKS_FILE, ODK_DESK_LINK_MACHINE: "desk-mac" };
-  const result = readDeskLinkConfigs(env, {
+  const env = { ODK_LINK_DESKS_FILE: DESKS_FILE, ODK_LINK_MACHINE: "desk-mac" };
+  const result = readOdkLinkConfigs(env, {
     readFile: () => JSON.stringify({
       desks: [
         { address: "cm5.example.ts.net:8765", token: "token-for-cm5", controlToken: "control-for-cm5" },
@@ -51,8 +51,8 @@ test("a desks file configures one link per desk, each with its own token", () =>
 });
 
 test("an entry without a token is refused by name while the usable desks still report", () => {
-  const result = readDeskLinkConfigs(
-    { ODK_DESK_LINK_DESKS_FILE: DESKS_FILE },
+  const result = readOdkLinkConfigs(
+    { ODK_LINK_DESKS_FILE: DESKS_FILE },
     {
       readFile: () => JSON.stringify([
         { address: "usable.example:8765", token: "usable-token" },
@@ -69,8 +69,8 @@ test("an entry without a token is refused by name while the usable desks still r
 });
 
 test("an explicit desks file that cannot be read is refused rather than silently ignored", () => {
-  const result = readDeskLinkConfigs(
-    { ODK_DESK_LINK_DESKS_FILE: DESKS_FILE, ODK_DESK_LINK_ADDRESS: "fallback.example:8765", ODK_DESK_LINK_TOKEN: "fallback-token" },
+  const result = readOdkLinkConfigs(
+    { ODK_LINK_DESKS_FILE: DESKS_FILE, ODK_LINK_ADDRESS: "fallback.example:8765", ODK_LINK_TOKEN: "fallback-token" },
     { readFile: () => { throw missing("EACCES"); } },
   );
 
@@ -80,12 +80,12 @@ test("an explicit desks file that cannot be read is refused rather than silently
 });
 
 test("the single-desk environment form keeps working when no desks file exists", () => {
-  const result = readDeskLinkConfigs(
+  const result = readOdkLinkConfigs(
     {
-      ODK_DESK_LINK_ADDRESS: "cm5.example:8765",
-      ODK_DESK_LINK_TOKEN: "env-token",
-      ODK_DESK_LINK_CONTROL_TOKEN: "env-control",
-      ODK_DESK_LINK_MACHINE: "desk-mac",
+      ODK_LINK_ADDRESS: "cm5.example:8765",
+      ODK_LINK_TOKEN: "env-token",
+      ODK_LINK_CONTROL_TOKEN: "env-control",
+      ODK_LINK_MACHINE: "desk-mac",
     },
     { readFile: () => { throw missing(); } },
   );
@@ -102,11 +102,11 @@ test("the single-desk environment form keeps working when no desks file exists",
 });
 
 test("a desks file is the one source of truth when the environment also names a desk", () => {
-  const result = readDeskLinkConfigs(
+  const result = readOdkLinkConfigs(
     {
-      ODK_DESK_LINK_DESKS_FILE: DESKS_FILE,
-      ODK_DESK_LINK_ADDRESS: "env.example:8765",
-      ODK_DESK_LINK_TOKEN: "env-token",
+      ODK_LINK_DESKS_FILE: DESKS_FILE,
+      ODK_LINK_ADDRESS: "env.example:8765",
+      ODK_LINK_TOKEN: "env-token",
     },
     { readFile: () => JSON.stringify({ desks: [{ address: "file.example:8765", token: "file-token" }] }) },
   );
@@ -117,7 +117,7 @@ test("a desks file is the one source of truth when the environment also names a 
 });
 
 test("the default desks file is found without an explicit variable", () => {
-  const result = readDeskLinkConfigs(
+  const result = readOdkLinkConfigs(
     {},
     { readFile: (file) => (file === DEFAULT_DESKS_FILE ? JSON.stringify({ desks: [{ address: "default.example:8765", token: "tok" }] }) : "") },
   );
@@ -127,15 +127,15 @@ test("the default desks file is found without an explicit variable", () => {
 });
 
 test("an unconfigured machine reports to nothing", () => {
-  const result = readDeskLinkConfigs({}, { readFile: () => { throw missing(); } });
+  const result = readOdkLinkConfigs({}, { readFile: () => { throw missing(); } });
 
   assert.deepEqual(result.configs, []);
   assert.equal(result.source, "none");
 });
 
 test("two entries for the same desk are one link", () => {
-  const result = readDeskLinkConfigs(
-    { ODK_DESK_LINK_DESKS_FILE: DESKS_FILE },
+  const result = readOdkLinkConfigs(
+    { ODK_LINK_DESKS_FILE: DESKS_FILE },
     { readFile: () => JSON.stringify({ desks: [{ address: "same.example:8765", token: "a" }, { address: "same.example:8765", token: "b" }] }) },
   );
 

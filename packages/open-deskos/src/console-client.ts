@@ -1,16 +1,16 @@
 import { createHmac, randomUUID } from "node:crypto";
-import { DESK_LINK_CONTROL_PROTOCOL, type ControlTransport } from "./control-transport.ts";
-import type { DeskLinkConfig, HistoryPage, HostedPiSession, PositionedSessionEvent } from "./types.ts";
+import { ODK_LINK_CONTROL_PROTOCOL, type ControlTransport } from "./control-transport.ts";
+import type { OdkLinkConfig, HistoryPage, HostedPiSession, PositionedSessionEvent } from "./types.ts";
 
 const CONTROL_TIMEOUT_MS = 5000;
-const CONTROL_DOMAIN = "open-deskos-control-v2";
+const CONTROL_DOMAIN = "odk-control-v2";
 const MAX_ATTACH_BUFFER_EVENTS = 2048;
 const MAX_ATTACH_BUFFER_BYTES = 1024 * 1024;
 
 interface ConsoleClientOptions {
-  config: DeskLinkConfig;
+  config: OdkLinkConfig;
   consoleSessionId: string;
-  createTransport: (config: DeskLinkConfig) => ControlTransport;
+  createTransport: (config: OdkLinkConfig) => ControlTransport;
   timeoutMs?: number;
 }
 
@@ -47,8 +47,8 @@ function reasonFrom(record: Record<string, unknown>, fallback = "control request
 
 function versionError(record: Record<string, unknown>): Error {
   const received = String(record.received ?? record.v ?? "unknown");
-  const accepted = Array.isArray(record.accepted) ? record.accepted.join(", ") : String(DESK_LINK_CONTROL_PROTOCOL);
-  return new Error(`Desk Link control protocol version ${received} refused; accepted ${accepted}`);
+  const accepted = Array.isArray(record.accepted) ? record.accepted.join(", ") : String(ODK_LINK_CONTROL_PROTOCOL);
+  return new Error(`Open DeskOS Link control protocol version ${received} refused; accepted ${accepted}`);
 }
 
 function unwrapReply(record: Record<string, unknown>): Record<string, unknown> {
@@ -57,7 +57,7 @@ function unwrapReply(record: Record<string, unknown>): Record<string, unknown> {
 }
 
 export function controlTranscript(machine: string, sessionId: string, nonce: string): string {
-  return `${CONTROL_DOMAIN}\n${DESK_LINK_CONTROL_PROTOCOL}\n${nonce}\n${machine}\n${sessionId}`;
+  return `${CONTROL_DOMAIN}\n${ODK_LINK_CONTROL_PROTOCOL}\n${nonce}\n${machine}\n${sessionId}`;
 }
 
 export function createControlProof(controlCredential: string, machine: string, sessionId: string, nonce: string): string {
@@ -106,7 +106,7 @@ class ControlConnection {
     readyTimer.unref?.();
     this.#ready.then(() => clearTimeout(readyTimer), () => clearTimeout(readyTimer));
     this.#transport.onOpen(() => this.#transport.send({
-      v: DESK_LINK_CONTROL_PROTOCOL,
+      v: ODK_LINK_CONTROL_PROTOCOL,
       type: "control-hello",
       token: options.config.token,
       machine: options.config.machine,
@@ -132,7 +132,7 @@ class ControlConnection {
       this.#pending.set(requestId, { resolve, reject, timer, mutationId, sessionId, project });
     });
     try {
-      this.#transport.send({ ...fields, v: DESK_LINK_CONTROL_PROTOCOL, type, requestId });
+      this.#transport.send({ ...fields, v: ODK_LINK_CONTROL_PROTOCOL, type, requestId });
     } catch (error) {
       const pending = this.#pending.get(requestId);
       if (pending) {
@@ -152,7 +152,7 @@ class ControlConnection {
     if (this.#closed) return;
     const record = asRecord(value);
     if (!record) return;
-    if (record.type === "version-mismatch" || (record.v !== undefined && record.v !== DESK_LINK_CONTROL_PROTOCOL)) {
+    if (record.type === "version-mismatch" || (record.v !== undefined && record.v !== ODK_LINK_CONTROL_PROTOCOL)) {
       this.#fail(versionError(record), true);
       return;
     }
@@ -161,7 +161,7 @@ class ControlConnection {
       const algorithm = record.algorithm;
       const credential = this.#options.config.controlToken ?? "";
       if (!nonce || (algorithm !== undefined && algorithm !== "hmac-sha256")) {
-        this.#fail(new Error("invalid Desk Link control challenge"), true);
+        this.#fail(new Error("invalid Open DeskOS Link control challenge"), true);
         return;
       }
       if (!credential) {
@@ -169,7 +169,7 @@ class ControlConnection {
         return;
       }
       this.#transport.send({
-        v: DESK_LINK_CONTROL_PROTOCOL,
+        v: ODK_LINK_CONTROL_PROTOCOL,
         type: "control-proof",
         proof: createControlProof(credential, this.#options.config.machine, this.#options.consoleSessionId, nonce),
       });

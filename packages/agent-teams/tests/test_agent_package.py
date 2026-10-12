@@ -629,7 +629,7 @@ def test_task_ids_are_meaningful_slugs_of_their_subjects() -> None:
         '''
     )
     assert payload["a"] == "polish-login-flow"
-    assert payload["b"] == "polish-login-flow-2"
+    assert payload["b"] == "polish-login-flow-1"
     assert payload["c"] == "修复登录流程"
     assert payload["d"] == "task"
     assert payload["distinct"] is True
@@ -688,7 +688,7 @@ def test_slug_ids_with_duplicate_suffixes_stay_within_length_cap() -> None:
     )
     assert payload["bothWithinCap"] is True
     assert payload["distinct"] is True
-    assert payload["b"].endswith("-2")
+    assert payload["b"].endswith("-1")
 
 
 def test_retain_live_noticed_ids_prunes_stale_first() -> None:

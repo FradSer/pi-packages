@@ -68,6 +68,17 @@ export function supportedThinkingLevelsFor(model: {
   });
 }
 
+/**
+ * The level pi actually applied.
+ *
+ * `setThinkingLevel` clamps the request to the model's capabilities and returns
+ * nothing, and the command context's `thinkingLevel` is a snapshot, so the
+ * confirmation reads the live level back instead of repeating the request.
+ */
+function appliedLevel(pi: Pick<ExtensionAPI, "getThinkingLevel">): ThinkingLevel {
+  return pi.getThinkingLevel();
+}
+
 export default function (pi: ExtensionAPI) {
   pi.registerCommand("effort", {
     description: "Set the thinking level: menu, or /effort <level> (off|minimal|low|medium|high|xhigh|max)",
@@ -92,7 +103,7 @@ export default function (pi: ExtensionAPI) {
           return;
         }
         pi.setThinkingLevel(level);
-        notifyPi(ctx.ui, `Thinking level set to ${level}`, "info");
+        notifyPi(ctx.ui, `Thinking level set to ${appliedLevel(pi)}`, "info");
         return;
       }
 
@@ -114,7 +125,7 @@ export default function (pi: ExtensionAPI) {
 
       const selected = (choice.replace(" (current)", "") as ThinkingLevel);
       pi.setThinkingLevel(selected);
-      notifyPi(ctx.ui, `Thinking level set to ${selected}`, "info");
+      notifyPi(ctx.ui, `Thinking level set to ${appliedLevel(pi)}`, "info");
     },
   });
 }

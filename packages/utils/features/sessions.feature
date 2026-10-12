@@ -51,6 +51,19 @@ Feature: Cross-session awareness and directory recap
     And the merged record keeps the newest status and the richest available goal, recap, and modified files
     And records owned by the current process are excluded even when their ids differ
 
+  Scenario: An exited record never merges into a live session that reused its PID
+    Given a crashed session's exited record and a new live session sharing that PID
+    When querying active sessions in the directory
+    Then the two appear as separate sessions
+    And the live session does not inherit the crashed record's goal or recap
+    And the exited record keeps its own goal as recent work
+
+  Scenario: The registry directory follows the shared agent directory
+    Given PI_DIRECTORY_SESSIONS_DIR or PI_CODING_AGENT_DIR points outside the default home registry
+    When a session registers and a peer reads the directory sessions
+    Then both use that directory
+    And nothing is written to the default home registry
+
   Scenario: Corrupt registry records are normalized on read
     Given a registered record whose status is an unknown string and whose pid is a numeric string
     When querying active sessions in the directory

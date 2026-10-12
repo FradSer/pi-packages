@@ -3,7 +3,8 @@ from __future__ import annotations
 
 SOURCE_COMMIT = 'a8a6fbec4e0e866d6d779b10889bb4f5567e70eb'
 COMMON = '''Work on this real p-limit checkout with normal source inspection and tools.
-Keep changes local. Do not access agent configuration, learning artifacts or Memory directly.
+Keep changes local. Do not access agent configuration or learning artifacts.
+You may read Memory paths declared by the plugin when relevant; automatic learning owns all Memory writes.
 Do not install dependencies or alter package manifests, existing tests, or existing check configuration.
 Add tests only in new files. Preserve source behavior outside the requested changes.
 Use pnpm test for verification. Keep source reads focused and report failures honestly.

@@ -132,6 +132,8 @@ const ctx = {{
     notify(message, type) {{ notifications.push({{ message, type }}); }},
     select: async () => "Keep worktree",
   }},
+  isIdle: () => true,
+  async waitForIdle() {{}},
   async switchSession(file, options) {{
     switchedFile = file;
     await options.withSession({{ ui: {{ notify() {{}} }}, async sendMessage() {{}} }});
@@ -302,6 +304,8 @@ const ctx = {{
   hasUI: false,
   sessionManager: SessionManager.open(targetFile),
   ui: {{ notify() {{}} }},
+  isIdle: () => true,
+  async waitForIdle() {{}},
   async switchSession(file) {{ switched = file; return {{ cancelled: false }}; }},
 }};
 await commands["exit-worktree"].handler("", ctx);
@@ -310,6 +314,115 @@ console.log(JSON.stringify({{ switched, sourceFile, exists: fs.existsSync(ctx.cw
         result = run_ts(script)
         self.assertEqual(result["sourceFile"], result["switched"])
         self.assertTrue(result["exists"])
+
+    def test_enter_command_settles_before_switching_and_cleans_a_cancelled_switch(self) -> None:
+        script = f"""
+import fs from "node:fs";
+import path from "node:path";
+import {{ SessionManager }} from "@earendil-works/pi-coding-agent";
+import registerWorktreeSession from {json.dumps(SESSION_EXTENSION.as_uri())};
+
+const repo = {json.dumps(str(self.repo))};
+const worktreeRoot = fs.realpathSync(repo);
+const source = SessionManager.create(repo, {json.dumps(str(self.session_dir))});
+source.appendMessage({{ role: "user", content: "start", timestamp: Date.now() }});
+source.appendMessage({{ role: "assistant", content: [{{ type: "text", text: "ready" }}], api: "test", provider: "test", model: "test", usage: {{ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: {{ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }} }}, stopReason: "stop", timestamp: Date.now() }});
+const sourceFile = source.getSessionFile();
+const events = [];
+const commands = {{}};
+registerWorktreeSession({{
+  registerCommand(name, options) {{ commands[name] = options; }},
+  registerTool() {{}},
+  sendUserMessage() {{}},
+}});
+const ctx = {{
+  cwd: repo,
+  hasUI: true,
+  sessionManager: {{ getSessionFile: () => sourceFile, getBranch: () => [] }},
+  ui: {{
+    notify(message, type) {{ events.push(["notify", type, message]); }},
+    select: async () => "Keep worktree",
+  }},
+  // A command runs even while the agent streams; the switch must wait for the
+  // turn to finish so the fork includes it.
+  isIdle: () => false,
+  async waitForIdle() {{ events.push(["waited"]); }},
+  async switchSession(file, options) {{
+    events.push(["switch", file]);
+    await options.withSession({{ ui: {{ notify() {{}} }}, async sendMessage() {{}} }});
+    return {{ cancelled: true }};
+  }},
+}};
+await commands["enter-worktree"].handler("cancelled-switch", ctx);
+
+const worktree = path.join(worktreeRoot, ".pi", "worktrees", "cancelled-switch");
+const switchFile = events.find((event) => event[0] === "switch")[1];
+const waitingNotice = events.find((event) => event[0] === "notify" && event[2].includes("Waiting for the current turn"));
+const branch = Bun.spawnSync(["git", "-C", repo, "branch", "--list", "pi/worktree/cancelled-switch"]).stdout.toString().trim();
+console.log(JSON.stringify({{
+  order: events.map((event) => event[0]),
+  waitedBeforeSwitch: events.findIndex((event) => event[0] === "waited") < events.findIndex((event) => event[0] === "switch"),
+  waitingNotice: waitingNotice ? waitingNotice[1] : null,
+  worktreeRemoved: !fs.existsSync(worktree),
+  forkRemoved: !fs.existsSync(switchFile),
+  branchRemoved: branch === "",
+}}));
+"""
+        result = run_ts(script)
+        self.assertTrue(result["waitedBeforeSwitch"], result["order"])
+        self.assertEqual(result["waitingNotice"], "info")
+        self.assertTrue(result["worktreeRemoved"])
+        self.assertTrue(result["forkRemoved"])
+        self.assertTrue(result["branchRemoved"])
+
+    def test_failed_switch_keeps_and_reports_a_created_worktree(self) -> None:
+        script = f"""
+import fs from "node:fs";
+import path from "node:path";
+import {{ SessionManager }} from "@earendil-works/pi-coding-agent";
+import registerWorktreeSession from {json.dumps(SESSION_EXTENSION.as_uri())};
+
+const repo = {json.dumps(str(self.repo))};
+const worktreeRoot = fs.realpathSync(repo);
+const source = SessionManager.create(repo, {json.dumps(str(self.session_dir))});
+source.appendMessage({{ role: "user", content: "start", timestamp: Date.now() }});
+source.appendMessage({{ role: "assistant", content: [{{ type: "text", text: "ready" }}], api: "test", provider: "test", model: "test", usage: {{ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: {{ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }} }}, stopReason: "stop", timestamp: Date.now() }});
+const sourceFile = source.getSessionFile();
+const notifications = [];
+const commands = {{}};
+registerWorktreeSession({{
+  registerCommand(name, options) {{ commands[name] = options; }},
+  registerTool() {{}},
+  sendUserMessage() {{}},
+}});
+const ctx = {{
+  cwd: repo,
+  hasUI: true,
+  sessionManager: {{ getSessionFile: () => sourceFile, getBranch: () => [] }},
+  ui: {{
+    notify(message, type) {{ notifications.push({{ message, type }}); }},
+    select: async () => "Keep worktree",
+  }},
+  isIdle: () => true,
+  async waitForIdle() {{}},
+  // The runtime may already have been replaced when the host rebinding fails.
+  async switchSession() {{ throw new Error("host rebind failed"); }},
+}};
+await commands["enter-worktree"].handler("kept-after-failure", ctx);
+
+const worktree = path.join(worktreeRoot, ".pi", "worktrees", "kept-after-failure");
+const warnings = notifications.filter((entry) => entry.type === "warning").map((entry) => entry.message);
+console.log(JSON.stringify({{
+  worktreeKept: fs.existsSync(worktree),
+  warnings,
+  errors: notifications.filter((entry) => entry.type === "error").map((entry) => entry.message),
+}}));
+"""
+        result = run_ts(script)
+        self.assertTrue(result["worktreeKept"])
+        self.assertEqual(result["errors"], ["host rebind failed"])
+        self.assertEqual(len(result["warnings"]), 2)
+        self.assertTrue(any("created worktree is kept" in warning and "kept-after-failure" in warning for warning in result["warnings"]))
 
     def test_render_result_survives_class_based_theme(self) -> None:
         script = f"""

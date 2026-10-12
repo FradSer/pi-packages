@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 from typing import Any
 from support import run_bun_script
 
@@ -145,7 +146,12 @@ def test_production_pipeline_keeps_verified_independent_knowledge_available_to_n
     assert value['productionJudgeOptions']['composedMemoryApplication'] is True
     assert any(a.get('pendingOperations') == 1 for a in value['registryReceipt']['attempts'])
     delivered = [item for hook in value['nextMemory'] for item in hook.get('message', {}).get('details', {}).get('retrieved', [])]
-    assert {entry['filename'] for entry in delivered} == {'tools.md', 'license.md'}
+    # The user-requested discovery contract exposes filenames, not bodies.
+    # Independent admitted facts remain discoverable; the held fact stays absent.
+    assert delivered == []
+    indexed = {name for hook in value['nextMemory'] for name in
+               re.findall(r'^- ([^\n]+?\.md)(?: — |$)', hook.get('message', {}).get('content', ''), re.MULTILINE)}
+    assert indexed == {'tools.md', 'license.md'}
     assert all('cache.md' not in str(hook) for hook in value['nextMemory'])
     assert any(record.get('proposal', {}).get('heldIndexes') == [1] for record in value['history'])
 

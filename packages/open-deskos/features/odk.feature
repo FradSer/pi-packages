@@ -17,13 +17,13 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     And the command does not depend on a personal home-directory layout
 
   Scenario: A configured reporter opens a link and reports its session
-    Given the machine has a Desk Link address and token
+    Given the machine has a Open DeskOS Link address and token
     When its Pi session starts
-    Then it opens one Desk Link to Open DeskOS
+    Then it opens one Open DeskOS Link to Open DeskOS
     And it reports the session identity and its actual idle or running state
 
   Scenario: An unconfigured machine stays silent
-    Given the machine has no Desk Link address or token
+    Given the machine has no Open DeskOS Link address or token
     When its Pi session runs
     Then no connection is attempted
     And no session is reported
@@ -32,7 +32,7 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
   Scenario: A resumed, reloaded, or forked session replays its durable JSONL tail
     Given a resumed, reloaded, or forked Pi session has complete user and assistant messages in its current session file
     And its file may end with an unfinished record
-    When that session starts its Desk Link reporter
+    When that session starts its Open DeskOS Link reporter
     Then the reporter sends only the bounded complete JSONL message tail for that current session
     And later live messages are sent after the replay without replacing it
 
@@ -50,34 +50,34 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     And tool results preserve complete multiline Markdown within the result byte bound
 
   Scenario: A long outage bounds what the reporter retains
-    Given the Desk Link is offline
+    Given the Open DeskOS Link is offline
     When the session keeps producing events beyond the event bound
     Then the oldest events are dropped
     And the reporter's retained events stay bounded
     And no more than one unsent snapshot is held
 
   Scenario: A dropped link reconnects with a growing wait
-    Given a Desk Link was established and then dropped
+    Given a Open DeskOS Link was established and then dropped
     When the reporter reconnects
     Then each attempt waits a longer interval than the one before
     And the interval never exceeds the configured maximum
     And only one link is open at a time
 
   Scenario: A reconnected link reports the current session state
-    Given the Desk Link dropped while a session was running
+    Given the Open DeskOS Link dropped while a session was running
     When the link reconnects
     Then the reporter sends the current session state
     And it replays the complete bounded retained event tail even if it was already sent
     And it does not replay an unbounded backlog
 
   Scenario: The reporter never acts inside a reported session
-    Given a Desk Link is connected
+    Given a Open DeskOS Link is connected
     When the reporter observes messages and tool results
     Then it only reads them
     And it never sends a prompt into a reported session, blocks a turn, or mutates a message
 
   Scenario: A machine without a control credential cannot control
-    Given the machine has a Desk Link address and token but no control credential
+    Given the machine has a Open DeskOS Link address and token but no control credential
     When its Pi session runs
     Then it reports exactly as a report-only machine does
     And the console does not offer to list, launch, attach to, prompt, cancel, or end a Hosted Pi
@@ -145,18 +145,18 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     And a configured link connects, drops, or reconnects while idle
     Then Open DeskOS never sets or clears a footer status
     And it never installs a custom footer or working-directory suffix
-    And diagnostics are available only through the open-deskos command's menu and its status argument
+    And diagnostics are available only through the odk command's menu and its status argument
 
   Scenario: The command opens the same menu in every configuration
     Given a machine that is unconfigured, a machine that is report-only, and a machine that is a configured Console
-    When the user runs the open-deskos command with no arguments in each case
+    When the user runs the odk command with no arguments in each case
     Then the same menu opens with the same rows
     And a row that is unavailable names the reason rather than disappearing
 
   Scenario: One machine reports to every desk it is configured for
     Given a machine is configured with two desks, each with its own token
     When its Pi session starts and its sessions change
-    Then it opens one Desk Link for each desk
+    Then it opens one Open DeskOS Link for each desk
     And every desk receives the same session identity and events
     And one desk being unreachable never stops the other from reporting
 
@@ -178,19 +178,19 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
 
   Scenario: The console drives one desk and says which
     Given a machine is configured with two desks and only one has a control credential
-    When the user opens the open-deskos menu
+    When the user opens the odk menu
     Then the console row names the desk the Console will drive
     And the status row names every configured desk with its own link state
 
   Scenario: Missing configuration is diagnosed on demand
-    Given the machine has no Desk Link address or token
-    When the user opens the open-deskos command's menu
+    Given the machine has no Open DeskOS Link address or token
+    When the user opens the odk command's menu
     Then the missing configuration variables are shown
     And the console row states that it needs a control credential rather than disappearing
 
   Scenario: The link state is visible from inside Pi
-    Given a Desk Link is connected or offline
-    When the user opens the open-deskos command's menu or passes its status argument
+    Given a Open DeskOS Link is connected or offline
+    When the user opens the odk command's menu or passes its status argument
     Then the reported link state, machine, session count, and event count are shown
 
   Scenario: The console surface owns its own input
@@ -201,7 +201,7 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     And no footer status is added
 
   Scenario: A declared current-session endpoint works without a reporting link
-    Given this machine declares a private current-session endpoint but no Desk Link credentials
+    Given this machine declares a private current-session endpoint but no Open DeskOS Link credentials
     When its Pi session starts and receives messages
     Then the endpoint serves only that session and follows its lifecycle
     And shutdown removes the endpoint without opening a reporting link

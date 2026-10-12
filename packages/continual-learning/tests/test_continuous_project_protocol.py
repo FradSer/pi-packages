@@ -86,10 +86,24 @@ def test_pending_queue_is_not_inferred_from_attempt_files(monkeypatch, tmp_path)
     monkeypatch.setattr(study.base,'put',lambda *_args:b'')
     monkeypatch.setattr(study.base,'shell',lambda *_args:b'')
     status={'pending':1,'unlearnable':0,'malformed':0,'unscoped':0,'reason':'ready'}
-    monkeypatch.setattr(study.base,'checked',lambda *_args:json.dumps(status).encode())
+    monkeypatch.setattr(study.base,'checked',lambda args:json.dumps({} if 'python3' in args else status).encode())
     result=study.artifacts('fixture-container',None,tmp_path/'new-snapshot-directory')
     assert result['pendingLearningJobs']==1
     assert result['attempts']==[]
+    assert result['surfaceSnapshots']=={}
+
+
+def test_successful_feedback_is_also_proved_against_actual_pending_slice(monkeypatch) -> None:
+    import json
+    import live_continuous_project_learning as study
+    saved={}
+    monkeypatch.setattr(study,'install_failure_observation_proof',lambda *_args:'/proof.mts')
+    monkeypatch.setattr(study.base,'put',lambda _c,path,data:saved.update({path:json.loads(data)}))
+    monkeypatch.setattr(study.base,'checked',lambda *_args:b'{"ready":true}')
+    monkeypatch.setattr(study.base,'shell',lambda *_args:b'')
+    study.failure_observation_ready('c',b'original\n',{'sourceHashes':{'source':'hash'}},
+                                    {'queuedFailure':{'id':'actual'},'taskPassed':True},{'source':'hash'})
+    assert saved['/home/node/failure-observation-proof-input.json']['observationOutcome']=='successful'
 
 
 def test_version_permission_requires_actual_unique_successful_tool_result() -> None:

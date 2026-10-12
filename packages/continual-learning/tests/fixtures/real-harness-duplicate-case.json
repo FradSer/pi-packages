@@ -1,0 +1,106 @@
+{
+  "provenance": {
+    "archiveSha256": "fe97099c5aa74199e895ec99b0b1f6d3848a9bb1e44986a33205330e3e152590",
+    "member": "./runs/--work-p-limit--/run_mv57lysh_63bde84865dd5d48/harness-repair.md",
+    "memberSha256": "2fcb99453f7b0db592b77646d8288491d7a2f8195dac58bb130dc1a83c72366a"
+  },
+  "rejectedPlan": {
+    "kind": "harness-consolidation-plan",
+    "version": 1,
+    "schemaVersion": 1,
+    "runId": "run_mv57lysh_63bde84865dd5d48",
+    "scopeDigest": "32dc334b01d2c422f103ef4de6319074f3f6ffda872f5a750207868f1b9ff245",
+    "artifactHash": "e00ea5409d1be22b1b048a399f88a5e07db7c89a7a50ea3a8e983ef5f6e0fb50",
+    "operations": [
+      {
+        "op": "addRule",
+        "rule": {
+          "id": "block-npm-first-executable",
+          "bash": "^npm(?:[ \t]|$(?![\\s\\S]))",
+          "action": "block",
+          "message": "Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead."
+        },
+        "cases": {
+          "positive": [
+            {
+              "bash": "npm test",
+              "expected": "block"
+            },
+            {
+              "bash": "npm install lodash",
+              "expected": "block"
+            },
+            {
+              "bash": "npm run build",
+              "expected": "block"
+            },
+            {
+              "bash": "npm ci",
+              "expected": "block"
+            },
+            {
+              "bash": "npm",
+              "expected": "block"
+            }
+          ],
+          "negative": [
+            {
+              "bash": "pnpm test",
+              "expected": "no-match"
+            },
+            {
+              "bash": "cd /work/p-limit && pnpm test 2>&1 | tail -25",
+              "expected": "no-match"
+            },
+            {
+              "bash": "echo npm test",
+              "expected": "no-match"
+            },
+            {
+              "bash": "printf '%s' 'npm test'",
+              "expected": "no-match"
+            },
+            {
+              "bash": "cat package.json | grep npm",
+              "expected": "no-match"
+            },
+            {
+              "bash": "npm\rtest",
+              "expected": "no-match"
+            },
+            {
+              "bash": "npm test",
+              "expected": "no-match"
+            },
+            {
+              "bash": "npx npm@6 test",
+              "expected": "no-match"
+            }
+          ]
+        }
+      }
+    ],
+    "evidence": [
+      {
+        "index": 0,
+        "source": "user",
+        "quote": "Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.",
+        "count": 1,
+        "observation": "User explicitly declares a lasting project-wide execution constraint on the npm command family, with pnpm as the substitute."
+      }
+    ],
+    "report": [
+      {
+        "index": 0,
+        "summary": "Block Bash invocations whose first executable token is npm so the project's pnpm-only toolchain convention is enforced executably; pnpm, non-npm commands and mere text mentions of npm remain unaffected."
+      },
+      {
+        "index": 0,
+        "summary": "Scope limits: anchored to the leading executable with ASCII horizontal separators only (so CR/NBSP/newline-separated words are not shell argument boundaries here); no observed npm invocation occurred in this task slice, and env/interpreter prefixes such as NODE_ENV=test npm ci or pnpm exec npm test stay outside this selector rather than being silently claimed as covered."
+      }
+    ]
+  },
+  "errors": [
+    "operations[0].cases.negative[6] matched but must remain unmatched"
+  ]
+}

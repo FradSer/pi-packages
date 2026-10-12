@@ -15,7 +15,7 @@ one session.
 
 ## Decision
 
-`before_agent_start` supplies a hidden untrusted reference message containing only the memory index (filename, source, and a
+`before_agent_start` supplies a hidden untrusted reference message containing only the memory index (filename and a
 one-line description per entry). Full entry content is no longer injected;
 the model reads specific memory files with `read` when a task needs them.
 A bounded budget applies to the index itself. As of the 2026-10-09 safety repair, variable metadata stays out of the system prompt; only the fixed retrieval protocol is added there. A context hook removes stale references and retains one current index. Entry bodies remain on-demand reference data, never instruction authority. This change does not establish model-level prompt-injection immunity.
@@ -39,3 +39,18 @@ can nominate an existing entry for correction, but is never factual evidence.
 This removes the assumption that every model reliably opens relevant files. It
 does not establish useful recall, correct application, or prompt-injection resistance;
 those require real downstream task evidence and include retrieval/learning costs.
+
+## 2026-10-12 compact retained-reference amendment
+
+This supersedes the bounded automatic-body retrieval amendment above. Injection
+contains deduplicated filenames and one-line descriptions only. The private copy
+wins across roots; per-entry source suffixes are omitted. A single compact roots
+list permits actual on-demand reads. Omission counts and complete-index pointers
+appear only when entries are omitted; shortened metadata remains marked.
+
+An unchanged reference stays in its existing context position instead of being
+appended after every user message. Changed indexes replace stale references;
+branching or compaction restores a missing current reference. Empty discovery
+removes obsolete references. This avoids redundant session entries and preserves
+the unchanged prefix. Actual body reads, correction, and downstream benefit still
+require separate evidence; listing metadata does not establish Memory use.

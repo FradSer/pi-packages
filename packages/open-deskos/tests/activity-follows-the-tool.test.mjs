@@ -37,11 +37,11 @@ async function desk(t) {
   const saved = { ...process.env };
   t.after(() => { process.env = saved; });
   await writeFile(join(root, "desks.json"), JSON.stringify({ desks: [{ address: `127.0.0.1:${server.address().port}`, token: "isolated-fixture" }] }));
-  delete process.env.ODK_DESK_LINK_CONTROL_TOKEN;
-  process.env.ODK_DESK_LINK_DESKS_FILE = join(root, "desks.json");
-  process.env.ODK_DESK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
-  process.env.ODK_DESK_LINK_TOKEN = "isolated-fixture";
-  process.env.ODK_DESK_LINK_MACHINE = "isolated-machine";
+  delete process.env.ODK_LINK_CONTROL_TOKEN;
+  process.env.ODK_LINK_DESKS_FILE = join(root, "desks.json");
+  process.env.ODK_LINK_ADDRESS = `127.0.0.1:${server.address().port}`;
+  process.env.ODK_LINK_TOKEN = "isolated-fixture";
+  process.env.ODK_LINK_MACHINE = "isolated-machine";
   process.env.PI_DIRECTORY_SESSIONS_DIR = root;
   const ownId = "a1234567-1234-1234-1234-123456789abc";
   const { default: extension } = await import("../index.ts");

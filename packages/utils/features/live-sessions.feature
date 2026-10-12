@@ -45,3 +45,9 @@ Feature: Control only live Pi sessions through private sockets
     Given a delivery with no text, an over-long text, or an over-long session id
     When the user runs /live-sessions with those arguments
     Then the request is refused without reaching any socket
+
+  Scenario: A broken control directory is reported, never shown as empty
+    Given the control directory is unusable or a session cannot open its socket
+    When the user runs /live-sessions or a session starts
+    Then the discovery or startup failure is reported with its cause
+    And an unusable directory is not reported as "no live sessions"
