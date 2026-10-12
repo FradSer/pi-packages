@@ -30,6 +30,27 @@ def test_goal_seed_adapter_proves_each_clause_from_command_observations() -> Non
     }
 
 
+def test_continual_learning_sensitive_material_adapter_proves_each_clause() -> None:
+    # Given the registered learning-controls binding, when the changed scenario
+    # is verified, then every Then clause has a fresh deterministic check.
+    result = run_typescript(PREAMBLE + r'''
+      const runner = JSON.parse(readFileSync(".e2e/runner.json", "utf8"));
+      const result = await executeE2EVerify({
+        feature: "packages/continual-learning/features/learning-controls.feature",
+        scenario: "Sensitive detection refuses credentials instead of ordinary text",
+        runner, offline: true,
+      }, undefined, {cwd: process.cwd()});
+      if (result.details?.status === "error") throw new Error(JSON.stringify(result));
+      out({status: result.details?.status, verified: result.details?.verifiedRun,
+        clauses: result.details?.clauses?.map(c => [c.clause, c.status, c.source])});
+    ''')
+    assert result == {
+        "status": "fulfilled", "verified": True,
+        "clauses": [[1, "met", "deterministic"], [2, "met", "deterministic"], [3, "met", "deterministic"],
+                    [4, "met", "deterministic"], [5, "met", "deterministic"]],
+    }
+
+
 def test_observation_bindings_fail_closed_and_unbound_suites_stay_unjudged(tmp_path) -> None:
     # Given a passing linked suite, no producer may turn it into clause proof.
     tests = tmp_path / "packages/e2e/tests"

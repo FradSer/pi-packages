@@ -54,6 +54,19 @@ export interface DeterministicCheck {
   readonly op: CheckOp;
   readonly path: string;
   readonly value?: string | number | boolean;
+  /** Optional adapter-owned step and source/test location for a counterexample. */
+  readonly step?: string;
+  readonly location?: string;
+}
+
+export interface CheckObservation {
+  readonly path: string;
+  readonly op: CheckOp;
+  readonly expected: string;
+  readonly observed: string;
+  readonly failureKind?: "mismatch" | "missing_observation" | "invalid_check";
+  readonly step?: string;
+  readonly location?: string;
 }
 
 /** Run evidence as a runner would leave it. */
@@ -87,6 +100,7 @@ export interface ClauseResult {
   /** Noul value for a Jev clause. Absent for a deterministic or unjudged clause. */
   readonly score?: number;
   readonly detail?: string;
+  readonly checks?: readonly CheckObservation[];
 }
 
 export type VerdictStatus = "fulfilled" | "partially_fulfilled" | "not_fulfilled" | "needs_review";

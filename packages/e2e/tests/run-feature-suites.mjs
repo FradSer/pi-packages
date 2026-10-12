@@ -14,7 +14,7 @@ if (!Array.isArray(tests) || tests.length === 0) throw new Error(`No linked beha
 
 const completed = [];
 for (const reference of tests) {
-  if (typeof reference !== "string" || !/^packages\/(?:goal|tasks|e2e)\/tests\/test_[\w-]+\.py::test_[\w-]+$/.test(reference)) {
+  if (typeof reference !== "string" || !/^packages\/(?:goal|tasks|e2e|continual-learning)\/tests\/test_[\w-]+\.py::test_[\w-]+$/.test(reference)) {
     throw new Error(`Invalid mapped test reference: ${String(reference)}`);
   }
   const result = spawnSync("python3", ["-m", "pytest", reference, "-q"], {

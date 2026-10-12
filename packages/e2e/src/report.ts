@@ -8,7 +8,9 @@ const MARKS: Record<ClauseResult["status"], string> = {
 
 function row(clause: ClauseResult): string {
   const score = clause.score === undefined ? "-" : clause.score.toFixed(2);
-  const detail = clause.detail === undefined ? "" : ` — ${clause.detail}`;
+  const details = [clause.detail, ...clause.checks?.filter(check => check.failureKind).map(check =>
+    `path=${check.path}; expected=${check.expected}; observed=${check.observed}${check.step ? `; step=${check.step}` : ""}${check.location ? `; location=${check.location}` : ""}`) ?? []].filter(Boolean);
+  const detail = details.length === 0 ? "" : ` — ${details.join("; ")}`;
   return `| ${clause.clause} | ${MARKS[clause.status]} | ${clause.source} | ${score} | ${clause.text}${detail} |`;
 }
 

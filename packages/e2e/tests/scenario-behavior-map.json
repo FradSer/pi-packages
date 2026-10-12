@@ -824,5 +824,10 @@
     "A failed runner reports its bounded diagnostics": [
       "packages/e2e/tests/test_run_provenance.py::test_runner_exit_error_preserves_bounded_diagnostic"
     ]
+  },
+  "packages/continual-learning/features/learning-controls.feature": {
+    "Sensitive detection refuses credentials instead of ordinary text": [
+      "packages/continual-learning/tests/test_learning_controls.py::test_history_accepts_ordinary_text_and_still_refuses_credential_shapes"
+    ]
   }
 }

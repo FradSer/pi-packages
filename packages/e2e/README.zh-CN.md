@@ -162,3 +162,26 @@ pnpm exec tsx packages/e2e/tests/verify-goal-contracts.mts /tmp/goal-coverage-re
 新鲜运行证据未满足检查时，插件保留有长度上限的适配器诊断，供修复使用；诊断不会改变验收状态。
 
 验证规划应将每项公开需求对应到可观察的检查，明确未覆盖的行为；没有新增证据时停止重复检查。修复后必须重新验证最终代码。单个回归命令通过不代表整个任务完成。
+# 完整场景检查与失败证据
+
+原生 `e2e_verify` 新增 `allScenarios: true`，配合 `feature` 和授权 `runner`，
+一次工具调用逐一执行全部场景。每个场景都产生新鲜证据，adapter 根据
+`PI_E2E_SCENARIO_NAME` 返回对应场景的 Then 检查（编号从 1 重新开始）。
+场景名称必须唯一，最多 100 个。现有默认调用和独立 CLI 保留单场景行为。
+完整模式拒绝同时指定 `scenario` 或使用未绑定场景的外部 evidence。
+`coverage` 报告总数、已评估、已通过和剩余场景；feature 或 adapter 在批次中
+变化会使批次失效，不交付该批次的验收回调。覆盖整份 feature 仍不代表覆盖完整需求。
+
+确定性 check 可声明 `step` 和 `location`（源码或测试路径及行号）。结果包含
+检查路径、操作符、预期值、实际值和失败类别；长值明确截断。
+`findings` / `nextAction` 分为：`repair_code`（新鲜确定性反例）、
+`collect_evidence`（缺失观察、无效检查、外部证据或语义不确定），以及
+`resolve_blocker`（执行或提供方错误）。检查不一致提供调查线索，并不自动证明
+预期本身正确；应保留断言，先解决需求冲突，不为获得通过而修改预期。
+
+
+可信 Python adapter 可复用 `examples/guards/assertion_guard.py` 对照冻结原测试检查
+完整断言、精确异常期待、测试删除和新增 skip/xfail。该检查采用保守的 AST 保留规则，
+不证明改写语义等价，也不替代对 fixture、辅助函数和控制流的独立审查。
+契约迁移例外必须在模型执行前逐项明确，不能根据候选补丁事后豁免。
+消息型任务应观察完整历史（顺序、调用名/ID/参数及结果绑定），避免只检查最终响应。

@@ -1,4 +1,4 @@
-import type { CheckOp, ClauseResult, DeterministicCheck, Evidence } from "./types.ts";
+import type { CheckObservation, CheckOp, ClauseResult, DeterministicCheck, Evidence } from "./types.ts";
 
 const VALID_OPS = new Set<CheckOp>(["exists", "equals", "notEquals", "contains", "matches"]);
 
@@ -30,10 +30,31 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : JSON.stringify(value ?? null);
 }
 
+function observation(check: DeterministicCheck, observed: unknown, failure?: string): CheckObservation {
+  const valid = VALID_OPS.has(check.op) && (check.op === "exists" ||
+    (check.value !== undefined && ["string", "number", "boolean"].includes(typeof check.value)));
+  let invalid = !valid;
+  if (check.op === "matches" && check.value !== undefined) {
+    try { new RegExp(String(check.value)); } catch { invalid = true; }
+  }
+  const bounded = (value: string): string => value.length > 2048 ? `${value.slice(0, 2048)} [truncated]` : value;
+  return {
+    path: check.path, op: check.op,
+    expected: check.op === "exists" ? "present" : bounded(text(check.value)),
+    observed: observed === undefined ? "[missing]" : bounded(text(observed)),
+    ...(failure === undefined ? {} : { failureKind: invalid ? "invalid_check" : observed === undefined ? "missing_observation" : "mismatch" }),
+    ...(typeof check.step === "string" ? { step: check.step.slice(0, 512) } : {}),
+    ...(typeof check.location === "string" ? { location: check.location.slice(0, 512) } : {}),
+  };
+}
+
 /** Applies one check operator. Returns a detail line on failure. */
 function apply(check: DeterministicCheck, observed: unknown): string | undefined {
   if (!VALID_OPS.has(check.op)) {
     return `unsupported check operator "${String(check.op)}"`;
+  }
+  if (check.op !== "exists" && check.value !== undefined && !["string", "number", "boolean"].includes(typeof check.value)) {
+    return `check for \`${check.path}\` has an invalid expected value type`;
   }
   switch (check.op) {
     case "exists":
@@ -91,7 +112,9 @@ export function evaluateChecks(
     if (clause === undefined) {
       throw new Error(`Check points at Then clause ${check.clause}, which the scenario does not have.`);
     }
-    const failure = apply(check, resolvePath(observations, check.path));
+    const observed = resolvePath(observations, check.path);
+    const failure = apply(check, observed);
+    const checkResult = observation(check, observed, failure);
     const existing = results.get(check.clause);
     if (existing) {
       const isFailed = existing.status === "unmet" || failure !== undefined;
@@ -103,6 +126,7 @@ export function evaluateChecks(
         status: isFailed ? "unmet" : "met",
         source: "deterministic",
         score: isFailed ? 0 : 1,
+        checks: [...existing.checks ?? [], checkResult],
         ...(detailParts.length > 0 ? { detail: detailParts.join("; ") } : {}),
       });
     } else {
@@ -113,6 +137,7 @@ export function evaluateChecks(
         status: failure === undefined ? "met" : "unmet",
         source: "deterministic",
         score: failure === undefined ? 1 : 0,
+        checks: [checkResult],
         ...(failure === undefined ? {} : { detail: failure }),
       });
     }

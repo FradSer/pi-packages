@@ -28,6 +28,11 @@
     "packages/goal/package.json",
     "packages/e2e/tests/observe-goal-harness.mts",
     "tests/e2e/support",
+    "packages/continual-learning/tests/test_learning_controls.py",
+    "packages/continual-learning/tests/sensitive_memory_corpus.json",
+    "packages/e2e/tests/observe-learning-sensitive-material.mts",
+    "packages/continual-learning/tests/conftest.py",
+    "packages/continual-learning/extensions/consolidation-run.ts",
     "package.json",
     "pnpm-lock.yaml"
   ],

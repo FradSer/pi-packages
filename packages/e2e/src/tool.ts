@@ -9,6 +9,8 @@ import { renderMarkdown } from "./report.ts";
 import type { Evidence, Verdict } from "./types.ts";
 import { parseRunner, runAndVerify, verifiedRun } from "./run.ts";
 import { verifyScenario } from "./verify.ts";
+import { findings, nextAction } from "./guidance.ts";
+import { runnerSnapshot } from "./run.ts";
 
 export const E2E_VERIFY_PARAMS = {
   type: "object",
@@ -37,6 +39,10 @@ export const E2E_VERIFY_PARAMS = {
     offline: {
       type: "boolean",
       description: "Run offline: evaluate declared deterministic checks in code and leave remaining clauses unjudged without calling Jev.",
+    },
+    allScenarios: {
+      type: "boolean",
+      description: "Verify every scenario with fresh scenario-specific adapter evidence. Requires runner; cannot be combined with scenario or supplied evidence. Use for complete feature coverage. The legacy default verifies only the first scenario.",
     },
     clauseGate: {
       type: "number",
@@ -83,6 +89,7 @@ export const E2E_VERIFY_OUTPUT_SCHEMA = {
           source: { type: "string" },
           score: { type: "number" },
           detail: { type: "string" },
+          checks: { type: "array", items: { type: "object", additionalProperties: true } },
         },
         required: ["clause", "text", "status", "source"],
       },
@@ -90,6 +97,13 @@ export const E2E_VERIFY_OUTPUT_SCHEMA = {
     model: { type: "string", description: "Model name if called." },
     runnerOutput: { type: "string", maxLength: 8192, description: "Bounded fresh adapter diagnostic data for unmet verification." },
     error: { type: "string", description: "Error message if verification failed to run." },
+    nextAction: { type: "string", enum: ["none", "collect_evidence", "repair_code", "resolve_blocker"] },
+    findings: { type: "array", items: { type: "object", additionalProperties: true } },
+    scenarios: { type: "array", items: { type: "object", additionalProperties: true } },
+    coverage: { type: "object", properties: {
+      total: { type: "integer" }, evaluated: { type: "integer" }, passed: { type: "integer" },
+      remaining: { type: "array", items: { type: "string" } },
+    }, required: ["total", "evaluated", "passed", "remaining"], additionalProperties: false },
   },
   required: ["ok", "status"],
   additionalProperties: false,
@@ -174,6 +188,59 @@ export async function executeE2EVerify(
     options?.onProgress?.("Preparing verification");
     const featureSource = await readFile(path.resolve(baseDir, featurePath), "utf-8");
     const feature = parseFeature(featureSource);
+    if (params["allScenarios"] === true) {
+      if (params["scenario"] !== undefined || params["runner"] === undefined || params["evidence"] !== undefined) {
+        throw new Error("allScenarios requires runner and cannot be combined with scenario or supplied evidence");
+      }
+      if (feature.scenarios.length === 0 || feature.scenarios.length > 100) throw new Error("allScenarios requires 1 to 100 scenarios");
+      if (new Set(feature.scenarios.map(item => item.name)).size !== feature.scenarios.length) throw new Error("allScenarios requires unique scenario names");
+      const snapshot = await runnerSnapshot(baseDir);
+      const pending: Parameters<VerdictListener>[] = [];
+      const pendingErrors: Parameters<NonNullable<ExecuteToolOptions["onError"]>>[] = [];
+      const results: Record<string, unknown>[] = [];
+      const reports: string[] = [];
+      for (const item of feature.scenarios) {
+        options?.signal?.throwIfAborted();
+        attemptedScenario = item.name;
+        const result = await executeE2EVerify({ ...params, allScenarios: false, scenario: item.name },
+          (...args) => { pending.push(args); }, { ...options, acceptance: undefined,
+            onError: (...args) => { pendingErrors.push(args); } });
+        results.push(result.structuredContent ?? { status: "error", error: "Missing scenario result" });
+        reports.push(...result.content.map(content => content.text));
+      }
+      if (await readFile(path.resolve(baseDir, featurePath), "utf8") !== featureSource || await runnerSnapshot(baseDir) !== snapshot) {
+        throw new Error("Feature or adapter changed during complete verification; run every scenario again");
+      }
+      // A failed rerun must withdraw an older pass before sibling passes arrive.
+      for (const args of pendingErrors) await options?.onError?.(...args);
+      for (const args of pending) await onVerdict?.(...args);
+      const blocker = results.some(result => result["status"] === "error" || result["error"] !== undefined);
+      const fresh = results.every(result => result["verifiedRun"] === true);
+      const passed = results.filter(result => result["status"] === "fulfilled" && result["verifiedRun"] === true).length;
+      const status = blocker ? "error" : results.some(result => result["status"] === "not_fulfilled" || result["status"] === "partially_fulfilled")
+        ? "not_fulfilled" : passed === results.length ? "fulfilled" : "needs_review";
+      const items = results.flatMap(result => Array.isArray(result["findings"]) ? result["findings"] : []) as ReturnType<typeof findings>;
+      const coverage = { total: feature.scenarios.length, evaluated: results.filter(result => result["status"] !== "error").length,
+        passed, remaining: feature.scenarios.filter((_item, index) => results[index]?.["status"] !== "fulfilled" || results[index]?.["verifiedRun"] !== true).map(item => item.name) };
+      const structured = { ok: status === "fulfilled", status, verifiedRun: fresh,
+        exitCode: status === "fulfilled" ? 0 : status === "not_fulfilled" ? 1 : 2,
+        feature: feature.feature, coverage, scenarios: results, findings: items,
+        nextAction: nextAction(items, blocker, fresh),
+        ...(blocker ? { error: "One or more scenarios could not be evaluated; see scenario results." } : {}),
+      };
+      const feedback: E2EFeedback = { label: status === "fulfilled" ? "passed" : status === "error" ? "error" : status === "needs_review" ? "needs review" : "failed",
+        tone: status === "fulfilled" ? "success" : status === "needs_review" ? "warning" : "error",
+        lines: [`Feature: ${feature.feature}`, `Feature acceptance: ${passed}/${coverage.total} scenarios passed`,
+          ...coverage.remaining.map(name => `Remaining: ${name}`), `Action: ${structured.nextAction}`,
+          ...items.flatMap(item => [`${item.action}: ${item.scenario}, clause ${item.clause}: ${item.reason}`,
+            ...(item.check ? [`Check: ${item.check.path} (${item.check.op})`, `Expected: ${item.check.expected}`, `Observed: ${item.check.observed}`,
+              ...(item.check.step ? [`Step: ${item.check.step}`] : []), ...(item.check.location ? [`Location: ${item.check.location}`] : [])] : [])]),
+          ...results.flatMap((result, index) => [`Scenario: ${feature.scenarios[index]!.name} — ${String(result["status"])}`,
+            ...(reports[index]?.split("\n").filter(line => line.startsWith("Next:")) ?? [])])],
+      };
+      return { content: [{ type: "text", text: `${feedback.lines.join("\n")}\n\n${reports.join("\n\n")}` }],
+        details: { ...structured, feedback }, structuredContent: structured, isError: status !== "fulfilled" };
+    }
     const scenarioName = typeof params["scenario"] === "string" ? params["scenario"] : undefined;
     const scenario = scenarioName ? scenarioByName(feature, scenarioName) : firstScenario(feature);
     if (!scenario) {
@@ -224,6 +291,8 @@ export async function executeE2EVerify(
       unjudged: verdict.unjudged,
       scenario: verdict.scenario,
       feature: verdict.feature,
+      findings: findings(verdict, hasVerifiedRun),
+      nextAction: nextAction(findings(verdict, hasVerifiedRun), Boolean(modelError), hasVerifiedRun),
       clauses: verdict.clauses.map((c) => ({
         clause: c.clause,
         text: c.text,
@@ -231,6 +300,7 @@ export async function executeE2EVerify(
         source: c.source,
         ...(c.score !== undefined ? { score: c.score } : {}),
         ...(c.detail !== undefined ? { detail: c.detail } : {}),
+        ...(c.checks ? { checks: c.checks } : {}),
       })),
       ...(verdict.model ? { model: verdict.model } : {}),
       ...(modelError ? { error: modelError } : {}),

@@ -1,5 +1,7 @@
 export { default } from "./extensions/index.ts";
 export { evaluateChecks, resolvePath } from "./src/checks.ts";
+export { findings, nextAction } from "./src/guidance.ts";
+export type { Finding, NextAction } from "./src/guidance.ts";
 export { composeVerdict } from "./src/compose.ts";
 export { firstScenario, GherkinError, parseFeature, scenarioByName, setupClauses, thenClauses } from "./src/gherkin.ts";
 export { buildRequest, buildState, clauseId, triageId } from "./src/questions.ts";
@@ -13,6 +15,7 @@ export { E2EGate, registerE2EHarness } from "./src/harness.ts";
 export { E2E_VERIFY_OUTPUT_SCHEMA, E2E_VERIFY_PARAMS, executeE2EVerify, registerE2ETools } from "./src/tool.ts";
 export type {
   Clause,
+  CheckObservation,
   ClauseResult,
   Evidence,
   FeatureFile,

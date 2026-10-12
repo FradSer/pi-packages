@@ -242,3 +242,33 @@ intent heuristic is not a general natural-language authorization parser.
 Fresh runner evidence with unmet checks includes bounded adapter diagnostics for repair; the diagnostics do not change acceptance status.
 
 Verification planning maps every public requirement to observable checks, labels uncovered behavior, and stops repeated checks without new evidence. After repairs, verify the final changed code again. Passing a regression command alone does not establish complete task acceptance.
+# Complete feature review and failure evidence
+
+Use `e2e_verify` with `allScenarios: true`, `feature`, and the authorized `runner`
+to evaluate every scenario in one tool call. Each scenario runs the adapter fresh
+with its own `PI_E2E_SCENARIO_NAME`; return evidence for that scenario's Then
+numbers, which restart at 1. A batch requires unique scenario names (at most 100).
+The existing default and standalone CLI remain single-scenario interfaces.
+Batch mode rejects supplied unscoped evidence and `scenario`; it does not reuse
+the first scenario's checks for other scenarios. `coverage` lists total,
+evaluated, passed and remaining scenarios. Adapter/feature drift invalidates
+the batch before checkpoint verdicts are delivered. Full feature coverage still
+does not prove that the feature covers the complete user request.
+
+Checks may include `step` and `location` (source/test path and line). Results
+include bounded expected/observed values, path, operator and failure category.
+`findings` and `nextAction` distinguish `repair_code` (a fresh deterministic
+counterexample), `collect_evidence` (missing values, invalid checks, supplied
+evidence or uncertain semantics), and `resolve_blocker` (execution/provider
+failure). A mismatched check points to behavior to investigate; it does not
+prove that the expectation itself is correct. Preserve assertions and resolve
+requirements conflicts instead of changing expected values to obtain a pass.
+
+
+Trusted Python adapters can reuse `examples/guards/assertion_guard.py` against frozen
+original tests to detect removed assertions, narrowed error expectations, deleted
+tests and added skip/xfail markers. This conservative AST preservation rule does not
+prove semantic equivalence or replace independent fixture/helper/control-flow review.
+Declare contract migration exceptions before model execution, never from a candidate
+patch after seeing its result. For message workflows, observe complete history and
+call/result bindings as well as the final response.

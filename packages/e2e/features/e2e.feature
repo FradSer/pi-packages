@@ -316,3 +316,23 @@ Feature: Verification intent and efficient acceptance
     Then it maps each requirement to an observable check and labels missing coverage
     And it repairs observed defects and verifies the final changed code again
     And it stops repeated unchanged checks with an explicit remaining limitation
+Feature: Complete coverage and actionable evidence
+  Scenario: Verify every scenario without silently accepting the first
+    Given a feature with multiple scenarios and an authorized scenario-aware adapter
+    When verification requests all scenarios
+    Then every scenario has its own fresh result and coverage entry
+    And any failed or missing scenario prevents overall acceptance
+
+  Scenario: Separate a counterexample from missing evidence
+    Given a check with an expected value and a source location
+    When the observed value differs
+    Then the report identifies the path, expected value, observed value and location
+    And fresh deterministic counterexamples request code repair
+    But missing observations and uncertain semantic judgments request evidence collection
+
+
+  Scenario: Preserve shipped Python assertions in a trusted adapter
+    Given original tests assert complete messages and exact error identities
+    When candidate tests replace them with argument-only or prefix-only checks
+    Then the preservation guard reports the original test location and expectation
+    And added tests cannot compensate for removing an original assertion
