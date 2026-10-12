@@ -392,7 +392,7 @@ if complete review holds the accepted plan. Neither phase replans or loops. Each
 correction keeps its own receipt usage and cost, and only the final accepted
 attempt owns applied operations. Structural rejection metadata and screened
 structural response remain available even if later semantic correction succeeds.
-All original final validation and mutation gates remain mandatory.
+All original final validation and mutation gates remain mandatory. Citation-location rejection supplies up to eight parent-controlled candidate/citation positions and reasons to that same correction, including range and extracted-quote bounds; it never includes source text in diagnostics or raises the 2,000-character quote limit.
 
 Harness also permits one read-only repair when structured output is missing or
 a parsed plan fails validation. It uses the original frozen evidence and model;

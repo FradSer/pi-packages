@@ -549,3 +549,11 @@ Feature: Learn, use, correct and recover across real tasks
     And each reason uses controlled categories and numeric bounds without source text
     And invalid locations and quotes remain rejected under unchanged limits
     And large source lines may use an exact bounded legacy quote without weakening semantic review
+
+  Scenario: Long encoded verifier lines remain citable without free transcription
+    Given an original verifier line longer than the unchanged quote bound
+    When the planner reads the complete frozen evidence
+    Then numbered chunks retain every original character and its exact line offsets
+    And the parent may extract an explicit bounded character span inside one source line
+    And cross-line offsets, decoding, partial quote hints and oversized spans are refused
+    And complete evidence and unchanged semantic review still decide whether the claim is supported

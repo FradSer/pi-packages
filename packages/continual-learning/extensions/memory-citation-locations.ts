@@ -23,8 +23,23 @@ function textBlock(entry: unknown, block: number): string | undefined {
   if (object?.type !== undefined && object.type !== "text") return undefined;
   return typeof object?.text === "string" ? object.text : undefined;
 }
+function characterBoundary(text: string, index: number): boolean {
+  return !(index > 0 && index < text.length
+    && text.charCodeAt(index - 1) >= 0xd800 && text.charCodeAt(index - 1) <= 0xdbff
+    && text.charCodeAt(index) >= 0xdc00 && text.charCodeAt(index) <= 0xdfff);
+}
 function lineView(text: string, block: number): RecordValue {
-  return {block, lines: text.split("\n").map((text, index) => ({line: index + 1, text}))};
+  return {block, lines: text.split("\n").map((text, index) => {
+    if (text.length <= 2000) return {line: index + 1, text};
+    const chunks = [];
+    for (let start = 0; start < text.length;) {
+      let end = Math.min(start + 512, text.length);
+      if (!characterBoundary(text, end)) end--;
+      chunks.push({start, end, text: text.slice(start, end)});
+      start = end;
+    }
+    return {line: index + 1, chunks};
+  })};
 }
 function projectEntry(entry: unknown): unknown {
   if (!eligible(entry)) return entry;
@@ -85,7 +100,7 @@ export function resolveMemoryPlanCitations(raw: unknown, snapshot: unknown): unk
         try {
         if (Object.keys(ref).some(key => !["index", "role", "quote", "lines"].includes(key))) fail("invalid-reference-fields");
         const range = record(ref.lines);
-        if (!range || Object.keys(range).some(key => !["block", "start", "end", "source"].includes(key))
+        if (!range || Object.keys(range).some(key => !["block", "start", "end", "source", "characters"].includes(key))
           || range.source !== undefined && range.source !== "patch") fail("invalid-range-fields");
         if (!Array.isArray(entries) || !Number.isSafeInteger(ref.index) || (ref.index as number) < 0) fail("invalid-snapshot-index");
         const entry = Array.isArray(entries) ? entries[ref.index as number] : undefined;
@@ -99,7 +114,18 @@ export function resolveMemoryPlanCitations(raw: unknown, snapshot: unknown): unk
         if (text === undefined) fail("source-unavailable");
         const lines = text!.split("\n");
         if ((end as number) > lines.length) fail(`line-range-out-of-bounds (availableLines=${lines.length})`);
-        const quote = lines.slice((start as number) - 1, end as number).join("\n");
+        let quote = lines.slice((start as number) - 1, end as number).join("\n");
+        if ("characters" in range!) {
+          const span = record(range!.characters);
+          if (!span || Object.keys(span).some(key => !["start", "end"].includes(key))
+            || start !== end || !Number.isSafeInteger(span.start) || !Number.isSafeInteger(span.end)
+            || (span.start as number) < 0 || (span.end as number) <= (span.start as number)
+            || (span.end as number) > quote.length
+            || !characterBoundary(quote, span.start as number) || !characterBoundary(quote, span.end as number)) {
+            fail("invalid-character-span");
+          }
+          quote = quote.slice(span!.start as number, span!.end as number);
+        }
         if (quote.length < 1 || quote.length > 2000) fail("quote-length-out-of-bounds (maximumCharacters=2000)");
         if ("quote" in ref && ref.quote !== quote) fail("quote-mismatch");
         const resolved = {index: ref.index, quote, ...(ref.role !== undefined ? {role: ref.role} : {})};
@@ -119,7 +145,7 @@ export function resolveMemoryPlanCitations(raw: unknown, snapshot: unknown): unk
   return changed ? result : raw;
 }
 
-export const MEMORY_LOCATION_GUIDANCE = `Prefer evidence locations over retyping quotations. Each eligible original content block is shown as citationLines: {block, lines: [{line, text}]}. Cite {index: snapshotIndex, lines: {block, start, end}} with integer 1-based inclusive line numbers inside that one block; block is the original zero-based content slot (0 for a string). Select a contiguous complete statement, retaining conditions, exceptions, indentation and tool-output prefixes. Never count JSON display lines or cross blocks. The parent extracts the exact original substring and applies unchanged quote/role/privacy/semantic checks. Positions do not prove a claim or grant authority. Do not supply quote with lines unless byte-for-byte identical. Successful edit results with an original details.patch also expose details.patch.citationLines with source: "patch". Cite those lines using {index: snapshotIndex, lines: {source: "patch", block: 0, start, end}}. Preserve + and - markers: removed lines describe the prior source, added lines describe this edit; neither proves runtime behavior or that no later change occurred. Assistant tool arguments and failed edits are not eligible patch sources. Legacy exact quote citations remain supported. Bounds remain 8 items and 2,000 extracted characters per quote. If one source line exceeds 2,000 characters, use a legacy exact quote of a complete relevant statement within that line under the same bound; do not select the oversized whole line or omit a material condition. Inspect every original entry, including later corrections; this projection omits no evidence.`;
+export const MEMORY_LOCATION_GUIDANCE = `Prefer evidence locations over retyping quotations. Each eligible original content block is shown as citationLines: {block, lines: [{line, text}]}. Cite {index: snapshotIndex, lines: {block, start, end}} with integer 1-based inclusive line numbers inside that one block; block is the original zero-based content slot (0 for a string). Select a contiguous complete statement, retaining conditions, exceptions, indentation and tool-output prefixes. Never count JSON display lines or cross blocks. The parent extracts the exact original substring and applies unchanged quote/role/privacy/semantic checks. Positions do not prove a claim or grant authority. Do not supply quote with lines unless byte-for-byte identical. Successful edit results with an original details.patch also expose details.patch.citationLines with source: "patch". Cite those lines using {index: snapshotIndex, lines: {source: "patch", block: 0, start, end}}. Preserve + and - markers: removed lines describe the prior source, added lines describe this edit; neither proves runtime behavior or that no later change occurred. Assistant tool arguments and failed edits are not eligible patch sources. Legacy exact quote citations remain supported. Bounds remain 8 items and 2,000 extracted characters per quote. A source line longer than 2,000 characters is shown losslessly as chunks: [{start, end, text}]. Those are zero-based UTF-16 offsets inside that one original line, with end exclusive; concatenate chunks to recover the full line. To cite a complete relevant statement or contiguous chunk range under the same bound, use {index: snapshotIndex, lines: {block, start: lineNumber, end: lineNumber, characters: {start: firstChunk.start, end: lastChunk.end}}}. Character spans must stay inside one line and never split a Unicode character. Copy parent-labelled offsets rather than counting JSON display characters. The parent extracts raw original characters, never decodes JSON/log escapes or searches for a matching quotation. Do not combine a whole-line location with a partial or decoded quote. A legacy exact bounded quote remains supported. Never omit a material condition. Inspect every original entry, including later corrections; this projection omits no evidence.`;
 
 export function hasMemoryCitationLocations(raw: unknown): boolean {
   const plan = record(raw);
