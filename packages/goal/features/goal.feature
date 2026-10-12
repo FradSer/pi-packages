@@ -1,5 +1,5 @@
 # Atomic current contracts; original 106 scenarios are traced in
-# packages/e2e/tests/goal-scenario-migration.json. Expectations come from
+# the retired pi-e2e archive (goal-scenario-migration.json). Expectations come from
 # independent behavior fixtures; suite exit status is never clause evidence.
 
 Feature: Starting a goal
