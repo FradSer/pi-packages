@@ -148,3 +148,11 @@ Feature: Read-only side questions
     Given the current process entry belongs to an unrelated package whose name contains pi
     When the child CLI is resolved
     Then btw ignores that entry and uses an installed coding-agent CLI or PATH pi
+
+  Scenario: Native verification uses the isolated workspace Pi baseline
+    Given a deterministic offline overlay fixture and an unrelated global Pi installation
+    When the native terminal acceptance starts
+    Then the workspace Pi CLI runs in a disposable project and agent directory
+    And user settings, credentials and project trust stay untouched
+    And unrelated resources and built-in tools are disabled
+    And follow-up, cancellation, scrolling, resize and close assertions still execute
