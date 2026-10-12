@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from subagents_helpers import SRC, run_node
 
 PREAMBLE = f"""
@@ -66,6 +67,51 @@ def test_start_identity_and_label_are_independent(tmp_path: Path) -> None:
     assert "SAVED ROLE" not in result["spawns"][0]["body"]
     assert result["spawns"][0]["policy"] == "none"
     assert result["spawns"][1]["env"]["PI_SUBAGENT_ROLE"] == "reader"
+
+
+@pytest.mark.parametrize("authored,display", [
+    ("File Review", "file-review"),
+    ("Task SQL measured optimization", "task-sql-measured-optimization"),
+    ("Fix OAuth 2.0!", "fix-oauth-2-0"),
+])
+def test_an_authored_label_becomes_one_identifier_shaped_display_name(tmp_path: Path, authored: str, display: str) -> None:
+    """features/intent-tools.feature: a label is one identifier-shaped display name.
+
+    A person reads the child's name in a row, so `Xxx Xxx` is not a name a row can
+    carry: the same word list with hyphens is. Every surface that paints or
+    addresses the child reads that one projected name, and the authored text stays
+    the temporary role's purpose.
+    """
+    result = run(f"""
+      const {{ formatSessionResult }} = await import({json.dumps((SRC / 'session-result.ts').as_uri())});
+      const started=await call('agent_start',{{label:{json.dumps(authored)},prompt:'FIRST'}});
+      final('ANSWER');await tick();
+      const notice=notices.find(value=>value.kind==='result');
+      const name=started.structuredContent.name;
+      console.log(JSON.stringify({{receipt:started.structuredContent.label,
+        roster:roster.getAgent(name).label,notice:notice.name,
+        envelope:formatSessionResult(notice).split('\\n')[0],role:started.structuredContent.role,
+        content:started.content.map(part=>part.text).join('\\n')}}));
+    """, tmp_path)
+    assert result["receipt"] == display
+    assert result["roster"] == display
+    assert result["notice"] == display
+    assert f'from="{display}"' in result["envelope"]
+    assert f"Label: {display}." in result["content"]
+    # The temporary role keeps the authored text; only the display name is projected.
+    assert result["role"] == authored
+
+
+def test_a_label_with_no_identifier_character_keeps_the_childs_own_name(tmp_path: Path) -> None:
+    """A display name stays one token, so a label no identifier can carry is absent."""
+    result = run("""
+      const started=await call('agent_start',{label:'任务 🛠',prompt:'FIRST'});
+      const name=started.structuredContent.name;
+      console.log(JSON.stringify({label:started.structuredContent.label,name,
+        roster:roster.getAgent(name).label}));
+    """, tmp_path)
+    assert result["name"].startswith("subagent-"), result["name"]
+    assert result["label"] == result["name"] == result["roster"]
 
 
 def test_fifo_results_and_fast_settlement_wait_for_ack(tmp_path: Path) -> None:

@@ -18,6 +18,26 @@ Feature: Intent-based child controls
       When agent_start validates the request
       Then it refuses before reservation or process effects
 
+  Rule: A label is one identifier-shaped display name
+    Scenario Outline: An authored label becomes one identifier-shaped display name
+      Given an agent_start label of "<authored>"
+      When the start is accepted
+      Then every row shows the child as "<display>"
+      And the receipt, the roster and the notice carry "<display>"
+      And the authored text still names the temporary role's purpose
+
+      Examples:
+        | authored                       | display                        |
+        | File Review                    | file-review                    |
+        | Task SQL measured optimization | task-sql-measured-optimization |
+        | Fix OAuth 2.0!                 | fix-oauth-2-0                  |
+
+    Scenario: A label holding no identifier character keeps the child's own name
+      Given an agent_start label with no ASCII letter or digit
+      When the start is accepted
+      Then the display name is the child's own name
+      And every row still names the child once
+
   Rule: Next input has bounded FIFO sequencing
     Scenario: Two follow-ups arrive while a child works
       Given a prompted child with accepted initial input

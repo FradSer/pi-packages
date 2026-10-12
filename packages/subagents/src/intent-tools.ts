@@ -33,7 +33,7 @@ export const INTENT_TOOL_SCHEMAS = {
     // alternative to a saved identity was reachable only by omitting the key, and
     // nothing said so.
     identity: { type: "string", description: "Existing disk agent.md identity. Omit this field for a temporary role; an empty value is read as absent. A name that is not a saved identity is refused by name. Missing identities never become temporary roles." },
-    label: { ...text, maxLength: 120, description: "Display label only. It never selects or creates an identity." },
+    label: { ...text, maxLength: 120, description: "Display name only; it never selects or creates an identity. The authored label is projected to one lowercase hyphenated token, so `Task SQL work` shows as `task-sql-work`. A label holding no ASCII letter or digit shows the child's own name instead." },
     instructions: { ...text, description: "Temporary standing instructions. Do not combine with a saved identity." },
     // The grantable ids are a fixed set, and a project-extension tool is not in it.
     // Both facts used to appear only in the refusal of a real call, so a caller
@@ -73,6 +73,26 @@ type IntentRenderDetails = IntentToolData & {
   definitions?: readonly IntentSessionRow[];
   page?: AgentListPage; total?: number;
 };
+
+/** A display name is one identifier-shaped token: `xxx-xxx`, never `Xxx Xxx`.
+ *
+ * Every surface that names a child in a row — the start receipt, the roster, a
+ * Session Result notice, a parent message, the result envelope, the activity
+ * area and the stop row — reads one name. A person reads that name in a
+ * transcript, and a name with spaces or capitals is a phrase there, not a name;
+ * `file-review` is the same word list as a token. The projection is
+ * deliberately ASCII: a letter outside it would render as a word, not a token,
+ * so a label that holds no ASCII letter or digit projects to nothing and the
+ * caller falls back to the child's own name. Bounded, because the authored
+ * label is bounded and a display name has no reason to be the longer of the two. */
+export function agentDisplayName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64)
+    .replace(/-+$/, "");
+}
 
 function displayText(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -328,15 +348,20 @@ export async function executeIntentTool(operation: IntentToolName, params: unkno
       if (widened.length) return refuse(operation, `The saved identity does not grant ${widened.join(", ")}.`, "grant-denied");
     }
     const name = identity ?? `subagent-${randomUUID().slice(0, 8)}`;
-    const label = typeof fields.label === "string" ? fields.label : identity ?? name;
+    // The authored text is projected once, here, so nothing downstream has to
+    // know the rule and no two surfaces can disagree about the child's name.
+    const authored = typeof fields.label === "string" ? fields.label : undefined;
+    const label = (authored ? agentDisplayName(authored) : "") || identity || name;
     const inputId = randomUUID();
     const result = await executeChildIntent({ operation: "start", name, prompt,
       // A temporary child with a prompt needs a role, and a role needs both halves:
-      // the label is its description and its standing instructions are the request's
-      // instructions when given, otherwise the prompt it was started with. A half
-      // role is refused by a coordinator host, and a child with no instructions and
-      // nothing to wait for reports a result nobody asked for.
-      ...(!identity ? { description: label, role_prompt: fields.instructions ?? prompt } : {}),
+      // the display name is the label's projected token, while the role's purpose
+      // keeps the authored text, which is what a person reads and what a
+      // coordinator hands its teammates. Its standing instructions are the
+      // request's instructions when given, otherwise the prompt it was started
+      // with. A half role is refused by a coordinator host, and a child with no
+      // instructions and nothing to wait for reports a result nobody asked for.
+      ...(!identity ? { description: authored ?? label, role_prompt: fields.instructions ?? prompt } : {}),
       ...Object.fromEntries(["tools", "model", "fork"].filter(key => Object.hasOwn(fields, key)).map(key => [key, fields[key]])),
     }, { ...options, startup: { identity, label, definition, inputId } });
     return project(operation, result, { inputId, label, ...(identity ? { identity } : {}) });
