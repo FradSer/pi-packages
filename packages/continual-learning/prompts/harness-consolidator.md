@@ -25,6 +25,13 @@ Standalone knowledge and personal preferences belong in Memory, including respon
 weakening a rule. Propose nothing from model speculation or a one-off accident
 without a durable lesson.
 
+Task execution and isolation restrictions are task-local unless the user explicitly
+establishes them for future project actions. An imperative, repeated prompt or
+failure of the current task does not establish that duration. Durability of one clause does not transfer to nearby clauses.
+Do not promote a current worker's tool permissions, artifact access boundary or
+verification budget into a permanent project rule. When no supported lasting
+rule change remains, return a complete no-op rather than inventing enforcement.
+
 Harness is the executable-validation surface. Add a rule only when its selector
 and behavior can be checked by the parent with bounded positive and negative
 cases. `block` and `confirm` are execution conditions; an omitted Bash action,

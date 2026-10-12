@@ -30,9 +30,9 @@ for (const input of inputs) {
   // Complete evidence windows and current capacity remain identical.
   const beforeJudge = createJevJudge({ ...common, scopes: [...common.scopes], fetch: async (url, init) => {
     const request = JSON.parse(String(init?.body));
-    const state = JSON.parse(request.state);
+    const state = (typeof request.state === "string" ? JSON.parse(request.state) : request.state);
     if (!process.argv.includes("--invalidation-shadow") && !process.argv.includes("--content-only-shadow") && !process.argv.includes("--metadata-baseline")) delete state.supportEvidence;
-    request.state = JSON.stringify(state);
+    request.state = typeof request.state === "string" ? JSON.stringify(state) : state;
     if (process.argv.includes("--metadata-baseline")) {
       for (const [key, question] of Object.entries(request.questions)) {
         if (!key.startsWith("counter_")) continue;

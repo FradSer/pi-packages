@@ -1,0 +1,64 @@
+{
+  "provenance": {
+    "cohort": "failure-replay-v10/20261011T191010Z-6abc5bece326",
+    "run": "run_mv477hvt_1a07798b95e12438",
+    "realModelPlans": true,
+    "purpose": "protected metadata preservation regression only, not semantic validity"
+  },
+  "original": {
+    "name": "limit_function_type_contract.md",
+    "kind": "rewrite",
+    "classification": "safe",
+    "content": "---\ndescription: p-limit's declared limitFunction takes a PromiseLike-returning fn and returns a Promise-returning fn with clearQueue\ntype: project\n---\nIn the p-limit package, `index.d.ts` declares the `limitFunction` public contract as `export function limitFunction<Arguments extends unknown[], ReturnType>(function_: (...arguments_: Arguments) => PromiseLike<ReturnType>, options: Options): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;`. This is a type-level contract grounded in the declarations, not a runtime restriction: the input must be PromiseLike-returning, unlike the `LimitFunction` call signature whose parameter accepts `PromiseLike<ReturnType> | ReturnType`; `index.test-d.ts` asserts the narrower limitFunction input with `expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));`. The declared return type still exposes only `clearQueue` from `LimitFunction`; a later tsd verification reported `Property onIdle does not exist on type ((x: number) => Promise<number>) & Pick<LimitFunction, \"clearQueue\">`. The `index.js` implementation has diverged from this declared surface: the wrapper now uses `Object.defineProperties` to define both `clearQueue` (as `limit.clearQueue`) and an `onIdle` method delegating to `limit.onIdle()`, replacing the earlier `Object.defineProperty(limitedFunction, 'clearQueue', ...)`. The user asked to remember this inspected limitFunction input/output type contract for future maintenance.\n",
+    "observations": [
+      {
+        "path": "index.js",
+        "status": "updated"
+      },
+      {
+        "path": "index.d.ts",
+        "status": "found"
+      }
+    ],
+    "evidence": [
+      {
+        "index": 6,
+        "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;",
+        "role": "toolResult"
+      },
+      {
+        "index": 32,
+        "quote": "-\tObject.defineProperty(limitedFunction, 'clearQueue', {\n-\t\tvalue: limit.clearQueue,\n+\tObject.defineProperties(limitedFunction, {\n+\t\tclearQueue: {\n+\t\t\tvalue: limit.clearQueue,\n+\t\t},\n+\t\tonIdle: {\n+\t\t\tvalue: () => limit.onIdle(),\n+\t\t},",
+        "role": "toolResult"
+      },
+      {
+        "index": 48,
+        "quote": "    \"types\": \"\\n  continuous-study.test-d.ts:3:18\\n  \u2716  3:18   Parameter type Promise<void> is not identical to argument type any.                                           \\n  \u2716  3:46   Property onIdle does not exist on type LimitFunction.                                                         \\n  \u2716  4:93   Parameter type Promise<void> is not identical to argument type any.                                           \\n  \u2716  4:121  Property onIdle does not exist on type ((x: number) => Promise<number>) & Pick<LimitFunction, \\\"clearQueue\\\">.  \\n\\n  4 errors\\n\\n\",",
+        "role": "toolResult"
+      }
+    ]
+  },
+  "corrected": {
+    "name": "limit_function_type_contract.md",
+    "kind": "rewrite",
+    "classification": "safe",
+    "content": "---\ndescription: p-limit's declared limitFunction takes a PromiseLike-returning fn and returns a Promise-returning fn with clearQueue\ntype: project\n---\nIn the p-limit package, `index.d.ts` declares the `limitFunction` public contract as `export function limitFunction<Arguments extends unknown[], ReturnType>(function_: (...arguments_: Arguments) => PromiseLike<ReturnType>, options: Options): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;`. This is a type-level contract grounded in the declarations, not a runtime restriction: the `limitFunction` parameter accepts only `PromiseLike<ReturnType>`, while the `LimitFunction` call signature's parameter accepts `PromiseLike<ReturnType> | ReturnType`. The declared return type exposes only `clearQueue` from `LimitFunction`. The `index.js` implementation builds this by creating its own limiter and returning `(...arguments_) => limit(() => function_(...arguments_))` with `clearQueue` defined as `limit.clearQueue`.\n",
+    "evidence": [
+      {
+        "index": 6,
+        "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;",
+        "role": "toolResult"
+      },
+      {
+        "index": 6,
+        "quote": "\t<Arguments extends unknown[], ReturnType>(\n\t\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType> | ReturnType,",
+        "role": "toolResult"
+      },
+      {
+        "index": 4,
+        "quote": "export function limitFunction(function_, options) {\n\tconst limit = pLimit(options);\n\n\tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n\tObject.defineProperty(limitedFunction, 'clearQueue', {\n\t\tvalue: limit.clearQueue,\n\t});",
+        "role": "toolResult"
+      }
+    ]
+  }
+}

@@ -188,6 +188,7 @@ def test_frozen_request_digest_preserves_every_non_generated_field() -> None:
         'state':json.dumps({'runId':'run_abc_0123456789abcdef','capturedAt':'2026-10-06T00:00:00.000Z','content':'public'})}
     other = {**original,'state':json.dumps({'runId':'run_xyz_abcdef0123456789','capturedAt':'2026-10-07T00:00:00.000Z','content':'public'})}
     assert module.canonical_request_digest(original) == module.canonical_request_digest(other)
+    assert module.canonical_request_digest(original) == module.canonical_request_digest({**original, 'state': json.loads(original['state'])})
     changed = {**other,'state':json.dumps({'runId':'run_xyz_abcdef0123456789','capturedAt':'2026-10-07T00:00:00.000Z','content':'PRIVATE_CANARY'})}
     assert module.canonical_request_digest(original) != module.canonical_request_digest(changed)
 

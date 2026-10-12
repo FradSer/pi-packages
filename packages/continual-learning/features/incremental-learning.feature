@@ -163,3 +163,121 @@ Feature: Select the minimum sufficient scope for incremental learning
     And cited entries colocated in a window remain available by exact index
     And late or cited-window contradictions and transport failures hold the plan
     And windows are not merged using raw entry size alone
+
+  Scenario: Unresolved source defects can be learned without inventing a recovery
+    Given actual failed verification and matching inspected source establish an unresolved defect
+    When Memory support is reviewed against that complete evidence
+    Then a source-state-bound observation does not require a successful fix
+    And temporary service faults, guessed causes and permanent failure generalizations remain held
+    And confidence thresholds and complete counterevidence review remain unchanged
+
+  Scenario: A sparse semantic repair omits an unchanged candidate array
+    Given an original Memory plan contains rewrites and new proposals
+    When the semantic repair returns only the rewrites and omits newMemories
+    Then the parent retains every original new proposal byte-for-byte
+    And the merged plan still requires complete citation, intent and semantic validation
+    But an explicitly malformed candidate array remains rejected
+
+  Scenario: One correction sees retained and proposed Memory failures together
+    Given unchanged selected Memory and new proposed knowledge both fail semantic review
+    When the parent prepares its one bounded semantic correction
+    Then both disjoint failure scopes have been reviewed before the worker starts
+    And only held retained names and held proposed fields may change
+    And every combined candidate is fully revalidated before any write
+
+  Scenario: Semantic correction preserves sources without counting redundant subquotes twice
+    Given a rejected proposal retains an exact multiline source quote
+    When a correction cites uniquely recoverable indentation and a contained subquote at the same index and role
+    Then the parent restores exact source indentation before merging
+    And retains every original citation while omitting only redundant new subquotes
+    And unchanged citation bounds and full semantic validation still apply
+
+  Scenario: A new proposal keeps a verified fact instead of an unsupported explanation
+    Given complete digest-bound review passed every description check but held only the new proposal body
+    When the parent constructs a distilled replacement from that exact description
+    Then the original identity, privacy and citations are retained
+    And existing Memory rewrites are never distilled
+    And the replacement requires full combined semantic review before writing
+    But missing, partial or mismatched checklists cannot enable distillation
+
+  Scenario: Representation repair does not consume the knowledge correction phase
+    Given one structural correction produces a schema-valid cited plan
+    And complete review holds retained knowledge and proposed knowledge
+    When the parent performs its one semantic correction
+    Then the worker receives both disjoint reviewed failure scopes
+    And both correction attempts and their individual costs remain in the receipt
+    And the final combined plan must pass every original validation gate
+    But neither phase may retry itself or start fresh planning
+
+  Scenario: Field-specific semantic correction preserves validated source observations
+    Given an existing proposal has parent-validated repository observations
+    And its semantic review holds only the body or index description
+    When a correction omits or changes the source observation metadata
+    Then the parent preserves the original observation metadata exactly
+    And only the held claim fields and their permitted citations are replaced
+    And the complete corrected plan still requires semantic and mutation validation
+
+  Scenario: Missing observations never establish the absence of repository claims
+    Given selected Memory records have no validated repository observations
+    When the parent expands an incremental plan
+    Then their repository grounding is UNVERIFIABLE regardless of their filenames
+    And it does not assert that an arbitrary filename contains no repository claim
+
+  Scenario: Bounds repair cannot discard original repository observations
+    Given a complete Memory review is refused at a bound before a field checklist exists
+    And the original operation has parent-validated repository observations
+    When a semantic replacement omits or replaces those observations
+    Then the parent retains the original observations
+    And the complete replacement still requires ordinary validation and semantic review
+
+  Scenario: Structural repair can restore a missing new proposal filename suffix
+    Given a new Memory proposal has a valid filename stem but omits .md
+    When structural correction supplies exactly that suffix without a collision
+    Then the parent recognizes the original new proposal identity and privacy
+    And existing mutation targets cannot be renamed by that correction
+    And ordinary filename, citation, semantic and write validation still apply
+
+  Scenario: Semantic correction preserves multi-fact predecessor knowledge
+    Given a rejected rewrite whose body retains several independently supported predecessor facts and an unresolved verification failure
+    When the parent requests its bounded semantic correction
+    Then only the index description is constrained to one supported clause
+    And the complete predecessor and original operation remain in the correction input
+    And shortening the body does not authorize discarding still-valid knowledge or independently supported failure observations
+    And the corrected plan still requires complete preservation and semantic review
+
+  Scenario: Optional description distillation does not overwrite an actual failure correction
+    Given a held new Memory proposal whose original description completed review
+    And the bounded correction changes its body to preserve the observed source state or corrects its citations
+    When the parent considers optional description distillation
+    Then it keeps the corrected content and citations unchanged
+    And the complete corrected plan still requires all final validation
+
+  Scenario: Complete corrected knowledge is not refused because comparison context repeats citations
+    Given a real corrected Memory plan whose complete body and citations must survive distillation
+    When review compares every exact replacement with the exact predecessor records
+    Then other proposals carry indexed role and quote-digest associations instead of repeating quotations
+    And each proposal receives its full original quotations and complete cited source in its own support review
+    And all original evidence is reviewed byte-for-byte without changing request or semantic limits
+
+  Scenario: Deferred newer feedback prevents stale prefix learning
+    Given an independently digest-verified same-task feedback extension of an older pending slice
+    And the extension is deferred by its existing retry or attempt limit
+    When bounded backfill considers the older slice
+    Then no learning call uses the obsolete prefix alone
+    And both original references and all attempt limits remain intact
+    And changed or unverified extensions do not suppress unrelated work
+
+  Scenario: Larger verified citations preserve protected claims without duplicate overflow
+    Given a field correction with eight valid citations and a protected original description
+    And a new quote contains an original quote verbatim at the same source index and role
+    When the parent merges the corrected body and its sources
+    Then the larger quote retains every original and corrected source byte
+    And evidence at different indexes or roles remains distinct
+    And the original eight-citation limit and complete semantic review remain required
+
+  Scenario: Correcting a stored contract preserves mutation context in index review
+    Given a stored wrapper contract has been superseded by an observed successful source edit
+    When its proposed rewrite body and index description are reviewed separately
+    Then the description retains the parent-validated rewrite action and target
+    And its content is still judged independently of the proposed body
+    And uncertain description judgments remain held at the unchanged threshold

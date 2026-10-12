@@ -49,7 +49,7 @@ def test_structural_worker_receives_grounding_context_in_same_read_only_call() -
     ''')
     assert value['outcome'] == 'repaired' and value['calls'] == 1
     assert value['tools'] == [] and value['structural'] and value['temporary']
-    assert value['context']['frozenEvidence']['entries'] == [{'snapshotIndex': 0, 'entry': {'role': 'user', 'content': 'Project uses pnpm. Only this task: summarize failures.'}}]
+    assert value['context']['frozenEvidence']['entries'] == [{'snapshotIndex': 0, 'entry': {'role': 'user', 'content': {'citationLines': {'block': 0, 'lines': [{'line': 1, 'text': 'Project uses pnpm. Only this task: summarize failures.'}]}}}}]
 
 
 def test_production_structural_repair_holds_tampering_and_accounts_paid_attempt() -> None:
@@ -58,10 +58,10 @@ def test_production_structural_repair_holds_tampering_and_accounts_paid_attempt(
     fixture = Path(__file__).with_name('learning-policy-harness.ts')
     for reason in ('structural-held', 'structural-tamper-snapshot', 'structural-tamper-dossier'):
         value = run_bun_script(fixture, 'remember-shared', env={'CL_JEV_FIXTURE': reason})
-        assert value['structuralContextReceived'] and value['totalRepairs'] == 1
-        assert value['semanticRepairs'] == 0 and not value['memoryMirrored']
+        assert value['structuralContextReceived'] and value['totalRepairs'] == (2 if reason == 'structural-held' else 1)
+        assert value['semanticRepairs'] == (1 if reason == 'structural-held' else 0) and not value['memoryMirrored']
         attempts = [a for a in value['registryReceipt']['attempts'] if a['phase'] == 'memory']
-        assert len(attempts) == 2 and attempts[1]['usage']['input'] == 10, reason
+        assert len(attempts) == (3 if reason == 'structural-held' else 2) and attempts[1]['usage']['input'] == 10, reason
         if reason != 'structural-held':
             assert value['jevValidations'] == []
         assert value['registryReceipt']['operations'] == 0

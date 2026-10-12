@@ -40,9 +40,10 @@ def memory_policy_bytes(original: bytes, policy: str) -> bytes:
     if policy != "composed":
         raise ValueError("Unknown Memory policy")
     old = b"const jevJudge = createJevJudge();"
-    if original.count(old) != 1:
-        raise ValueError("Expected exactly one ordinary Jev constructor")
-    return original.replace(old, b"const jevJudge = createJevJudge({ independentMemoryApplication: true, composedMemoryApplication: true });")
+    enabled = b"const jevJudge = createJevJudge({ independentMemoryApplication: true, composedMemoryApplication: true });"
+    if original.count(old) + original.count(enabled) != 1:
+        raise ValueError("Expected exactly one recognized Jev constructor")
+    return original.replace(old, enabled)
 
 
 def prepare_memory_policy(package: Path, policy: str) -> dict[str, str]:
@@ -65,7 +66,7 @@ def verify_memory_policy(package: Path, policy: str) -> dict[str, str]:
     installed = (package / "extensions/inject-memory.ts").read_bytes()
     path = package / "tests/project-policy-manifest.json"
     if not path.exists() and policy == "default":
-        assert b"const jevJudge = createJevJudge();" in installed, "Unexpected ordinary constructor"
+        assert memory_policy_bytes(installed, "composed"), "Unexpected production constructor"
         return {"memoryPolicy": policy, "installedSha256": hashlib.sha256(installed).hexdigest()}
     manifest = json.loads(path.read_text())
     assert manifest["memoryPolicy"] == policy, "Image Memory policy differs from the requested policy"

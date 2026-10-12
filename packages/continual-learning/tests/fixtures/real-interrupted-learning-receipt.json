@@ -1,0 +1,90 @@
+{
+  "kind": "learning-pipeline-receipt",
+  "version": 1,
+  "mode": "manual",
+  "batchId": "batch_06dc40035851def5144e35e3e675bbc2",
+  "screen": {
+    "memory": true,
+    "harness": true,
+    "agents": false,
+    "reasons": [
+      "manual-incremental",
+      "durable-user-evidence",
+      "constraint-evidence",
+      "no-agents-evidence"
+    ]
+  },
+  "attempts": [
+    {
+      "phase": "selector",
+      "attempt": 0,
+      "outcome": "applied",
+      "durationMs": 14922,
+      "operations": 0,
+      "usage": {
+        "input": 30753,
+        "output": 796,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 31549,
+        "cost": 0.0049870700000000006
+      },
+      "diagnostic": "Jev fallback: bounds; legacy selector",
+      "jev": {
+        "stage": "selection",
+        "status": "fallback",
+        "reason": "bounds",
+        "durationMs": 0,
+        "requestCount": 0,
+        "completedRequests": 0,
+        "boundsKind": "question-bytes",
+        "boundsCount": 98182
+      },
+      "selectedMemory": [
+        "clear_queue_pending_only.md",
+        "limit_function_type_contract.md"
+      ]
+    },
+    {
+      "phase": "memory",
+      "attempt": 0,
+      "outcome": "failed",
+      "durationMs": 39153,
+      "operations": 0,
+      "diagnostic": "memory planner model error"
+    }
+  ],
+  "totals": {
+    "input": 30753,
+    "output": 796,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "totalTokens": 31549,
+    "cost": 0.0049870700000000006
+  },
+  "usageAvailable": false,
+  "costAvailable": false,
+  "operations": 0,
+  "retries": 0,
+  "input": {
+    "source": "backlog-session",
+    "entryCount": 51,
+    "sessionId": "01a12b30-747f-77f8-9c9d-ba8b3f18c4c0",
+    "sourceDigest": "d0ba7ea5c88e2df45ae88692be90f816830eea8ed62973e0d1a132922711ef96",
+    "backlogId": "0b8b4304362368780801efe9456f1cf86d0ae4341311f35db54e289e176f3bd2",
+    "backlogCoverage": [
+      {
+        "id": "584814a43d9cb412fd066805addb0b182ed906f518afbc3d3ccaaaa1672477c5",
+        "from": 3,
+        "to": 43,
+        "digest": "37f11934163066377e3d3646a93796e955a3d5ae6c0be2bba92f5647e80afc3e"
+      },
+      {
+        "id": "0b8b4304362368780801efe9456f1cf86d0ae4341311f35db54e289e176f3bd2",
+        "from": 3,
+        "to": 53,
+        "digest": "b063d3660f9bee2d42b2856e32a3fecd5cd0367bfe62ab91106d221efed2ac88"
+      }
+    ]
+  }
+}

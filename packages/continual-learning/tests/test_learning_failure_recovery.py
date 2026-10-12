@@ -34,7 +34,7 @@ def test_harness_counter_windows_check_revocation_without_repeating_authority() 
       const good=await judge.validate('harness',snapshot,candidates,[],undefined,citations);
       const original=requests.splice(0);mode='contradicts';const revoked=await judge.validate('harness',snapshot,candidates,[],undefined,citations);
       mode='unclear';const uncertain=await judge.validate('harness',snapshot,candidates,[],undefined,citations);
-      console.log(JSON.stringify({good,revoked,uncertain,questions:original.flatMap(r=>Object.entries(r.questions).filter(([k])=>k.startsWith('counter_')).map(([,q])=>q.instructions.question)),coverage:original.flatMap(r=>JSON.parse(r.state).reviewEvidence?.entries.map(e=>e.index)??[]),authority:original.some(r=>r.questions.authority_0&&r.questions.family_0)}));
+      console.log(JSON.stringify({good,revoked,uncertain,questions:original.flatMap(r=>Object.entries(r.questions).filter(([k])=>k.startsWith('counter_')).map(([,q])=>q.instructions.question)),coverage:original.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries.map(e=>e.index)??[]),authority:original.some(r=>r.questions.authority_0&&r.questions.family_0)}));
     ''')
     assert result['good']['decision'] == 'allow'
     assert result['revoked']['decision'] == 'propose'
@@ -53,11 +53,12 @@ def test_support_questions_keep_each_candidates_validated_citation_association()
       const candidates=quotes.map((content,index)=>({name:`fact-${index}.md`,kind:'project',classification:'safe',content:`---\nname: fact-${index}\ndescription: ${content}\ntype: project\n---\n${content}`,evidence:[{index,quote:content}]}));
       let support;const counters=[];
       await createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{const req=JSON.parse(init.body);if(req.questions.supported_0)support=req;if(req.questions.counter_0_0)counters.push(req);const answers=Object.fromEntries(Object.entries(req.questions).map(([k,q])=>{const choice=k.startsWith('counter_')?'compatible':'grounded';return[k,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===choice?1:0]))}];}));return new Response(JSON.stringify({model:'jev-1.13.0',answers}));}}).validate('memory',snapshot,candidates,[]);
-      console.log(JSON.stringify({quotes,questions:support.questions,counters,entries:JSON.parse(support.state).frozenEvidence.entries}));
+      console.log(JSON.stringify({quotes,questions:support.questions,citations:support.state.originalCitationsByCandidate,counters,entries:(typeof support.state === "string" ? JSON.parse(support.state) : support.state).frozenEvidence.entries}));
     ''')
     for index, quote in enumerate(result['quotes']):
         for key in (f'supported_{index}', f'supported_description_{index}'):
-            citations = result['questions'][key]['instructions']['originalCitations']
+            assert result['questions'][key]['instructions']['originalCitationsReference'] == f'originalCitationsByCandidate.{index}'
+            citations = result['citations'][str(index)]
             assert citations == [{'index': index, 'quote': quote, 'role': 'toolResult'}]
     for index, quote in enumerate(result['quotes']):
         for key in (f'counter_{index}_0', f'counter_description_{index}_0'):
@@ -152,6 +153,27 @@ def test_semantic_repair_is_a_sparse_delta_without_erasing_or_rewriting_other_in
     assert all(result['errors'])
 
 
+def test_real_sparse_repair_omitted_array_preserves_every_original_proposal() -> None:
+    result = isolated_run_bun(r'''
+      import fs from 'node:fs';
+      import {mergeSemanticMemoryRepairDelta} from './packages/continual-learning/extensions/inject-memory.ts';
+      import {containsSensitiveMemoryMaterial} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const raw=fs.readFileSync('./packages/continual-learning/tests/fixtures/real-sparse-memory-repair.json','utf8');
+      const {original,delta}=JSON.parse(raw);
+      const merged=mergeSemanticMemoryRepairDelta(original,delta);
+      const invalid=[null,{},''].map(newMemories=>{
+        try {mergeSemanticMemoryRepairDelta(original,{...delta,newMemories});return false;}catch{return true;}
+      });
+      console.log(JSON.stringify({sensitive:containsSensitiveMemoryMaterial(raw),original,delta,merged,invalid}));
+    ''')
+    assert not result['sensitive']
+    assert 'newMemories' not in result['delta']
+    assert result['merged']['newMemories'] == result['original']['newMemories']
+    assert {row['name']: row for row in result['merged']['operations']} == {row['name']: row for row in result['delta']['operations']}
+    assert [row['name'] for row in result['merged']['operations']] == [row['name'] for row in result['original']['operations']]
+    assert all(result['invalid'])
+
+
 def test_semantic_worker_sparse_output_preserves_full_plan_and_private_response() -> None:
     result = isolated_run_bun(r'''
       import {mock} from 'bun:test';import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
@@ -176,6 +198,8 @@ def test_semantic_worker_sparse_output_preserves_full_plan_and_private_response(
     assert result['mode'] == 0o600
     assert 'Omitted operations and newMemories are retained byte-for-byte' in result['prompt']
     assert 'asynchronous operation completes' in result['prompt']
+    assert 'exact source identifiers and comparison operators' in result['prompt']
+    assert 'exactly one source-backed claim' in result['prompt']
 
 
 def test_repair_diagnostic_omits_json_escaped_sensitive_material() -> None:
@@ -323,3 +347,71 @@ def test_planning_and_repair_preserve_type_level_scope_in_index_claims() -> None
     for text in result.values():
         assert 'type-level restriction' in text
         assert 'one independently supported clause' in text
+
+
+def test_citation_indentation_repair_preserves_exact_original_evidence() -> None:
+    result = isolated_run_bun(r'''
+      import {repairCitationIndentation,candidateCitationProblems} from './packages/continual-learning/extensions/inject-memory.ts';
+      const text='before\n\tNote: pending only.\n\n\tWhen enabled, reject.\nafter';
+      const candidate={name:'a.md',content:'unchanged',evidence:[{index:0,quote:'Note: pending only.\n\nWhen enabled, reject.'}]};
+      const plan={operations:[],newMemories:[candidate]};
+      const evidence={entries:[{role:'toolResult',content:text}]};
+      const fixed=repairCitationIndentation(plan,evidence);
+      const bad=[{role:'assistant',content:text},{role:'toolResult',content:text+'\n'+text}];
+      const unchanged=bad.map(entry=>repairCitationIndentation(plan,{entries:[entry]}));
+      const invented=repairCitationIndentation({...plan,newMemories:[{...candidate,evidence:[{index:0,quote:'Note: pending only.\nWhen disabled, reject.'}]}]},evidence);
+      console.log(JSON.stringify({plan,fixed,problems:candidateCitationProblems(evidence,fixed.plan.newMemories),unchanged,invented}));
+    ''')
+    assert result['fixed']['corrections'] == [{'field': 'newMemories', 'candidate': 0, 'citation': 0, 'index': 0}]
+    assert result['fixed']['plan']['newMemories'][0]['evidence'][0]['quote'] == '\tNote: pending only.\n\n\tWhen enabled, reject.'
+    assert result['fixed']['plan']['newMemories'][0]['content'] == 'unchanged'
+    assert result['plan']['newMemories'][0]['evidence'][0]['quote'].startswith('Note:')
+    assert result['problems'] == []
+    assert all(not item['corrections'] for item in result['unchanged'])
+    assert result['invented']['corrections'] == []
+
+
+def test_structural_slot_restores_indentation_without_worker_or_gate_bypass() -> None:
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';import fs from 'node:fs/promises';import os from 'node:os';import path from 'node:path';
+      const kit=await import('./packages/kit/src/index.ts');let calls=0;
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async()=>{calls++;return {exitCode:1,stderr:'blocked fixture',text:'',cancelled:false}}}));
+      const {repairIncrementalMemoryPlan,candidateCitationProblems,memoryAttemptDiagnostic}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'citation-slot-'));
+      try {
+        const text='\tNote: pending only.\n\n\tWhen enabled, reject.';
+        const rejectedPlan={operations:[],newMemories:[{name:'a.md',content:'unchanged',evidence:[{index:0,quote:'Note: pending only.\n\nWhen enabled, reject.'}]}]};
+        const input={structuralCorrection:true,outputDir:root,identity:{runId:'r',snapshotDigest:'s'},selectedNames:[],errors:['newMemories[0].evidence[0].quote is not present in the cited snapshot entry'],rejectedPlan,semanticContext:{frozenEvidence:{entries:[{role:'toolResult',content:text}]},existingMemories:[]}};
+        const repaired=await repairIncrementalMemoryPlan(input);
+        const provenance=JSON.parse(await fs.readFile(path.join(root,'citation-indentation-repair.json'),'utf8'));
+        const problems=candidateCitationProblems(input.semanticContext.frozenEvidence,repaired.plan.newMemories);
+        const refused=await repairIncrementalMemoryPlan({...input,semanticContext:{...input.semanticContext,frozenEvidence:{entries:[{role:'assistant',content:text}]}}});
+        console.log(JSON.stringify({repaired,provenance,problems,refused,calls,diagnostic:memoryAttemptDiagnostic({outcome:'rejected',stopReason:'untrusted ignored',structuralRejection:'citation'})}));
+      }finally{await fs.rm(root,{recursive:true,force:true})}
+    ''')
+    assert result['repaired']['outcome'] == 'repaired'
+    assert result['repaired']['usage'] == {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0, 'totalTokens': 0, 'cost': 0}
+    assert result['problems'] == []
+    assert result['provenance']['snapshotDigest'] == 's'
+    assert result['provenance']['corrections'][0]['index'] == 0
+    assert result['calls'] == 1
+    assert result['refused']['outcome'] == 'failed'
+    assert result['diagnostic'] == 'Memory citation validation rejected'
+
+
+def test_mixed_citation_failure_supplies_exact_hint_without_rewriting_other_sources() -> None:
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';
+      const kit=await import('./packages/kit/src/index.ts');let prompt;
+      const identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h'};
+      const rejectedPlan={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[{name:'a.md',kind:'project',classification:'safe',content:'fact',evidence:[{index:0,quote:'Note.\nWhen enabled.'},{index:1,quote:'test enabled'}]}]};
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{prompt=input.prompt;return {exitCode:0,stderr:'',text:JSON.stringify(rejectedPlan),cancelled:false}}}));
+      const {repairIncrementalMemoryPlan,candidateCitationProblems}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const snapshot={entries:[{role:'toolResult',content:'\tNote.\n\tWhen enabled.'},{role:'toolResult',content:'199:test\n200: enabled'}]};
+      const repaired=await repairIncrementalMemoryPlan({identity,rejectedPlan,selectedNames:[],structuralCorrection:true,errors:['Citations are invalid: quote is absent'],semanticContext:{frozenEvidence:snapshot,existingMemories:[]}});
+      const payload=JSON.parse(prompt.slice(prompt.lastIndexOf('\n')+1));
+      console.log(JSON.stringify({payload,rejectedPlan,remaining:candidateCitationProblems(snapshot,repaired.plan.newMemories)}));
+    ''')
+    assert result['payload']['rejectedPlan'] == result['rejectedPlan']
+    assert result['payload']['citationSpellingHints'] == [{'field': 'newMemories', 'candidate': 0, 'citation': 0, 'index': 0, 'quote': '\tNote.\n\tWhen enabled.'}]
+    assert any('cited entry 1' in error for error in result['remaining'])

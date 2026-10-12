@@ -26,10 +26,12 @@ Feature: Control and inspect learned changes without changing existing defaults
     And a rejected Harness mutation reports its bounded non-sensitive reason
 
   Scenario: Sensitive detection refuses credentials instead of ordinary text
-    Given a learned surface contains ordinary prose, wiki links or workflow permission names
+    Given a learned surface contains ordinary prose, wiki links, workflow permission names or a configuration literal
     When a phase snapshots or proposes that text
     Then the record is written and the mutation applies
     But a real credential, private key or provider key format in the same text is still refused
+    And a credential-named key that assigns a structured configuration literal is judged by the literal's own members instead of refused
+    And a secret assigned inside that literal is still refused
     And the refusal names the learned surface it came from without echoing the matched bytes
 
   Scenario: Explicit undo preserves later user edits

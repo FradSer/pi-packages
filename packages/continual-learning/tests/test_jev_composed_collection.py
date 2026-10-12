@@ -33,7 +33,7 @@ def test_isolated_gate_collects_full_bound_readiness_and_frozen_question() -> No
     assert value['result']['readinessTelemetry']['requestCount'] == 2
     for call in value['calls'][1:]:
         import json
-        state = json.loads(call['state'])
+        state = json.loads(call['state']) if isinstance(call['state'], str) else call['state']
         assert len(state['originalCandidates']) == 2
         assert state['otherNewRecordsAreWritten'] is False
     assert 'decision' not in value['result']
@@ -64,7 +64,7 @@ def test_all_original_candidates_are_reviewed_with_bounded_concurrency() -> None
       const all=Array.from({length:5},(_,i)=>({...candidates[0],name:`fact-${i}.md`}));
       const r={...review,candidatesDigest:digest(all),candidates:all.map((c,index)=>({index,candidateDigest:digest(c),outcome:'passed',passedChecks:checks(index),heldChecks:[]}))};
       const result=await make().reviewMemoryRelations(evidence,all,existing,r);
-      console.log(JSON.stringify({result,calls:calls.length,maxActive,states:calls.filter(c=>c.questions.ready).map(c=>JSON.parse(c.state))}));
+      console.log(JSON.stringify({result,calls:calls.length,maxActive,states:calls.filter(c=>c.questions.ready).map(c=>(typeof c.state === "string" ? JSON.parse(c.state) : c.state))}));
     ''')
     assert value['calls'] == 15 and value['maxActive'] <= 4
     assert len(value['result']['readiness']['candidates']) == 5

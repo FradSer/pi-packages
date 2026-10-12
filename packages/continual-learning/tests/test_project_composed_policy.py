@@ -14,6 +14,9 @@ def test_policy_patch_is_exact_and_default_preserves_bytes() -> None:
     assert experiment.memory_policy_bytes(original, 'default') == original
     composed = experiment.memory_policy_bytes(original, 'composed')
     assert b'independentMemoryApplication: true, composedMemoryApplication: true' in composed
+    assert experiment.memory_policy_bytes(composed, "composed") == composed
+    with pytest.raises(ValueError, match="constructor"):
+        experiment.memory_policy_bytes(original + composed, "composed")
     assert composed.startswith(b'before\n  ') and composed.endswith(b'\nafter\n')
     for invalid in [b'no constructor', original + original]:
         with pytest.raises(ValueError, match='constructor'):
@@ -44,7 +47,8 @@ def test_composed_context_changes_only_copy_and_retains_provenance(tmp_path) -> 
 def test_expected_policy_digest_matches_actual_installed_bytes(tmp_path, monkeypatch) -> None:
     ordinary = experiment.source_digest()
     expected = experiment.source_digest('composed')
-    assert ordinary != expected
+    # Production now includes this policy; historical composed copies are identical.
+    assert ordinary == expected
     repo = tmp_path / 'repo'
     for name in ['kit', 'continual-learning']:
         shutil.copytree(experiment.REPO / 'packages' / name, repo / 'packages' / name,

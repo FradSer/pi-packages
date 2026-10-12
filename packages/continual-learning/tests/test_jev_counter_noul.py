@@ -20,7 +20,7 @@ def test_counter_noul_polarity_thresholds_and_independent_gates() -> None:
             }
             return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
           }});
-          outcomes.push({stage,mode,result:await judge.validate(stage,row.snapshot,row.plan.operations,[],undefined,stage==='harness'?row.plan.evidence:undefined),requests:requests.map(r=>({questions:Object.fromEntries(Object.entries(r.questions).filter(([k])=>k.startsWith("counter_"))),reviewIndexes:JSON.parse(r.state).reviewEvidence?.entries.map(x=>x.index)}))});
+          outcomes.push({stage,mode,result:await judge.validate(stage,row.snapshot,row.plan.operations,[],undefined,stage==='harness'?row.plan.evidence:undefined),requests:requests.map(r=>({questions:Object.fromEntries(Object.entries(r.questions).filter(([k])=>k.startsWith("counter_"))),reviewIndexes:(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries.map(x=>x.index)}))});
         }
         }
       }finally{await research.dispose();}

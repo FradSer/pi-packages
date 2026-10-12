@@ -15,8 +15,11 @@ def test_provenance_annotation_preserves_original_evidence_and_does_not_infer_tr
         {index:4,entry:{content:'unknown'}}];
       const request={model:'jev-1.13.0',questions:{counter_0_0:{type:'choice',instructions:{candidate:{content:'settled fact'}},criteria:{compatible:'ok',contradicts:'conflict',unclear:'unknown'}}},state:JSON.stringify({supportEvidence:{totalEntries:5,entries:entries.slice(0,1)},reviewEvidence:{totalEntries:5,entries}})};
       const before=JSON.stringify(request);const patched=sourceProvenanceRequest(request);const state=JSON.parse(patched.state);
-      console.log(JSON.stringify({unchanged:before===JSON.stringify(request),request,patched,state}));
+      const structured=sourceProvenanceRequest({...request,state:JSON.parse(request.state)});
+      console.log(JSON.stringify({unchanged:before===JSON.stringify(request),request,patched,state,structured}));
     ''')
+    assert value['structured']['state'] == value['state']
+    assert value['structured']['questions'] == value['request']['questions']
     assert value['unchanged']
     assert value['request']['model'] == value['patched']['model']
     assert value['request']['questions'] == value['patched']['questions']

@@ -406,9 +406,9 @@ def test_selector_protocol_is_compact_metadata_only_and_preserves_schema() -> No
     content = (PACKAGE / "prompts" / "memory-selector.md").read_text(encoding="utf-8")
     assert len(content) < 1800
     assert "metadata-only" in content and "Do not use tools" in content
-    assert '"kind": "incremental-memory-selection"' in content
+    assert '"selectedIndices"' in content and "Do not return digest, filenames, kind or version" in content
     assert '"contextDigest"' in content and "{{TASK}}" in content
-    assert "case-sensitive" in content and "minimum sufficient" in content
+    assert "exact names" in content and "minimum sufficient" in content
 
 
 def test_default_budget_lists_every_entry_with_a_relevance_cue(tmp_path: Path) -> None:

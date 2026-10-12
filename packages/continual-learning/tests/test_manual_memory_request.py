@@ -82,7 +82,7 @@ def test_malformed_json_on_empty_scope_is_corrected_and_revalidated_once() -> No
 @pytest.mark.parametrize('reason', ['unsupported', 'structural-tamper-snapshot', 'structural-tamper-dossier'])
 def test_syntax_correction_cannot_bypass_semantics_or_frozen_evidence(reason: str) -> None:
     result = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-syntax', env={'CL_JEV_FIXTURE':reason})
-    assert result['totalRepairs'] == 1
+    assert result['totalRepairs'] == (2 if reason == 'unsupported' else 1)
     assert result['registryReceipt']['operations'] == 0
     assert 'concise.md' not in result['privateFiles']
 

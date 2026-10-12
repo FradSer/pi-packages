@@ -24,7 +24,11 @@ The scoped reader labels each Task Slice entry as `{snapshotIndex, entry}`.
 Use the parent-generated `snapshotIndex` as each citation `index`; do not count
 lines, filter roles and renumber, or use session ids as indexes. Inspect the
 original `entry.message.role` (or `entry.role`); only user/toolResult text can
-be quoted. These labels are presentation metadata, not factual evidence.
+be cited. Eligible text is presented losslessly as `citationLines` with the original
+content block index and one-based source line numbers. Prefer
+`{"index":0,"lines":{"block":0,"start":1,"end":2}}` to freely copied quotes.
+These are source lines inside one original text block, not JSON display lines.
+The parent extracts the exact substring before the ordinary citation gates. These labels are presentation metadata, not factual evidence.
 The parent validates against its unchanged raw snapshot.
 
 A Task Slice with `omittedEntries` has omitted whole entries. When
@@ -39,8 +43,13 @@ If the dossier contains `memoryRequest`, its `entryIndex` identifies an explicit
 human `/memory` request. Learn only the knowledge requested there, using older
 Task Slice entries as supporting context. Do not learn unrelated earlier tasks
 or turn the request into Harness rules or AGENTS.md changes.
-For recovery lessons, cite the actual failure and successful verification;
-an assistant's explanation alone does not establish the cause or the fix.
+A failed task does not require a successful fix before its observed failure can be learned.
+Cite the actual failed verification and relevant inspected source. Keep an unresolved failure explicitly unresolved;
+state the observed limitation in that source state, rather than predicting that the command always fails.
+Distinguish the requested contract, implemented behavior and verified behavior. Prefer the smallest
+source-bound pitfall that can inform later maintenance over a retelling of probes and test counts.
+Never invent a cause, a successful correction or a standing user requirement.
+A claimed fix requires its actual successful verification; an assistant explanation alone proves neither cause nor fix.
 
 Current explicit corrections and verified changed project behavior supersede
 obsolete claims. When a selected entry contains the obsolete claim, rewrite

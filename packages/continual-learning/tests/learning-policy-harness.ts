@@ -19,12 +19,17 @@ const isAgents = scenario.startsWith("agents-");
 const isManual = scenario.startsWith("manual-");
 const isRemember = scenario.startsWith("remember-");
 const isModelFreeze = scenario === "model-freeze" || scenario === "session-model-freeze";
-if (isModelFreeze || scenario === "remember-declined") {
+if (isModelFreeze || scenario === "remember-declined" || (process.env.CL_JEV_FIXTURE?.startsWith("retention-") || process.env.CL_JEV_FIXTURE === "structural-retention-mixed-both-fixed" || process.env.CL_JEV_FIXTURE === "subset-retention-fallback")) {
   // These cases specifically exercise model selection, not empty-index routing.
   fs.mkdirSync(path.join(cwd, ".memory"));
   fs.writeFileSync(path.join(cwd, ".memory", "known.md"), "---\nname: known\ndescription: Existing project knowledge\ntype: project\n---\nExisting knowledge.\n");
+  if (process.env.CL_JEV_FIXTURE === "retention-delete") fs.writeFileSync(path.join(cwd,".memory","replacement.md"),"---\nname: replacement\ndescription: Existing project knowledge\ntype: project\n---\nExisting knowledge.\n");
 }
 const policies = { memory: isModelFreeze ? "propose" : scenario === "all-off" || isHarness || isAgents ? "off" : scenario === "memory-apply" ? "apply" : "propose", harness: isModelFreeze ? "propose" : isHarness ? scenario === "harness-rejected" ? "apply" : "propose" : "off", agents: isModelFreeze ? "propose" : isAgents ? scenario === "agents-propose" ? "propose" : "apply" : "off" };
+if (process.env.CL_JEV_FIXTURE?.startsWith("subset-name-collision")) {
+  fs.mkdirSync(path.join(cwd,".memory"),{recursive:true});
+  fs.writeFileSync(path.join(cwd,".memory","cache.md"),"---\nname: cache\ndescription: Cache timeout cleared on retry\ntype: project\n---\nA timeout cleared on retry.\n");
+}
 fs.writeFileSync(path.join(agent, "memory", "settings.json"), JSON.stringify({ autoMemory: !isRemember, automaticPhases: isRemember ? {memory:"off",harness:"off",agents:"off"} : policies }));
 if (isModelFreeze) fs.writeFileSync(path.join(agent, "memory.json"), JSON.stringify(scenario === "model-freeze" ? { provider: "old", model: "one" } : {}));
 const quote = scenario === "remember-subset" ? "Remember: this project uses pnpm. Its license is MIT. A cache timeout cleared on retry." : scenario === "semantic-opportunity" ? "Package management happens through pnpm." : isRemember ? scenario === "remember-secret" ? "Remember my API key: sk-test-secret" : (scenario === "remember-shared" || process.env.CL_JEV_FIXTURE === "syntax-privacy-downgrade") ? "Remember that the project build convention is CL_MANUAL_SHARED." : "Remember that I prefer concise progress updates." : isAgents ? "Confirmed: the AGENTS.md workflow is wrong. Use pnpm test for this project." : isHarness ? "Never run the retired compiler." : scenario === "manual-constraint" ? "Never run the retired compiler." : isManual ? "Fix the failing build." : "I prefer concise progress updates.";
@@ -44,7 +49,8 @@ let totalRepairs = 0;
 let lastMemoryPlan: unknown;
 let cancellation: Promise<void> | undefined;
 let cancelRun: (() => Promise<void>) | undefined;
-const fixtureReason = process.env.CL_JEV_FIXTURE;
+const structuralFirst = ["structural-retention-mixed-both-fixed", "structural-repair-cancel", "structural-tamper-second", "structural-subset-repair-invalid"].includes(process.env.CL_JEV_FIXTURE ?? "");
+const fixtureReason = structuralFirst ? process.env.CL_JEV_FIXTURE!.slice("structural-".length) : process.env.CL_JEV_FIXTURE;
 const tamperFrozen = (dossier = false, runId?: string): void => {
   const file = fs.readdirSync(path.join(agent, "memory", "runs"), {recursive:true}).find(name => String(name).endsWith(dossier ? "incremental-learning-dossier.json" : "snapshot.json") && (dossier || (runId ? String(name).includes(runId) : fs.existsSync(path.join(agent, "memory", "runs", path.dirname(String(name)), "plan.json")))));
   if (!file) throw new Error("Missing frozen fixture file");
@@ -63,14 +69,31 @@ mock.module("../../kit/src/index.ts", () => ({
       const payload = JSON.parse(prompt.split("\n").at(-1)!);
       if (payload.semanticContext && !prompt.includes("existing structural correction slot")) { semanticRepairs += 1; receivedFailureHints = payload.errors.some((error: string) => error.includes("Candidate failures: 0:support:uncertain")); }
       else { selectors += 1; structuralContextReceived = !!payload.semanticContext?.frozenEvidence && Array.isArray(payload.semanticContext?.existingMemories); }
+      if (fixtureReason === "subset-repair-invalid" && !prompt.includes("existing structural correction slot")) return {exitCode:1,stderr:"",text:""};
       const repaired = structuredClone(payload.rejectedPlan.malformedPlanText ? lastMemoryPlan : payload.rejectedPlan);
+      if (fixtureReason === "subset-retention-fallback") repaired.operations = [{name:"known.md",kind:"rewrite",classification:"safe",
+        content:"---\nname: known\ndescription: Project tool convention\ntype: project\n---\nThis project uses pnpm.\n",evidence:[{index:0,quote}]}];
+      if (fixtureReason === "subset-repair-complete") repaired.newMemories[1].content =
+        "---\nname: cache\ndescription: A cache timeout cleared on retry\ntype: project\n---\nA cache timeout cleared on retry; this does not establish permanent unavailability.\n";
+      if (!prompt.includes("existing structural correction slot") && (fixtureReason === "retention-fixed" || fixtureReason === "retention-mixed-fixed" || fixtureReason === "retention-mixed-both-fixed")) repaired.operations = [{name:"known.md",kind:"rewrite",classification:"safe",
+        content:"---\nname: known\ndescription: Project build convention\ntype: project\n---\nThe project build convention is CL_MANUAL_SHARED.\n",evidence:[{index:0,quote}]}];
+      if (fixtureReason === "retention-mixed-fixed") repaired.newMemories = [];
+      if (fixtureReason === "retention-mixed-both-fixed" && !prompt.includes("existing structural correction slot")) {
+        if (jevValidations.length !== 2 || !payload.retainedRepairNames.includes("known.md") || !payload.repairableNames.includes("concise.md")) throw new Error("Both review scopes must precede correction");
+        repaired.newMemories[0].content = repaired.newMemories[0].content.replace("Unsupported causal explanation.", "");
+      }
+      if (fixtureReason === "retention-delete") {
+        if (!prompt.includes("preservedIn") || !prompt.includes("CONTRADICTED, SUPERSEDED or SUBSUMED") || !prompt.includes("complete replacement Markdown")) throw new Error("Missing retained operation protocol");
+        repaired.operations = [{name:"known.md",kind:"delete",classification:"safe",verdict:"SUPERSEDED",preservedIn:["replacement.md"],evidence:[{index:0,quote}]},
+          {name:"replacement.md",kind:"rewrite",classification:"safe",content:"---\nname: replacement\ndescription: Project build convention\ntype: project\n---\nThe project build convention is CL_MANUAL_SHARED.\n",evidence:[{index:0,quote}]}];
+      }
       if (fixtureReason === "syntax-privacy-downgrade") { repaired.newMemories[0].kind = "project"; repaired.newMemories[0].classification = "safe"; }
-      if (fixtureReason?.startsWith("structural-")) repaired.newMemories[0].kind = "project";
+      if ((fixtureReason?.startsWith("structural-") || structuralFirst) && fixtureReason !== "structural-failed") repaired.newMemories[0].kind = "project";
       if (fixtureReason === "repair-held") repaired.newMemories[0].content += "A correction proposal.\n";
       if (fixtureReason === "tamper-repair") tamperFrozen();
       if (fixtureReason === "structural-tamper-snapshot") tamperFrozen(false, payload.identity.runId);
       if (fixtureReason === "structural-tamper-dossier") tamperFrozen(true);
-      if (fixtureReason === "repair-cancel") {
+      if (fixtureReason === "repair-cancel" && !prompt.includes("existing structural correction slot")) {
         cancellation = cancelRun!();
         return {exitCode:0,stderr:"",text:"",cancelled:true};
       }
@@ -85,7 +108,7 @@ mock.module("../../kit/src/index.ts", () => ({
     }
     return { exitCode: 0, stderr: "", text: JSON.stringify({
       kind: "incremental-memory-selection", version: 1,
-      contextDigest: /Context digest: ([a-f0-9]+)/.exec(prompt)![1], selected: [],
+      contextDigest: /Context digest: ([a-f0-9]+)/.exec(prompt)![1], selected: fixtureReason === "retention-delete" ? ["known.md","replacement.md"] : fixtureReason?.startsWith("retention-") || fixtureReason === "subset-retention-fallback" ? ["known.md"] : [],
       // Request every phase to prove policy masks override the selector. Manual
       // scenarios instead decline every phase after reviewing the slice.
       memory: !isManual && scenario !== "remember-declined", harness: !isManual, agents: !isManual,
@@ -130,7 +153,18 @@ mock.module("../../kit/src/index.ts", () => ({
       (plan as {newMemories: unknown[]}).newMemories = facts.map(([name, body]) => ({name, kind: "project", classification: "safe",
         content: `---\nname: ${name.slice(0,-3)}\ndescription: ${body}\ntype: project\n---\n${body}\n`, evidence: [{index: 0, quote}]}));
     }
-    if (fixtureReason?.startsWith("structural-") && !harness && !agents) (plan as {newMemories: Array<{kind:string}>}).newMemories[0].kind = "project-fact";
+    if ((fixtureReason?.startsWith("structural-") || structuralFirst) && !harness && !agents) (plan as {newMemories: Array<{kind:string}>}).newMemories[0].kind = "project-fact";
+    if (fixtureReason?.startsWith("located-") && !harness && !agents) {
+      (plan as {newMemories:Array<{evidence:unknown[]}>}).newMemories[0].evidence = [{index:0,lines:{block:0,start:1,end:1}}];
+    }
+    if (fixtureReason?.startsWith("patch-") && !harness && !agents) {
+      (plan as {newMemories:Array<{evidence:unknown[]}>}).newMemories[0].evidence = [{index:2,lines:{source:"patch",block:0,start:1,end:1}}];
+    }
+    if (fixtureReason?.startsWith("retention-") && !harness && !agents) {
+      (plan as {operations:unknown[];newMemories:unknown[]}).operations=[];
+      if (!fixtureReason.startsWith("retention-mixed-")) (plan as {operations:unknown[];newMemories:unknown[]}).newMemories=[];
+    }
+    if (fixtureReason === "retention-mixed-both-fixed" && !harness && !agents) (plan as {newMemories:Array<{content:string}>}).newMemories[0].content += "Unsupported causal explanation.";
     if (!harness && !agents) lastMemoryPlan = plan;
     const child = Object.assign(new EventEmitter(), { stdout: new EventEmitter(), stderr: new EventEmitter(), killed: false, exitCode: null as number | null, signalCode: null });
     queueMicrotask(() => {
@@ -152,17 +186,22 @@ mock.module("../../kit/src/index.ts", () => ({
   },
 }));
 let jevValidations: string[] = [];
+let reviewTelemetry: unknown[] = [];
 let relationValidations = 0;
+let productionJudgeOptions: {independentMemoryApplication?: boolean; composedMemoryApplication?: boolean} | undefined;
 const fixtureDigest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 if (process.env.CL_JEV_FIXTURE) {
   const jevModule = await import("../extensions/jev-learning.ts");
-  const reason = process.env.CL_JEV_FIXTURE;
+  const reason = fixtureReason;
   mock.module("../extensions/jev-learning.ts", () => ({ ...jevModule,
-    createJevJudge: () => ({ enabled: true, selectionEnabled: true,
-      independentMemoryApplicationEnabled: reason.startsWith("subset-") && reason !== "subset-disabled",
-      composedMemoryApplicationEnabled: reason === "subset-composed",
+    createJevJudge: (options?: {independentMemoryApplication?: boolean; composedMemoryApplication?: boolean}) => {
+      productionJudgeOptions = options;
+      return { enabled: true, selectionEnabled: true,
+      independentMemoryApplicationEnabled: reason.startsWith("subset-production") ? options?.independentMemoryApplication === true : reason.startsWith("subset-") && reason !== "subset-disabled",
+      composedMemoryApplicationEnabled: reason.startsWith("subset-production") ? options?.composedMemoryApplication === true : reason === "subset-composed",
       reviewMemoryRelations: async (evidence: unknown, candidates: unknown[], existing: unknown[], review: {evidenceDigest:string;existingDigest:string;candidatesDigest:string;model:string}) => {
         relationValidations++;
+        if (reason === "subset-cancel-relations") cancellation = cancelRun!();
         const telemetry = {stage:"memory",status:"decided",reason:"supported",durationMs:1,model:"jev-1.13.0",inputTokens:15,outputTokens:3};
         if (reason === "subset-unavailable") return {telemetry:{...telemetry,status:"propose",reason:"unavailable"}};
         const label = reason === "subset-uncertain" ? "unclear" : "independent";
@@ -186,23 +225,51 @@ if (process.env.CL_JEV_FIXTURE) {
         if(reason.startsWith("subset-")) {
           jevValidations.push(stage);
           const checks=(i:number)=>[`supported_${i}`,`supported_description_${i}`, ...(existing.length?[`relation_${i}`,`relation_description_${i}`]:[]),`counter_${i}_0`,`counter_description_${i}_0`];
+          if (reason === "subset-retention-fallback" && (!candidates.length || candidates.some(c=>JSON.stringify(c).includes('"kind":"rewrite"'))))
+            return {decision:"propose",telemetry:{stage,status:"propose",reason:"uncertain",durationMs:2,model:"jev-1.13.0",
+              candidateFailures:[{candidateIndex:0,dimension:"support",reason:"uncertain"}]}};
+          if (reason === "subset-repair-complete" && candidates.every(c => !JSON.stringify(c).includes("permanently unavailable")))
+            return {decision:"allow",telemetry:{stage,status:"decided",reason:"supported",durationMs:2,model:"jev-1.13.0",inputTokens:10,outputTokens:2}};
+          if (reason === "subset-repair-complete") return {decision:"propose",
+            telemetry:{stage,status:"propose",reason:"unsupported",durationMs:2,model:"jev-1.13.0",candidateFailures:[
+              {candidateIndex:1,dimension:"support",reason:"unsupported"},
+              {candidateIndex:1,dimension:"support",field:"description",reason:"unsupported"}]},
+            candidateReview:{version:1,purpose:"diagnostic-only",complete:true,sameBatchIndependenceReviewed:false,
+              evidenceDigest:fixtureDigest(evidence),existingDigest:fixtureDigest(existing),candidatesDigest:fixtureDigest(candidates),model:"jev-1.13.0",
+              candidates:candidates.map((c,index)=>({index,candidateDigest:fixtureDigest(c),outcome:index===1?"held":"passed",
+                passedChecks:checks(index).filter(k=>index!==1||!k.startsWith("supported_")),
+                heldChecks:index===1?[`supported_${index}`,`supported_description_${index}`]:[]}))}};
           return {decision:"propose",telemetry:{stage,status:"propose",reason:"unsupported",durationMs:2,model:"jev-1.13.0",inputTokens:10,outputTokens:2},
             candidateReview:{version:1,purpose:"diagnostic-only",complete:true,sameBatchIndependenceReviewed:false,evidenceDigest:fixtureDigest(evidence),existingDigest:fixtureDigest(existing),candidatesDigest:fixtureDigest(candidates),model:"jev-1.13.0",
-              candidates:candidates.map((c,index)=>({index,candidateDigest:fixtureDigest(c),outcome:index===1?"held":"passed",passedChecks:checks(index).filter(k=>index!==1||k!==`supported_${index}`),heldChecks:index===1?[`supported_${index}`]:[]}))}};
+              candidates:candidates.map((c,index)=>({index,candidateDigest:fixtureDigest(c),outcome:index===1 || reason === "subset-production-after-repair" && jevValidations.length === 1?"held":"passed",passedChecks:checks(index).filter(k=>(index!==1 && !(reason === "subset-production-after-repair" && jevValidations.length === 1))||k!==`supported_${index}`),heldChecks:index===1 || reason === "subset-production-after-repair" && jevValidations.length === 1?[`supported_${index}`]:[]}))}};
         }
         jevValidations.push(stage);
         if (reason === "tamper-first" || reason === "tamper-dossier") tamperFrozen(reason === "tamper-dossier");
         if (reason === "tamper-second" && jevValidations.length === 2) tamperFrozen();
-        const allowed = reason === "supported" || reason === "syntax-privacy-downgrade" || reason === "tamper-first" || reason === "tamper-dossier" || reason === "tamper-queue" || (reason === "repair-supported" || reason === "tamper-second") && jevValidations.length === 2;
-        const judgment = (reason.startsWith("repair-") || reason === "structural-held" || reason === "tamper-second" || reason === "tamper-repair") ? allowed ? "supported" : "uncertain" : reason;
-        return { decision: allowed ? "allow" : "propose",
-          telemetry: {stage,status:allowed ? "decided" : "propose",reason:judgment,durationMs:2,model:"jev-1.13.0",inputTokens:10,outputTokens:2,...(!allowed ? {candidateIndex:0,dimension:"support",candidateFailures:[{candidateIndex:0,dimension:"support",reason:"uncertain"}]} : {})} };
+        const combinedHeld = reason === "retention-mixed-both-fixed" && (!candidates.length || candidates.some(value => JSON.stringify(value).includes("Unsupported causal explanation.")));
+        const allowed = !combinedHeld && ((reason === "retention-fixed" || reason === "retention-delete" || reason.startsWith("retention-mixed-")) && candidates.length > 0 || reason === "patch-supported" || reason === "patch-repair" && jevValidations.length === 2 || reason === "located-supported" || reason === "located-repair" && jevValidations.length === 2 || reason === "supported" || reason === "syntax-privacy-downgrade" || reason === "tamper-first" || reason === "tamper-dossier" || reason === "tamper-queue" || (reason === "repair-supported" || reason === "tamper-second") && jevValidations.length === 2);
+        const judgment = reason.startsWith("retention-") ? allowed ? "supported" : "conflict" : (reason.startsWith("repair-") || reason === "patch-repair" || reason === "located-repair" || reason === "structural-held" || reason === "tamper-second" || reason === "tamper-repair") ? allowed ? "supported" : "uncertain" : reason;
+        const telemetry = {stage,status:allowed ? "decided" : "propose",reason:judgment,durationMs:2,model:"jev-1.13.0",inputTokens:10,outputTokens:2,...(!allowed ? {candidateIndex:0,dimension:"support",candidateFailures:(reason === "retention-delete" ? [0,1] : [0]).map(candidateIndex=>({candidateIndex,dimension:"support",reason:"uncertain"}))} : {}),requestCount:jevValidations.length,completedRequests:jevValidations.length};
+        reviewTelemetry.push(telemetry);
+        return {decision:allowed ? "allow" : "propose",telemetry};
       },
-    }),
+    }; },
   }));
 }
 const snapshotRootFiles = (dirs: readonly string[]) => dirs.map(dir => fs.existsSync(dir)
   ? fs.readdirSync(dir).sort().map(name => [name,fixtureDigest(fs.readFileSync(path.join(dir,name)).toString("base64"))]) : []);
+if (fixtureReason === "subset-name-collision-cancel") {
+  const incremental = await import("../extensions/incremental-memory-plan.ts");
+  const expand = incremental.expandIncrementalMemoryPlan;
+  mock.module("../extensions/incremental-memory-plan.ts",()=>({...incremental,
+    expandIncrementalMemoryPlan: async (...args: Parameters<typeof incremental.expandIncrementalMemoryPlan>) => {
+      try { return await expand(...args); }
+      catch(error) {
+        if (error instanceof incremental.IncrementalMemoryNameCollisionError) cancellation = cancelRun!();
+        throw error;
+      }
+    }}));
+}
 let transactionMemoryFilesBefore: string | undefined;
 let transactionHistoryIdsBefore: Set<string> | undefined;
 let finalVerificationObservedWrites = false;
@@ -264,6 +331,8 @@ try {
     : scenario === "manual-harness-marker" ? [{ message: { role: "user", content: quote } }, ...noise, marker]
     : isManual ? [{ message: { role: "user", content: quote } }, ...noise]
       : [{ message: { role: "user", content: quote } }];
+  if (fixtureReason?.startsWith("patch-")) entries.push({message:{role:"toolResult",toolName:"edit",isError:false,
+    content:"Successfully replaced text.",details:{patch:"+The project build convention is CL_MANUAL_SHARED."}}} as typeof entries[number]);
   const ctx = {cwd,mode:"json",hasUI:false,model:{provider:"session",id:"active"},ui:{notify:(text:string)=>notices.push(text),setWidget:()=>{}},modelRegistry:{getAll:()=>[{provider:"old",id:"one"},{provider:"new",id:"two"}],getAvailable:()=>[]},sessionManager:{getBranch:()=>entries,buildContextEntries:()=>entries}};
   (globalThis as { changeMemoryModel?: () => Promise<void> }).changeMemoryModel = async () => {
     await commands.get("memory")!("model new/two", ctx);
@@ -289,11 +358,17 @@ try {
     }
   }
   await cancellation;
+  const nextMemory: unknown[] = [];
+  if (scenario === "remember-subset") for (const fn of hooks.get("before_agent_start") ?? []) {
+    const result = await fn({prompt:"Use pnpm project build tools and MIT license",systemPrompt:"Task"},ctx);
+    if (result) nextMemory.push(result);
+  }
   await runHook("session_shutdown", {});
   const paths = resolveMemoryPaths(cwd);
   const history = await listLearningHistory(cwd);
   const receiptOf = (file: string) => { try { return JSON.parse(fs.readFileSync(file, "utf8")) } catch { return undefined } };
   const {learningSummarySubject} = await import("../extensions/learning-efficiency.ts");
+  const {learningReceiptComplete} = await import("../extensions/learning-replay.ts");
   const savedReceipt = receiptOf(path.join(paths.runsDir, "learning-pipeline-receipt.json"));
   const runs = (fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir).filter(name => name.startsWith("run_")) : []).map(dir => ({
     dir, files: fs.readdirSync(path.join(paths.runsDir, dir)).sort(),
@@ -301,12 +376,25 @@ try {
     dossier: receiptOf(path.join(paths.runsDir, dir, "incremental-learning-dossier.json")),
   }));
   if (isRemember) requestCaptured = runs.some(run => run.dossier?.taskSlice?.entries[0]?.message?.content === quote);
-  console.log(JSON.stringify({ newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),jevValidations,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
+  console.log(JSON.stringify({ newAppliedHistoryRecords:history.filter(record=>!(transactionHistoryIdsBefore??historyIdsBefore).has(record.id)&&record.status==="applied").length,memoryFilesRestored:(transactionMemoryFilesBefore??JSON.stringify(memoryFilesBefore))===JSON.stringify(snapshotMemoryFiles()),finalVerificationObservedWrites,...(scenario === "remember-subset" && savedReceipt ? {summarySubject:learningSummarySubject(savedReceipt)} : {}),productionJudgeOptions,nextMemory,jevValidations,reviewTelemetry,relationValidations,selectors,planners,plannerSystemInstructions,modelCalls,requestCaptured,notices,history:history.map(record=>({phase:record.phase,status:record.status,changes:record.changes,...(scenario === "remember-subset" ? {proposal:record.proposal} : {})})),
     privateFiles: fs.existsSync(paths.harnessDir) ? fs.readdirSync(paths.harnessDir) : [],
     publicFiles: fs.existsSync(paths.publicDir!) ? fs.readdirSync(paths.publicDir!) : [],
-    runs, registryReceipt: receiptOf(path.join(paths.runsDir, "learning-pipeline-receipt.json")),
+    runs, registryReceipt: savedReceipt, receiptComplete: !!savedReceipt && learningReceiptComplete(savedReceipt),
     semanticRepairs, totalRepairs, receivedFailureHints, structuralContextReceived,
-    originalProposalRetained: history.some(record => record.status === "proposed" && runs.some(run => JSON.stringify(record.proposal) === JSON.stringify(receiptOf(path.join(paths.runsDir, run.dir, "plan.json"))))),
+    structuralRejectionRecorded: fs.existsSync(path.join(agent,"memory","runs")) && fs.readdirSync(path.join(agent,"memory","runs"), {recursive:true}).some(name => String(name).endsWith("structural-rejection.json")),
+    structuralResponseRetained: fs.existsSync(path.join(agent,"memory","runs")) && fs.readdirSync(path.join(agent,"memory","runs"), {recursive:true}).some(name => String(name).endsWith("structural-repair-response.json")),
+    originalProposalRetained: history.some(record => {
+      if (record.status !== "proposed") return false;
+      let proposal = record.proposal;
+      if (proposal && typeof proposal === "object" && "kind" in proposal && proposal.kind === "independent-memory-review") {
+        if (!("originalPlan" in proposal) || !("reviewedPlanDigest" in proposal)) return false;
+        if (createHash("sha256").update(JSON.stringify(proposal.originalPlan)).digest("hex") !== proposal.reviewedPlanDigest) return false;
+        proposal = proposal.originalPlan;
+      }
+      return runs.some(run => JSON.stringify(proposal) === JSON.stringify(receiptOf(path.join(paths.runsDir, run.dir, "plan.json"))));
+    }),
+    knownMemory: fs.existsSync(path.join(paths.harnessDir,"known.md")) ? fs.readFileSync(path.join(paths.harnessDir,"known.md"),"utf8") : undefined,
+    replacementMemory: fs.existsSync(path.join(paths.harnessDir,"replacement.md")) ? fs.readFileSync(path.join(paths.harnessDir,"replacement.md"),"utf8") : undefined,
     memoryMirrored: fs.existsSync(path.join(paths.harnessDir,'concise.md')) && fs.existsSync(path.join(paths.publicDir!,'concise.md')) && fs.readFileSync(path.join(paths.harnessDir,'concise.md')).equals(fs.readFileSync(path.join(paths.publicDir!,'concise.md'))),
     harnessExists:fs.existsSync(path.join(cwd,".pi","harness.json")), agentsUnchanged: !(isAgents || isRemember) || fs.readFileSync(path.join(cwd,"AGENTS.md"),"utf8") === oldAgents, lock:fs.existsSync(paths.lockFile),
   }));

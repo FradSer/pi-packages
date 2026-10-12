@@ -15,10 +15,14 @@
     "Push the docs to the `gh-pages` branch.",
     "The `pypi-publish-release` workflow runs on tags.",
     "The lockfile `npm_package_lock.json` is generated.",
-    "`pnpm check` runs skill-lock verification."
+    "`pnpm check` runs skill-lock verification.",
+    "plugins.entries.brave = {enabled:true, config:{webSearch:{apiKey:{source:\"file\",provider:\"localfiles\",id:\"/brave_api_key\"}}}}",
+    "apiKey={source: \"localfiles\", id: \"/brave_api_key\", cache: \"~/.openclaw/cache/api-keys.json\"}",
+    "apiKey:{source:\"file\",provider:\"localfiles\""
   ],
   "sensitive": [
     "token: sk-test-secret",
+    "apiKey: {client_secret: \"Xq7bN2mP4kL9vR3s\"}",
     "credential: synthetic-value",
     "api_key = sk-test-secret",
     "-----BEGIN OPENSSH PRIVATE KEY-----",

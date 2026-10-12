@@ -16,7 +16,7 @@ def test_cited_rewrites_and_deletions_keep_full_review_and_mutation_intent() -> 
         {name:'duplicate.md',classification:'safe',content:'Duplicate note.',type:'project',description:'duplicate'}];
       let mode='good',calls=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
-        const req=JSON.parse(init.body);calls.push(req);const state=JSON.parse(req.state);
+        const req=JSON.parse(init.body);calls.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const selected=key.startsWith('counter_')?(mode==='conflict'&&state.reviewEvidence.entries.some(e=>e.index===36)?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
@@ -28,15 +28,15 @@ def test_cited_rewrites_and_deletions_keep_full_review_and_mutation_intent() -> 
       calls=[];const forged=await judge.validate('memory',snapshot,[{...candidates[0],evidence:[{index:0,role:'user',quote:'invented quote'}]}],existing);
       const support=requests.find(r=>r.questions.supported_0);
       console.log(JSON.stringify({good,conflict,forged,forgedCalls:calls.length,
-        coverage:requests.flatMap(r=>JSON.parse(r.state).reviewEvidence?.entries.map(e=>e.index)??[]),
+        coverage:requests.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries.map(e=>e.index)??[]),
         maxBytes:requests.length?Math.max(...requests.map(r=>Buffer.byteLength(JSON.stringify(r)))):null,
         rewrite:support?.questions.supported_0.instructions.candidate,
         deletion:support?.questions.supported_1.instructions.candidate,
-        counterStates:requests.filter(r=>JSON.parse(r.state).reviewEvidence).map(r=>{
-          const s=JSON.parse(r.state);return {existingMemories:s.existingMemories,proposedMemoryOperations:s.proposedMemoryOperations};
+        counterStates:requests.filter(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence).map(r=>{
+          const s=(typeof r.state === "string" ? JSON.parse(r.state) : r.state);return {existingMemories:s.existingMemories,proposedMemoryOperations:s.proposedMemoryOperations};
         }),
         deletionCounter:requests.find(r=>r.questions.counter_1_0)?.questions.counter_1_0.instructions,
-        existing:support?JSON.parse(support.state).existingMemories:null}));
+        existing:support?(typeof support.state === "string" ? JSON.parse(support.state) : support.state).existingMemories:null}));
     ''')
     assert result['good']['decision'] == 'allow'
     assert result['coverage'] == list(range(37))
@@ -67,7 +67,7 @@ def test_cited_memory_requires_complete_bounded_review() -> None:
       const candidates=[{name:'database.md',kind:'project',classification:'safe',content:'This project uses SQLite.',evidence:[{index:0,role:'user',quote:'This project uses SQLite.'}]}];
       let mode='good',calls=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
-        const req=JSON.parse(init.body);calls.push(req);const state=JSON.parse(req.state);
+        const req=JSON.parse(init.body);calls.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const review=state.reviewEvidence;
         if(mode==='offline'&&review?.entries.some(e=>e.index===36))throw new Error('provider private detail');
         const answers={};
@@ -81,7 +81,7 @@ def test_cited_memory_requires_complete_bounded_review() -> None:
       const requests=calls;calls=[];mode='conflict';const conflict=await judge.validate('memory',snapshot,candidates,[]);
       calls=[];mode='offline';const offline=await judge.validate('memory',snapshot,candidates,[]);
       calls=[];mode='uncertain';const uncertain=await judge.validate('memory',snapshot,candidates,[]);
-      const coverage=requests.flatMap(r=>JSON.parse(r.state).reviewEvidence?.entries.map(e=>e.index)??[]);
+      const coverage=requests.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries.map(e=>e.index)??[]);
       console.log(JSON.stringify({good,conflict,offline,uncertain,coverage,maxBytes:Math.max(...requests.map(r=>Buffer.byteLength(JSON.stringify(r))))}));
     ''')
     assert result["good"]["decision"] == "allow"
@@ -123,7 +123,7 @@ def test_cited_review_freezes_every_request_before_first_transport() -> None:
       const candidate={name:'database.md',kind:'project',classification:'safe',content:'This project uses SQLite.',evidence:[{index:0,role:'user',quote:'This project uses SQLite.'}]};
       let first=true,retained=false;
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
-        const req=JSON.parse(init.body), state=JSON.parse(req.state);
+        const req=JSON.parse(init.body), state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         if(first){first=false;snapshot.entries.at(-1).content='Altered after planning';}
         const contradiction=state.reviewEvidence?.entries.some(e=>JSON.stringify(e.entry).includes('Verified source schema: PostgreSQL'));
         if(contradiction)retained=true;
@@ -147,7 +147,7 @@ def test_harness_citations_use_complete_review_without_losing_authority_checks()
       const citations=[{index:0,eventIndex:0,source:'user',quote:'Never run git push in this project in future tasks.',count:1}];
       let mode='good', calls=[],keys=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
-        const req=JSON.parse(init.body),state=JSON.parse(req.state);calls.push(req);keys.push(...Object.keys(req.questions));
+        const req=JSON.parse(init.body),state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);calls.push(req);keys.push(...Object.keys(req.questions));
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const selected=key.startsWith('counter_')?(mode==='exception'&&state.reviewEvidence.entries.some(e=>e.index===31)?'contradicts':'compatible'):key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':'faithful';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
@@ -155,7 +155,7 @@ def test_harness_citations_use_complete_review_without_losing_authority_checks()
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers}));
       }});
       const good=await judge.validate('harness',snapshot,candidates,[],undefined,citations);
-      const coverage=calls.flatMap(r=>JSON.parse(r.state).reviewEvidence?.entries.map(e=>e.index)??[]);
+      const coverage=calls.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries.map(e=>e.index)??[]);
       mode='exception';const exception=await judge.validate('harness',snapshot,candidates,[],undefined,citations);
       const before=calls.length;const forged=await judge.validate('harness',snapshot,candidates,[],undefined,[{...citations[0],eventIndex:1}]);
       console.log(JSON.stringify({good,exception,forged,coverage,keys,forgedCalls:calls.length-before}));
@@ -175,7 +175,7 @@ def test_early_window_contradiction_is_not_overwritten_by_later_compatibility() 
       const candidate={name:'database.md',kind:'project',classification:'safe',content:'This project uses SQLite.',evidence:[{index:0,role:'user',quote:'This project uses SQLite.'}]};
       const responses=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
-        const req=JSON.parse(init.body), state=JSON.parse(req.state);
+        const req=JSON.parse(init.body), state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const conflict=state.reviewEvidence?.entries.some(e=>e.index===1);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const selected=key.startsWith('counter_')?(conflict?'contradicts':'compatible'):'grounded';
@@ -263,7 +263,7 @@ def test_full_review_keeps_support_context_and_oversized_whole_entries() -> None
       const candidate={name:'test-command.md',kind:'project',classification:'safe',content:'The regression command is pnpm test.',evidence:[{index:0,role:'user',quote:source}]};
       let requests=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
-        const req=JSON.parse(init.body);requests.push(req);const state=JSON.parse(req.state);
+        const req=JSON.parse(init.body);requests.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const supported=state.supportEvidence?.entries.some(e=>e.index===0&&e.entry.content===source);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const selected=key.startsWith('counter_')?(supported?'compatible':'unclear'):'grounded';
@@ -272,7 +272,7 @@ def test_full_review_keeps_support_context_and_oversized_whole_entries() -> None
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers}));
       }});
       const judgment=await judge.validate('memory',snapshot,[candidate],[]);
-      const retained=requests.flatMap(r=>JSON.parse(r.state).reviewEvidence?.entries??[]);
+      const retained=requests.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries??[]);
       console.log(JSON.stringify({judgment,retained,maxBytes:Math.max(...requests.map(r=>Buffer.byteLength(JSON.stringify(r)))),longEntry}));
     ''')
     assert result['judgment']['decision'] == 'allow'
@@ -489,16 +489,16 @@ def test_encoded_mutation_context_splits_whole_review_windows_before_transport()
       const existing=[{name:'db.md',content:'SQLite. '+'predecessor '.repeat(250),description:'database',type:'project',classification:'safe'}];
       let conflict=false,calls=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_u,init)=>{
-        const req=JSON.parse(init.body);calls.push(req);const s=JSON.parse(req.state);
+        const req=JSON.parse(init.body);calls.push(req);const s=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const choice=key.startsWith('counter_')?(conflict&&s.reviewEvidence.entries.some(e=>e.index===16)?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';
           return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===choice?1:0]))}];
         }))}));
       }});
       const good=await judge.validate('memory',{contextEnabled:true,entries},candidates,existing);
-      const coverage=[...new Set(calls.flatMap(r=>JSON.parse(r.state).reviewEvidence?.entries.map(e=>e.index)??[]))].sort((a,b)=>a-b);
+      const coverage=[...new Set(calls.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries.map(e=>e.index)??[]))].sort((a,b)=>a-b);
       const bytes=calls.map(r=>Buffer.byteLength(JSON.stringify(r)));
-      const retained=calls.every(r=>{const s=JSON.parse(r.state);return JSON.stringify(s.existingMemories)===JSON.stringify(existing)&&JSON.stringify(s.proposedMemoryOperations)===JSON.stringify(candidates)});
+      const retained=calls.every(r=>{const s=(typeof r.state === "string" ? JSON.parse(r.state) : r.state);return JSON.stringify(s.existingMemories)===JSON.stringify(existing)&&s.proposedMemoryOperations.every((projected,index)=>{const {candidateIndex,originalCitationSources,...operation}=projected;return candidateIndex===index&&JSON.stringify({...operation,evidence:candidates[index].evidence})===JSON.stringify(candidates[index])&&originalCitationSources.length===candidates[index].evidence.length})});
       conflict=true;calls=[];const bad=await judge.validate('memory',{contextEnabled:true,entries},candidates,existing);
       console.log(JSON.stringify({good,bad,coverage,bytes,retained}));
     ''')

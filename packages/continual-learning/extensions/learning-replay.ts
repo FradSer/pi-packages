@@ -9,6 +9,7 @@ import { currentTaskSlice } from "./incremental-learning";
 import { sha256Digest, writeFileAtomic } from "./consolidation-run";
 import { resolveMemoryPaths } from "./memory-paths";
 import { isLearningPipelineReceipt, pendingLearningOperations, type LearningPipelineReceipt, type LearningInputSource } from "./learning-efficiency";
+import { readMemoryReplayFeedback, type MemoryReplayFeedback } from "./learning-replay-feedback";
 
 export function learningReceiptComplete(receipt: LearningPipelineReceipt): boolean {
   if (pendingLearningOperations(receipt) > 0) return false;
@@ -135,14 +136,14 @@ export function claimLearningLease(cwd: string, agentDir = getAgentDir()): (() =
 
 export async function replayLearningBacklog(input: {
   cwd: string; agentDir?: string; force?: boolean; limit?: number; signal?: AbortSignal;
-  learn: (input: { entries: unknown[]; id: string; sessionFile: string; sessionId: string; sourceDigest: string; backlogCoverage?: LearningInputSource["backlogCoverage"]; omittedEntries?: number; omittedEvidenceEntries?: number }) => Promise<LearningPipelineReceipt | undefined>;
-}): Promise<{ outcomes: Array<{ id: string; outcome: string }>; busy?: boolean; error?: string }> {
+  learn: (input: { entries: unknown[]; id: string; sessionFile: string; sessionId: string; sourceDigest: string; memoryReplayFeedback?: MemoryReplayFeedback; backlogCoverage?: LearningInputSource["backlogCoverage"]; omittedEntries?: number; omittedEvidenceEntries?: number }) => Promise<LearningPipelineReceipt | undefined>;
+}): Promise<{ outcomes: Array<{ id: string; outcome: string; reason?: "newer-slice-deferred" }>; busy?: boolean; error?: string }> {
   const agentDir = input.agentDir ?? getAgentDir();
   const paths = resolveMemoryPaths(input.cwd, agentDir);
   const directory = path.join(paths.agentDir, "learning", paths.scopeKey);
   const release = claimLearningLease(input.cwd, agentDir);
   if (!release) return {outcomes:[], busy:true};
-  const outcomes: Array<{id:string; outcome:string}> = [];
+  const outcomes: Array<{id:string; outcome:string; reason?: "newer-slice-deferred"}> = [];
   try {
     const backlog = readBacklog(input.cwd, agentDir);
     if (backlog.error || backlog.malformed) return {outcomes, error:backlog.error ?? "Malformed backlog requires review"};
@@ -186,6 +187,7 @@ export async function replayLearningBacklog(input: {
       // A later verifier observation can extend this same task. Verify every
       // queued digest independently, then keep the longest byte-identical prefix
       // extension; never substitute a new task, changed source or session.
+      let newerSliceDeferred = false;
       const verified = backlog.pendingEntries.flatMap(({entry: other}) => {
         if (other.sessionFile !== entry.sessionFile || other.from !== entry.from || other.to < entry.to
           || other.to >= source.contextEntries!.length || other.scopeKey !== entry.scopeKey) return [];
@@ -194,12 +196,23 @@ export async function replayLearningBacklog(input: {
         const otherFile = path.join(directory, `replay-${otherId}.json`);
         safeBacklogStorage(otherFile, paths.agentDir, true);
         const otherState = readReplayState(otherFile);
-        if (otherState.attempts.length >= 16 || (!input.force && (otherState.attempts.length >= 3 || otherState.nextAttemptAt > Date.now()))) return [];
+        const deferred = otherState.attempts.length >= 16 || (!input.force && (otherState.attempts.length >= 3 || otherState.nextAttemptAt > Date.now()));
         const candidate = currentTaskSlice(source.contextEntries!.slice(other.from, other.to + 1));
         if (slice.omittedEntries || candidate.omittedEntries || sha256Digest(JSON.stringify(candidate)) !== other.digest || candidate.entries.length < slice.entries.length
           || JSON.stringify(candidate.entries.slice(0, slice.entries.length)) !== JSON.stringify(slice.entries)) return [];
+        if (deferred) {
+          // Do not learn an obsolete prefix when verified later feedback cannot
+          // be admitted. The retry ceiling applies to the complete newer slice;
+          // it must not silently become permission to omit that feedback.
+          if (other.to > entry.to && candidate.entries.length > slice.entries.length) newerSliceDeferred = true;
+          return [];
+        }
         return [{entry: other, slice: candidate}];
       });
+      if (newerSliceDeferred) {
+        outcomes.push({id, outcome:"deferred", reason:"newer-slice-deferred"});
+        continue;
+      }
       const longest = verified.reduce((best, row) => row.slice.entries.length > best.slice.entries.length ? row : best, {entry, slice});
       const covering = verified.filter(row => row.slice.entries.length <= longest.slice.entries.length
         && JSON.stringify(longest.slice.entries.slice(0, row.slice.entries.length)) === JSON.stringify(row.slice.entries));
@@ -217,6 +230,52 @@ export async function replayLearningBacklog(input: {
         state = readReplayState(file);
       }
       (backlogCoverage ?? [{id}]).forEach(row => attempted.add(row.id));
+      const replaySlice = currentTaskSlice(entries);
+      let memoryReplayFeedback: MemoryReplayFeedback | null = null;
+      // The longest slice owns the receipt, but its first attempt has no prior
+      // history. Only independently verified covered prefixes may contribute.
+      const feedbackSources = backlogCoverage ? covered.map(row => ({
+        id: backlogIdentity(paths.scopeKey, row.entry), entry: row.entry, slice: row.slice })) : [{id, entry, slice: replaySlice}];
+      if (!replaySlice.omittedEntries) {
+        const previousAttempts = feedbackSources.flatMap(candidate => {
+          const candidateFile = path.join(directory, `replay-${candidate.id}.json`);
+          safeBacklogStorage(candidateFile, paths.agentDir);
+          const candidateState = candidate.id === id ? state : readReplayState(candidateFile);
+          return candidateState.attempts.flatMap((previous, index) => {
+            if (!previous.receipt) return [];
+            const at = Date.parse(previous.at);
+            if (!Number.isFinite(at)) throw new Error("Previous Memory failure has no valid attempt ordering");
+            return [{candidate, previous, index, at}];
+          });
+        }).sort((a, b) => b.at - a.at || b.candidate.slice.entries.length - a.candidate.slice.entries.length || b.index - a.index);
+        let completedThrough = 0;
+        for (const {candidate, previous} of previousAttempts) {
+          if (candidate.slice.entries.length <= completedThrough) continue;
+          const receiptInput = previous.receipt!.input;
+          // Legacy unbound receipts cannot resolve or supply task feedback.
+          if (!receiptInput) continue;
+          const expectedCount = receiptInput.source === "current-session"
+            ? candidate.entry.to + 1 : candidate.slice.entries.length;
+          const bound = receiptInput.backlogId === candidate.id && receiptInput.entryCount === expectedCount
+            && ["current-session", "backlog-session"].includes(receiptInput.source)
+            && (!receiptInput.backlogCoverage || receiptInput.source === "backlog-session"
+              && receiptInput.backlogCoverage.every(reference => feedbackSources.some(verified =>
+                verified.id === reference.id && verified.entry.from === reference.from
+                && verified.entry.to === reference.to && verified.entry.digest === reference.digest)));
+          if (!bound) throw new Error("Previous Memory receipt is not bound to its verified task");
+          const memory = previous.receipt!.attempts.filter(attempt => attempt.phase === "memory").at(-1);
+          // A later Memory completion resolves only evidence it covers. A
+          // selector failure cannot erase older bound correction context.
+          if (memory && ["applied", "noop", "screened"].includes(memory.outcome) && !(memory.pendingOperations ?? 0)) {
+            completedThrough = candidate.slice.entries.length;
+            continue;
+          }
+          memoryReplayFeedback = await readMemoryReplayFeedback({ cwd: input.cwd, agentDir,
+            backlogId: candidate.id, entries: candidate.slice.entries, receipt: previous.receipt });
+          if (memoryReplayFeedback) break;
+        }
+      }
+      if (input.signal?.aborted) break;
       executed++;
       const attempt: ReplayAttempt = {at:new Date().toISOString(), outcome:"running"};
       state.attempts.push(attempt);
@@ -227,8 +286,15 @@ export async function replayLearningBacklog(input: {
         await writeFileAtomic(file, text, 0o600);
       };
       await save();
+      if (input.signal?.aborted) {
+        attempt.outcome = "cancelled";
+        await save();
+        outcomes.push({id, outcome:"cancelled"});
+        break;
+      }
       try {
         const receipt = await input.learn({entries, id, sessionFile:entry.sessionFile, sessionId:source.sessionId, sourceDigest:source.sourceDigest, ...(backlogCoverage ? {backlogCoverage} : {}),
+          ...(memoryReplayFeedback ? {memoryReplayFeedback} : {}),
           ...(!backlogCoverage && slice.omittedEntries ? {omittedEntries:slice.omittedEntries, omittedEvidenceEntries:slice.omittedEvidenceEntries ?? slice.omittedEntries} : {})});
         if (receipt && isLearningPipelineReceipt(receipt)) attempt.receipt = receipt;
         const boundCoverage = !backlogCoverage || attempt.receipt?.input?.source === "backlog-session"

@@ -37,7 +37,7 @@ def strict_json_loads(value: str | bytes) -> Any:
 def canonical_request_digest(request: dict[str, Any]) -> str:
     """Only generated public run identifiers/time vary between isolated cases."""
     value = strict_json_loads(json.dumps(request,allow_nan=False))
-    state = strict_json_loads(value['state'])
+    state = strict_json_loads(value['state']) if isinstance(value['state'], str) else value['state']
     def normalize(item: Any) -> None:
         if isinstance(item,dict):
             for key, child in item.items():

@@ -20,7 +20,7 @@ def test_finite_authority_shadow_retains_all_authorization_and_counter_gates() -
         }});
         const original=JSON.stringify(row);const result=await judge.validate('harness',row.snapshot,row.plan.operations,[],undefined,row.plan.evidence);
         const questions=Object.assign({},...requests.map(r=>r.questions));
-        console.log(JSON.stringify({questions,result,unchanged:original===JSON.stringify(row),states:requests.map(r=>JSON.parse(r.state))}));
+        console.log(JSON.stringify({questions,result,unchanged:original===JSON.stringify(row),states:requests.map(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state))}));
       }finally{await research.dispose();}
     ''')
     assert value['unchanged'] and value['result']['decision'] == 'allow'

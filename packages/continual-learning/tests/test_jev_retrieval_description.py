@@ -22,7 +22,7 @@ def test_retrieval_support_is_specific_and_keeps_original_body_privacy_gates() -
             }return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
           }});
           const result=await judge.validate('memory',snapshot,[value],[]);
-          outputs.push({mode,result,calls:sent.length,questions:Object.assign({},...sent.map(x=>x.questions)),states:sent.map(x=>JSON.parse(x.state))});
+          outputs.push({mode,result,calls:sent.length,questions:Object.assign({},...sent.map(x=>x.questions)),states:sent.map(x=>(typeof x.state === "string" ? JSON.parse(x.state) : x.state))});
         }
       }finally{await r.dispose();}
       console.log(JSON.stringify(outputs));

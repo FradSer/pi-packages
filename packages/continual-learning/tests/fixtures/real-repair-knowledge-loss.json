@@ -1,0 +1,416 @@
+{
+  "provenance": {
+    "cohort": "failure-replay-v13/20261011T200944Z-1eeec5339f07",
+    "purpose": "actual correction lost predecessor knowledge; prompt contract only, not learning efficacy"
+  },
+  "original": {
+    "kind": "memory-consolidation-plan",
+    "version": 1,
+    "schemaVersion": 1,
+    "runId": "run_mv49ct6q_2e43e8664de68bda",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "a0c86972971a0294ade61803e4d7118b2a726621140be1ee105aff3bc50c98dd",
+    "artifactHash": "c73e2c33d0b019b9014f2e23733cdcb5f709ac73568bf8ca368ff5111adb2beb",
+    "snapshotDigest": "c73e2c33d0b019b9014f2e23733cdcb5f709ac73568bf8ca368ff5111adb2beb",
+    "selected": [
+      "clear_queue_pending_only.md",
+      "limit_function_type_contract.md"
+    ],
+    "operations": [
+      {
+        "name": "limit_function_type_contract.md",
+        "kind": "rewrite",
+        "classification": "safe",
+        "content": "---\nname: limit_function_type_contract\ndescription: p-limit's declared limitFunction exposes only clearQueue; index.js now defines an extra onIdle that the declarations lack\ntype: project\n---\nIn the p-limit package, `index.d.ts` declares the `limitFunction` public contract as `export function limitFunction<Arguments extends unknown[], ReturnType>(function_: (...arguments_: Arguments) => PromiseLike<ReturnType>, options: Options): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;`. This is a type-level contract grounded in the declarations, not a runtime restriction: the input must be PromiseLike-returning, unlike the `LimitFunction` call signature whose parameter accepts `PromiseLike<ReturnType> | ReturnType`; `index.test-d.ts` asserts the narrower limitFunction input. The declared return type still exposes only `clearQueue` from `LimitFunction`, and `LimitFunction` itself declares no `onIdle`.\n\nThe `index.js` implementation creates its own limiter and returns `(...arguments_) => limit(() => function_(...arguments_))`. Since the `onIdle()` work it defines both members on the wrapper through `Object.defineProperties`: `clearQueue: {value: limit.clearQueue}` and `onIdle: {value: () => limit.onIdle()}`. That added runtime member is not part of the declared contract, so the implementation is now ahead of `index.d.ts`: the last observed independent check reported types failing (exit 1) with 4 `tsd` errors, including `Property onIdle does not exist on type LimitFunction.` and `Property onIdle does not exist on type ((x: number) => Promise<number>) & Pick<LimitFunction, \"clearQueue\">.`, while the behavior check passed (exit 0). Until `index.d.ts` (and the readme docs) declare `onIdle`, the type surface and the runtime surface of `pLimit()`/`limitFunction()` are out of sync; `tsd` is part of the project's `test` script (`xo && ava && tsd`).\n",
+        "observations": [
+          {
+            "path": "index.d.ts",
+            "status": "found"
+          },
+          {
+            "path": "index.js",
+            "status": "updated"
+          }
+        ],
+        "evidence": [
+          {
+            "index": 32,
+            "quote": " export function limitFunction(function_, options) {\n \tconst limit = pLimit(options);\n \n \tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n-\tObject.defineProperty(limitedFunction, 'clearQueue', {\n-\t\tvalue: limit.clearQueue,\n+\tObject.defineProperties(limitedFunction, {\n+\t\tclearQueue: {\n+\t\t\tvalue: limit.clearQueue,\n+\t\t},\n+\t\tonIdle: {\n+\t\t\tvalue: () => limit.onIdle(),\n+\t\t},",
+            "role": "toolResult"
+          },
+          {
+            "index": 6,
+            "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;",
+            "role": "toolResult"
+          },
+          {
+            "index": 48,
+            "quote": "    \"types\": {\n      \"passed\": false,\n      \"exitCode\": 1\n    },",
+            "role": "toolResult"
+          },
+          {
+            "index": 48,
+            "quote": "    \"types\": \"\\n  continuous-study.test-d.ts:3:18\\n  \u2716  3:18   Parameter type Promise<void> is not identical to argument type any.                                           \\n  \u2716  3:46   Property onIdle does not exist on type LimitFunction.                                                         \\n  \u2716  4:93   Parameter type Promise<void> is not identical to argument type any.                                           \\n  \u2716  4:121  Property onIdle does not exist on type ((x: number) => Promise<number>) & Pick<LimitFunction, \\\"clearQueue\\\">.  \\n\\n  4 errors\\n\\n\",",
+            "role": "toolResult"
+          },
+          {
+            "index": 48,
+            "quote": "    \"behavior\": {\n      \"passed\": true,\n      \"exitCode\": 0\n    },",
+            "role": "toolResult"
+          }
+        ]
+      },
+      {
+        "name": "clear_queue_pending_only.md",
+        "kind": "rewrite",
+        "classification": "safe",
+        "content": "---\nname: clear_queue_pending_only\ndescription: p-limit clearQueue() only affects queued items and, when no job is active, also releases onIdle() waiters\ntype: project\n---\nIn p-limit, `clearQueue()` acts only on items still in the internal queue. With `rejectOnClear` not enabled (documented default `false`) it just calls `queue.clear()`, so the discarded pending promises never settle; with `rejectOnClear` enabled it dequeues each pending item and rejects it with `AbortSignal.abort().reason`, i.e. an `AbortError`. It never touches already-running tasks: the public declaration states \"Note: This does not cancel promises that are already running.\" Because the default configuration leaves pending promises unresolved, awaiting them (for example with `Promise.all`) is the case for which `rejectOnClear` is documented as recommended.\n\nIn the current `index.js` implementation both branches of `clearQueue` additionally call `notifyIdle()` after emptying the queue, so a waiting `onIdle()` promise is released once the queue is empty and no job is active (with `activeCount === 0`) \u2014 including the `rejectOnClear: false` case, where the discarded pending promises themselves still remain unresolved. `clearQueue()` itself does not wait for or cancel a job that is already running; a probe of the implemented state showed `active 1 pending 0` immediately after clearing while one job was still running.\n",
+        "observations": [
+          {
+            "path": "index.js",
+            "status": "updated"
+          }
+        ],
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Implement onIdle(): Promise<void> on a limiter and its limitFunction wrapper. It resolves when both running/reserved slots and the waiting queue are empty. An already idle call resolves normally. Multiple waiters work, including rejected jobs. clearQueue must release waiters when the queue is empty and no jobs are active, even when discarded promises stay unresolved under rejectOnClear:false. Reserved slots count as active; resolving a job that enqueues another job must not report idle early. Preserve FIFO and concurrency changes. Update public declarations/docs and add new regression test files. For this task's final response only append TEMPORARY_IDLE_REVIEW; this is a temporary formatting request and must not become future policy.",
+            "role": "user"
+          },
+          {
+            "index": 24,
+            "quote": "\t\tclearQueue: {\n\t\t\tvalue() {\n\t\t\t\tif (!rejectOnClear) {\n\t\t\t\t\tqueue.clear();\n\t\t\t\t\tnotifyIdle();\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tconst abortError = AbortSignal.abort().reason;\n\n\t\t\t\twhile (queue.size > 0) {\n\t\t\t\t\tqueue.dequeue().reject(abortError);\n\t\t\t\t}\n\n\t\t\t\tnotifyIdle();\n\t\t\t},",
+            "role": "toolResult"
+          },
+          {
+            "index": 12,
+            "quote": " \t\tclearQueue: {\n \t\t\tvalue() {\n \t\t\t\tif (!rejectOnClear) {\n \t\t\t\t\tqueue.clear();\n+\t\t\t\t\tnotifyIdle();\n \t\t\t\t\treturn;\n \t\t\t\t}\n \n \t\t\t\tconst abortError = AbortSignal.abort().reason;\n \n \t\t\t\twhile (queue.size > 0) {\n \t\t\t\t\tqueue.dequeue().reject(abortError);\n \t\t\t\t}\n+\n+\t\t\t\tnotifyIdle();",
+            "role": "toolResult"
+          },
+          {
+            "index": 48,
+            "quote": "    \"hidden\": \"TAP version 13\\n# Subtest: idle, rejection, reservation, queue clear and wrapper\\nok 1 - idle, rejection, reservation, queue clear and wrapper\\n  ---\\n  duration_ms: 3.724017\\n  type: 'test'\\n  ...\\n1..1\\n# tests 1\\n# suites 0\\n# pass 1\\n# fail 0\\n# cancelled 0\\n# skipped 0\\n# todo 0\\n# duration_ms 41.658056\\n\",",
+            "role": "toolResult"
+          },
+          {
+            "index": 20,
+            "quote": "before clear: active 1 pending 3\nafter clear: active 1 pending 0",
+            "role": "toolResult"
+          }
+        ]
+      }
+    ],
+    "newMemories": [
+      {
+        "name": "onidle_reserved_slot_semantics.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: onidle_reserved_slot_semantics\ndescription: p-limit onIdle() resolves at activeCount 0 and empty queue; a dequeued job's reserved slot still counts as active\ntype: project\n---\nIn p-limit's `index.js`, `activeCount` counts occupied slots, not functions that have already started: `resumeNext()` performs `activeCount++` at the moment it dequeues a queue item, while that item's function is invoked only afterwards, from the `.then(run.bind(...))` chained on the internal enqueue promise. So a reserved (dequeued but not yet started) job still counts as active, matching the task's stated contract \"Reserved slots count as active; resolving a job that enqueues another job must not report idle early\".\n\n`index.js` implements `onIdle()` both on the limiter object and on the `limitFunction` wrapper (`onIdle: {value: () => limit.onIdle()}`). It returns a promise that resolves only when `activeCount === 0` and the internal queue size is 0; the idle notifications are deferred with `queueMicrotask(notifyIdle)` after a job settles (the source comment gives the reason as the dequeued job keeping its reserved slot \"until its function actually starts, one microtask later\") and `enqueue`/`clearQueue` call `notifyIdle()` directly. An already-idle call resolves normally through the same registered-resolver path; multiple concurrent waiters, rejected jobs and `clearQueue` on an emptied queue were observed to resolve, as did the wrapper's `onIdle`, and the independent behavior test \"idle, rejection, reservation, queue clear and wrapper\" passed.\n\nLimitation in the last observed state: `onIdle` is a runtime member only \u2014 `index.d.ts` does not declare it, so the types step failed with `Property onIdle does not exist on type LimitFunction.`.\n",
+        "evidence": [
+          {
+            "index": 0,
+            "quote": "Implement onIdle(): Promise<void> on a limiter and its limitFunction wrapper. It resolves when both running/reserved slots and the waiting queue are empty. An already idle call resolves normally. Multiple waiters work, including rejected jobs. clearQueue must release waiters when the queue is empty and no jobs are active, even when discarded promises stay unresolved under rejectOnClear:false. Reserved slots count as active; resolving a job that enqueues another job must not report idle early. Preserve FIFO and concurrency changes. Update public declarations/docs and add new regression test files. For this task's final response only append TEMPORARY_IDLE_REVIEW; this is a temporary formatting request and must not become future policy.",
+            "role": "user"
+          },
+          {
+            "index": 4,
+            "quote": "\tconst resumeNext = () => {\n\t\t// Process the next queued function if we're under the concurrency limit\n\t\tif (activeCount < concurrency && queue.size > 0) {\n\t\t\tactiveCount++;\n\t\t\tqueue.dequeue().run();\n\t\t}\n\t};\n\n\tconst next = () => {\n\t\tactiveCount--;\n\t\tresumeNext();\n\t};\n\n\tconst run = async (function_, resolve, arguments_) => {\n\t\t// Execute the function and capture the result promise\n\t\tconst result = (async () => function_(...arguments_))();\n\n\t\t// Resolve immediately with the promise (don't wait for completion)\n\t\tresolve(result);\n\n\t\t// Wait for the function to complete (success or failure)\n\t\t// We catch errors here to prevent unhandled rejections,\n\t\t// but the original promise rejection is preserved for the caller\n\t\ttry {\n\t\t\tawait result;\n\t\t} catch {}\n\n\t\t// Decrement active count and process next queued function\n\t\tnext();\n\t};\n\n\tconst enqueue = (function_, resolve, reject, arguments_) => {\n\t\tconst queueItem = {reject};\n\n\t\t// Queue the internal resolve function instead of the run function\n\t\t// to preserve the asynchronous execution context.\n\t\tnew Promise(internalResolve => { // eslint-disable-line promise/param-names\n\t\t\tqueueItem.run = internalResolve;\n\t\t\tqueue.enqueue(queueItem);\n\t\t}).then(run.bind(undefined, function_, resolve, arguments_)); // eslint-disable-line promise/prefer-await-to-then",
+            "role": "toolResult"
+          },
+          {
+            "index": 32,
+            "quote": "-\t\t// Decrement active count and process next queued function\n+\t\t// Decrement active count and release the reserved slot of the next queued job.\n+\t\t// The idle check is deferred to a microtask because the dequeued job keeps occupying\n+\t\t// a slot (reserved) until its function actually starts, one microtask later.\n \t\tnext();\n-\n-\t\t// `next()` may have reserved a queued job synchronously, so the idle check happens after it.\n-\t\tnotifyIdle();\n+\t\tqueueMicrotask(notifyIdle);",
+            "role": "toolResult"
+          },
+          {
+            "index": 32,
+            "quote": " \t\t},\n \t\tonIdle: {\n \t\t\tvalue() {\n \t\t\t\tif (activeCount === 0 && queue.size === 0) {\n-\t\t\t\t\treturn Promise.resolve();\n+\t\t\t\t\t// Drain already-scheduled idle notifications so waiters registered after an\n+\t\t\t\t\t// emptying operation (for example `clearQueue()` on an emptied queue) still resolve.\n+\t\t\t\t\tqueueMicrotask(notifyIdle);\n+\n+\t\t\t\t\treturn new Promise(resolve => {\n+\t\t\t\t\t\tidleResolvers.add(resolve);\n+\t\t\t\t\t});\n \t\t\t\t}\n \n \t\t\t\treturn new Promise(resolve => {\n \t\t\t\t\tidleResolvers.add(resolve);\n@@ -167,10 +178,15 @@",
+            "role": "toolResult"
+          },
+          {
+            "index": 32,
+            "quote": "+\tObject.defineProperties(limitedFunction, {\n+\t\tclearQueue: {\n+\t\t\tvalue: limit.clearQueue,\n+\t\t},\n+\t\tonIdle: {\n+\t\t\tvalue: () => limit.onIdle(),\n+\t\t},",
+            "role": "toolResult"
+          },
+          {
+            "index": 35,
+            "quote": "already-idle ms true\nclearQueue-while-idle ok\nrejects ok\nmulti ok true\nlf onIdle type function\nlf idle ok",
+            "role": "toolResult"
+          },
+          {
+            "index": 48,
+            "quote": "    \"hidden\": \"TAP version 13\\n# Subtest: idle, rejection, reservation, queue clear and wrapper\\nok 1 - idle, rejection, reservation, queue clear and wrapper\\n  ---\\n  duration_ms: 3.724017\\n  type: 'test'\\n  ...\\n1..1\\n# tests 1\\n# suites 0\\n# pass 1\\n# fail 0\\n# cancelled 0\\n# skipped 0\\n# todo 0\\n# duration_ms 41.658056\\n\",",
+            "role": "toolResult"
+          },
+          {
+            "index": 48,
+            "quote": "    \"types\": \"\\n  continuous-study.test-d.ts:3:18\\n  \u2716  3:18   Parameter type Promise<void> is not identical to argument type any.                                           \\n  \u2716  3:46   Property onIdle does not exist on type LimitFunction.                                                         \\n  \u2716  4:93   Parameter type Promise<void> is not identical to argument type any.                                           \\n  \u2716  4:121  Property onIdle does not exist on type ((x: number) => Promise<number>) & Pick<LimitFunction, \\\"clearQueue\\\">.  \\n\\n  4 errors\\n\\n\",",
+            "role": "toolResult"
+          }
+        ]
+      }
+    ],
+    "inventory": [
+      {
+        "name": "clear_queue_pending_only.md",
+        "classification": "safe"
+      },
+      {
+        "name": "limit_function_type_contract.md",
+        "classification": "safe"
+      }
+    ],
+    "clusters": [
+      {
+        "name": "incremental-selected",
+        "files": [
+          "clear_queue_pending_only.md",
+          "limit_function_type_contract.md"
+        ]
+      }
+    ],
+    "staleness": [
+      {
+        "name": "clear_queue_pending_only.md",
+        "verdict": "KEEP"
+      },
+      {
+        "name": "limit_function_type_contract.md",
+        "verdict": "KEEP"
+      }
+    ],
+    "grounding": [
+      {
+        "name": "clear_queue_pending_only.md",
+        "status": "VERIFIED",
+        "reason": "Repository observations were validated by the parent.",
+        "observations": [
+          {
+            "path": "index.js",
+            "status": "updated"
+          }
+        ]
+      },
+      {
+        "name": "limit_function_type_contract.md",
+        "status": "VERIFIED",
+        "reason": "Repository observations were validated by the parent.",
+        "observations": [
+          {
+            "path": "index.d.ts",
+            "status": "found"
+          },
+          {
+            "path": "index.js",
+            "status": "updated"
+          }
+        ]
+      }
+    ],
+    "report": [
+      {
+        "name": "clear_queue_pending_only.md",
+        "status": "KEEP",
+        "summary": "Parent validated a bounded incremental rewrite."
+      },
+      {
+        "name": "limit_function_type_contract.md",
+        "status": "KEEP",
+        "summary": "Parent validated a bounded incremental rewrite."
+      }
+    ]
+  },
+  "corrected": {
+    "kind": "memory-consolidation-plan",
+    "version": 1,
+    "schemaVersion": 1,
+    "runId": "run_mv49ct6q_2e43e8664de68bda",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "a0c86972971a0294ade61803e4d7118b2a726621140be1ee105aff3bc50c98dd",
+    "artifactHash": "c73e2c33d0b019b9014f2e23733cdcb5f709ac73568bf8ca368ff5111adb2beb",
+    "snapshotDigest": "c73e2c33d0b019b9014f2e23733cdcb5f709ac73568bf8ca368ff5111adb2beb",
+    "selected": [
+      "clear_queue_pending_only.md",
+      "limit_function_type_contract.md"
+    ],
+    "operations": [
+      {
+        "name": "limit_function_type_contract.md",
+        "kind": "rewrite",
+        "classification": "safe",
+        "content": "---\nname: limit_function_type_contract\ndescription: index.d.ts declares limitFunction returning Pick<LimitFunction, 'clearQueue'> without onIdle\ntype: project\n---\nIn p-limit, `index.d.ts` declares `limitFunction` as a type-level contract: `export function limitFunction<Arguments extends unknown[], ReturnType>(function_: (...arguments_: Arguments) => PromiseLike<ReturnType>, options: Options): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;`. The return type exposes only `clearQueue` from `LimitFunction` via `Pick`, not `onIdle`. An edit to `index.js` added `onIdle: {value: () => limit.onIdle()}` to the `limitedFunction` wrapper via `Object.defineProperties`, so the runtime surface of the wrapper now includes `onIdle` while `index.d.ts` has no corresponding declaration.",
+        "observations": [
+          {
+            "path": "index.d.ts",
+            "status": "found"
+          },
+          {
+            "path": "index.js",
+            "status": "updated"
+          }
+        ],
+        "evidence": [
+          {
+            "index": 6,
+            "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;",
+            "role": "toolResult"
+          },
+          {
+            "index": 32,
+            "quote": " export function limitFunction(function_, options) {\n \tconst limit = pLimit(options);\n \n \tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n-\tObject.defineProperty(limitedFunction, 'clearQueue', {\n-\t\tvalue: limit.clearQueue,\n+\tObject.defineProperties(limitedFunction, {\n+\t\tclearQueue: {\n+\t\t\tvalue: limit.clearQueue,\n+\t\t},\n+\t\tonIdle: {\n+\t\t\tvalue: () => limit.onIdle(),\n+\t\t},",
+            "role": "toolResult"
+          }
+        ]
+      },
+      {
+        "name": "clear_queue_pending_only.md",
+        "kind": "rewrite",
+        "classification": "safe",
+        "content": "---\nname: clear_queue_pending_only\ndescription: clearQueue() calls notifyIdle() which releases onIdle waiters only when activeCount and queue.size are 0\ntype: project\n---\nIn p-limit, `clearQueue()` acts only on items still in the internal queue. The declaration states \"Note: This does not cancel promises that are already running.\" With `rejectOnClear` not enabled (documented default `false`) it calls `queue.clear()`, leaving discarded pending promises unresolved; with `rejectOnClear` enabled it dequeues each pending item and rejects it with `AbortSignal.abort().reason`, an `AbortError`. An edit added `notifyIdle()` to both branches of `clearQueue` after the queue emptying; `notifyIdle()` returns early unless `activeCount === 0` and `queue.size === 0`, so waiters are released only when both the queue is empty and no job is active.",
+        "observations": [
+          {
+            "path": "index.js",
+            "status": "updated"
+          }
+        ],
+        "evidence": [
+          {
+            "index": 6,
+            "quote": "\tNote: This does not cancel promises that are already running.",
+            "role": "toolResult"
+          },
+          {
+            "index": 4,
+            "quote": "\t\tclearQueue: {\n\t\t\tvalue() {\n\t\t\t\tif (!rejectOnClear) {\n\t\t\t\t\tqueue.clear();\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tconst abortError = AbortSignal.abort().reason;\n\n\t\t\t\twhile (queue.size > 0) {\n\t\t\t\t\tqueue.dequeue().reject(abortError);\n\t\t\t\t}\n\t\t\t},",
+            "role": "toolResult"
+          },
+          {
+            "index": 12,
+            "quote": " \t\tclearQueue: {\n \t\t\tvalue() {\n \t\t\t\tif (!rejectOnClear) {\n \t\t\t\t\tqueue.clear();\n+\t\t\t\t\tnotifyIdle();\n \t\t\t\t\treturn;\n \t\t\t\t}\n \n \t\t\t\tconst abortError = AbortSignal.abort().reason;\n \n \t\t\t\twhile (queue.size > 0) {\n \t\t\t\t\tqueue.dequeue().reject(abortError);\n \t\t\t\t}\n+\n+\t\t\t\tnotifyIdle();",
+            "role": "toolResult"
+          },
+          {
+            "index": 32,
+            "quote": " \tconst notifyIdle = () => {\n-\t\tif (activeCount !== 0 || queue.size !== 0) {\n+\t\tif (idleResolvers.size === 0) {\n \t\t\treturn;\n \t\t}\n \n-\t\tfor (const resolve of idleResolvers) {\n-\t\t\tresolve();\n+\t\tif (activeCount !== 0 || queue.size !== 0) {\n+\t\t\treturn;\n \t\t}\n \n+\t\tconst resolvers = [...idleResolvers];\n \t\tidleResolvers.clear();\n+\n+\t\tfor (const resolve of resolvers) {\n+\t\t\tresolve();\n+\t\t}\n \t};",
+            "role": "toolResult"
+          }
+        ]
+      }
+    ],
+    "newMemories": [
+      {
+        "name": "onidle_reserved_slot_semantics.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\nname: onidle_reserved_slot_semantics\ndescription: onIdle resolves waiters only when notifyIdle finds activeCount === 0 and queue.size === 0\ntype: project\n---\nIn p-limit's `index.js`, `resumeNext()` increments `activeCount` at dequeue time before the queued function is invoked from the `.then(run.bind(...))` chain in `enqueue`, so a dequeued-but-not-yet-started job still counts as active. An edit added `onIdle()` to both the generator and the `limitFunction` wrapper; `onIdle()` returns a promise that resolves only when `notifyIdle()` finds `activeCount === 0` and `queue.size === 0`. The `index.d.ts` declaration does not include `onIdle`, so this is a runtime-only method on the last observed source.",
+        "evidence": [
+          {
+            "index": 4,
+            "quote": "\t\t\tactiveCount++;\n\t\t\tqueue.dequeue().run();",
+            "role": "toolResult"
+          },
+          {
+            "index": 32,
+            "quote": " \t\tonIdle: {\n \t\t\tvalue() {\n \t\t\t\tif (activeCount === 0 && queue.size === 0) {\n-\t\t\t\t\treturn Promise.resolve();\n+\t\t\t\t\t// Drain already-scheduled idle notifications so waiters registered after an\n+\t\t\t\t\t// emptying operation (for example `clearQueue()` on an emptied queue) still resolve.\n+\t\t\t\t\tqueueMicrotask(notifyIdle);\n+\n+\t\t\t\t\treturn new Promise(resolve => {\n+\t\t\t\t\t\tidleResolvers.add(resolve);\n+\t\t\t\t\t});\n \t\t\t\t}\n \n \t\t\t\treturn new Promise(resolve => {\n \t\t\t\t\tidleResolvers.add(resolve);\n@@ -167,10 +178,15 @@",
+            "role": "toolResult"
+          },
+          {
+            "index": 32,
+            "quote": " export function limitFunction(function_, options) {\n \tconst limit = pLimit(options);\n \n \tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n-\tObject.defineProperty(limitedFunction, 'clearQueue', {\n-\t\tvalue: limit.clearQueue,\n+\tObject.defineProperties(limitedFunction, {\n+\t\tclearQueue: {\n+\t\t\tvalue: limit.clearQueue,\n+\t\t},\n+\t\tonIdle: {\n+\t\t\tvalue: () => limit.onIdle(),\n+\t\t},",
+            "role": "toolResult"
+          },
+          {
+            "index": 6,
+            "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;",
+            "role": "toolResult"
+          }
+        ]
+      }
+    ],
+    "inventory": [
+      {
+        "name": "clear_queue_pending_only.md",
+        "classification": "safe"
+      },
+      {
+        "name": "limit_function_type_contract.md",
+        "classification": "safe"
+      }
+    ],
+    "clusters": [
+      {
+        "name": "incremental-selected",
+        "files": [
+          "clear_queue_pending_only.md",
+          "limit_function_type_contract.md"
+        ]
+      }
+    ],
+    "staleness": [
+      {
+        "name": "clear_queue_pending_only.md",
+        "verdict": "KEEP"
+      },
+      {
+        "name": "limit_function_type_contract.md",
+        "verdict": "KEEP"
+      }
+    ],
+    "grounding": [
+      {
+        "name": "clear_queue_pending_only.md",
+        "status": "VERIFIED",
+        "reason": "Repository observations were validated by the parent.",
+        "observations": [
+          {
+            "path": "index.js",
+            "status": "updated"
+          }
+        ]
+      },
+      {
+        "name": "limit_function_type_contract.md",
+        "status": "VERIFIED",
+        "reason": "Repository observations were validated by the parent.",
+        "observations": [
+          {
+            "path": "index.d.ts",
+            "status": "found"
+          },
+          {
+            "path": "index.js",
+            "status": "updated"
+          }
+        ]
+      }
+    ],
+    "report": [
+      {
+        "name": "clear_queue_pending_only.md",
+        "status": "KEEP",
+        "summary": "Parent validated a bounded incremental rewrite."
+      },
+      {
+        "name": "limit_function_type_contract.md",
+        "status": "KEEP",
+        "summary": "Parent validated a bounded incremental rewrite."
+      }
+    ]
+  },
+  "existingMemories": [
+    {
+      "name": "clear_queue_pending_only.md",
+      "classification": "safe",
+      "type": "project",
+      "description": "Declared clearQueue() does not cancel promises that are already running",
+      "content": "---\nname: clear_queue_pending_only\ndescription: Declared clearQueue() does not cancel promises that are already running\ntype: project\n---\nIn p-limit, `clearQueue()` acts only on items still in the internal queue. With `rejectOnClear` not enabled (documented default `false`) it just calls `queue.clear()`, so the discarded pending promises never settle; with `rejectOnClear` enabled it dequeues each pending item and rejects it with `AbortSignal.abort().reason`, i.e. an `AbortError`. It never touches already-running tasks: the public declaration states \"Note: This does not cancel promises that are already running.\" Because the default configuration leaves pending promises unresolved, awaiting them (for example with `Promise.all`) is the case for which `rejectOnClear` is documented as recommended.\n"
+    },
+    {
+      "name": "limit_function_type_contract.md",
+      "classification": "safe",
+      "type": "project",
+      "description": "p-limit's declared limitFunction takes a PromiseLike-returning fn and returns a Promise-returning fn with clearQueue",
+      "content": "---\ndescription: p-limit's declared limitFunction takes a PromiseLike-returning fn and returns a Promise-returning fn with clearQueue\ntype: project\n---\nIn the p-limit package, `index.d.ts` declares the `limitFunction` public contract as `export function limitFunction<Arguments extends unknown[], ReturnType>(function_: (...arguments_: Arguments) => PromiseLike<ReturnType>, options: Options): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;`. This is a type-level contract grounded in the declarations, not a runtime restriction: the input must be PromiseLike-returning, unlike the `LimitFunction` call signature whose parameter accepts `PromiseLike<ReturnType> | ReturnType`; `index.test-d.ts` asserts the narrower limitFunction input with `expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));`. The declared return type exposes only `clearQueue` from `LimitFunction`. The `index.js` implementation builds this by creating its own limiter and returning `(...arguments_) => limit(() => function_(...arguments_))` with `clearQueue` defined as `limit.clearQueue`. The user asked to remember this inspected limitFunction input/output type contract for future maintenance.\n"
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 import { memoryWriteBlock } from "./memory-write-guard";
 import { incompleteEvidencePolicies } from "./learning-controls";
 import { shouldReportLearningReceipt, learningSummaryTone } from "./learning-efficiency";
-import { indexedMemoryEvidence } from "./evidence-presentation";
+import { MemoryCitationLocationError, locatedMemoryEvidence, resolveMemoryPlanCitations, MEMORY_LOCATION_GUIDANCE } from "./memory-citation-locations";
 import { retrieveMemory } from "./memory-retrieval";
 import { plannerReadArgs } from "./planner-read-scope";
 import {partitionReviewedNewMemory} from "./independent-memory-partition";
@@ -75,7 +75,8 @@ import { recentProjectLearningInput } from "./learning-input";
 import type { LearningInputSource } from "./learning-efficiency";
 import { enqueueBacklog, backlogStatus, readBacklog, backlogIdentity, acknowledgeBacklog, type BacklogEntry, type BacklogReason } from "./learning-backlog";
 import { replayLearningBacklog, learningReceiptComplete, recordBacklogAttempt, claimLearningLease, beginBacklogAttempt } from "./learning-replay";
-import { expandIncrementalMemoryPlan } from "./incremental-memory-plan";
+import type { MemoryReplayFeedback } from "./learning-replay-feedback";
+import { expandIncrementalMemoryPlan, IncrementalMemoryNameCollisionError } from "./incremental-memory-plan";
 import { automaticPhasePolicies } from "./learning-controls";
 import { readLearningSettings as readSettings, writeLearningSettings as writeSettings } from "./learning-settings";
 import { currentLearningBatch, withLearningBatch, checkPendingLearningMutations, listLearningHistory, memoryMutationFiles, normalizeTrackedMemory, recordLearningMutation, recordLearningProposal, recoverLearningUndo } from "./learning-history";
@@ -109,6 +110,7 @@ import {
   readPrivateIndexNames,
   normalizeNewMemoryProposals,
   normalizeSnapshotEvidence,
+  snapshotEditPatchText,
   MAX_STDERR_BYTES,
   releaseConsolidationRun,
   resolveConsolidationRunPaths,
@@ -613,12 +615,55 @@ export function candidateCitationProblems(evidence: unknown, candidates: readonl
       }
       const quote = typeof item.quote === "string" ? item.quote : "";
       if (!quote) { problems.push(`${position}: cited entry ${index} has no quote`); continue; }
-      if (!citationEntryText(entries[index as number]).includes(quote)) problems.push(`${position}: quote is absent from cited entry ${index}`);
+      if (!citationEntryText(entries[index as number]).includes(quote)
+        && !snapshotEditPatchText(entries[index as number])?.includes(quote)) problems.push(`${position}: quote is absent from cited entry ${index}`);
       try { normalizeSnapshotEvidence([item], evidence); }
       catch { problems.push(`${position}: citation must be bounded, non-sensitive, exact user or tool result evidence with matching role`); }
     }
   });
   return problems;
+}
+
+/** One structural correction: restore source indentation, never words or indexes.
+ * The final quote must still pass the ordinary exact, role and privacy gates. */
+export function repairCitationIndentation(raw: unknown, evidence: unknown): {
+  plan: unknown;
+  corrections: { field: string; candidate: number; citation: number; index: number }[];
+} {
+  const corrections: { field: string; candidate: number; citation: number; index: number }[] = [];
+  const plan = asRecord(raw), snapshot = asRecord(evidence);
+  if (!plan || !Array.isArray(snapshot?.entries)) return { plan: raw, corrections };
+  const entries = snapshot.entries;
+  const restored = { ...plan };
+  for (const field of ["operations", "newMemories"] as const) {
+    if (!Array.isArray(plan[field])) continue;
+    restored[field] = plan[field].map((value, candidate) => {
+      const item = asRecord(value);
+      if (!item || !Array.isArray(item.evidence)) return value;
+      return { ...item, evidence: item.evidence.map((value, citation) => {
+        const ref = asRecord(value);
+        if (!ref || !Number.isSafeInteger(ref.index) || typeof ref.quote !== "string"
+          || ref.quote.length > 2_000 || !ref.quote.includes("\n")) return value;
+        const index = ref.index as number;
+        const source = citationEntryText(entries[index]);
+        if (source.includes(ref.quote)) return value;
+        const quoteLines = ref.quote.split("\n").map(line => line.replace(/^[\t ]+/, ""));
+        const lines = source.split("\n"), matches: string[] = [];
+        for (let start = 0; start + quoteLines.length <= lines.length; start++) {
+          if (quoteLines.every((line, offset) => lines[start + offset].replace(/^[\t ]+/, "") === line)) {
+            matches.push(lines.slice(start, start + quoteLines.length).join("\n"));
+            if (matches.length > 1) break;
+          }
+        }
+        if (matches.length !== 1) return value;
+        const fixed = { ...ref, quote: matches[0] };
+        try { normalizeSnapshotEvidence([fixed], evidence); } catch { return value; }
+        corrections.push({ field, candidate, citation, index });
+        return fixed;
+      }) };
+    });
+  }
+  return { plan: corrections.length ? restored : raw, corrections };
 }
 
 /**
@@ -653,14 +698,18 @@ export function memoryStopReason(args: {
 /**
  * Receipt diagnostic for a Memory attempt. A Jev judgment keeps its own
  * reason. A controlled stop reason attaches only to a recorded failure, so a
- * rejected, applied, proposed, noop, or cancelled attempt never carries one.
+ * applied, proposed, noop, or cancelled attempt never carries one. Structural
+ * rejections carry only the parent's fixed validation category.
  */
 export function memoryAttemptDiagnostic(args: {
   outcome: string;
   jev?: { status: string; reason: string } | undefined;
   stopReason: string;
+  structuralRejection?: "citation" | "plan";
 }): string | undefined {
   if (args.jev) return `Jev ${args.jev.status}: ${args.jev.reason}`;
+  if (args.outcome === "rejected" && args.structuralRejection) return args.structuralRejection === "citation"
+    ? "Memory citation validation rejected" : "Memory plan validation rejected";
   return args.outcome === "failed" ? args.stopReason : undefined;
 }
 
@@ -796,7 +845,29 @@ function validateIncrementalRepairRetention(
   rejectedPlan: unknown,
   repairedPlan: unknown,
   selectedNames: readonly string[],
+  structuralCorrection = false,
 ): string | undefined {
+  // New proposal stems are recoverable identities; existing mutation targets
+  // are exact indexed filenames and never receive this structural correction.
+  const rejected = asRecord(rejectedPlan);
+  if (structuralCorrection && Array.isArray(rejected?.newMemories)) {
+    const canonicalName = (value: unknown): string | undefined => {
+      const name = asRecord(value)?.name;
+      return typeof name === "string" ? isMemoryFilename(name) ? name
+        : isMemoryFilename(name + ".md") ? name + ".md" : undefined : undefined;
+    };
+    const names = rejected.newMemories.map(canonicalName);
+    for (const [index, value] of rejected.newMemories.entries()) {
+      const name = names[index];
+      if (!name || name === asRecord(value)?.name) continue;
+      if (selectedNames.some(selected => selected.toLowerCase() === name.toLowerCase())
+        || names.filter(other => other?.toLowerCase() === name.toLowerCase()).length !== 1) {
+        return "repair cannot resolve an ambiguous new Memory filename";
+      }
+    }
+    rejectedPlan = {...rejected, newMemories: rejected.newMemories.map((value, index) =>
+      names[index] ? {...asRecord(value), name: names[index]} : value)};
+  }
   const expected = collectIncrementalRepairIntent(rejectedPlan, selectedNames);
   if (expected.operations.size === 0 && expected.newMemories.size === 0) return undefined;
   const actual = collectIncrementalRepairIntent(repairedPlan, selectedNames);
@@ -864,7 +935,51 @@ export function semanticMemoryRepairFields(candidates: readonly unknown[], revie
 }
 
 
-function preserveReviewedMemoryFields(prior: Record<string, unknown>, item: Record<string, unknown>, fields: readonly ("body" | "description")[]): Record<string, unknown> {
+
+/** A new fact may be narrower than its rejected explanation. This produces a
+ * candidate only; complete combined review and every write gate still follow. */
+export function distillReviewedNewMemory(plan: unknown, candidates: readonly unknown[], review: JevCandidateReview | undefined,
+  evidence: unknown, existing: readonly unknown[], windows: number | undefined): { plan: unknown; names: string[] } {
+  const unchanged = { plan, names: [] as string[] };
+  const record = asRecord(plan);
+  if (!record || !Array.isArray(record.newMemories) || !review || review.version !== 1
+    || review.purpose !== "diagnostic-only" || review.complete !== true || review.sameBatchIndependenceReviewed !== false
+    || review.model !== "jev-1.13.0" || !Number.isSafeInteger(windows) || !windows || windows < 1
+    || review.evidenceDigest !== sha256Digest(JSON.stringify(evidence))
+    || review.existingDigest !== sha256Digest(JSON.stringify(existing))
+    || review.candidatesDigest !== sha256Digest(JSON.stringify(candidates))
+    || review.candidates.length !== candidates.length) return unchanged;
+  const names: string[] = [];
+  const newMemories = record.newMemories.map(value => {
+    const item = asRecord(value);
+    const index = candidates.findIndex(value => asRecord(value)?.name === item?.name);
+    const original = asRecord(candidates[index]), observation = review.candidates[index];
+    if (!item || !original || !["project", "preference"].includes(String(original.kind))
+      || item.kind !== original.kind || item.classification !== original.classification
+      || typeof original.content !== "string" || !observation || observation.index !== index
+      || observation.candidateDigest !== sha256Digest(JSON.stringify(original)) || observation.outcome !== "held"
+      || !Array.isArray(observation.passedChecks) || !Array.isArray(observation.heldChecks)) return value;
+    // The original checklist cannot justify replacing a newly repaired claim or
+    // its sources. Distillation is a fallback for an unchanged held proposal;
+    // the actual correction must reach combined review without being overwritten.
+    if (item.content !== original.content || JSON.stringify(item.evidence) !== JSON.stringify(original.evidence)) return value;
+    const match = /^(---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))([\s\S]*)$/.exec(original.content);
+    const description = match && /^description:[ \t]*([^\r\n]+)$/m.exec(match[2])?.[1];
+    if (!match || !description || description.startsWith('"') || description.startsWith("'")) return value;
+    const expected = [`supported_${index}`, `supported_description_${index}`,
+      ...(existing.length ? [`relation_${index}`, `relation_description_${index}`] : []),
+      ...Array.from({length: windows}, (_, window) => [`counter_${index}_${window}`, `counter_description_${index}_${window}`]).flat()];
+    const all = [...observation.passedChecks, ...observation.heldChecks];
+    if (!observation.heldChecks.length || all.length !== expected.length || new Set(all).size !== all.length
+      || all.some(key => !expected.includes(key)) || observation.heldChecks.some(key => key.includes("_description_"))
+      || expected.filter(key => key.includes("_description_")).some(key => !observation.passedChecks.includes(key))) return value;
+    names.push(String(item.name));
+    return {...item, content: match[1] + match[2] + match[3] + description + "\n", evidence: original.evidence};
+  });
+  return names.length ? {plan: {...record, newMemories}, names} : unchanged;
+}
+
+function preserveReviewedMemoryFields(prior: Record<string, unknown>, item: Record<string, unknown>, fields: readonly ("body" | "description")[], frozenEvidence?: unknown): Record<string, unknown> {
   if (typeof prior.content !== "string") return item;
   if (typeof item.content !== "string") throw new Error("Semantic replacement lost Memory content");
   const split = (content: string) => /^(---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))([\s\S]*)$/.exec(content);
@@ -878,22 +993,59 @@ function preserveReviewedMemoryFields(prior: Record<string, unknown>, item: Reco
     header = header.replace(pattern, (_match, prefix: string) => prefix + description[2]);
   }
   const content = original[1] + header + original[3] + (fields.includes("body") ? replacement[4] : original[4]);
+  // Claim repair cannot erase validated observations or change other metadata.
+  // The optional content hash is derived from the merged bytes, not protected
+  // predecessor state or a worker-supplied replacement hash.
+  const preserved = {...prior, ...("contentSha256" in prior ? {contentSha256: sha256Digest(content)} : {})};
+  // If both claim fields were held, their replacement has its own citation
+  // footprint. The rejected plan remains archived; the replacement still passes
+  // the ordinary citation bounds and complete semantic review before writing.
+  if (fields.includes("body") && fields.includes("description")) return {...preserved, content, evidence: item.evidence};
   // Protected claims retain their original sources. Bounds and exact quotes are
   // checked again on the complete union; never truncate citations to make it fit.
-  const evidence: unknown[] = [];
-  for (const value of [...(Array.isArray(prior.evidence) ? prior.evidence : []), ...(Array.isArray(item.evidence) ? item.evidence : [])]) {
-    if (!evidence.some(existing => JSON.stringify(existing) === JSON.stringify(value))) evidence.push(value);
+  const originalEvidence: unknown[] = Array.isArray(prior.evidence) ? prior.evidence : [];
+  const evidence: unknown[] = [...originalEvidence];
+  for (const value of Array.isArray(item.evidence) ? item.evidence : []) {
+    const citation = asRecord(value);
+    // Original sources may already cover a new fragment. Another index or
+    // role is always distinct evidence.
+    const contained = citation && typeof citation.quote === "string" && citation.quote.length > 0
+      && originalEvidence.some(value => {
+        const source = asRecord(value);
+        if (source?.index !== citation.index || typeof source?.quote !== "string" || !source.quote.includes(citation.quote as string)) return false;
+        if (frozenEvidence !== undefined) {
+          try { return normalizeSnapshotEvidence([source], frozenEvidence)[0].role === normalizeSnapshotEvidence([citation], frozenEvidence)[0].role; }
+          catch { return false; }
+        }
+        return source.role === citation.role;
+      });
+    if (contained || evidence.some(existing => JSON.stringify(existing) === JSON.stringify(value))) continue;
+    // A complete verified larger quote can carry the protected quote's exact
+    // bytes too. Keep its original index/role; never merge partial overlaps or
+    // truncate either source to satisfy the citation count bound.
+    const enlarged = citation && typeof citation.quote === "string" && frozenEvidence !== undefined
+      ? evidence.findIndex(value => {
+        const source = asRecord(value);
+        if (source?.index !== citation.index || typeof source?.quote !== "string" || !source.quote.length
+          || !String(citation.quote).includes(source.quote)) return false;
+        try { return normalizeSnapshotEvidence([source], frozenEvidence)[0].role === normalizeSnapshotEvidence([citation], frozenEvidence)[0].role; }
+        catch { return false; }
+      }) : -1;
+    if (enlarged >= 0) evidence[enlarged] = value;
+    else evidence.push(value);
   }
-  return { ...item, content, evidence };
+  return { ...preserved, content, evidence };
 }
 
-export function mergeSemanticMemoryRepairDelta(original: unknown, delta: unknown, repairableNames?: readonly string[], repairableFields?: MemoryRepairFields): unknown {
+export function mergeSemanticMemoryRepairDelta(original: unknown, delta: unknown, repairableNames?: readonly string[], repairableFields?: MemoryRepairFields, frozenEvidence?: unknown): unknown {
   const before = asRecord(original), after = asRecord(delta);
   if (!before || !after) throw new Error("Semantic repair requires plan objects");
   const allowed = repairableNames ? new Set(repairableNames) : undefined;
   const merged = { ...after };
   for (const field of ["operations", "newMemories"] as const) {
-    const originals = before[field], replacements = after[field];
+    // A sparse repair's omitted array means no replacements, never deletion.
+    // Explicit null/non-arrays are malformed and retain their ordinary hold.
+    const originals = before[field], replacements = Object.hasOwn(after, field) ? after[field] : [];
     if (!Array.isArray(originals) || !Array.isArray(replacements)) throw new Error("Semantic repair requires both delta arrays");
     const byName = new Map<string, Record<string, unknown>>();
     for (const value of replacements) {
@@ -903,7 +1055,12 @@ export function mergeSemanticMemoryRepairDelta(original: unknown, delta: unknown
       if (!prior) throw new Error("Semantic repair introduced an unexpected name");
       if (item.kind !== prior.kind || item.classification !== prior.classification) throw new Error("Semantic repair changed kind or privacy");
       if (allowed && !allowed.has(item.name) && JSON.stringify(item) !== JSON.stringify(prior)) throw new Error("Semantic repair changed an unflagged candidate");
-      byName.set(item.name, repairableFields?.[item.name] ? preserveReviewedMemoryFields(prior, item, repairableFields[item.name]) : item);
+      const replacement = repairableFields?.[item.name]
+        ? preserveReviewedMemoryFields(prior, item, repairableFields[item.name], frozenEvidence) : item;
+      // A bounds refusal has no field checklist. Its broad claim repair still
+      // cannot erase or replace the original parent-validated source observations.
+      byName.set(item.name, Object.hasOwn(prior, "observations")
+        ? {...replacement, observations: prior.observations} : replacement);
     }
     merged[field] = originals.map(value => {
       const name = asRecord(value)?.name;
@@ -960,6 +1117,8 @@ export interface IncrementalMemoryRepairInput {
   structuralCorrection?: boolean;
   repairableNames?: readonly string[];
   repairableFields?: MemoryRepairFields;
+  /** Parent-reviewed retained names; only separately held proposal fields may also change. */
+  retainedRepairNames?: readonly string[];
   outputDir?: string;
   semanticContext?: { frozenEvidence: unknown; existingMemories: readonly import("./incremental-learning").SelectedMemory[] };
 }
@@ -970,10 +1129,44 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
   plan?: unknown;
   usage?: Awaited<ReturnType<typeof runPiWorker>>["usage"];
   error?: string;
-  failureKind?: "framing" | "intent";
+  failureKind?: "framing" | "intent" | "citation";
 }> {
   const startedAt = Date.now();
-  const sparseSemantic = !!input.semanticContext && !input.structuralCorrection && typeof asRecord(input.rejectedPlan)?.malformedPlanText !== "string";
+  let citationSpellingHints: unknown;
+  if (input.structuralCorrection && input.semanticContext && input.errors.length
+    && input.errors.every(error => /quote is not present in the cited snapshot entry|^Citations are invalid:/.test(error))) {
+    const restored = repairCitationIndentation(input.rejectedPlan, input.semanticContext.frozenEvidence);
+    const plan = asRecord(restored.plan);
+    if (restored.corrections.length && plan) citationSpellingHints = restored.corrections.map(location => {
+      const items = plan[location.field] as Record<string, unknown>[];
+      const citations = items[location.candidate].evidence as Record<string, unknown>[];
+      return { ...location, quote: citations[location.citation].quote };
+    });
+    if (restored.corrections.length && Array.isArray(plan?.operations) && Array.isArray(plan.newMemories)
+      && !candidateCitationProblems(input.semanticContext.frozenEvidence, [...plan.operations, ...plan.newMemories]).length) {
+      if (input.outputDir) await writeFileAtomic(path.join(input.outputDir, "citation-indentation-repair.json"),
+        `${JSON.stringify({ kind: "citation-indentation-repair", version: 1, runId: input.identity.runId,
+          snapshotDigest: input.identity.snapshotDigest, corrections: restored.corrections }, null, 2)}\n`);
+      // This consumes the existing structural correction slot. Expansion,
+      // intent, privacy and full semantic validation still follow in the caller.
+      return { outcome: "repaired", plan: restored.plan, durationMs: Date.now() - startedAt,
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: 0 } };
+    }
+  }
+  const combinedSemantic = !!input.retainedRepairNames && !!input.repairableNames?.length;
+  if (input.retainedRepairNames) {
+    const original = asRecord(input.rejectedPlan);
+    const originalCandidates = [...(Array.isArray(original?.operations) ? original.operations : []),
+      ...(Array.isArray(original?.newMemories) ? original.newMemories : [])];
+    if (!input.semanticContext || !Array.isArray(original?.operations)
+      || !Array.isArray(original.newMemories) || !input.retainedRepairNames.length
+      || new Set(input.retainedRepairNames).size !== input.retainedRepairNames.length
+      || input.retainedRepairNames.some(name => !input.selectedNames.includes(name)
+        || originalCandidates.some(value => asRecord(value)?.name === name))) {
+      return {outcome: "failed", durationMs: Date.now() - startedAt, failureKind: "intent", error: "Invalid retained Memory correction scope"};
+    }
+  }
+  const sparseSemantic = !!input.semanticContext && !input.retainedRepairNames && !input.structuralCorrection && typeof asRecord(input.rejectedPlan)?.malformedPlanText !== "string";
   const repairSchema = JSON.stringify({
     kind: "incremental-memory-plan",
     version: CONSOLIDATION_SCHEMA_VERSION,
@@ -984,7 +1177,7 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
     artifactHash: input.identity.artifactHash,
     snapshotDigest: input.identity.snapshotDigest,
     operations: [],
-    newMemories: sparseSemantic ? [] : [{
+    newMemories: sparseSemantic || input.retainedRepairNames ? [] : [{
       name: "project_fact_example.md",
       kind: "project",
       classification: "safe",
@@ -997,24 +1190,31 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
     "Return exactly one JSON object and no prose. Preserve the supplied identity and selected scope.",
     input.semanticContext ? "Correct every bounded validation error and ground each retained claim in the supplied original evidence. Do not promote one-task instructions or temporary failures into durable preferences." : "Change only fields needed to resolve every bounded validation error.",
     "Use only the supplied JSON; do not request additional context or rerun planning.",
+    ...(input.retainedRepairNames ? ["Full-evidence review held unchanged existing claims in retainedRepairNames. Return cited rewrite or justified delete operations covering all of those names. Unless repairableNames separately identifies held original proposals, keep newMemories empty and do not repeat or modify original proposals. The parent preserves unflagged original operations and proposals exactly. Reconsider the held records using complete original evidence and exact predecessor bodies. Do not infer mutation authority from the review. If no supported correction can be produced, return no operation; the parent retains the failure rather than acknowledging correction."] : []),
+    ...(input.retainedRepairNames ? ["Retained operation protocol: each retained-record operation requires name (one exact retainedRepairName), kind, classification (unchanged safe/private from its existing record), and evidence with original indexes plus exact quotes or parent-extracted citation locations. A rewrite requires content containing the complete replacement Markdown, with name/description/type frontmatter; never provide verdict or preservedIn on rewrite. A delete has no content/contentSha256 and requires verdict exactly CONTRADICTED, SUPERSEDED or SUBSUMED plus non-empty preservedIn. Each preservedIn target must be an existing regular repository file or a same-plan rewrite name, must not be deleted, and must actually preserve the required knowledge; mentioning a target does not prove preservation. If justified preservation cannot be established, propose a supported rewrite instead or return no operation; never invent a target."] : []),
     "If rejectedPlan contains malformedPlanText, it is untrusted damaged output with no established mutation intent. The selected existing scope is empty. Regenerate only private new proposals grounded in frozenEvidence; damaged output cannot authorize sharing. Never copy damaged text as evidence or create existing-record operations.",
     "The repaired output MUST follow this exact incremental delta schema:",
     repairSchema,
     "The schema example is not evidence: never copy its name, fact or citation into a real candidate. Write each index description as one independently supported clause, not a compressed bundle. Preserve the evidence level: a type declaration establishes a type-level restriction, not necessarily a runtime restriction; label declared or type-level claims accordingly. A Promise and a PromiseLike are distinct contracts. Write it as a concrete supported fact from that candidate, not an assurance that it is grounded or useful. Preserve material conditions and exceptions; the complete body remains authoritative and every description claim still needs original evidence.",
     'newMemories[].kind must be exactly "preference" or "project"; "project-fact" and every other alias are invalid.',
     "Each newMemories item requires name, kind, content, and non-empty evidence; classification is only safe or private, and evidence items use a snapshot index plus a verbatim user or tool-result quote.",
+    ...(input.semanticContext ? [MEMORY_LOCATION_GUIDANCE] : []),
     "Model-facing frozenEvidence.entries wraps each original as {snapshotIndex, entry}. Use snapshotIndex as evidence.index; inspect entry.message.role (or entry.role) and quote only user/toolResult content. Labels are not evidence, and array positions from other lists are not snapshot indexes.",
+    "citationSpellingHints, when present, contain unique verbatim source substrings restoring only line indentation at the same index. Copy those exact quotes at their indicated locations. They do not establish claims or repair other citations. Tool-output line numbers and comment indentation are part of the original text: never remove them inside a verbatim quote.",
     "Every rewrite/delete operation requires evidence: [{index: original snapshot entry index, quote: verbatim user or tool-result quote}]. Operations may only use rewrite or delete for the supplied selected names; never add parent-derived fields such as selected, inventory, clusters, staleness, grounding, or report.",
-    sparseSemantic ? "Return only replacements for repairableNames (or original names if no list is supplied). Omitted operations and newMemories are retained byte-for-byte by the parent; omission never deletes a proposal. Do not rewrite unflagged candidates. Keep exact names, kinds and privacy. repairableFields lists only held body/description fields; the parent preserves every other field and its original citations. Do not rewrite accepted fields. Use the shortest directly supported fact; A repaired description must be at most 120 characters. An observed function call or assignment does not establish when an asynchronous operation completes. In particular, resolve(taskPromise) adopts that promise; it does not show the caller observes completion before the task settles. A source comment about resolving immediately does not override that distinction. Do not introduce new explanations while correcting an existing claim." : "Retain every recognizable original selected operation and new proposal by its exact name; preserve an original rewrite as rewrite and an original delete as delete. Correct invalid fields in place instead of dropping, renaming, or replacing an intent, and do not introduce new names or unrelated knowledge.",
+    input.retainedRepairNames && !combinedSemantic ? "Return the retained-record amendment only. Original proposals in rejectedPlan are immutable context, not output to regenerate."
+      : sparseSemantic || combinedSemantic ? "Return only replacements for repairableNames (or original names if no list is supplied), plus operations for the separately supplied retainedRepairNames when present. Those disjoint lists refer to original proposed candidates and previously unchanged existing records respectively; their review indexes must never be interchanged. Omitted operations and newMemories are retained byte-for-byte by the parent; omission never deletes a proposal. Do not rewrite unflagged candidates. Keep exact names, kinds and privacy. repairableFields lists only held body/description fields; the parent preserves every other field and its original citations. Do not rewrite accepted fields. A rewrite body may contain multiple independently supported facts. Do not discard still-valid predecessor knowledge to shorten a body; use existingMemories and the original operation to preserve its supported distinctions, conditions and usage guidance. Preserve independently supported unresolved failure observations and their valid citations; remove unsupported causes or claimed fixes instead of removing the observation. Do not blindly append an obsolete predecessor body. Shortening is not a reason to discard knowledge; change only the held content requiring correction. A repaired description must be at most 120 characters and express exactly one source-backed claim. For a guarded state transition, retain exact source identifiers and comparison operators instead of vague condition shorthand. Do not append a second mechanism or timing claim to that description; its body remains authoritative. An observed function call or assignment does not establish when an asynchronous operation completes. In particular, resolve(taskPromise) adopts that promise; it does not show the caller observes completion before the task settles. A source comment about resolving immediately does not override that distinction. Do not introduce new explanations while correcting an existing claim." : "Retain every recognizable original selected operation and new proposal by its exact name; preserve an original rewrite as rewrite and an original delete as delete. Correct invalid fields in place instead of dropping, renaming, or replacing an intent, and do not introduce new names or unrelated knowledge.",
     ...(input.semanticContext ? [MEMORY_CITATION_GUIDANCE, `${input.structuralCorrection ? "This is the existing structural correction slot" : "This is a semantic correction"}: use only the supplied frozen evidence and existing Memory. Remove unsupported inferences while retaining the directly stated facts. A note or example does not establish an ongoing process or maintained institution. Preserve privacy classifications. Do not add claims of verification, ownership or scope absent from the evidence.`] : []),
     JSON.stringify({
       identity: input.identity,
       selectedNames: [...input.selectedNames],
-      ...(sparseSemantic && input.repairableNames ? { repairableNames: input.repairableNames } : {}),
-      ...(sparseSemantic && input.repairableFields ? { repairableFields: input.repairableFields } : {}),
+      ...(input.retainedRepairNames ? { retainedRepairNames: input.retainedRepairNames } : {}),
+      ...((sparseSemantic || combinedSemantic) && input.repairableNames ? { repairableNames: input.repairableNames } : {}),
+      ...((sparseSemantic || combinedSemantic) && input.repairableFields ? { repairableFields: input.repairableFields } : {}),
       errors: input.errors.map((error) => error.slice(0, 800)).slice(0, 16),
       rejectedPlan: input.rejectedPlan,
-      ...(input.semanticContext ? { semanticContext: { ...input.semanticContext, frozenEvidence: indexedMemoryEvidence(input.semanticContext.frozenEvidence) } } : {}),
+      ...(citationSpellingHints ? { citationSpellingHints } : {}),
+      ...(input.semanticContext ? { semanticContext: { ...input.semanticContext, frozenEvidence: locatedMemoryEvidence(input.semanticContext.frozenEvidence) } } : {}),
     }),
   ].join("\n");
   const result = await runPiWorker({
@@ -1048,9 +1248,23 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
       sensitive, truncated: result.text.length > 64_000,
       ...(sensitive ? {} : { output: result.text.slice(0, 64_000) }),
     }));
+    if (input.structuralCorrection) await writeFileAtomic(path.join(input.outputDir, "structural-repair-response.json"),
+      await fs.readFile(path.join(input.outputDir, "repair-response.json"), "utf8"));
   }
   let plan = parseIncrementalPlanText(result.text);
   if (!plan) return { outcome: "failed", durationMs, usage: result.usage, failureKind: "framing", error: "repair returned no unique bounded incremental-memory-plan object" };
+  if (input.semanticContext) {
+    try { plan = resolveMemoryPlanCitations(plan, input.semanticContext.frozenEvidence); }
+    catch (error) { return {outcome: "failed", durationMs, usage: result.usage, failureKind: "citation",
+      error: error instanceof MemoryCitationLocationError ? error.message : "Memory repair citation location is invalid"}; }
+    const restored = repairCitationIndentation(plan, input.semanticContext.frozenEvidence);
+    if (restored.corrections.length) {
+      plan = restored.plan;
+      if (input.outputDir) await writeFileAtomic(path.join(input.outputDir, "semantic-citation-indentation-repair.json"),
+        `${JSON.stringify({ version: 1, runId: input.identity.runId, snapshotDigest: input.identity.snapshotDigest,
+          corrections: restored.corrections }, null, 2)}\n`);
+    }
+  }
   if (typeof asRecord(input.rejectedPlan)?.malformedPlanText === "string") {
     // Damaged JSON cannot establish sharing intent. The parent owns this
     // conservative classification before citations, semantic review and apply.
@@ -1061,10 +1275,40 @@ export async function repairIncrementalMemoryPlan(input: IncrementalMemoryRepair
     });
   }
   if (sparseSemantic) {
-    try { plan = mergeSemanticMemoryRepairDelta(input.rejectedPlan, plan, input.repairableNames, input.repairableFields); }
+    try { plan = mergeSemanticMemoryRepairDelta(resolveMemoryPlanCitations(input.rejectedPlan, input.semanticContext!.frozenEvidence), plan, input.repairableNames, input.repairableFields, input.semanticContext!.frozenEvidence); }
     catch { return { outcome: "failed", durationMs, usage: result.usage, failureKind: "intent", error: "Semantic replacement changed protected intent" }; }
   }
-  const retentionError = validateIncrementalRepairRetention(input.rejectedPlan, plan, input.selectedNames);
+  let originalRepairPlan = plan;
+  if (input.retainedRepairNames) {
+    const proposed = asRecord(plan);
+    const allOperations = Array.isArray(proposed?.operations) ? proposed.operations : [];
+    const operations = allOperations.filter(value => input.retainedRepairNames!.includes(String(asRecord(value)?.name)));
+    const replacements = allOperations.filter(value => !input.retainedRepairNames!.includes(String(asRecord(value)?.name)));
+    const prior = new Map(input.semanticContext!.existingMemories.map(item => [item.name, item]));
+    if (!Array.isArray(proposed?.operations) || !Array.isArray(proposed?.newMemories)
+      || !combinedSemantic && (proposed.newMemories.length > 0 || replacements.length > 0)
+      || !operations.length || new Set(operations.map(value => asRecord(value)?.name)).size !== operations.length
+      || input.retainedRepairNames.some(name => !operations.some(value => asRecord(value)?.name === name))
+      || operations.some(value => {
+        const item = asRecord(value);
+        return !item || typeof item.name !== "string" || !prior.has(item.name)
+          || !["rewrite", "delete"].includes(String(item.kind))
+          || item.kind === "rewrite" && item.classification !== prior.get(item.name)!.classification;
+      })) return {outcome: "failed", durationMs, usage: result.usage, failureKind: "intent", error: "Retained Memory correction did not produce a bounded operation"};
+    const original = resolveMemoryPlanCitations(input.rejectedPlan, input.semanticContext!.frozenEvidence);
+    try {
+      originalRepairPlan = combinedSemantic
+        ? mergeSemanticMemoryRepairDelta(original, {...proposed, operations: replacements}, input.repairableNames, input.repairableFields, input.semanticContext!.frozenEvidence)
+        : {...proposed, operations: asRecord(original)!.operations, newMemories: asRecord(original)!.newMemories};
+    } catch { return {outcome: "failed", durationMs, usage: result.usage, failureKind: "intent", error: "Semantic replacement changed protected intent"}; }
+    const merged = asRecord(originalRepairPlan)!;
+    plan = {...merged, operations: [...merged.operations as unknown[], ...operations]};
+  }
+  // Added operations above have a separate exact-name/coverage gate. Original
+  // proposals remain unchanged; the usual identity and full combined-plan gates
+  // still run after expansion in the parent.
+  const retentionPlan = input.retainedRepairNames ? originalRepairPlan : plan;
+  const retentionError = validateIncrementalRepairRetention(input.rejectedPlan, retentionPlan, input.selectedNames, input.structuralCorrection === true);
   if (retentionError) return { outcome: "failed", durationMs, usage: result.usage, failureKind: "intent", error: retentionError };
   return { outcome: "repaired", durationMs, plan, usage: result.usage };
 }
@@ -1374,6 +1618,10 @@ async function spawnAsyncConsolidation(
           artifactHash: run.manifest.snapshotDigest,
           snapshotDigest: run.manifest.snapshotDigest,
           dossierPath: opts.dossierPath ?? "",
+          existingMemoryNames: [...new Set([
+            ...Object.keys(run.manifest.sourceHashes.harness),
+            ...Object.keys(run.manifest.sourceHashes.public),
+          ])].sort(),
         })
       : buildMemoryConsolidatorPrompt({
           pkgDir: opts.pkgDir,
@@ -1573,9 +1821,12 @@ async function spawnAsyncConsolidation(
   let finished = false;
   let timedOut = false;
   let repairAttempt: LearningAttempt | undefined;
+  let structuralRepairAttempt: LearningAttempt | undefined;
   let semanticRepair = false;
   let semanticRepairAccepted = false;
+  let originalSubsetApplied = false;
   let repairDiagnostic: { originalError: string; repairError?: string } | undefined;
+  let structuralRejection: "citation" | "plan" | undefined;
   let appliedOperationCount = 0;
   let proposed = false;
   let jev: JevTelemetry | undefined;
@@ -1717,14 +1968,33 @@ async function spawnAsyncConsolidation(
           try {
             plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, rawPlan);
           } catch (error) {
+            if (error instanceof IncrementalMemoryNameCollisionError) {
+              if (!ownsCurrentRun()) return;
+              // Existing correction preserves names and selected scope, so no
+              // worker response can repair this create. Preserve the proposal
+              // and backlog without paying for an impossible correction.
+              await recordLearningProposal(opts.cwd, "memory", rawPlan);
+              if (!ownsCurrentRun()) return;
+              await persistRunDiagnostics();
+              if (!ownsCurrentRun()) return;
+              structuralRejection = "plan";
+              state.outcome = "unverified";
+              notifyPi(ctx.ui, "Memory proposal uses an occupied filename outside selected scope; existing knowledge was preserved and learning remains pending.", "warning");
+              return;
+            }
             incrementalError = (error as Error).message;
             originalIncrementalError = incrementalError;
+            structuralRejection = error instanceof MemoryCitationLocationError || /quote is not present in the cited snapshot entry|^Citations are invalid:/.test(incrementalError) ? "citation" : "plan";
           }
         } else {
           plan = rawPlan;
         }
         if (incremental && rejectedPlan && !plan && incrementalError) {
           const originalError = originalIncrementalError ?? incrementalError;
+          await writeFileAtomic(path.join(run.manifest.runDir, "structural-rejection.json"),
+            `${JSON.stringify({version: 1, runId: run.manifest.runId, snapshotDigest: run.manifest.snapshotDigest,
+              category: structuralRejection ?? "plan", originalPlanDigest: sha256Digest(JSON.stringify(rejectedPlan)),
+              reason: safeIncrementalRepairReason(originalError)}, null, 2)}\n`);
           const frozenRepair = await loadFrozenMemoryRepairContext({
               snapshotPath: run.paths.snapshotFile, snapshotDigest: run.manifest.snapshotDigest,
               dossierPath: opts.dossierPath!, dossierDigest: opts.dossierDigest!, signal: state.controller?.signal,
@@ -1756,6 +2026,7 @@ async function spawnAsyncConsolidation(
             usage: repair.usage,
             diagnostic: "Memory structural repair",
           };
+          structuralRepairAttempt = repairAttempt;
           if (!ownsCurrentRun()) return;
           await frozenRepair?.assertFrozen();
           if (repair.outcome === "repaired" && repair.plan) {
@@ -1808,6 +2079,7 @@ async function spawnAsyncConsolidation(
           await runConsolidationValidator(opts.pkgDir, run, planPath, "plan", expectedSelected);
           if (!ownsCurrentRun()) return;
           let semanticProposal = false;
+          let heldMemoryReview: Record<string, unknown> | undefined;
           let assertSemanticInputsFrozen: (() => Promise<void>) | undefined;
           if (opts.jevJudge?.enabled) {
             const snapshotBytes = await fs.readFile(run.paths.snapshotFile);
@@ -1834,61 +2106,121 @@ async function spawnAsyncConsolidation(
               if (sha256Digest(await fs.readFile(run.paths.snapshotFile)) !== run.manifest.snapshotDigest) throw new Error("Jev frozen evidence changed");
               if (opts.dossierPath && opts.dossierDigest && sha256Digest(await fs.readFile(opts.dossierPath)) !== opts.dossierDigest) throw new Error("Jev frozen Memory dossier changed");
             };
-            const verdict = await opts.jevJudge.validate("memory", frozenEvidence,
-              candidates, existing, state.controller?.signal);
+            let retainedRepairNames: string[] | undefined;
+            let mutationReview: Awaited<ReturnType<JevJudge["validate"]>> | undefined;
+            let retentionReview: Awaited<ReturnType<JevJudge["validate"]>> | undefined;
+            let retainedReviewIndexNames: string[] = [];
+            const validateKnowledge = async (reviewedCandidates: readonly unknown[]) => {
+              retainedRepairNames = undefined;
+              mutationReview = undefined;
+              retentionReview = undefined;
+              const touched = new Set(reviewedCandidates.map(item => asRecord(item)?.name));
+              const retained = existing.filter(item => !touched.has(item.name));
+              retainedReviewIndexNames = (reviewedCandidates.length ? retained : existing).map(item => item.name);
+              let retentionReviewAll: Awaited<ReturnType<JevJudge["validate"]>> | undefined;
+              if (reviewedCandidates.length && retained.length) {
+                const retention = await opts.jevJudge!.validate("memory", frozenEvidence, [], retained, state.controller?.signal);
+                retentionReviewAll = retention;
+                if (!ownsCurrentRun()) throw new Error("Memory review ownership changed");
+                await assertSemanticInputsFrozen!();
+                if (retention.decision === "propose") {
+                  retainedRepairNames = [...new Set((retention.telemetry.candidateFailures ?? [])
+                    .map(failure => retained[failure.candidateIndex]?.name).filter((name): name is string => typeof name === "string"))];
+                  retentionReview = retention;
+                }
+              }
+              const reviewed = await opts.jevJudge!.validate("memory", frozenEvidence,
+                reviewedCandidates, existing, state.controller?.signal);
+              mutationReview = reviewedCandidates.length ? reviewed : undefined;
+              if (!reviewedCandidates.length && reviewed.decision === "propose") {
+                retainedRepairNames = [...new Set((reviewed.telemetry.candidateFailures ?? [])
+                  .map(failure => existing[failure.candidateIndex]?.name).filter((name): name is string => typeof name === "string"))];
+              }
+              const result = reviewed.decision === "propose" ? reviewed : retentionReview ?? reviewed;
+              // The caller records the returned review. Record its sibling once,
+              // including a successful mutation review when retention was held.
+              const sibling = result === reviewed ? retentionReviewAll : reviewed;
+              if (sibling) state.attempts?.push({phase: "memory", attempt: semanticRepair ? 1 : 0,
+                outcome: sibling.decision === "allow" ? "noop" : "proposed", operations: 0,
+                durationMs: sibling.telemetry.durationMs, jev: sibling.telemetry,
+                diagnostic: `Jev ${result === retentionReview ? "mutation" : "retained"} Memory: ${sibling.telemetry.reason}`});
+              return result;
+            };
+            const verdict = await validateKnowledge(candidates);
+            heldMemoryReview = {kind: "independent-memory-review", version: 1, originalPlan: plan,
+              reviewedPlanDigest: sha256Digest(JSON.stringify(plan)), eligibleIndexes: [],
+              heldIndexes: candidates.map((_, index) => index),
+              candidateFailures: verdict === mutationReview ? verdict.telemetry.candidateFailures ?? [] : []};
+            const originalRetentionHeld = retainedRepairNames !== undefined;
             jev = verdict.telemetry;
             semanticProposal = verdict.decision === "propose";
             if (!ownsCurrentRun()) return;
             await assertSemanticInputsFrozen();
-            // Isolated evaluation gate stays off for ordinary configuration.
-            // Only pure new records are partitionable; selected rewrites/deletes
-            // keep the existing whole-plan repair/proposal contract.
-            if (semanticProposal && incremental && opts.applyChanges !== false && !repairAttempt
-              && opts.jevJudge.independentMemoryApplicationEnabled
-              && opts.jevJudge.reviewMemoryRelations && verdict.candidateReview
-              && !(candidate.operations?.length) && candidates.length > 1) {
-              const relations = await opts.jevJudge.reviewMemoryRelations(frozenEvidence, candidates, existing,
-                verdict.candidateReview, state.controller?.signal);
-              state.attempts?.push({phase: "memory", attempt: 0, outcome: "noop", durationMs: relations.telemetry.durationMs,
+            // Apply only complete, unchanged independent knowledge, including
+            // knowledge verified after the single bounded correction attempt.
+            const assertFrozenSubsetInputs = assertSemanticInputsFrozen;
+            let lastSubsetReviewInput: string | undefined;
+            const applyReviewedSubset = async (reviewedPlan: typeof candidate,
+              reviewedCandidates: readonly unknown[], reviewed: Awaited<ReturnType<JevJudge["validate"]>>): Promise<boolean> => {
+              if (retainedRepairNames !== undefined || !incremental || opts.applyChanges === false
+                || !opts.jevJudge?.independentMemoryApplicationEnabled
+                || !opts.jevJudge.reviewMemoryRelations || !reviewed.candidateReview
+                || reviewedPlan.operations?.length || reviewedCandidates.length <= 1
+                || !reviewed.candidateReview.candidates.some(item => item.outcome === "passed")
+                || !reviewed.candidateReview.candidates.some(item => item.outcome === "held")) return false;
+              const reviewInput = JSON.stringify({plan: reviewedPlan, review: reviewed.candidateReview});
+              if (reviewInput === lastSubsetReviewInput) return false;
+              lastSubsetReviewInput = reviewInput;
+              const relations = await opts.jevJudge.reviewMemoryRelations(frozenEvidence, reviewedCandidates, existing,
+                reviewed.candidateReview, state.controller?.signal);
+              state.attempts?.push({phase: "memory", attempt: semanticRepair ? 1 : 0, outcome: "noop", durationMs: relations.telemetry.durationMs,
                 operations: 0, jev: relations.telemetry, diagnostic: `Jev relationships: ${relations.telemetry.reason}`});
-              if (!ownsCurrentRun()) return;
-              await assertSemanticInputsFrozen();
-              if (relations.readinessTelemetry) state.attempts?.push({phase: "memory", attempt: 0, outcome: "noop",
+              if (!ownsCurrentRun()) return false;
+              await assertFrozenSubsetInputs();
+              if (relations.readinessTelemetry) state.attempts?.push({phase: "memory", attempt: semanticRepair ? 1 : 0, outcome: "noop",
                 durationMs: relations.readinessTelemetry.durationMs, operations: 0, jev: relations.readinessTelemetry,
                 diagnostic: `Jev standalone: ${relations.readinessTelemetry.reason}`});
-              const partition = partitionReviewedNewMemory(frozenEvidence, candidates, existing, verdict.candidateReview, relations.review,
+              const partition = partitionReviewedNewMemory(frozenEvidence, reviewedCandidates, existing, reviewed.candidateReview, relations.review,
                 opts.jevJudge.composedMemoryApplicationEnabled ? relations.readiness : undefined);
               if (partition.eligible.length && partition.held.length) {
-                const originalText = `${JSON.stringify(plan, null, 2)}\n`;
+                const originalText = `${JSON.stringify(reviewedPlan, null, 2)}\n`;
                 await recordLearningProposal(opts.cwd, "memory", {kind: "independent-memory-review", version: 1,
-                  originalPlan: plan, eligibleIndexes: partition.eligible, heldIndexes: partition.held});
-                if (!ownsCurrentRun()) return;
-                await assertSemanticInputsFrozen();
+                  originalPlan: reviewedPlan, reviewedPlanDigest: sha256Digest(JSON.stringify(reviewedPlan)),
+                  candidateFailures: reviewed.telemetry.candidateFailures ?? [],
+                  eligibleIndexes: partition.eligible, heldIndexes: partition.held});
+                if (!ownsCurrentRun()) return false;
+                await assertFrozenSubsetInputs();
                 await fs.writeFile(path.join(run.manifest.runDir, "original-memory-plan.json"), originalText, {encoding: "utf8", mode: 0o600});
-                const subset = {...plan as Record<string, unknown>,
-                  newMemories: partition.eligible.map(index => candidate.newMemories![index])};
+                const subset = {...reviewedPlan as Record<string, unknown>,
+                  newMemories: partition.eligible.map(index => reviewedPlan.newMemories![index])};
                 const subsetText = `${JSON.stringify(subset, null, 2)}\n`;
                 const subsetPath = path.join(run.manifest.runDir, "independent-memory-plan.json");
                 await fs.writeFile(subsetPath, subsetText, {encoding: "utf8", mode: 0o600});
                 await runConsolidationValidator(opts.pkgDir, run, subsetPath, "plan", preSelected);
-                if (!ownsCurrentRun()) return;
-                await assertSemanticInputsFrozen();
+                if (!ownsCurrentRun()) return false;
+                await assertFrozenSubsetInputs();
                 plan = subset;
                 planDigest = sha256Digest(subsetText);
                 await fs.writeFile(planPath, subsetText, {encoding: "utf8", mode: 0o600});
                 subsetPendingOperations = partition.held.length;
-                semanticProposal = false;
+                return true;
               }
-            }
-            if (semanticProposal && incremental && opts.applyChanges !== false && !repairAttempt
-              && repairTriggersSemantics(verdict.telemetry.reason)) {
+              return false;
+            };
+            if (!ownsCurrentRun()) return;
+            if (semanticProposal && incremental && opts.applyChanges !== false && !semanticRepair
+              && (repairTriggersSemantics(verdict.telemetry.reason)
+                || retainedRepairNames !== undefined && verdict.telemetry.reason === "conflict")) {
               semanticRepair = true;
-              repairAttempt = { phase: "memory", attempt: 1, outcome: "failed", durationMs: 0, operations: 0 };
+              if (structuralRepairAttempt) structuralRepairAttempt.outcome = "proposed";
+              repairAttempt = { phase: "memory", attempt: structuralRepairAttempt ? 2 : 1, outcome: "failed", durationMs: 0, operations: 0 };
               const repairStarted = Date.now();
               await fs.writeFile(path.join(run.manifest.runDir, "semantic-rejected-plan.json"), JSON.stringify(rawPlan), { encoding: "utf8", mode: 0o600 });
               try {
                 const repaired = await repairIncrementalMemoryPlan({ rejectedPlan: rawPlan,
-                  errors: [`Semantic verification: ${verdict.telemetry.reason}${verdict.telemetry.candidateIndex !== undefined && verdict.telemetry.dimension ? ` in candidate ${verdict.telemetry.candidateIndex} ${verdict.telemetry.dimension}` : ""}. Keep each body and index description to the smallest durable fact or preference directly stated by the cited evidence. Prefer one plain sentence; retain explicit exceptions and privacy instructions. Remove uncited source-layout, dependency-resolution, execution-result and workflow claims. Do not infer a maintained process from a note or add contextual explanations.`,
+                  errors: [`Retained review index map: ${JSON.stringify(retainedReviewIndexNames)}. Proposed review index map: ${JSON.stringify(candidates.map(item => asRecord(item)?.name))}. The following selected verdict indexes address ${verdict === retentionReview || !candidates.length ? "retained records" : "proposed candidates"}.`,
+                    ...(retentionReview ? ["Retained existing records: " + (retainedRepairNames ?? []).join(", "), ...jevRepairFailureHints(retentionReview.telemetry)] : []),
+                    `Semantic verification: ${verdict.telemetry.reason}${verdict.telemetry.candidateIndex !== undefined && verdict.telemetry.dimension ? ` in candidate ${verdict.telemetry.candidateIndex} ${verdict.telemetry.dimension}` : ""}. Keep each index description to one supported clause. Rewrite bodies must preserve still-valid predecessor knowledge and independently supported unresolved failure observations; they need not be one sentence. Correct only unsupported claims and retain explicit exceptions and privacy instructions. Remove uncited source-layout, dependency-resolution, execution-result and workflow claims. Do not infer a maintained process from a note or add contextual explanations.`,
                     ...(verdict.telemetry.reason === "bounds"
                       ? [`The review was refused at the ${verdict.telemetry.boundsKind ?? "request"} bound; the measured size was ${verdict.telemetry.boundsCount ?? "unknown"}. Keep every original candidate intent; shorten unsupported wording and cite the shortest exact quotation that supports each retained fact. Do not trim frozen evidence or omit candidates to evade the bound.`]
                       : []),
@@ -1896,24 +2228,32 @@ async function spawnAsyncConsolidation(
                   selectedNames: preSelected,
                   identity: { runId: run.manifest.runId, scopeKey: run.manifest.scopeKey, scopeDigest: run.manifest.scopeDigest, artifactHash: run.manifest.snapshotDigest, snapshotDigest: run.manifest.snapshotDigest },
                   outputDir: run.manifest.runDir,
-                  repairableNames: verdict.telemetry.candidateFailures?.map(failure => asRecord(candidates[failure.candidateIndex])?.name).filter((name): name is string => typeof name === "string"),
-                  repairableFields: semanticMemoryRepairFields(candidates, verdict.candidateReview),
+                  ...(retainedRepairNames !== undefined ? { retainedRepairNames } : {}),
+                  repairableNames: mutationReview?.decision === "propose"
+                    ? (mutationReview.telemetry.candidateFailures?.map(failure => asRecord(candidates[failure.candidateIndex])?.name).filter((name): name is string => typeof name === "string")
+                      ?? (mutationReview.telemetry.reason === "bounds" ? candidates.map(item => String(asRecord(item)?.name)) : undefined)) : [],
+                  repairableFields: semanticMemoryRepairFields(candidates, mutationReview?.candidateReview),
                   semanticContext: { frozenEvidence, existingMemories: existing }, model: opts.model, signal: state.controller?.signal });
                 repairAttempt.durationMs = repaired.durationMs;
                 repairAttempt.usage = repaired.usage;
                 if (!ownsCurrentRun()) return;
                 await assertSemanticInputsFrozen();
                 if (repaired.outcome === "repaired" && repaired.plan) {
-                  const corrected = await expandCitedIncrementalMemoryPlan(run, selectedScope, repaired.plan);
+                  const distilled = distillReviewedNewMemory(repaired.plan, candidates, mutationReview?.candidateReview,
+                    frozenEvidence, existing, mutationReview?.telemetry.evidenceWindows);
+                  if (distilled.names.length) await writeFileAtomic(path.join(run.manifest.runDir, "semantic-description-distillation.json"),
+                    `${JSON.stringify({version: 1, names: distilled.names, originalReview: mutationReview?.candidateReview,
+                      reason: "new-proposal-body-held-description-completely-reviewed", candidateOnly: true}, null, 2)}\n`);
+                  const corrected = await expandCitedIncrementalMemoryPlan(run, selectedScope, distilled.plan);
                   const correctedCandidates = [...(corrected.operations ?? []), ...normalizeNewMemoryProposals(corrected, frozenEvidence, preSelected)];
-                  const classifications = new Map(candidates.map(item => { const record = asRecord(item)!; return [record.name, record.classification]; }));
+                  const classifications = new Map([...existing.map(item => [item.name, item.classification] as const), ...candidates.map(item => { const record = asRecord(item)!; return [record.name, record.classification] as const; })]);
                   if (correctedCandidates.some(item => classifications.get(item.name) !== item.classification)) throw new Error("Semantic Memory repair changed privacy classification");
                   const correctedText = `${JSON.stringify(corrected, null, 2)}\n`;
                   const correctedPath = path.join(run.manifest.runDir, "semantic-repair-plan.json");
                   await fs.writeFile(correctedPath, correctedText, { encoding: "utf8", mode: 0o600 });
                   await runConsolidationValidator(opts.pkgDir, run, correctedPath, "plan", preSelected);
                   if (!ownsCurrentRun()) return;
-                  const correctedVerdict = await opts.jevJudge.validate("memory", frozenEvidence, correctedCandidates, existing, state.controller?.signal);
+                  const correctedVerdict = await validateKnowledge(correctedCandidates);
                   repairAttempt.jev = correctedVerdict.telemetry;
                   repairAttempt.diagnostic = `Jev ${correctedVerdict.telemetry.status}: ${correctedVerdict.telemetry.reason}`;
                   if (!ownsCurrentRun()) return;
@@ -1922,6 +2262,9 @@ async function spawnAsyncConsolidation(
                     plan = corrected;
                     planDigest = sha256Digest(correctedText);
                     await fs.writeFile(planPath, correctedText, { encoding: "utf8", mode: 0o600 });
+                    semanticProposal = false;
+                    semanticRepairAccepted = true;
+                  } else if (await applyReviewedSubset(corrected, correctedCandidates, correctedVerdict)) {
                     semanticProposal = false;
                     semanticRepairAccepted = true;
                   } else repairAttempt.outcome = "proposed";
@@ -1941,12 +2284,23 @@ async function spawnAsyncConsolidation(
               if (!ownsCurrentRun()) return;
               await assertSemanticInputsFrozen();
             }
+            // Partial success must not consume the correction opportunity for
+            // held knowledge. If correction cannot complete the plan, preserve
+            // only independently reviewed original candidates and keep the
+            // unresolved work pending; the original verdict remains bound to
+            // those exact original candidates.
+            if (semanticProposal && !originalRetentionHeld
+              && await applyReviewedSubset(candidate, candidates, verdict)) {
+              semanticProposal = false;
+              originalSubsetApplied = true;
+            }
           }
           if (opts.applyChanges === false || semanticProposal) {
             const candidate = plan as { operations?: unknown[]; newMemories?: unknown[] };
             proposed = (candidate.operations?.length ?? 0) + (candidate.newMemories?.length ?? 0) > 0;
-            if (proposed) await recordLearningProposal(opts.cwd, "memory", plan);
-            state.outcome = "completed";
+            if (proposed) await recordLearningProposal(opts.cwd, "memory", semanticProposal ? heldMemoryReview ?? plan : plan);
+            // A held zero-operation retention review is not a successful no-op.
+            state.outcome = semanticProposal && !proposed ? "unverified" : "completed";
             return;
           }
           const preReceipt = createPreApplyReceipt({
@@ -2036,21 +2390,29 @@ async function spawnAsyncConsolidation(
         await releaseConsolidationRun(run, { keepArtifacts: ownedNow });
         runModeById.delete(run.manifest.runId);
       } finally {
-        const attemptOutcome = semanticRepair ? state.cancelled ? "cancelled" : state.outcome === "completed" ? "proposed" : "failed" : repairAttempt
+        const attemptOutcome = structuralRepairAttempt ? state.cancelled ? "cancelled" : "rejected" : originalSubsetApplied ? state.cancelled ? "cancelled" : state.outcome === "completed" ? "applied" : state.outcome === "unverified" ? "rejected" : "failed" : semanticRepair ? state.cancelled ? "cancelled" : state.outcome === "completed" ? "proposed" : "failed" : repairAttempt
           ? state.cancelled ? "cancelled" : "rejected"
           : state.cancelled ? "cancelled" : state.outcome === "completed" ? appliedOperationCount > 0 ? "applied" : proposed ? "proposed" : "noop" : state.outcome === "unverified" ? "rejected" : "failed";
-        const attemptDiagnostic = memoryAttemptDiagnostic({ outcome: attemptOutcome, jev, stopReason: memoryStopReason(memoryStopFlags) });
+        const attemptDiagnostic = memoryAttemptDiagnostic({ outcome: attemptOutcome, jev, stopReason: memoryStopReason(memoryStopFlags), structuralRejection });
         state.attempts?.push({
           phase: "memory",
           attempt,
           outcome: attemptOutcome,
           durationMs: Date.now() - attemptStartedAt,
-          operations: repairAttempt ? 0 : appliedOperationCount,
-          ...(subsetPendingOperations && !repairAttempt ? {pendingOperations: subsetPendingOperations} : {}),
+          operations: repairAttempt && (!originalSubsetApplied || structuralRepairAttempt) ? 0 : appliedOperationCount,
+          ...(subsetPendingOperations && (!repairAttempt || originalSubsetApplied && !structuralRepairAttempt) ? {pendingOperations: subsetPendingOperations} : {}),
           usage: evidence.attemptUsage,
           ...(jev ? { jev } : {}),
           ...(attemptDiagnostic ? { diagnostic: attemptDiagnostic } : {}),
         });
+        if (structuralRepairAttempt && semanticRepair) {
+          if (originalSubsetApplied) {
+            structuralRepairAttempt.outcome = state.cancelled ? "cancelled" : state.outcome === "completed" ? "applied" : "failed";
+            structuralRepairAttempt.operations = state.outcome === "completed" && !state.cancelled ? appliedOperationCount : 0;
+            if (subsetPendingOperations) structuralRepairAttempt.pendingOperations = subsetPendingOperations;
+          }
+          state.attempts?.push(structuralRepairAttempt);
+        }
         if (repairAttempt) {
           if (state.cancelled || !semanticRepair || semanticRepairAccepted) repairAttempt.outcome = state.cancelled
             ? "cancelled"
@@ -2084,12 +2446,14 @@ async function spawnAsyncConsolidation(
 async function startConsolidationPipeline(
   ctx: ExtensionContext,
   state: DreamState,
-  opts: { pkgDir: string; cwd: string; reason: string; availableSkills: readonly string[]; mode: LearningMode; memoryRequest?: string; inputSource?: LearningInputSource; onReceipt?: (receipt: LearningPipelineReceipt) => void; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void },
+  opts: { pkgDir: string; cwd: string; reason: string; availableSkills: readonly string[]; mode: LearningMode; memoryRequest?: string; memoryReplayFeedback?: MemoryReplayFeedback; inputSource?: LearningInputSource; onReceipt?: (receipt: LearningPipelineReceipt) => void; reportResult?: boolean; reportReceipt?: (receipt: LearningPipelineReceipt) => void },
 ): Promise<void> {
   if (state.pipeline) return state.pipeline;
   state.cancelled = false;
   const pipelineAttempts: LearningAttempt[] = [];
-  const jevJudge = createJevJudge();
+  // These proofs select candidates only. The application policy, complete
+  // original review, frozen inputs and parent transaction remain mandatory.
+  const jevJudge = createJevJudge({ independentMemoryApplication: true, composedMemoryApplication: true });
   state.attempts = pipelineAttempts;
   state.mode = opts.mode;
   const controller = new AbortController();
@@ -2227,6 +2591,7 @@ async function startConsolidationPipeline(
           signal: controller.signal,
           registeredSkills: opts.availableSkills,
           memoryOnly: opts.memoryRequest !== undefined,
+          memoryReplayFeedback: opts.memoryReplayFeedback,
           jevJudge,
           allowEmptyIndexRouting: opts.mode === "automatic" || opts.memoryRequest !== undefined || learningInput?.source === "backlog-session",
         });
@@ -2628,11 +2993,12 @@ export default function (pi: ExtensionAPI) {
       await startConsolidationPipeline(frozen, dreamState, {pkgDir:resolvePackageDir(), cwd:ctx.cwd,
         availableSkills:pi.getCommands().filter(command => command.source === "skill").map(command => command.name.replace(/^skill:/, "")),
         reason:"Replay the verified original task evidence; do not repeat task execution.", mode:force ? "manual" : "automatic", reportResult:force, onReceipt:value => {receipt=value;},
+        memoryReplayFeedback:input.memoryReplayFeedback,
         inputSource:{source:"backlog-session", entryCount:input.entries.length, sessionId:input.sessionId, sourceDigest:input.sourceDigest, backlogId:input.id, ...(input.omittedEntries ? {omittedEntries:input.omittedEntries, omittedEvidenceEntries:input.omittedEvidenceEntries ?? input.omittedEntries} : {}), ...(input.backlogCoverage ? {backlogCoverage:input.backlogCoverage} : {})},
         reportReceipt:reportLearningReceipt});
       return receipt;
     }});
-    if (force || result.error) notifyPi(ctx.ui, result.error === "Malformed backlog requires review" ? `Malformed references: ${readBacklog(ctx.cwd).malformed}. Learning replay requires review.` : result.error ?? `Learning replay: ${result.outcomes.map(row => row.outcome).join(", ") || (result.busy ? "busy" : "nothing pending")}`, result.error ? "error" : "info");
+    if (force || result.error) notifyPi(ctx.ui, result.error === "Malformed backlog requires review" ? `Malformed references: ${readBacklog(ctx.cwd).malformed}. Learning replay requires review.` : result.error ?? `Learning replay: ${result.outcomes.map(row => row.reason === "newer-slice-deferred" ? "deferred: newer feedback requires review" : row.outcome).join(", ") || (result.busy ? "busy" : "nothing pending")}`, result.error ? "error" : "info");
   };
 
   const stopPipeline = async (): Promise<void> => {

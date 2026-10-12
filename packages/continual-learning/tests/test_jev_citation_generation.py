@@ -15,6 +15,11 @@ def test_generation_prompts_require_claim_specific_original_citations() -> None:
     assert 'Do not attach all entries' in guidance
     assert '8 evidence items' in guidance and '2,000 characters' in guidance
     assert 'Preserve privacy classifications' in guidance
+    assert 'controlling branch conditions' in guidance
+    assert 'before shortening' in guidance
+    assert 'removed lines establish the predecessor state' in guidance
+    assert 'A patch is a transition' in guidance
+    assert 'latest observed state is incomplete' in guidance
     assert all(guidance in prompt for prompt in value['prompts'])
 
 
@@ -36,7 +41,14 @@ def test_actual_semantic_worker_receives_guidance_without_new_write_authority() 
     assert value['semanticGuidance'] and not value['structuralGuidance']
     assert value['semantic']['outcome'] == 'repaired'
     assert value['contextUnchanged']
-    assert value['shownContext'] == {'frozenEvidence': {'contextEnabled': True, 'entries': [{'snapshotIndex': 0, 'entry': {'role': 'user', 'content': 'Use Vitest for future tasks.'}}, {'snapshotIndex': 1, 'entry': {'role': 'toolResult', 'content': 'Verified migration to Vitest.'}}]}, 'existingMemories': []}
+    shown = value['shownContext']['frozenEvidence']['entries']
+    assert [entry['snapshotIndex'] for entry in shown] == [0, 1]
+    assert [entry['entry']['role'] for entry in shown] == ['user', 'toolResult']
+    assert [entry['entry']['content']['citationLines'] for entry in shown] == [
+        {'block': 0, 'lines': [{'line': 1, 'text': 'Use Vitest for future tasks.'}]},
+        {'block': 0, 'lines': [{'line': 1, 'text': 'Verified migration to Vitest.'}]},
+    ]
+    assert value['shownContext']['existingMemories'] == []
     assert all(tools == [] for tools in value['tools'])
 
 

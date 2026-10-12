@@ -239,6 +239,7 @@ def test_adjacent_relevance_levels_share_one_decision_and_semantic_content_exclu
     ''')
     assert value['selected']['selection']['selected'] == ['known.md']
     memory_question = value['requests'][1]['questions']['supported_0']['instructions']
+    assert 'source branch eligibility guards' in memory_question['question']
     assert memory_question['candidate']['content'] == 'The project uses pnpm.'
     assert 'evidence' not in memory_question['candidate']
     harness_question = value['requests'][2]['questions']['supported_0']['instructions']
@@ -248,7 +249,7 @@ def test_adjacent_relevance_levels_share_one_decision_and_semantic_content_exclu
     rewrite = value['requests'][3]['questions']['supported_0']['instructions']['candidate']
     assert rewrite['action'] == 'rewrite' and rewrite['target'] == 'known.md'
     assert rewrite['preservedIn'] == ['archive.md'] and rewrite['observations'] == ['Updated command']
-    assert 'current project shared Harness layer' in value['requests'][2]['state']
+    assert 'current project shared Harness layer' in value['requests'][2]['state']['executionScope']
     assert len(value['requests']) == 4
 
 
@@ -389,14 +390,15 @@ def test_command_family_proof_preserves_exact_only_authority_and_shell_boundarie
     assert value['weakEnd']['decision'] == 'propose'
 
 
-def test_equivalent_metadata_format_repair_retains_grounding_and_privacy_checks() -> None:
+def test_rewrite_still_requires_grounding_and_private_review_without_self_novelty() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let requests=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);requests.push(request);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
-          const selected=key.startsWith('supported')?'grounded':'duplicate';
+          const content=q.instructions?.candidate?.content??'';
+          const selected=String(content).includes('Always use') || String(content).includes('A different claim')?'unsupported':'grounded';
           answers[key]={type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))};
         }
         return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:10,output_tokens:3}}));
@@ -416,9 +418,11 @@ def test_equivalent_metadata_format_repair_retains_grounding_and_privacy_checks(
     assert value['format']['decision'] == 'allow'
     assert value['body']['decision'] == value['metadata']['decision'] == value['privacy']['decision'] == 'propose'
     assert value['questions'][0] == ['supported_0', 'supported_description_0']
-    assert value['questions'][1] == value['questions'][2] == ['supported_0', 'relation_0', 'supported_description_0', 'relation_description_0']
+    assert value['questions'][1] == value['questions'][2] == ['supported_0', 'supported_description_0']
+    assert value['privacy']['telemetry']['reason'] == 'private-memory-denied'
 
-    assert value['unchanged']['decision'] == value['degraded']['decision'] == 'propose'
+    # Parent structural validation owns malformed metadata; novelty is not that gate.
+    assert value['unchanged']['decision'] == value['degraded']['decision'] == 'allow'
 
 
 def test_literal_confirmation_judges_per_run_authority_without_weakening_a_ban() -> None:
@@ -476,13 +480,13 @@ def test_semantic_memory_repair_uses_one_shared_slot_and_rechecks_privacy() -> N
         assert not held['memoryMirrored']
 
 
-def test_semantic_memory_repair_guards_shared_quota_retention_and_frozen_state() -> None:
+def test_semantic_memory_repair_guards_phase_quotas_retention_and_frozen_state() -> None:
     from pathlib import Path
     from support import run_bun_script
     fixture = Path(__file__).with_name('learning-policy-harness.ts')
     structural = run_bun_script(fixture, 'remember-shared', env={'CL_JEV_FIXTURE': 'structural-held'})
-    assert structural['totalRepairs'] == 1 and structural['semanticRepairs'] == 0
-    assert structural['jevValidations'] == ['memory'] and not structural['memoryMirrored']
+    assert structural['totalRepairs'] == 2 and structural['semanticRepairs'] == 1
+    assert structural['jevValidations'] == ['memory', 'memory'] and not structural['memoryMirrored']
     held = run_bun_script(fixture, 'remember-shared', env={'CL_JEV_FIXTURE': 'repair-held'})
     assert held['semanticRepairs'] == 1 and held['jevValidations'] == ['memory', 'memory']
     assert not held['memoryMirrored'] and held['registryReceipt']['operations'] == 0
@@ -522,7 +526,7 @@ def test_legal_family_batch_is_atomic_bounded_and_accounts_partial_failures() ->
     assert value['good']['decision'] == 'allow', value
     assert len(value['goodCalls']) == 2 and value['peak'] == 2
     assert all(len(c['keys']) <= 32 and c['size'] <= 64000 for c in value['goodCalls'])
-    assert len({c['state'] for c in value['goodCalls']}) == 1
+    assert len({str(c['state']) for c in value['goodCalls']}) == 1
     assert sum(len(c['keys']) for c in value['goodCalls']) == 36
     assert value['good']['telemetry']['inputTokens'] == 200
     assert value['partial']['decision'] == 'propose'
@@ -595,7 +599,7 @@ def test_realistic_frozen_tool_evidence_is_preserved_with_bounded_transport() ->
           probabilities:{grounded:0,speculative:0,transient:0,unsupported:1,unclear:0}}}}));
       }});
       const result=await judge.validate('memory',evidence,[{name:'fact.md',content:'The timeout is 17 seconds.'}],[]);
-      console.log(JSON.stringify({result,retainedEqual:sent?JSON.stringify(JSON.parse(sent.state).frozenEvidence)===JSON.stringify(evidence):false,bytes:sent?Buffer.byteLength(JSON.stringify(sent)):null}));
+      console.log(JSON.stringify({result,retainedEqual:sent?JSON.stringify((typeof sent.state === "string" ? JSON.parse(sent.state) : sent.state).frozenEvidence)===JSON.stringify(evidence):false,bytes:sent?Buffer.byteLength(JSON.stringify(sent)):null}));
     ''')
     assert value['retainedEqual'], value
     assert 24000 < value['bytes'] <= 64000
@@ -880,7 +884,9 @@ def test_support_definitions_ground_a_successful_run_and_reject_a_transient_one(
     source = Path(__file__).resolve().parents[1] / 'extensions' / 'jev-learning.ts'
     text = source.read_text(encoding='utf-8')
     assert 'A successful tool result that ran the command grounds the claim that the command works for this project' in text
-    assert 'does not ground a lasting claim about the command' in text
+    assert 'The failure alone does not establish a cause, a successful fix, or permanent command failure' in text
+    assert 'matching inspected source' in text
+    assert 'temporary service fault' in text.lower()
     assert 'A successful tool result that ran the command counts as that verified observation' in text
 
 
@@ -1039,7 +1045,7 @@ def test_full_review_budget_counts_batches_per_window_without_skipping_late_evid
       let mode='allow',active=0,peak=0; const requests=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         active++;peak=Math.max(peak,active); const r=JSON.parse(init.body);requests.push(r);await Promise.resolve();
-        const state=JSON.parse(r.state),late=state.reviewEvidence?.entries.some(e=>e.index===9),answers={};
+        const state=(typeof r.state === "string" ? JSON.parse(r.state) : r.state),late=state.reviewEvidence?.entries.some(e=>e.index===9),answers={};
         for(const [k,q] of Object.entries(r.questions)){
           let choice='grounded' in q.criteria?'grounded':'compatible';
           if(mode==='late-conflict'&&late&&k.startsWith('counter_description_0_'))choice='contradicts';
@@ -1055,7 +1061,7 @@ def test_full_review_budget_counts_batches_per_window_without_skipping_late_evid
         bounded:first.every(r=>Buffer.byteLength(JSON.stringify(r))<=64000&&Object.keys(r.questions).length<=32),
         descriptionSupport:first.flatMap(r=>Object.keys(r.questions)).filter(k=>k.startsWith('supported_description_')).length,
         descriptionWindows:[...new Set(first.flatMap(r=>Object.keys(r.questions)).filter(k=>k.startsWith('counter_description_')).map(k=>k.split('_').at(-1)))].length,
-        indexes:[...new Set(first.flatMap(r=>JSON.parse(r.state).reviewEvidence?.entries.map(e=>e.index)??[]))].sort((a,b)=>a-b)}));
+        indexes:[...new Set(first.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries.map(e=>e.index)??[]))].sort((a,b)=>a-b)}));
     ''')
     assert value['allowed']['decision'] == 'allow', value
     assert 12 < value['count'] <= 68
@@ -1073,7 +1079,7 @@ def test_real_pluggy_trace_preserves_complete_evidence_within_actual_wire_budget
       let mode='allow',active=0,peak=0;const calls=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         active++;peak=Math.max(peak,active);const r=JSON.parse(init.body);calls.push(r);await Promise.resolve();
-        const state=JSON.parse(r.state),late=state.reviewEvidence?.entries.some(e=>e.index===204),answers={};
+        const state=(typeof r.state === "string" ? JSON.parse(r.state) : r.state),late=state.reviewEvidence?.entries.some(e=>e.index===204),answers={};
         for(const [k,q]of Object.entries(r.questions)){
           let choice='grounded' in q.criteria?'grounded':'compatible';
           if(((mode==='conflict'&&late)||(mode==='cited-conflict'&&state.reviewEvidence?.entries.some(e=>e.index===6)))&&k.startsWith('counter_description_0_'))choice='contradicts';
@@ -1088,7 +1094,7 @@ def test_real_pluggy_trace_preserves_complete_evidence_within_actual_wire_budget
       mode='cited-conflict';const citedConflict=await judge.validate('memory',evidence,candidates,[]);
       const citedIndexes=[...new Set(candidates.flatMap(c=>c.evidence.map(e=>e.index)))].sort((a,b)=>a-b);
       const supportUnchanged=first.every(r=>{
-        const s=JSON.parse(r.state);if(!s.reviewEvidence)return true;
+        const s=(typeof r.state === "string" ? JSON.parse(r.state) : r.state);if(!s.reviewEvidence)return true;
         const relocated=(s.supportEvidence.reviewEntryIndexes??[]).map(index=>s.reviewEvidence.entries.find(e=>e.index===index));
         const all=[...s.supportEvidence.entries,...relocated];
         const batchCandidates=[...new Set(Object.keys(r.questions).map(key=>Number(/^counter(?:_description)?_(\d+)_/.exec(key)?.[1])))];
@@ -1097,7 +1103,7 @@ def test_real_pluggy_trace_preserves_complete_evidence_within_actual_wire_budget
           &&all.every(e=>e&&JSON.stringify(e.entry)===JSON.stringify(evidence.entries[e.index]))
           &&(!s.supportEvidence.reviewEntryIndexes||s.supportEvidence.entries.every(e=>!s.reviewEvidence.entries.some(w=>w.index===e.index)));
       });
-      const reviewed=first.flatMap(r=>JSON.parse(r.state).reviewEvidence?.entries??[]);
+      const reviewed=first.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries??[]);
       console.log(JSON.stringify({allowed,conflict,error,citedConflict,supportUnchanged,peak,count:first.length,maxWire:Math.max(0,...first.map(r=>Buffer.byteLength(JSON.stringify(r)))),
         indexes:[...new Set(reviewed.map(x=>x.index))].sort((a,b)=>a-b),
         unchanged:reviewed.every(x=>JSON.stringify(x.entry)===JSON.stringify(evidence.entries[x.index])),
@@ -1117,8 +1123,8 @@ def test_wire_bounds_diagnostic_reports_the_encoded_request_size():
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let calls=0;
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>{calls++;throw new Error('must preflight first');}});
-      const evidence={contextEnabled:true,entries:[{message:{role:'toolResult',content:'Known project fact '+String.fromCharCode(92).repeat(17000)}}]};
-      const candidate={name:'fact.md',kind:'project',classification:'safe',content:'Known project fact',evidence:[{index:0,quote:'Known project fact'}]};
+      const evidence={contextEnabled:true,entries:[{message:{role:'toolResult',content:'Known project fact '+String.fromCharCode(92).repeat(30000)}}]};
+      const candidate={name:'fact.md',kind:'project',classification:'safe',content:'Known project fact '+('x'.repeat(5000)),evidence:[{index:0,quote:'Known project fact'}]};
       const result=await judge.validate('memory',evidence,[candidate],[]);
       console.log(JSON.stringify({result,calls}));
     ''')

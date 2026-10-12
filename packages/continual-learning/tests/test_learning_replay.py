@@ -176,13 +176,14 @@ def test_replay_retains_omission_metadata_and_sibling_retry_limits() -> None:
       import {replayLearningBacklog} from './packages/continual-learning/extensions/learning-replay.ts';
       import {resolveMemoryPaths} from './packages/continual-learning/extensions/memory-paths.ts';
       const root=fs.mkdtempSync(path.join(os.tmpdir(),'cl-replay-bounds-'));const agent=process.env.PI_CODING_AGENT_DIR;const results=[];
-      for(const mode of ['exhausted','backoff','omitted','other-session']) {
+      for(const mode of ['exhausted','backoff','invalid-extension','omitted','other-session']) {
         const cwd=path.join(root,mode);fs.mkdirSync(cwd);const dir=path.join(agent,'sessions',mode);fs.mkdirSync(dir,{recursive:true});const m=SessionManager.create(cwd,dir);
         m.appendMessage({role:'user',content:'Inspect scheduling.',timestamp:1});
         const enqueue=manager=>{const entries=manager.buildContextEntries();const slice=currentTaskSlice(entries);const ref={cwd,agentDir:agent,sessionFile:manager.getSessionFile(),from:0,to:entries.length-1,digest:sha256Digest(JSON.stringify(slice)),reason:'learning-failed'};enqueueBacklog(ref);return ref;};
         if(mode!=='omitted')enqueue(m);
         for(let i=0;i<(mode==='omitted'?300:1);i++)m.appendMessage({role:'toolResult',toolCallId:`read-${i}`,toolName:'read',content:[{type:'text',text:`Observed source ${i}`}],isError:false,timestamp:i+2});
         const extension=enqueue(m);const scope=resolveMemoryPaths(cwd,agent).scopeKey;
+        if(mode==='invalid-extension') {const file=path.join(agent,'learning','backlog.jsonl');const rows=fs.readFileSync(file,'utf8').trim().split('\n').map(JSON.parse);rows[rows.length-1].digest='0'.repeat(64);fs.writeFileSync(file,rows.map(x=>JSON.stringify(x)).join('\n')+'\n');}
         if(['exhausted','backoff'].includes(mode)) {
           const file=path.join(agent,'learning',scope,`replay-${backlogIdentity(scope,extension)}.json`);
           fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify({attempts:Array.from({length:mode==='exhausted'?16:1},()=>({at:new Date().toISOString(),outcome:'failed'})),nextAttemptAt:Date.now()+3600000}));
@@ -195,10 +196,11 @@ def test_replay_retains_omission_metadata_and_sibling_retry_limits() -> None:
     ''')
     rows = {row['mode']: row for row in result}
     for mode in ('exhausted', 'backoff'):
-        assert len(rows[mode]['seen']) == 1
-        assert rows[mode]['seen'][0].get('backlogCoverage') is None
-        assert not any('Observed source' in str(entry) for entry in rows[mode]['seen'][0]['entries'])
+        assert rows[mode]['seen'] == []
+        assert rows[mode]['run']['outcomes'][0]['reason'] == 'newer-slice-deferred'
         assert rows[mode]['pending'] == 2
+    assert len(rows['invalid-extension']['seen']) == 1
+    assert rows['invalid-extension']['seen'][0].get('backlogCoverage') is None
     assert rows['omitted']['seen'][0]['omittedEntries'] > 0
     assert rows['omitted']['seen'][0]['omittedEvidenceEntries'] > 0
     assert rows['other-session']['pending'] == 3

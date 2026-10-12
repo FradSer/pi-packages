@@ -34,7 +34,7 @@ def test_relation_observation_uses_frozen_question_and_never_grants_write_author
     assert result['review']['pairs'][0]['relation'] == 'independent'
     assert result['telemetry']['requestCount'] == result['telemetry']['completedRequests'] == 1
     assert result['telemetry']['inputTokens'] == 10
-    state = __import__('json').loads(value['calls'][0]['state'])
+    state = value['calls'][0]['state']
     assert state['originalCandidates'][0]['name'] == 'tools.md'
     assert 'Use pnpm.' in state['originalEvidence']['entries'][0]['content']
 

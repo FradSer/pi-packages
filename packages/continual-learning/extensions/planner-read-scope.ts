@@ -1,4 +1,4 @@
-import { indexedMemoryEvidence } from "./evidence-presentation";
+import { locatedMemoryEvidence } from "./memory-citation-locations";
 import { randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { constants } from "node:fs";
@@ -62,7 +62,7 @@ export async function readPlannerFile(input: string, scope: PlannerReadScope, of
     if (named.dev !== after.dev || named.ino !== after.ino || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs) throw new Error("Planner read refused: file changed");
     const text = bytes.toString("utf8");
     if (text.includes("\0") || containsSensitiveMemoryMaterial(text)) throw new Error("Planner read refused: sensitive or binary content");
-    const shown = scope.indexedEvidence ? JSON.stringify(indexedMemoryEvidence(JSON.parse(text)), null, 2) : text;
+    const shown = scope.indexedEvidence ? JSON.stringify(locatedMemoryEvidence(JSON.parse(text)), null, 2) : text;
     const lines = shown.split("\n");
     const selected = lines.slice(offset - 1, offset - 1 + limit).join("\n");
     const bounded = Buffer.from(selected).subarray(0, 64_000).toString("utf8");

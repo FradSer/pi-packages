@@ -1,4 +1,20 @@
 Feature: Learn, use, correct and recover across real tasks
+  Scenario: Replay carries a rejected Memory plan without promoting it to evidence
+    Given a partial failed learning receipt and its parent-recorded held Memory proposal
+    And the proposal snapshot is byte-bound to the unchanged original task evidence
+    When that same backlog task is replayed
+    Then the new private dossier includes the prior candidates and controlled failed-field diagnostics
+    And the original task entries and current selected mutation scope remain unchanged
+    And foreign tasks, altered snapshots and arbitrary diagnostic prose cannot become retry context
+    And every new plan still requires all current support, privacy, authorization and application checks
+
+  Scenario: A partial failed receipt does not conceal unknown usage
+    Given an interrupted real learning receipt retains known selector cost
+    And a later planner has no complete usage record
+    When cumulative learning usage is reported
+    Then preserve the known tokens and cost exactly once
+    And count the partially unknown attempt even though its receipt exists
+
   Scenario: A digest-bound selector schema failure gets one structural correction
     Given the read-only selector returns its correct kind, version and context digest but omits required routing fields
     When the parent requests one correction using the unchanged task and metadata
@@ -286,3 +302,250 @@ Feature: Learn, use, correct and recover across real tasks
     And its parent receipt identifies every covered backlog reference
     And only a complete matching receipt acknowledges covered references
     And failed attempts, costs, changed sources and unrelated tasks remain preserved
+
+  Scenario: Failure feedback has an enforced single-file read boundary
+    Given the original failed task session and its complete source-bound verification file
+    When the continuation attempts a source read or a paginated verification read first
+    Then the attempted read is blocked without consuming the one authorized verification read
+    And the complete verification file can still be read exactly once
+    And later reads and writes remain unavailable
+    And original observations and rejected attempts remain in the session
+
+  Scenario: Source learning retains branch eligibility in body and retrieval descriptions
+    Given original source evidence changes a state counter only inside an eligibility guard
+    When Memory generation or semantic repair summarizes that transition
+    Then the body and independently retrieved description retain the controlling condition
+    And shorter descriptions must not generalize the guarded transition to every invocation
+    And semantic review checks the complete claim against the original source guards
+
+  Scenario: Structural repair restores only uniquely identified citation indentation
+    Given a rejected citation differs from its original source only in line indentation
+    When the parent uses the bounded structural correction slot
+    Then it restores the unique original substring at the unchanged snapshot index
+    And all quote bounds, roles, privacy, plan and semantic gates still run
+    And ambiguous matches, changed words and omitted conditions remain rejected
+    And original failure evidence and correction provenance remain available
+
+  Scenario: Usable new knowledge survives an unrelated uncertain candidate
+    Given Memory application is authorized and Jev is enabled
+    And some new records pass every original support and counterevidence check
+    And another new record remains uncertain
+    When complete relationship and standalone reviews prove a supported record usable independently
+    Then the parent may persist only the unchanged independently verified records
+    And it preserves all held proposals and pending work without claiming complete learning
+    And the next task can receive the persisted knowledge
+    And rewrites, deletions, dependent records and missing proof retain their atomic protection
+
+  Scenario: Verified knowledge from one bounded correction survives an unrelated held record
+    Given a pure new Memory plan has failed its first semantic review
+    When its single bounded correction passes parent validation and full candidate review leaves independent passed and held records
+    Then unchanged passed records may be persisted only after complete relationship and standalone proofs
+    And held records remain proposed and prevent complete backlog acknowledgment
+    And the correction and its service costs remain attributed to attempt one
+    And cancellation during the initial relationship review starts no correction and writes no Memory
+
+  Scenario: The parent extracts exact Memory citations from frozen locations
+    Given a complete frozen task contains indented and numbered tool output
+    When the planner selects an original entry, text block and continuous source line range
+    Then the parent extracts unchanged original characters before all existing validation
+    And wrong roles, out of range locations, mismatched quotes and extracted quote bound violations are rejected
+    And original evidence, candidate intent, privacy and full semantic review remain unchanged
+    And both initial plans and the one bounded correction can use this same location contract
+
+  Scenario: A Memory correction is compared with other established knowledge
+    Given a frozen real task changes the contract recorded by an existing Memory
+    And the plan rewrites that same record and proposes other source knowledge
+    When semantic relationship review compares each candidate
+    Then a rewrite is not compared for novelty against its own obsolete predecessor
+    And a new record is not compared against its own proposed copy
+    And other established Memory bodies remain relationship comparators
+    And complete support, preservation and original counterevidence checks still run
+    And a rejected correction keeps its predecessor and pending failure
+
+  Scenario: Changed knowledge can cite the original successful edit patch
+    Given a frozen successful edit result contains the new declaration in details.patch
+    And the displayed result only reports that replacement succeeded
+    When a learning worker selects patch lines by the original result index
+    Then the parent extracts the exact tool-produced patch including diff markers
+    And planning, correction and semantic review retain all original evidence
+    And assistant arguments, failed edits, unrelated details and sensitive or oversized quotes cannot use that patch source
+    And patch citations grant neither mutation permission nor proof of runtime behavior
+
+  Scenario: Selector decisions use parent-bound frozen Memory positions
+    Given a frozen task digest and exact metadata index from the parent
+    When a selector chooses valid index positions and explicit phase decisions
+    Then the parent resolves the exact filenames and binds the original task digest
+    And malformed positions, ambiguous identity fields and the retained real malformed response are rejected
+    And the original dossier evidence and every mutation review remain unchanged
+
+  Scenario: An unrelated mutation cannot hide a retained outdated Memory
+    Given selected outdated Memory and a valid new Memory proposal
+    When the plan omits any correction of the selected outdated Memory
+    Then every retained record is checked against complete frozen evidence
+    And a held retained record prevents all application and acknowledgment
+    And one bounded amendment preserves original proposals exactly and corrects every held record
+    And the combined plan passes all ordinary parent validation before application
+
+  Scenario: A real selector response with an invented schema receives one bounded correction
+    Given the retained real selector response has the current digest and version but an invented schema kind
+    And every present authoritative routing field is valid
+    When the parent rejects that response
+    Then one correction uses unchanged original evidence and metadata
+    And independent Harness and AGENTS routing is still required
+    And both attempts and costs remain recorded
+    And complete predecessor bodies and all ordinary mutation gates remain required
+    But stale identities, invalid authoritative fields and ambiguous objects receive no correction
+
+  Scenario: A no-op cannot acknowledge a selected outdated Memory as reviewed
+    Given the real retained pre-onIdle contract and complete later task evidence
+    When an incremental planner proposes no Memory operation
+    Then the selected retained claims are checked against every original evidence entry
+    And a contradiction or uncertain review prevents successful acknowledgment
+    And any correction still requires the ordinary cited mutation validation
+
+  Scenario: An unresolved real failure can teach bounded project knowledge
+    Given complete tool evidence reports an actual failed project verification
+    And no successful correction has been observed
+    When the Memory planner distills reusable knowledge
+    Then it may describe the observed failure and source-bound limitation without claiming recovery
+    And it must distinguish intended behavior, implementation and verified behavior
+    And it must not turn the task instruction into a standing user constraint
+    And all original citations and independent semantic thresholds still apply
+
+  Scenario: Missing position routing fields use the same single correction slot
+    Given the actual current-index selector response omits the AGENTS phase decision
+    When every present field validates against this invocation's frozen index
+    Then reject the original and request one complete independently decided response
+    And do not fill missing routing flags or accept a second incomplete response
+    And preserve both calls and costs
+
+  Scenario: Correcting every rejected claim replaces that candidate's citation footprint
+    Given complete independent review holds both a Memory body and its description
+    And the bounded correction supplies exact frozen citations for both replacement fields
+    When the parent constructs the corrected candidate
+    Then preserve its identity, privacy and other frontmatter and retain the original rejected plan separately
+    And validate the replacement citations with the unchanged eight-citation bound and complete semantic gates
+    But a correction preserving either original claim field must retain its original citations
+
+  Scenario: Complete semantic reviews preserve structured state on the service wire
+    Given complete original evidence with quoted source and separate body and description judgments
+    When the parent prepares every semantic request
+    Then transmit structured JSON without nested serialization
+    And each support judgment explicitly references its candidate's shared exact citations
+    And preserve complete original entries, citation order, roles, indexes and all judgment criteria
+    And preflight the same encoded payload before any request with unchanged byte and request limits
+    And later corrections still hold the candidate despite its earlier quoted support
+
+  Scenario: Memory learning preserves the chronology of changed source
+    Given source observations include a patch replacing an earlier implementation
+    When initial learning or bounded semantic correction describes current behavior
+    Then removed lines establish only the predecessor state
+    And the learner traces added lines and later observations before retaining a current claim
+    And incomplete final source remains an explicitly limited observation
+    And the complete original patch and unchanged semantic gates remain available
+
+  Scenario: A no-tool correction worker constrains known-capable model output on the wire
+    Given an isolated no-tool correction worker using documented Qwen3.8-Flash OpenAI completions
+    And its gateway has explicit plannerJsonOutput capability opt-in
+    When it sends a request for a JSON plan
+    Then request JSON object output at the provider boundary
+    And preserve the messages, model, reasoning configuration and all parent validation
+    And leave other APIs, unknown models, inspection workers and existing output constraints unchanged
+    And a text tool-call imitation is still rejected rather than executed or salvaged
+
+  Scenario: Passing code checks do not hide an aborted task from failure learning
+    Given both study arms use the same tool budget and a task exhausts that budget
+    And its behavior, type and upstream checks pass
+    When the original task session receives its source-bound failure observation
+    Then the observation retains the operational failure and the passing checks separately
+    And failure backfill is not skipped because the code checks passed
+    And provider error prose is not included in the observation
+
+  Scenario: Exhausted parent tools prohibit model tool selection on the wire
+    Given a parent study task has spent its unchanged admitted tool budget
+    And the native OpenAI-compatible request has no active tool definitions
+    When the original session requests its final summary with full tool history
+    Then the request explicitly sets tool_choice to none
+    And all original messages and tool results remain unchanged
+    And a subsequent tool request still fails the task
+    And independent learning workers retain their separate tool authorization
+
+  Scenario: A failed feedback summary does not prevent learning its complete observed failure
+    Given the original failed task and complete source-bound verifier remain in the same session
+    And exactly one authorized full read succeeded before a removed tool request was rejected
+    And the stopped feedback task remains failed with all its costs
+    When the parent independently verifies session bytes, read results and the complete pending slice
+    Then one unconsumed independent backfill may review that frozen failure
+    And no further parent summary retries are admitted
+    And incomplete observations, unproven execution denial and changed source are rejected
+    And original semantic, authorization, receipt, mutation and downstream benefit gates remain required
+
+  Scenario: Recovery preserves the already failed diagnostic summary extension
+    Given complete failure feedback was observed in a failed original continuation
+    And a retained later diagnostic continuation used zero tools and also failed
+    When admitting the first independent backfill after that diagnostic
+    Then verify both immutable prefixes and every rejected call and stop boundary
+    And verify the longest actual pending task slice includes both failures
+    And do not make another summary call or discard the diagnostic failure
+    And reject any extension that executed a tool, changed source or consumed the backfill
+
+  Scenario: Correct a contract without inheriting unsupported proof attribution
+    Given a selected Memory contains several source contracts and an old concrete test attribution
+    And the complete current task evidence supports the contracts but does not observe that test
+    And some probe outputs came from an ineffective assertion or an unfinished invocation
+    When initial planning or the existing bounded semantic repair produces a replacement
+    Then the worker must preserve supported contracts without copying unobserved proof attribution
+    And probe verification must be grounded in the actual invocation and meaningful completed assertions
+    And all original evidence, predecessor bodies and unchanged parent validation gates remain available
+    And delivered prompt coverage alone does not establish real learning effectiveness
+
+  Scenario: Partial success does not skip correction of held knowledge
+    Given a Memory plan contains independently supported candidates and a repairable held candidate
+    When the parent reviews the complete plan
+    Then it attempts the single bounded semantic correction before applying a subset
+    And every corrected candidate must pass the unchanged complete review
+    And an unsuccessful correction may preserve verified independent knowledge with unresolved work pending
+    And cancellation or changed evidence prevents writes
+
+  Scenario: Backfill cannot recreate an unselected existing Memory file
+    Given an earlier partial application created a Memory entry
+    And backfill selects other entries without selecting that file
+    When planning additional knowledge from the same frozen observations
+    Then the planner receives the complete occupied filename namespace without extra read or mutation authority
+    And a colliding create is rejected before semantic review and before any write
+    And the final apply guard independently rejects overwrites and preserves predecessor bytes
+
+  Scenario: Generic instructions do not displace task-specific Memory contract bodies
+    Given actual learned contract and verification memories from a real project
+    And a maintenance request with shared operational instructions and API names
+    When retrieving complete scoped Memory bodies under the existing budget
+    Then generic instruction words do not earn relevance
+    And compound API and return-type cues remain searchable
+    And the relevant contract is delivered with its complete body and exact revision
+    And retrieval grants no authority and does not establish task benefit
+
+  Scenario: Same-task verifier extensions retain bound Memory failure feedback
+    Given a held Memory plan on an independently digest-verified task prefix
+    And a complete byte-identical extension containing actual failure verification
+    When one learning call covers both backlog ranges with the longest receipt owner
+    Then the original rejected plan and field diagnostics remain available as correction context
+    And all new failure observations are preserved
+    And a later completed Memory phase suppresses older held feedback
+    And changed prefixes or new substantive tasks never grant access to unrelated feedback
+
+  Scenario: Replay feedback remains bound and cancellation prevents new learning
+    Given an independently verified pending learning task
+    When an earlier receipt belongs to another task
+    Then it cannot resolve old Memory failures or authorize another learning call
+    And the original receipt remains retained for diagnosis
+    When cancellation arrives while saving an admitted attempt
+    Then the attempt is cancelled without starting its learner
+    And pending evidence remains available after the learning lease is released
+
+  Scenario: One structural correction sees every bounded citation-location failure
+    Given a real failed Memory plan with both an invalid source range and an oversized extracted quote
+    When the parent rejects citation locations before any mutation
+    Then the existing single correction receives both candidate and citation positions
+    And each reason uses controlled categories and numeric bounds without source text
+    And invalid locations and quotes remain rejected under unchanged limits
+    And large source lines may use an exact bounded legacy quote without weakening semantic review

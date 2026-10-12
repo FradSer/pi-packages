@@ -14,7 +14,7 @@ def structural_request(original: dict[str, Any]) -> dict[str, Any]:
     if original.get('model') != 'jev-1.13.0' or not isinstance(original.get('questions'), dict):
         raise ValueError('Pinned research request required')
     try:
-        state = json.loads(original['state'])
+        state = json.loads(original['state']) if isinstance(original['state'], str) else copy.deepcopy(original['state'])
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError('Invalid evidence state') from exc
     if not isinstance(state, dict) or 'structuralView' in state:
@@ -51,7 +51,7 @@ def structural_request(original: dict[str, Any]) -> dict[str, Any]:
         view[surface] = rows
     state['structuralView'] = view
     result = copy.deepcopy(original)
-    result['state'] = json.dumps(state, ensure_ascii=False, separators=(',', ':'))
+    result['state'] = json.dumps(state, ensure_ascii=False, separators=(',', ':')) if isinstance(original['state'], str) else state
     if len(result['questions']) > 32 or len(json.dumps(result, ensure_ascii=False).encode()) > 64000:
         raise ValueError('Research request byte bound exceeded')
     return result

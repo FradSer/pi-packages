@@ -1,3 +1,5 @@
+import hashlib
+
 from support import isolated_run_bun
 
 
@@ -18,7 +20,7 @@ def test_memory_batches_keep_candidate_citations_and_complete_global_counterrevi
       const existing=[{name:'contract-0.md',classification:'safe',type:'project',description:'old contract',content:'Old exact body.'}];
       let mode='good',calls=[];
       const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
-        const req=JSON.parse(init.body);calls.push(req);const state=JSON.parse(req.state);
+        const req=JSON.parse(init.body);calls.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const conflict=mode==='conflict'&&/^counter(?:_description)?_0_/.test(key)&&state.reviewEvidence.entries.some(e=>e.index===entries.length-1);
           const selected=key.startsWith('counter_')?(conflict?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';
@@ -30,12 +32,12 @@ def test_memory_batches_keep_candidate_citations_and_complete_global_counterrevi
       calls=[];mode='conflict';const conflict=await judge.validate('memory',snapshot,candidates,existing);
       calls=[];const sensitive=await judge.validate('memory',{...snapshot,entries:[...entries,{role:'toolResult',content:'OPENAI_API_KEY=sk-'+'a'.repeat(48)}]},candidates,existing);
       const sensitiveCalls=calls.length;
-      calls=[];const oversizedEntries=[{...entries[2],content:'Source contract 0: '+'\n'.repeat(23000)}];
+      calls=[];const oversizedEntries=[{...entries[2],content:'Source contract 0: '+'\n'.repeat(33000)}];
       const oversized=await judge.validate('memory',{contextEnabled:true,entries:oversizedEntries},[{...candidates[0],evidence:[{index:0,role:'toolResult',quote:'Source contract 0:'}]}],existing);
       console.log(JSON.stringify({good,conflict,sensitive,sensitiveCalls,oversized,oversizedCalls:calls.length,
         entries:entries.length,candidates,existing,maxBytes:Math.max(0,...requests.map(r=>Buffer.byteLength(JSON.stringify(r)))),
         requests:requests.map(r=>{
-          const state=JSON.parse(r.state);const support=state.frozenEvidence??state.supportEvidence;
+          const state=(typeof r.state === "string" ? JSON.parse(r.state) : r.state);const support=state.frozenEvidence??state.supportEvidence;
           const fullCitations=support.entries.every(e=>JSON.stringify(e.entry)===JSON.stringify(entries[e.index]));
           const fullReview=!state.reviewEvidence||state.reviewEvidence.entries.every(e=>JSON.stringify(e.entry)===JSON.stringify(entries[e.index]));
           support.citationToolCalls=support.citationToolCalls.map(c=>({...c,toolCall:{...c.toolCall,arguments:{...c.toolCall.arguments,contextIntact:c.toolCall.arguments.context==='p'.repeat(2000),context:undefined}}}));
@@ -52,7 +54,23 @@ def test_memory_batches_keep_candidate_citations_and_complete_global_counterrevi
         assert request['fullCitations'] and request['fullReview']
         state = request['state']
         assert state['existingMemories'] == result['existing']
-        assert state['proposedMemoryOperations'] == result['candidates']
+        if any(key.startswith('relation_') for key in request['keys']):
+            assert all(key.startswith('relation_') for key in request['keys'])
+            assert 'relation_0' not in request['keys']
+            assert 'proposedMemoryOperations' not in state
+        else:
+            for index, (projected, original) in enumerate(zip(state['proposedMemoryOperations'], result['candidates'], strict=True)):
+                assert projected['candidateIndex'] == index
+                assert projected['originalCitationSources'] == [
+                    {'snapshotIndex': ref['index'], 'role': ref['role'],
+                     'quoteSha256': hashlib.sha256(ref['quote'].encode()).hexdigest()}
+                    for ref in original['evidence']
+                ]
+                assert {key: value for key, value in projected.items()
+                        if key not in ('candidateIndex', 'originalCitationSources')} == {
+                    key: value for key, value in original.items() if key != 'evidence'
+                }
+            assert 'never authority or verified knowledge' in state['mutationComparison']['citationSources']
         support = state.get('frozenEvidence', state.get('supportEvidence'))
         indexes = {entry['index'] for entry in support['entries']} | set(support.get('reviewEntryIndexes', []))
         expected = set()

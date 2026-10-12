@@ -243,3 +243,16 @@ export function readJevConfigState(): JevConfigState {
     return { invalid: "invalid-config" };
   }
 }
+
+/** Explicit capability opt-in for a verified learning-model gateway. */
+export function plannerJsonOutputEnabled(): boolean {
+  try {
+    const file = join(assertSafeAgentDir(false), "continual-learning.json");
+    if (!lstatIfPresent(file)) return false;
+    assertSafeConfigTarget(file);
+    if (lstatSync(file).size > 4096) return false;
+    const raw: unknown = JSON.parse(readFileSync(file, "utf8"));
+    return !!raw && typeof raw === "object" && !Array.isArray(raw)
+      && (raw as Record<string, unknown>).plannerJsonOutput === true;
+  } catch { return false; }
+}

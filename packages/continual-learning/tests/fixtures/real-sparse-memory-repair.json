@@ -1,0 +1,270 @@
+{
+  "provenance": {
+    "cohort": "20261011T141809Z-e9114e44c7f0",
+    "runId": "run_mv3ws2dg_da43649b3be0caf2",
+    "actualModelOutput": true
+  },
+  "original": {
+    "kind": "incremental-memory-plan",
+    "version": 1,
+    "schemaVersion": 1,
+    "runId": "run_mv3ws2dg_da43649b3be0caf2",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "14706a678fa8737848d1524f98b183325f22c122f81b4c9b12bec4b75a0648c0",
+    "artifactHash": "e53c3dfd7fb20ec3b2bb27fbbb139a349cceb1f0145ffe783854e4aca778a280",
+    "snapshotDigest": "e53c3dfd7fb20ec3b2bb27fbbb139a349cceb1f0145ffe783854e4aca778a280",
+    "operations": [
+      {
+        "name": "limit_function_type_contract.md",
+        "kind": "rewrite",
+        "classification": "safe",
+        "content": "---\ndescription: p-limit's declared limitFunction takes a PromiseLike-returning fn and returns a Promise-returning fn with clearQueue\ntype: project\n---\nIn the p-limit package, `index.d.ts` declares the `limitFunction` public contract as `export function limitFunction<Arguments extends unknown[], ReturnType>(function_: (...arguments_: Arguments) => PromiseLike<ReturnType>, options: Options): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;`. This is a type-level contract grounded in the declarations, not a runtime restriction: the input must be PromiseLike-returning, unlike the `LimitFunction` call signature whose parameter accepts `PromiseLike<ReturnType> | ReturnType`; `index.test-d.ts` asserts the narrower limitFunction input with `expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));`. The declared return type still exposes only `clearQueue` from `LimitFunction`, and `tsd` reported `Property onIdle does not exist on type ((x: number) => Promise<number>) & Pick<LimitFunction, \"clearQueue\">` (and the same for `LimitFunction`). As of the 2026-10-11 change the `index.js` implementation builds the wrapper differently from that declaration: it creates its own limiter, returns `(...arguments_) => limit(() => function_(...arguments_))`, and uses `Object.defineProperties(limitedFunction, {clearQueue: {value: limit.clearQueue}, onIdle: {value: () => limit.onIdle()}})`, so the runtime wrapper exposes `onIdle` while the declaration does not — declared contract and implementation differ until `index.d.ts` is updated.\n",
+        "evidence": [
+          {
+            "index": 32,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 69,
+              "end": 77
+            }
+          },
+          {
+            "index": 48,
+            "lines": {
+              "block": 0,
+              "start": 22,
+              "end": 22
+            }
+          }
+        ]
+      },
+      {
+        "name": "clear_queue_pending_only.md",
+        "kind": "rewrite",
+        "classification": "safe",
+        "content": "---\nname: clear_queue_pending_only\ndescription: Declared clearQueue() does not cancel running promises, but releases pending onIdle() waiters once the queue empties\ntype: project\n---\nIn p-limit, `clearQueue()` acts only on items still in the internal queue. With `rejectOnClear` not enabled (documented default `false`) it calls `queue.clear()`, so the discarded pending promises never settle; with `rejectOnClear` enabled it dequeues each pending item and rejects it with `AbortSignal.abort().reason`, i.e. an `AbortError`. It never touches already-running tasks: the public declaration states \"Note: This does not cancel promises that are already running.\" Because the default configuration leaves pending promises unresolved, awaiting them (for example with `Promise.all`) is the case for which `rejectOnClear` is documented as recommended. As of the 2026-10-11 `onIdle()` change in `index.js`, both `clearQueue()` branches additionally call `notifyIdle()`, so pending `onIdle()` waiters are released once the queue is empty and no job is active — including when the discarded promises themselves stay unresolved under `rejectOnClear: false`, and when `clearQueue()` is called on an already idle limiter.\n",
+        "evidence": [
+          {
+            "index": 12,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 54,
+              "end": 55
+            }
+          },
+          {
+            "index": 0,
+            "lines": {
+              "block": 0,
+              "start": 8,
+              "end": 8
+            }
+          },
+          {
+            "index": 35,
+            "lines": {
+              "block": 0,
+              "start": 6,
+              "end": 6
+            }
+          }
+        ]
+      }
+    ],
+    "newMemories": [
+      {
+        "name": "on_idle_semantics.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\ndescription: p-limit's index.js implements onIdle(), resolving only when active/reserved slots and the waiting queue are both empty\ntype: project\n---\nIn p-limit's `index.js`, the limiter and the `limitFunction` wrapper expose `onIdle(): Promise<void>`, which resolves only when `activeCount === 0` and `queue.size === 0`: waiters are held in an `idleResolvers` set so multiple callers resolve together, rejected jobs are handled like resolved ones, and a call made while already idle resolves normally instead of hanging. The idle re-check after a job settles is deferred with `queueMicrotask(notifyIdle)` because a dequeued job keeps its reserved slot until its function starts one microtask later; a probe showed no early idle while a finishing job enqueued another (`t~15ms fired=false ... active 1 pending 0` then `t~25ms fired=true`). The wrapper gained `onIdle: {value: () => limit.onIdle()}`. This was a runtime-only addition in that run: `index.d.ts` and the readme were not updated, so `onIdle` is not part of the declared type surface (a hidden behavior test \"idle, rejection, reservation, queue clear and wrapper\" passed while `tsd` failed).\n",
+        "evidence": [
+          {
+            "index": 0,
+            "lines": {
+              "block": 0,
+              "start": 8,
+              "end": 8
+            }
+          },
+          {
+            "index": 32,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 40,
+              "end": 42
+            }
+          },
+          {
+            "index": 32,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 71,
+              "end": 77
+            }
+          },
+          {
+            "index": 35,
+            "lines": {
+              "block": 0,
+              "start": 2,
+              "end": 6
+            }
+          },
+          {
+            "index": 48,
+            "lines": {
+              "block": 0,
+              "start": 21,
+              "end": 22
+            }
+          }
+        ]
+      },
+      {
+        "name": "active_count_includes_reserved_slots.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\ndescription: In p-limit's index.js, activeCount counts reserved slots, not only jobs whose function has started\ntype: project\n---\nIn p-limit's `index.js`, `resumeNext()` bumps the count and hands off the queue item in one step (`activeCount++; queue.dequeue().run();`), and the item's function is invoked only after the intervening promise microtask, so `activeCount` includes reserved slots rather than only started jobs. Observed with `pLimit(1)` and two enqueued jobs: synchronously after enqueueing, `activeCount` was already 1 while no user function had run (`after enqueue (sync): [] active 1 pending 1`), and only the running job's marker appeared at 5 ms. Code that reads `activeCount`/`pendingCount` to decide \"nothing is left\" (e.g. idle detection) must therefore account for a dequeued-but-not-yet-started job and re-check after a microtask instead of reading the counters synchronously after a decrement and re-reserve.\n",
+        "evidence": [
+          {
+            "index": 4,
+            "lines": {
+              "block": 0,
+              "start": 19,
+              "end": 23
+            }
+          },
+          {
+            "index": 30,
+            "lines": {
+              "block": 0,
+              "start": 1,
+              "end": 2
+            }
+          },
+          {
+            "index": 0,
+            "lines": {
+              "block": 0,
+              "start": 8,
+              "end": 8
+            }
+          }
+        ]
+      },
+      {
+        "name": "index_dts_is_a_separate_surface.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\ndescription: p-limit's index.js gains no TypeScript surface alone; tsd failed with \"onIdle does not exist on type LimitFunction\"\ntype: project\n---\nIn p-limit the public type surface lives in `index.d.ts`, independently of the closure-built limiter object in `index.js`: a method added only in `index.js` does not appear on `LimitFunction`, nor on `limitFunction`'s declared return type `((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>` (`Pick<...>` must also be widened or the member declared for wrapper methods). After the 2026-10-11 `onIdle` implementation this gap was observed directly: the independent run's `tsd` step failed with `Property onIdle does not exist on type LimitFunction` and `Property onIdle does not exist on type ((x: number) => Promise<number>) & Pick<LimitFunction, \"clearQueue\">`, while the behavior test passed — so a passing behavior check does not prove the declared contract was updated. Context: the package's observed `test` script is `xo && ava && tsd`.\n",
+        "evidence": [
+          {
+            "index": 6,
+            "lines": {
+              "block": 0,
+              "start": 135,
+              "end": 138
+            }
+          },
+          {
+            "index": 48,
+            "lines": {
+              "block": 0,
+              "start": 22,
+              "end": 22
+            }
+          },
+          {
+            "index": 3,
+            "lines": {
+              "block": 0,
+              "start": 44,
+              "end": 44
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "delta": {
+    "kind": "incremental-memory-plan",
+    "version": 1,
+    "schemaVersion": 1,
+    "runId": "run_mv3ws2dg_da43649b3be0caf2",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "14706a678fa8737848d1524f98b183325f22c122f81b4c9b12bec4b75a0648c0",
+    "artifactHash": "e53c3dfd7fb20ec3b2bb27fbbb139a349cceb1f0145ffe783854e4aca778a280",
+    "snapshotDigest": "e53c3dfd7fb20ec3b2bb27fbbb139a349cceb1f0145ffe783854e4aca778a280",
+    "operations": [
+      {
+        "name": "clear_queue_pending_only.md",
+        "kind": "rewrite",
+        "classification": "safe",
+        "content": "---\nname: clear_queue_pending_only\ndescription: p-limit's clearQueue() calls notifyIdle() so onIdle() waiters resolve once the queue empties and no job is active\ntype: project\n---\nIn p-limit, `clearQueue()` touches only pending queue items (the declaration notes \"Note: This does not cancel promises that are already running.\"): with `rejectOnClear` not enabled it calls `queue.clear()`, and with it enabled it dequeues each pending item and rejects it with `AbortSignal.abort().reason`; both `clearQueue()` branches call `notifyIdle()`, which returns early unless `activeCount === 0` and `queue.size === 0`, so pending `onIdle()` waiters resolve only then.\n",
+        "evidence": [
+          {
+            "index": 24,
+            "lines": {
+              "block": 0,
+              "start": 85,
+              "end": 97
+            }
+          },
+          {
+            "index": 24,
+            "lines": {
+              "block": 0,
+              "start": 9,
+              "end": 12
+            }
+          },
+          {
+            "index": 6,
+            "lines": {
+              "block": 0,
+              "start": 22,
+              "end": 22
+            }
+          }
+        ]
+      },
+      {
+        "name": "limit_function_type_contract.md",
+        "kind": "rewrite",
+        "classification": "safe",
+        "content": "---\ndescription: p-limit's declared limitFunction type picks only clearQueue from LimitFunction, omitting onIdle\ntype: project\n---\nIn p-limit, `index.d.ts` declares `limitFunction(function_: (...arguments_: Arguments) => PromiseLike<ReturnType>, options: Options): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;`, a declared type-level contract (PromiseLike-returning input, Promise-returning output, return type picking only `clearQueue`) that does not include the `onIdle` the `index.js` `limitFunction` wrapper assigns via `Object.defineProperties(limitedFunction, {...onIdle: {value: () => limit.onIdle()},})`.\n",
+        "evidence": [
+          {
+            "index": 6,
+            "lines": {
+              "block": 0,
+              "start": 135,
+              "end": 138
+            }
+          },
+          {
+            "index": 32,
+            "lines": {
+              "source": "patch",
+              "block": 0,
+              "start": 71,
+              "end": 77
+            }
+          },
+          {
+            "index": 48,
+            "lines": {
+              "block": 0,
+              "start": 22,
+              "end": 22
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

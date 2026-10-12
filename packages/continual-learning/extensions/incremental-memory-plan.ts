@@ -1,3 +1,4 @@
+import {hasMemoryCitationLocations, resolveMemoryPlanCitations} from "./memory-citation-locations";
 import fs from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
@@ -17,6 +18,9 @@ import {
 import { isMemoryFilename } from "./memory-files";
 
 const PRIVATE_MARKER_RE = /\(\s*harness[\s_-]+only\s*\)/i;
+
+/** A create cannot be repaired without changing its protected name or scope. */
+export class IncrementalMemoryNameCollisionError extends Error {}
 const MAX_GROUNDING_REASON_CHARS = 300;
 const DELETE_VERDICTS = new Set<IncrementalDeleteVerdict>(["CONTRADICTED", "SUPERSEDED", "SUBSUMED"]);
 const OBSERVATION_STATUSES = new Set<RepositoryObservationStatus>(["found", "missing", "updated"]);
@@ -381,14 +385,23 @@ async function incrementalSnapshot(run: ConsolidationRun): Promise<unknown> {
 async function normalizeNewMemories(value: unknown, selected: readonly string[], run: ConsolidationRun): Promise<NewMemoryProposal[]> {
   if (!Array.isArray(value)) throw new Error("Incremental Memory delta newMemories must be an array");
   if (value.length === 0) return [];
-  return normalizeNewMemoryProposals({ newMemories: value }, await incrementalSnapshot(run), selected);
+  const proposals = normalizeNewMemoryProposals({ newMemories: value }, await incrementalSnapshot(run), selected);
+  const occupied = new Set([
+    ...Object.keys(run.manifest.sourceHashes.harness),
+    ...Object.keys(run.manifest.sourceHashes.public),
+  ].map(name => name.toLowerCase()));
+  for (const proposal of proposals) {
+    if (occupied.has(proposal.name.toLowerCase())) {
+      throw new IncrementalMemoryNameCollisionError(`Incremental Memory name already exists outside selected scope: ${proposal.name}`);
+    }
+  }
+  return proposals;
 }
 
-function groundingReason(name: string): string {
-  const reason = name.startsWith("project_")
-    ? "No validated repository observation was supplied by the incremental operation."
-    : "This Memory does not make a repository claim requiring path verification.";
-  return reason.slice(0, MAX_GROUNDING_REASON_CHARS);
+function groundingReason(): string {
+  // A filename cannot establish whether the record makes source claims.
+  return "No validated repository observation was supplied; repository grounding is unknown."
+    .slice(0, MAX_GROUNDING_REASON_CHARS);
 }
 
 /**
@@ -401,10 +414,13 @@ export async function expandIncrementalMemoryPlan(
   deltaPlan: unknown,
 ): Promise<FullIncrementalMemoryPlan> {
   const selected = assertSelectedNames(selectedNames);
-  const delta = validateDeltaIdentity(run, deltaPlan);
+  let delta = validateDeltaIdentity(run, deltaPlan);
   const classifications = await readPrivateClassifications(run.manifest.harnessDir, selected);
-  const snapshot = Array.isArray(delta.operations) && delta.operations.some(value => value && typeof value === "object" && "evidence" in value)
+  const snapshot = hasMemoryCitationLocations(delta) || Array.isArray(delta.operations) && delta.operations.some(value => value && typeof value === "object" && "evidence" in value)
     ? await incrementalSnapshot(run) : undefined;
+  const resolved = resolveMemoryPlanCitations(delta, snapshot);
+  assertRecord(resolved, "Resolved incremental Memory plan");
+  delta = resolved;
   const operations = await normalizeOperations(delta.operations, selected, classifications, run.manifest.cwd, snapshot);
   const newMemories = await normalizeNewMemories(delta.newMemories, selected, run);
   const operationByName = new Map(operations.map((operation) => [operation.name.toLowerCase(), operation]));
@@ -417,8 +433,8 @@ export async function expandIncrementalMemoryPlan(
     const observations = operationByName.get(name.toLowerCase())?.observations ?? [];
     return {
       name,
-      status: observations.length > 0 ? "VERIFIED" as const : name.startsWith("project_") ? "UNVERIFIABLE" as const : "N/A" as const,
-      reason: observations.length > 0 ? "Repository observations were validated by the parent." : groundingReason(name),
+      status: observations.length > 0 ? "VERIFIED" as const : "UNVERIFIABLE" as const,
+      reason: observations.length > 0 ? "Repository observations were validated by the parent." : groundingReason(),
       observations,
     };
   });

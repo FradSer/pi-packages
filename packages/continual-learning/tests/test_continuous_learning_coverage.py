@@ -1,6 +1,35 @@
 from continuous_project_evidence import continuous_coverage, verifier_observation
 
 
+def test_partial_real_receipt_retains_known_cost_and_counts_unknown_usage(tmp_path, monkeypatch) -> None:
+    import io
+    import json
+    import tarfile
+    from pathlib import Path
+    import live_continuous_project_learning as study
+
+    receipt = json.loads((Path(__file__).parent / 'fixtures/real-interrupted-learning-receipt.json').read_text())
+    assert receipt['usageAvailable'] is False and receipt['costAvailable'] is False
+
+    def export_tree(container, root, output, proxy):
+        with tarfile.open(output, 'w:gz') as archive:
+            if root.endswith('/learning'):
+                data = json.dumps({'version': 1, 'attempts': [{'outcome': 'failed', 'receipt': receipt}]}).encode()
+                item = tarfile.TarInfo('replay-real.json')
+                item.size = len(data)
+                archive.addfile(item, io.BytesIO(data))
+
+    monkeypatch.setattr(study.base, 'export_tree', export_tree)
+    monkeypatch.setattr(study.base, 'put', lambda *args: None)
+    monkeypatch.setattr(study.base, 'shell', lambda *args: b'')
+    monkeypatch.setattr(study.base, 'checked', lambda args: b'[null]' if 'node' in args else b'{"pending":2}')
+    result = study.artifacts('isolated-fixture', None, tmp_path)
+    assert result['knownLearningTokens'] == 31549
+    assert result['knownLearningCost'] == receipt['totals']['cost']
+    assert result['interruptedUnknownUsage'] == 1
+    assert result['allLearningCostsPriced'] is False
+
+
 def test_harness_only_old_operations_cannot_prove_memory_use_or_correction() -> None:
     report={'stages':[{'id':'orientation','arms':{'with-learning':{'learning':{'actualLearningOperations':1,'memoryEntries':[]},'inference':{'deliveredMemoryEntries':[]},'harness':{'passed':True}}}}]}
     result=continuous_coverage(report)
@@ -23,7 +52,9 @@ def test_completed_execution_alone_is_not_learning_improvement() -> None:
     assert not result['coverageComplete'] and not result['improvementObserved']
 
 
-def test_real_pi_verifier_continuation_preserves_original_observations_and_reads_actual_file(tmp_path) -> None:
+@__import__("pytest").mark.parametrize("wrong_read", [False, True])
+@__import__("pytest").mark.parametrize("operational_failure", [False, True])
+def test_real_pi_verifier_continuation_preserves_original_observations_and_reads_actual_file(tmp_path, wrong_read, operational_failure) -> None:
     import json
     import subprocess
     from pathlib import Path
@@ -41,9 +72,10 @@ def test_real_pi_verifier_continuation_preserves_original_observations_and_reads
     assert first.returncode==0,first.stderr.decode()
     original=session.read_bytes();original_rows=[json.loads(line) for line in original.splitlines()]
     (tmp_path/'hidden.log').write_text('Actual verifier outcome: missing required behavior\n')
-    observation=verifier_observation('fixture',{'passed':False},tmp_path,{'index.js':'source-digest'},original)
+    observation=verifier_observation('fixture',{'passed':operational_failure},tmp_path,{'index.js':'source-digest'},original,
+        **({'inference':{'exitCode':0,'modelErrors':1,'toolBudgetExceeded':True}} if operational_failure else {}))
     file=tmp_path/'verification.json';body=json.dumps(observation,ensure_ascii=False,indent=2);file.write_text(body)
-    second=subprocess.run(command+['continue'],cwd=project,env={**env,'PI_STUDY_VERIFIER_FILE':str(file)},capture_output=True,timeout=10)
+    second=subprocess.run(command+['continue'],cwd=project,env={**env,'PI_STUDY_VERIFIER_FILE':str(file),**({'STUDY_VERIFIER_WRONG_READ':'1'} if wrong_read else {})},capture_output=True,timeout=10)
     assert second.returncode==0,second.stderr.decode()
     assert session.read_bytes().startswith(original)
     rows=[json.loads(line) for line in session.read_text().splitlines()]
@@ -52,7 +84,11 @@ def test_real_pi_verifier_continuation_preserves_original_observations_and_reads
     assert any(row.get('message',{}).get('toolCallId')=='verification' and row['message'].get('isError') is False
                and body in ''.join(part.get('text','') for part in row['message'].get('content',[])) for row in new)
     provider=[row['data'] for row in new if row.get('customType')=='study-verifier-provider']
-    assert provider==[{'call':1,'tools':['read']},{'call':2,'tools':[]}]
+    assert provider==([{'call':1,'tools':['read']},{'call':2,'tools':['read']},{'call':3,'tools':[]}] if wrong_read else [{'call':1,'tools':['read']},{'call':2,'tools':[]}])
+    if wrong_read:
+        denied=[row['message'] for row in new if row.get('message',{}).get('toolCallId')=='wrong-source']
+        assert len(denied)==1 and denied[0]['isError'] is True
+        assert 'export const observed' not in str(denied[0])
     # Validate the actual continuation through the production slice helper.
     records=[row for row in rows if row.get('type')!='session'];(tmp_path/'rows.json').write_text(json.dumps(records))
     result=isolated_run_bun('''import {currentTaskSlice} from './packages/continual-learning/extensions/incremental-learning.ts';
@@ -127,3 +163,15 @@ def test_receipt_batch_is_optional_validated_and_parent_supplied() -> None:
       const bound=buildLearningReceipt('automatic',screen,[],undefined,'batch_'+'a'.repeat(32));
       console.log(JSON.stringify({legacy:isLearningPipelineReceipt(legacy),batch:bound.batchId,valid:isLearningPipelineReceipt(bound),bad:isLearningPipelineReceipt({...bound,batchId:'arbitrary'})}));""")
     assert result=={'legacy':True,'batch':'batch_'+'a'*32,'valid':True,'bad':False}
+
+
+def test_operational_failure_with_passing_checks_requires_same_backfill_proof():
+    report=full_evidence()
+    arm=report['stages'][1]['arms']['with-learning']
+    observation=arm['verifierFeedback']['observation']
+    observation['verification']={'passed':True}
+    assert not continuous_coverage(report)['failedTaskProcessed']
+    observation['taskOutcome']={'passed':False,'failures':['model-error','tool-budget-exceeded']}
+    assert continuous_coverage(report)['failedTaskProcessed']
+    arm['learning']['completedBacklog']['failure-job']='wrong-ack'
+    assert not continuous_coverage(report)['failedTaskProcessed']

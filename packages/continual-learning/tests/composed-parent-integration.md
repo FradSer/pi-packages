@@ -1,4 +1,24 @@
-# Gated composed Memory collector and parent integration
+# Product integration of independently usable Memory
+
+The ordinary consolidation pipeline now requests the existing independent and
+standalone proofs when Jev is enabled. This addresses real missed learning:
+a mixed plan can contain verified reusable knowledge and an unrelated held
+candidate. Only an authorized apply policy and unchanged pure-create candidates
+can reach subset persistence; all original support/counterevidence, relationship,
+privacy, frozen-state and transaction checks remain required. The parent requests
+additional proof only when some candidates passed and others remain held, both
+before and after its single bounded correction. Identical corrected plans and
+reviews reuse the earlier no-subset decision rather than repeating service calls.
+Historical `composed` experiment copies now contain the same production source as
+`default`; they no longer represent distinct Memory policies.
+
+Held records remain pending and the original proposal is retained. Partial writes
+are not complete learning. A subsequent task may retrieve the verified records;
+this mechanical delivery must still be distinguished from measured task benefit.
+The direct judge factory retains its programmatic opt-in contract. Historical
+experiments below used flags explicitly before the ordinary pipeline adopted it.
+
+# Earlier isolated integration contract
 
 `createJevJudge` accepts the two programmatic evaluation flags
 `independentMemoryApplication` and `composedMemoryApplication`. Both must be true

@@ -2,9 +2,9 @@
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 
 export function sourceProvenanceRequest(request: unknown): Record<string, unknown> {
-  if (!record(request) || typeof request.state !== "string") throw new Error("Research requires serialized state");
+  if (!record(request)) throw new Error("Research requires a request object");
   const patched = structuredClone(request);
-  const state: unknown = JSON.parse(request.state);
+  const state: unknown = typeof request.state === "string" ? JSON.parse(request.state) : structuredClone(request.state);
   if (!record(state)) throw new Error("Research requires structured state");
   let annotated = false;
   for (const key of ["frozenEvidence", "supportEvidence", "reviewEvidence"]) {
@@ -27,6 +27,6 @@ export function sourceProvenanceRequest(request: unknown): Record<string, unknow
     annotated = true;
   }
   // Non-cited paths keep their original state and questions exactly.
-  if (annotated) patched.state = JSON.stringify(state);
+  if (annotated) patched.state = typeof request.state === "string" ? JSON.stringify(state) : state;
   return patched;
 }

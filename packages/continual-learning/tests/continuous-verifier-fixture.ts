@@ -14,9 +14,13 @@ export default function fixture(pi: ExtensionAPI): void {
       calls++;
       pi.appendEntry("study-verifier-provider", {call:calls,tools:getCurrentTools(context.messages).map(tool=>tool.name)});
       const message: AssistantMessage = {role:"assistant",api:model.api,provider:model.provider,model:model.id,timestamp:Date.now(),
-        content:calls===1?[{type:"toolCall",id:process.env.PI_STUDY_VERIFIER_FILE?"verification":"source",name:"read",
+        content:process.env.STUDY_VERIFIER_WRONG_READ && process.env.PI_STUDY_VERIFIER_FILE && calls===1
+          ? [{type:"toolCall",id:"wrong-source",name:"read",arguments:{path:"index.js"}}]
+          : process.env.STUDY_VERIFIER_WRONG_READ && process.env.PI_STUDY_VERIFIER_FILE && calls===2
+          ? [{type:"toolCall",id:"verification",name:"read",arguments:{path:process.env.PI_STUDY_VERIFIER_FILE}}]
+          : calls===1?[{type:"toolCall",id:process.env.PI_STUDY_VERIFIER_FILE?"verification":"source",name:"read",
           arguments:{path:process.env.PI_STUDY_VERIFIER_FILE??"index.js"}}]:[{type:"text",text:"Observed actual source and checks."}],
-        stopReason:calls===1?"toolUse":"stop",usage:{input:0,output:0,cacheRead:0,cacheWrite:0,totalTokens:0,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}}};
+        stopReason:(calls===1 || Boolean(process.env.STUDY_VERIFIER_WRONG_READ && process.env.PI_STUDY_VERIFIER_FILE && calls===2))?"toolUse":"stop",usage:{input:0,output:0,cacheRead:0,cacheWrite:0,totalTokens:0,cost:{input:0,output:0,cacheRead:0,cacheWrite:0,total:0}}};
       const stream=createAssistantMessageEventStream();stream.push({type:"start",partial:message});stream.push({type:"done",reason:message.stopReason,message});stream.end();return stream;
     },
   });

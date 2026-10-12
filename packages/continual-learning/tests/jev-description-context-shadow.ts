@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import type {createJevJudge} from '../extensions/jev-learning';
 export function descriptionContextSource(source:string):string {
- const before='    question.instructions = { ...question.instructions, candidate: { content: description } };';
+ const before='    const meaning = question.instructions.candidate;\n    question.instructions = { ...question.instructions, candidate: { ...(record(meaning) ? meaning : {}), content: description } };';
  if(source.split(before).length!==2)throw Error('Frozen description projection changed');
  return source.replace(before,`    const meaning = candidateMeaning(stage, candidate);
     const bodyContext = record(meaning) && typeof meaning.content === "string" ? meaning.content : undefined;

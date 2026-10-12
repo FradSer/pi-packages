@@ -1133,9 +1133,11 @@ def test_memory_plan_expansion_checks_citations_before_any_judge_call() -> None:
     # All generation paths use one citation contract before semantic review.
     text = source()
     expansion = text.index("plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, rawPlan);")
-    assert expansion < text.index('opts.jevJudge.validate("memory"')
+    assert expansion < text.index('opts.jevJudge!.validate("memory"')
     assert 'plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, repair.plan);' in text
-    assert 'const corrected = await expandCitedIncrementalMemoryPlan(run, selectedScope, repaired.plan);' in text
+    corrected = text.index('const corrected = await expandCitedIncrementalMemoryPlan(run, selectedScope, distilled.plan);')
+    assert text.index('const distilled = distillReviewedNewMemory(repaired.plan, candidates, mutationReview?.candidateReview,') < corrected
+    assert corrected < text.index('const correctedVerdict = await validateKnowledge(correctedCandidates);')
 
 
 def test_screened_constraint_with_no_harness_rule_is_named_not_silent() -> None:

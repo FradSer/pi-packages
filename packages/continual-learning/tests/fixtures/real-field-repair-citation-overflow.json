@@ -1,0 +1,496 @@
+{
+  "provenance": "Actual fresh v16 captured correction; parent union produced nine citations from original four plus corrected eight. No semantic acceptance implied.",
+  "originalPlan": {
+    "kind": "incremental-memory-plan",
+    "version": 1,
+    "schemaVersion": 1,
+    "runId": "run_mv4c5t8w_ea73c371c02c1bc7",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "723c6802aa4c1fe9bd26263348dadfd1e847221b2cc61237d51c40fb455ff868",
+    "artifactHash": "661f50f0b5a1499bb16fda2190858cd61a9d276fa78be467b1e112a52a290505",
+    "snapshotDigest": "661f50f0b5a1499bb16fda2190858cd61a9d276fa78be467b1e112a52a290505",
+    "operations": [],
+    "newMemories": [
+      {
+        "name": "clear_queue_semantics.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\ndescription: p-limit clearQueue() silently clears pending by default; rejectOnClear:true rejects them with AbortError\ntype: project\n---\nIn p-limit's index.js, `clearQueue()` branches on `rejectOnClear`, which defaults to `false` (`let rejectOnClear = false;` and destructuring default `rejectOnClear = false` when options are passed as an object). When `rejectOnClear` is false, `clearQueue()` only calls `queue.clear()` and returns, so dequeued-but-not-started pending items never have their stored `reject` invoked and their caller promises remain unresolved. When `rejectOnClear` is true, it dequeues each pending item and calls its stored `reject` with `AbortSignal.abort().reason` (an `AbortError`). index.d.ts states for `clearQueue`: \"Note: This does not cancel promises that are already running.\" and describes `rejectOnClear` (Default: `false`) as recommended when awaiting returned promises \"so pending tasks do not remain unresolved after `clearQueue()`.\"\n",
+        "evidence": [
+          {
+            "index": 3,
+            "lines": {
+              "block": 0,
+              "start": 3,
+              "end": 8
+            }
+          },
+          {
+            "index": 3,
+            "lines": {
+              "block": 0,
+              "start": 77,
+              "end": 89
+            }
+          },
+          {
+            "index": 4,
+            "lines": {
+              "block": 0,
+              "start": 22,
+              "end": 25
+            }
+          },
+          {
+            "index": 4,
+            "lines": {
+              "block": 0,
+              "start": 102,
+              "end": 108
+            }
+          }
+        ]
+      },
+      {
+        "name": "test_clear_queue_node20_skip.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\ndescription: p-limit's testClearQueueRejects is test.skip on Node 20, per a source comment about AVA and DOMException\ntype: project\n---\nIn p-limit's test.js, the rejectOnClear test path (including `clearQueue rejects pending promises when enabled` and `limitFunction exposes clearQueue`) runs through a `testClearQueueRejects` wrapper defined as `process.versions.node.startsWith('20.') ? test.skip : test`, preceded by the source comment \"// Node.js 20 has a bug where DOMException is not properly handled by AVA's `throwsAsync`.\" This is what the source comment states; on the replayed snapshot's environment these tests were observed executing and passing under `pnpm test`.\n",
+        "evidence": [
+          {
+            "index": 10,
+            "lines": {
+              "block": 0,
+              "start": 17,
+              "end": 21
+            }
+          },
+          {
+            "index": 8,
+            "lines": {
+              "block": 0,
+              "start": 4,
+              "end": 9
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "snapshot": {
+    "schemaVersion": 1,
+    "runId": "run_mv4c5t8w_ea73c371c02c1bc7",
+    "scopeKey": "--work-p-limit--",
+    "capturedAt": "2026-10-11T21:29:13.835Z",
+    "source": "context",
+    "contextEnabled": true,
+    "entries": [
+      {
+        "type": "message",
+        "id": "d4b47323",
+        "parentId": "4436ef4d",
+        "timestamp": "2026-10-11T21:24:41.406Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Work on this real p-limit checkout with normal source inspection and tools.\nKeep changes local. Do not access agent configuration or browse learning artifact roots. You may read Memory paths delivered by the plugin when relevant; automatic learning owns all Memory writes.\nDo not install dependencies or alter package manifests, existing tests, or existing check configuration.\nAdd tests only in new files. Preserve source behavior outside the requested changes.\nUse pnpm test for verification. Keep source reads focused and report failures honestly.\nUse at most 18 tool calls, then summarize actual results. This is a prompt budget;\nthe transport also has a cohort-wide request cap. Do not repeatedly rerun a failed check.\nRead index.js, public declarations and selected existing tests. Run pnpm test once. Do not edit files. Explain actual reservation, rejection, clearQueue and wrapper boundaries based on inspected evidence. Remember the currently inspected limitFunction public input/output type contract for future maintenance, grounded in the actual declarations. Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference."
+            }
+          ],
+          "timestamp": 1791753881403
+        }
+      },
+      {
+        "type": "custom_message",
+        "customType": "continual-learning-memory-reference",
+        "content": "# Active Project Memories\n\nNo established project Memory entries are available in the current scoped discovery.\n",
+        "display": false,
+        "details": {
+          "retrieved": []
+        },
+        "id": "1fa5fcb0",
+        "parentId": "d4b47323",
+        "timestamp": "2026-10-11T21:24:41.406Z"
+      },
+      {
+        "type": "message",
+        "id": "4266cdf1",
+        "parentId": "1fa5fcb0",
+        "timestamp": "2026-10-11T21:24:42.605Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_c3b94354a915493ca43e3ac3",
+              "name": "read",
+              "arguments": {
+                "path": "/work/p-limit/index.js"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_e2a1e8bc779b45cb801500ba",
+              "name": "read",
+              "arguments": {
+                "path": "/work/p-limit/index.d.ts"
+              }
+            }
+          ],
+          "timestamp": 1791753881454
+        }
+      },
+      {
+        "type": "message",
+        "id": "3d6133fe",
+        "parentId": "4266cdf1",
+        "timestamp": "2026-10-11T21:24:42.620Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_c3b94354a915493ca43e3ac3",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "import Queue from 'yocto-queue';\n\nexport default function pLimit(concurrency) {\n\tlet rejectOnClear = false;\n\n\tif (typeof concurrency === 'object') {\n\t\t({concurrency, rejectOnClear = false} = concurrency);\n\t}\n\n\tvalidateConcurrency(concurrency);\n\n\tif (typeof rejectOnClear !== 'boolean') {\n\t\tthrow new TypeError('Expected `rejectOnClear` to be a boolean');\n\t}\n\n\tconst queue = new Queue();\n\tlet activeCount = 0;\n\n\tconst resumeNext = () => {\n\t\t// Process the next queued function if we're under the concurrency limit\n\t\tif (activeCount < concurrency && queue.size > 0) {\n\t\t\tactiveCount++;\n\t\t\tqueue.dequeue().run();\n\t\t}\n\t};\n\n\tconst next = () => {\n\t\tactiveCount--;\n\t\tresumeNext();\n\t};\n\n\tconst run = async (function_, resolve, arguments_) => {\n\t\t// Execute the function and capture the result promise\n\t\tconst result = (async () => function_(...arguments_))();\n\n\t\t// Resolve immediately with the promise (don't wait for completion)\n\t\tresolve(result);\n\n\t\t// Wait for the function to complete (success or failure)\n\t\t// We catch errors here to prevent unhandled rejections,\n\t\t// but the original promise rejection is preserved for the caller\n\t\ttry {\n\t\t\tawait result;\n\t\t} catch {}\n\n\t\t// Decrement active count and process next queued function\n\t\tnext();\n\t};\n\n\tconst enqueue = (function_, resolve, reject, arguments_) => {\n\t\tconst queueItem = {reject};\n\n\t\t// Queue the internal resolve function instead of the run function\n\t\t// to preserve the asynchronous execution context.\n\t\tnew Promise(internalResolve => { // eslint-disable-line promise/param-names\n\t\t\tqueueItem.run = internalResolve;\n\t\t\tqueue.enqueue(queueItem);\n\t\t}).then(run.bind(undefined, function_, resolve, arguments_)); // eslint-disable-line promise/prefer-await-to-then\n\n\t\t// Start processing immediately if we haven't reached the concurrency limit\n\t\tif (activeCount < concurrency) {\n\t\t\tresumeNext();\n\t\t}\n\t};\n\n\tconst generator = (function_, ...arguments_) => new Promise((resolve, reject) => {\n\t\tenqueue(function_, resolve, reject, arguments_);\n\t});\n\n\tObject.defineProperties(generator, {\n\t\tactiveCount: {\n\t\t\tget: () => activeCount,\n\t\t},\n\t\tpendingCount: {\n\t\t\tget: () => queue.size,\n\t\t},\n\t\tclearQueue: {\n\t\t\tvalue() {\n\t\t\t\tif (!rejectOnClear) {\n\t\t\t\t\tqueue.clear();\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tconst abortError = AbortSignal.abort().reason;\n\n\t\t\t\twhile (queue.size > 0) {\n\t\t\t\t\tqueue.dequeue().reject(abortError);\n\t\t\t\t}\n\t\t\t},\n\t\t},\n\t\tconcurrency: {\n\t\t\tget: () => concurrency,\n\n\t\t\tset(newConcurrency) {\n\t\t\t\tvalidateConcurrency(newConcurrency);\n\t\t\t\tconcurrency = newConcurrency;\n\n\t\t\t\tqueueMicrotask(() => {\n\t\t\t\t\t// eslint-disable-next-line no-unmodified-loop-condition\n\t\t\t\t\twhile (activeCount < concurrency && queue.size > 0) {\n\t\t\t\t\t\tresumeNext();\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t},\n\t\t},\n\t\tmap: {\n\t\t\tasync value(iterable, function_) {\n\t\t\t\tconst promises = [];\n\n\t\t\t\ttry {\n\t\t\t\t\tArray.from(iterable, (value, index) => {\n\t\t\t\t\t\tconst promise = generator(function_, value, index);\n\t\t\t\t\t\tpromises.push(promise);\n\t\t\t\t\t\treturn promise;\n\t\t\t\t\t});\n\t\t\t\t} catch (error) {\n\t\t\t\t\t// The iterable threw, so `Promise.all` never observes the already scheduled promises. Observe them here to avoid unhandled rejections.\n\t\t\t\t\tfor (const promise of promises) {\n\t\t\t\t\t\tpromise.catch(() => {}); // eslint-disable-line promise/prefer-await-to-then\n\t\t\t\t\t}\n\n\t\t\t\t\tthrow error;\n\t\t\t\t}\n\n\t\t\t\treturn Promise.all(promises);\n\t\t\t},\n\t\t},\n\t});\n\n\treturn generator;\n}\n\nexport function limitFunction(function_, options) {\n\tconst limit = pLimit(options);\n\n\tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n\tObject.defineProperty(limitedFunction, 'clearQueue', {\n\t\tvalue: limit.clearQueue,\n\t});\n\n\treturn limitedFunction;\n}\n\nfunction validateConcurrency(concurrency) {\n\tif (!((Number.isInteger(concurrency) || concurrency === Number.POSITIVE_INFINITY) && concurrency > 0)) {\n\t\tthrow new TypeError('Expected `concurrency` to be a number from 1 and up');\n\t}\n}\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 6,
+          "timestamp": 1791753882620
+        }
+      },
+      {
+        "type": "message",
+        "id": "dcfc5927",
+        "parentId": "3d6133fe",
+        "timestamp": "2026-10-11T21:24:42.621Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_e2a1e8bc779b45cb801500ba",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "export type LimitFunction = {\n\t/**\n\tThe number of promises that are currently running.\n\t*/\n\treadonly activeCount: number;\n\n\t/**\n\tThe number of promises that are waiting to run (i.e. their internal `fn` was not called yet).\n\t*/\n\treadonly pendingCount: number;\n\n\t/**\n\tGet or set the concurrency limit.\n\t*/\n\tconcurrency: number;\n\n\t/**\n\tDiscard pending promises that are waiting to run.\n\n\tThis might be useful if you want to tear down the queue at the end of your program's lifecycle or discard any function calls referencing an intermediary state of your app.\n\n\tNote: This does not cancel promises that are already running.\n\n\tWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\tclearQueue: () => void;\n\n\t/**\n\tProcess an iterable of inputs with limited concurrency.\n\n\tThe mapper function receives the item value and its index.\n\n\tIf the iterable throws during iteration, the returned promise rejects with that error. Mapper functions that were already scheduled still run, and their results are discarded.\n\n\tThis is a convenience function for processing inputs that arrive in batches. For more complex use cases, see [p-map](https://github.com/sindresorhus/p-map).\n\n\t@param iterable - An iterable containing an argument for the given function.\n\t@param mapperFunction - Promise-returning/async function.\n\t@returns A promise equivalent to `Promise.all(Array.from(iterable, (item, index) => limit(mapperFunction, item, index)))`.\n\t*/\n\tmap: <Input, ReturnType> (\n\t\titerable: Iterable<Input>,\n\t\tmapperFunction: (input: Input, index: number) => PromiseLike<ReturnType> | ReturnType\n\t) => Promise<ReturnType[]>;\n\n\t/**\n\t@param fn - Promise-returning/async function.\n\t@param arguments - Any arguments to pass through to `fn`. Support for passing arguments on to the `fn` is provided in order to be able to avoid creating unnecessary closures. You probably don't need this optimization unless you're pushing a *lot* of functions.\n\n\tWarning: Avoid calling the same `limit` function inside a function that is already limited by it. This can create a deadlock where inner tasks never run. Use a separate limiter for inner tasks.\n\n\t@returns The promise returned by calling `fn(...arguments)`.\n\t*/\n\t<Arguments extends unknown[], ReturnType>(\n\t\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType> | ReturnType,\n\t\t...arguments_: Arguments\n\t): Promise<ReturnType>;\n};\n\n/**\nRun multiple promise-returning & async functions with limited concurrency.\n\n@param concurrency - Concurrency limit. Minimum: `1`. You can pass a number or an options object with a `concurrency` property.\n@returns A `limit` function.\n\n@example\n```\nimport pLimit from 'p-limit';\n\nconst limit = pLimit(1);\n\nconst input = [\n\tlimit(() => fetchSomething('foo')),\n\tlimit(() => fetchSomething('bar')),\n\tlimit(() => doSomething())\n];\n\n// Only one promise is run at once\nconst result = await Promise.all(input);\nconsole.log(result);\n```\n\n@example\n```\nimport pLimit from 'p-limit';\n\nconst limit = pLimit({concurrency: 1});\n```\n*/\nexport default function pLimit(concurrency: number | Options): LimitFunction;\n\nexport type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};\n\n/**\nReturns a function with limited concurrency.\n\nThe returned function manages its own concurrent executions, allowing you to call it multiple times without exceeding the specified concurrency limit.\n\nIdeal for scenarios where you need to control the number of simultaneous executions of a single function, rather than managing concurrency across multiple functions.\n\n@param function_ - Promise-returning/async function.\n@return Function with limited concurrency.\n\n@example\n```\nimport {limitFunction} from 'p-limit';\n\nconst limitedFunction = limitFunction(async () => {\n\treturn doSomething();\n}, {concurrency: 1});\n\nconst input = Array.from({length: 10}, limitedFunction);\n\n// Only one promise is run at once.\nawait Promise.all(input);\n```\n*/\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 5,
+          "timestamp": 1791753882620
+        }
+      },
+      {
+        "type": "message",
+        "id": "7eb92364",
+        "parentId": "dcfc5927",
+        "timestamp": "2026-10-11T21:24:43.878Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_ce6eb5b7297b47e78b2f8077",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && ls && ls test* 2>/dev/null; cat package.json | head -30"
+              }
+            }
+          ],
+          "timestamp": 1791753882623
+        }
+      },
+      {
+        "type": "message",
+        "id": "5014deb5",
+        "parentId": "7eb92364",
+        "timestamp": "2026-10-11T21:24:43.899Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_ce6eb5b7297b47e78b2f8077",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "benchmark.js\nindex.d.ts\nindex.js\nindex.test-d.ts\nlicense\nnode_modules\npackage.json\nreadme.md\nrecipes.md\nscripts\ntest.js\ntest.js\n{\n\t\"name\": \"p-limit\",\n\t\"version\": \"7.3.3\",\n\t\"description\": \"Run multiple promise-returning & async functions with limited concurrency\",\n\t\"license\": \"MIT\",\n\t\"repository\": \"sindresorhus/p-limit\",\n\t\"funding\": \"https://github.com/sponsors/sindresorhus\",\n\t\"author\": {\n\t\t\"name\": \"Sindre Sorhus\",\n\t\t\"email\": \"sindresorhus@gmail.com\",\n\t\t\"url\": \"https://sindresorhus.com\"\n\t},\n\t\"type\": \"module\",\n\t\"exports\": {\n\t\t\"types\": \"./index.d.ts\",\n\t\t\"default\": \"./index.js\"\n\t},\n\t\"sideEffects\": false,\n\t\"engines\": {\n\t\t\"node\": \">=20\"\n\t},\n\t\"scripts\": {\n\t\t\"test\": \"xo && ava && tsd\",\n\t\t\"benchmark\": \"node benchmark.js\"\n\t},\n\t\"files\": [\n\t\t\"index.js\",\n\t\t\"index.d.ts\"\n\t],\n\t\"keywords\": [\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 17,
+          "timestamp": 1791753883898
+        }
+      },
+      {
+        "type": "message",
+        "id": "4f99befb",
+        "parentId": "5014deb5",
+        "timestamp": "2026-10-11T21:24:45.196Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_c5d0d93431f8426893dd1ab2",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && grep -n \"limitFunction\\|clearQueue\\|rejectOnClear\" test.js index.test-d.ts | head -40"
+              }
+            }
+          ],
+          "timestamp": 1791753883900
+        }
+      },
+      {
+        "type": "message",
+        "id": "fb474771",
+        "parentId": "4f99befb",
+        "timestamp": "2026-10-11T21:24:45.212Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_c5d0d93431f8426893dd1ab2",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "test.js:8:import pLimit, {limitFunction} from './index.js';\ntest.js:184:test('clearQueue', async t => {\ntest.js:192:\tlimit.clearQueue();\ntest.js:199:testClearQueueRejects('clearQueue rejects pending promises when enabled', async t => {\ntest.js:200:\tconst limit = pLimit({concurrency: 1, rejectOnClear: true});\ntest.js:209:\tlimit.clearQueue();\ntest.js:217:testClearQueueRejects('limitFunction exposes clearQueue', async t => {\ntest.js:218:\tconst limitedFunction = limitFunction(() => delay(20), {concurrency: 1, rejectOnClear: true});\ntest.js:223:\tlimitedFunction.clearQueue();\ntest.js:481:test('limitFunction()', async t => {\ntest.js:485:\tconst limitedFunction = limitFunction(async () => {\nindex.test-d.ts:2:import pLimit, {limitFunction} from './index.js';\nindex.test-d.ts:5:const limitWithRejectOnClear = pLimit({concurrency: 1, rejectOnClear: true});\nindex.test-d.ts:21:expectType<void>(limit.clearQueue());\nindex.test-d.ts:22:expectType<void>(limitWithRejectOnClear.clearQueue());\nindex.test-d.ts:25:const lf = limitFunction(async (_a: string) => 'ok', {concurrency: 1});\nindex.test-d.ts:27:expectType<void>(lf.clearQueue());\nindex.test-d.ts:29:expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));\nindex.test-d.ts:30:expectError(pLimit({concurrency: 1, rejectOnClear: 'nope'}));\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 12,
+          "timestamp": 1791753885211
+        }
+      },
+      {
+        "type": "message",
+        "id": "1859f7be",
+        "parentId": "fb474771",
+        "timestamp": "2026-10-11T21:24:46.662Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_3f57bd3395d14300b9ee3224",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && sed -n 180,235p test.js && sed -n 478,505p test.js"
+              }
+            }
+          ],
+          "timestamp": 1791753885214
+        }
+      },
+      {
+        "type": "message",
+        "id": "7e68819a",
+        "parentId": "1859f7be",
+        "timestamp": "2026-10-11T21:24:46.680Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_3f57bd3395d14300b9ee3224",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n});\n\ntest('clearQueue', async t => {\n\tconst limit = pLimit(1);\n\n\tArray.from({length: 1}, () => limit(() => delay(1000)));\n\tArray.from({length: 3}, () => limit(() => delay(1000)));\n\n\tawait Promise.resolve();\n\tt.is(limit.pendingCount, 3);\n\tlimit.clearQueue();\n\tt.is(limit.pendingCount, 0);\n});\n\n// Node.js 20 has a bug where DOMException is not properly handled by AVA's `throwsAsync`.\nconst testClearQueueRejects = process.versions.node.startsWith('20.') ? test.skip : test;\n\ntestClearQueueRejects('clearQueue rejects pending promises when enabled', async t => {\n\tconst limit = pLimit({concurrency: 1, rejectOnClear: true});\n\n\tconst runningPromise = limit(() => delay(100));\n\tconst pendingPromiseOne = limit(() => delay(10));\n\tconst pendingPromiseTwo = limit(() => delay(10));\n\n\tawait Promise.resolve();\n\tt.is(limit.pendingCount, 2);\n\n\tlimit.clearQueue();\n\tt.is(limit.pendingCount, 0);\n\n\tawait runningPromise;\n\tawait t.throwsAsync(pendingPromiseOne, {name: 'AbortError'});\n\tawait t.throwsAsync(pendingPromiseTwo, {name: 'AbortError'});\n});\n\ntestClearQueueRejects('limitFunction exposes clearQueue', async t => {\n\tconst limitedFunction = limitFunction(() => delay(20), {concurrency: 1, rejectOnClear: true});\n\n\tconst runningPromise = limitedFunction();\n\tconst pendingPromise = limitedFunction();\n\n\tlimitedFunction.clearQueue();\n\n\tawait runningPromise;\n\tawait t.throwsAsync(pendingPromise, {name: 'AbortError'});\n});\n\ntest('map', async t => {\n\tconst limit = pLimit(1);\n\tconst results = await limit.map([1, 2, 3, 4, 5, 6, 7], input => input + 1);\n\n\tt.deepEqual(results, [2, 3, 4, 5, 6, 7, 8]);\n});\n\n\tt.deepEqual(log, [1, 2, 3, 4, 4, 4, 4, 4, 4, 4]);\n});\n\ntest('limitFunction()', async t => {\n\tconst concurrency = 5;\n\tlet running = 0;\n\n\tconst limitedFunction = limitFunction(async () => {\n\t\trunning++;\n\t\tt.true(running <= concurrency);\n\t\tawait delay(randomInt(30, 200));\n\t\trunning--;\n\t}, {concurrency});\n\n\tconst input = Array.from({length: 100}, limitedFunction);\n\n\tawait Promise.all(input);\n});\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 14,
+          "timestamp": 1791753886680
+        }
+      },
+      {
+        "type": "message",
+        "id": "5ef3fc91",
+        "parentId": "7e68819a",
+        "timestamp": "2026-10-11T21:24:47.942Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_55c27b03004b460f9dea746a",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && pnpm test 2>&1 | tail -15",
+                "timeout": 300
+              }
+            }
+          ],
+          "timestamp": 1791753886682
+        }
+      },
+      {
+        "type": "message",
+        "id": "293c9353",
+        "parentId": "5ef3fc91",
+        "timestamp": "2026-10-11T21:24:54.819Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_55c27b03004b460f9dea746a",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "  \u2714 map works when detached from the limit\n  \u2714 map does not leave unhandled rejections when the iterable throws\n  \u2714 clearQueue rejects pending promises when enabled (104ms)\n  \u2714 map rejects immediately with the iterable error and still runs already scheduled tasks (106ms)\n  \u2714 accepts options object (106ms)\n  \u2714 does not ignore errors (118ms)\n  \u2714 change concurrency to bigger value (157ms)\n  \u2714 change concurrency to smaller value (208ms)\n  \u2714 concurrency: 1 (621ms)\n  \u2714 concurrency: 4 (2.3s)\n  \u2714 limitFunction() (2.3s)\n  \u2714 activeCount and pendingCount properties (3s)\n  \u2500\n\n  30 tests passed\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 6874,
+          "timestamp": 1791753894818
+        }
+      },
+      {
+        "type": "message",
+        "id": "c4bb06b4",
+        "parentId": "293c9353",
+        "timestamp": "2026-10-11T21:25:23.827Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "All checks pass: `pnpm test` (xo + ava + tsd) \u2192 **30 tests passed**, no failures, no edits made.\n\n## Findings from inspected evidence\n\n**Reservation (`index.js`)** \u2014 Concurrency slots are reserved only in `resumeNext()`: it increments `activeCount` and dequeues a queue item when `activeCount < concurrency && queue.size > 0`. `enqueue()` wraps each call in an internal `Promise` whose `run` is the internal resolve; `.then(run.bind(...))` invokes the user function. The outer promise `resolve(result)` fires as soon as the function starts (not when it completes), then `run` awaits the result with a swallowing `try/catch {}` to prevent unhandled rejections, and calls `next()` which decrements `activeCount` and resumes one queued item. Enqueue also opportunistically calls `resumeNext()` if under the limit. So at any moment `activeCount \u2264 concurrency`, and `pendingCount` is `queue.size` (functions not yet started).\n\n**Rejection boundaries** \u2014 A caller's promise rejects only via the user function itself (the resolved `result` promise carries the rejection; the internal `catch {}` merely prevents an *unhandled* rejection internally). Once a task has been dequeued/started, `clearQueue` cannot reject or cancel it \u2014 its outcome reaches the caller regardless.\n\n**`clearQueue`** \u2014 Two modes governed by `rejectOnClear` (validated boolean, default `false`):\n- Default: `queue.clear()` silently drops pending items \u2014 their caller promises never settle (never resolve, never reject), which is why docs recommend `rejectOnClear` when awaiting with `Promise.all`.\n- With `rejectOnClear: true`: dequeues each pending item and calls its stored `reject` with `AbortSignal.abort().reason` (an `AbortError`). Running tasks are untouched \u2014 confirmed by `test.js:199` where `runningPromise` still resolves while both pending promises reject with `name: 'AbortError'`. Tests for this path run through a `testClearQueueRejects` wrapper that skips on Node 20 due to an AVA/DOMException bug.\n\nThe `concurrency` setter validates, then drains the queue in a `queueMicrotask` loop up to the new limit; the getters expose live `activeCount`/`pendingCount`.\n\n**`limitFunction` wrapper boundary** \u2014 It creates an internal `pLimit(options)` limiter and returns `(...args) => limit(() => function_(...args))`, i.e., each call is wrapped in a closure passing no extra arguments through the limiter. Only `clearQueue` is re-exposed (via `defineProperty`, bound to the internal limit); `activeCount`, `pendingCount`, `concurrency`, and `map` are *not* available on the wrapper. Its own queue holds exactly the one wrapped function per call, so self-recursion inside `function_` deadlocks just like with `pLimit`. Confirmed by `test.js:217` (`limitedFunction.clearQueue()` rejects pending with AbortError) and `test.js:481`.\n\n## Public type contract of `limitFunction` (index.d.ts, for future maintenance)\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nKey grounded facts: input `function_` must return `PromiseLike<ReturnType>` (sync-returning functions are rejected \u2014 `index.test-d.ts:29` has `expectError(limitFunction((_a: string) => 'x', {concurrency: 1}))`); `options` is the required `Options` object (`{concurrency: number; rejectOnClear?: boolean}` \u2014 plain numbers are not accepted here, unlike default-export `pLimit(concurrency: number | Options)`); output preserves the argument tuple `Arguments` and unwraps to `Promise<ReturnType>`, augmented only with `clearQueue: () => void`. `rejectOnClear` must be boolean (`expectError` at index.test-d.ts:30).\n\nPermanently noted constraint: block Bash commands whose first executable is `npm`; use `pnpm` (I used `pnpm test` accordingly).\n\n\nAll checks pass: `pnpm test` (xo + ava + tsd) \u2192 **30 tests passed**, no failures, no edits made.\n\n## Findings from inspected evidence\n\n**Reservation (`index.js`)** \u2014 Concurrency slots are reserved only in `resumeNext()`: it increments `activeCount` and dequeues a queue item when `activeCount < concurrency && queue.size > 0`. `enqueue()` wraps each call in an internal `Promise` whose `run` is the internal resolve; `.then(run.bind(...))` invokes the user function. The outer promise `resolve(result)` fires as soon as the function starts (not when it completes), then `run` awaits the result with a swallowing `try/catch {}` to prevent unhandled rejections, and calls `next()` which decrements `activeCount` and resumes one queued item. Enqueue also opportunistically calls `resumeNext()` if under the limit. So at any moment `activeCount \u2264 concurrency`, and `pendingCount` is `queue.size` (functions not yet started).\n\n**Rejection boundaries** \u2014 A caller's promise rejects only via the user function itself (the resolved `result` promise carries the rejection; the internal `catch {}` merely prevents an *unhandled* rejection internally). Once a task has been dequeued/started, `clearQueue` cannot reject or cancel it \u2014 its outcome reaches the caller regardless.\n\n**`clearQueue`** \u2014 Two modes governed by `rejectOnClear` (validated boolean, default `false`):\n- Default: `queue.clear()` silently drops pending items \u2014 their caller promises never settle (never resolve, never reject), which is why docs recommend `rejectOnClear` when awaiting with `Promise.all`.\n- With `rejectOnClear: true`: dequeues each pending item and calls its stored `reject` with `AbortSignal.abort().reason` (an `AbortError`). Running tasks are untouched \u2014 confirmed by `test.js:199` where `runningPromise` still resolves while both pending promises reject with `name: 'AbortError'`. Tests for this path run through a `testClearQueueRejects` wrapper that skips on Node 20 due to an AVA/DOMException bug.\n\nThe `concurrency` setter validates, then drains the queue in a `queueMicrotask` loop up to the new limit; the getters expose live `activeCount`/`pendingCount`.\n\n**`limitFunction` wrapper boundary** \u2014 It creates an internal `pLimit(options)` limiter and returns `(...args) => limit(() => function_(...args))`, i.e., each call is wrapped in a closure passing no extra arguments through the limiter. Only `clearQueue` is re-exposed (via `defineProperty`, bound to the internal limit); `activeCount`, `pendingCount`, `concurrency`, and `map` are *not* available on the wrapper. Its own queue holds exactly the one wrapped function per call, so self-recursion inside `function_` deadlocks just like with `pLimit`. Confirmed by `test.js:217` (`limitedFunction.clearQueue()` rejects pending with AbortError) and `test.js:481`.\n\n## Public type contract of `limitFunction` (index.d.ts, for future maintenance)\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nKey grounded facts: input `function_` must return `PromiseLike<ReturnType>` (sync-returning functions are rejected \u2014 `index.test-d.ts:29` has `expectError(limitFunction((_a: string) => 'x', {concurrency: 1}))`); `options` is the required `Options` object (`{concurrency: number; rejectOnClear?: boolean}` \u2014 plain numbers are not accepted here, unlike default-export `pLimit(concurrency: number | Options)`); output preserves the argument tuple `Arguments` and unwraps to `Promise<ReturnType>`, augmented only with `clearQueue: () => void`. `rejectOnClear` must be boolean (`expectError` at index.test-d.ts:30).\n\nPermanently noted constraint: block Bash commands whose first executable is `npm`; use `pnpm` (I used `pnpm test` accordingly)."
+            }
+          ],
+          "timestamp": 1791753894820
+        }
+      }
+    ]
+  },
+  "repairResponse": {
+    "kind": "incremental-memory-plan",
+    "version": 1,
+    "schemaVersion": 1,
+    "runId": "run_mv4c5t8w_ea73c371c02c1bc7",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "723c6802aa4c1fe9bd26263348dadfd1e847221b2cc61237d51c40fb455ff868",
+    "artifactHash": "661f50f0b5a1499bb16fda2190858cd61a9d276fa78be467b1e112a52a290505",
+    "snapshotDigest": "661f50f0b5a1499bb16fda2190858cd61a9d276fa78be467b1e112a52a290505",
+    "operations": [],
+    "newMemories": [
+      {
+        "name": "clear_queue_semantics.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\ndescription: p-limit clearQueue() silently clears pending by default; rejectOnClear:true rejects them with AbortError\ntype: project\n---\nIn p-limit's `index.js`, `pLimit` initializes `let rejectOnClear = false;` and, when `concurrency` is passed as an object, reads the flag back through `({concurrency, rejectOnClear = false} = concurrency);`, requiring it to be a boolean and throwing a `TypeError` otherwise.\n\nThe `clearQueue` property branches on that flag: when `rejectOnClear` is falsy its body is only `queue.clear();` followed by `return;`, so queued items are dropped without their stored `reject` ever being called; when truthy it captures `const abortError = AbortSignal.abort().reason;` and loops `while (queue.size > 0) { queue.dequeue().reject(abortError); }`.\n\nThe rejecter it calls belongs to the caller promise and is stored on the queue item (`const queueItem = {reject};`); the matching `resolve(result)` happens only inside `run`, which is reached from `.then(run.bind(undefined, function_, resolve, arguments_))` on the internal promise whose `run` is set by `queueItem.run = internalResolve;` and driven by `queue.dequeue().run()` under `if (activeCount < concurrency && queue.size > 0)`. So items removed by the default `queue.clear()` branch are neither dequeued nor rejected.\n\n`index.d.ts` is the declaration that states the documented contract: `clearQueue` 'Discard[s] pending promises that are waiting to run' with 'Note: This does not cancel promises that are already running.' and 'When `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.' The `rejectOnClear` option is declared `readonly rejectOnClear?: boolean;` with 'Default: `false`.' and is recommended when awaiting returned promises 'so pending tasks do not remain unresolved after `clearQueue()`.'",
+        "evidence": [
+          {
+            "index": 3,
+            "lines": {
+              "block": 0,
+              "start": 4,
+              "end": 8
+            }
+          },
+          {
+            "index": 3,
+            "lines": {
+              "block": 0,
+              "start": 12,
+              "end": 14
+            }
+          },
+          {
+            "index": 3,
+            "lines": {
+              "block": 0,
+              "start": 21,
+              "end": 24
+            }
+          },
+          {
+            "index": 3,
+            "lines": {
+              "block": 0,
+              "start": 32,
+              "end": 37
+            }
+          },
+          {
+            "index": 3,
+            "lines": {
+              "block": 0,
+              "start": 50,
+              "end": 58
+            }
+          },
+          {
+            "index": 3,
+            "lines": {
+              "block": 0,
+              "start": 77,
+              "end": 89
+            }
+          },
+          {
+            "index": 4,
+            "lines": {
+              "block": 0,
+              "start": 18,
+              "end": 25
+            }
+          },
+          {
+            "index": 4,
+            "lines": {
+              "block": 0,
+              "start": 102,
+              "end": 108
+            }
+          }
+        ]
+      },
+      {
+        "name": "test_clear_queue_node20_skip.md",
+        "kind": "project",
+        "classification": "safe",
+        "content": "---\ndescription: p-limit's test.js defines testClearQueueRejects as test.skip when process.versions.node starts with '20.'\ntype: project\n---\nIn p-limit's test.js the two `rejectOnClear` tests are registered through a wrapper instead of `test` directly: `const testClearQueueRejects = process.versions.node.startsWith('20.') ? test.skip : test;`, so both run as ordinary AVA tests unless `process.versions.node` begins with `'20.'`, in which case both are skipped.\n\nThe wrapper line is preceded by the source comment `// Node.js 20 has a bug where DOMException is not properly handled by AVA's \\`throwsAsync\\`.`. That reason is what the comment in the file states; the inspected evidence does not itself verify a Node.js or AVA defect.\n\nThe two guarded tests are `clearQueue rejects pending promises when enabled`, built on `pLimit({concurrency: 1, rejectOnClear: true})`, and `limitFunction exposes clearQueue`, built on `limitFunction(() => delay(20), {concurrency: 1, rejectOnClear: true})`. Each asserts the already-running promise still resolves (`await runningPromise;`) while the pending promises reject with `{name: 'AbortError'}` through `t.throwsAsync(...)`.",
+        "evidence": [
+          {
+            "index": 10,
+            "lines": {
+              "block": 0,
+              "start": 17,
+              "end": 18
+            }
+          },
+          {
+            "index": 10,
+            "lines": {
+              "block": 0,
+              "start": 20,
+              "end": 21
+            }
+          },
+          {
+            "index": 10,
+            "lines": {
+              "block": 0,
+              "start": 33,
+              "end": 35
+            }
+          },
+          {
+            "index": 10,
+            "lines": {
+              "block": 0,
+              "start": 38,
+              "end": 39
+            }
+          },
+          {
+            "index": 10,
+            "lines": {
+              "block": 0,
+              "start": 46,
+              "end": 47
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

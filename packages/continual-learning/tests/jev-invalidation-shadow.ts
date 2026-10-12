@@ -1,7 +1,7 @@
 /** Research-only rewrite; every original entry, source role and threshold stays. */
 export function invalidationShadow(init: RequestInit | undefined): RequestInit | undefined {
   const request = JSON.parse(String(init?.body));
-  if (!request.questions || !JSON.parse(request.state).reviewEvidence) return init;
+  if (!request.questions || !(typeof request.state === "string" ? JSON.parse(request.state) : request.state).reviewEvidence) return init;
   for (const [key, raw] of Object.entries(request.questions)) {
     if (!key.startsWith("counter_")) continue;
     const question = raw as { instructions: { question: string; candidate: unknown }; criteria: unknown };

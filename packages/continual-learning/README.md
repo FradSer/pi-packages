@@ -274,6 +274,13 @@ for an installed file or artifact policy. See the upgrade decision in
 
 With auto-memory enabled (the default), `agent_settled` runs a deterministic
 zero-token evidence screen after queued continuations and retries finish.
+The fallback selector chooses integer positions from a parent-frozen metadata
+index and explicit phase flags. The parent resolves exact filenames and binds the
+task digest; the worker does not transcribe artifact identity. Invalid positions,
+duplicates, mixed identity fields and missing decisions fail closed. Existing
+selection artifacts retain their original identity and validation contract.
+These decisions select review inputs; they do not authorize mutations.
+
 Routine tasks launch no learning model. A metadata-only selector chooses the
 minimum sufficient existing Memory and relevant phases for the current Task
 Slice. Selected bodies and task evidence form one authoritative Learning Dossier.
@@ -284,6 +291,15 @@ call. An initial `/memory <request>` likewise goes straight to Memory planning.
 The receipt marks this parent routing; planners and all validation still run.
 Nonempty indexes and ambiguous inputs retain the metadata selector, and ordinary
 manual `/consolidate` retains its reviewed routing.
+When Jev is enabled and applying Memory is authorized, an uncertain new record
+does not have to discard other independently verified knowledge. For a mixed
+pure-create plan, the parent reviews every original candidate and their
+relationships before applying an unchanged, independently usable subset.
+Rewrites and deletions remain atomic. Held records and the complete original
+proposal remain pending; partial learning is reported as partial, and verified
+records are available for retrieval in subsequent tasks. These extra bounded
+reviews retain their usage and cost; unavailable or uncertain proof grants no
+additional writes.
 Full maintenance also extracts grounded new knowledge when the Memory corpus is
 empty. If the current session has no user or tool evidence, the parent may freeze one recent session
 for the same canonical project (within seven days, at most 12 candidates and
@@ -370,7 +386,13 @@ Incremental Memory planning and repair use the same exact proposal schema.
 A bounded repair must preserve recognizable proposal names and selected
 operations, including existing rewrite/delete intent; an empty replacement
 cannot silently discard them. Failed repairs retain both rejection reasons in
-bounded, sanitized private diagnostics.
+bounded, sanitized private diagnostics. Representation validation permits at most
+one structural correction, followed by at most one separate semantic correction
+if complete review holds the accepted plan. Neither phase replans or loops. Each
+correction keeps its own receipt usage and cost, and only the final accepted
+attempt owns applied operations. Structural rejection metadata and screened
+structural response remain available even if later semantic correction succeeds.
+All original final validation and mutation gates remain mandatory.
 
 Harness also permits one read-only repair when structured output is missing or
 a parsed plan fails validation. It uses the original frozen evidence and model;
@@ -539,7 +561,14 @@ under the existing parent-owned validation contract.
 
 ### Retrieval and descriptions
 
-The default injection budget is 6,000 characters. Entry bodies are not injected.
+The default index injection budget is 6,000 characters. Separately, task relevance
+can deliver up to three complete Memory bodies: at most 4,000 characters each
+and 8,000 characters total including framing. Compound API names remain
+searchable, and generic instruction words do not earn relevance. Bodies that
+cannot fit completely stay available through their delivered read paths; claims
+and conditions are never cut into arbitrary excerpts. Each injected body records
+its exact SHA-256 revision. Delivery proves exposure, not correct use or benefit.
+
 Each body root is declared once and every entry row names its filename, so the
 budget reaches relevance metadata instead of repeating an absolute read path per
 entry. New descriptions should front-load a concise evidence-backed fact or
@@ -1064,6 +1093,16 @@ connection-only retry permits at most 136 transport attempts. Concurrency remain
 four, each request stays within 64,000 wire bytes and 32 questions, and every
 support/body/description/counterevidence judgment must complete successfully.
 
+With Memory review enabled, every selected existing record omitted by a plan is
+reviewed against the complete frozen evidence, including zero-operation plans. Contradicted or uncertain
+retained claims prevent a completed receipt and backlog acknowledgment. One
+bounded amendment may propose cited rewrites or deletes for the held records;
+it must cover every held record and preserve scope and privacy classification.
+The parent retains original operations and new proposals exactly, then reviews
+the complete combined plan before application. Retention holds cannot enter
+partial application. All ordinary parent validation and mutation gates still
+apply. Passing these gates does not establish that later model tasks improve.
+
 Malformed incremental JSON with one explicit plan marker may use the existing
 structural correction slot only when the extractor found no structured plan and
 the selected existing scope is empty. Ambiguous plans and transport/model failures
@@ -1148,6 +1187,12 @@ supported clause rather than compressing several claims into an ambiguous label.
 
 A selector response with the current identity but missing required routing fields may receive one structural correction using the unchanged task and metadata. Every present authoritative field must already be valid; corrected responses pass full selection and dossier validation. Preserve the original failed attempt and both calls’ usage in receipts, and omit sensitive response material from private diagnostics.
 
+A digest-bound response with an invented schema kind may use the same single
+structural correction slot when every present routing field is valid. Its fields
+never authorize selection before complete schema validation. Known delivered
+Memory remains a maintenance floor; Harness and AGENTS retain independent routing.
+Both calls and the rejected response remain recorded, with sensitive material omitted.
+
 Complete evidence windows are additionally split using the actual encoded wire
 size and existing per-window question-batch limit. Every split preserves whole
 original entries, full cited support, predecessor bodies and proposed operations;
@@ -1167,7 +1212,17 @@ tool invocations for the candidates in that batch, rather than repeating the
 union of unrelated candidates' citations in every request. Body, description and
 relationship questions are grouped by candidate before wire sizing. Every candidate
 still receives every original snapshot entry in counterevidence review; exact old
-Memory bodies and all same-plan operations remain in every mutation request.
+Memory bodies and all same-plan operations remain in support and preservation
+requests. Relationship review receives only established comparator records:
+rewrites exclude their own predecessor, and deletions require preservation review
+without a novelty question. Proposed records never serve as their own comparators.
+Successful `edit` results can also ground changed source through their original
+`details.patch`. Workers may select exact patch lines with
+`{index, lines: {source: "patch", block: 0, start, end}}`; the parent retains diff
+markers and extracts the original bytes. Failed edits, assistant arguments and
+unrelated metadata cannot use this source. A patch establishes the reported edit,
+not runtime correctness or immunity to later changes. All original observations,
+privacy checks, semantic gates and mutation permissions still apply.
 Privacy is checked on the full original snapshot before projection. The existing
 64,000-byte, four-batch, sixteen-window and sixty-eight-request limits remain.
 
@@ -1180,3 +1235,50 @@ and completed receipts are recovered before new work is selected. The unique
 cost-bearing ledger preserves earlier failures and avoids duplicate model calls or
 usage when acknowledgment is interrupted. Replay retains omission metadata so
 incomplete evidence keeps its proposals-only policy.
+
+When the receipt owner moves to a verified longer task prefix, earlier held
+Memory plans remain available as untrusted correction context. Parent diagnostics
+bind to the exact reviewed plan, including wholly held maintenance plans; legacy
+plans without that binding carry no inferred candidate diagnostics. A later
+Memory completion resolves only the task evidence it covers. Foreign receipts
+cannot suppress prior failures, and cancellation during the attempt save prevents
+a new learning call. Every retry still rechecks current evidence and mutation
+scope through the ordinary validation gates.
+
+Failure learning may retain an observed, source-bound limitation before a fix succeeds.
+It must preserve unresolved status and distinguish requested, implemented and verified
+behavior; failed runs cannot establish permanent command failures or new user restrictions.
+Successful recovery still requires actual successful verification.
+
+The same single selector correction slot covers a current position decision that
+omits a required phase field. Present fields must validate against the unchanged
+index. Missing flags are never filled by the parent; a second incomplete response
+remains a failure, with both attempts and costs retained.
+
+Memory support review distinguishes actual failed verification plus matching inspected
+source from a temporary service failure. An explicitly unresolved defect is limited
+to that source state; it proves neither its cause nor a successful fix.
+Sparse semantic repairs may omit an unchanged candidate array: the parent retains
+its original proposals byte-for-byte, then repeats all ordinary validation. Explicit
+malformed arrays still fail. This does not relax review bounds or remove candidates.
+
+When retained records and proposed knowledge both fail review, the parent completes both reviews before its single bounded correction. Their names and held fields remain separate: unflagged original content is preserved, and the combined plan must pass full review before any write.
+
+Semantic correction preserves every original citation while either claim field remains protected, and omits only new exact subquotes already contained at the same snapshot index and role. When complete review holds both body and description, their replacement uses its own citations at the unchanged bound; the rejected plan remains archived and the complete corrected plan requires fresh review. Unique indentation restoration is recorded separately from raw worker output. For new proposals only, a complete digest-bound review may supply its fully accepted description as a narrower replacement body when only the body was held; this derived candidate still requires full combined review and every mutation gate. Existing Memory rewrites never use this distillation.
+
+Semantic review sends structured JSON state directly to Jev instead of embedding
+serialized JSON inside another JSON string. Memory body and description questions
+explicitly reference their candidate's shared exact citation table. The parent
+preserves complete original source entries, citation order/roles/indexes, mutation
+context and independent judgments, and checks every final encoded request before
+transport. The 64,000-byte, batch/window/request and semantic thresholds remain
+unchanged. A plan that still exceeds these bounds remains pending; reduced wire
+overhead alone does not demonstrate correct knowledge or downstream task benefit.
+
+For a verified Qwen3.8-Flash OpenAI-compatible gateway, set
+`"plannerJsonOutput": true` in the agent's `continual-learning.json` to request
+provider JSON Object output for isolated workers with no active tools. This is an
+explicit gateway capability opt-in; confirm that the gateway forwards and supports
+`response_format` before enabling it. Existing provider output constraints remain
+authoritative. The parent still checks the unique plan, exact citations, semantics,
+privacy and authorization. Valid JSON alone does not establish valid learning.

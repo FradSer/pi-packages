@@ -66,11 +66,11 @@ MAX_NEW_MEMORY_QUOTE_CHARS = 2_000
 MAX_NEW_MEMORY_TOTAL_BYTES = 256_000
 MAX_SNAPSHOT_BYTES = 32 * 1024 * 1024
 
-# Kept in step with SENSITIVE_MEMORY_PATTERNS in consolidation-run.ts; the shared
-# corpus in tests/sensitive_memory_corpus.json pins both classifications.
+# Kept in step with SENSITIVE_MEMORY_PATTERNS and ASSIGNED_CREDENTIAL_PATTERN in
+# consolidation-run.ts; the shared corpus in tests/sensitive_memory_corpus.json
+# pins both classifications.
 SENSITIVE_MEMORY_PATTERNS = (
     re.compile(r"-----BEGIN [^-\r\n]*PRIVATE KEY-----", re.IGNORECASE),
-    re.compile(r"(?<![A-Za-z])(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=)\s*(?![^\s,;]*//)[^\s,;]{8,}", re.IGNORECASE),
     re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b", re.IGNORECASE),
     re.compile(r"\b(?:gh[pousr]|github_pat)_[A-Za-z0-9_]{16,}\b", re.IGNORECASE),
     re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}\b", re.IGNORECASE),
@@ -81,6 +81,22 @@ SENSITIVE_MEMORY_PATTERNS = (
     re.compile(r"\bbearer\s+[A-Za-z0-9._~+/=-]{16,}\b", re.IGNORECASE),
     re.compile(r"\bAKIA[0-9A-Z]{16}\b", re.IGNORECASE),
 )
+
+# An assigned value must be long enough to be a credential: prose ("token is
+# short-lived") assigns nothing, and URLs are not secrets.
+ASSIGNED_CREDENTIAL_PATTERN = re.compile(
+    r"(?<![A-Za-z])(?P<key>api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)\s*(?::|=)\s*(?![^\s,;]*//)(?P<value>[^\s,;]{8,})",
+    re.IGNORECASE,
+)
+
+# A credential-named key that assigns a structured literal assigns a
+# configuration snippet, not a credential: `apiKey:{source:"file"}` names no
+# secret.  The snippet's own members are judged instead, so a secret inside it
+# stays refused.  A document can wrap a long line, so an unbalanced literal
+# counts as a snippet as well.
+STRUCTURED_LITERAL_OPENERS = ("{", "[")
+MAX_CREDENTIAL_LITERAL_DEPTH = 4
+MAX_CREDENTIAL_LITERAL_CHARS = 4096
 MISSING = object()
 
 
@@ -197,8 +213,22 @@ def normalize_inventory(value: Any, label: str = "inventory") -> tuple[list[str]
     return names, metadata
 
 
+def contains_assigned_credential_material(value: str, depth: int = 0) -> bool:
+    for match in ASSIGNED_CREDENTIAL_PATTERN.finditer(value):
+        assigned = match.group("value")
+        if assigned[:1] in STRUCTURED_LITERAL_OPENERS:
+            start = match.start() + len(match.group(0)) - len(assigned)
+            if depth < MAX_CREDENTIAL_LITERAL_DEPTH and contains_assigned_credential_material(
+                value[start : start + MAX_CREDENTIAL_LITERAL_CHARS], depth + 1
+            ):
+                return True
+            continue
+        return True
+    return False
+
+
 def contains_sensitive_memory_material(value: str) -> bool:
-    return any(pattern.search(value) is not None for pattern in SENSITIVE_MEMORY_PATTERNS)
+    return any(pattern.search(value) is not None for pattern in SENSITIVE_MEMORY_PATTERNS) or contains_assigned_credential_material(value)
 
 
 def normalize_evidence_text(value: str) -> str:
@@ -237,6 +267,12 @@ def snapshot_entry_text(entry: Any) -> str:
 
 
 def snapshot_contains_quote(entry: Any, quote: str) -> bool:
+    source = snapshot_entry_record(entry)
+    if source and source.get("role") == "toolResult" and source.get("toolName") == "edit" and source.get("isError") is False:
+        details = source.get("details")
+        patch = details.get("patch") if isinstance(details, dict) else None
+        if isinstance(patch, str) and quote in patch:
+            return True
     wanted = normalize_evidence_text(quote)
     if not wanted:
         return False

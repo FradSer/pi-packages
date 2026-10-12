@@ -5,13 +5,44 @@ import json
 from pathlib import Path
 
 
-def verifier_observation(task: str, verification: dict, output: Path, source_hashes: dict, session: bytes) -> dict:
+def task_outcome(inference: dict, verification: dict) -> dict:
+    """Code checks alone cannot make an aborted model task successful."""
+    failures=[]
+    if inference.get('exitCode')!=0:failures.append('process-exit')
+    for field,label in (('timedOut','timeout'),('interrupted','interrupted'),
+                        ('modelErrors','model-error'),('malformedSessionRows','malformed-session'),
+                        ('temporaryInstructionLeaked','temporary-instruction-leaked'),
+                        ('toolBudgetExceeded','tool-budget-exceeded')):
+        if inference.get(field):failures.append(label)
+    if verification.get('passed') is not True:failures.append('verification-failed')
+    return {'passed':not failures,'failures':failures}
+
+
+def feedback_accepted(feedback: dict) -> bool:
+    return task_outcome(feedback,{'passed':True})['passed'] and all(
+        feedback.get(key) is True for key in ('originalObservationsPreserved','verifierObserved','taskSourceUnchanged')) and bool(feedback.get('queuedFailure'))
+
+
+def exact_failure_processed(feedback: dict, learning: dict) -> bool:
+    queued=feedback.get('queuedFailure') or {};observation=feedback.get('observation',{})
+    if not queued.get('id') or not feedback.get('originalEntryIds'):return False
+    acknowledged=any(a.get('outcome')=='completed' and a.get('receipt',{}).get('input',{}).get('backlogId')==queued['id']
+        and bool(a.get('receiptDigest')) and learning.get('completedBacklog',{}).get(queued['id'])==a['receiptDigest']
+        for a in learning.get('attempts',[]))
+    observed=any(d.get('taskSliceDigest')==queued.get('digest') and set(feedback['originalEntryIds']).issubset(d.get('entryIds',[]))
+        and any(o.get('sessionDigest')==observation.get('sessionDigest') and o.get('logsDigest')==observation.get('logsDigest') for o in d.get('observations',[]))
+        for d in learning.get('dossiers',[]))
+    return acknowledged and observed
+
+
+def verifier_observation(task: str, verification: dict, output: Path, source_hashes: dict, session: bytes, *, inference: dict | None = None) -> dict:
     logs={name:(output/(name+'.log')).read_text() for name in ('hidden','types','upstream') if (output/(name+'.log')).exists()}
     if sum(len(text.encode()) for text in logs.values()) > 1_000_000:
         raise ValueError('Verifier evidence exceeds bound; do not truncate it')
     return {'kind':'actual-project-verification','task':task,'verification':verification,'logs':logs,
             'sourceHashes':source_hashes,'sessionDigest':hashlib.sha256(session).hexdigest(),
-            'logsDigest':hashlib.sha256(json.dumps(logs,sort_keys=True).encode()).hexdigest()}
+            'logsDigest':hashlib.sha256(json.dumps(logs,sort_keys=True).encode()).hexdigest(),
+            **({'taskOutcome':task_outcome(inference,verification)} if inference is not None else {})}
 
 
 def continuous_coverage(report: dict) -> dict:
@@ -59,7 +90,7 @@ def continuous_coverage(report: dict) -> dict:
         if corrected_harness and retired and others_preserved:break
     def failure_backfilled(arm: dict, *, learned: bool) -> bool:
         feedback=arm.get('verifierFeedback') or {};observation=feedback.get('observation',{});queued=feedback.get('queuedFailure') or {};learning=arm.get('learning',{})
-        if not (observation.get('verification',{}).get('passed') is False and feedback.get('originalObservationsPreserved') is True
+        if not ((observation.get('verification',{}).get('passed') is False or observation.get('taskOutcome',{}).get('passed') is False) and feedback.get('originalObservationsPreserved') is True
                 and feedback.get('verifierObserved') is True and feedback.get('taskSourceUnchanged') is True and arm.get('explicitRecovery')
                 and bool(feedback.get('originalEntryIds')) and queued.get('id') in learning.get('completedBacklog',{}) and learning.get('pendingLearningJobs')==0):return False
         completed=[attempt for attempt in learning.get('attempts',[]) if attempt.get('outcome')=='completed' and attempt.get('receipt',{}).get('input',{}).get('backlogId')==queued['id']

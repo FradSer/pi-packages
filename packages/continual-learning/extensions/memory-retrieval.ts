@@ -4,10 +4,19 @@ import type { MemoryEntry } from "./memory-files";
 const MAX_BODY_CHARS = 4_000;
 const MAX_TOTAL_CHARS = 8_000;
 const MAX_ENTRIES = 3;
-const STOP_WORDS = new Set("the a an and or to of in on for with from this that is are be as it task fix change update please implement use current project memory".split(" "));
+const STOP_WORDS = new Set("the a an and or to of in on for with from this that is are be as it task fix change update please implement use current project memory not must when only".split(" "));
 
 function terms(text: string): Set<string> {
-  const result = new Set((text.toLowerCase().match(/[a-z0-9][a-z0-9_-]{2,}/g) ?? []).filter(word => !STOP_WORDS.has(word)));
+  const result = new Set<string>();
+  for (const token of text.match(/[a-zA-Z0-9][a-zA-Z0-9_-]{2,}/g) ?? []) {
+    // Keep exact API cues, while allowing Promise to find PromiseLike-returning
+    // and separated words to find camelCase/snake_case descriptions.
+    const parts = [token, ...token.replace(/([a-z0-9])([A-Z])/g, "$1 $2").split(/[\s_-]+/)];
+    for (const part of parts) {
+      const word = part.toLowerCase();
+      if (word.length >= 3 && !STOP_WORDS.has(word)) result.add(word);
+    }
+  }
   for (const phrase of text.match(/[\p{Script=Han}]+/gu) ?? []) {
     for (let i = 0; i + 1 < phrase.length; i++) result.add(phrase.slice(i, i + 2));
   }

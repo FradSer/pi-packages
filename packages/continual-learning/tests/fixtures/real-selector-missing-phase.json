@@ -1,0 +1,11 @@
+{
+  "cohort": "20261011T141133Z-9dc9423a5bb6",
+  "rejection": {
+    "kind": "rejected-memory-selection",
+    "version": 1,
+    "contextDigest": "bffc95cf05f557c31e944b11781f85ec33eb78163eba0a08d963dbc6e0024ea9",
+    "error": "fields do not match the position decision schema",
+    "output": "{\n  \"selectedIndices\": [0, 1],\n  \"memory\": true,\n  \"harness\": true,\n  \"reason\": \"This slice directly affects clearQueue/onIdle idle semantics and the limitFunction public type contract, and the verification evidence shows missing declaration and cleanup corrections should be considered.\"\n}",
+    "truncated": false
+  }
+}

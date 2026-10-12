@@ -158,7 +158,7 @@ def test_expands_delta_to_validator_and_apply_compatible_full_plan() -> None:
         assert grounding["project_config.md"]["observations"] == [
             {"path": "src/config.ts", "status": "found"}
         ]
-        assert grounding["preference_style.md"]["status"] == "N/A"
+        assert grounding["preference_style.md"]["status"] == "UNVERIFIABLE"
         assert len(grounding["preference_style.md"]["reason"]) <= 300
         assert payload["applied"]["selected"] == ["preference_style.md", "project_config.md"]
         assert payload["rewritten"] == "The project uses strict mode.\n"

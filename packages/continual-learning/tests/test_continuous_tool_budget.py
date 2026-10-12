@@ -91,3 +91,57 @@ def test_runner_retains_budget_failure_and_does_not_cap_backfill_workers(monkeyp
     assert task['toolBudgetExceeded'] and task['toolBudgetEvents'][0]['outcome']==outcome
     assert '/home/node/continuous-tool-budget.ts' in commands[0]
     assert '/home/node/continuous-tool-budget.ts' not in commands[1]
+
+
+def test_verifier_boundary_rejects_pagination_and_preserves_single_full_read() -> None:
+    value=run_bun(r'''import {installStudyToolBudget} from './packages/continual-learning/tests/continuous-tool-budget.ts';
+      const handlers={},entries=[],loadouts=[];let aborted=0;
+      installStudyToolBudget({on:(name,fn)=>handlers[name]=fn,setActiveTools:t=>loadouts.push(t),appendEntry:(_type,data)=>entries.push(data)},1,'/verification.json');
+      const ctx={abort:()=>aborted++};
+      const call=(id,path,extra={})=>handlers.tool_call({toolCallId:id,toolName:'read',input:{path,...extra}},ctx);
+      const wrong=await call('source','index.js');
+      const paginated=await call('page','/verification.json',{limit:10});
+      const full=await call('full','/verification.json');
+      await handlers.tool_result({toolCallId:'full'});
+      const repeated=await call('repeat','/verification.json');
+      console.log(JSON.stringify({wrong,paginated,full,repeated,entries,loadouts,aborted}));''')
+    assert value['wrong']['block'] and value['paginated']['block']
+    assert value.get('full') is None and value['repeated']['block']
+    assert value['aborted']==0
+    assert all(row['admitted']==0 for row in value['entries'] if row['outcome']=='verifier-read-blocked')
+    assert value['loadouts'] and all(tools==[] for tools in value['loadouts'])
+
+
+def test_verifier_abort_cannot_admit_a_later_inflight_valid_read() -> None:
+    value=run_bun(r'''import {installStudyToolBudget} from './packages/continual-learning/tests/continuous-tool-budget.ts';
+      const handlers={},entries=[];let aborted=0;
+      installStudyToolBudget({on:(name,fn)=>handlers[name]=fn,setActiveTools:()=>{},appendEntry:(_type,data)=>entries.push(data)},1,'/verification.json');
+      const ctx={abort:()=>aborted++};
+      for(let i=0;i<3;i++)await handlers.tool_call({toolCallId:'wrong'+i,toolName:'read',input:{path:'index.js'}},ctx);
+      const late=await handlers.tool_call({toolCallId:'late',toolName:'read',input:{path:'/verification.json'}},ctx);
+      console.log(JSON.stringify({late,aborted,entries}));''')
+    assert value['aborted']==1 and value['late']['block']
+    assert all(row['admitted']==0 for row in value['entries'])
+
+
+def test_removed_budget_sets_explicit_no_tool_choice_only_on_empty_openai_requests() -> None:
+    value = run_bun(r'''
+      import {installStudyToolBudget} from './packages/continual-learning/tests/continuous-tool-budget.ts';
+      const handlers={};let active=['read'];
+      installStudyToolBudget({on:(name,fn)=>handlers[name]=fn,appendEntry:()=>{},setActiveTools:tools=>active=tools,getActiveTools:()=>active},1);
+      const request={messages:[{role:'tool',tool_call_id:'past',content:'observed'}],tools:[]};
+      const ctx={model:{api:'openai-completions'}};
+      const before=handlers.before_provider_request?.({payload:request},ctx);
+      handlers.tool_call({toolCallId:'one'});handlers.tool_result({toolCallId:'one'});
+      const after=handlers.before_provider_request?.({payload:request},ctx);
+      const other=handlers.before_provider_request?.({payload:request},{model:{api:'anthropic-messages'}});
+      const conflicting=handlers.before_provider_request?.({payload:{...request,tools:[{type:'function',function:{name:'unexpected'}}]}},ctx);
+      console.log(JSON.stringify({before,after,other,conflicting,request}));
+    ''')
+    assert value.get('before') is None
+    assert value.get('after', {}).get('tool_choice') == 'none'
+    assert value['after']['messages'] == value['request']['messages']
+    assert value['after']['tools'] == []
+    assert 'tool_choice' not in value['request']
+    assert value.get('other') is None
+    assert value.get('conflicting') is None

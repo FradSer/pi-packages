@@ -19,7 +19,7 @@ def paired_request(original: dict[str, Any], key: str) -> dict[str, Any]:
     instructions = question.get('instructions')
     if not isinstance(instructions, dict) or not isinstance(instructions.get('candidate'), dict):
         raise ValueError('Original candidate missing')
-    state = json.loads(original['state'])
+    state = json.loads(original['state']) if isinstance(original['state'], str) else copy.deepcopy(original['state'])
     if not isinstance(state, dict) or not all(name in state for name in ('reviewEvidence', 'supportEvidence')):
         raise ValueError('Full review and original support are required')
     result = copy.deepcopy(original)

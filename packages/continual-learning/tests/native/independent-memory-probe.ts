@@ -26,7 +26,7 @@ export default function (pi) {
     }
     const answers = Object.fromEntries(questionIds.map(id => {
       const composed = ["jev-composed", "jev-composed-original"].includes(process.env.CL_NATIVE_ARM ?? "");
-      const touchesHeld = JSON.parse(request.state).originalCandidates?.some(candidate => candidate.name === "cache.md");
+      const touchesHeld = (typeof request.state === "string" ? JSON.parse(request.state) : request.state).originalCandidates?.some(candidate => candidate.name === "cache.md");
       const label = id === "ready" ? "selfContained" : id === "relation" ? composed && touchesHeld ? "unclear" : "independent" : id.startsWith("counter_") ? "compatible"
         : id === "supported_1" || id === "supported_description_1" ? "transient" : "grounded";
       const labels = id === "ready" ? ["selfContained","needsOther","unresolved"] : id === "relation" ? ["independent","duplicate","conflict","dependent","unclear"]

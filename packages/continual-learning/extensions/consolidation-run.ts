@@ -1458,9 +1458,28 @@ function placeholderCredentialValue(key: string, assigned: string): boolean {
   return value.startsWith(keyWord) && /^[0-9]*(?:value|string|here|example|placeholder)?$/.test(value.slice(keyWord.length));
 }
 
-function containsAssignedCredentialMaterial(value: string): boolean {
+/** A credential-named key that assigns a structured literal assigns a
+ * configuration snippet, not a credential: `apiKey:{source:"file"}` names no
+ * secret. Judge the snippet's own members instead, so a secret inside it stays
+ * refused. A document can wrap a long line, so an unbalanced literal counts as
+ * a snippet as well. */
+const STRUCTURED_LITERAL_OPENERS = new Set(["{", "["]);
+const MAX_CREDENTIAL_LITERAL_DEPTH = 4;
+const MAX_CREDENTIAL_LITERAL_CHARS = 4_096;
+
+function snippetOf(text: string, start: number): string {
+  return text.slice(start, start + MAX_CREDENTIAL_LITERAL_CHARS);
+}
+
+function containsAssignedCredentialMaterial(value: string, depth = 0): boolean {
   for (const match of value.matchAll(ASSIGNED_CREDENTIAL_PATTERN)) {
-    if (!placeholderCredentialValue(match.groups?.key ?? "", match.groups?.value ?? "")) return true;
+    const assigned = match.groups?.value ?? "";
+    if (STRUCTURED_LITERAL_OPENERS.has(assigned.charAt(0))) {
+      const start = (match.index ?? 0) + match[0].length - assigned.length;
+      if (depth < MAX_CREDENTIAL_LITERAL_DEPTH && containsAssignedCredentialMaterial(snippetOf(value, start), depth + 1)) return true;
+      continue;
+    }
+    if (!placeholderCredentialValue(match.groups?.key ?? "", assigned)) return true;
   }
   return false;
 }
@@ -1486,6 +1505,18 @@ function snapshotEntryRole(entry: unknown): string | undefined {
   return snapshotEntryRecord(entry)?.role as string | undefined;
 }
 
+/** Original tool-produced diff, not assistant arguments or a reconstructed file.
+ * It describes this successful edit only; later evidence and semantic review
+ * still determine whether a claim describes the current source. */
+export function snapshotEditPatchText(entry: unknown): string | undefined {
+  const source = snapshotEntryRecord(entry);
+  if (source?.role !== "toolResult" || source.toolName !== "edit" || source.isError !== false) return;
+  const details = source.details;
+  if (!details || typeof details !== "object" || Array.isArray(details)) return;
+  const patch = (details as Record<string, unknown>).patch;
+  return typeof patch === "string" ? patch : undefined;
+}
+
 function snapshotEntryText(entry: unknown): string {
   const record = snapshotEntryRecord(entry);
   const content = record?.content;
@@ -1502,6 +1533,9 @@ function snapshotEntryText(entry: unknown): string {
 }
 
 function snapshotContainsQuote(entry: unknown, quote: string): boolean {
+  // Diff markers and whitespace are evidence. Never normalize them into a
+  // quotation of the resulting file, or concatenate across result fields.
+  if (snapshotEditPatchText(entry)?.includes(quote)) return true;
   const normalizedQuote = normalizeEvidenceText(quote);
   if (!normalizedQuote) return false;
   const text = normalizeEvidenceText(snapshotEntryText(entry));

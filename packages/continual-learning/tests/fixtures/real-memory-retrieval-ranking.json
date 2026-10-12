@@ -1,0 +1,48 @@
+{
+  "provenance": {
+    "cohort": "continuous-v24/20261012T005436Z-a589bb04c489",
+    "task": "idle",
+    "resultSha256": "2165710ca3c77bc9835bf1cf1f6631a228e652694222c26256985872761b099d",
+    "kind": "actual public disposable Memory and actual delivered task prompt; no seeded facts"
+  },
+  "query": "Work on this real p-limit checkout with normal source inspection and tools.\nKeep changes local. Do not access agent configuration or browse learning artifact roots. You may read Memory paths delivered by the plugin when relevant; automatic learning owns all Memory writes.\nDo not install dependencies or alter package manifests, existing tests, or existing check configuration.\nAdd tests only in new files. Preserve source behavior outside the requested changes.\nUse pnpm test for verification. Keep source reads focused and report failures honestly.\nUse at most 18 tool calls, then summarize actual results. This is a prompt budget;\nthe transport also has a cohort-wide request cap. Do not repeatedly rerun a failed check.\nImplement onIdle(): Promise<void> on a limiter and its limitFunction wrapper. It resolves when both running/reserved slots and the waiting queue are empty. An already idle call resolves normally. Multiple waiters work, including rejected jobs. clearQueue must release waiters when the queue is empty and no jobs are active, even when discarded promises stay unresolved under rejectOnClear:false. Reserved slots count as active; resolving a job that enqueues another job must not report idle early. Preserve FIFO and concurrency changes. Update public declarations/docs and add new regression test files. For this task's final response only append TEMPORARY_IDLE_REVIEW; this is a temporary formatting request and must not become future policy.",
+  "entries": [
+    {
+      "filename": "limit_function_type_contract.md",
+      "revision": "69c13719f981dd3580d9d34a001056a09feacc51467ef9c61ce75d1bb4c58e06",
+      "content": "---\ndescription: p-limit limitFunction: PromiseLike-returning fn + Options in, Promise-returning fn with clearQueue out (type-level)\ntype: project\n---\nIn the p-limit project at /work/p-limit, the explicitly remembered public contract of the exported `limitFunction` is its declaration in `index.d.ts`: `function_` must be `(...arguments_: Arguments) => PromiseLike<ReturnType>` (a PromiseLike-returning function; no plain non-Promise sync return is declared acceptable) and `options` is the `Options` object, and it returns `((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>` — the returned function carries only `clearQueue` from `LimitFunction` in its declared type.\n\nThis is a type-level restriction from the inspected declaration, retained for future maintenance; it is not proof of runtime enforcement. Note the Promise/PromiseLike distinction: the input contract is `PromiseLike<ReturnType>` while the output returns `Promise<ReturnType>`. The declaration by itself does not establish that any named test passed.\n",
+      "description": "p-limit limitFunction: PromiseLike-returning fn + Options in, Promise-returning fn with clearQueue out (type-level)",
+      "readPath": "/isolated/memory/limit_function_type_contract.md",
+      "source": "harness"
+    },
+    {
+      "filename": "package_test_scripts.md",
+      "revision": "44dfbfaf25d0f2565b3d6648309423d620658b4b898459173629ea4536f68705",
+      "content": "---\ndescription: p-limit's package.json test script is \"xo && ava && tsd\"; tsd type-checks reject limitFunction on a sync-returning function\ntype: project\n---\nThe inspected `package.json` of the p-limit project at /work/p-limit defines `\"test\": \"xo && ava && tsd\"`, so a test run also executes tsd type declarations checks. The tsd file `index.test-d.ts` contains `expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));`, i.e. the tsd type check expects a sync-returning (non-PromiseLike) function to be rejected as `limitFunction` input at the type level. `index.test-d.ts` imports `expectType`/`expectError` from tsd.\n",
+      "description": "p-limit's package.json test script is \"xo && ava && tsd\"; tsd type-checks reject limitFunction on a sync-returning function",
+      "readPath": "/isolated/memory/package_test_scripts.md",
+      "source": "harness"
+    },
+    {
+      "filename": "package_manager_pnpm.md",
+      "revision": "50e06b3c78399097b6bc8a95bedbc1bcab1269731b4f33826ff634bff29b7464",
+      "content": "---\ndescription: User requires pnpm, not npm, in the p-limit project; npm as first executable must be blocked as a permanent project constraint\ntype: project\n---\nThe user stated as a permanent project constraint (explicitly \"a durable rule for subsequent tasks, not a one-turn preference\") for the p-limit project at /work/p-limit: Bash commands whose first executable is npm must be blocked; use pnpm instead. The executable blocking itself is owned by the harness; this entry records the user's standing package-manager requirement.\n",
+      "description": "User requires pnpm, not npm, in the p-limit project; npm as first executable must be blocked as a permanent project constraint",
+      "readPath": "/isolated/memory/package_manager_pnpm.md",
+      "source": "harness"
+    },
+    {
+      "filename": "pnpm_test_node20_skip.md",
+      "revision": "752b5da87f44f9df66154bae9507baecc9179c5ff18273d097f61a534a28db68",
+      "content": "---\ndescription: p-limit test.js gates rejectOnClear/clearQueue tests with test.skip only when process.versions.node starts with '20.'\ntype: project\n---\nIn the p-limit project at /work/p-limit, `test.js` conditionally selects the runner: `const testClearQueueRejects = process.versions.node.startsWith('20.') ? test.skip : test;`. The tests `clearQueue rejects pending promises when enabled` and `limitFunction exposes clearQueue` are declared with `testClearQueueRejects`, so they are skipped only when the Node version string starts with `20.`; on other Node versions the same tests run, and in the observed run `clearQueue rejects pending promises when enabled` executed and passed. A preceding source comment says \"Node.js 20 has a bug where DOMException is not properly handled by AVA's `throwsAsync`\" — that is what the source states as its rationale, not an independently verified Node.js defect.\n",
+      "description": "p-limit test.js gates rejectOnClear/clearQueue tests with test.skip only when process.versions.node starts with '20.'",
+      "readPath": "/isolated/memory/pnpm_test_node20_skip.md",
+      "source": "harness"
+    }
+  ],
+  "originalDelivered": [
+    "pnpm_test_node20_skip.md",
+    "package_manager_pnpm.md",
+    "package_test_scripts.md"
+  ]
+}

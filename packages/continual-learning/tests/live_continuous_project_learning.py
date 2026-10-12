@@ -14,6 +14,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
+from continuous_failure_retention import retain_failure_container
 import tarfile
 import time
 
@@ -21,7 +22,7 @@ import live_real_project_memory as base
 from continuous_project_tasks import COMMON, TASKS, SOURCE_COMMIT, ORACLE, TYPES, SIGNAL_TYPES, REASON_TYPES, SYNC_TYPES, MAP_TYPES
 from docker_experiment import InferenceProxy, redact_transport_bytes
 from live_acceptance_support import EvidenceRun
-from continuous_project_evidence import continuous_coverage, verifier_observation
+from continuous_project_evidence import continuous_coverage, verifier_observation, task_outcome, feedback_accepted, exact_failure_processed
 
 
 def executed_version_probes(messages: list[dict]) -> list[dict[str, str]]:
@@ -149,6 +150,38 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
             'executedVersionProbes':executed_version_probes(messages)}
 
 
+
+
+def install_failure_observation_proof(c: str) -> str:
+    """Install read-only parent verification outside the task source/agent roots."""
+    for name in ('failure-observation-proof.ts','failure-observation-proof-cli.ts'):
+        source=Path(__file__).with_name(name).read_text()
+        source=source.replace('"../extensions/', '"/opt/experiment/packages/continual-learning/extensions/')
+        source=source.replace('"@earendil-works/pi-coding-agent"',
+                              '"/opt/experiment/node_modules/@earendil-works/pi-coding-agent/dist/index.js"')
+        source=source.replace('"./failure-observation-proof"','"./failure-observation-proof.mts"')
+        base.put(c,'/home/node/'+name.removesuffix('.ts')+'.mts',source.encode())
+    return '/home/node/failure-observation-proof-cli.mts'
+
+
+def failure_observation_ready(c: str, original_session: bytes, observation: dict, feedback: dict, source_after: dict) -> dict:
+    """Prove failed feedback evidence, without accepting the failed task itself."""
+    queued=feedback.get('queuedFailure')
+    if not queued:return {'ready':False,'reason':'no-pending-failure'}
+    proof_cli=install_failure_observation_proof(c)
+    input_file='/home/node/failure-observation-proof-input.json'
+    value={'originalSession':original_session.decode(),'currentSession':'',
+           'verifierText':json.dumps(observation,ensure_ascii=False,indent=2),
+           'verifierPath':'/home/node/project-verification.json',
+           'sourceBefore':observation['sourceHashes'],'sourceAfter':source_after,
+           'queued':queued,'explicitBackfills':0}
+    base.put(c,input_file,json.dumps(value,ensure_ascii=False).encode())
+    try:
+        return json.loads(base.checked(['docker','exec',c,'tsx',
+            proof_cli,input_file]))
+    finally:base.shell(c,'rm -f '+input_file)
+
+
 def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
     output.mkdir(parents=True,exist_ok=True)
     base.export_tree(c,base.AGENT+'/memory',output/'memory.tar.gz',proxy)
@@ -194,7 +227,7 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
     for attempt,digest in zip(attempts,digests):attempt['receiptDigest']=digest
     known=[a['receipt'] for a in attempts if a.get('receipt')]
     return {'memoryEntries':memory_entries,'history':history,'dossiers':dossiers,'completedBacklog':completed_backlog,'receipts':receipts,'attempts':attempts,'knownLearningTokens':sum(r['totals']['totalTokens'] for r in known),
-            'knownLearningCost':sum(r['totals']['cost'] for r in known),'interruptedUnknownUsage':sum(not a.get('receipt') for a in attempts),
+            'knownLearningCost':sum(r['totals']['cost'] for r in known),'interruptedUnknownUsage':sum(not a.get('receipt') or a['receipt'].get('usageAvailable') is not True for a in attempts),
             'pendingLearningJobs':backlog['pending'],'backlogStatus':backlog,
             'actualLearningOperations':sum(r.get('operations',0) for r in known),
             'allLearningCostsPriced':all(r.get('costAvailable') is True for r in known)}
@@ -240,7 +273,7 @@ def totals(report: dict) -> dict:
 
 
 def run(args: argparse.Namespace) -> dict:
-    paths=[base.PACKAGE/'index.ts',Path(__file__),Path(__file__).with_name('continuous-tool-budget.ts'),Path(__file__).with_name('continuous-verifier-reference.ts'),Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('continuous-memory-audit.ts'),Path(__file__).with_name('docker_experiment.py'),Path(__file__).with_name('jev-http-forward.mjs'),Path(__file__).with_name('live_acceptance_support.py'),Path(__file__).with_name('continuous_project_tasks.py'),Path(base.__file__),
+    paths=[base.PACKAGE/'index.ts',Path(__file__),Path(__file__).with_name('continuous_failure_retention.py'),Path(__file__).with_name('continuous-tool-budget.ts'),Path(__file__).with_name('continuous-verifier-reference.ts'),Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('failure-observation-proof.ts'),Path(__file__).with_name('failure-observation-proof-cli.ts'),Path(__file__).with_name('continuous-memory-audit.ts'),Path(__file__).with_name('docker_experiment.py'),Path(__file__).with_name('jev-http-forward.mjs'),Path(__file__).with_name('live_acceptance_support.py'),Path(__file__).with_name('continuous_project_tasks.py'),Path(base.__file__),
            *base.PACKAGE.joinpath('extensions').glob('*.ts'),*base.PACKAGE.joinpath('prompts').glob('*.md'),
            *base.REPO.joinpath('packages/kit/src').glob('*.ts')]
     evidence=EvidenceRun(args.output,{str(p):p for p in paths})
@@ -252,6 +285,8 @@ def run(args: argparse.Namespace) -> dict:
               'invalidLearning':'retained as operational failure; stop dependent stages after any invalid learning',
               'recovery':'one bounded explicit backfill after initial pending, retirement, or actual task verification failure; failures enter source-bound same-session read-only continuation first, no repeat-until-pass',
               'costs':'sum leader usage plus cumulative per-job learning ledger plus Jev usage; missing pricing/interrupt usage remain unknown',
+              'failureFeedbackAdmission':'feedback task failure remains failure; one complete same-session verifier read plus byte-bound original and pending slice and proven removed-tool rejection can admit independent backfill without a successful parent summary; no extra parent retries; earlier v18/v19 failures retained',
+              'verifierReadBoundary':'exact source/session-bound file, no offset or limit, one admitted read; rejected calls retained, at most three rejected boundary attempts before abort; earlier prompt-only cohort retained',
               'parentTaskToolBudget':18,'budgetMechanism':'identical experimental extension removes active tools after final admitted result and blocks excess in-flight calls; independent learning workers unchanged',
               'priorUnboundedCohorts':'retained separately; this protocol change cannot be compared as an unchanged intervention',
               'commonPrompt':COMMON,
@@ -313,10 +348,10 @@ def run(args: argparse.Namespace) -> dict:
                             verification['passed']=verification['passed'] and verification['readOnlySourcePreserved']
                         initial_state=artifacts(c,proxy,out/'before-recovery') if arm=='with-learning' and index==0 else None
                         recovery=None;verifier_feedback=None;feedback_state=None
-                        if not verification['passed']:
+                        if not task_outcome(inference,verification)['passed']:
                             original_session=base.checked(['docker','exec',c,'cat',base.AGENT+'/sessions/continuous/stage-'+str(index)+'.jsonl'])
                             source_before_feedback=base.protected(c,'p-limit',include_source=True)
-                            observation=verifier_observation(task['id'],verification,out,source_before_feedback,original_session)
+                            observation=verifier_observation(task['id'],verification,out,source_before_feedback,original_session,inference=inference)
                             evidence.write(str(Path(task['id'])/arm/'verifier-observation.json'),json.dumps(observation,ensure_ascii=False,indent=2))
                             settings_file=base.AGENT+'/memory/settings.json'
                             old_settings=base.checked(['docker','exec',c,'cat',settings_file])
@@ -334,9 +369,13 @@ def run(args: argparse.Namespace) -> dict:
                             stage['arms'][arm]['verifierFeedback']=verifier_feedback
                             verifier_feedback['observation']=observation
                             verifier_feedback['taskSourceUnchanged']=source_before_feedback==base.protected(c,'p-limit',include_source=True)
-                            if not verifier_feedback['originalObservationsPreserved'] or not verifier_feedback['verifierObserved'] or not verifier_feedback['taskSourceUnchanged'] or not verifier_feedback['queuedFailure']:
-                                stage['arms'][arm]['verifierFeedback']=verifier_feedback
-                                raise RuntimeError('Actual verifier feedback was not preserved and observed')
+                            verifier_feedback['taskPassed']=feedback_accepted(verifier_feedback)
+                            if not verifier_feedback['taskPassed']:
+                                proof=failure_observation_ready(c,original_session,observation,verifier_feedback,
+                                    base.protected(c,'p-limit',include_source=True))
+                                verifier_feedback['failureObservationProof']=proof
+                                if proof.get('ready') is not True:
+                                    raise RuntimeError('Actual verifier feedback was not preserved and safely observed')
                         if arm=='with-learning' and (index==3 or verifier_feedback is not None or (initial_state and initial_state['pendingLearningJobs']>0)):
                             source_before_recovery=base.protected(c,'p-limit',include_source=True)
                             recovery_jev_start=len(proxy.jev_usage);recovery_request_start=proxy.requests
@@ -373,9 +412,11 @@ def run(args: argparse.Namespace) -> dict:
                             evidence.write(str(Path(task['id'])/arm/'memory-audit-inputs.json'),json.dumps(memory_audit_inputs,ensure_ascii=False,indent=2))
                             evidence.write(str(Path(task['id'])/arm/'memory-audits.json'),json.dumps(memory_audits,indent=2))
                             base.shell(c,'rm -f /home/node/memory-audit.json')
-                        valid_learning=arm!='with-learning' or (state['pendingLearningJobs']==0 and bool(state['memoryEntries']) and (index!=0 or any('limitFunction' in entry['content'] and 'PromiseLike' in entry['content'] for entry in state['memoryEntries'])) and state['actualLearningOperations']>0 and harness['passed'] and (index!=4 or bool(memory_audits) and all(audit.get('passed') is True for audit in memory_audits)) and not any(state['backlogStatus'].get(k) for k in ('error','malformed','unlearnable','unscoped')))
+                        failure_processed=verifier_feedback is None or exact_failure_processed(verifier_feedback,state)
+                        if verifier_feedback is not None:verifier_feedback['exactFailureProcessed']=failure_processed
+                        valid_learning=arm!='with-learning' or (failure_processed and state['pendingLearningJobs']==0 and bool(state['memoryEntries']) and (index!=0 or any('limitFunction' in entry['content'] and 'PromiseLike' in entry['content'] for entry in state['memoryEntries'])) and state['actualLearningOperations']>0 and harness['passed'] and (index!=4 or bool(memory_audits) and all(audit.get('passed') is True for audit in memory_audits)) and not any(state['backlogStatus'].get(k) for k in ('error','malformed','unlearnable','unscoped')))
                         stage['arms'][arm]={'inference':inference,'verification':verification,'learning':state,'initialLearning':initial_state,'explicitRecovery':recovery,'verifierFeedback':verifier_feedback,'harness':harness,'memoryAudits':memory_audits,'validLearning':valid_learning,'validPairInput':valid_learning_so_far,
-                                            'passed':inference['exitCode']==0 and not inference['modelErrors'] and not inference['malformedSessionRows'] and not inference['temporaryInstructionLeaked'] and not inference['toolBudgetExceeded'] and verification['passed']}
+                                            'passed':task_outcome(inference,verification)['passed']}
                         print(json.dumps({'stage':task['id'],'arm':arm,'passed':stage['arms'][arm]['passed'],'seconds':inference['seconds']},ensure_ascii=False),flush=True)
                     valid_learning_so_far=valid_learning_so_far and stage['arms']['with-learning']['validLearning']
                     if not valid_learning_so_far:
@@ -401,15 +442,16 @@ def run(args: argparse.Namespace) -> dict:
         # Missing interrupted usage is explicitly unknown, never imputed as zero.
         if report['status']=='failed' and proxy is not None:
             report['interruptedCostsMayBeUnknown']=True
+            report['failureRetention']=[]
+            report['retainedContainers']=[]
             for index,c in enumerate(containers):
                 target=evidence.output/f'interrupted-agent-{index}'
-                target.mkdir(exist_ok=True)
-                base.process(['docker','cp',c+':'+base.AGENT+'/learning',str(target)])
-                base.process(['docker','cp',c+':'+base.AGENT+'/memory',str(target)])
-                base.process(['docker','cp',c+':'+base.AGENT+'/sessions',str(target)])
-                for file in target.rglob('*'):
-                    if file.is_file():file.write_bytes(redact_transport_bytes(file.read_bytes(),proxy))
-        for c in containers:base.process(['docker','rm','-f',c])
+                retained=retain_failure_container(c,target,base.process,lambda data:redact_transport_bytes(data,proxy))
+                report['failureRetention'].append(retained)
+                if not retained['passed']:report['retainedContainers'].append(c)
+            report['retentionIncomplete']=bool(report['retainedContainers'])
+        else:
+            for c in containers:base.process(['docker','rm','-f',c])
         report['sourceUnchanged']=evidence.hashes()==evidence.start_hashes
         if not report['sourceUnchanged']:
             report['status']='failed';report['error']='SourceDrift'
