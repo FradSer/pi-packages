@@ -15,19 +15,32 @@ import type { Task } from "./types.ts";
  * enough to stay a safe filename segment. */
 export const MAX_TASK_ID_LENGTH = 48;
 
+/** Cut a slug at its last word boundary within `limit`, so a derived id never ends
+ *  inside a word. A single word longer than the limit is the one case that has to
+ *  cut at the limit, because no earlier boundary exists. */
+function truncateAtWord(slug: string, limit: number): string {
+  if (slug.length <= limit) return slug;
+  const boundary = slug.slice(0, limit + 1).lastIndexOf("-");
+  const cut = boundary > 0 ? slug.slice(0, boundary) : slug.slice(0, limit);
+  return cut.replace(/-+$/g, "") || slug.slice(0, limit);
+}
+
 /** A readable, filesystem-safe id derived from the subject:
- *  "Polish login flow" -> "polish-login-flow"; duplicates get -2, -3, ... */
+ *  "Polish login flow" -> "polish-login-flow"; a taken id gets -1, -2, ...
+ *
+ *  The id is minted once from the subject and stays the handle for the record.
+ *  `update_task` keeps it across a rename, so `slug-1` names where the work
+ *  entered the set rather than restating its current subject. */
 export function taskIdFromSubject(subject: string, taken: ReadonlySet<string>): string {
-  const base = subject
+  const slug = subject
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, MAX_TASK_ID_LENGTH)
-    .replace(/-+$/g, "") || "task";
+    .replace(/^-+|-+$/g, "") || "task";
+  const base = truncateAtWord(slug, MAX_TASK_ID_LENGTH) || "task";
   let id = base;
-  for (let n = 2; taken.has(id); n++) {
+  for (let n = 1; taken.has(id); n++) {
     const suffix = `-${n}`;
-    id = base.slice(0, Math.max(1, MAX_TASK_ID_LENGTH - suffix.length)).replace(/-+$/g, "") + suffix;
+    id = `${truncateAtWord(base, Math.max(1, MAX_TASK_ID_LENGTH - suffix.length))}${suffix}`;
   }
   return id;
 }

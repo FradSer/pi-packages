@@ -1,4 +1,4 @@
-"""Verify default task content in the native Pi fullscreen terminal.
+"""Verify collapsed task rows and native expansion in the native Pi fullscreen terminal.
 
 The deterministic provider performs task edits without credentials or network requests.
 """
@@ -25,8 +25,8 @@ from task_helpers import PACKAGE, REPO
 ANSI = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-_]")
 
 
-@pytest.mark.parametrize("mode", ["content", "ignore"])
-def test_native_tui_expands_task_content_without_holder_rows(tmp_path: Path, mode: str) -> None:
+@pytest.mark.parametrize("mode", ["content", "ignore", "refusal"])
+def test_native_tui_collapses_rows_and_expands_without_holder_rows(tmp_path: Path, mode: str) -> None:
     agent_dir = tmp_path / "agent"
     agent_dir.mkdir()
     (agent_dir / "settings.json").write_text(json.dumps({
@@ -88,12 +88,14 @@ def test_native_tui_expands_task_content_without_holder_rows(tmp_path: Path, mod
         wait_for(lambda: any(item.get("type") == "settled" for item in events()), "settlement")
         wait_for(lambda: "TASK_STOP_TEST_DONE" in screen_text(), "final response")
         settled = next(item for item in events() if item.get("type") == "settled")
-        assert settled["failures"] == []
+        assert len(settled["failures"]) == (1 if mode == "refusal" else 0)
         if mode == "ignore":
             assert settled["requests"] == 5
             assert settled["reminders"][-1]["details"]["status"] == "waiting"
             wait_for(lambda: "[tasks] waiting · 2 unfinished tasks" in screen_text(), "waiting row")
             wait_for(lambda: "to expand" in screen_text(), "native expansion hint")
+            waiting_line = next(line for line in screen_text().splitlines() if "[tasks] waiting · 2 unfinished tasks" in line)
+            assert "to expand" in waiting_line, "the waiting hint shares its headline line"
             before = len(output)
             os.write(master, b"\x0f")
             wait_for(lambda: "no new successful tool result" in ANSI.sub("", output[before:].decode("utf-8", errors="replace")), "expanded waiting details")
@@ -102,19 +104,43 @@ def test_native_tui_expands_task_content_without_holder_rows(tmp_path: Path, mod
             assert "Task status check before settlement." not in screen_text(), "The transcript must keep full task instructions hidden"
             assert "[Task]" not in screen_text()
             return
+        if mode == "refusal":
+            assert settled["requests"] == 2
+            assert settled["failures"][0]["tool"] == "get_task"
+            # A refusal is collapsed like every other row and expands on the same native key.
+            wait_for(lambda: "to expand" in screen_text(), "native expansion hint")
+            wait_for(lambda: "[tasks] get not applied" in screen_text(), "collapsed refusal row")
+            refusal_line = next(line for line in screen_text().splitlines() if "[tasks] get not applied" in line)
+            assert "to expand" in refusal_line, "the refusal hint shares its headline line"
+            assert "The task does not exist." not in screen_text()
+            before = len(output)
+            os.write(master, b"\x0f")
+            wait_for(lambda: "The task does not exist." in ANSI.sub("", output[before:].decode("utf-8", errors="replace")), "expanded refusal body")
+            assert "[Task]" not in screen_text()
+            assert "holder ·" not in screen_text()
+            assert "@main" not in screen_text()
+            return
         assert settled["requests"] == 15
-        assert "Inspect the task content" in screen_text()
+        # Every task row is collapsed by default: the headline stays whole and the hint follows it.
+        # The renamed subject is long enough that this row must wrap at 100 columns.
+        wait_for(lambda: "to expand" in screen_text(), "native expansion hint")
+        collapsed = " ".join(screen_text().split())
+        assert "Inspect the task content and confirm the collapsed row wraps" in collapsed
+        assert "(completed)" in collapsed
+        assert "to expand" in collapsed
+        assert "..." not in collapsed and "\u2026" not in collapsed, "a collapsed headline is never elided"
         assert "[tasks] update" in screen_text()
         assert "[tasks] create" in screen_text()
         assert "[Task]" not in screen_text()
-        assert "Depends on #1" in screen_text()
-        assert "Blocked by #1" in screen_text()
         assert "[update_task]" not in screen_text()
         assert "in_progress" not in screen_text()
+        for hidden in ("Check the input handling and report failures.", "Confirm the input checks pass.", "Description:", "Depends on #1"):
+            assert hidden not in screen_text(), hidden
+        # Ctrl+O expands the most recent row and reveals its complete body.
+        os.write(master, b"\x0f")
         wait_for(lambda: all(text in screen_text() for text in (
             "Check the input handling and report failures.", "Confirm the input checks pass.",
-            "Description:", "Verify:", "Depends on #1")), "complete default task sections")
-        assert "to expand" not in screen_text()
+            "Description:", "Verify:", "Depends on #1")), "expanded task body")
         assert "holder ·" not in screen_text()
         assert "HELD BY" not in screen_text()
         assert "@main" not in screen_text()

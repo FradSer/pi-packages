@@ -4,43 +4,37 @@ Read @README.md for the task interface and persistence contract.
 
 ## Current work
 
-The user requests all lifecycle-review fixes and collapsed automatic waiting messages.
-The source review is @../../docs/research/tasks-lifecycle-review-2026-10-13.md.
-The current candidate hashes are @../../docs/research/tasks-fix-candidate.json.
+Follow-ups from a review of the real task records: id stabilization, exit semantics,
+subject guidance, a long-subject fixture, dependency guidance, and now a smaller tool
+surface with a subject limit so creating a task is light.
 
 ## Changes
 
-- Explicit reads identify the current blocker before historical recovery notes.
-- Mixed completion errors identify content edits that were already saved.
-- Recovery notes and retained evidence history count against normal write budgets.
-- Earlier failure and operational blocker bodies remain in evidence history.
-- Explicit outstanding lists replace current work; empty lists clear it.
-- Present malformed task files do not become empty writable stores.
-- Public tool success requires recovery from blocked state first.
-- Existing library fallback acceptance remains available for verified external outcomes.
-- Agent Teams checks `.ok` before reporting accepted outcomes or releasing holdings.
-- Waiting messages collapse by default and use native expansion.
-- Expanded recovery details distinguish current blocker, handoff, original plan and history.
-- Tool activity wording no longer claims verified task progress.
+- `src/graph.ts`: derived ids stop at a word boundary and disambiguate with `-1`, `-2`.
+- `cancelled` is a fifth terminal status with a required reason; `reopenTask` returns it to pending.
+- `src/tool.ts`: `update_task status=cancelled`, `cancelReason` projection and row line.
+- `src/tool.ts`: `MAX_TASK_SUBJECT_LENGTH = 60`; `create_task` and `update_task` refuse a
+  longer subject with a message pointing at `description`. The store stays permissive.
+- `src/tool.ts`: the four tool descriptions and every parameter description were trimmed,
+  and `description`/`verify` are documented as optional. Surface: 7482 -> 6044 characters.
+- `tests/task-stop-live-fixture.ts`: the long-subject case uses a 60-character subject.
+- Agent Teams reports cancelled counts; its long-subject fixture seeds through the store.
 
 ## Verification
 
-- Final combined Tasks and Agent Teams suites: 475 passed.
+- Tasks suite: 177 passed (`python3 -m pytest packages/tasks/tests -q`).
+- Agent Teams consumer suite: 302 passed (`python3 -m pytest packages/agent-teams/tests -q`).
 - Typecheck passed with `pnpm --config.verify-deps-before-run=false typecheck`.
-- Tasks and Agent Teams packed manifests passed dry-run inspection.
-- Isolated native Pi acceptance passed at 120x40, 48x24 and 48x12.
-  Evidence: `/tmp/tasks-complete-handoff-final`.
-- Native captures show collapsed headlines and expanded current recovery details.
-- Independent final review: Standards PASS and Spec PASS. All 24 reviewed file hashes match.
-- This final context update changes documentation only, after reviewed candidate validation.
+- Repository packed-manifest check passed for 18 packages; `git diff --check` clean.
+- Native waiting frames: 12 captures in `/tmp/tasks-compact-native`.
+- Surface measurement: `create_task 622+642`, `get_task 221+184`, `list_tasks 226+712`,
+  `update_task 903+2534` characters (description + parameter schema).
 
 ## Limitations and next checks
 
-- Native expansion shows the host shortcut label. Complete handoff fields are verified.
-- Review and acceptance match the frozen runtime candidate. This context records final results.
-- Installation audit reports eleven missing packages, including Agent Teams; Tasks is configured.
-- Standard pnpm commands request dependency installation without a TTY.
-  `--config.verify-deps-before-run=false` uses existing dependencies without changing them.
-- No user settings, credentials, remote machines, or chezmoi files changed.
-- Deterministic CLI checks do not prove real-model judgment or physical-terminal accessibility.
-- A reload is needed before this running session can prove it loaded the updated renderer.
+- The subject limit is model-facing only; stored records may be longer and still render whole.
+- The id stays the creation handle after a rename; renames are not tracked.
+- A cancelled prerequisite still blocks its dependents.
+- Matt Pocock, Goal and Impeccable test runs fail in this workspace on missing `tsx` or an
+  unverified dependency tree; that is an environment gap, not this change.
+- A reload is needed before a running Pi session loads the updated tools and renderer.

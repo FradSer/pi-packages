@@ -84,7 +84,7 @@ def test_native_pi_delivers_task_state_and_bounds_continuation(tmp_path: Path, m
         assert list(tasks) == ["content-prerequisite", "inspect-the-task-surface"]
         assert [item["status"] for item in tasks.values()] == ["completed", "completed"]
         edited = tasks["inspect-the-task-surface"]
-        assert edited["subject"] == "Inspect the task content"
+        assert edited["subject"] == "Inspect the task content and confirm the collapsed row wraps"
         assert edited["description"] == "Inspect the current interaction.\nCheck the input handling and report failures."
         assert edited["dependsOn"] == ["content-prerequisite"]
         assert len(settled["taskReads"]) == 2

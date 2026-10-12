@@ -12,10 +12,12 @@ The extension registers four tools and uses `@fradser/pi-kit` for shared renderi
 
 | Tool | Purpose |
 | --- | --- |
-| `create_task` | Record subject, description, dependsOn, verify and optional replacement relations. |
+| `create_task` | Record a subject, optional detail, dependsOn and replacement relations. |
 | `get_task` | Read one task in full, including evidence and successor context. |
 | `list_tasks` | Read compact summaries with statusFilter, claimable, ready, limit and cursor. |
 | `update_task` | Edit content and/or apply one guarded transition. |
+
+A `subject` is a short name of at most 60 characters for the row a reader sees; `description` is optional detail that does not fit it, and a subject alone is a complete task. Name a task in `dependsOn` when this task cannot start before that one finishes. Use `supersedes` when earlier work is obsolete or wrong: the replacement takes over its dependents and the old record stays readable. A task id is minted once from the subject and stays the handle across a rename.
 
 | State | Meaning | Next action |
 | --- | --- | --- |
@@ -23,16 +25,18 @@ The extension registers four tools and uses `@fradser/pi-kit` for shared renderi
 | in_progress | The caller holds the attempt. | completed or blocked |
 | blocked | Work needs a blocker resolved or a previous attempt inspected. | in_progress with reason |
 | completed | Success delivered with evidence and required verdict. | pending to reopen |
+| cancelled | Unfinished work the caller abandoned. It leaves the board and keeps its record. | pending to reopen |
 
-A dependency-unfinished task remains pending and shows `Blocked by #N`. It cannot start or successfully complete until its prerequisites complete. `supersededBy` is a replacement relation, not a fifth status. Replaced records remain readable but are excluded from pending, claimable, ready and continuation work. A holder of replaced work must acknowledge cancellation before releasing its lease.
+A dependency-unfinished task remains pending and shows `Blocked by #N`. It cannot start or successfully complete until its prerequisites complete. `supersededBy` is a replacement relation, not a status. Replaced records remain readable but are excluded from pending, claimable, ready and continuation work. A holder of replaced work must acknowledge cancellation before releasing its lease.
 
 `update_task` routes status transitions:
 
 - `in_progress`: take the task for the derived caller; blocked work requires `reason` explaining safe recovery. Recover blocked work before submitting a successful completion.
 - `blocked`: record `reason`, release the caller's attempt and retain previous evidence.
+- `cancelled`: record `reason` for abandoned unfinished work. The task leaves the board, stops counting as unfinished and keeps its record; a cancelled prerequisite still blocks its dependents. Use it instead of `blocked` when nothing is waiting on an external condition.
 - `completed`, `outcome=success`: record `result`; dependencies, prior attempt and a declared verify gate must satisfy the completion checks. A gate requires `verdict=pass`.
 - `completed`, `outcome=failed`: retain the failure result and move to blocked. A later success keeps `failureEvidence` alongside the new result.
-- `pending`: reopen a completed task while retaining its evidence. Completed or held transitive dependents become blocked; their conclusions are withdrawn and leases released. Recovery must address the reopened premise.
+- `pending`: reopen a completed or cancelled task while retaining its evidence. Completed or held transitive dependents become blocked; their conclusions are withdrawn and leases released. Recovery must address the reopened premise.
 
 The store records a verdict; it does not run the verification prompt itself. Library consumers can request completion checks individually; model-facing tools request all checks. Ownership is derived from the caller, never an assignee parameter. Foreign holders, replacements, invalid graphs and invalid transitions are refused.
 
@@ -40,16 +44,10 @@ Content edits replace subject, description, dependsOn or verify; context merges 
 
 ## Rendering and pagination
 
-All tool results and automatic messages use the shared pi-kit `[tasks]` lifecycle style. Explicit tool results wrap titles, descriptions, Verify, evidence, blockers, errors and persistence notices in full. Automatic waiting messages are collapsed by default. Use Ctrl+O or the native row action to expand their complete details. Display numbers follow creation order across the full task set; filtered pages can contain gaps. Storage ids, holders and resource locks remain in coordination data rather than ordinary rows. The public tools do not accept or return resources.
+All tool results and automatic messages use the shared pi-kit `[tasks]` lifecycle style. Every row is collapsed by default: it shows only its `[tasks] <action> · <title>` headline with the native expansion hint on the last line. A headline wider than the row wraps in full over more lines instead of being elided: every line but the last wraps at the full width, and only the last line makes room for the hint. The task name and its trailing status group (`(in progress)`, `(blocked)`, `(cancelled)`) stay readable. Use Ctrl+O or the native row action to expand the wrapped body, which carries titles, descriptions, Verify, evidence, blockers, errors and persistence notices. A list shows only its task count until expanded. Display numbers follow creation order across the full task set; filtered pages can contain gaps. Storage ids, holders and resource locks remain in coordination data rather than ordinary rows. The public tools do not accept or return resources.
 
 ```text
-[tasks] create · #2 Verify dependency handling (pending)
-Description:
-Exercise the dependency transitions and record the evidence.
-Verify:
-The affected tests pass.
-Depends on #1
-Blocked by #1
+[tasks] create · #2 Verify dependency handling (pending) · to expand
 ```
 
 A list contains summary fields, not descriptions, gates or full results; use get_task for those. Pages return at most 40 tasks. `count` is the number of matching records, `shown` the current page size, `offset` its position and `cursor` the next page token. Pass cursor back to read the next page; filters travel with it. Invalid tokens, mismatched filters and changed list snapshots are explicitly refused, so restart the listing after a mutation. `limit=0` returns no rows, positive fractions are floored and negative limits are refused.

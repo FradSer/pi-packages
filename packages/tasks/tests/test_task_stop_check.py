@@ -522,6 +522,9 @@ def test_status_rows_share_task_labels_and_dependency_summaries(tmp_path: Path) 
         tmp_path,
     )
     assert "[tasks] continue · 2 unfinished tasks" in result["collapsed"]
+    continue_lines = [line for line in result["collapsed"].split("\n") if line.strip()]
+    assert len(continue_lines) == 1, "the continue headline and hint share one line"
+    assert "to expand" in continue_lines[0]
     assert "[tasks] waiting · 2 unfinished tasks" in result["waitingText"]
     assert "Reason:" not in result["waitingText"]
     assert "First task" not in result["waitingText"]
@@ -619,7 +622,7 @@ def test_expanded_recovery_orders_current_state_before_the_original_plan() -> No
         """,
     )
     assert result["expandedSummary"] is True
-    assert result["fullSummary"] is False
+    assert result.get("fullSummary") is not True
     assert result["summary"][1:] == [
         "Current blocker: Access required", "Candidate checked: Checked implementation", "Latest delta: Saved delta",
         "Latest verification: Checks passed", "Prior findings: Earlier finding", "Outstanding: Approval",

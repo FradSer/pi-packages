@@ -40,6 +40,9 @@ def test_work_id_derivation(tmp_path: Path) -> None:
           slug: task.taskIdFromSubject("Polish login flow", new Set()),
           punct: task.taskIdFromSubject("  Fix__THE  thing--now! ", new Set()),
           collision: task.taskIdFromSubject("Polish login flow", taken),
+          sequential: task.taskIdFromSubject("Polish login flow", new Set(["polish-login-flow", "polish-login-flow-1"])),
+          wordBoundary: task.taskIdFromSubject("Guide subject length in the task tool descriptions", new Set()),
+          wordBoundaryTaken: task.taskIdFromSubject("Guide subject length in the task tool descriptions", new Set(["guide-subject-length-in-the-task-tool"])),
           long: task.taskIdFromSubject("x".repeat(120), new Set()),
           fallback: task.taskIdFromSubject("!!!", new Set()),
           limit: task.MAX_TASK_ID_LENGTH,
@@ -49,7 +52,11 @@ def test_work_id_derivation(tmp_path: Path) -> None:
     )
     assert result["slug"] == "polish-login-flow"
     assert result["punct"] == "fix-the-thing-now"
-    assert result["collision"] == "polish-login-flow-3"
+    assert result["collision"] == "polish-login-flow-1"
+    assert result["sequential"] == "polish-login-flow-2"
+    assert result["wordBoundary"] == "guide-subject-length-in-the-task-tool", "a long id stops at a word boundary"
+    assert not str(result["wordBoundary"]).endswith("descriptio"), "no mid-word cut"
+    assert result["wordBoundaryTaken"] == "guide-subject-length-in-the-task-tool-1"
     long_id = str(result["long"])
     assert len(long_id) <= int(str(result["limit"]))
     assert not long_id.endswith("-")

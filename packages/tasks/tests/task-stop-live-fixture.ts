@@ -56,7 +56,7 @@ export default function fixture(pi: ExtensionAPI): void {
           { name: "create_task", arguments: { subject: "Content prerequisite" } },
           { name: "create_task", arguments: { subject: "Inspect the task surface", description: "Initial task body" } },
           { name: "update_task", arguments: {
-            id: "inspect-the-task-surface", subject: "Inspect the task content",
+            id: "inspect-the-task-surface", subject: "Inspect the task content and confirm the collapsed row wraps",
             description: "Inspect the current interaction.\nCheck the input handling and report failures.",
             verify: "Confirm the input checks pass.",
             dependsOn: ["content-prerequisite"],
@@ -80,6 +80,12 @@ export default function fixture(pi: ExtensionAPI): void {
         const call = calls[requests - 1];
         content = call
           ? [{ type: "toolCall", id: `content-${requests}`, name: call.name, arguments: call.arguments }]
+          : [{ type: "text", text: "TASK_STOP_TEST_DONE" }];
+      } else if (mode === "refusal") {
+        // One refused read leaves no open task, so no waiting row follows it and
+        // the refusal row stays the last expandable entry in the transcript.
+        content = requests === 1
+          ? [{ type: "toolCall", id: "refusal-missing", name: "get_task", arguments: { id: "missing" } }]
           : [{ type: "text", text: "TASK_STOP_TEST_DONE" }];
       } else if (mode === "restore" || mode === "inspect-only") {
         const calls = [

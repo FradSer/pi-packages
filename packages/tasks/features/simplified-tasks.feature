@@ -1,16 +1,20 @@
-Feature: Four task states and readable task results
+Feature: Task lifecycle states and readable task results
   Scenario: Legacy blocked and replaced work restores without lost evidence
     Given legacy recovery_hold and superseded task records
     When the store restores them
-    Then only pending, in_progress, blocked and completed are emitted
+    Then only pending, in_progress, blocked, completed and cancelled are emitted
     And failure evidence, recovery notes and replacement relations remain
     And replaced work cannot be taken, completed or automatically continued
 
-  Scenario: Full settled TUI bodies
+  Scenario: Every settled TUI row collapses by default
     Given long task titles, descriptions, conditions, blockers, evidence and errors
     When any tool or automatic status message renders at a narrow width
-    Then the full body wraps without expansion or ellipses
-    And completion results show the submitted evidence
+    Then the collapsed row shows only its headline and native expansion hint
+    And a headline wider than the row wraps in full instead of being elided
+    And every line but the last wraps at the full width
+    And the hint follows the wrapped headline on its last line
+    And expanding it reveals the full body without ellipses
+    And completion results show the submitted evidence on expansion
 
   Scenario: Paginate all matching tasks
     Given forty one matching tasks
@@ -24,7 +28,7 @@ Feature: Four task states and readable task results
     Then one bounded continuation is authorized
     Given only repeated reads, task metadata edits or blocked work
     When the run settles
-    Then it waits with a visible reason without claiming user pause
+    Then it waits with a reason available on expansion and does not claim user pause
 
   Scenario: Record and recover an operational blocker
     Given pending or caller-held work
@@ -35,6 +39,16 @@ Feature: Four task states and readable task results
     And a successful result retains the prior failure evidence
     When completed work is reopened
     Then its state is pending and its evidence remains available
+
+  Scenario: Abandoned work leaves the board
+    Given pending or caller-held unfinished work
+    When update_task records cancelled with a reason
+    Then the status is cancelled and the reason is kept
+    And the task no longer counts as unfinished or claimable
+    And a cancelled prerequisite still blocks its dependents
+    And a completed task is reopened rather than cancelled
+    And reopening a cancelled task returns it to pending with the reason cleared
+    And a cancellation without a reason is refused
 
   Scenario: Effective receipts and pending user input
     Given a successful read or write and a runnable task
@@ -61,5 +75,6 @@ Feature: Four task states and readable task results
   Scenario: New waiting information is visible
     Given a waiting snapshot already displayed
     When the blocker or persistence notice changes without effective work
-    Then the new full information is displayed once
+    Then a new collapsed snapshot is recorded once
+    And expanding it shows the new full information
     And no continuation is requested

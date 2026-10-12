@@ -94,13 +94,21 @@ def test_task_rows_show_content_and_dependencies_without_holder_metadata(tmp_pat
     assert result["operations"][-1]["structuredStatus"] == "in_progress"
     assert "[tasks] get not applied" in result["refusal"], "Refusals use the full shared lifecycle row"
     assert "The task does not exist." in result["refusal"]
-    assert "Depends on #2" in result["createCollapsed"]
-    assert "Blocked by #2" in result["createCollapsed"]
+    # Collapsed by default: each row keeps its headline and reveals its body only on expansion.
+    assert "Depends on #2" not in result["createCollapsed"]
+    assert "Blocked by #2" not in result["createCollapsed"]
+    assert "Description:" not in result["createCollapsed"]
+    assert "to expand" in result["createCollapsed"]
+    assert "Depends on #2" in result["createExpanded"]
+    assert "Blocked by #2" in result["createExpanded"]
+    assert "Description:" in result["createExpanded"]
     assert "A prerequisite #1" not in result["createCollapsed"]
     assert "(pending, blocked)" not in result["createCollapsed"]
     assert result["hiddenLines"] == ["Required at completion: a result recording the evidence"], "requirements are visible without ownership metadata"
-    assert result["collapsed"].strip() == result["expanded"].strip()
-    assert "ctrl+o" not in result["collapsed"]
+    assert result["collapsed"].strip() != result["expanded"].strip()
+    assert "to expand" in result["collapsed"]
+    assert "Required at completion" not in result["collapsed"]
+    assert "Required at completion" in result["expanded"]
     assert all(item["actual"] <= item["width"] for item in result["narrowWidths"])
     assert "Depends on #2" in result["listExpanded"]
     assert "Blocked by #2" in result["listExpanded"]
@@ -143,60 +151,74 @@ def test_task_tui_uses_numbered_dependency_relations(tmp_path: Path) -> None:
         });
         const listed = await checked("list_tasks", {});
         const listCollapsed = render("list_tasks", listed, false, 100).join("\n");
+        const listExpandedWide = render("list_tasks", listed, true, 100).join("\n");
         const listExpanded = render("list_tasks", listed, true, 32).join("\n");
         const narrowCollapsed = render("list_tasks", listed, false, 32).join("\n");
         const narrowExpanded = render("list_tasks", listed, true, 32).join("\n");
         const got = await checked("get_task", { id: dependent.details.id });
         const getCollapsed = render("get_task", got, false, 100).join("\n");
+        const getExpanded = render("get_task", got, true, 100).join("\n");
         const createCollapsed = render("create_task", prerequisite, false, 100).join("\n");
+        const createExpanded = render("create_task", prerequisite, true, 100).join("\n");
         const refused = await call("update_task", {
           id: dependent.details.id, status: "completed", outcome: "success", result: "Not started",
         });
         const refusal = render("update_task", refused, false, 100).join("\n");
+        const refusalExpanded = render("update_task", refused, true, 100).join("\n");
         const invalidDependency = await call("create_task", {
           subject: "Rejected task", dependsOn: ["opaque.reference"],
         });
         const invalidDependencyRow = render("create_task", invalidDependency, false, 100).join("\n");
+        const invalidDependencyExpanded = render("create_task", invalidDependency, true, 100).join("\n");
         const empty = await checked("list_tasks", { statusFilter: ["completed"] });
         const emptyRow = render("list_tasks", empty, false, 100).join("\n");
         console.log(JSON.stringify({
           ids: [prerequisite.details.id, dependent.details.id, documentation.details.id],
-          listCollapsed, listExpanded, narrowCollapsed, narrowExpanded, getCollapsed, createCollapsed, refusal,
+          listCollapsed, listExpandedWide, listExpanded, narrowCollapsed, narrowExpanded,
+          getCollapsed, getExpanded, createCollapsed, createExpanded, refusal, refusalExpanded,
           narrowWidths: narrowExpanded.split("\n").map(line => visibleWidth(line)),
-          invalidDependencyRow, emptyRow,
+          invalidDependencyRow, invalidDependencyExpanded, emptyRow,
         }));
         """,
         tmp_path,
     )
-    assert "#1 Build database (pending)" in result["listCollapsed"]
-    assert "#2 Configure application (pending) · Depends on #1; Blocked by #1" in result["listCollapsed"]
-    assert "Depends on #1" in result["listCollapsed"]
-    assert "Blocked by #1" in result["listCollapsed"]
-    assert "to expand" not in result["narrowCollapsed"]
+    # Collapsed by default: the list row shows its count, not the task bodies.
+    assert "3 tasks" in result["listCollapsed"]
+    assert "to expand" in result["listCollapsed"]
+    assert "#" not in result["listCollapsed"]
+    assert "Build database" not in result["listCollapsed"]
+    assert "#1 Build database (pending)" in result["listExpandedWide"]
+    assert "#2 Configure application (pending) · Depends on #1; Blocked by #1" in result["listExpandedWide"]
+    assert "Depends on #1" in result["listExpandedWide"]
+    assert "Blocked by #1" in result["listExpandedWide"]
+    assert "to expand" in result["narrowCollapsed"]
     narrow_expanded = " ".join(result["narrowExpanded"].split())
     assert "Document several independent storage adapters" in narrow_expanded
     assert "Depends on #1" in narrow_expanded
     assert "Blocked by #1" in narrow_expanded
     assert all(width <= 32 for width in result["narrowWidths"])
-    assert "#2 Configure application (pending)" in result["getCollapsed"]
-    assert "Depends on #1" in result["getCollapsed"]
-    assert "Blocked by #1" in result["getCollapsed"]
-    assert "#1 Build database (pending)" in result["createCollapsed"]
-    assert "Configure application #2" in result["refusal"]
-    assert result["ids"][1] not in result["refusal"]
-    assert "dependency refers to a task that does not exist" in result["invalidDependencyRow"]
-    assert "opaque.reference" not in result["invalidDependencyRow"]
-    assert "reference." not in result["invalidDependencyRow"]
+    assert "to expand" in result["getCollapsed"]
+    assert "#2 Configure application (pending)" in result["getExpanded"]
+    assert "Depends on #1" in result["getExpanded"]
+    assert "Blocked by #1" in result["getExpanded"]
+    assert "to expand" in result["createCollapsed"]
+    assert "#1 Build database (pending)" in result["createExpanded"]
+    assert "Configure application #2" in result["refusalExpanded"]
+    assert result["ids"][1] not in result["refusalExpanded"]
+    assert "to expand" in result["refusal"]
+    assert "to expand" in result["invalidDependencyRow"]
+    assert "dependency refers to a task that does not exist" in result["invalidDependencyExpanded"]
+    assert "opaque.reference" not in result["invalidDependencyExpanded"]
+    assert "reference." not in result["invalidDependencyExpanded"]
     expanded_list_text = " ".join(result["listExpanded"].split())
     assert "Document several independent storage adapters" in expanded_list_text
     assert "Wire the application to storage" not in result["listExpanded"]
     assert all(task_id not in "\n".join(
-        (result["listCollapsed"], result["listExpanded"], result["getCollapsed"], result["createCollapsed"])
+        (result["listCollapsed"], result["listExpandedWide"], result["getExpanded"], result["createExpanded"])
     ) for task_id in result["ids"])
     assert "No tasks" in result["emptyRow"]
     assert "0 tasks" not in result["emptyRow"]
-    list_content = result["listCollapsed"].replace("[tasks] list ·", "")
-    assert list_content.count(" · ") == 1
+    assert "to expand" not in result["emptyRow"]
 
 
 def test_blocked_by_lists_only_unfinished_dependencies(tmp_path: Path) -> None:
@@ -212,10 +234,16 @@ def test_blocked_by_lists_only_unfinished_dependencies(tmp_path: Path) -> None:
           subject: "Wire service", dependsOn: [completed.details.id, pending.details.id],
         });
         const listed = await checked("list_tasks", {});
-        console.log(JSON.stringify({ row: render("list_tasks", listed, false, 120).join("\n") }));
+        console.log(JSON.stringify({
+          collapsed: render("list_tasks", listed, false, 120).join("\n"),
+          row: render("list_tasks", listed, true, 120).join("\n"),
+        }));
         """,
         tmp_path,
     )
+    assert "3 tasks" in result["collapsed"]
+    assert "to expand" in result["collapsed"]
+    assert "Build schema" not in result["collapsed"]
     assert "#1 Build schema (completed)" in result["row"]
     assert "#2 Build cache (pending)" in result["row"]
     assert "#3 Wire service (pending)" in result["row"]
@@ -232,19 +260,22 @@ def test_display_numbers_follow_creation_order_and_stay_stable(tmp_path: Path) -
         const maple = await checked("create_task", { subject: "Maple task" });
         Date.now = originalNow;
         const firstList = await checked("list_tasks", {});
-        const before = render("list_tasks", firstList, false, 120).join("\n");
+        const before = render("list_tasks", firstList, true, 120).join("\n");
+        const beforeCollapsed = render("list_tasks", firstList, false, 120).join("\n");
         Date.now = () => 1_800_000_000_000;
         const aardvark = await checked("create_task", { subject: "Aardvark task" });
         Date.now = originalNow;
         const secondList = await checked("list_tasks", {});
-        const after = render("list_tasks", secondList, false, 120).join("\n");
+        const after = render("list_tasks", secondList, true, 120).join("\n");
         console.log(JSON.stringify({
-          before, after,
+          before, beforeCollapsed, after,
           createdAt: [zebra, maple, aardvark].map(result => task.getTask(result.details.id).createdAt),
         }));
         """,
         tmp_path,
     )
+    assert "to expand" in result["beforeCollapsed"]
+    assert "Zebra task" not in result["beforeCollapsed"]
     assert "#1 Zebra task (pending)" in result["before"]
     assert "#2 Maple task (pending)" in result["before"]
     assert "#1 Zebra task (pending)" in result["after"]
@@ -463,3 +494,71 @@ def test_a_mixed_call_whose_status_is_accepted_records_both_halves(tmp_path: Pat
     assert result["status"] == "in_progress"
     assert result["subject"] == "Taken and renamed"
     assert result["held"] == "main"
+
+
+def test_collapsed_headline_wraps_in_full_and_keeps_the_hint_on_its_last_line(tmp_path: Path) -> None:
+    """Contract: features/task-tool.feature, "Every tool result and status row collapses by default".
+
+    A collapsed row never elides its headline. A headline wider than the row wraps
+    over more lines, and the native expansion hint follows on the last line, so the
+    full task name and its status stay readable.
+    """
+    result = run(
+        r"""
+        const created = await checked("create_task", {
+          subject: "Remove the expand hint from the Matt Pocock row", description: "A long body.",
+        });
+        const done = await checked("update_task", {
+          id: created.details.id, status: "completed", outcome: "success", result: "Done",
+        });
+        const lines = (rows) => rows.map(line => line.trim()).filter(Boolean);
+        const wide = lines(render("update_task", done, false, 120));
+        const narrow = lines(render("update_task", done, false, 48));
+        const narrowText = narrow.join(" ").split(/\s+/).join(" ");
+        console.log(JSON.stringify({
+          wide, narrow, narrowText,
+          narrowFirstWidth: visibleWidth(narrow[0] ?? ""),
+          narrowWidths: render("update_task", done, false, 48).map(visibleWidth),
+        }));
+        """,
+        tmp_path,
+    )
+    subject = "Remove the expand hint from the Matt Pocock row"
+    assert len(result["wide"]) == 1, "a headline that fits keeps the hint on its line"
+    assert subject in result["wide"][0]
+    assert "(completed)" in result["wide"][0]
+    assert "to expand" in result["wide"][0]
+    assert 1 <= len(result["narrow"]) <= 3, "a narrow row wraps instead of eliding"
+    assert result["narrow"][-1].endswith("to expand"), "the hint follows the wrapped headline"
+    assert subject in result["narrowText"], "the full task name stays visible"
+    assert result["narrowFirstWidth"] >= 40, "every line but the last wraps at the full width"
+    assert "(completed)" in result["narrowText"], "the trailing status stays visible"
+    assert "..." not in result["narrowText"] and "\u2026" not in result["narrowText"], "the headline is never elided"
+    assert all(width <= 48 for width in result["narrowWidths"])
+
+
+def test_the_model_facing_subject_is_capped_at_sixty_characters(tmp_path: Path) -> None:
+    """Contract: features/discoverability.feature, "The surface states what a subject is".
+
+    A subject names the row a reader sees. A long brief in the subject field makes
+    the transcript unreadable and the derived id a sentence, so the tool refuses it
+    and points at description. The store stays permissive for internal callers.
+    """
+    result = run(
+        r"""
+        const created = await call("create_task", { subject: "x".repeat(61), description: "Detail" });
+        const updated = await call("update_task", { id: "task", subject: "y".repeat(61) });
+        const allowed = await call("create_task", { subject: "x".repeat(60) });
+        console.log(JSON.stringify({
+          createdOk: created.details.ok, createdText: created.content[0].text,
+          updatedOk: updated.details.ok, updatedText: updated.content[0].text,
+          allowedOk: allowed.details.ok,
+        }));
+        """,
+        tmp_path,
+    )
+    assert result["createdOk"] is False
+    assert "60" in str(result["createdText"]) and "description" in str(result["createdText"])
+    assert result["updatedOk"] is False
+    assert "60" in str(result["updatedText"])
+    assert result["allowedOk"] is True, "60 characters is accepted"

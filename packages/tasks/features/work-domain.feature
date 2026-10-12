@@ -21,13 +21,14 @@ Feature: Task domain rules and durable task set persistence
     Scenario: A collision gets a numeric suffix instead of overwriting
       Given "polish-login-flow" is already taken
       When a Task id is derived from the same subject
-      Then the id is "polish-login-flow-2"
-      And deriving again with both taken yields "polish-login-flow-3"
+      Then the id is "polish-login-flow-1"
+      And deriving again with both taken yields "polish-login-flow-2"
 
-    Scenario: A long subject is truncated without leaving a trailing dash
+    Scenario: A long subject is truncated at a word boundary
       Given a subject longer than the id limit
       When a Task id is derived
       Then the id is at most the limit long
+      And the id does not end inside a word
       And it does not end with a dash
 
     Scenario: A subject with no usable characters still yields an id

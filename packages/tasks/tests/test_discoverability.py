@@ -52,6 +52,12 @@ def test_create_task_states_when_recording_a_task_is_warranted(tmp_path: Path) -
           statesNotAGoal: /not a goal/.test(text),
           statesGoalKeepsRunning: /keeps running until it is met/.test(text),
           statesUnitOfWork: /one unit of work/.test(text),
+          statesSubjectIsShortName: /short name for the row/.test(text),
+          statesSubjectLimit: /at most 60 characters/.test(text),
+          statesSubjectAloneIsComplete: /subject alone is a complete task/.test(text),
+          statesDescriptionIsOptional: /add description only for detail that does not fit/.test(text),
+          statesDependsOnTrigger: /cannot start before another/.test(text),
+          statesSupersedesTrigger: /obsolete or wrong/.test(text),
         }));
         """,
         tmp_path,
@@ -64,6 +70,12 @@ def test_create_task_states_when_recording_a_task_is_warranted(tmp_path: Path) -
     assert result["statesNotAGoal"] is True
     assert result["statesGoalKeepsRunning"] is True
     assert result["statesUnitOfWork"] is True
+    assert result["statesSubjectIsShortName"] is True
+    assert result["statesSubjectLimit"] is True
+    assert result["statesSubjectAloneIsComplete"] is True
+    assert result["statesDescriptionIsOptional"] is True
+    assert result["statesDependsOnTrigger"] is True
+    assert result["statesSupersedesTrigger"] is True
 
 
 def test_all_four_tools_reach_the_model_with_a_snippet(tmp_path: Path) -> None:

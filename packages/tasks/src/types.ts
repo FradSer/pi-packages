@@ -23,7 +23,7 @@
  *  a status added here reaches all three. A `TaskStatus` written out as a union
  *  of literals instead would erase at runtime and leave each of those places
  *  holding its own private copy. */
-export const TASK_STATUSES = ["pending", "in_progress", "blocked", "completed"] as const;
+export const TASK_STATUSES = ["pending", "in_progress", "blocked", "completed", "cancelled"] as const;
 
 /** Tasks lifecycle of a Task. The set is closed: every transition a caller may
  *  name lives here, so an unsupported value is a compile error rather than a
@@ -116,6 +116,9 @@ export interface Task {
   evidenceHistory?: string[];
   /** Explicit blocker; cleared when the task resumes. */
   blockedReason?: string;
+  /** Why unfinished work left the board. Set only by a cancellation, kept so an
+   *  operator can see what was abandoned and why the reminder stopped. */
+  cancelReason?: string;
   /** The answer to this task's declared completion gate, for the *current*
    *  attempt. `undefined` means the task declared no gate, or a recorded answer
    *  was withdrawn because the premise under it was reopened — never that a gate

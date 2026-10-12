@@ -260,12 +260,15 @@ def test_every_lifecycle_position_is_reachable_exactly_one_way(tmp_path: Path) -
         """,
         tmp_path,
     )
-    assert result["statusEnum"] == ["in_progress", "completed", "pending", "blocked"], (
-        "four transitions, and `pending` is the only way back from completed"
+    assert result["statusEnum"] == ["in_progress", "completed", "pending", "blocked", "cancelled"], (
+        "five transitions, and `pending` is the only way back from completed or cancelled"
     )
     assert "status=in_progress" in str(result["reasonDescribed"]), (
         "`reason` is documented for the take route, which is the only one that reads it. "
         "It used to be documented for reopen too, and reopen never received it."
+    )
+    assert "status=cancelled" in str(result["reasonDescribed"]), (
+        "`reason` is documented for the cancel route, which records why work is abandoned"
     )
     assert result["took"] == "in_progress"
     assert result["heldByCaller"] == "main"

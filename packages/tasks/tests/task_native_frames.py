@@ -98,7 +98,8 @@ with tempfile.TemporaryDirectory(prefix="tasks-native-") as directory:
             wait(lambda: frames.count > before)
             capture(f"expanded-{width}x{height}")
             os.write(master, b"\x0f")
-            wait(lambda: "to expand" in screen() and "Current blocker:" not in screen())
+            wait(lambda: "[tasks] waiting" in screen() and "to expand" in screen())
+            assert "Current blocker:" not in screen()
             assert "Candidate checked:" not in screen()
             assert "Prior findings:" not in screen()
             assert "ctrl+o" in screen().lower(), "resize must retain a readable expansion action"

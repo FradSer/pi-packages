@@ -2,9 +2,9 @@ Feature: Waiting task recovery display
   Scenario: Waiting details use native expansion
     Given one unfinished task and no new successful tool result
     When Pi settles with a transcript
-    Then the waiting row shows only its headline and native expansion hint
+    Then the waiting row shows its whole headline with the native expansion hint on its last line
     And Ctrl-O or a headline click reveals the complete recovery details
-    And continuation rows keep their full details visible
+    And continuation rows also collapse to their whole headline with the hint on the last line
 
   Scenario: Recovery details show the latest saved state
     Given a blocked task with a handoff and a previous recovery note

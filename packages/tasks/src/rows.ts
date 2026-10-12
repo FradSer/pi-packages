@@ -13,7 +13,6 @@ import { keyHint, ToolExecutionComponent, type ExtensionAPI } from "@earendil-wo
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   bindLifecycleRenderers,
-  renderToolLifecycle,
   type LifecycleRendererBindings,
   type createStaticToolLifecycleResultRenderer,
   type ToolLifecycleSpec,
@@ -21,10 +20,11 @@ import {
 import { taskDisplayIndex, taskDisplayReference } from "./display.ts";
 import { listTasks } from "./store.ts";
 
-/** The spec builder the tool hands in; the binding supplies the geometry. */
+/** The spec builder the tool hands in; the binding supplies the geometry.
+ *  Expansion state reaches the renderer through the host render call, never
+ *  through this builder, so the builder takes the result alone. */
 export type TaskRowSpec = (
   result: Parameters<Parameters<typeof createStaticToolLifecycleResultRenderer>[0]["createSpec"]>[0],
-  state?: { expanded?: boolean },
 ) => ToolLifecycleSpec;
 
 const lifecycleGeometry: Pick<LifecycleRendererBindings, "fit" | "visibleWidth" | "wrapDetail"> = {
@@ -42,27 +42,31 @@ const taskRows = bindLifecycleRenderers({
 
 
 /** Build the `renderResult` for one row spec. Injected into `registerTaskTools`
- *  so the tool library stays TUI-free and only the loaded entry paints. */
+ *  so the tool library stays TUI-free and only the loaded entry paints.
+ *
+ *  A refusal is the same bound band as a success, so it carries the native key
+ *  hint and the same expansion mechanism. It only replaces the spec: the label
+ *  names the action that did not apply, and the error tone marks the band. */
 export function createTaskResultRenderer(spec: { createSpec: TaskRowSpec }): unknown {
   const renderer = taskRows.result(spec.createSpec);
-  return (...args: Parameters<typeof renderer>) => {
-    const result = args[3].isError ? errorResultForDisplay(args[0]) : args[0];
-    if (args[3].isError) {
-      const value = result as { content?: {text?: string}[]; details?: {tool?: string; task?: unknown} };
-      const action = value.details?.tool?.replace(/_tasks?$/, "") ?? "update";
-      const taskSpec = spec.createSpec(result);
-      const text = (value.content ?? []).map(part => part.text ?? "");
-      return {
-        render: (width: number) => renderToolLifecycle({
-          ...taskSpec, kind: "event", label: `${action} not applied`,
-          subject: value.details?.task ? taskSpec.subject : "",
-          summary: value.details?.task ? [...text, ...(taskSpec.summary ?? [])] : taskSpec.summary,
-          fullSummary: true, verbatimSubject: true,
-        }, { width, theme: args[2], isError: true, ...lifecycleGeometry }),
-        invalidate() {},
-      };
-    }
-    return renderer(result, args[1], args[2], args[3]);
+  const errorRenderer = taskRows.result((result: TaskRowResult) => errorSpecFor(spec, result));
+  return (...args: Parameters<typeof renderer>) => args[3].isError
+    ? errorRenderer(errorResultForDisplay(args[0]), args[1], args[2], { isError: false })
+    : renderer(args[0], args[1], args[2], args[3]);
+}
+
+type TaskRowResult = Parameters<TaskRowSpec>[0];
+
+function errorSpecFor(spec: { createSpec: TaskRowSpec }, result: TaskRowResult): ToolLifecycleSpec {
+  const value = result as { content?: {text?: string}[]; details?: {tool?: string; task?: unknown} };
+  const action = value.details?.tool?.replace(/_tasks?$/, "") ?? "update";
+  const taskSpec = spec.createSpec(result);
+  const text = (value.content ?? []).map(part => part.text ?? "");
+  return {
+    ...taskSpec, kind: "event", label: `${action} not applied`, tone: "error",
+    subject: value.details?.task ? taskSpec.subject : "",
+    summary: value.details?.task ? [...text, ...(taskSpec.summary ?? [])] : taskSpec.summary,
+    expandedSummary: true, verbatimSubject: true, details: [],
   };
 }
 

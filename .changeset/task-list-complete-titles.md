@@ -2,4 +2,4 @@
 "@fradser/pi-tasks": patch
 ---
 
-Show complete stored task titles in the default TUI list. Wrap long titles to the terminal width instead of requiring expansion to reveal their ends. Keep descriptions separate and preserve existing task data and tool results.
+Collapse the task list row to its task count by default, like every other Tasks row. Expanding the row wraps the complete stored task titles to the terminal width, so no title end is unreachable. Descriptions stay separate, and existing task data and tool results are preserved.

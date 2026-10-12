@@ -616,6 +616,7 @@ export type TaskRefusal =
   | "context-empty"
   | "invalid-outcome"
   | "already-completed"
+  | "not-cancellable"
   | "superseded"
   | "not-completed"
   | "not-in-progress"
@@ -1144,14 +1145,84 @@ function recordOutcome(task: Task, outcome: "success" | "failed", result: string
  * its successor is already building against would silently invalidate that
  * successor's premise.
  */
+/** Move every dependent whose premise just moved back under a recovery hold.
+ *
+ *  One walk shared by reopening and cancelling: both withdraw a premise a
+ *  dependent was built on, so both must pull that dependent back and keep its
+ *  evidence for the next attempt. */
+function withdrawDependents(taskId: string, note: (held: boolean) => string): Task[] {
+  const invalidated = [...completedDependents(taskId), ...claimedDependents(taskId)]
+    .filter((dependent, index, all) => all.findIndex((entry) => entry.id === dependent.id) === index);
+  for (const dependent of invalidated) {
+    const heldBy = dependent.claimedBy;
+    const wasHeld = heldBy !== undefined;
+    dependent.status = "blocked";
+    dependent.claimedBy = undefined;
+    dependent.completedAt = undefined;
+    dependent.invalidatedBy = taskId;
+    dependent.recoveryNote = note(wasHeld);
+    // The verdict described work whose premise is gone. It is withdrawn rather
+    // than left standing, because a `pass` on a task that is no longer complete
+    // is the one reading this task set cannot afford.
+    dependent.completionVerdict = undefined;
+    dependent.completionGate = undefined;
+    // The evidence stays: it is what the next attempt has to answer, and what a
+    // reviewer reads before deciding whether the work still holds.
+    dependent.updatedAt = Date.now();
+    // The lease goes with the hold. Left open, the resources stay locked by a
+    // participant who is no longer working on anything.
+    if (wasHeld) hooks.sync(heldBy, undefined, undefined);
+  }
+  return invalidated;
+}
+
+/**
+ * Leave the board without leaving the record.
+ *
+ * Cancellation is the terminal transition for unfinished work. It exists
+ * because `blocked` means a blocker is in the way, and work the caller has
+ * abandoned is not waiting on anything: recorded as blocked, it counts as
+ * unfinished forever and the settle reminder reports it at every settlement.
+ * The record, its reason and its evidence stay readable, and `reopenTask`
+ * brings it back to pending.
+ */
+export function cancelTask(
+  taskId: string,
+  holder: string,
+  reason: string | undefined,
+): { ok: true; task: Task; invalidated: Task[] } | TaskRefusalResult {
+  const task = tasks[taskId];
+  if (!task) return refuse("unknown-task", `Task "${taskId}" does not exist.`, taskId);
+  if (isTaskReplaced(task)) return refuse("superseded", `Task "${taskId}" has been replaced.`, taskId);
+  if (task.status === "completed" || task.status === "cancelled") {
+    return refuse("not-cancellable", `Task "${taskId}" is already ${task.status}.`, taskId);
+  }
+  if (task.status === "in_progress" && task.claimedBy && task.claimedBy !== holder) {
+    return refuse("lease-held", `Cannot cancel Task "${taskId}": @${task.claimedBy} holds it.`, task.claimedBy);
+  }
+  const cancelReason = reason?.trim();
+  if (!cancelReason) return refuse("invalid-content", "Cancelling a task requires a reason.", taskId);
+  const invalidated = withdrawDependents(taskId, () => `Its premise "${taskId}" was cancelled, so this attempt or completion no longer stands against it.`);
+  const wasHeld = task.claimedBy;
+  task.status = "cancelled";
+  task.cancelReason = cancelReason;
+  task.claimedBy = undefined;
+  task.completedAt = undefined;
+  task.updatedAt = Date.now();
+  if (wasHeld) hooks.sync(wasHeld, undefined, undefined);
+  markChanged();
+  return { ok: true, task, invalidated };
+}
+
 export function reopenTask(
   taskId: string,
 ): { ok: true; task: Task; invalidated: Task[] } | TaskRefusalResult {
   const task = tasks[taskId];
   if (!task) return refuse("unknown-task", `Task "${taskId}" does not exist.`, taskId);
   if (isTaskReplaced(task)) return refuse("superseded", `Task "${taskId}" has been replaced.`, taskId);
-  if (task.status !== "completed") {
-    return refuse("not-completed", `Task "${taskId}" is not completed.`, taskId);
+  const wasCancelled = task.status === "cancelled";
+  if (task.status !== "completed" && !wasCancelled) {
+    return refuse("not-completed", `Task "${taskId}" is not completed or cancelled.`, taskId);
   }
   // Reopen is always available. It is the only way back from a completed task, so
   // refusing it would strand the work for everyone who ever depended on it — and
@@ -1163,31 +1234,12 @@ export function reopenTask(
   // an attempt invalidated. Both go back to pending under a recovery hold naming
   // what withdrew them, and both keep their evidence: it is what the next attempt
   // has to answer.
-  const invalidated = [...completedDependents(taskId), ...claimedDependents(taskId)]
-    .filter((dependent, index, all) => all.findIndex((entry) => entry.id === dependent.id) === index);
+  const invalidated = withdrawDependents(taskId, (held) => `Its premise "${taskId}" was ${wasCancelled ? "cancelled" : "reopened"}, so this ${held ? "attempt" : "completion"} no longer stands against it.`);
   task.status = "pending";
+  task.cancelReason = undefined;
   task.claimedBy = undefined;
   task.completedAt = undefined;
   task.updatedAt = Date.now();
-  for (const dependent of invalidated) {
-    const wasHeld = dependent.claimedBy;
-    dependent.status = "blocked";
-    dependent.claimedBy = undefined;
-    dependent.completedAt = undefined;
-    dependent.invalidatedBy = taskId;
-    dependent.recoveryNote = `Its premise "${taskId}" was reopened, so this ${wasHeld ? "attempt" : "completion"} no longer stands against it.`;
-    // The verdict described work whose premise is gone. It is withdrawn rather
-    // than left standing, because a `pass` on a task that is no longer complete
-    // is the one reading this task set cannot afford.
-    dependent.completionVerdict = undefined;
-    dependent.completionGate = undefined;
-    // The evidence stays: it is what the next attempt has to answer, and what a
-    // reviewer reads before deciding whether the work still holds.
-    dependent.updatedAt = Date.now();
-    // The lease goes with the hold. Left open, the resources stay locked by a
-    // participant who is no longer working on anything.
-    if (wasHeld) hooks.sync(wasHeld, undefined, undefined);
-  }
   markChanged();
   return { ok: true, task, invalidated };
 }

@@ -63,7 +63,7 @@ Feature: The task tools
       Given a saved task with resource tags from an earlier version
       When it is read, listed, or rendered
       Then no resource tags appear in the tool result or the lifecycle row
-      And its dependencies and unfinished prerequisites remain visible
+      And its dependencies and unfinished prerequisites remain available on expansion
 
     Scenario: Independent tasks can proceed while dependents wait
       Given two independent tasks and a task that depends on both
@@ -203,7 +203,7 @@ Feature: The task tools
       Then the task list shows #1 Build database and #2 Configure application
       And the dependency reads Depends on #1
       And its unfinished prerequisite reads Blocked by #1
-      And both relations use the same compact order in list and settlement summaries
+      And both relations use the same compact order in expanded list and settlement rows
       And neither relation repeats a task name or storage id
       And storage ids are not shown in the TUI
 
@@ -222,13 +222,15 @@ Feature: The task tools
     Scenario: Refusals hide unknown dependency identifiers
       Given a task refers to a dependency that does not exist
       When its error row is rendered
-      Then it explains that the referenced task is missing
+      Then it explains on expansion that the referenced task is missing
       And it does not expose the supplied identifier
 
-    Scenario: Lists use the same compact default as other task results
+    Scenario: Lists collapse to their count and native hint
       Given a task list with long titles and dependencies
       When the list result is rendered without expansion
-      Then it shows numbered names, statuses, and named dependencies
+      Then the collapsed row shows only the task count and the native expansion hint
+      And the count stays whole with the hint on its line
+      And expanding it shows numbered names, statuses, and named dependencies
       And complete wrapped titles are available on expansion
       And descriptions remain available through get_task
       And every rendered line fits the terminal width
@@ -238,6 +240,7 @@ Feature: The task tools
       When the list result is rendered
       Then the row says No tasks
       And it does not show a conflicting zero-task summary
+      And it has no expansion hint because it has no body
 
 
     Scenario: Task tools share one display label
@@ -250,20 +253,20 @@ Feature: The task tools
     Scenario: Store write failures are shown on the operation that encountered them
       Given a task mutation whose durable write fails
       When its result is rendered
-      Then the task row includes the persistence notice
+      Then expanding the task row shows the persistence notice
       And after a later durable write succeeds the stale notice is cleared
 
     Scenario: Default task fields have named sections
       Given a task has description, verify, and dependency fields
-      When its result is rendered without expansion
+      When its result is expanded
       Then Description introduces the full description
       And Verify introduces the full verification prompt on separate lines
       And dependency relationships follow the description and verification sections
       And each section appears once without changing stored field values
 
-    Scenario: Dependency relations are visible before expansion
+    Scenario: Dependency relations are visible on expansion
       Given a task with declared dependencies and unfinished prerequisites
-      When its result is collapsed
+      When its result is expanded
       Then it identifies dependencies by display number
       And it identifies unfinished prerequisites with Blocked by
       And each label appears once after the full task body
@@ -275,11 +278,11 @@ Feature: The task tools
       And Blocked by includes only the pending task number
       And both relations follow the task heading after one middot separator
 
-    Scenario: Narrow lists wrap complete task summaries
+    Scenario: Narrow lists keep the collapsed row within the terminal
       Given a numbered task row with a long title and both relationship labels
-      When the list is rendered at a narrow terminal width
-      Then the default row wraps the full title and both relationships within the terminal
-      And it has no expansion hint
+      When the list is rendered without expansion at a narrow terminal width
+      Then the collapsed row shows the count and the expansion hint within the terminal
+      And expanding it wraps the full title and both relationships within the terminal
 
     Scenario: The row is bound when the extension is loaded
       Given the package's extension entry
@@ -294,6 +297,15 @@ Feature: The task tools
       When its progress result is rendered
       Then the row contains only its name and status
       And it shows no expansion hint for holder metadata
+
+    Scenario: Every tool result and status row collapses by default
+      Given a task row with body content and an automatic status row
+      When each is rendered without expansion
+      Then each shows only its headline and the native expansion hint
+      And a headline wider than the row wraps in full instead of being elided
+      And every line but the last wraps at the full width
+      And the hint follows the wrapped headline on its last line
+      And neither shows its body before the reader expands it
 
     Scenario: The row never builds without real geometry
       Given a caller that supplies no renderer

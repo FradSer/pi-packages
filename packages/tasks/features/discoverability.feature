@@ -26,6 +26,16 @@ Feature: A session learns the task tools exist
       And it states that a goal keeps running until it is met
       And it states that a task is one unit of work
 
+    Scenario: The surface states what a subject is and when to link tasks
+      Given the registered create_task tool
+      When a model reads its description
+      Then it states that the subject is a short name for the task row
+      And it states the subject limit of 60 characters
+      And it states that a subject alone is a complete task
+      And it states that description holds detail that does not fit the subject
+      And it states that dependsOn names a task this one cannot start before
+      And it states that supersedes replaces obsolete or wrong earlier work
+
     Scenario: All four tools reach the model
       Given the package extension entry
       When its registered tools are read

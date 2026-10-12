@@ -227,7 +227,7 @@ export function taskStatusSpec(details: unknown): ToolLifecycleSpec {
   return {
     kind: "event", tool: TASK_DISPLAY_LABEL, label,
     subject: `${remaining} unfinished task${remaining === 1 ? "" : "s"}`,
-    fullSummary: label === "continue", expandedSummary: label === "waiting", verbatimSubject: true,
+    expandedSummary: true, verbatimSubject: true,
     details: [],
     summary: [
       ...(reason ? [`Reason: ${reason}`] : []),

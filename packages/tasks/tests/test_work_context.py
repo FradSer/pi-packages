@@ -434,7 +434,7 @@ def test_the_declared_status_enum_is_the_one_the_tasks_produces(tmp_path: Path) 
         const declared = task.TASK_TOOL_OUTPUT_SCHEMA.properties.task.properties.status.enum;
         const filterEnum = task.TASK_LIST_PARAMS.properties.statusFilter.items.enum;
         // Every status the store can put on a task, read from the type's own doc.
-        const union = ["pending", "in_progress", "blocked", "completed"];
+        const union = ["pending", "in_progress", "blocked", "completed", "cancelled"];
         console.log(JSON.stringify({
           declared,
           filterEnum,

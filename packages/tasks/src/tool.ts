@@ -42,6 +42,7 @@ import {
   blockedDependencies,
   blockTask,
   claimableTasks,
+  cancelTask,
   completableTasks,
   completionRequirements,
   storeNotice,
@@ -101,26 +102,26 @@ const idField = { type: "string", minLength: 1, description: "The task id, copie
 const CONTEXT_PARAMS = {
   type: "object",
   properties: {
-    workspacePath: { type: "string", description: "The workspace this task ran in. Pi resolves the session from it." },
+    workspacePath: { type: "string", description: "The workspace this task ran in." },
     handoff: {
       type: "object",
       properties: {
-        candidate: { type: "string", description: "The revision or scoped snapshot the outgoing attempt checked." },
-        delta: { type: "string", description: "What the outgoing attempt changed, in its own words." },
+        candidate: { type: "string", description: "The revision the last attempt checked." },
+        delta: { type: "string", description: "What the last attempt changed." },
         verification: { type: "string", description: "Checks that ran and their outcomes." },
-        priorFindings: stringArray("Findings a successor must not lose. Added to, never replaced."),
-        outstanding: stringArray("Current unfinished or unverified work. An explicit list replaces the old list; [] clears it."),
+        priorFindings: stringArray("Findings a successor must not lose."),
+        outstanding: stringArray("Unfinished work; [] clears it."),
       },
-      description: "The brief a successor receives. Fields merge with whatever the task already carries.",
+      description: "The brief a successor receives.",
     },
     refs: {
       type: "array",
       items: {
         type: "object",
         properties: {
-          kind: { type: "string", enum: ["work", "report", "file"], description: "What kind of thing is referenced." },
+          kind: { type: "string", enum: ["work", "report", "file"], description: "What is referenced." },
           id: { type: "string", description: "Task id, report id, or repository-relative path." },
-          note: { type: "string", description: "Why this reference matters." },
+          note: { type: "string", description: "Why it matters." },
         },
         required: ["kind", "id"],
       },
@@ -130,7 +131,7 @@ const CONTEXT_PARAMS = {
       type: "number",
       minimum: 1,
       maximum: 64 * 1024,
-      description: "Byte ceiling for this task's retained context. A task may be held to less than the default, never to more.",
+      description: "Byte ceiling for retained context.",
     },
   },
 } as const;
@@ -159,6 +160,7 @@ export type TaskProjection = {
   supersededBy?: string;
   replacementUnresolved?: boolean;
   blockedReason?: string;
+  cancelReason?: string;
   failureEvidence?: string;
   evidenceHistory?: string[];
   completionVerdict?: CompletionVerdict;
@@ -222,6 +224,7 @@ const TASK_PROJECTION_SCHEMA = {
     verify: { type: "string", description: "The completion gate a fresh reviewer answers." },
     result: { type: "string", description: "Evidence recorded for the current or last attempt." },
     blockedReason: { type: "string", description: "Why work cannot continue." },
+    cancelReason: { type: "string", description: "Why unfinished work was cancelled and left the board." },
     failureEvidence: { type: "string", description: "Evidence of the last failed attempt." },
     evidenceHistory: { type: "array", items: { type: "string" }, description: "Retained evidence from earlier attempts and operational blockers." },
     replacementUnresolved: { type: "boolean", description: "Legacy replacement target is missing; this history is inactive." },
@@ -242,6 +245,7 @@ const TASK_SUMMARY_SCHEMA = {
     holder: TASK_PROJECTION_SCHEMA.properties.holder,
     recoveryNote: TASK_PROJECTION_SCHEMA.properties.recoveryNote,
     blockedReason: TASK_PROJECTION_SCHEMA.properties.blockedReason,
+    cancelReason: TASK_PROJECTION_SCHEMA.properties.cancelReason,
     dependsOn: TASK_PROJECTION_SCHEMA.properties.dependsOn,
     blockedBy: TASK_PROJECTION_SCHEMA.properties.blockedBy,
     supersededBy: TASK_PROJECTION_SCHEMA.properties.supersededBy,
@@ -285,11 +289,11 @@ export const TASK_TOOL_OUTPUT_SCHEMA = {
 export const TASK_CREATE_PARAMS = {
   type: "object",
   properties: {
-    subject: { type: "string", minLength: 1, description: "What must be done." },
-    description: { type: "string", description: "The full brief." },
-    verify: { type: "string", description: "An independent completion gate, as a prompt rather than a command." },
-    dependsOn: stringArray("Task ids that must complete first."),
-    supersedes: stringArray("Task ids this one replaces atomically."),
+    subject: { type: "string", minLength: 1, description: "A short name for the task, at most 60 characters, shown in the task list row." },
+    description: { type: "string", description: "Optional detail that does not fit the subject." },
+    verify: { type: "string", description: "Optional independent gate a fresh reviewer answers." },
+    dependsOn: stringArray("Task ids that must finish first."),
+    supersedes: stringArray("Task ids this one replaces."),
   },
   required: ["subject"],
   additionalProperties: false,
@@ -323,7 +327,18 @@ export const TASK_LIST_PARAMS = {
  *  routes a caller may take, and `superseded` is not among them. Declared above
  *  the parameter object that spreads it, and used again by the handler that has
  *  to refuse anything outside it. */
-const TASK_UPDATE_STATUSES = ["in_progress", "completed", "pending", "blocked"] as const;
+const TASK_UPDATE_STATUSES = ["in_progress", "completed", "pending", "blocked", "cancelled"] as const;
+
+/** The longest subject the model-facing tools accept. A subject names the row a
+ *  reader sees; detail that does not fit belongs in `description`. The store and
+ *  its internal callers stay permissive, so Agent Teams keeps its generated work. */
+export const MAX_TASK_SUBJECT_LENGTH = 60;
+
+/** Refuse a subject that is a brief instead of a name. */
+function subjectIsTooLong(name: string, subject: string): ToolResult | undefined {
+  if (subject.length <= MAX_TASK_SUBJECT_LENGTH) return undefined;
+  return fail(name, `The subject is ${subject.length} characters; keep it to ${MAX_TASK_SUBJECT_LENGTH} and put the detail in description.`);
+}
 
 export const TASK_UPDATE_PARAMS = {
   type: "object",
@@ -334,28 +349,24 @@ export const TASK_UPDATE_PARAMS = {
     // precondition still applies and each position is still reachable one way:
     //   in_progress -> take    (requires `reason` while a recovery hold is set)
     //   completed   -> complete (requires `outcome`; a completion is a judgement)
-    //   pending     -> reopen   (only from completed)
+    //   pending     -> reopen   (from completed or cancelled)
     status: {
       type: "string",
       enum: [...TASK_UPDATE_STATUSES],
-      description: "Move the task. in_progress takes it for you, completed delivers it and needs an outcome, pending reopens a completed one; blocked records a blocker and requires reason.",
+      description: "Where to move it; the tool description defines each transition.",
     },
-    outcome: {
-      type: "string",
-      enum: ["success", "failed"],
-      description: "With status=completed: success delivers the result; failed records blocked work and retains the blocker as evidence.",
-    },
-    result: { type: "string", description: "With status=completed: the evidence for the outcome. Required: a success with no result is refused." },
+    outcome: { type: "string", enum: ["success", "failed"], description: "status=completed: success or failed." },
+    result: { type: "string", description: "status=completed: the evidence; required for success." },
     verdict: {
       type: "string",
       enum: ["pass", "fail"],
-      description: "With status=completed: the answer to this task's declared completion gate. Required when the task has a gate.",
+      description: "status=completed: pass or fail when a gate is declared.",
     },
-    reason: { type: "string", description: "With status=blocked: the blocker. With status=in_progress: required to resume blocked work, stating how the blocker was addressed." },
-    subject: { type: "string", minLength: 1, description: "Without status: replace the task name. The id stays unchanged." },
-    description: { type: "string", description: "Without status: replace the full task body." },
-    dependsOn: stringArray("Without status: replace the prerequisite ids. Use [] to clear them. Unknown ids and cycles are refused."),
-    verify: { type: "string", description: "Without status: replace the independent completion gate." },
+    reason: { type: "string", description: "status=blocked: the blocker. status=cancelled: why the work is abandoned. status=in_progress: how a blocked task resumes." },
+    subject: { type: "string", minLength: 1, description: "Without status: replace the short name, at most 60 characters. The id stays unchanged." },
+    description: { type: "string", description: "Without status: replace the optional detail." },
+    dependsOn: stringArray("Without status: replace the prerequisite ids; [] clears them."),
+    verify: { type: "string", description: "Without status: replace the completion gate." },
     context: CONTEXT_PARAMS,
   },
   required: ["id"],
@@ -403,6 +414,7 @@ function summarize(task: Task): TaskSummary {
     ...(task.recoveryNote ? { recoveryNote: task.recoveryNote } : {}),
     ...(task.status === "blocked" && (task.blockedReason || task.recoveryNote || task.result)
       ? { blockedReason: task.blockedReason ?? task.recoveryNote ?? task.result } : {}),
+    ...(task.status === "cancelled" && task.cancelReason ? { cancelReason: task.cancelReason } : {}),
     dependsOn: task.dependsOn,
     // Which of the declared edges are unfinished, so a caller does not have to
     // hold a list in its head to answer "can I finish this yet".
@@ -490,6 +502,8 @@ export async function executeTaskCreate(
   const me = callerIdentity(options.env);
   const subject = str("subject");
   if (!subject) return fail("create_task", "Creating a task requires a subject stating what must be done.");
+  const tooLong = subjectIsTooLong("create_task", subject);
+  if (tooLong) return tooLong;
   const dependsOn = list("dependsOn") ?? [];
   const unknown = dependsOn.filter((id) => !getTask(id));
   if (unknown.length > 0) return fail("create_task", `Unknown task id in dependsOn: ${unknown.join(", ")}.`);
@@ -654,6 +668,11 @@ export async function executeTaskUpdate(
   const id = str("id");
   if (!id) return fail("update_task", "Updating a task requires its id.");
   const status = str("status");
+  const requestedSubject = str("subject");
+  if (requestedSubject !== undefined) {
+    const tooLong = subjectIsTooLong("update_task", requestedSubject);
+    if (tooLong) return tooLong;
+  }
 
   // A status that is not one of the three is refused by name rather than
   // falling through to the content branch, where a caller would be told it had
@@ -767,6 +786,31 @@ export async function executeTaskUpdate(
     );
   }
 
+  if (status === "cancelled") {
+    const cancelled = cancelTask(id, me, str("reason"));
+    if (!cancelled.ok) return refuseStatus(cancelled.reason);
+    options.emit?.(TASK_EVENTS.updated, { id, status: "cancelled" });
+    // What the cancellation withdrew is named, not left for the model to find
+    // on the next list: a dependent built on an abandoned premise has to move.
+    return ok(
+      [
+        `TASK · ${id} · cancelled · off the board`,
+        ...(cancelled.invalidated.length > 0
+          ? [`WITHDRAWN · ${cancelled.invalidated.map((task) => task.id).join(", ")} · blocked: they were built on a premise this cancellation withdraws`]
+          : []),
+      ].join("\n"),
+      {
+        tool: "update_task",
+        id,
+        status: cancelled.task.status,
+        task: project(cancelled.task),
+        ...(cancelled.invalidated.length > 0
+          ? { invalidated: cancelled.invalidated.map((task) => project(task)), withdrawn: cancelled.invalidated.map((task) => task.id) }
+          : {}),
+      },
+    );
+  }
+
   if (status === "pending") {
     const reopened = reopenTask(id);
     if (!reopened.ok) return refuseStatus(reopened.reason);
@@ -846,6 +890,7 @@ export const TASK_ROW_SPEC: import("./rows.ts").TaskRowSpec = (result) => {
       ...(details.task ? taskDependencyLines(details.task, displayIndex) : []),
       ...(details.task ? taskBlockedByLines(details.task, displayIndex) : []),
       ...(details.task?.status === "blocked" && (!details.task.result || details.task.blockedReason !== details.task.result) ? [`Reason: ${details.task.blockedReason ?? details.task.recoveryNote ?? details.task.result ?? "Recovery is required."}`] : []),
+      ...(details.task?.status === "cancelled" && details.task.cancelReason ? [`Cancelled: ${details.task.cancelReason}`] : []),
       ...(details.task?.supersededBy
         ? [`Replaced by ${taskDisplayReference(details.task.supersededBy, displayIndex)}`]
         : []),
@@ -862,7 +907,7 @@ export const TASK_ROW_SPEC: import("./rows.ts").TaskRowSpec = (result) => {
         ? [`Previous failure: ${details.task.failureEvidence}`] : []),
     ],
   };
-  return { ...spec, verbatimSubject: true, fullSummary: true, summary: [...spec.summary, ...spec.details], details: [] };
+  return { ...spec, verbatimSubject: true, expandedSummary: true, summary: [...spec.summary, ...spec.details], details: [] };
 };
 
 /** Injected geometry for the rows, supplied by the extension entry — the only
@@ -885,7 +930,7 @@ const TOOLS: readonly Registration[] = [
     name: "create_task",
     label: "Task create",
     promptSnippet: "Create a task for work spanning several steps, files, or turns",
-    description: "Record one task with a subject and optional description. Use when a request has several steps or several files, or when the work outlives this turn; a single edit is not a task. A task is not a goal: a goal is one objective that keeps running until it is met, and a task is one unit of work in a list you order, take, and finish. Use dependsOn to name prerequisite task ids. Independent tasks can run in parallel; dependent tasks wait until every prerequisite completes. Returns an id derived from the subject. supersedes replaces unfinished tasks and redirects their dependents atomically. verify states the completion requirements as a prompt, not a command.",
+    description: "Record one task. Use when a request has several steps or several files, or when the work outlives this turn; a single edit is not a task. A task is not a goal: a goal is one objective that keeps running until it is met, and a task is one unit of work in a list you order, take, and finish. The subject is a short name for the row; a subject alone is a complete task, so keep it to at most 60 characters and add description only for detail that does not fit it. Use dependsOn when this task cannot start before another finishes. Use supersedes when earlier work is obsolete or wrong; its dependents move to the replacement.",
     parameters: TASK_CREATE_PARAMS,
     execute: executeTaskCreate,
   },
@@ -901,7 +946,7 @@ const TOOLS: readonly Registration[] = [
     name: "list_tasks",
     label: "Task list",
     promptSnippet: "List task names, status, dependencies, and blockers",
-    description: "List bounded task summaries: id, name, status, dependencies, unfinished prerequisites, and blockers. Runtime holder information remains available as data. Use get_task for detailed content and evidence. Filter by status, claimable work, or completion readiness, and set limit to cap the page. Pass the returned cursor to read the next page.",
+    description: "List bounded task summaries: id, name, status, dependencies, unfinished prerequisites and blockers. Use get_task for full bodies. Filter by status, claimable work or readiness, set limit, and pass the cursor for the next page.",
     parameters: TASK_LIST_PARAMS,
     execute: executeTaskList,
   },
@@ -909,7 +954,7 @@ const TOOLS: readonly Registration[] = [
     name: "update_task",
     label: "Task update",
     promptSnippet: "Update task content, dependencies, status, or completion evidence",
-    description: "Update one task. status=in_progress starts your attempt only when all prerequisites are completed. Perform the actual work before calling status=completed. Completion needs outcome=success or failed; success requires result evidence and a pass verdict when verify is declared. Failure records the blocker and sets blocked. Resuming blocked work needs an explicit recovery reason before successful delivery. status=blocked records reason and releases your attempt. status=pending reopens a completed task and invalidates dependent attempts and completions. Without status, edit subject, description, dependsOn, verify, or context. The id stays unchanged after a rename. dependsOn replaces prerequisite ids; [] clears them. Dependency edits reject unknown ids, self-dependencies, and cycles. An active or completed task cannot gain unfinished prerequisites. One call may carry a content edit and a status change: the content half is validated and recorded first, and a refused status keeps the edit and names the half to retry. This tool never starts or stops a participant and never dispatches work to a named one.",
+    description: "Update one task. status=in_progress takes it and needs all prerequisites completed. Do the work before status=completed. status=completed needs outcome=success or failed; on success it needs result evidence, and a declared gate needs verdict=pass. outcome=failed and status=blocked record the blocker. Resuming blocked work needs a recovery reason. status=cancelled records reason for abandoned work. status=pending reopens a completed or cancelled task and withdraws dependents that stood on it. Without status, edit subject, description, dependsOn, verify, or context; the id stays unchanged. dependsOn replaces prerequisite ids, [] clears them, and unknown ids or cycles are refused. One call may edit content and change status: the edit is kept when the status is refused, and the reply names the half to retry. This tool never starts or stops a participant and never dispatches work to a named one.",
     parameters: TASK_UPDATE_PARAMS,
     execute: executeTaskUpdate,
   },

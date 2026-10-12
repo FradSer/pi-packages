@@ -11,7 +11,7 @@ Feature: Effective work gates bounded task continuation
       Given unfinished runnable work
       When the run only reads the same arguments and result again or edits task metadata
       Then it requests no continuation
-      And a UI transcript shows waiting with the reason
+      And a UI transcript shows a collapsed waiting row whose reason appears on expansion
       And an identical waiting snapshot is not printed again
 
     Scenario: Only blocked or foreign work remains
@@ -64,7 +64,7 @@ Feature: Effective work gates bounded task continuation
       When the status message is generated
       Then model instructions stay within twenty rows and eight KiB
       And omissions direct the model to list_tasks
-      And visible titles and task bodies wrap in full without expansion
+      And the row stays collapsed until the reader expands it
 
     Scenario: Malformed restored data is visible
       Given saved work with missing or invalid identity
