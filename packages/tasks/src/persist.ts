@@ -74,16 +74,21 @@ export function readTasksFile(file: string): { tasks: Record<string, Task> } | u
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
     throw new Error(`The task file at ${file} could not be read: ${error instanceof Error ? error.message : String(error)}`);
   }
-  let parsed: { runtimeVersion?: number; tasks?: Record<string, Task> };
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(raw) as { runtimeVersion?: number; tasks?: Record<string, Task> };
+    parsed = JSON.parse(raw);
   } catch {
     throw new Error(`The task file at ${file} is not valid JSON; refusing to treat it as empty.`);
   }
-  if (parsed.tasks && parsed.runtimeVersion !== TASKS_FILE_VERSION) {
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+  if (!isRecord(parsed) || !isRecord(parsed.tasks) || !Object.values(parsed.tasks).every(isRecord)) {
+    throw new Error(`The task file at ${file} has no valid tasks map; refusing to treat it as empty.`);
+  }
+  if (parsed.runtimeVersion !== TASKS_FILE_VERSION) {
     throw new Error(`Incompatible task file version ${String(parsed.runtimeVersion)}; expected ${TASKS_FILE_VERSION}.`);
   }
-  return parsed.tasks ? { tasks: parsed.tasks } : undefined;
+  return { tasks: parsed.tasks as Record<string, Task> };
 }
 
 export function writeTasksFile(file: string, tasks: Record<string, Task>): void {

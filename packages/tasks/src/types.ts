@@ -110,6 +110,10 @@ export interface Task {
   result?: string;
   /** Last failed attempt retained when a later attempt succeeds. */
   failureEvidence?: string;
+  /** Exact prior result, failure, and blocker bodies, with duplicates removed.
+   * Normal writes enforce the retained byte budget. Runtime cleanup preserves
+   * legacy evidence even when it already exceeds that budget. */
+  evidenceHistory?: string[];
   /** Explicit blocker; cleared when the task resumes. */
   blockedReason?: string;
   /** The answer to this task's declared completion gate, for the *current*

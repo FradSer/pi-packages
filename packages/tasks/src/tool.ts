@@ -109,7 +109,7 @@ const CONTEXT_PARAMS = {
         delta: { type: "string", description: "What the outgoing attempt changed, in its own words." },
         verification: { type: "string", description: "Checks that ran and their outcomes." },
         priorFindings: stringArray("Findings a successor must not lose. Added to, never replaced."),
-        outstanding: stringArray("Work known to be unfinished or unverified."),
+        outstanding: stringArray("Current unfinished or unverified work. An explicit list replaces the old list; [] clears it."),
       },
       description: "The brief a successor receives. Fields merge with whatever the task already carries.",
     },
@@ -160,11 +160,12 @@ export type TaskProjection = {
   replacementUnresolved?: boolean;
   blockedReason?: string;
   failureEvidence?: string;
+  evidenceHistory?: string[];
   completionVerdict?: CompletionVerdict;
 };
 
 /** List items omit the detailed body, acceptance gate, and completion evidence. */
-export type TaskSummary = Omit<TaskProjection, "description" | "verify" | "result" | "completionVerdict">;
+export type TaskSummary = Omit<TaskProjection, "description" | "verify" | "result" | "completionVerdict" | "evidenceHistory">;
 
 /** What a result says, as data.
  *
@@ -222,6 +223,7 @@ const TASK_PROJECTION_SCHEMA = {
     result: { type: "string", description: "Evidence recorded for the current or last attempt." },
     blockedReason: { type: "string", description: "Why work cannot continue." },
     failureEvidence: { type: "string", description: "Evidence of the last failed attempt." },
+    evidenceHistory: { type: "array", items: { type: "string" }, description: "Retained evidence from earlier attempts and operational blockers." },
     replacementUnresolved: { type: "boolean", description: "Legacy replacement target is missing; this history is inactive." },
     supersededBy: { type: "string", description: "The replacement that made this task obsolete." },
     completionVerdict: { type: "string", enum: ["pass", "fail"], description: "The gate verdict recorded at completion, when the task declared a gate." },
@@ -385,6 +387,7 @@ function project(task: Task): TaskProjection {
     ...(task.verify ? { verify: task.verify } : {}),
     ...(task.result ? { result: task.result } : {}),
     ...(task.failureEvidence ? { failureEvidence: task.failureEvidence } : {}),
+    ...(task.evidenceHistory ? { evidenceHistory: task.evidenceHistory } : {}),
     ...(task.completionVerdict ? { completionVerdict: task.completionVerdict } : {}),
   };
 }
@@ -539,13 +542,15 @@ export async function executeTaskGet(
   return ok(
     [
       `TASK · ${task.id} · ${task.status} · ${task.subject}`,
-      ...(task.status === "blocked" ? [`BLOCKED · ${task.recoveryNote ?? "take it with a reason stating how the blocker was addressed"}`] : []),
+      ...(task.status === "blocked" ? [`BLOCKED · ${task.blockedReason ?? "Inspect the saved evidence before recovery."}`] : []),
+      ...(task.recoveryNote ? [`Previous recovery: ${task.recoveryNote}`] : []),
       ...(task.dependsOn.length > 0 ? [`DEPENDS ON · ${task.dependsOn.join(", ")}`] : []),
       ...(blockedDependencies(task).length > 0 ? [`BLOCKED BY · ${blockedDependencies(task).join(", ")}`] : []),
       ...(task.description ? [task.description] : []),
       ...(task.verify ? [`VERIFY · ${task.verify}`] : []),
       ...(brief ? ["", brief] : []),
       ...(task.result ? ["", `EVIDENCE · ${task.result}`] : []),
+      ...(task.evidenceHistory ?? []).map(value => `PREVIOUS EVIDENCE · ${value}`),
     ].join("\n"),
     {
       tool: "get_task",
@@ -726,7 +731,10 @@ export async function executeTaskUpdate(
   if (status === "completed") {
     const outcome = str("outcome");
     if (outcome !== "success" && outcome !== "failed") {
-      return fail("update_task", "outcome is required and must be success or failed. A blocker recorded as an ordinary answer is not a failure.");
+      return refuseStatus("outcome is required and must be success or failed. A blocker recorded as an ordinary answer is not a failure.");
+    }
+    if (outcome === "success" && getTask(id)?.status === "blocked") {
+      return refuseStatus("Recover blocked work with status=in_progress and a reason before reporting success.");
     }
     // The tasks's own facts decide whether this completion is supportable:
     // dependencies finished, evidence recorded, an attempt on the record, and a
@@ -735,9 +743,10 @@ export async function executeTaskUpdate(
     // records it, so the omission is impossible even though the answer itself is
     // taken on trust, and a completed task says afterwards which kind of done it
     // was.
-    const delivered = completeTaskWithOutcome(id, me, outcome, str("result"), {
+    const result = typeof params.result === "string" ? params.result : undefined;
+    const delivered = completeTaskWithOutcome(id, me, outcome, result, {
       checks: ALL_COMPLETION_CHECKS,
-      result: str("result"),
+      result,
       ...(str("verdict") ? { verdict: str("verdict") as CompletionVerdict } : {}),
     });
     if (!delivered.ok) return refuseStatus(delivered.reason);
@@ -843,7 +852,8 @@ export const TASK_ROW_SPEC: import("./rows.ts").TaskRowSpec = (result) => {
       ...(details.task?.replacementUnresolved ? ["Replacement target unresolved; this historical task is inactive."] : []),
       ...(details.tool === "get_task" && details.brief ? details.brief.split("\n") : []),
       ...(details.task?.result ? [`Evidence: ${details.task.result}`] : []),
-      ...(details.task?.recoveryNote ? [`Recovery: ${details.task.recoveryNote}`] : []),
+      ...(details.task?.recoveryNote ? [`Previous recovery: ${details.task.recoveryNote}`] : []),
+      ...(details.task?.evidenceHistory ?? []).map(value => `Previous evidence: ${value}`),
       ...(details.shown !== undefined && (details.truncated || details.offset)
         ? [`Showing ${(details.offset ?? 0) + 1}–${(details.offset ?? 0) + details.shown} of ${count} matching tasks.`] : []),
       ...(details.cursor ? [`Next page: list_tasks with cursor=${details.cursor}`] : []),
@@ -899,7 +909,7 @@ const TOOLS: readonly Registration[] = [
     name: "update_task",
     label: "Task update",
     promptSnippet: "Update task content, dependencies, status, or completion evidence",
-    description: "Update one task. status=in_progress starts your attempt only when all prerequisites are completed. Perform the actual work before calling status=completed. Completion needs outcome=success or failed; success requires result evidence and a pass verdict when verify is declared. Failure records the blocker and sets blocked. Resuming blocked work needs an explicit recovery reason. status=blocked records reason and releases your attempt. status=pending reopens a completed task and invalidates dependent attempts and completions. Without status, edit subject, description, dependsOn, verify, or context. The id stays unchanged after a rename. dependsOn replaces prerequisite ids; [] clears them. Dependency edits reject unknown ids, self-dependencies, and cycles. An active or completed task cannot gain unfinished prerequisites. One call may carry a content edit and a status change: the content half is validated and recorded first, and a refused status keeps the edit and names the half to retry. This tool never starts or stops a participant and never dispatches work to a named one.",
+    description: "Update one task. status=in_progress starts your attempt only when all prerequisites are completed. Perform the actual work before calling status=completed. Completion needs outcome=success or failed; success requires result evidence and a pass verdict when verify is declared. Failure records the blocker and sets blocked. Resuming blocked work needs an explicit recovery reason before successful delivery. status=blocked records reason and releases your attempt. status=pending reopens a completed task and invalidates dependent attempts and completions. Without status, edit subject, description, dependsOn, verify, or context. The id stays unchanged after a rename. dependsOn replaces prerequisite ids; [] clears them. Dependency edits reject unknown ids, self-dependencies, and cycles. An active or completed task cannot gain unfinished prerequisites. One call may carry a content edit and a status change: the content half is validated and recorded first, and a refused status keeps the edit and names the half to retry. This tool never starts or stops a participant and never dispatches work to a named one.",
     parameters: TASK_UPDATE_PARAMS,
     execute: executeTaskUpdate,
   },

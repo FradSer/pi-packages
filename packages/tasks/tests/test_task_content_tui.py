@@ -40,7 +40,7 @@ def test_native_tui_expands_task_content_without_holder_rows(tmp_path: Path, mod
         and key not in {"PI_TASK_HOLDER", "PI_TEAM_STATE_DIR", "PI_CODING_AGENT_SESSION_DIR"}
     }
     env.update({
-        "TERM": "xterm-256color",
+        "TERM": "xterm-256color", "PI_OFFLINE": "1", "HOME": str(tmp_path),
         "PI_CODING_AGENT_DIR": str(agent_dir),
         "PI_TASK_TEST_MODE": mode,
         "PI_TASK_TEST_OUTPUT": str(record),
@@ -93,9 +93,11 @@ def test_native_tui_expands_task_content_without_holder_rows(tmp_path: Path, mod
             assert settled["requests"] == 5
             assert settled["reminders"][-1]["details"]["status"] == "waiting"
             wait_for(lambda: "[tasks] waiting · 2 unfinished tasks" in screen_text(), "waiting row")
-            assert "no new effective work" in screen_text()
+            wait_for(lambda: "to expand" in screen_text(), "native expansion hint")
+            before = len(output)
+            os.write(master, b"\x0f")
+            wait_for(lambda: "no new successful tool result" in ANSI.sub("", output[before:].decode("utf-8", errors="replace")), "expanded waiting details")
             assert "continuation limit reached" not in screen_text()
-            assert "to expand" not in screen_text()
             assert "Blocked by #1" in screen_text()
             assert "Task status check before settlement." not in screen_text(), "The transcript must keep full task instructions hidden"
             assert "[Task]" not in screen_text()

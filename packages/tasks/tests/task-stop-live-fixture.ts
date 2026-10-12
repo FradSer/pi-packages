@@ -34,7 +34,24 @@ export default function fixture(pi: ExtensionAPI): void {
           : message.content.filter(part => part.type === "text").map(part => part.text).join("\n"))
           .includes("Task status check before settlement."));
       let content: AssistantMessage["content"];
-      if (mode === "content") {
+      if (mode === "waiting") {
+        const calls = [
+          { name: "create_task", arguments: { subject: "Recovery task", description: "Check the original implementation plan." } },
+          { name: "update_task", arguments: { id: "recovery-task", status: "in_progress" } },
+          { name: "update_task", arguments: { id: "recovery-task", status: "blocked", reason: "Previous access blocker" } },
+          { name: "update_task", arguments: { id: "recovery-task", status: "in_progress", reason: "Previous recovery inspected the output" } },
+          { name: "update_task", arguments: {
+            id: "recovery-task", status: "blocked", reason: "Current access blocker",
+            context: { handoff: {
+              candidate: "NATIVE_CANDIDATE_MARKER", delta: "Saved local change", verification: "Local checks pass",
+              priorFindings: ["NATIVE_FINDING_MARKER"], outstanding: ["User authorization"],
+            } },
+          } },
+        ];
+        const call = calls[requests - 1];
+        content = call ? [{ type: "toolCall", id: `waiting-${requests}`, name: call.name, arguments: call.arguments }]
+          : [{ type: "text", text: "TASK_STOP_TEST_DONE" }];
+      } else if (mode === "content") {
         const calls = [
           { name: "create_task", arguments: { subject: "Content prerequisite" } },
           { name: "create_task", arguments: { subject: "Inspect the task surface", description: "Initial task body" } },
@@ -93,7 +110,7 @@ export default function fixture(pi: ExtensionAPI): void {
       } else if (mode === "progress") {
         content = requests % 2 === 1
           ? [{ type: "toolCall", id: `progress-${requests}`, name: "update_task", arguments: {
-            id: "first-task", description: `Verified progress ${requests}`,
+            id: "first-task", description: `Saved task metadata ${requests}`,
           } }]
           : [{ type: "text", text: "The task has more work. I am stopping now." }];
       } else if (reminders.length > 0 && requests === 5) {

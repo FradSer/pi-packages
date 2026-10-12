@@ -70,7 +70,7 @@ export interface TaskContext {
  *  `subject` and `verify` are optional in the shape so a caller measuring a
  *  partial Task is not asked to invent them. */
 export function taskContextBytes(
-  task: Partial<Pick<Task, "subject" | "description" | "verify" | "result" | "blockedReason" | "failureEvidence">> & {
+  task: Partial<Pick<Task, "subject" | "description" | "verify" | "result" | "blockedReason" | "failureEvidence" | "recoveryNote" | "evidenceHistory">> & {
     context?: TaskContext;
     resources?: readonly string[];
   },
@@ -82,6 +82,8 @@ export function taskContextBytes(
     task.result ?? "",
     task.blockedReason ?? "",
     task.failureEvidence ?? "",
+    task.recoveryNote ?? "",
+    task.evidenceHistory === undefined ? "" : JSON.stringify(task.evidenceHistory),
     // Resource tags are model-supplied free text and are re-serialized into the
     // tasks file on every change, so they are measured with the rest of what a
     // Task retains rather than being the one field a caller can grow for free.
@@ -93,7 +95,7 @@ export function taskContextBytes(
 
 /** Whether a Task's retained context is within its budget. */
 export function withinContextBudget(
-  task: Partial<Pick<Task, "subject" | "description" | "verify" | "result" | "blockedReason" | "failureEvidence">> & {
+  task: Partial<Pick<Task, "subject" | "description" | "verify" | "result" | "blockedReason" | "failureEvidence" | "recoveryNote" | "evidenceHistory">> & {
     context?: TaskContext;
     resources?: readonly string[];
   },
@@ -326,7 +328,7 @@ export function normalizeTaskContext(value: unknown): ContextRead {
     for (const field of ["priorFindings", "outstanding"] as const) {
       const read = readStringList(handoffSource[field], `context.handoff.${field}`);
       if (!read.ok) return read;
-      if (read.value?.length) handoff[field] = read.value;
+      if (read.value !== undefined) handoff[field] = read.value;
     }
     context.handoff = handoff;
   }
@@ -386,7 +388,7 @@ export function contextCarriesValue(context: TaskContext): boolean {
   if (!handoff) return false;
   return [handoff.candidate, handoff.delta, handoff.verification].some((value) => value !== undefined && value !== "")
     || (handoff.priorFindings?.length ?? 0) > 0
-    || (handoff.outstanding?.length ?? 0) > 0;
+    || handoff.outstanding !== undefined;
 }
 
 /** Union two finding lists, keeping the order they were recorded in. Absent on
@@ -419,7 +421,7 @@ function unionFindings(
  * carry. A shallow merge replaces the whole `handoff` when a caller supplies one
  * field of it, so a successor recording its own delta silently dropped the
  * outgoing attempt's `priorFindings` — the one field the brief marks as not to be
- * lost. Findings and outstanding work are therefore unioned, and refs are unioned
+ * lost. Findings are unioned; supplied outstanding work replaces the old list. Refs are unioned
  * through the same normalization that caps them.
  *
  * Fields are assigned one at a time rather than spread, so an explicitly
@@ -450,7 +452,7 @@ export function mergeTaskHandoff(base: TaskHandoff | undefined, patch: TaskHando
   }
   const priorFindings = unionFindings(base?.priorFindings, patch?.priorFindings);
   if (priorFindings) merged.priorFindings = priorFindings;
-  const outstanding = unionFindings(base?.outstanding, patch?.outstanding);
+  const outstanding = patch?.outstanding ?? base?.outstanding;
   if (outstanding) merged.outstanding = outstanding;
   return merged;
 }

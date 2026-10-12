@@ -484,6 +484,13 @@ export function loadTasks(persisted: Record<string, Task>): number {
     // store. Validating only on write left a restored `budgetBytes` unclamped, a
     // context spread straight from the file, and a `dependsOn` holding something
     // other than task ids — all reachable by editing one line of JSON.
+    const rawHistory: unknown = task.evidenceHistory;
+    const evidenceHistory = Array.isArray(rawHistory)
+      ? [...new Set(rawHistory.filter((body): body is string => typeof body === "string" && body.trim() !== ""))]
+      : undefined;
+    if (rawHistory !== undefined && (!Array.isArray(rawHistory) || evidenceHistory?.length !== rawHistory.length)) {
+      notices.push(`task "${id}" had invalid or duplicate evidence history entries; its history needed repair`);
+    }
     const rawRecordKind: unknown = task.recordKind;
     const invalidRecordKind = rawRecordKind !== undefined && rawRecordKind !== "task" && rawRecordKind !== "execution";
     const recordKind = resolveRecordKind(rawRecordKind, id);
@@ -545,6 +552,7 @@ export function loadTasks(persisted: Record<string, Task>): number {
       context,
       status: restoredStatus,
       ...(missingReplacement ? { replacementUnresolved: true } : {}),
+      evidenceHistory,
       failureEvidence: task.failureEvidence ?? ((savedStatus === "recovery_hold" || legacyHold) ? task.result : undefined),
       blockedReason: task.blockedReason ?? (restoredStatus === "blocked" ? task.recoveryNote ?? task.result ?? (missingReplacement ? "Legacy replacement target is missing; repair is required." : undefined) : undefined),
       // Restored task state has no participants, so a held Task cannot keep naming
@@ -737,9 +745,11 @@ export function takeTask(
   if (conflict) {
     return refuse("resource-conflict", takeRefusalReason(taskId, "resource-conflict", conflict.name), conflict.name);
   }
-  return recordTake(task, holder, {
-    ...(options.reason?.trim() ? { recoveryNote: options.reason.trim() } : {}),
-  });
+  const recoveryNote = options.reason?.trim() || task.recoveryNote;
+  if (!withinContextBudget({ ...task, blockedReason: undefined, recoveryNote, evidenceHistory: retainedEvidence(task) })) {
+    return refuse("budget-exceeded", `Task "${taskId}" recovery exceeds its byte budget.`, taskId);
+  }
+  return recordTake(task, holder, { ...(recoveryNote ? { recoveryNote } : {}) });
 }
 
 /** Fields a caller may change on a task it is not taking. */
@@ -1020,8 +1030,9 @@ export function blockTask(taskId: string, holder: string, reason: string | undef
   if (task.status === "completed") return refuse("already-completed", `Task "${taskId}" is completed; reopen it before recording a blocker.`, taskId);
   if (task.claimedBy && task.claimedBy !== holder) return refuse("held-by-other", `Task "${taskId}" is held by @${task.claimedBy}.`, taskId);
   if (!reason?.trim()) return refuse("no-evidence", "Recording blocked work requires a reason.", taskId);
-  if (!withinContextBudget({ ...task, blockedReason: reason })) return refuse("budget-exceeded", `Task "${taskId}" blocker exceeds its byte budget.`, taskId);
+  if (!withinContextBudget({ ...task, blockedReason: reason, evidenceHistory: retainedEvidence(task) })) return refuse("budget-exceeded", `Task "${taskId}" blocker exceeds its byte budget.`, taskId);
   const previous = task.claimedBy;
+  task.evidenceHistory = retainedEvidence(task);
   task.status = "blocked";
   task.blockedReason = reason;
   task.claimedBy = undefined;
@@ -1079,14 +1090,24 @@ export function completeTaskWithOutcome(
   }
   const prospective = { ...task, result: result?.trim() ? result : undefined,
     blockedReason: outcome === "failed" ? result : undefined,
-    failureEvidence: outcome === "failed" ? result : task.failureEvidence };
+    failureEvidence: outcome === "failed" ? result : task.failureEvidence,
+    evidenceHistory: retainedEvidence(task) };
   if (!withinContextBudget(prospective)) return refuse("budget-exceeded", `Task "${taskId}" evidence exceeds its byte budget.`, taskId);
   return recordOutcome(task, outcome, result, options);
+}
+
+/** Keep exact prior result, failure, and blocker bodies. Normal writes budget this list
+ * before mutation. Runtime cleanup cannot discard evidence or retain authority. */
+function retainedEvidence(task: Task): string[] | undefined {
+  const evidence = [...new Set([...(task.evidenceHistory ?? []), task.result, task.failureEvidence, task.blockedReason]
+    .filter((body): body is string => typeof body === "string" && body.trim() !== ""))];
+  return evidence.length > 0 ? evidence : undefined;
 }
 
 /** Runtime stop cleanup must release authority even for over-budget legacy evidence. */
 function recordOutcome(task: Task, outcome: "success" | "failed", result: string | undefined, options: CompletionOptions = {}): { ok: true; task: Task } {
   const previous = task.claimedBy;
+  task.evidenceHistory = retainedEvidence(task);
   // Retained evidence round-trips byte-for-byte. Trimming decides only whether
   // there is evidence at all, so a whitespace-only result records nothing while a
   // real one keeps whatever the caller supplied, trailing newline included.
@@ -1282,6 +1303,9 @@ export function bindTask(
   if (conflict) {
     return refuse("resource-conflict", `Cannot bind ${named} to @${holder}: its resources conflict with @${conflict.name}'s active work.`, conflict.name);
   }
+  if (!withinContextBudget({ ...task, blockedReason: undefined, evidenceHistory: retainedEvidence(task) })) {
+    return refuse("budget-exceeded", `Task "${taskId}" recovery exceeds its byte budget.`, taskId);
+  }
   return recordTake(task, holder, { assignment: lease });
 }
 
@@ -1295,7 +1319,8 @@ export function bindTask(
  */
 export function discardTask(taskId: string, holder: string): boolean {
   const task = tasks[taskId];
-  if (!task || isTaskReplaced(task)) return false;
+  if (!task || isTaskReplaced(task) || task.failureEvidence !== undefined || task.blockedReason !== undefined
+    || (task.evidenceHistory?.length ?? 0) > 0) return false;
   if (task.status === "pending" && task.claimedBy === undefined && task.result === undefined) {
     delete tasks[taskId];
     markChanged();
@@ -1316,6 +1341,7 @@ function recordTake(
   holder: string,
   options: { recoveryNote?: string; assignment?: WorkAssignment } = {},
 ): { ok: true; task: Task } {
+  task.evidenceHistory = retainedEvidence(task);
   task.status = "in_progress";
   task.blockedReason = undefined;
   task.claimedBy = holder;

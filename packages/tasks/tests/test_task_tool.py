@@ -566,7 +566,7 @@ def test_the_declared_result_describes_a_task_rather_than_an_untyped_bag(tmp_pat
     for field in ("id", "subject", "status", "dependsOn", "blockedBy", "holder"):
         assert field in result["declaredTask"], field
         assert field in result["declaredItem"], field
-    assert set(result["declaredItem"]) == set(result["declaredTask"]) - {"description", "verify", "result", "completionVerdict", "failureEvidence"}
+    assert set(result["declaredItem"]) == set(result["declaredTask"]) - {"description", "verify", "result", "completionVerdict", "failureEvidence", "evidenceHistory"}
     assert set(result["listedTaskKeys"]) == set(result["actualTask"]) - {"description"}
 
 

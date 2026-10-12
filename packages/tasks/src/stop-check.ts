@@ -34,6 +34,8 @@ interface StatusTask {
   failureEvidence?: string;
   blockedReason?: string;
   recoveryNote?: string;
+  handoff?: import("./context.ts").TaskHandoff;
+  evidenceHistory?: string[];
 }
 
 interface StatusDetails {
@@ -109,6 +111,8 @@ function statusTasks(open: readonly Task[]): StatusTask[] {
       subject: safeDisplayText(task.subject),
       description: task.description, verify: task.verify, result: task.result, failureEvidence: task.failureEvidence,
       blockedReason: task.blockedReason, recoveryNote: task.recoveryNote,
+      handoff: task.context?.handoff,
+      evidenceHistory: task.evidenceHistory ? [...task.evidenceHistory] : undefined,
       status: task.status,
       dependencies: task.dependsOn.map(id => display(taskDisplayNumber(id, displayIndex), 180)),
       blockedBy: blockedDependencies(task).map(id => display(taskDisplayNumber(id, displayIndex), 180)),
@@ -165,13 +169,14 @@ export class TaskStopCheck {
       task.id, task.status, task.claimedBy, task.subject, task.description,
       task.dependsOn, blockedDependencies(task), task.verify, task.result, task.completionVerdict,
       task.completionGate, task.recoveryNote, task.blockedReason, task.failureEvidence, task.invalidatedBy, task.resources,
+      task.context?.handoff, task.evidenceHistory,
     ]))).digest("hex");
     const continueWork = !!options.performedWork && available
       && this.continuations < MAX_TASK_CONTINUATIONS;
     const status: StatusDetails["status"] = continueWork ? "continue" : "waiting";
     const reason = continueWork ? undefined : [
       ...(this.continuations >= MAX_TASK_CONTINUATIONS ? ["automatic continuation limit reached; user input required"] : []),
-      ...(!options.performedWork ? ["no new effective work"] : []),
+      ...(!options.performedWork ? ["no new successful tool result"] : []),
       ...(!available ? ["no runnable task"] : []),
       waitingReason(open, options.caller),
     ].filter(Boolean).join("; ") || undefined;
@@ -222,7 +227,7 @@ export function taskStatusSpec(details: unknown): ToolLifecycleSpec {
   return {
     kind: "event", tool: TASK_DISPLAY_LABEL, label,
     subject: `${remaining} unfinished task${remaining === 1 ? "" : "s"}`,
-    fullSummary: true, verbatimSubject: true,
+    fullSummary: label === "continue", expandedSummary: label === "waiting", verbatimSubject: true,
     details: [],
     summary: [
       ...(reason ? [`Reason: ${reason}`] : []),
@@ -232,12 +237,19 @@ export function taskStatusSpec(details: unknown): ToolLifecycleSpec {
         const relations = taskRelationText(task.dependencies, task.blockedBy);
         return [
           `${heading}${relations ? ` · ${relations}` : ""}`,
-          ...(task.description ? [`Description: ${task.description}`] : []),
+          ...(task.blockedReason ? [`Current blocker: ${task.blockedReason}`] : []),
+          ...(task.handoff?.candidate ? [`Candidate checked: ${task.handoff.candidate}`] : []),
+          ...(task.handoff?.delta ? [`Latest delta: ${task.handoff.delta}`] : []),
+          ...(task.handoff?.verification ? [`Latest verification: ${task.handoff.verification}`] : []),
+          ...(task.handoff?.priorFindings?.length ? [`Prior findings: ${task.handoff.priorFindings.join("\n- ")}`] : []),
+          ...(task.handoff?.outstanding?.length ? [`Outstanding: ${task.handoff.outstanding.join("\n- ")}`] : []),
+          ...(task.description ? [`Original plan: ${task.description}`] : []),
           ...(task.verify ? [`Verify: ${task.verify}`] : []),
           ...(task.result ? [`Evidence: ${task.result}`] : []),
-          ...(task.blockedReason && task.blockedReason !== task.result ? [`Blocker: ${task.blockedReason}`] : []),
           ...(task.failureEvidence && task.failureEvidence !== task.result ? [`Previous failure: ${task.failureEvidence}`] : []),
-          ...(task.recoveryNote ? [`Recovery: ${task.recoveryNote}`] : []),
+          ...(task.evidenceHistory ?? []).filter(evidence => ![task.result, task.failureEvidence, task.blockedReason].includes(evidence))
+            .map(evidence => `Previous evidence: ${evidence}`),
+          ...(task.recoveryNote ? [`Previous recovery: ${task.recoveryNote}`] : []),
         ];
       }),
       ...(tasks.length < remaining ? [`${remaining - tasks.length} task(s) omitted. Use list_tasks for all tasks.`] : []),

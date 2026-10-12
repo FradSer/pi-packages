@@ -5,11 +5,11 @@
  * the same shared band every other tool in this workspace uses, rather than a
  * fourth row shape to keep in step.
  *
- * Results and automatic messages share one geometry binding. Full content is
- * visible in the default view, so this package needs no expansion hint.
+ * Results and automatic messages share one geometry binding.
+ * Waiting messages use the native host for expansion and input ownership.
  */
 
-import { ToolExecutionComponent, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { keyHint, ToolExecutionComponent, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   bindLifecycleRenderers,
@@ -35,6 +35,7 @@ const lifecycleGeometry: Pick<LifecycleRendererBindings, "fit" | "visibleWidth" 
 
 const taskRows = bindLifecycleRenderers({
   ...lifecycleGeometry,
+  expandHint: () => keyHint("app.tools.expand", "to expand"),
   hostComponent: ToolExecutionComponent,
 });
 
@@ -92,7 +93,7 @@ function errorResultForDisplay<T>(result: T): T {
   return { ...(result as object), content } as T;
 }
 
-/** Paint full task data; the bounded harness instructions stay in model context. */
+/** Paint task data with native expansion; keep harness instructions in model context. */
 export function createTaskStatusRenderer(
   createSpec: (details: unknown) => ToolLifecycleSpec,
 ): Parameters<ExtensionAPI["registerMessageRenderer"]>[1] {

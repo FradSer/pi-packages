@@ -473,7 +473,7 @@ def test_unchanged_available_work_waits_without_exhausting_the_allowance(tmp_pat
         assert observation["first"] is True
         assert observation["second"] is False
         assert observation["status"] == "waiting"
-        assert "no new effective work" in observation["reason"]
+        assert "no new successful tool result" in observation["reason"]
         assert "limit is reached" not in observation["content"]
         assert observation["third"] is None
         assert observation["timestampOnly"] is None
@@ -523,12 +523,14 @@ def test_status_rows_share_task_labels_and_dependency_summaries(tmp_path: Path) 
     )
     assert "[tasks] continue · 2 unfinished tasks" in result["collapsed"]
     assert "[tasks] waiting · 2 unfinished tasks" in result["waitingText"]
-    assert "no new effective work" in result["waitingText"]
-    assert "Reason: no new effective work" in result["waitingExpanded"]
-    assert "to expand" not in result["clickHint"]
-    assert "ctrl+o to expand" not in result["clickHint"]
-    assert result["clickedExpanded"] == result["clickHint"], "full default content does not depend on clicking"
-    assert "Reason: no new effective work" in result["clickedExpanded"]
+    assert "Reason:" not in result["waitingText"]
+    assert "First task" not in result["waitingText"]
+    assert "Reason: no new successful tool result" in result["waitingExpanded"]
+    # The native PTY runner verifies the key; this harness has no initialized host theme.
+    assert "to expand" in result["clickHint"]
+    assert result["clickResult"]["handled"] is True
+    assert result["clickedExpanded"] != result["clickHint"]
+    assert "Reason: no new successful tool result" in result["clickedExpanded"]
     assert "Depends on #1" in result["clickedExpanded"]
     assert "Blocked by #1" in result["clickedExpanded"]
     assert "#1 First task (in progress)" in result["expanded"]
@@ -564,6 +566,66 @@ def test_status_reminders_supply_runnable_context_and_stay_bounded(tmp_path: Pat
     assert result["bytes"] <= 8192
     assert "omitted" in result["content"].lower()
     assert "task-00" in result["content"]
+
+
+def test_evidence_history_refreshes_waiting_without_another_continuation(tmp_path: Path) -> None:
+    result = run(
+        """
+        task.createTask({ id: "history", subject: "Recover saved work" });
+        task.takeTask("history", "main");
+        const ui = { ...ctx, hasUI: true };
+        const continued = await settle({}, ui);
+        await settle({}, ui);
+        const unchanged = await settle({}, ui);
+        task.getTask("history").evidenceHistory = ["Earlier failed check"];
+        const refreshed = await settle({}, ui);
+        const repeated = await settle({}, ui);
+        const message = refreshed?.entries[0];
+        const style = { fg: (_token, text) => text, bg: (_token, text) => text, bold: text => text };
+        console.log(JSON.stringify({
+          continued: continued.continue, unchanged: unchanged ?? null,
+          refreshed: refreshed?.continue ?? null,
+          continuation: message?.details.continuation,
+          history: message?.details.tasks[0].evidenceHistory,
+          expanded: message ? renderers.get(message.customType)(message, { expanded: true }, style).render(120).join("\\n") : "",
+          collapsed: message ? renderers.get(message.customType)(message, { expanded: false }, style).render(120).join("\\n") : "",
+          repeated: repeated ?? null,
+        }));
+        """,
+        tmp_path,
+    )
+    assert result["continued"] is True
+    assert result["unchanged"] is None
+    assert result["refreshed"] is False
+    assert result["continuation"] == 1
+    assert result["history"] == ["Earlier failed check"]
+    assert "Previous evidence: Earlier failed check" in result["expanded"]
+    assert "Earlier failed check" not in result["collapsed"]
+    assert result["repeated"] is None
+
+
+def test_expanded_recovery_orders_current_state_before_the_original_plan() -> None:
+    result = run_node(
+        f"""
+        import {{ taskStatusSpec }} from {json.dumps(ENTRY)};
+        console.log(JSON.stringify(taskStatusSpec({{
+          remaining: 1, status: "waiting", tasks: [{{
+            number: 1, subject: "Recover", status: "blocked", dependencies: [], blockedBy: [],
+            blockedReason: "Access required", description: "Original work", recoveryNote: "Earlier inspection",
+            handoff: {{ candidate: "Checked implementation", delta: "Saved delta", verification: "Checks passed", priorFindings: ["Earlier finding"], outstanding: ["Approval"] }},
+            evidenceHistory: ["Older failed attempt"],
+          }}],
+        }})));
+        """,
+    )
+    assert result["expandedSummary"] is True
+    assert result["fullSummary"] is False
+    assert result["summary"][1:] == [
+        "Current blocker: Access required", "Candidate checked: Checked implementation", "Latest delta: Saved delta",
+        "Latest verification: Checks passed", "Prior findings: Earlier finding", "Outstanding: Approval",
+        "Original plan: Original work", "Previous evidence: Older failed attempt",
+        "Previous recovery: Earlier inspection",
+    ]
 
 
 def test_status_rows_use_numbered_dependency_relations_without_storage_ids() -> None:
@@ -608,12 +670,21 @@ def test_a_context_only_edit_does_not_buy_another_continuation(tmp_path: Path) -
         });
         assert.equal(brief.ok, true);
         const afterBrief = await settle({}, uiCtx);
+        const duplicate = await settle({}, uiCtx);
+        task.updateTask("briefed", { context: { handoff: {
+          delta: "Latest saved delta", verification: "Affected checks pass", outstanding: ["Native terminal check"],
+        } } });
+        const refreshed = await settle({}, uiCtx);
         const renamed = task.updateTask("briefed", { subject: "Implement the feature properly" });
         assert.equal(renamed.ok, true);
         const afterRename = await settle({}, uiCtx);
         console.log(JSON.stringify({
           first: first.continue,
           afterBrief: afterBrief.continue,
+          duplicate: duplicate ?? null,
+          refreshed: refreshed?.continue ?? null,
+          continuation: refreshed?.entries[0].details.continuation,
+          handoff: refreshed?.entries[0].details.tasks[0].handoff,
           afterRename: afterRename.continue,
         }));
         """,
@@ -621,6 +692,10 @@ def test_a_context_only_edit_does_not_buy_another_continuation(tmp_path: Path) -
     )
     assert result["first"] is True
     assert result["afterBrief"] is False, "a context-only write is not task progress"
+    assert result["duplicate"] is None
+    assert result["refreshed"] is False, "visible handoff changes refresh waiting without another turn"
+    assert result["continuation"] == 1
+    assert result["handoff"]["delta"] == "Latest saved delta"
     assert result["afterRename"] is False, "a rename is metadata, not effective work"
 
 

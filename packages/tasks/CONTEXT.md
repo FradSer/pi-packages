@@ -2,109 +2,45 @@
 
 Read @README.md for the task interface and persistence contract.
 
-## Current state
+## Current work
 
-`packages/tasks` is one self-contained Pi package. Loading and writes use only
-`tasks.json`. The old `board.json` file and its resolvers are retired and are not
-loaded, copied, renamed, or deleted. Task file version stays 2.
+The user requests all lifecycle-review fixes and collapsed automatic waiting messages.
+The source review is @../../docs/research/tasks-lifecycle-review-2026-10-13.md.
+The current candidate hashes are @../../docs/research/tasks-fix-candidate.json.
 
-Uncommitted on this tree: the discoverability and cost change
-(`@../../.changeset/tasks-discoverable-and-cheap.md`), which follows the four
-changesets that shipped with `e86a44f`. The four are committed; the retirement
-baseline snapshot named in earlier revisions of this file is no longer needed.
+## Changes
 
-## Why the tools were not used
-
-Measured before the change, over 1152 session files under `~/.pi/agent/sessions`
-(437 in this repo, 59 here since 2026-10-01): `create_task` ran 17 times in 7
-sessions while `bash` ran 78178 times. The tools loaded and were exposed the whole
-time. Four causes, in the order they mattered:
-
-- **No per-turn presence.** The package bound five hooks, all of them either a
-  lifecycle reset or the settle check. `pi-goal` injects a capability note from
-  its `context` hook every turn, which is why goals are used; tasks had no
-  equivalent.
-- **A self-sealing reminder.** `src/stop-check.ts` returns early when no open task
-  exists, so the reminder could sustain the habit and never start it. All 5
-  sessions carrying `pi-tasks-status` are among the 7 that called `create_task`.
-- **The wrong moment.** `agent_before_settle` fires after the model considers the
-  work finished. A task record earns its value before the work starts.
-- **A cost at delivery.** The checks refused an honest single-attempt completion,
-  a mixed call discarded its content edits, and a misplaced context field was
-  refused with `schema is false`.
-
-## What the change does
-
-- The trigger conditions live in two surfaces. `create_task` carries them in its
-  snippet and its description, which are sent to the provider on every turn
-  already. `src/presence.ts` adds one bounded note per request, because a
-  description cannot say when the situation calls for the tool: a session that
-  never considers recording work never reads the description of the tool that
-  would record it. The note carries no task state, so it is identical every turn
-  and lands at a fixed index after the system prompt, which keeps each request a
-  prefix of the last. It is a **system** message injected through
-  `context_with_system`, because the plain `context` hook cannot carry system
-  messages: a note sent that way lands ahead of the user's request as a user-role
-  message, and a recorded run showed the model reporting it as the user's own
-  message while it was in context. `tests/test_discoverability.py` pins the note,
-  its bound, its position, its role, and that one source file defines it.
-- A context-only write is not progress. The settlement snapshot no longer hashes
-  `context`, because a brief is what a successor reads rather than a change to
-  the work. Counting it bought another automatic continuation.
-- `normalizeTaskContext` moves a handoff field written at the context level into
-  `context.handoff`, and refuses a field no layer owns with a message naming the
-  field and where the handoff fields belong.
-- The nested schemas in `CONTEXT_PARAMS` are open for that reason: a closed one
-  made the validator the author of the refusal, and its wording was `schema is
-  false`. The top level stays closed, where the validator's wording is readable.
-- `executeTaskUpdate` validates and records the content half before it reads the
-  status half. A refused status keeps the edit and names the status change as the
-  half to retry. A refused content edit records neither half.
-- `checkCompletion` returns every unsatisfied check, and
-  `completionRefusalReasons` joins their remedies into one message.
-  `completionRequirements` names what a completion must carry, and the take path
-  reports it.
-
-## Decisions taken deliberately, not oversights
-
-- **The exported `tasks` container.** `packages/agent-teams/src/state.ts` imports
-  it as `storedTasks` and publishes it as its own snapshot state, and it owns the
-  file there. The shared live container is the arrangement, not an accident.
-- **The runtime verb section in `src/store.ts`.** `revertUndeliveredTake`,
-  `acknowledgeSupersession`, `bindTask`, `failTasksHeldBy`, and `discardTask` are
-  named for what happened and stay unreachable from the model tools.
-- **`checkCompletion` returns an array.** Breaking for a library consumer, and
-  nothing in this repository reads it outside `store.ts`. Naming one check at a
-  time was the cost the change exists to remove.
-- **The three-call state machine stays, with one route around it.** R5 asked for
-  the single-attempt path to be removed or proven cheap. It is proven cheap
-  instead: the take names the requirements, a refusal names every unmet check with
-  its remedy, and one call after a refusal succeeds. The recorded creator is the
-  route around the take, so a caller that records and finishes its own work pays
-  two calls. Removing the take outright would delete the attempt record that
-  `recovery_hold` rests on.
-- **The child-process limit is documented, not worked around.** A child runs
-  `pi --no-extensions`, so the four tools cannot reach it. A second task surface
-  inside every child is a different package's problem.
+- Explicit reads identify the current blocker before historical recovery notes.
+- Mixed completion errors identify content edits that were already saved.
+- Recovery notes and retained evidence history count against normal write budgets.
+- Earlier failure and operational blocker bodies remain in evidence history.
+- Explicit outstanding lists replace current work; empty lists clear it.
+- Present malformed task files do not become empty writable stores.
+- Public tool success requires recovery from blocked state first.
+- Existing library fallback acceptance remains available for verified external outcomes.
+- Agent Teams checks `.ok` before reporting accepted outcomes or releasing holdings.
+- Waiting messages collapse by default and use native expansion.
+- Expanded recovery details distinguish current blocker, handoff, original plan and history.
+- Tool activity wording no longer claims verified task progress.
 
 ## Verification
 
-- `python3 -m pytest packages/tasks/tests/ -q` — 142 pass, 0 fail. Coverage
-  added by this change: `tests/test_discoverability.py` (the trigger conditions in
-  the tool surface, and that the package injects no message of its own), three
-  context tests in `tests/test_work_context.py`, `tests/test_completion_cost.py`,
-  and the rewritten mixed-call tests in `tests/test_task_contents.py`.
-- `pnpm typecheck` passes.
-- `pnpm --dir packages/tasks pack --dry-run` lists `index.ts`, all of `src/`, and
-  `README.md`.
-- `AGENTS.md` carries a Task Records section, which is where the tool trigger
-  conditions are stated for a session that has not read this file.
+- Final combined Tasks and Agent Teams suites: 475 passed.
+- Typecheck passed with `pnpm --config.verify-deps-before-run=false typecheck`.
+- Tasks and Agent Teams packed manifests passed dry-run inspection.
+- Isolated native Pi acceptance passed at 120x40, 48x24 and 48x12.
+  Evidence: `/tmp/tasks-complete-handoff-final`.
+- Native captures show collapsed headlines and expanded current recovery details.
+- Independent final review: Standards PASS and Spec PASS. All 24 reviewed file hashes match.
+- This final context update changes documentation only, after reviewed candidate validation.
 
-## Open, not fixed here
+## Limitations and next checks
 
-A spawned child lost its private session directory twice while this change was
-being delegated: the first run's JSONL tree was deleted mid-run, and the second
-run's `--session-dir` was gone within 90 seconds of `spawner.ts` creating it, so
-the child reported `ENOENT` with no usable answer. The child's file writes
-survived both times, which is how the feature scenarios in this change exist. The
-cause is outside `packages/tasks` and is not reproduced.
+- Native expansion shows the host shortcut label. Complete handoff fields are verified.
+- Review and acceptance match the frozen runtime candidate. This context records final results.
+- Installation audit reports eleven missing packages, including Agent Teams; Tasks is configured.
+- Standard pnpm commands request dependency installation without a TTY.
+  `--config.verify-deps-before-run=false` uses existing dependencies without changing them.
+- No user settings, credentials, remote machines, or chezmoi files changed.
+- Deterministic CLI checks do not prove real-model judgment or physical-terminal accessibility.
+- A reload is needed before this running session can prove it loaded the updated renderer.

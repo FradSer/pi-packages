@@ -1,0 +1,41 @@
+{
+  "sourceRevision": "8c827980",
+  "isolation": "Existing task_helpers.run_node with a disposable PI_CODING_AGENT_DIR and no extension persistence writer",
+  "scope": "Invented source-level conditions, not the user's original session or machines",
+  "publicToolProbe": {
+    "calls": [
+      "createTask({ id: 'tool-probe', subject: 'Public recovery probe' })",
+      "executeTaskUpdate({ id: 'tool-probe', status: 'in_progress', reason: 'Earlier recovery note' })",
+      "executeTaskUpdate({ id: 'tool-probe', status: 'blocked', reason: 'Current remote blocker' })",
+      "executeTaskGet({ id: 'tool-probe' })",
+      "executeTaskUpdate({ id: 'tool-probe', status: 'in_progress', reason: 'x'.repeat(70000) })"
+    ],
+    "observedModelText": "TASK · tool-probe · blocked · Public recovery probe\nBLOCKED · Earlier recovery note",
+    "acceptedOversize": true,
+    "finalStatus": "in_progress",
+    "retainedRecoveryBytes": 70000
+  },
+  "directBlockedDeliveryProbe": {
+    "accepted": true,
+    "finalStatus": "completed",
+    "recoveryNote": null,
+    "conditions": "Public update tool; blocked record; new result; declared gate verdict pass; no intervening take"
+  },
+  "storeProbe": {
+    "currentBlockerInProjection": "Current remote blocker",
+    "retainedRecoveryBytes": 70000,
+    "measuredContextBytes": 27
+  },
+  "checks": {
+    "focusedTests": "43 passed",
+    "fullTasksTests": "164 passed in 93.34s",
+    "diffCheck": "passed",
+    "reportReferenceCheck": "11 existing source paths; 0 missing"
+  },
+  "limitations": [
+    "No original-session reproduction",
+    "No remote machine checks",
+    "No live TUI verification",
+    "No implementation changes"
+  ]
+}

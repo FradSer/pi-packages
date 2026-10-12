@@ -28,7 +28,7 @@ A dependency-unfinished task remains pending and shows `Blocked by #N`. It canno
 
 `update_task` routes status transitions:
 
-- `in_progress`: take the task for the derived caller; blocked work requires `reason` explaining safe recovery.
+- `in_progress`: take the task for the derived caller; blocked work requires `reason` explaining safe recovery. Recover blocked work before submitting a successful completion.
 - `blocked`: record `reason`, release the caller's attempt and retain previous evidence.
 - `completed`, `outcome=success`: record `result`; dependencies, prior attempt and a declared verify gate must satisfy the completion checks. A gate requires `verdict=pass`.
 - `completed`, `outcome=failed`: retain the failure result and move to blocked. A later success keeps `failureEvidence` alongside the new result.
@@ -40,7 +40,7 @@ Content edits replace subject, description, dependsOn or verify; context merges 
 
 ## Rendering and pagination
 
-All tool results and automatic messages use the shared pi-kit `[tasks]` lifecycle style. Titles, descriptions, Verify, evidence, blockers, errors and persistence notices wrap in full by default, without ellipses or ctrl+o. Display numbers follow creation order across the full task set; filtered pages can contain gaps. Storage ids, holders and resource locks remain in coordination data rather than ordinary rows. The public tools do not accept or return resources.
+All tool results and automatic messages use the shared pi-kit `[tasks]` lifecycle style. Explicit tool results wrap titles, descriptions, Verify, evidence, blockers, errors and persistence notices in full. Automatic waiting messages are collapsed by default. Use Ctrl+O or the native row action to expand their complete details. Display numbers follow creation order across the full task set; filtered pages can contain gaps. Storage ids, holders and resource locks remain in coordination data rather than ordinary rows. The public tools do not accept or return resources.
 
 ```text
 [tasks] create · #2 Verify dependency handling (pending)
@@ -65,9 +65,9 @@ Pi's `agent_before_settle` checks normal completion. It continues only when all 
 - Fewer than three automatic continuations occurred since real user input.
 - No abort, pending user input or continuation requested by another handler exists.
 
-Task metadata changes alone never buy another turn. Extension-generated input does not reset the allowance. Replaced tasks and internal `recordKind=execution` records never trigger continuation. Blocked work waits for deliberate recovery; the harness does not clear blockers or infer authorization.
+A distinct successful tool result establishes tool activity, not verified task progress. Task metadata changes alone never buy another turn. Extension-generated input does not reset the allowance. Replaced tasks and internal `recordKind=execution` records never trigger continuation. Blocked work waits for deliberate recovery; the harness does not clear blockers or infer authorization.
 
-Automatic messages display `continue` or `waiting` with the reason and full task information. Allowance exhaustion is waiting, not a user pause. Identical waiting snapshots are deduplicated. No UI means no passive row, preserving the final `pi --print` answer. Earlier boundary messages and context edits are retained. Model instructions are bounded to 20 task rows and 8 KiB; omissions direct the model to list_tasks. Display rows use full stored text.
+Automatic messages display `continue` or `waiting`. Continue messages show full task information. Waiting messages show the headline by default; expansion shows the reason, current blocker, handoff, original plan and evidence. Allowance exhaustion is waiting, not a user pause. Identical waiting snapshots are deduplicated. No UI means no passive row, preserving the final `pi --print` answer. Earlier boundary messages and context edits are retained. Model instructions are bounded to 20 task rows and 8 KiB; omissions direct the model to list_tasks. Display rows use full stored text.
 
 ## Persistence and compatibility
 
@@ -81,7 +81,7 @@ Standalone Tasks restores tasks.json at session start and persists after changes
 
 Legacy recovery_hold maps to blocked. Legacy superseded maps to a normal state plus its preserved replacement relation; a missing replacement retains replacementUnresolved metadata and stays inactive with a repair notice. It cannot be retaken, deleted or used as a dependency until its replacement relation is repaired. In-progress work restored without participants becomes blocked. Completed records, results, recovery notes and replacement relations remain. Legacy execution records are classified without deleting their history. The previously retired board.json is not loaded, copied or removed.
 
-The store normalizes restored fields and reports repairs. Context updates merge findings and outstanding work rather than dropping them. The default retained-text budget is 64 KiB, including subject, description, verify, evidence, blocker, failure evidence, resources and context; callers may lower it, not raise it. Model writes exceeding the budget are refused rather than silently truncated. Runtime stop cleanup always retains its diagnostic and releases the stopped holder, including for legacy records already beyond their budget.
+The store normalizes restored fields and reports repairs. Context updates merge historical findings. An explicit outstanding list replaces the current list; an empty list clears it. The default retained-text budget is 64 KiB, including subject, description, verify, evidence, blocker, failure evidence, recovery notes, retained evidence history, resources and context; callers may lower it, not raise it. Model writes exceeding the budget are refused rather than silently truncated. Runtime stop cleanup always retains its diagnostic and releases the stopped holder, including for legacy records already beyond their budget.
 
 Task intents use exclusive creation; only the store owner writes task state. Resource compatibility helpers remain for known consumers. `TASK_HOLDER_ENV` and the participant seam use pi-kit contracts rather than duplicated registry types.
 

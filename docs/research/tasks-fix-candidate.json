@@ -1,0 +1,29 @@
+{
+  "baseline": "8c827980",
+  "files": {
+    "packages/agent-teams/README.md": "9012b9b7f8fe4a3045a2bcb908963a3db8f7780f7c2c1585fb27fd436b52323b",
+    "packages/agent-teams/features/completion-refusal.feature": "ab89c948f2278c386db33c16df9dc3a9b03ad6a58d46b4d23cb2f00e5c92a060",
+    "packages/agent-teams/src/team-machine.ts": "5a1149eb6e70f3246e31551130141e9b93a93d0c7bc205d6340a80f048878b50",
+    "packages/agent-teams/tests/test_completion_refusal.py": "0628614aad0db627a559e2ce4d994ae7968a5404ad8ab21587e859c1721ffe37",
+    "packages/tasks/CONTEXT.md": "759e59fb4fc3599ce2b85f2f50e95674db4ff0f8bc766237792f367add53e8ea",
+    "packages/tasks/README.md": "b6d506f37b3aa087eecf451748e5375599f758e4ba68e900a8e16571d40bdfe5",
+    "packages/tasks/TUI.zh-CN.md": "702551735cfada40000fcf953b4363272cee030b3659a21525f03ad4658287c5",
+    "packages/tasks/features/current-task-read.feature": "fe3ca404cf6a91275f3fae07378e04fb4589f6d6f9d0d5ee938f61383e08d549",
+    "packages/tasks/features/lifecycle-evidence.feature": "8ced9129be8c8ae3d826719c20a30fc6d621ea4356abb601235e9ea8d0bcb754",
+    "packages/tasks/features/waiting-recovery.feature": "945be2168ad899659cb0357e6757a70912963c835525512efd8c396ba1de3908",
+    "packages/tasks/src/context.ts": "d2e81538581cb9f7b357ff9f92cd16c456a7068ff32b9dad467a961070d171bc",
+    "packages/tasks/src/persist.ts": "db67a0100cebca22b307930bc373f155395d8988e81229e4aa0eb132dd58121d",
+    "packages/tasks/src/rows.ts": "ffb0c86bc2782ab302cfb79487e44d927774890d00247e752d133f20f7725b03",
+    "packages/tasks/src/stop-check.ts": "7ee9880242c6423f11ec9475ba43c18acac1f248a5007bbf801f6d37588f3a8d",
+    "packages/tasks/src/store.ts": "9f3bae515abb770ce15aa5aeea8b78fed62f8df4757c9dafe757027977244410",
+    "packages/tasks/src/tool.ts": "f2bd063f5ae2a58ec62c6b8905119a9e893bf61ddb3b3b1e7e1e2fec0246f168",
+    "packages/tasks/src/types.ts": "b0b2c382d406cac09c8aeacbc0cff966171c371065d676dd9f2842b2d38b0b96",
+    "packages/tasks/tests/task-stop-live-fixture.ts": "db418ce3f03aaa3b02d8565fca809862a3db84c5b5c4adaa9bb9075669365c00",
+    "packages/tasks/tests/task_native_frames.py": "aac6236003dca6954a9dad107f605a07cee19ca68f4258e3f519ec4fc2ca6b3c",
+    "packages/tasks/tests/test_current_task_read.py": "c02a37b7d87dee75ef532388c2a1ef306c6eecdbe3533ce010169a99bad2f253",
+    "packages/tasks/tests/test_lifecycle_evidence.py": "7eb3dc537c9f3ef8c64ba31ffc263b67b700c13e2442a3f38729be9df95ad0e7",
+    "packages/tasks/tests/test_task_content_tui.py": "e96139d99198d58c699753f4121c50ed1e348b826e7a406d495d23273bff16cc",
+    "packages/tasks/tests/test_task_stop_check.py": "d2c3c67be0dc56620802520752c8cf28b1877e1f7d656b10cdd368dbc73b4143",
+    "packages/tasks/tests/test_task_tool.py": "36370f905dcbb392298181925500b59975c07d681c93ec81f695a06936021a4a"
+  }
+}
