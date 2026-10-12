@@ -348,6 +348,20 @@ export function renderToolLifecycle(
   const singleLine = (text: string) => text.replace(/\r\n|\r|\n/g, " ").trimEnd();
   const wrap = (text: string) => (options.wrapDetail?.(text, contentWidth) ?? text.split(/\r\n|\r|\n/))
     .map((line) => fit(line, contentWidth));
+  // A one-line authored subject is never elided, and only the final line gives up
+  // room for the hint. A sentinel glued to the last word reserves exactly the hint's
+  // width there, so every earlier line wraps at the full content width and the hint
+  // follows the last word instead of standing alone.
+  const authoredInlineRows = (): string[] => {
+    const hintWidth = visibleWidth(hint);
+    if (hintWidth < 1 || hintWidth >= contentWidth) return [...wrap(subjectText), fit(hint, contentWidth)];
+    const sentinel = "x".repeat(hintWidth);
+    const reserved = wrap(`${singleLine(title)}${sentinel}`);
+    const last = reserved[reserved.length - 1];
+    const marker = last.lastIndexOf(sentinel);
+    if (marker < 0) return [...wrap(subjectText), fit(hint, contentWidth)];
+    return [...reserved.slice(0, -1), `${last.slice(0, marker)}${hint}`];
+  };
   // Only advertise text we can actually reveal. Native wrapping is injected;
   // without it, a legacy host can still reveal explicit line breaks or details.
   const isHidden = (text: string) => {
@@ -380,8 +394,13 @@ export function renderToolLifecycle(
       ]
     : [
         ...(authoredSubject
-          // Verbatim rows never merge written lines; hidden details keep their own hint row.
-          ? [...subjectRows(subjectText), ...(hint ? [fit(hint, contentWidth)] : [])]
+          // A one-line authored subject stays whole: it wraps to the width the hint
+          // leaves and the hint follows on the last line, so no word is elided. A
+          // multi-line or block-authored subject never merges written lines, and a row
+          // with nothing hidden never advertises expansion, so both keep their rows.
+          ? (blockSubject || /[\r\n]/.test(subjectText) || !hint
+            ? [...subjectRows(subjectText), ...(hint ? [fit(hint, contentWidth)] : [])]
+            : authoredInlineRows())
           : collapsedBandRows(singleLine(title), hint, contentWidth, options)),
         ...(hideCollapsedSummary
           ? []
@@ -1494,6 +1513,8 @@ export interface PiWorkerUsage {
 export interface PiWorkerResult {
   text: string;
   usage?: PiWorkerUsage;
+  /** Known reported calls, including a partial prefix on failure; never a bill. */
+  usageLedger?: PiWorkerUsageLedger;
   exitCode: number;
   stderr: string;
   /** True when the caller signal or the worker model reply was aborted. */
@@ -1766,13 +1787,16 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
       const parsed = parsePiWorkerOutput(stdout);
       if (parsed.failure === "cancelled") cancelled = true;
       const failed = code !== 0 || cancelled || failureReason !== undefined || parsed.failure !== undefined;
-      const { text, usage } = failed ? { text: "", usage: undefined } : parsed;
+      const usageLedger = parsePiWorkerUsageLedger(stdout);
+      const text = failed ? "" : parsed.text;
+      const usage = !failed && usageLedger.complete ? usageLedger.knownUsage : undefined;
       const modelDiagnostic = parsed.failure === "cancelled" ? "Pi worker model reply was cancelled."
         : parsed.failure ? "Pi worker model failed before successful completion." : undefined;
       const diagnostic = [failureReason, modelDiagnostic, stderr.trim()].filter(Boolean).join("\n");
       resolve({
         text,
         usage,
+        usageLedger: failed ? {...usageLedger, complete: false} : usageLedger,
         exitCode: code === 0 && failed ? 1 : code ?? 1,
         stderr: diagnostic,
         cancelled,
@@ -1801,6 +1825,41 @@ export async function runPiWorker(options: RunPiWorkerOptions): Promise<PiWorker
  * Returns the final assistant text and last reported usage on successful runs.
  * Failed replies invalidate text; recovered replies keep incomplete usage unknown.
  */
+export interface PiWorkerUsageLedger {
+  knownUsage: PiWorkerUsage;
+  assistantMessages: number;
+  complete: boolean;
+}
+
+/** Sum per-request message_end usage, independently of final answer framing.
+ * Keep known reported costs on failure without treating the prefix as a total.
+ * The legacy final-reply parser below retains its public last-message contract. */
+export function parsePiWorkerUsageLedger(stdout: string): PiWorkerUsageLedger {
+  const ledger: PiWorkerUsageLedger = {knownUsage: {input: 0, output: 0, cacheRead: 0,
+    cacheWrite: 0, totalTokens: 0, cost: 0}, assistantMessages: 0, complete: true};
+  for (const line of stdout.split("\n")) {
+    if (!line.trim()) continue;
+    let event: {type?: string; success?: boolean; message?: {role?: string; stopReason?: string;
+      usage?: Partial<Omit<PiWorkerUsage, "cost">> & {cost?: {total?: number}}}};
+    try { event = JSON.parse(line); } catch { ledger.complete = false; continue; }
+    if (!event || typeof event !== "object") { ledger.complete = false; continue; }
+    if (event.type === "auto_retry_end" && event.success === false) ledger.complete = false;
+    if (event.type !== "message_end" || event.message?.role !== "assistant") continue;
+    ledger.assistantMessages += 1;
+    if (event.message.stopReason === "error" || event.message.stopReason === "aborted") ledger.complete = false;
+    const usage = event.message.usage;
+    const values = {input: usage?.input, output: usage?.output, cacheRead: usage?.cacheRead ?? 0,
+      cacheWrite: usage?.cacheWrite ?? 0, totalTokens: usage?.totalTokens, cost: usage?.cost?.total};
+    for (const key of Object.keys(ledger.knownUsage) as (keyof PiWorkerUsage)[]) {
+      const value = values[key];
+      if (typeof value !== "number" || !Number.isFinite(value) || value < 0) ledger.complete = false;
+      else ledger.knownUsage[key] += value;
+    }
+  }
+  if (!ledger.assistantMessages) ledger.complete = false;
+  return ledger;
+}
+
 export function parsePiWorkerOutput(stdout: string): { text: string; usage?: PiWorkerUsage; failure?: "model-error" | "cancelled" } {
   let text = "";
   let failure: "model-error" | "cancelled" | undefined;

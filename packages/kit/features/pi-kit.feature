@@ -587,3 +587,10 @@ Feature: Ask a decision model one bounded question set
     Given an event with an error or warning tone
     When either message renderer renders it
     Then the band and prefix use the matching semantic tokens
+
+  Scenario: Worker run cost includes every completed model request
+    Given a JSON worker emits several assistant message_end usage records
+    When the runtime accounts for that worker run
+    Then its usage is the sum of the reported per-request records
+    And failed, missing or interrupted usage remains explicitly incomplete
+    And the known completed prefix is retained separately from a complete total
