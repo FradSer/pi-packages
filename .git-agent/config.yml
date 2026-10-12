@@ -21,8 +21,6 @@ scopes:
       description: package manifests, changesets, and publishing automation in .changeset/ and scripts/; does not cover runtime package behavior
     - name: btw
       description: side conversations and overlays in packages/btw/; does not cover shared kit internals
-    - name: e2e
-      description: feature evidence verification and real-run acceptance in packages/e2e/; does not cover shared kit internals
     - name: imp
       description: interface design procedures and tooling in packages/impeccable/; does not cover shared kit internals
     - name: key

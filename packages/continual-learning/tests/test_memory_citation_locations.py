@@ -130,3 +130,39 @@ def test_location_diagnostics_are_bounded_for_untrusted_plan_sizes() -> None:
     ''')
     assert value['error'].count('line-range-out-of-bounds') == 8
     assert len(value['error']) < 800
+
+
+def test_parent_extracted_long_line_spans_are_lossless_and_keep_quote_limits() -> None:
+    value = isolated_run_bun(r'''
+      import {locatedMemoryEvidence,resolveMemoryPlanCitations} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const text='prefix-'.repeat(300)+'\\n  test-on-idle.js:33:50 Prefer await to then()/catch()/finally(). promise/prefer-await-to-then'+'-suffix'.repeat(100);
+      const snapshot={entries:[{role:'toolResult',content:[{type:'text',text}]}]};
+      const before=JSON.stringify(snapshot);const shown=locatedMemoryEvidence(snapshot).entries[0].entry.content[0].citationLines.lines[0];
+      const start=text.indexOf('test-on-idle.js'),end=start+'test-on-idle.js:33:50 Prefer await to then()/catch()/finally(). promise/prefer-await-to-then'.length;
+      const ref={index:0,lines:{block:0,start:1,end:1,characters:{start,end}}};
+      const resolved=resolveMemoryPlanCitations({newMemories:[{evidence:[ref]}]},snapshot);
+      const invalid=[{start:-1,end:1},{start:0,end:text.length+1},{start:2,end:2},{start:0.5,end:2},{start:0,end:2001},{start:0,end:1,decode:true}];
+      const rejects=invalid.map(characters=>{try{resolveMemoryPlanCitations({operations:[{evidence:[{index:0,lines:{block:0,start:1,end:1,characters}}]}]},snapshot);return false;}catch{return true;}});
+      let crossLineRejected=false;try{resolveMemoryPlanCitations({operations:[{evidence:[{index:0,lines:{block:0,start:1,end:2,characters:{start:0,end:1}}}]}]},{entries:[{role:'user',content:'one\ntwo'}]});}catch{crossLineRejected=true;}
+      console.log(JSON.stringify({shown,resolved,rejects,crossLineRejected,unchanged:before===JSON.stringify(snapshot),text}));
+    ''')
+    chunks = value['shown']['chunks']
+    assert ''.join(c['text'] for c in chunks) == value['text']
+    assert chunks[0]['start'] == 0 and chunks[-1]['end'] == len(value['text'])
+    assert all(c['end'] == chunks[i+1]['start'] for i,c in enumerate(chunks[:-1]))
+    assert value['resolved']['newMemories'][0]['evidence'][0]['quote'] == 'test-on-idle.js:33:50 Prefer await to then()/catch()/finally(). promise/prefer-await-to-then'
+    assert all(value['rejects']) and value['crossLineRejected'] and value['unchanged']
+
+
+def test_character_locations_never_decode_json_or_accept_a_partial_quote_hint() -> None:
+    value = isolated_run_bun(r'''
+      import {resolveMemoryPlanCitations} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      const text='prefix literal\\nthen suffix';const snapshot={entries:[{role:'user',content:text}]};
+      const ref={index:0,lines:{block:0,start:1,end:1,characters:{start:7,end:20}}};
+      const result=resolveMemoryPlanCitations({operations:[{evidence:[ref]}]},snapshot);
+      const bad=[{...ref,quote:'literal\nthen'},{index:0,lines:{block:0,start:1,end:1},quote:'literal\\nthen'}];
+      const rejected=bad.map(c=>{try{resolveMemoryPlanCitations({operations:[{evidence:[c]}]},snapshot);return false;}catch{return true;}});
+      console.log(JSON.stringify({result,rejected,expected:text.slice(7,20)}));
+    ''')
+    assert value['result']['operations'][0]['evidence'][0]['quote'] == value['expected']
+    assert all(value['rejected'])
