@@ -100,7 +100,7 @@ Automatic final answers (including autonomously claimed Work) and explicit Work
 submission use the same attempt-bound acceptance pipeline. Explicit submission
 ends the worker turn without a second automatic submission. Successful results
 reach the Leader once, after execution settles and any verification gate passes.
-Execution failures are reported after settlement without claiming acceptance.
+Execution failures are reported after settlement without claiming acceptance. A refused task transition does not produce an accepted completion or failure report.
 `task list` includes bounded result evidence for deliberate recovery.
 Verification freezes execution and retains deferred mail as Work history.
 An ordinary final answer is a successful candidate, not independent verification;

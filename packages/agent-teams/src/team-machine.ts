@@ -245,7 +245,7 @@ function runVerifyGate(
       detail: truncated(`(completion review crashed) ${error instanceof Error ? error.message : String(error)}`),
     }));
 }
-type PendingSubmission = import("./types").TaskIntent & { assignmentId: string; verify: string | undefined };
+type PendingSubmission = import("./types").TaskIntent & { assignmentId: string; verify: string | undefined; rejected?: boolean };
 /** Submitted Work waits for its authoring Worker to settle before a gate can
  * inspect its files. This applies to direct automatic and tasks submissions. */
 const pendingSubmissions = new Map<string, PendingSubmission>();
@@ -1056,8 +1056,9 @@ export function applyProgress(name: string, spawnId: string, progress: {
     drainTeammateOutboxes(name);
     processTaskIntents();
     const pending = pendingSubmissions.get(name);
-    if (pending?.spawnId === spawnId && getAgent(name)?.assignment?.id === pending.assignmentId) {
-      pendingSubmissions.delete(name);
+    if (pending?.spawnId === spawnId && getAgent(name)?.assignment?.id === pending.assignmentId && !pending.rejected) {
+      // A review owns its binding; an ungated submission stays pending until accepted.
+      if (pending.verify?.trim()) pendingSubmissions.delete(name);
       archiveDeferredDeliveries(getAgent(name)!);
       beginVerifyOrComplete(pending, pending.verify);
     }
@@ -1102,8 +1103,10 @@ export function markTeammateFinished(report: FinishIdentity): boolean {
 /** Only an open current assignment can owe a final result. */
 export function hasUnfinalizedReport(name: string): boolean {
   const teammate = getAgent(name);
+  const pending = pendingSubmissions.get(name);
+  const submitted = pending?.spawnId === teammate?.spawnId && pending?.assignmentId === teammate?.assignment?.id;
   return Boolean(teammate?.assignment && !teammate.assignment.closed
-    && !teammate.reportSequenceEnded && !verificationFrozen(teammate));
+    && !teammate.reportSequenceEnded && !submitted && !verificationFrozen(teammate));
 }
 
 /** One light reminder per idle transition when work looks unfinished. */
@@ -1450,7 +1453,7 @@ function parseInboxMessage(record: unknown): InboxMessage | undefined {
 
 function submissionPending(teammate: Agent): boolean {
   const pending = pendingSubmissions.get(teammate.name);
-  if (pending?.spawnId === teammate.spawnId && pending.assignmentId === teammate.assignment?.id) return true;
+  if (pending?.spawnId === teammate.spawnId && pending.assignmentId === teammate.assignment?.id) return !pending.rejected;
   const task = teammate.currentTaskId ? getState().tasks[teammate.currentTaskId] : undefined;
   return teammate.assignment?.kind === "direct" && teammate.assignment.closed === true
     && task?.status === "in_progress" && task.claimedBy === teammate.name;
@@ -1958,7 +1961,7 @@ function applySubmissionMarker(intent: import("./types").TaskIntent): void {
   if (!sender || !sender.assignment || intent.assignmentId !== sender.assignment.id) return;
   const task = getState().tasks[intent.taskId];
   const pending = pendingSubmissions.get(intent.participant);
-  if (pending?.spawnId === intent.spawnId && pending.assignmentId === intent.assignmentId) return;
+  if (pending?.spawnId === intent.spawnId && pending.assignmentId === intent.assignmentId && !pending.rejected) return;
   if (!task || (task.status !== "in_progress" && !isTaskReplaced(task)) || task.claimedBy !== intent.participant) {
     deliverFeedback(intent.participant, "Submission rejected", `Task "${intent.taskId}" is not currently yours.`);
     return;
@@ -2102,7 +2105,7 @@ function resolveGateOutcome(
   if (outcome.kind === "pass") {
     inconclusiveVerifications.delete(submissionId);
     archiveDeferredDeliveries(holder);
-    finishCompletion(intent);
+    finishCompletion(intent, "pass");
   } else if (outcome.kind === "inconclusive") {
     const detail = outcome.detail ?? "(reviewer omitted a machine-readable verdict)";
     requestVerifyVerdict(intent, subject, submissionId, detail);
@@ -2248,18 +2251,32 @@ function clearInconclusiveForHolding(taskId: string, spawnId: string): void {
   verifyFailures.delete(holding);
 }
 
-function finishCompletion(intent: import("./types").TaskIntent): void {
+function finishCompletion(intent: import("./types").TaskIntent, reviewVerdict?: "pass"): void {
   const task = getState().tasks[intent.taskId];
   if (!task) return;
   const teammate = getAgent(intent.participant);
   const assignmentId = teammate?.assignment?.id;
   if (!teammate || !assignmentId) return;
+  // Only the bound independent review supplies a verdict; worker fields are not authority.
+  const completed = completeTaskWithOutcome(intent.taskId, intent.participant, "success", intent.result,
+    reviewVerdict ? { verdict: reviewVerdict } : {});
+  if (!completed.ok) {
+    rejectCompletion(intent, assignmentId, completed.reason);
+    return;
+  }
   retirePendingSubmission(intent);
-  const completed = completeTaskWithOutcome(intent.taskId, intent.participant, "success", intent.result);
-  if (!completed) return;
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   freeAgentFromTask(intent.participant, intent.taskId);
   announceWorkOutcome(intent, teammate, assignmentId);
+}
+
+function rejectCompletion(intent: import("./types").TaskIntent, assignmentId: string, reason: string): void {
+  // Retain the submission freeze, but never retry refused evidence automatically.
+  // A new explicit submission may replace it without releasing the holding.
+  const pending = pendingSubmissions.get(intent.participant);
+  if (pending?.spawnId === intent.spawnId && pending.assignmentId === assignmentId) pending.rejected = true;
+  else pendingSubmissions.set(intent.participant, { ...intent, assignmentId, verify: undefined, rejected: true });
+  deliverFeedback(intent.participant, "Submission rejected", reason);
 }
 
 function retirePendingSubmission(intent: import("./types").TaskIntent): void {
@@ -2280,9 +2297,12 @@ function finishFailure(intent: import("./types").TaskIntent): void {
   const teammate = getAgent(intent.participant);
   const assignmentId = teammate?.assignment?.id;
   if (!teammate || !assignmentId) return;
-  retirePendingSubmission(intent);
   const released = completeTaskWithOutcome(intent.taskId, intent.participant, "failed", intent.result?.trim() || "Agent reported failure.");
-  if (!released) return;
+  if (!released.ok) {
+    rejectCompletion(intent, assignmentId, released.reason);
+    return;
+  }
+  retirePendingSubmission(intent);
   clearInconclusiveForHolding(intent.taskId, intent.spawnId);
   invalidateVerifyGate(intent.taskId);
   // Failure is evidence for deliberate recovery, not a fresh work offer to
