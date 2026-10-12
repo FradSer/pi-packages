@@ -317,3 +317,23 @@ one cost-bearing receipt. Exercise acknowledgment crashes before any sibling,
 between siblings, and before the receipt owner, plus recovery before older retry
 selection. A truncated replay must retain omission metadata and its existing
 proposals-only policy. Empty pending counts alone do not establish learned benefit.
+
+For continuous-study failure feedback, the one admitted read must target the exact
+source/session-bound verifier file without offset or limit. Enforce that boundary
+in the parent tool handler; `--tools read` alone permits unrelated source reads.
+Retain rejected calls and their costs, and stop repeated boundary violations.
+Preserve earlier cohorts that lacked this enforcement as failed evidence.
+
+A failed feedback summary is still a failed task; it need not invalidate an
+already complete, safely observed failure. Before independent backfill, use
+@packages/continual-learning/tests/failure-observation-proof.ts to verify the
+actual full read, immutable session prefix, source/log bindings, rejected-tool
+results and complete pending slice. A retained zero-tool diagnostic must remain
+in the longer slice; do not rewind to omit it or retry the parent summary.
+For standalone recovery, use
+@packages/continual-learning/tests/recovery_integrity.py: claim the exact failed
+slice once with an immutable exclusive parent marker before paid calls, keeping
+that claim on failure/interruption. Verify every owner history chain and actual
+endpoint across private/public/project roots, including permissions and changes
+that return to their original bytes. These checks admit evidence only; task
+success, valid learned changes and downstream benefit remain separate claims.
