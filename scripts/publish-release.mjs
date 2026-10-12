@@ -29,7 +29,6 @@ export const PUBLISH_SCOPE = Object.freeze([
   "pi-matt-pocock",
   "pi-skill-router",
   "pi-open-deskos",
-  "@fradser/pi-e2e",
 ]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
