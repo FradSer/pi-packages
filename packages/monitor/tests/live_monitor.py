@@ -1,4 +1,4 @@
-"""Explicit zero-network native Pi 1.0 acceptance. Run with uv run python this_file.
+"""Explicit zero-network native Pi 1.1.0 acceptance. Run with uv run python this_file.
 
 All project, settings, trace, and terminal output stay in an isolated temporary
 folder. Each Pi child has an external 35 second watchdog and group cleanup.
@@ -10,7 +10,8 @@ import json
 import os
 from pathlib import Path
 import pty
-import re
+import shutil
+from contextlib import contextmanager
 import select
 import signal
 import struct
@@ -20,6 +21,33 @@ import termios
 import time
 
 REPO = Path(__file__).resolve().parents[3]
+PI_CLI = REPO / "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js"
+
+
+def pi_command() -> list[str]:
+    node = shutil.which("node")
+    assert node is not None, "Node.js is required for native Pi acceptance"
+    return [node, str(PI_CLI)]
+
+
+def private_env(root: Path) -> dict[str, str]:
+    return {"PATH": os.environ.get("PATH", ""), "HOME": str(root),
+            "PI_CODING_AGENT_DIR": str(root / "agent"), "PI_OFFLINE": "1",
+            "PI_TELEMETRY": "0", "TERM": "xterm-256color"}
+
+
+@contextmanager
+def probe_directory(prefix: str):
+    # Optional evidence retention uses the existing probes, not another runner.
+    parent = os.environ.get("MONITOR_ACCEPTANCE_OUTPUT")
+    if parent:
+        Path(parent).mkdir(parents=True, exist_ok=True)
+        yield tempfile.mkdtemp(prefix=prefix, dir=parent)
+    else:
+        with tempfile.TemporaryDirectory(prefix=prefix) as raw:
+            yield raw
+
+
 FIXTURE = REPO / "packages/monitor/tests/native-fixture.ts"
 
 
@@ -43,9 +71,8 @@ def setup(root: Path, case: str) -> tuple[list[str], dict[str, str], Path]:
     agent = root / "agent"
     agent.mkdir(exist_ok=True)
     trace = root / "trace.jsonl"
-    args = ["pi", "--offline", "-ne", "-ns", "-np", "-nc", "--no-session", "-e", str(FIXTURE), "--model", "monitor-offline/scripted"]
-    env = dict(os.environ, PI_CODING_AGENT_DIR=str(agent), PI_OFFLINE="1", PI_TELEMETRY="0", TERM="xterm-256color",
-               PI_MONITOR_NATIVE_TRACE=str(trace), PI_MONITOR_NATIVE_CASE=case)
+    args = pi_command() + ["--offline", "--no-approve", "--no-builtin-tools", "-ne", "-ns", "-np", "-nc", "--no-session", "-e", str(FIXTURE), "--model", "monitor-offline/scripted"]
+    env = {**private_env(root), "PI_MONITOR_NATIVE_TRACE": str(trace), "PI_MONITOR_NATIVE_CASE": case}
     return args, env, trace
 
 
@@ -78,23 +105,28 @@ def assert_transport(trace: list[dict], case: str, interactive: bool) -> None:
 
 
 def print_probe(mode: str) -> None:
-    with tempfile.TemporaryDirectory(prefix="monitor-native-print-") as raw:
+    with probe_directory(prefix="monitor-native-print-") as raw:
         root = Path(raw)
         args, env, trace = setup(root, "standalone")
         child = subprocess.Popen(args + ["--print", "--mode", mode, "Verify offline monitor."], cwd=root, env=env,
                                  stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
         try:
             stdout, stderr = child.communicate(timeout=35)
+            (root / "stdout.bin").write_bytes(stdout)
+            (root / "stderr.bin").write_bytes(stderr)
             assert child.returncode == 0, stderr.decode(errors="replace")
             assert b"MONITOR_NATIVE_READY" in stdout, stdout.decode(errors="replace")
             assert_transport(read_trace(trace), "standalone", False)
         finally:
             stop(child)
+            stdout, stderr = child.communicate()
+            (root / "stdout.bin").write_bytes(stdout)
+            (root / "stderr.bin").write_bytes(stderr)
     print(f"MONITOR_NATIVE_{mode.upper()}_OK")
 
 
 def rpc_probe(case: str) -> None:
-    with tempfile.TemporaryDirectory(prefix="monitor-native-rpc-") as raw:
+    with probe_directory(prefix="monitor-native-rpc-") as raw:
         root = Path(raw)
         args, env, trace = setup(root, case)
         child = subprocess.Popen(args + ["--mode", "rpc"], cwd=root, env=env, stdin=subprocess.PIPE,
@@ -111,18 +143,20 @@ def rpc_probe(case: str) -> None:
                     if not chunk:
                         break
                     output.extend(chunk)
-                if b"MONITOR_NATIVE_READY" in output:
-                    time.sleep(0.3)
+                if b"MONITOR_NATIVE_READY" in output and len([r for r in read_trace(trace) if r["kind"] == "request"]) == 2:
                     break
             assert b"MONITOR_NATIVE_READY" in output, output.decode(errors="replace")[-4000:]
             assert_transport(read_trace(trace), case, True)
         finally:
             stop(child)
+            (root / "stdout.bin").write_bytes(output)
+            assert child.stderr is not None
+            (root / "stderr.bin").write_bytes(child.stderr.read())
     print(f"MONITOR_NATIVE_RPC_{case.upper()}_OK")
 
 
 def tui_probe(columns: int, rows: int, snapshot_path: Path | None = None, case: str = "tui") -> None:
-    with tempfile.TemporaryDirectory(prefix="monitor-native-tui-") as raw:
+    with probe_directory(prefix="monitor-native-tui-") as raw:
         root = Path(raw)
         args, env, trace = setup(root, case)
         master, slave = pty.openpty()
@@ -191,13 +225,19 @@ def tui_probe(columns: int, rows: int, snapshot_path: Path | None = None, case: 
             try:
                 stop(child)
             finally:
+                (root / "terminal.ansi").write_bytes(output)
+                (root / "terminal.json").write_text(json.dumps({"columns": columns, "rows": rows, "case": case}) + "\n")
                 os.close(master)
     print(f"MONITOR_NATIVE_TUI_{columns}x{rows}_{case}_OK")
 
 
 def main() -> None:
-    version = subprocess.run(["pi", "--version"], capture_output=True, text=True, timeout=10, check=True).stdout.strip()
-    assert re.fullmatch(r"1\.0\.\d+", version), f"native acceptance requires stable Pi 1.0.x, got {version}"
+    with probe_directory(prefix="monitor-native-version-") as raw:
+        root = Path(raw)
+        (root / "agent").mkdir(mode=0o700)
+        version = subprocess.run(pi_command() + ["--version"], cwd=root, env=private_env(root), capture_output=True, text=True, timeout=10, check=True).stdout.strip()
+        (root / "version.txt").write_text(version + "\n")
+    assert version == "1.1.0", f"native acceptance requires Pi 1.1.0, got {version}"
     print(f"MONITOR_NATIVE_PI_{version}")
     print_probe("text")
     print_probe("json")

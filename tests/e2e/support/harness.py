@@ -232,11 +232,11 @@ def run_install(
     """
     local_pi = REPO / "node_modules" / ".bin" / "pi"
     if not local_pi.is_file():
-        pytest.skip("the repository Pi 1.0.0 CLI is required; no global CLI fallback is permitted")
+        pytest.skip("the repository Pi 1.1.0 CLI is required; no global CLI fallback is permitted")
     for package in ("pi-ai", "pi-coding-agent", "pi-tui"):
         core = REPO / "node_modules" / "@earendil-works" / package / "package.json"
         version = json.loads(core.read_text(encoding="utf-8"))["version"]
-        assert version == "1.0.0", f"install fixture requires the root 1.0.0 cohort, found {package}@{version}"
+        assert version == "1.1.0", f"install fixture requires the root 1.1.0 cohort, found {package}@{version}"
     pi = str(local_pi)
 
     entries = loaded_entries(installed)

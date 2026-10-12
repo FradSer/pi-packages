@@ -9,6 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[1]
 PACKAGE = REPO / "packages" / "kit"
 SRC = PACKAGE / "src"
@@ -233,7 +235,7 @@ def test_pending_changesets_reference_workspace_package_names() -> None:
 
     for changeset_file in changeset_files:
         contents = changeset_file.read_text(encoding="utf-8")
-        if not contents.startswith("---\\n"):
+        if not contents.startswith("---\n"):
             continue
         frontmatter = contents.split("---", 2)[1]
         declared_names = [line.split('"', 2)[1] for line in frontmatter.splitlines() if line.startswith('"')]
@@ -313,3 +315,19 @@ def test_the_roster_describes_what_a_holder_holds_itself() -> None:
     assert 'from "./participant-registry.ts"' in text
     registry_imports = re.findall(r'from\s+"([^"]+)"', (REPO / "packages" / "subagents" / "src" / "participant-registry.ts").read_text(encoding="utf-8"))
     assert not any("pi-tasks" in spec for spec in registry_imports), registry_imports
+
+
+@pytest.mark.parametrize("declared", ["demo", "missing-package"])
+def test_changeset_name_guard_checks_real_frontmatter(tmp_path: Path, monkeypatch, declared: str) -> None:
+    package = tmp_path / "packages" / "demo"
+    package.mkdir(parents=True)
+    (package / "package.json").write_text(json.dumps({"name": "demo"}))
+    changesets = tmp_path / ".changeset"
+    changesets.mkdir()
+    (changesets / "example.md").write_text(f'---\n"{declared}": patch\n---\nExample change.\n')
+    monkeypatch.setattr(sys.modules[__name__], "REPO", tmp_path)
+    if declared == "demo":
+        test_pending_changesets_reference_workspace_package_names()
+    else:
+        with pytest.raises(AssertionError, match="missing-package"):
+            test_pending_changesets_reference_workspace_package_names()

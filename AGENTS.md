@@ -8,6 +8,8 @@ Directories differ from npm names: `continual-learning`/`kit` publish
 and scripts in manifest `files`. Package/root `features/` and `tests/` hold
 contracts and checks.
 
+Current development and verification baseline: **Pi v1.1.0**. Use the locked workspace CLI and core dependencies. Preserve older versions in historical evidence; do not relabel old results as v1.1.0.
+
 ## Build/Test/Development Commands
 
 ```bash
@@ -19,7 +21,7 @@ pnpm check
 ```
 
 `pnpm check` requires Python 3 with pytest and Bun 1.4.1 and runs
-package/root tests, the extension TypeScript project, and registry-free
+package/root tests, the extension and E2E TypeScript projects, the zero-paid official CLI E2E suite, and registry-free
 packed-manifest validation. CI installs both runtimes before this command.
 Focus: `python3 -m pytest packages/<name>/tests/ -q`.
 Pack: `pnpm --dir packages/<name> pack --dry-run`.
@@ -337,3 +339,36 @@ that claim on failure/interruption. Verify every owner history chain and actual
 endpoint across private/public/project roots, including permissions and changes
 that return to their original bytes. These checks admit evidence only; task
 success, valid learned changes and downstream benefit remain separate claims.
+
+## Official e2e tests
+
+For `e2e.config.ts` or `tests/official-e2e/` work, read @.agents/skills/e2e/SKILL.md first. Use `pnpm test:e2e` for deterministic local checks; `pnpm check` includes their typecheck and default suite before packing. Monitor compiler/terminal outcomes use real Pi and exact assertions, without model configuration. Do not add custom engines, executors or adapters.
+
+Read @docs/history/monitor-e2e-ai.md only when tracing earlier model experiments, failures or fees. Preserve their original sources, inputs, protocols and cost ledgers; keep retired artifacts outside active test discovery. Use a unique output directory for each new verification. This simplification does not release historical reservations or establish quality gains.
+
+### BDD → TDD → E2E delivery
+
+For behavior changes, follow this cycle using the existing package tests and official runner:
+
+1. **BDD contract**: Write or update Given/When/Then in the owning package's `features/`; use root `features/` for repository-level integration. Define observable success, failure and regression boundaries before implementation.
+2. **Acceptance RED**: Reproduce the missing behavior with the smallest relevant executable check. Add or update a real Pi acceptance case when the change crosses its runtime boundary. Retain the failing assertion and cause; startup, authentication or infrastructure failure does not establish a behavior RED. Report a reproduction blocker explicitly.
+3. **TDD RED → GREEN**: Add the focused failing regression in the existing test layout, implement the smallest fix, then rerun it and affected checks. TDD is a development cycle; existing process/extension integration tests need not be replaced with artificial unit tests.
+4. **E2E acceptance**: Run the affected official E2E case through real Pi, then the default suite with `pnpm test:e2e`. Require exact checks for terminal state, identity, ordering, content and duplicate delivery where relevant. Run `pnpm typecheck:e2e` when changing E2E TypeScript and the existing package/typecheck/pack gates appropriate to implementation changes.
+5. **REFACTOR**: Refactor while keeping focused regressions and applicable acceptance checks green; rerun checks affected by the refactor. Do not weaken assertions, rewrite the contract or add sleeps solely to obtain a pass.
+6. **Traceability and evidence**: Record the scenario title, executable file/test name, assertion or retained artifact, and coverage gaps in the change description or development mapping. `.feature` files are contracts, not automatically executed by this runner, and their tags do not filter TypeScript tests. Distinguish default E2E, root pytest, separately paid and manual/historical verification; document unexecuted CI clauses. Use documentation links/test comments; do not introduce a Gherkin converter, framework or adapter.
+7. **Delivery**: Report behavior RED/GREEN evidence for new fixes, actual checks run and remaining limits. Documentation-only changes use reference checks and any requested verification; do not manufacture a historical RED for existing green examples. Keep default verification zero-paid; model calls require separate authorization and budget. AI evidence classification is not proof of code-quality benefit.
+
+When modifying monitor delivery or its tests, read the existing scenario-to-test example in @README.md (English) or @README.zh-CN.md (Chinese). Its headless match-mode case does not cover every exit-mode, UI, RPC or concurrency contract.
+
+For normal monitor acceptance, @tests/official-e2e/monitor-workflows.e2e.ts reuses the existing transport fixture. It runs the actual project compiler and verifies located compiler failures, late nonzero exit, invalid JSON, deadlines and missing results through real Pi. Keep exact result assertions after every workflow; an expected command failure is a passing negative test, not a product fix. Known failing-patch checks demonstrate regression sensitivity only. They do not establish previously unknown defect discovery, model quality gains or return on model spending. The former AI and evidence-classification paths are retired; use the exact checks directly.
+
+
+### When AI adds coverage
+
+BDD defines behavior, TDD drives implementation, and E2E exercises the complete boundary. They do not mandate an AI chain. Do not add `agent.assert` for state, JSON, exit codes, call identity, ordering or compiler diagnostics already covered by exact assertions. Current monitor cases have fixed actions too, so do not retain `agent.act` just to invoke a predetermined compiler command.
+
+Before adding an AI step, name the otherwise uncovered behavior and its acceptance oracle. Use `agent.act` for valuable autonomous actions, and `agent.assert` for a distinct semantic/visual condition that cannot reasonably be encoded exactly. They are independent choices, not mandatory consecutive stages; exact outcomes remain exact. No current monitor AI scenario qualifies. Future paid calls require explicit authorization and a budget including failures, retries and missing usage.
+
+### Close the loop after E2E failures
+
+Preserve the failed report and trace and classify it against the BDD requirement before editing. Product defects require a focused RED regression, a product-code fix, affected checks and real Pi E2E, then the default suite. Fix an incorrect test against the unchanged requirement; fix infrastructure failures in the environment. Expected negative outcomes are passing checks and need no product fix. Never weaken an assertion or rewrite a requirement to obtain a pass. Update BDD only for requested behavior changes, retain original failures with repair evidence, and distinguish unresolved infrastructure or unverified work. Perform authorized reversible local repairs autonomously; a test result does not authorize production writes, publication or paid calls.

@@ -6,11 +6,13 @@ import json
 import os
 from pathlib import Path
 import select
+import shlex
+import sys
 import subprocess
 import tempfile
 import time
 
-from live_monitor import read_trace, stop
+from live_monitor import pi_command, private_env, probe_directory, read_trace, stop
 
 FIXTURE = Path(__file__).with_name("transport-matrix-fixture.ts")
 REPO = Path(__file__).resolve().parents[3]
@@ -23,6 +25,8 @@ def job(code: str, pattern: str = "^DONE$", **options: object) -> dict:
 
 
 def cases() -> list[dict]:
+    compiler = " ".join(shlex.quote(value) for value in [pi_command()[0], str(REPO / "node_modules/typescript/bin/tsc")])
+    python = shlex.quote(sys.executable)
     success = job("for(let i=0;i<600;i++)console.log('PRIVATE_TRANSPORT_LOG '+i);console.log('DONE')")
     failure = job("console.error('FAIL code=7');process.exitCode=7", failure_pattern="^FAIL code=(?<code>\\d+)$")
     missing = job("console.log('DONEISH')")
@@ -47,9 +51,9 @@ def cases() -> list[dict]:
         result.append({"name": f"{mode}-codemode-parallel", "mode": mode, "route": "codemode", "jobs": parallel, "expected": ["success", "failure", "success"]})
     result.append({"name": "rpc-stop", "mode": "rpc", "route": "stop", "jobs": [job("setTimeout(()=>{},10000)")], "expected": ["stopped"]})
     for name, workflow, expected in [
-        ("monitor-typecheck", "pnpm exec tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --strict --skipLibCheck packages/monitor/index.ts", "success"),
-        ("monitor-regressions", "uv run --no-project --with pytest python -m pytest packages/monitor/tests/test_monitor_token_boundary.py -q", "success"),
-        ("compiler-diagnostic", "pnpm exec tsc --noEmit --strict --skipLibCheck __INVALID_FIXTURE__", "failure"),
+        ("monitor-typecheck", f"{compiler} --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --strict --skipLibCheck packages/monitor/index.ts", "success"),
+        ("monitor-regressions", f"{python} -m pytest packages/monitor/tests/test_monitor_token_boundary.py -q", "success"),
+        ("compiler-diagnostic", f"{compiler} --noEmit --strict --skipLibCheck __INVALID_FIXTURE__", "failure"),
     ]:
         command = f"if (cd '{REPO}' && {workflow}); then printf 'FINAL {{\"ok\":true}}\\n'; else code=$?; printf 'FAILED {{\"ok\":false,\"exitCode\":%s}}\\n' \"$code\"; exit \"$code\"; fi"
         result.append({"name": f"print-real-{name}", "mode": "print", "route": "direct", "expected": [expected],
@@ -72,7 +76,7 @@ def cases() -> list[dict]:
 
 
 def run_case(spec: dict) -> dict:
-    with tempfile.TemporaryDirectory(prefix="monitor-transport-") as raw:
+    with probe_directory(prefix="monitor-transport-") as raw:
         root = Path(raw)
         agent = root / "agent"
         agent.mkdir()
@@ -84,15 +88,16 @@ def run_case(spec: dict) -> dict:
         config = root / "spec.json"
         config.write_text(json.dumps(spec))
         trace = root / "trace.jsonl"
-        env = {**os.environ, "PI_CODING_AGENT_DIR": str(agent), "PI_OFFLINE": "1", "PI_TELEMETRY": "0",
+        env = {**private_env(root),
                "MONITOR_TRANSPORT_SPEC": str(config), "MONITOR_TRANSPORT_TRACE": str(trace)}
-        args = ["pi", "--offline", "-ne", "-ns", "-np", "-nc", "--no-session", "-e", str(FIXTURE),
+        args = pi_command() + ["--offline", "--no-approve", "-ne", "-ns", "-np", "-nc", "--no-session", "-e", str(FIXTURE),
                 "--model", "monitor-transport-offline/scripted"]
         if spec["route"] == "codemode":
             args += ["-e", "builtin:codemode", "--tools", "monitor_start,codemode"]
         args += ["--mode", "rpc"] if spec["mode"] == "rpc" else ["--print", "Verify the synthetic outcome."]
         child = subprocess.Popen(args, cwd=root, env=env, stdin=subprocess.PIPE if spec["mode"] == "rpc" else subprocess.DEVNULL,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        output = bytearray()
         try:
             if spec["mode"] == "rpc":
                 child.stdin.write(b'{"type":"prompt","message":"Verify the synthetic outcome."}\n')
@@ -101,8 +106,10 @@ def run_case(spec: dict) -> dict:
                 stopped = False
                 while time.monotonic() < deadline:
                     if select.select([child.stdout], [], [], 0.03)[0]:
-                        if not os.read(child.stdout.fileno(), 65536):
+                        chunk = os.read(child.stdout.fileno(), 65536)
+                        if not chunk:
                             break
+                        output.extend(chunk)
                     records = read_trace(trace)
                     starts = [r for r in records if r["kind"] == "tool_result" and r["event"]["toolName"] == "monitor_start"]
                     if spec["route"] == "stop" and starts and not stopped:
@@ -120,6 +127,8 @@ def run_case(spec: dict) -> dict:
                     raise AssertionError(f"RPC watchdog: {spec['name']}")
             else:
                 stdout, stderr = child.communicate(timeout=30)
+                output.extend(stdout)
+                (root / "stderr.bin").write_bytes(stderr)
                 assert child.returncode == 0, stderr.decode(errors="replace")
                 assert b"TRANSPORT_MATRIX_READY" in stdout
             records = read_trace(trace)
@@ -161,12 +170,20 @@ def run_case(spec: dict) -> dict:
                 else:
                     assert len(requests) == 2
                 if spec["expected"] == ["success"]:
-                    output = [m["content"] for r in requests[1:] for m in r["messages"] if m["role"] != "assistant"]
-                    assert "PRIVATE_TRANSPORT_LOG" not in json.dumps(output), spec["name"]
+                    result_context = [m["content"] for r in requests[1:] for m in r["messages"] if m["role"] != "assistant"]
+                    assert "PRIVATE_TRANSPORT_LOG" not in json.dumps(result_context), spec["name"]
             return {"name": spec["name"], "passed": True, "provider_requests": len(requests),
                     "monitors": len(spec["jobs"]), "custom_terminal_messages": len(sends)}
         finally:
             stop(child)
+            if spec["mode"] != "rpc":
+                stdout, stderr = child.communicate()
+                output = bytearray(stdout)
+                (root / "stderr.bin").write_bytes(stderr)
+            (root / "stdout.bin").write_bytes(output)
+            if spec["mode"] == "rpc":
+                assert child.stderr is not None
+                (root / "stderr.bin").write_bytes(child.stderr.read())
 
 
 def run_matrix() -> dict:

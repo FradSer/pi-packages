@@ -1,5 +1,32 @@
 # Native offline monitor verification
 
+## Current baseline: Pi 1.1.0 (2026-10-12)
+
+The workspace CLI and all 18 packages declaring Pi peers now resolve core
+modules to 1.1.0. Published host peer ranges remain wildcard compatible.
+The isolated native runner passed all **10 cases**: print text/JSON, standalone
+and mixed RPC, output consoles at 80x24, 40x6, 20x4 and 120x40, and complete
+value consoles at 80x24 and 40x6. The existing transport matrix passed
+**36 cases / 44 monitor calls / 75 scripted provider requests**, including
+actual project typechecking, boundary regressions and located compiler errors.
+These provider requests are in-process fixtures with no paid model calls.
+
+The runners select the workspace CLI, whitelist the child environment, isolate
+HOME and agent state, and deny ancestor project resources with `--no-approve`.
+The UI probe disables built-in tools while retaining the tested extension tools.
+Compilation uses the installed compiler directly, avoiding package downloads
+under the disposable HOME. Set `MONITOR_ACCEPTANCE_OUTPUT` to a fresh output
+parent to retain traces, raw stdout/stderr and PTY bytes on success or failure.
+The recorded terminal text reconstruction is not an OS screenshot.
+
+Current evidence is in `.artifacts/tester-army-integration/complete-gate-20261012/`,
+with original failures retained. This proves local deterministic behavior on
+macOS, not real-model quality improvement, Windows/Linux behavior, physical
+keyboard acceptance or a live resize of one component. Older measurements below
+retain their original versions and are not combined with this baseline.
+
+## Earlier verification records
+
 Verified on 2026-10-04 with the installed Pi CLI 1.0.0 on macOS.
 The complete six-case run also passed after package-local coding-agent and tui
 development dependencies were relinked to 1.0.0; the native TypeScript fixture

@@ -191,7 +191,7 @@ review/merge remains with continual-learning.
    outcomes retain honest authority.
 6. The receipt reports effective configuration. No invocation widens an existing
    role grant or creates a disk identity.
-7. Run affected tests, Pi 1.0.0 TypeScript checks, packed-resource validation,
+7. Run affected tests, Pi 1.1.0 TypeScript checks, packed-resource validation,
    isolated real Pi print/RPC verification and interactive TUI verification.
 8. Migration preserves originals, refuses conflicts and symlink escapes, and does
    not delete legacy worktrees or user output. No publication or remote writes.

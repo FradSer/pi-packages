@@ -6,6 +6,7 @@ import os
 import pty
 import select
 import signal
+import shutil
 import struct
 import subprocess
 import termios
@@ -16,15 +17,19 @@ from test_btw_package import PACKAGE, REPO
 
 
 def test_real_pi_tui_followups_cancel_scroll_resize_and_close(tmp_path: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    agent = tmp_path / "agent"
+    agent.mkdir(mode=0o700)
     record = tmp_path / "events.jsonl"
     master, slave = pty.openpty()
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 100, 0, 0))
     process = subprocess.Popen(
-        ["pi", "--offline", "--no-session", "--no-extensions", "--no-skills",
-         "--no-context-files", "--extension", str(PACKAGE / "index.ts"),
+        [shutil.which("node"), str(REPO / "node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js"), "--offline", "--no-session", "--no-extensions", "--no-skills",
+         "--no-context-files", "--no-prompt-templates", "--no-tools", "--extension", str(PACKAGE / "index.ts"),
          "--extension", str(PACKAGE / "tests/tui-fixture.ts"), "--tui-mode", "fullscreen"],
-        cwd=REPO, stdin=slave, stdout=slave, stderr=slave,
-        env={**os.environ, "TERM": "xterm-256color", "BTW_TUI_RECORD": str(record)},
+        cwd=project, stdin=slave, stdout=slave, stderr=slave,
+        env={"PATH": os.environ["PATH"], "HOME": str(tmp_path), "PI_CODING_AGENT_DIR": str(agent), "PI_OFFLINE": "1", "PI_TELEMETRY": "0", "TERM": "xterm-256color", "BTW_TUI_RECORD": str(record)},
         start_new_session=True,
     )
     os.close(slave)

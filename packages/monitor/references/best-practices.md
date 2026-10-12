@@ -1,6 +1,6 @@
 # Engineering practices and implementation comparison
 
-Reviewed on 2026-10-04. The compatibility baseline is the installed Pi 1.0.0
+Compatibility baseline updated on 2026-10-12 to workspace Pi 1.1.0
 CLI/types and Node 22.19.0 APIs. Current upstream documentation is checked
 against that installed contract before adopting an API.
 

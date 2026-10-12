@@ -1,11 +1,11 @@
-Feature: Development checks use one Pi core cohort across the split chain
+Feature: Development checks use one Pi core cohort across all extension packages
 
   Scenario: Host-provided Pi peers resolve to the root development version
-    Given kit, subagents, tasks and agent-teams publish Pi core as wildcard peers
-    And the user selected Pi 1.0.0 as the locked development cohort
+    Given all extension packages publish Pi core as wildcard peers
+    And the user selected Pi 1.1.0 as the locked development cohort
     And the root has that locked Pi development cohort
     When package-level verification resolves coding-agent or pi-tui
-    Then each split package uses the same version as the root
+    Then each extension package uses the same version as the root
     And explicit development requirements do not become published runtime dependencies
 
   Scenario: Fork history supports the selected core and old persisted tool metadata
@@ -20,3 +20,16 @@ Feature: Development checks use one Pi core cohort across the split chain
     When pnpm updates the split packages
     Then their peers stay wildcard compatible with the installed Pi host
     And only their development dependency requirements are pinned
+
+  Scenario: TypeBox is provided by the selected Pi host
+    Given Pi 1.1.0 bundles TypeBox 1.3.27
+    When an extension imports the host-provided schema library
+    Then its published TypeBox peer is wildcard compatible per the Pi package guide
+    And a development-only version requirement may select the tested schema version
+    And TypeBox is not bundled as an extension runtime dependency
+
+  Scenario: Shared native subagent acceptance uses the selected Pi cohort
+    Given the repository Pi core packages resolve to version 1.1.0
+    When the shared native subagent fixture validates its runtime
+    Then it admits exactly version 1.1.0 before running its isolated print and PTY cases
+    And stale version expectations cannot prevent those cases from exercising the runtime

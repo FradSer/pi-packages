@@ -118,3 +118,10 @@ Feature: Transparent image reading for text-only models
     When a tool execution returns an image result
     Then the extension does not call the vision model
     And the tool result continues unchanged
+
+  Scenario: Native attachment acceptance supplies a complete PNG
+    Given a complete generated PNG attachment and the selected Pi 1.1.0 runtime
+    When the existing offline provider harness submits the image
+    Then Pi retains the attachment on the original user message
+    And the configured vision bridge runs for a text-only main model
+    And a multimodal main model receives the original attachment without a bridge call

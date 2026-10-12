@@ -2,7 +2,7 @@
 "@fradser/pi-kit": patch
 "pi-matt-pocock": patch
 "@fradser/pi-monitor": patch
-"pi-utils": patch
+"@fradser/pi-utils": patch
 "@fradser/pi-agent-teams": patch
 ---
 
