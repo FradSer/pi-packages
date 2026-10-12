@@ -21,8 +21,9 @@ The five intent tools are the only child tool surface: `agent_start`, `agent_inp
 `agent_stop`, and `agent_list`. An explicit intent host selection
 remains selected, whether partial or complete. The loader cannot add excluded
 tools. Startup requires a prompt. `identity` selects an existing disk definition;
-`label` changes display only. Missing identities
-fail before effects. Do not combine a saved identity with temporary `instructions`.
+`label` changes display only. Pi projects the authored label to one lowercase
+hyphenated display name, so `Task SQL work` shows as `task-sql-work`. Missing
+identities fail before effects. Do not combine a saved identity with temporary `instructions`.
 
 `agent_input` requires `delivery: "next"` or `delivery: "steer"`. Next input starts
 once after current settlement and acknowledgement. A child holds at most eight
@@ -206,7 +207,8 @@ hosted deliveries; standalone durable execution keeps its private history and
 result owner. Library callers provide their own delivery callback.
 
 Every intent result paints one collapsed row. A single-child row reads
-`[tool] label · @name · status`. The name appears once, and the state word is not
+`[tool] label · @name · status`, where `@name` is one identifier-shaped token
+rather than the phrase a caller typed. The name appears once, and the state word is not
 repeated when the label already carries it. The authored prompt or steer headline
 stays on the row, because it is the work itself. The collapsed view fits the
 current width instead of applying a fixed-character headline; expansion wraps the

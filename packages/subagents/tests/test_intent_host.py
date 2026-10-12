@@ -53,7 +53,8 @@ def test_temporary_label_reaches_the_host_as_a_session_role(tmp_path: Path) -> N
     """, env_overrides={"PI_TEST_CWD": str(tmp_path), "PI_CODING_AGENT_DIR": str(tmp_path / "agent"), "HOME": str(tmp_path)})
     assert result["definition"]["description"] == "friendly label"
     assert result["definition"]["tools"] == ["read"]
-    assert result["receipt"]["label"] == "friendly label"
+    # The role keeps the authored purpose; the display name is its projected token.
+    assert result["receipt"]["label"] == "friendly-label"
 
 
 def test_steer_receipt_keeps_predecessor_id_after_late_ack(tmp_path: Path) -> None:

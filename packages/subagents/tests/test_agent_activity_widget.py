@@ -252,3 +252,15 @@ def test_session_switch_remounts_and_shutdown_unsubscribes(tmp_path: Path) -> No
     assert len(result['restored']) == 1
     assert result['widgets'] == 0
     assert result['lateMounts'] == 0
+
+
+def test_the_activity_area_names_a_child_by_one_identifier_token(tmp_path: Path) -> None:
+    """The working row above the editor is a display surface too: it reads the
+    roster label, so it carries the same one-token name as every other row."""
+    result = run("""
+      const pending=call({name:'Task SQL measured optimization',prompt:'1+1'});acknowledge(true);await pending;
+      console.log(JSON.stringify({rows:lines()}));
+    """, tmp_path)
+    assert len(result['rows']) == 1
+    assert 'task-sql-measured-optimization' in result['rows'][0]
+    assert 'Task SQL measured optimization' not in result['rows'][0]

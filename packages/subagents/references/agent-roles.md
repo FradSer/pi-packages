@@ -9,7 +9,8 @@ Read [VISION.md](../VISION.md) for the identity and lifecycle contract, and
 
 Give `agent_start` a prompt and the tools needed for that input.
 Add temporary `instructions` when standing guidance helps. A `label` changes display
-only; it cannot select saved identity. No durable home or Memory is created.
+only; it cannot select saved identity. Give the label as words, and Pi projects it to
+one lowercase hyphenated display name, so `Task SQL work` shows as `task-sql-work`. No durable home or Memory is created.
 Recorded legacy branches use `agent` with `description` and `role_prompt`.
 
 The start receipt confirms accepted input, not the answer. The complete result

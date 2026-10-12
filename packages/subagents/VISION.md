@@ -24,6 +24,8 @@ creating a definition later.
 The intent interface separates `identity`, `label`, and the exact session handle.
 An explicit identity selects a valid disk definition; a missing identity is refused.
 A label changes display only. It never selects identity or changes private storage.
+It is projected to one lowercase hyphenated name, because a row names the child in
+one token.
 Temporary instructions cannot accompany a saved identity. Explicit tools only
 narrow its ceiling. The definition resolver retains its original precedence.
 

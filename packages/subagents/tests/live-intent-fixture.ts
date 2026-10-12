@@ -59,7 +59,7 @@ export default function (pi: ExtensionAPI): void {
       const index = request++;
       const call: ToolCall | undefined = index === 0
         ? { type: "toolCall", id: "start", name: "agent_start", arguments: {
-            prompt: "FIRST INPUT", label: "native-intent", tools: [], model: "intent-loopback/fixture",
+            prompt: "FIRST INPUT", label: process.env.PI_INTENT_LABEL ?? "native-intent", tools: [], model: "intent-loopback/fixture",
             ...(savedIdentity ? {identity:"native-saved"} : {}) } }
         : index === 1 ? { type: "toolCall", id: "next", name: "agent_input", arguments: {
             session: handle, prompt: steering ? "STEER_INPUT" : "SECOND INPUT", delivery: steering ? "steer" : "next" } }

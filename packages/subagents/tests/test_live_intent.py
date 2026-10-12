@@ -15,6 +15,8 @@ import pytest
 from native_support import LoopbackServer, NativeTui
 
 REPO = Path(__file__).resolve().parents[3]
+PROSE_LABEL = "Task SQL measured optimization"
+PROSE_LABEL_ENV = {"PI_INTENT_LABEL": PROSE_LABEL}
 
 
 def assert_confirmed_stop(report: dict[str, object]) -> None:
@@ -32,6 +34,7 @@ def assert_confirmed_stop(report: dict[str, object]) -> None:
     ("print", "configured", False), ("print", "configured", True),
     ("print", "stop-pending", False), ("print", "saved-identity", False),
     ("print", "steer", False), ("print", "rejected-stop", False),
+    ("print", "prose-label", False), ("tui", "prose-label", False),
     ("tui", "configured", False), ("tui", "stop-pending", False),
     ("tui", "steer", False), ("tui", "rejected-stop", False),
 ])
@@ -90,8 +93,10 @@ def test_native_next_input_keeps_history_and_result_ids(tmp_path: Path, interfac
     evidence = tmp_path / "intent-evidence.json"
     env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path), "PI_CODING_AGENT_DIR": str(agent_dir),
            "PI_OFFLINE": "1", "PI_INTENT_AUTH": credential, "PI_INTENT_EVIDENCE": str(evidence),
-           "PI_INTENT_CONFIGURED": "1", "PI_INTENT_CASE": case}
+           "PI_INTENT_CONFIGURED": "1", "PI_INTENT_CASE": case,
+           **({**PROSE_LABEL_ENV} if case == "prose-label" else {})}
     cli = REPO / "node_modules" / "@earendil-works" / "pi-coding-agent" / "dist" / "cli.js"
+    screen = ""
     try:
         command = ["node", str(cli), "--no-session", "--no-skills",
                    "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve",
@@ -106,6 +111,9 @@ def test_native_next_input_keeps_history_and_result_ids(tmp_path: Path, interfac
         else:
             with NativeTui(command, cwd=tmp_path, env=env, rows=28, columns=70, timeout=40) as tui:
                 tui.wait_for(lambda: "NATIVE_INTENT_OK" in tui.screen())
+                # Captured before the resize, so the assertion reads the composer
+                # at the width the rows were first painted at.
+                screen = tui.screen()
                 tui.send(b'\x0f')
                 tui.resize(45)
                 tui.send(b'/quit\r')
@@ -160,6 +168,21 @@ def test_native_next_input_keeps_history_and_result_ids(tmp_path: Path, interfac
             assert (home / "memory" / "MEMORY.md").is_file()
             assert list((home / "projects").glob("*/parents/parent-*/session/*.jsonl"))
             assert definition.read_text().endswith("SAVED_IDENTITY_INSTRUCTIONS\n")
+        elif case == "prose-label":
+            # One real Pi process, one real composer: the display name a row reads
+            # is one identifier-shaped token, and the authored phrasing is absent.
+            authored = PROSE_LABEL
+            projected = "task-sql-measured-optimization"
+            assert report["receipts"][0]["label"] == projected, report["receipts"][0]
+            assert [notice["name"] for notice in report["notices"]] == [projected] * 2, report["notices"]
+            stopped_rows = [row for row in report["controls"][0]["details"].get("sessions", [])
+                            if row["status"] == "stopped"]
+            assert report["controls"][0]["details"]["state"] == "stopped", report["controls"][0]
+            assert report["controls"][0]["details"]["label"] == projected, report["controls"][0]
+            assert all(row["label"] == projected for row in stopped_rows), stopped_rows
+            if interface == "tui":
+                assert f"@{projected}" in screen, screen
+                assert authored not in screen, screen
         else:
             assert not (agent_dir / "agents").exists()
     finally:
