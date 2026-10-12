@@ -49,6 +49,6 @@ that ignore SIGTERM; shutdown must still escalate to SIGKILL. The package
 ships `index.ts`, `src`, `references`, and `README.md`. Read
 @references/best-practices.md when changing resource or structured-output
 contracts. Keep core peer ranges `"*"` per Pi's
-package guide; pin development validation to the Pi v1 cohort. The explicit
+package guide; pin development validation to the Pi v1.1.0 cohort. The explicit
 native runner uses an isolated agent directory and local scripted provider;
 its CLI/RPC/PTY coverage is recorded in @tests/native-verification-current.md.

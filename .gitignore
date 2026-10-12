@@ -375,3 +375,7 @@ pyrightconfig.json
 # Pi's own runtime state: goal ledger, harness overrides, worktrees.
 # Not source, and a checkout should never carry another session's goals.
 .pi/
+
+# Official e2e runner output and local verification evidence
+.e2e/
+.artifacts/tester-army-integration/

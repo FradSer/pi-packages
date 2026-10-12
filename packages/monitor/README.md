@@ -19,7 +19,7 @@ In TUI and RPC sessions, a tool batch containing only `monitor_start` calls
 returns compact acknowledgements and ends the current agent turn. Do not poll;
 wait for each terminal result to wake the agent. A mixed batch containing other
 tools, or a nested monitor call, waits inside `monitor_start` and returns its
-terminal result directly: Pi v1.0 terminates a batch only when all its results
+terminal result directly: Pi v1.1.0 terminates a batch only when all its results
 request termination. While monitors run, one
 above-editor activity row per running monitor (`monitor · <description>`, Pi's
 native spinner cadence) keeps the background work visible even though the agent
@@ -89,7 +89,7 @@ instructions, or user intent.
 
 ## Installation
 
-Compatibility baseline: Pi v1.0.0, Node.js 22.19.0 or newer, and POSIX process
+Compatibility baseline: Pi v1.1.0, Node.js 22.19.0 or newer, and POSIX process
 groups. Native CLI/RPC/TUI acceptance is verified on macOS; Linux and Windows
 are not validated by this suite. Pi supplies the core peer dependencies with
 the `"*"` ranges required by its package loader. Development dependencies pin

@@ -66,7 +66,6 @@ pi install npm:@fradser/pi-context
 
 学习 worker 的读取范围和事务回滚所有权现在由代码限制。旧作用域首次访问时自动绑定 canonical cwd，后续碰撞被拒绝；Memory 元数据以不可信参考上下文提供。升级说明见包内 README。
 
-
 从完成的任务证据中学习：Memory 积累可复用知识，在生成前注入相关性索引，需要时读取全文；Harness 将可执行的约束交给运行检查，包括 Bash 确认和阻止，skill/text 规则则提供有范围的提示。规划模型提出方案，父进程验证证据、隐私、规则正反样例和所有权后应用。也可通过 `/consolidate` 显式整理。存量 `policies`/`skillPrompts` 通过只读兼容保留原有保护，包括已有 output/artifact 检查。
 
 **命令：** `/memory` 打开 Browse memories、Learning settings 和 Recent learning；`/memory <request>` 记录明确的 Memory 请求；`/consolidate` 学习当前任务；`/consolidate full` 执行完整维护；`/harness` 打开规则面板；`/harness <request>` 默认在项目共享配置中编写规则。
@@ -115,7 +114,7 @@ pi install npm:pi-keyboard
 
 ### [`pi-matt-pocock`](packages/matt-pocock/)
 
-提供持久化 Pi v1.0 工作流 harness，覆盖 BDD、TDD、实现、评审、调试、架构、调研、规划、教学、skill 编写、PR 正文与会话复盘。
+提供持久化 Pi v1.1.0 工作流 harness，覆盖 BDD、TDD、实现、评审、调试、架构、调研、规划、教学、skill 编写、PR 正文与会话复盘。
 
 **工具：** `matt_pocock_workflow`
 
@@ -129,7 +128,7 @@ pi install npm:pi-matt-pocock
 
 ### [`@fradser/pi-monitor`](packages/monitor/)
 
-按明确的结果契约运行输出繁杂的有限命令，返回一条结构化终态结果。有限工作流建议使用 `completion="exit"`，最终验证后等待退出码为零，并校验捕获的 JSON；默认匹配模式在首次终态匹配时停止进程组。Pi v1.0 中仅含 monitor 的界面工具批次异步唤醒；混合批次、codemode 和无界面调用直接返回终态。输出背压、大小限制和相同捕获值的引用去重控制上下文开销，`/monitor` 提供可滚动的诊断。
+按明确的结果契约运行输出繁杂的有限命令，返回一条结构化终态结果。有限工作流建议使用 `completion="exit"`，最终验证后等待退出码为零，并校验捕获的 JSON；默认匹配模式在首次终态匹配时停止进程组。Pi v1.1.0 中仅含 monitor 的界面工具批次异步唤醒；混合批次、codemode 和无界面调用直接返回终态。输出背压、大小限制和相同捕获值的引用去重控制上下文开销，`/monitor` 提供可滚动的诊断。
 
 可选 `compact=true` 成功回复保留必要数据，通过原生调用关联省去重复元数据。设计对照实验中，八任务 codemode 批量执行保留完整 JSON，比八次独立 bash 调用降低 61.2–76.3% 的累计输入估算；同样任务合并成一次 bash 则更便宜。按任务需要选择监控契约。方案对比、载荷校验、调度及超时差异、包测试结果见[包 README](packages/monitor/README.md#design-alternatives-and-adopted-optimization)。 [提示词注入](packages/monitor/README.md#injected-execution-policy)现已每轮检查当前启用工具：codemode 是可选能力，bash 可用时才推荐分组，否则使用直接 monitor 调用；文档列出各能力组合的提示词成本。
 
@@ -245,10 +244,14 @@ pi install npm:@fradser/pi-vision
 
 ## 开发
 
+工作区开发需要 Node.js 22 分支的 22.22.3 及以上版本，或 Node.js 24.8 及以上版本，与官方 e2e 运行时要求一致。
+
 ```bash
 pnpm install
 pnpm test
 pnpm typecheck
+pnpm typecheck:e2e
+pnpm test:e2e
 pnpm pack:check
 # 或一次运行全部检查
 pnpm check
@@ -256,11 +259,71 @@ pnpm check
 
 每个包将行为场景放在 `features/`，测试放在 `tests/`。
 
-`pnpm check` 会运行包测试和根目录 pytest 测试、扩展 TypeScript 项目检查，以及对每个工作区包进行无需访问 registry 的打包清单检查。使用 `pnpm check:install` 可以单独审计当前 Pi 设置文件中的已安装包。
+### BDD → TDD → E2E
+
+先用 Given/When/Then 定义可观察的行为，再复现行为失败（RED），通过小范围失败测试推动最小实现变为 GREEN，验证完整运行链路，最后在相关检查保持绿色的前提下重构。`.feature` 文件表达验收标准，已有 Python／TypeScript 测试负责执行；不自动转换 Gherkin。TDD 是开发循环，不要求将所有进程或扩展集成测试改写成纯单元测试。
+
+E2E 失败后，先保留失败报告和 trace，再对照 BDD 需求定位。若为产品缺陷，补充或复用能复现问题的 RED 回归，修复产品代码，重跑受影响测试及真实 Pi E2E，再用完整默认套件确认运行验收。若为断言错误，依据未变的需求修测试；若为基础设施故障，修环境后重跑；预期失败的负例无需修产品代码。不能弱化断言或改写需求来制造通过，原失败与修复证据一起保留。只有要求的行为变化时才更新 BDD 合同。本地修复遵循已有授权；E2E 结果不授权生产写入或付费调用。
+
+新增 monitor 修复时，在实现前记录失败测试及具体断言。依赖缺失或进程启动错误是验证阻碍，不能算行为 RED。下表对应已有测试，不声称本次文档修改重新制造了历史 RED。
+
+| BDD 场景或条款 | 已有可执行检查 | 覆盖范围与证据 |
+| --- | --- | --- |
+| [A real Pi session receives the result of its monitored child command](features/tester-army-e2e.feature) | [monitor-native.e2e.ts](tests/official-e2e/monitor-native.e2e.ts)：`real Pi delivers its monitored child result to the original session` | 完整无界面验收：一次 `monitor_start` 和终态、调用身份一致、成功且匹配 `DONE_NATIVE`、下一请求晚于终态、一次最终回答、没有重复自定义消息。 |
+| 同一场景：返回的 provider 上下文排除私有进度 | 同一 E2E 检查，复用 [native-fixture.ts](packages/monitor/tests/native-fixture.ts) | 真实 Pi 执行先输出 `PRIVATE_PROGRESS`、再输出 `DONE_NATIVE` 的子进程；返回工具内容必须包含终态、排除进度。原生 `events.jsonl` 和 `pi.jsonl` 保留证据链。 |
+| [A mixed tool batch waits for the terminal contract](packages/monitor/features/delivery-boundaries.feature) | [test_monitor_delivery_boundaries.py](packages/monitor/tests/test_monitor_delivery_boundaries.py)：`test_mixed_batch_waits_before_the_next_provider_request` | 扩展／agent-loop 小范围回归：第二次请求已收到终态，且没有重复消息。它使用 UI-host harness，与无界面 E2E 是不同路径。 |
+| [Complete records establish the success candidate](packages/monitor/features/exit-completion.feature) | [test_monitor_exit_completion.py](packages/monitor/tests/test_monitor_exit_completion.py)：`test_exit_waits_for_complete_records_and_keeps_first_success` | 真实进程匹配回归：验证 `completion: exit` 下完整记录／EOF 与首个成功结果。原生 match 模式示例不覆盖此 exit 契约；另有 monitor-workflows 用例验证 exit 模式交付。 |
+| 同一 exit-completion feature：终态仅通知一次的回归 | 同一测试文件：`test_exit_first_json_candidate_is_not_replaced_and_delivers_once` | 检查首个 JSON 候选、有效性及每个 monitor 仅一个终态事件；支持 manager 正确性，不能单独证明真实 Pi 中的交付。 |
+
+在仓库根目录运行示例，不调用付费模型：
+
+```bash
+uv run --no-project --with pytest python -m pytest packages/monitor/tests/test_monitor_delivery_boundaries.py packages/monitor/tests/test_monitor_exit_completion.py -q
+pnpm typecheck:e2e
+pnpm test:e2e --grep 'real Pi delivers its monitored child result to the original session'
+pnpm test:e2e
+```
+
+实现变更还须运行受影响包测试及现有类型／打包检查。`pnpm check` 已在打包校验前包含 E2E 类型检查和默认零付费套件；单独的 E2E CI 任务还负责保留报告。检查 `.e2e/report.json`、`junit.xml`、`summary.md`、失败用例的 `results/*/trace.md`，以及 `.e2e/native-monitor-*/events.jsonl`、`pi.jsonl`、`stderr.txt`。需要保留连续运行报告时，使用 `--output .artifacts/tester-army-integration/<unique-run>`；普通运行会覆盖对应输出目录中的报告和 results。原生 monitor 证据另存于独立唯一目录。保留原失败，不择优保留重跑成功结果。
+
+此示例只证明确定性进程内 provider 下的无界面 monitor 交付；TUI 输入／缩放、RPC 对话、其他并发／exit 契约和真实模型质量须分别验证。AI 证据分类不能代替精确断言，也不构成代码质量收益。
+
+日常项目验收直接运行 `pnpm check`，无需付费模型。[monitor-workflows.e2e.ts](tests/official-e2e/monitor-workflows.e2e.ts) 通过真实 Pi／monitor 执行项目实际类型检查，并验证隔离的错误 TypeScript 文件返回可定位的编译诊断；另外四例防止后续非零退出、无效 JSON、早期成功候选后的超时，以及缺失完成标记被误报为成功。全部复用现有 [transport fixture](packages/monitor/tests/transport-matrix-fixture.ts)，在 `.e2e/native-monitor-*` 保留输入及原生输出。这些验证实际运行合同；错误源码是测试输入，不是新发现的项目缺陷，故意失败的补丁也只证明回归敏感性。原 AI 实验已停用，失败和费用仍作为历史证据保留。
+
+### 选择验收方式
+
+BDD 定义可观察行为，TDD 通过 RED → GREEN → REFACTOR 推动最小实现，E2E 验证完整运行路径。三者共享合同，覆盖不同故障风险；复用包测试和 fixture，不必在每层重复全部断言。
+
+monitor 的确定性结果直接通过已有真实 Pi 流程和精确 `expect` 断言验收，对同一份 JSON 再做 `agent.assert` 没有新增覆盖。当前编译／终态用例的命令、场景和完成合同都是固定的，也无需 `agent.act`。现阶段没有可提供独立覆盖的 monitor AI 场景，因此停用原 AI 执行／判断和证据分类入口。
+
+仅当自主操作能增加固定交互难以合理覆盖的行为时引入 `agent.act`；仅当某项明确的语义或视觉要求难以用精确断言表达时引入 `agent.assert`，先说明判断依据和覆盖缺口。确定性数值仍用精确断言，不要求每例都串联 `agent.act → agent.assert → expect`。未来新增付费用例须获得明确授权并预留失败及重试费用。
+
+### 接入场景完整对应表
+
+下表覆盖 [tester-army-e2e.feature](features/tester-army-e2e.feature) 的每个场景。Feature 标签只用于说明，不会在官方 runner 中筛选 TypeScript 测试。
+
+| 场景 | 可执行检查或验证方式 | 状态／边界 |
+| --- | --- | --- |
+| Default CI execution retains actionable reports without paid calls | [e2e.config.ts](e2e.config.ts)、[e2e.yml](.github/workflows/e2e.yml)，检查 runner 报告及远程 workflow 上传 | 人工 CI 验收。本地 CI 模式可证明报告生成；远程 artifact 上传仍待 workflow 实际运行验证。 |
+| Valid isolated package settings pass the real CLI audit | [installation.e2e.ts](tests/official-e2e/installation.e2e.ts)：`complete workspace settings pass the installation CLI` | 默认零付费 E2E。 |
+| A dead source is reported as a failing audit | 同一文件：`dead package sources fail with a located diagnostic` | 默认零付费 E2E；预期安装失败属于通过的负例。 |
+| A real Pi session receives the result of its monitored child command | [monitor-native.e2e.ts](tests/official-e2e/monitor-native.e2e.ts)：`real Pi delivers its monitored child result to the original session` | 默认零付费无界面 match 模式验收。 |
+| A real Pi startup failure retains subprocess diagnostics | 同一文件：`real Pi startup failures retain subprocess diagnostics` | 默认零付费回归；Pi 拒绝 provider 时仍保留 stdout/stderr，随后移除临时设置。这证明诊断保留，不代表 monitor 执行成功。 |
+| Real Pi confirms finite verification outcomes through monitor | [monitor-workflows.e2e.ts](tests/official-e2e/monitor-workflows.e2e.ts): `real Pi confirms a successful project typecheck`; `real Pi returns located compiler errors for a failed verification` | 默认零付费真实编译流程；校验成功 JSON 和可定位 TS2322 失败。 |
+| Real Pi does not mistake intermediate output for completed verification | Same file: `real Pi rejects a success sentinel followed by a nonzero exit`; `real Pi rejects malformed JSON completion`; `real Pi reports a deadline after a success candidate`; `real Pi rejects a zero exit without its required result` | 默认零付费 exit 模式终态与返回内容检查；不覆盖 TUI／RPC。 |
+| Deterministic monitor acceptance has no model entry point | [test_official_e2e.py](tests/test_official_e2e.py)：`test_deterministic_monitor_acceptance_has_no_model_entry_point`、`test_developer_docs_have_one_complete_integration_section` | 零付费根 pytest，核验当前脚本／配置／依赖及场景对应。 |
+
+官方 [tester.army/e2e](https://e2e.tester.army/docs) 命令行检查使用 `pnpm test:e2e` 运行，使用 `pnpm typecheck:e2e` 检查类型。固定版本的 runner 采用无引擎目标，以临时设置和精确断言验证现有安装审计命令；未配置模型、API 密钥、浏览器、自定义引擎或适配层。修改这些测试前阅读 @.agents/skills/e2e/SKILL.md。报告位于 Git 忽略的 `.e2e/`；使用 `pnpm test:e2e --reporter list,junit,markdown --trace on` 保留 trace 页面。用例还通过现有离线 monitor fixture 启动工作区真实 Pi CLI，验证 monitor_start 执行真实子进程、终态仅一次回到原会话，以及进度不进入返回的 provider 上下文。每次使用临时 HOME／agent 设置，原生 JSONL 证据保存在 `.e2e/native-monitor-*`。fixture provider 在进程内确定性执行；这证明无界面 monitor 交付，不代表 TUI／RPC、远程模型行为或一般 AI 测试收益；增加模型步骤需另行授权。
+
+@e2e.config.ts 默认生成 JSON、JUnit 和 Markdown 报告，并保留失败尝试的 trace。稳定项目标识用于确定性 CLI 检查；单 worker、零自动重试用于隔离和复现，官方缓存默认行为保持不变。@.github/workflows/e2e.yml 在 PR、main 推送和手动触发时使用 Node 26、冻结 lockfile，运行类型检查和零付费套件。任务仅有读取权限，无模型凭证；失败时也保留免费报告及原生证据七天。配置依据官方[配置参考](https://e2e.tester.army/docs/reference/config)与 [CI 指引](https://e2e.tester.army/docs/ci/github-actions)。
+
+原 AI 实验见[monitor E2E AI 历史记录](docs/history/monitor-e2e-ai.md)。原源码、冻结协议、失败报告、输入及费用账本保留在本地忽略目录，不参与 pytest、TypeScript 或官方 runner 的当前收集。停用重复测试不会把历史失败改成通过，也不释放原保守费用预留；不宣称历史质量收益。
+
+`pnpm check` 会运行包和根目录 pytest、扩展和 E2E 类型检查、默认零付费官方 CLI E2E 套件，以及无需访问 registry 的打包清单检查。使用 `pnpm check:install` 可以单独审计当前 Pi 设置文件中的已安装包。
 
 测试需要 Python 3、`pytest` 以及供子进程测试使用的 Bun 1.4.1。CI 工作流会在运行 `pnpm check` 前安装这两个运行时。
 
-`kit` / `subagents` / `tasks` / `agent-teams` 开发链显式选用根仓库的 Pi 1.0.0 验证版本；发布清单中的 Pi core 仍是由宿主提供的 `"*"` peers，不是运行时依赖。@features/pi-core-cohort.feature 和 @tests/test_pi_core_cohort.py 同时检查实际模块解析与清单。
+开发与验证基线为 Pi **1.1.0**。工作区 overrides 固定核心版本（包括自动安装的 peers），回归检查全部 18 个声明 Pi peers 的包实际解析结果；发布清单中的 Pi core 仍是由宿主提供的 `"*"` peers，不是运行时依赖。@features/pi-core-cohort.feature 和 @tests/test_pi_core_cohort.py 同时检查实际模块解析与清单。
 
 在仓库根目录执行 `pnpm --dir packages/<name> pack --dry-run` 可以检查单个包将要发布的文件。
 

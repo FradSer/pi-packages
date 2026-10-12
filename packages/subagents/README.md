@@ -325,7 +325,7 @@ worktrees or user output. See [AUTHORITY.md](AUTHORITY.md) before migrating.
 
 ## Activation, UI and child contributions
 
-The validation cohort is Pi **1.0.0**. Tool selection is availability, **not** a
+The validation cohort is Pi **1.1.0**. Tool selection is availability, **not** a
 security authorization gate: delegation still needs user or applicable instruction
 authorization and any host permission policy. No model-controlled `authorized`
 flag or extra user-interaction tool is introduced. The intent tools are

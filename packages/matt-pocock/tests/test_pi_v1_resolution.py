@@ -35,7 +35,7 @@ def test_package_resolves_pi_v1_without_narrowing_published_peers() -> None:
     )
     assert process.returncode == 0, process.stderr
     result = json.loads(process.stdout)
-    assert set(result.values()) == {"1.0.0"}, result
+    assert set(result.values()) == {"1.1.0"}, result
     manifest = json.loads((PACKAGE / "package.json").read_text())
     for name in result:
         assert name not in manifest.get("dependencies", {})

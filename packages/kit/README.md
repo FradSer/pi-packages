@@ -8,7 +8,7 @@ peers — `@earendil-works/pi-tui`, the bundled core TUI library pi reifies for
 every extension module it loads and kit imports for shared live-activity
 markdown rendering, and `@earendil-works/pi-coding-agent`, which its worker CLI
 probe resolves at runtime — per pi's package guide for core imports. It has no
-`dependencies` at all. Development-only Pi dependencies select the same 1.0.0
+`dependencies` at all. Development-only Pi dependencies select the same 1.1.0
 cohort as the repository root and the subagents/tasks/agent-teams chain; they do
 not replace the published wildcard peer contract. See
 @../../features/pi-core-cohort.feature when changing that selection.

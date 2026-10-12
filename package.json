@@ -10,22 +10,25 @@
     "publish": "pnpm check && node scripts/publish-release.mjs",
     "publish:dry-run": "pnpm pack:check",
     "typecheck": "pnpm exec tsc --noEmit -p tsconfig.extensions.json",
-    "check": "pnpm test && pnpm typecheck && pnpm pack:check",
-    "pack:check": "node scripts/publish-release.mjs --check"
+    "check": "pnpm test && pnpm typecheck && pnpm typecheck:e2e && pnpm test:e2e && pnpm pack:check",
+    "pack:check": "node scripts/publish-release.mjs --check",
+    "test:e2e": "E2E_TELEMETRY_DISABLED=1 e2e run",
+    "typecheck:e2e": "tsc --noEmit -p tsconfig.e2e.json"
   },
   "devDependencies": {
     "@babel/parser": "^7.29.9",
     "@changesets/cli": "^3.0.0",
-    "@earendil-works/pi-ai": "^1.0.0",
-    "@earendil-works/pi-coding-agent": "^1.0.0",
-    "@earendil-works/pi-tui": "^1.0.0",
+    "@earendil-works/pi-ai": "^1.1.0",
+    "@earendil-works/pi-coding-agent": "^1.1.0",
+    "@earendil-works/pi-tui": "^1.1.0",
     "@types/node": "^26.4.0",
+    "e2e": "0.19.0",
     "tsx": "^4.19.0",
     "typebox": "^1.3.12",
     "typescript": "^7.0.2"
   },
   "engines": {
-    "node": ">=20"
+    "node": "^22.22.3 || >=24.8.0"
   },
   "type": "module",
   "packageManager": "pnpm@11.21.0+sha512.521705bce689924eac72f5a3587122f362689ef6571e55ba80076fd637c11132ecffada26fad4ea79c485bfddbfd3d5a2a5b05805a77e893de71ec8a6cca3bb1"

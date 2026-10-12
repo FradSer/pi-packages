@@ -354,3 +354,10 @@ Feature: Result-contract background monitoring
     Then the system guidance recommends monitor_start for noisy, long-running, or asynchronous work
     And the system guidance does not require a special command suffix
     And the system guidance does not claim that synchronous bash is blocked
+
+  Scenario: Native acceptance uses the selected Pi 1.1.0 baseline in isolation
+    Given the workspace resolves Pi 1.1.0 and a local scripted provider
+    When native print, RPC or TUI verification starts
+    Then the workspace CLI executes with private HOME and agent settings
+    And inherited provider credentials and unrelated tools are absent
+    And native inputs, terminal output and results are retained when an output directory is requested

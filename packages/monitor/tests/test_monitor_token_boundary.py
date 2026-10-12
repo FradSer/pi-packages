@@ -8,7 +8,7 @@ import shlex
 import subprocess
 import tempfile
 
-from live_monitor import stop
+from live_monitor import pi_command, private_env, stop
 
 FIXTURE = Path(__file__).with_name("token-provider-fixture.ts")
 
@@ -24,9 +24,9 @@ def native_context(tool: str, code: str, **oracle: object) -> list[dict]:
         loaded = tool in ("monitor_start", "codemode")
         spec = {"name": "boundary", "loaded": loaded, "tool": tool, "repeats": 1,
                 "command": "node -e " + shlex.quote(code), "result_pattern": "^DONE (?<json>.*)$", **oracle}
-        env = dict(os.environ, PI_CODING_AGENT_DIR=str(agent), PI_OFFLINE="1", PI_TELEMETRY="0",
+        env = dict(private_env(root),
                    TMPDIR=str(tasktmp), PI_MONITOR_TOKEN_SPEC=json.dumps(spec), PI_MONITOR_TOKEN_TRACE=str(trace))
-        args = ["pi", "--offline", "-ne", "-ns", "-np", "-nc", "--no-session", "-e", str(FIXTURE),
+        args = pi_command() + ["--offline", "-ne", "-ns", "-np", "-nc", "--no-session", "-e", str(FIXTURE),
                 "--model", "monitor-token-offline/scripted", "--tools", "bash,monitor_start" if loaded else "bash",
                 "--print", "Verify the command outcome."]
         if tool == "codemode":

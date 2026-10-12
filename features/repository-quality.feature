@@ -29,3 +29,17 @@ Feature: Repository quality gates
     When the repository checks source visibility
     Then each declared runtime source is visible to version control
     And pack validation can include those sources in a fresh checkout
+
+  Scenario: The daily quality gate includes official CLI acceptance without a model
+    Given the workspace uses the official e2e runner and isolated offline Pi fixtures
+    When a contributor runs pnpm check
+    Then E2E types and the default real CLI acceptance suite run before packed-manifest validation
+    And no paid evidence-classification test or provider credentials are used
+
+  Scenario: Changeset validation reads real YAML frontmatter
+    Given a pending Changeset with ordinary newline-delimited frontmatter
+    When its package name matches a workspace manifest
+    Then validation accepts it
+    When it names an unknown or retired package
+    Then validation fails with that package name
+    And existing release metadata references current workspace package names

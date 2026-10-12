@@ -7,7 +7,11 @@ overrides:
   brace-expansion: ^5.0.12
   shell-quote: ^1.11.0
   source-map-js: ^1.2.2
-  '@earendil-works/pi-coding-agent@0.84.1>undici': 8.10.2
+
+  # Freeze the user-selected verification cohort, including auto-installed peers.
+  '@earendil-works/pi-coding-agent': 1.1.0
+  '@earendil-works/pi-ai': 1.1.0
+  '@earendil-works/pi-tui': 1.1.0
 
 allowBuilds:
   "@google/genai": true
@@ -15,14 +19,14 @@ allowBuilds:
   protobufjs: true
 
 minimumReleaseAgeExclude:
-  - '@earendil-works/chord@1.0.0'
-  - '@earendil-works/pi-agent-core@1.0.0'
-  - '@earendil-works/pi-ai@1.0.0'
-  - '@earendil-works/pi-codemode@1.0.0'
-  - '@earendil-works/pi-coding-agent@1.0.0'
-  - '@earendil-works/pi-mcp@1.0.0'
-  - '@earendil-works/pi-telemetry@1.0.0'
-  - '@earendil-works/pi-tui@1.0.0'
+  - '@earendil-works/chord@1.1.0'
+  - '@earendil-works/pi-agent-core@1.1.0'
+  - '@earendil-works/pi-ai@1.1.0'
+  - '@earendil-works/pi-codemode@1.1.0'
+  - '@earendil-works/pi-coding-agent@1.1.0'
+  - '@earendil-works/pi-mcp@1.1.0'
+  - '@earendil-works/pi-telemetry@1.1.0'
+  - '@earendil-works/pi-tui@1.1.0'
 
 onlyBuiltDependencies:
   - esbuild

@@ -70,7 +70,7 @@ def test_intent_rows_use_readable_subjects_and_hide_handles_until_expanded() -> 
         // expansion, and a count that says "all of them" says nothing.
         rows.agent_list = { collapsed: render("agent_list", listed, false), expanded: render("agent_list", listed, true) };
         assert.ok(rows.agent_list.collapsed.includes("[agent] listed"), rows.agent_list.collapsed);
-        assert.ok(!/\d+ of \d+/.test(rows.agent_list.collapsed), rows.agent_list.collapsed);
+        assert.ok(!/\\d+ of \\d+/.test(rows.agent_list.collapsed), rows.agent_list.collapsed);
         assert.ok(!rows.agent_list.collapsed.includes("reviewer"), rows.agent_list.collapsed);
         assert.ok(rows.agent_list.expanded.includes("reviewer") && rows.agent_list.expanded.includes(handle), rows.agent_list.expanded);
         // The roster carries each child's live facts, printed once, after expansion.
@@ -125,13 +125,13 @@ def test_actual_intent_results_retain_friendly_label_for_controls() -> None:
         const listed = await executeIntentTool("agent_list", {}, options);
         for (const [operation, value] of Object.entries({ agent_input: steered, agent_stop: stopped })) {
           const collapsed = render(operation, value, false);
-          assert.ok(collapsed.includes("@friendly reviewer"), `${operation}: ${collapsed}`);
+          assert.ok(collapsed.includes("@friendly-reviewer"), `${operation}: ${collapsed}`);
           assert.ok(!collapsed.includes(session), `${operation} leaked exact handle: ${collapsed}`);
           assert.ok(render(operation, value, true).includes(session), `${operation} hid exact handle on expansion`);
         }
         const listCollapsed = render("agent_list", listed, false);
         assert.ok(listCollapsed.includes("[agent] listed") && !listCollapsed.includes(session), listCollapsed);
-        assert.ok(render("agent_list", listed, true).includes("@friendly reviewer"), render("agent_list", listed, true));
+        assert.ok(render("agent_list", listed, true).includes("@friendly-reviewer"), render("agent_list", listed, true));
         const expandedRoster = render("agent_list", listed, true);
         for (const fact of ["active tool · read", "error · diagnostic", "model · provider/model", "tools · read", "result · unanswered"]) {
           assert.ok(expandedRoster.includes(fact), `roster expansion dropped ${fact}: ${expandedRoster}`);
@@ -291,7 +291,7 @@ def test_historical_operation_label_survives_roster_replacement(operation: str) 
       roster.registerAgent({{ name: started.details.name, role: started.details.name, label: 'successor label',
         spawnId: 'replacement', status: 'idle', scope: 'session', createdAt: 1, updatedAt: 1 }});
       const row = render(operation, value, false, 200);
-      assert.ok(row.includes('@original reader'), row);
+      assert.ok(row.includes('@original-reader'), row);
       assert.ok(!row.includes('successor label'), row);
       console.log(JSON.stringify({{ ok: true }}));
     """)
@@ -327,7 +327,7 @@ def test_historical_failure_label_survives_roster_replacement(failure: str) -> N
       if (failure === 'async-rejection') assert.equal(promptCalls, 1);
       if (failure !== 'async-rejection') replace();
       const row = render('agent_input', value, false, 200, true);
-      assert.ok(row.includes('[agent] ' + value.details.disposition + ' · @original reader'), row);
+      assert.ok(row.includes('[agent] ' + value.details.disposition + ' · @original-reader'), row);
       assert.ok(!row.includes('successor label'), row);
       console.log(JSON.stringify({{ ok: true }}));
     """)
@@ -372,11 +372,11 @@ await new Promise(resolve => setImmediate(resolve));
 const ended = notices.filter(message => message.customType === 'subagents-session-ended');
 assert.equal(ended.length, 1, JSON.stringify(notices));
 assert.equal(ended[0].details.session, started.details.session);
-assert.equal(ended[0].details.name, 'storage reviewer', 'the failure row must keep the start display name');
+assert.equal(ended[0].details.name, 'storage-reviewer', 'the failure row must keep the start display name');
 const theme = {{ fg: (_color, text) => text, bg: (_color, text) => text, bold: text => text }};
 const row = renderers.get(ended[0].customType)(ended[0], {{ expanded: false }}, theme)
   .render(80).map(stripVTControlCharacters).join('\\n');
-assert.match(row, /\\[agent\\] ended · @storage reviewer/);
+assert.match(row, /\\[agent\\] ended · @storage-reviewer/);
 assert.ok(!row.includes('subagent-'), row);
 assert.ok(!row.includes('reported'), row);
 if (failure === 'delivery') assert.equal(failedDeliveries, 2);

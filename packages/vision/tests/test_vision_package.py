@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import binascii
 import json
 import os
@@ -7,6 +8,8 @@ import struct
 import subprocess
 import zlib
 from pathlib import Path
+
+import pytest
 
 PACKAGE = Path(__file__).resolve().parents[1]
 SRC = PACKAGE / "src"
@@ -28,6 +31,13 @@ def write_test_png(path: Path, width: int = 32, height: int = 32) -> None:
         + chunk(b"IDAT", zlib.compress(rows))
         + chunk(b"IEND", b"")
     )
+
+
+@pytest.fixture
+def image_data(tmp_path: Path) -> str:
+    image = tmp_path / "native-attachment.png"
+    write_test_png(image)
+    return base64.b64encode(image.read_bytes()).decode("ascii")
 
 
 def run_input_harness(
@@ -73,9 +83,9 @@ def test_manifest_declares_native_pi_package() -> None:
     assert manifest["peerDependencies"]["@earendil-works/pi-ai"] == "*"
 
 
-def test_native_image_attachment_is_intercepted_end_to_end(tmp_path: Path) -> None:
+def test_native_image_attachment_is_intercepted_end_to_end(tmp_path: Path, image_data: str) -> None:
     original = '<file name="/tmp/native-image.png"></file>\nExplain the image'
-    result = run_input_harness(tmp_path, original, "iVBORw0KGgo=")
+    result = run_input_harness(tmp_path, original, image_data)
     assert result["visionCallCount"] == 1
     assert result["visionImageCount"] == 1
     assert result["sessionUserImageCount"] == 1  # original image remains on the persisted user message
@@ -88,9 +98,9 @@ def test_native_image_attachment_is_intercepted_end_to_end(tmp_path: Path) -> No
     assert "<file" not in str(result["visionPrompt"])
 
 
-def test_failed_analysis_preserves_original_provider_context(tmp_path: Path) -> None:
+def test_failed_analysis_preserves_original_provider_context(tmp_path: Path, image_data: str) -> None:
     original = "Explain the image"
-    result = run_input_harness(tmp_path, original, "iVBORw0KGgo=", scenario="failure")
+    result = run_input_harness(tmp_path, original, image_data, scenario="failure")
     assert result["visionCallCount"] == 1
     assert result["sessionUserImageCount"] == 1
     assert result["sessionUserPrompt"] == original
@@ -101,11 +111,11 @@ def test_failed_analysis_preserves_original_provider_context(tmp_path: Path) -> 
     assert "custom_message" not in result["sessionEntryTypes"]
 
 
-def test_analysis_is_retained_only_for_the_active_prompt_across_duplicate_context_callbacks(tmp_path: Path) -> None:
+def test_analysis_is_retained_only_for_the_active_prompt_across_duplicate_context_callbacks(tmp_path: Path, image_data: str) -> None:
     result = run_input_harness(
         tmp_path,
         "First image",
-        "iVBORw0KGgo=",
+        image_data,
         scenario="cache",
     )
     assert result["visionCallCount"] == 2  # one analysis per submitted prompt; the first prompt's tool turn reuses its analysis
@@ -118,11 +128,11 @@ def test_analysis_is_retained_only_for_the_active_prompt_across_duplicate_contex
     assert str(main_contexts[2]).count("SECOND_VISION") == 2
 
 
-def test_multimodal_main_model_receives_native_attachment_unchanged(tmp_path: Path) -> None:
+def test_multimodal_main_model_receives_native_attachment_unchanged(tmp_path: Path, image_data: str) -> None:
     result = run_input_harness(
         tmp_path,
         "Explain the image",
-        "iVBORw0KGgo=",
+        image_data,
         main_model="multimodal",
     )
     assert result["visionCallCount"] == 0
