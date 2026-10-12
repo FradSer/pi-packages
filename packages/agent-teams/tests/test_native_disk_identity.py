@@ -1,4 +1,4 @@
-"""Native Pi 1.0.0 coordinator checks with fixture-only loopback config."""
+"""Native Pi 1.1.0 coordinator checks with fixture-only loopback config."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ REPO = PACKAGE.parents[1]
 @pytest.fixture
 def native_team_environment(tmp_path: Path) -> Iterator[tuple[dict[str, str], list[dict[str, object]]]]:
     core = REPO / "node_modules" / "@earendil-works" / "pi-coding-agent" / "package.json"
-    assert json.loads(core.read_text())["version"] == "1.0.0"
+    assert json.loads(core.read_text())["version"] == "1.1.0"
     requests: list[dict[str, object]] = []
     started = threading.Event()
     release = threading.Event()
