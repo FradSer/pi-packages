@@ -7,6 +7,7 @@
  * sibling worktrees or the main checkout.
  */
 
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -32,6 +33,7 @@ export interface WorktreeRoots {
 	currentRoot: string | null;
 	foreignRoots: string[];
 	managedWorktreeDir: string | null;
+	mainRoot: string | null;
 }
 
 /**
@@ -41,7 +43,9 @@ export interface WorktreeRoots {
  */
 export function collectWorktreeRoots(cwd: string): WorktreeRoots {
 	const entries = listWorktrees(cwd);
-	if (entries.length === 0) return { currentRoot: null, foreignRoots: [], managedWorktreeDir: null };
+	if (entries.length === 0) {
+		return { currentRoot: null, foreignRoots: [], managedWorktreeDir: null, mainRoot: null };
+	}
 
 	const topLevel = gitOutput(cwd, ["rev-parse", "--show-toplevel"]);
 	let currentRoot = topLevel ? canonicalize(topLevel) : null;
@@ -64,6 +68,7 @@ export function collectWorktreeRoots(cwd: string): WorktreeRoots {
 		currentRoot,
 		foreignRoots,
 		managedWorktreeDir: managedWorktreesDir(mainWorktreeRoot(entries)),
+		mainRoot: mainWorktreeRoot(entries),
 	};
 }
 
@@ -117,21 +122,10 @@ export function isInForeignWorktree(
 		return true;
 	}
 
-	// Outside the current worktree, hide the repo's managed .pi/worktrees directory
-	if (roots.managedWorktreeDir) {
-		const canonicalManaged = canonicalizeBestEffort(roots.managedWorktreeDir);
-		if (isInside(canonicalAbsolute, canonicalManaged)) {
-			if (roots.currentRoot && isInside(canonicalAbsolute, roots.currentRoot)) {
-				return false;
-			}
-			return true;
-		}
-	}
-
 	// A linked worktree can be nested inside another checkout, so plain
 	// membership of a foreign root would also hide the active worktree's own
 	// files. The most specific enclosing worktree decides instead: the candidate
-	// is foreign only when a deeper root than the current one contains it.
+	// is foreign when a deeper root than the current one contains it.
 	let deepest: string | null = null;
 	const containing = roots.currentRoot
 		? [...roots.foreignRoots, roots.currentRoot]
@@ -140,7 +134,25 @@ export function isInForeignWorktree(
 		if (!isInside(canonicalAbsolute, root)) continue;
 		if (deepest === null || root.length > deepest.length) deepest = root;
 	}
-	return deepest !== null && deepest !== roots.currentRoot;
+	if (deepest !== null && deepest !== roots.currentRoot) return true;
+
+	// No other worktree claims the path. The repository's managed directory is
+	// internal plumbing, so the checkout that owns it never offers its contents:
+	// a registered worktree inside it is already caught above, and the rest is a
+	// stale directory or a removed worktree rather than an active file. The check
+	// runs after the enclosing-worktree rule, because a managed directory also
+	// contains worktrees that may be nested under each other.
+	if (roots.managedWorktreeDir) {
+		const canonicalManaged = canonicalizeBestEffort(roots.managedWorktreeDir);
+		if (
+			isInside(canonicalAbsolute, canonicalManaged) &&
+			!(roots.currentRoot && isInside(canonicalAbsolute, roots.currentRoot))
+		) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 export function isItemInForeignWorktree<T extends AutocompleteItem>(
@@ -207,9 +219,11 @@ export function filterForeignWorktreeSearchLines(
 			continue;
 		}
 
-		// Check if line starts with a path (before any colon, space, or tab)
-		const colonMatch = trimmed.match(/^([^:\s]+(?::\d+)*)/);
-		const potentialPath = colonMatch ? colonMatch[1]?.split(":")[0] : trimmed.split(/\s+/)[0];
+		// Search output is either a bare path or `path:line[:col]: content`. A path
+		// can contain spaces and colons, so the line-number suffix ends it; a line
+		// without one falls back to its first whitespace-delimited token.
+		const numbered = trimmed.match(/^(.*?):(\d+)(?::\d+)?(?::|\s|$)/);
+		const potentialPath = numbered ? numbered[1] : trimmed.split(/\s+/)[0];
 
 		if (potentialPath && isInForeignWorktree(potentialPath, basePath, roots)) {
 			continue;
@@ -221,7 +235,7 @@ export function filterForeignWorktreeSearchLines(
 	return filtered.join("\n");
 }
 
-let cache: { cwd: string; roots: WorktreeRoots } | null = null;
+let cache: { cwd: string; roots: WorktreeRoots; signal: string | null } | null = null;
 
 /**
  * Live session cwd. Session replacement (EnterWorktree) swaps sessions without
@@ -230,10 +244,50 @@ let cache: { cwd: string; roots: WorktreeRoots } | null = null;
  */
 let activeCwd: string | null = null;
 
-/** Memoized discovery keyed by cwd: git runs at most once per session. */
+/**
+ * Cheap change signal for the repository's worktree list.
+ *
+ * Git keeps one directory under the git common dir for every linked worktree, so
+ * that directory's mtime changes when a worktree is added or removed. One stat is
+ * therefore enough to keep the discovery memo without hiding a worktree that
+ * appeared after the first discovery. Null when no such directory exists (a bare
+ * store with no linked worktree, or an unusual layout), which keeps the memo.
+ */
+function worktreeListSignal(roots: WorktreeRoots): string | null {
+	if (!roots.mainRoot) return null;
+	for (const candidate of [
+		path.join(roots.mainRoot, ".git", "worktrees"),
+		path.join(roots.mainRoot, "worktrees"),
+	]) {
+		try {
+			return `${candidate}:${fs.statSync(candidate).mtimeMs}`;
+		} catch {
+			// Try the next layout.
+		}
+	}
+	return null;
+}
+
+/**
+ * Forget the discovery memo after this session adds or removes a worktree itself,
+ * so the next round does not wait for the change signal.
+ */
+export function invalidateWorktreeRoots(): void {
+	cache = null;
+}
+
+/** Memoized discovery keyed by cwd: git runs at most once per session, and again
+ * only when the repository's worktree list changes. */
 export function getWorktreeRoots(cwd: string): WorktreeRoots {
 	if (!cache || cache.cwd !== cwd) {
-		cache = { cwd, roots: collectWorktreeRoots(cwd) };
+		const roots = collectWorktreeRoots(cwd);
+		cache = { cwd, roots, signal: worktreeListSignal(roots) };
+		return roots;
+	}
+	const signal = worktreeListSignal(cache.roots);
+	if (signal !== null && cache.signal !== null && signal !== cache.signal) {
+		const roots = collectWorktreeRoots(cwd);
+		cache = { cwd, roots, signal: worktreeListSignal(roots) };
 	}
 	return cache.roots;
 }
@@ -285,6 +339,16 @@ function worktreeCompletionProvider(
 			);
 		},
 	};
+}
+
+/** Directory a search tool ran in: its own path argument, else the session cwd. */
+export function searchResultBase(
+	input: Record<string, unknown> | undefined,
+	cwd: string,
+): string {
+	const declared = input?.path;
+	if (typeof declared !== "string" || !declared) return cwd;
+	return path.isAbsolute(declared) ? declared : path.resolve(cwd, declared);
 }
 
 /** Search tools whose result text is filtered back to the active worktree. */
@@ -375,10 +439,14 @@ export default function registerWorktreeCompletion(pi: ExtensionAPI): void {
 			}
 
 			if (Array.isArray(event.content)) {
+				// A result line is relative to the search root, not to the session cwd: a
+				// search inside another checkout would otherwise resolve locally and keep
+				// every foreign line.
+				const basePath = searchResultBase(event.input, ctx.cwd);
 				let modified = false;
 				const newContent = event.content.map((part) => {
 					if (part.type === "text" && typeof part.text === "string") {
-						const filtered = filterForeignWorktreeSearchLines(part.text, ctx.cwd, roots);
+						const filtered = filterForeignWorktreeSearchLines(part.text, basePath, roots);
 						if (filtered !== part.text) {
 							modified = true;
 							return { ...part, text: filtered };

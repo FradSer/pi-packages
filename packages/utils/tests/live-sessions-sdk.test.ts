@@ -29,9 +29,9 @@ test('real SDK receives literal live-session delivery with no model invocation',
     const listed = await execute({ version: 1, requestId: 'list', command: 'list' }, socketDirectory);
     assert.equal(listed.sessions?.length, 1);
     const request = { version: 1, requestId: 'send', command: 'send', sessionId: listed.sessions![0].sessionId, text: '/literal $HOME; echo not-a-shell' };
-    assert.equal((await execute(request, socketDirectory)).status, 'accepted');
+    assert.equal((await execute(request, socketDirectory)).status, 'handed-over');
     assert.deepEqual(inputs, [{ text: request.text, source: 'extension' }]);
-    assert.equal((await execute(request, socketDirectory)).status, 'accepted');
+    assert.equal((await execute(request, socketDirectory)).status, 'handed-over');
     assert.equal(inputs.length, 1);
     assert.equal(session.messages.length, 0);
   } finally {

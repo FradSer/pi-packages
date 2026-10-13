@@ -93,6 +93,13 @@ Feature: EnterWorktree and ExitWorktree session switching
     Then the command is refused with a warning naming the pending transition
     And no second session switch is started
 
+  Scenario: Only one session switch runs at a time
+    Given two worktree commands wait for the same running turn
+    When both are invoked
+    Then the first performs one replacement after the turn settles
+    And the second is refused with a warning that a switch is in progress
+    And the refused command creates no worktree
+
   Scenario: A post-switch failure preserves the active worktree
     Given the replacement session has started and made edits
     When continuation or the host reports an error

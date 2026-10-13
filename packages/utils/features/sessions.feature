@@ -58,6 +58,18 @@ Feature: Cross-session awareness and directory recap
     And the live session does not inherit the crashed record's goal or recap
     And the exited record keeps its own goal as recent work
 
+  Scenario: Liveness is observed once per read pass
+    Given a PID that is dead on the liveness check and alive again when records merge
+    When querying active sessions in the directory
+    Then the dead record keeps its own goal and recap
+    And the live session inherits nothing from it
+
+  Scenario: An update keeps fields owned by another registry writer
+    Given another writer stored an unread flag or a recap in the same record
+    When this session updates its own fields
+    Then the other writer's fields are preserved
+    And this session's own fields are updated
+
   Scenario: The registry directory follows the shared agent directory
     Given PI_DIRECTORY_SESSIONS_DIR or PI_CODING_AGENT_DIR points outside the default home registry
     When a session registers and a peer reads the directory sessions

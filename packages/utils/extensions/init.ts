@@ -56,6 +56,26 @@ export default function (pi: ExtensionAPI) {
     handler: async (args, ctx) => {
       const prompt = buildInitPrompt(ctx.cwd, args);
 
+      // The host reports a rejected delivery on its own error channel, and an
+      // extension cannot observe that rejection. These preconditions mirror the
+      // host's own checks instead, so work the host would refuse is reported here.
+      if (!ctx.model) {
+        notifyPi(
+          ctx.ui,
+          "No model is selected, so the repository guide task was not sent. Select a model and run /init again.",
+          "error",
+        );
+        return;
+      }
+      if (!ctx.modelRegistry.hasConfiguredAuth(ctx.model)) {
+        notifyPi(
+          ctx.ui,
+          `The repository guide task was not sent: the current model (${ctx.model.provider}/${ctx.model.id}) has no configured credentials. Sign in, then run /init again.`,
+          "error",
+        );
+        return;
+      }
+
       // The idle check and the delivery are not atomic: a turn that starts between
       // them rejects the send. A guide task that was never delivered must not be
       // reported as though it were queued.
@@ -64,7 +84,14 @@ export default function (pi: ExtensionAPI) {
           await pi.sendUserMessage(prompt);
         } else {
           await pi.sendUserMessage(prompt, { deliverAs: "followUp" });
-          notifyPi(ctx.ui, "Repository guide task queued as a follow-up", "info");
+          // The host accepts the request here and reports a rejection on its own
+          // error channel, so this states the request instead of claiming that
+          // the task is queued.
+          notifyPi(
+            ctx.ui,
+            "Repository guide task requested as a follow-up; Pi reports any delivery failure separately.",
+            "info",
+          );
         }
       } catch (error) {
         notifyPi(

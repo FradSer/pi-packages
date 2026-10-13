@@ -45,6 +45,8 @@ ext({{
 }});
 const base = {{
   cwd: "/tmp/example-repo",
+  model: {{ provider: "test", id: "test-model" }},
+  modelRegistry: {{ hasConfiguredAuth: () => true }},
   ui: {{ notify: (message, type) => notifications.push({{ message, type }}) }},
 }};
 await commands["init"].handler("release commands", {{ ...base, isIdle: () => true }});
@@ -84,6 +86,8 @@ ext({{
 }});
 const ctx = {{
   cwd: "/tmp/example-repo",
+  model: {{ provider: "test", id: "test-model" }},
+  modelRegistry: {{ hasConfiguredAuth: () => true }},
   ui: {{ notify: (message, type) => notifications.push({{ message, type }}) }},
   isIdle: () => true,
 }};
@@ -106,6 +110,122 @@ console.log(JSON.stringify({{ notifications }}));
         self.assertEqual(notifications[0]["type"], "error")
         self.assertIn("was not sent", notifications[0]["message"])
         self.assertIn("already processing", notifications[0]["message"])
+
+    def test_follow_up_notice_does_not_claim_delivery(self) -> None:
+        # pi.sendUserMessage returns void and the host reports a rejection on its
+        # own channel, so the notice may state the request but never a delivery.
+        script = f'''
+import ext from {json.dumps(INIT_EXTENSION.as_uri())};
+const commands = {{}};
+const notifications = [];
+const sent = [];
+ext({{
+  registerCommand: (name, spec) => commands[name] = spec,
+  sendUserMessage: (content, options) => sent.push({{ content, options }}),
+}});
+const ctx = {{
+  cwd: "/tmp/example-repo",
+  model: {{ provider: "test", id: "test-model" }},
+  modelRegistry: {{ hasConfiguredAuth: () => true }},
+  ui: {{ notify: (message, type) => notifications.push({{ message, type }}) }},
+  isIdle: () => false,
+}};
+await commands["init"].handler("", ctx);
+console.log(JSON.stringify({{ sent, notifications }}));
+'''
+        result = subprocess.run(
+            ["bun", "run", "-"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
+        report = json.loads(result.stdout)
+        self.assertEqual(report["sent"][0]["options"], {"deliverAs": "followUp"})
+        self.assertEqual(len(report["notifications"]), 1)
+        self.assertEqual(report["notifications"][0]["type"], "info")
+        message = report["notifications"][0]["message"]
+        self.assertIn("requested as a follow-up", message)
+        self.assertIn("reports any delivery failure", message)
+        self.assertNotIn("queued", message)
+
+    def test_no_model_is_reported_instead_of_sending_the_task(self) -> None:
+        # The host rejects a delivery with no model on its own error channel, which
+        # an extension cannot observe, so the precondition is reported here.
+        script = f'''
+import ext from {json.dumps(INIT_EXTENSION.as_uri())};
+const commands = {{}};
+const notifications = [];
+const sent = [];
+ext({{
+  registerCommand: (name, spec) => commands[name] = spec,
+  sendUserMessage: (content, options) => sent.push({{ content, options }}),
+}});
+const ctx = {{
+  cwd: "/tmp/example-repo",
+  ui: {{ notify: (message, type) => notifications.push({{ message, type }}) }},
+  isIdle: () => true,
+}};
+await commands["init"].handler("", ctx);
+console.log(JSON.stringify({{ sent, notifications }}));
+'''
+        result = subprocess.run(
+            ["bun", "run", "-"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
+        report = json.loads(result.stdout)
+        self.assertEqual(report["sent"], [])
+        self.assertEqual(len(report["notifications"]), 1)
+        self.assertEqual(report["notifications"][0]["type"], "error")
+        self.assertIn("No model is selected", report["notifications"][0]["message"])
+
+    def test_missing_credentials_are_reported_instead_of_a_silent_rejection(self) -> None:
+        # The host reports a rejected delivery on its own error channel, so the
+        # credential precondition is checked and reported here.
+        script = f'''
+import ext from {json.dumps(INIT_EXTENSION.as_uri())};
+const commands = {{}};
+const notifications = [];
+const sent = [];
+ext({{
+  registerCommand: (name, spec) => commands[name] = spec,
+  sendUserMessage: (content, options) => sent.push({{ content, options }}),
+}});
+const ctx = {{
+  cwd: "/tmp/example-repo",
+  model: {{ provider: "test", id: "test-model" }},
+  modelRegistry: {{ hasConfiguredAuth: () => false }},
+  ui: {{ notify: (message, type) => notifications.push({{ message, type }}) }},
+  isIdle: () => true,
+}};
+await commands["init"].handler("", ctx);
+console.log(JSON.stringify({{ sent, notifications }}));
+'''
+        result = subprocess.run(
+            ["bun", "run", "-"],
+            cwd=REPO,
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise AssertionError(f"TypeScript execution failed:\n{result.stderr}")
+        report = json.loads(result.stdout)
+        self.assertEqual(report["sent"], [])
+        self.assertEqual(len(report["notifications"]), 1)
+        self.assertEqual(report["notifications"][0]["type"], "error")
+        self.assertIn("no configured credentials", report["notifications"][0]["message"])
+        self.assertIn("test/test-model", report["notifications"][0]["message"])
 
     def test_prompt_covers_repository_guides_and_nested_scopes(self) -> None:
         prompt = self.built_prompt()

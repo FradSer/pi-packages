@@ -359,9 +359,12 @@ const worktree = path.join(worktreeRoot, ".pi", "worktrees", "cancelled-switch")
 const switchFile = events.find((event) => event[0] === "switch")[1];
 const waitingNotice = events.find((event) => event[0] === "notify" && event[2].includes("Waiting for the current turn"));
 const branch = Bun.spawnSync(["git", "-C", repo, "branch", "--list", "pi/worktree/cancelled-switch"]).stdout.toString().trim();
+// An absent wait yields -1, which would satisfy a plain `<` comparison.
+const waitedAt = events.findIndex((event) => event[0] === "waited");
+const switchedAt = events.findIndex((event) => event[0] === "switch");
 console.log(JSON.stringify({{
   order: events.map((event) => event[0]),
-  waitedBeforeSwitch: events.findIndex((event) => event[0] === "waited") < events.findIndex((event) => event[0] === "switch"),
+  waitedBeforeSwitch: waitedAt !== -1 && switchedAt !== -1 && waitedAt < switchedAt,
   waitingNotice: waitingNotice ? waitingNotice[1] : null,
   worktreeRemoved: !fs.existsSync(worktree),
   forkRemoved: !fs.existsSync(switchFile),
@@ -423,6 +426,60 @@ console.log(JSON.stringify({{
         self.assertEqual(result["errors"], ["host rebind failed"])
         self.assertEqual(len(result["warnings"]), 2)
         self.assertTrue(any("created worktree is kept" in warning and "kept-after-failure" in warning for warning in result["warnings"]))
+
+    def test_a_second_switch_is_refused_while_one_is_in_flight(self) -> None:
+        script = f"""
+import fs from "node:fs";
+import path from "node:path";
+import {{ SessionManager }} from "@earendil-works/pi-coding-agent";
+import registerWorktreeSession from {json.dumps(SESSION_EXTENSION.as_uri())};
+
+const repo = {json.dumps(str(self.repo))};
+const worktreeRoot = fs.realpathSync(repo);
+const source = SessionManager.create(repo, {json.dumps(str(self.session_dir))});
+source.appendMessage({{ role: "user", content: "start", timestamp: Date.now() }});
+source.appendMessage({{ role: "assistant", content: [{{ type: "text", text: "ready" }}], api: "test", provider: "test", model: "test", usage: {{ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: {{ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }} }}, stopReason: "stop", timestamp: Date.now() }});
+const sourceFile = source.getSessionFile();
+const notifications = [];
+const commands = {{}};
+let switches = 0;
+let releaseWait = () => {{}};
+// Both commands wait for the same streaming turn.
+const gate = new Promise((resolve) => {{ releaseWait = resolve; }});
+registerWorktreeSession({{ registerCommand(name, options) {{ commands[name] = options; }}, registerTool() {{}}, sendUserMessage() {{}} }});
+const ctx = {{
+  cwd: repo,
+  hasUI: true,
+  sessionManager: {{ getSessionFile: () => sourceFile, getBranch: () => [] }},
+  ui: {{
+    notify(message, type) {{ notifications.push({{ message, type }}); }},
+    select: async () => "Keep worktree",
+  }},
+  isIdle: () => false,
+  waitForIdle: () => gate,
+  async switchSession(file, options) {{
+    switches += 1;
+    await options.withSession({{ ui: {{ notify() {{}} }}, async sendMessage() {{}} }});
+    return {{ cancelled: true }};
+  }},
+}};
+const first = commands["enter-worktree"].handler("one", ctx);
+const second = commands["enter-worktree"].handler("two", ctx);
+const refused = notifications.filter((entry) => entry.message.includes("still in progress"));
+releaseWait();
+await Promise.all([first, second]);
+console.log(JSON.stringify({{
+  switches,
+  refused: refused.map((entry) => entry.type),
+  firstWorktree: fs.existsSync(path.join(worktreeRoot, ".pi", "worktrees", "one")),
+  secondWorktree: fs.existsSync(path.join(worktreeRoot, ".pi", "worktrees", "two")),
+}}));
+"""
+        result = run_ts(script)
+        self.assertEqual(result["switches"], 1, result)
+        self.assertEqual(result["refused"], ["warning"])
+        # The refused command never reaches the worktree it asked for.
+        self.assertFalse(result["secondWorktree"])
 
     def test_render_result_survives_class_based_theme(self) -> None:
         script = f"""

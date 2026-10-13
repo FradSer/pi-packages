@@ -102,6 +102,26 @@ function writeRegistryRecord(filePath: string, info: SessionInfo): void {
 }
 
 /**
+ * Keep the fields another writer owns.
+ *
+ * The registry directory is shared: the keyboard package stores its glow state in
+ * the same record, and a wholesale write would drop that unread flag, and any
+ * recap, on the next activity update. This module's own defined fields win.
+ */
+function mergeWithSharedRecord(filePath: string, info: SessionInfo): SessionInfo {
+  try {
+    const existing = JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<string, unknown>;
+    if (!existing || typeof existing !== "object") return info;
+    const defined = Object.fromEntries(
+      Object.entries(info).filter(([, value]) => value !== undefined),
+    );
+    return { ...existing, ...defined } as SessionInfo;
+  } catch {
+    return info;
+  }
+}
+
+/**
  * Writes or updates a session's metadata in the registry.
  */
 export function writeSessionInfo(info: SessionInfo): void {
@@ -110,7 +130,8 @@ export function writeSessionInfo(info: SessionInfo): void {
     // Recursive mkdir is its own race guard; the temp name is unique per write so
     // two writers in the same millisecond cannot collide on it.
     fs.mkdirSync(dir, { recursive: true });
-    writeRegistryRecord(path.join(dir, `${info.sessionId}.json`), info);
+    const filePath = path.join(dir, `${info.sessionId}.json`);
+    writeRegistryRecord(filePath, mergeWithSharedRecord(filePath, info));
   } catch {
     // Best-effort registry write
   }
@@ -145,7 +166,16 @@ const SESSION_STATUSES: readonly SessionInfo["status"][] = ["running", "idle", "
  */
 const CLAIMED_EXITED: unique symbol = Symbol("piUtilsClaimedExited");
 
-type RegistryRecord = SessionInfo & { [CLAIMED_EXITED]?: boolean };
+/**
+ * Marks a record this read pass observed with a dead pid.
+ *
+ * The merge must use that observation instead of asking the OS again: a pid can
+ * be reused between the two checks, and the second answer would then merge a
+ * dead session's goal and recap into the live session that reused its pid.
+ */
+const OBSERVED_DEAD: unique symbol = Symbol("piUtilsObservedDead");
+
+type RegistryRecord = SessionInfo & { [CLAIMED_EXITED]?: boolean; [OBSERVED_DEAD]?: boolean };
 
 /**
  * Coerces an untrusted registry record into the SessionInfo contract: numeric
@@ -206,8 +236,11 @@ export function cleanAndListDirectorySessions(
         continue;
       }
 
-      // Check PID liveness
+      // Check PID liveness once. The answer decides both the status and the
+      // merge group, so a pid that changes state mid-pass cannot move a record
+      // between process generations.
       if (!isProcessAlive(info.pid)) {
+        info[OBSERVED_DEAD] = true;
         // Process is dead. If stale or marked exited, clean up file
         if (info.status === "exited" || now - info.updatedAt > maxStaleAgeMs) {
           try {
@@ -261,8 +294,8 @@ export function cleanAndListDirectorySessions(
 function mergeSessionsByPid(sessions: SessionInfo[]): SessionInfo[] {
   const byKey = new Map<string, SessionInfo>();
   for (const session of sessions) {
-    const claimedGone = (session as RegistryRecord)[CLAIMED_EXITED] === true;
-    const gone = claimedGone || !isProcessAlive(session.pid);
+    const record = session as RegistryRecord;
+    const gone = record[OBSERVED_DEAD] === true || record[CLAIMED_EXITED] === true;
     const key = `${gone ? "gone" : "live"}:${session.pid}`;
     const existing = byKey.get(key);
     byKey.set(key, existing ? mergeSessionPair(existing, session) : session);

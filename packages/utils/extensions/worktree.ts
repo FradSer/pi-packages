@@ -21,6 +21,7 @@ import {
 	MANAGED_WORKTREES_SHELL_PATH,
 	repositoryRootFor,
 } from "./git/worktrees.ts";
+import { invalidateWorktreeRoots } from "./worktree-completion.ts";
 
 interface ShellToken {
 	end: number;
@@ -302,6 +303,9 @@ export default function (pi: ExtensionAPI) {
 		if (!plan || plan.command === command) return;
 
 		event.input.command = plan.command;
+		// The command is about to change the repository's worktree list, so the
+		// discovery memo for this session is stale from here on.
+		invalidateWorktreeRoots();
 		notifyPi(
 			ctx.ui,
 			`worktree path redirected to ${plan.target} — linked worktrees stay inside the repo`,

@@ -59,36 +59,29 @@ export function canonicalize(candidate: string): string {
 	}
 }
 
-const canonicalCache = new Map<string, string>();
-
 /**
- * Realpath the deepest existing ancestor and append the non-existent remainder,
- * so candidates under symlinked directories still land in the canonical space
- * even when their leaf does not exist.
+ * Realpath the deepest existing ancestor and append the non-existent remainder, so
+ * candidates under symlinked directories still land in the canonical space even when
+ * their leaf does not exist.
+ *
+ * Nothing is memoized: a symlink can be retargeted during a session, and a cached
+ * answer would keep granting the old identity to a path that now resolves inside a
+ * different worktree.
  */
 export function canonicalizeBestEffort(candidate: string): string {
-	const hit = canonicalCache.get(candidate);
-	if (hit !== undefined) return hit;
-
 	let remainder = "";
 	let current = candidate;
-	let resolved: string | null = null;
 	for (;;) {
 		try {
-			resolved = `${fs.realpathSync(current)}${remainder}`;
-			break;
+			// path.join keeps a root-level remainder from doubling the separator.
+			return path.join(fs.realpathSync(current), remainder);
 		} catch {
 			const parent = path.dirname(current);
-			if (parent === current) break;
-			remainder = `${path.sep}${path.basename(current)}${remainder}`;
+			if (parent === current) return candidate;
+			remainder = path.join(path.sep + path.basename(current), remainder);
 			current = parent;
 		}
 	}
-	if (resolved === null) return candidate;
-
-	if (canonicalCache.size >= 1024) canonicalCache.clear();
-	canonicalCache.set(candidate, resolved);
-	return resolved;
 }
 
 export function isInside(candidate: string, root: string): boolean {

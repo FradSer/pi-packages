@@ -67,8 +67,21 @@ Feature: /init repository guidelines command
 
   Scenario: /init follow-up status uses the shared Pi-kit notification adapter
     Given the agent is busy when the user runs /init
-    When the command queues the guide task as a follow-up
-    Then its user notification delegates sanitization and delivery to pi-kit
+    When the command requests the guide task as a follow-up
+    Then its user notification states the request instead of claiming delivery
+    And its user notification delegates sanitization and delivery to pi-kit
+
+  Scenario: A rejected /init delivery is reported
+    Given the host rejects the guide-task delivery
+    When the command reports the outcome
+    Then the user is told the task was not sent and why
+    And the task is not reported as queued
+
+  Scenario: /init with no selected model sends nothing
+    Given the session has no model
+    When the user runs /init
+    Then no prompt is sent
+    And an error tells the user to select a model
 
   Scenario: /init leaves line wrapping to the Pi TUI
     When the user runs /init

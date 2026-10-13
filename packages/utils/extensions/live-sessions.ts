@@ -8,8 +8,10 @@
  * the capability's only entry point — the package deliberately ships no
  * separate executable.
  *
- * A delivery receipt is `accepted` or `queued`; neither means the target
- * session did the work.
+ * A delivery receipt is `handed-over` or `queued`; neither means the target
+ * session accepted the text, and neither means it did the work. The extension API
+ * pi.sendUserMessage returns void and the host reports a rejection on its own
+ * channel, so the sender has no delivery disposition to report.
  */
 
 import { randomUUID } from "node:crypto";
@@ -100,8 +102,43 @@ export function parseDelivery(args: string): ParsedDelivery | { error: string } 
 	return { deliverAs, sessionId, text };
 }
 
+/**
+ * Wait briefly for the target to observe the delivered text as its own prompt.
+ *
+ * The sender's runtime reports no delivery disposition, so the target is the only
+ * witness: an idle target starts the turn and confirms inside the window, and a
+ * busy one usually does not. An unconfirmed answer is reported as such, never as a
+ * failure.
+ */
+const DELIVERY_CONFIRM_WINDOW_MS = 2_000;
+const DELIVERY_CONFIRM_INTERVAL_MS = 200;
+
+async function confirmDelivery(sessionId: string, requestId: string): Promise<boolean> {
+	const deadline = Date.now() + DELIVERY_CONFIRM_WINDOW_MS;
+	for (;;) {
+		const response = await execute({
+			version: 1,
+			requestId: randomUUID(),
+			command: "status",
+			sessionId,
+			confirmRequestId: requestId,
+		});
+		if (response.ok && response.confirmed) return true;
+		if (Date.now() >= deadline) return false;
+		await new Promise((resolve) => setTimeout(resolve, DELIVERY_CONFIRM_INTERVAL_MS));
+	}
+}
+
 export default function registerLiveSessions(pi: ExtensionAPI): void {
 	let server: Awaited<ReturnType<typeof startServer>> | undefined;
+	/**
+	 * Why this session has no live control, or null when it has one.
+	 *
+	 * A startup failure is remembered: the control directory can look empty
+	 * afterwards, and an empty listing would hide that this session itself cannot
+	 * be reached.
+	 */
+	let controlError: string | null = null;
 
 	pi.on("session_start", async (_event, ctx) => {
 		await server?.close();
@@ -126,16 +163,24 @@ export default function registerLiveSessions(pi: ExtensionAPI): void {
 					pi.sendUserMessage(text, { deliverAs });
 				},
 			);
+			controlError = null;
 		} catch (error) {
 			// Live control is optional, but a session that silently serves nothing
 			// makes every /live-sessions call look like an empty directory.
 			server = undefined;
+			controlError = error instanceof Error ? error.message : String(error);
 			notifyPi(
 				ctx.ui,
-				`Live session control is unavailable: ${error instanceof Error ? error.message : String(error)}`,
+				`Live session control is unavailable: ${controlError}`,
 				"warning",
 			);
 		}
+	});
+
+	pi.on("before_agent_start", (event) => {
+		// The delivered text arrives as this turn's prompt, so this is where the
+		// target confirms that it really received it.
+		server?.observe(event.prompt);
 	});
 
 	pi.on("session_shutdown", async () => {
@@ -168,9 +213,14 @@ export default function registerLiveSessions(pi: ExtensionAPI): void {
 					notifyPi(ctx.ui, `Live session discovery failed: ${listing.error}`, "error");
 					return;
 				}
+				if (controlError) {
+					notifyPi(ctx.ui, `Live session control is unavailable in this session: ${controlError}`, "warning");
+				}
 				const sessions = listing.sessions;
 				if (sessions.length === 0) {
-					notifyPi(ctx.ui, "No live Pi sessions found.", "info");
+					// The warning above already explains an empty directory that this
+					// session caused.
+					if (!controlError) notifyPi(ctx.ui, "No live Pi sessions found.", "info");
 					return;
 				}
 				const text = formatLiveSessionList(sessions);
@@ -188,25 +238,36 @@ export default function registerLiveSessions(pi: ExtensionAPI): void {
 				return;
 			}
 
-			const response = await execute({
-				version: 1,
+			const request = {
+				version: 1 as const,
 				requestId: randomUUID(),
-				command: "send",
+				command: "send" as const,
 				sessionId: parsed.sessionId,
 				text: parsed.text,
 				deliverAs: parsed.deliverAs,
-			});
+			};
+			const response = await execute(request);
 
 			if (!response.ok) {
 				notifyPi(ctx.ui, `Live delivery failed: ${response.error?.message ?? "unknown error"}`, "error");
 				return;
 			}
-			// Never claim completion: the receipt only proves the target
-			// accepted or queued the text.
-			const outcome = response.status === "accepted" ? "accepted" : "queued as follow-up";
+			// Never claim completion. A delivery claim needs the target's own witness;
+			// otherwise the receipt only proves this session handed the text over.
+			if (response.confirmed === true || (await confirmDelivery(parsed.sessionId, request.requestId))) {
+				notifyPi(
+					ctx.ui,
+					`Live session ${parsed.sessionId} confirmed the delivery to its own prompt — completion is still not claimed.`,
+					"info",
+				);
+				return;
+			}
+			const outcome = response.status === "handed-over"
+				? "handed over to its runtime"
+				: "queued as a follow-up";
 			notifyPi(
 				ctx.ui,
-				`Live session ${parsed.sessionId} ${outcome} — the text was delivered, not completed.`,
+				`Live session ${parsed.sessionId} ${outcome} — delivery is not confirmed and completion is not claimed.`,
 				"info",
 			);
 		},

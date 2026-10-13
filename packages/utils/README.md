@@ -56,9 +56,10 @@ history. An optional argument adds focus:
 /init focus on package release commands
 ```
 
-An idle session runs the guide task at once; a busy one queues it as a follow-up
-and says so. A delivery that is rejected reports the reason instead of leaving
-the task looking queued.
+An idle session runs the guide task at once; a busy one requests it as a follow-up
+and says so. The host reports any delivery failure on its own channel, so the
+notice states the request instead of claiming a delivery, and a session with no
+model or with no configured credentials is told that nothing was sent.
 
 ### `sessions` — cross-session directory awareness
 
@@ -71,7 +72,7 @@ the task looking queued.
 **Features**:
 1. **Cross-Session Awareness**: Multiple Pi sessions in the same project directory register their status, latest goal, and touched files in `~/.pi/agent/directory-sessions/`. Directory names use pi-kit's canonical hashed identity, so slash-versus-hyphen paths remain separate; existing paths use `realpath` and missing paths use their absolute spelling. A session that moves between directories (for example by entering a worktree) removes its record from every directory it registered under when it shuts down.
 2. **Automated Prompt Injection**: When multiple sessions run in the same directory, `before_agent_start` automatically injects a concise directory recap into the system prompt so each agent is aware of parallel work.
-3. **Dead PID Pruning**: Stale or dead process IDs are automatically detected (`process.kill(pid, 0)`). A dead process whose record is still fresh is reported with status `exited` so recent work stays visible, and the record is deleted once it is stale. Reads and cleanup verify the record's canonical `cwd`; foreign or malformed records remain untouched when ownership cannot be proven, and old directory names are not migrated.
+3. **Dead PID Pruning**: Stale or dead process IDs are automatically detected (`process.kill(pid, 0)`). A dead process whose record is still fresh is reported with status `exited` so recent work stays visible, and the record is deleted once it is stale. Liveness is read once per pass, and a record whose own writer declared the process gone never merges into a live session that reused its PID. Fields another writer owns, such as the keyboard's unread flag or a recap, survive an update. Reads and cleanup verify the record's canonical `cwd`; foreign or malformed records remain untouched when ownership cannot be proven, and old directory names are not migrated.
 4. **Agent Tool (`list_directory_sessions`)**: Exposes a tool for agents to inspect active sessions in the directory programmatically.
 
 ### `continue` — resume or continue execution
@@ -179,8 +180,11 @@ to running Pi sessions without terminal input injection or session-file edits.
 It is available on Unix/macOS with Node 20+.
 
 The extension reports live instances and their `idle` or `running` state through
-its internal versioned protocol. Text delivery returns `accepted` or `queued`;
-neither receipt means the task completed. Busy sessions default to `followUp`,
+its internal versioned protocol. Text delivery returns `handed-over` or `queued`;
+neither receipt means the task completed. Only the target can confirm a delivery,
+by observing the text as one of its own prompts; the command waits briefly for that
+confirmation and otherwise reports the hand-over as unconfirmed. Busy sessions
+default to `followUp`,
 while `steer` requests steering. Request IDs make retries replay-safe, and a
 live instance ID changes when Pi reloads, resumes, forks, or restarts.
 
@@ -195,8 +199,8 @@ The `/live-sessions` command is the capability's only entry point:
 Session ids are offered as argument completions, the listing is capped at ten
 rows, and delivery arguments are length-checked before any socket call. A
 discovery failure reports its cause, and a session that cannot open its socket
-says so when it starts, so an unusable control directory never reads as an
-empty one.
+remembers that failure and reports it on the next listing, so an unusable control
+directory never reads as an empty one.
 
 Sockets live in `~/.pi/live-sessions`, overridable for integration hosts with
 `PI_UTILS_LIVE_SESSIONS_DIR`. The user-owned directory is mode 0700 and sockets
@@ -241,7 +245,11 @@ inside a linked worktree never suggests sibling worktrees or the main
 checkout. The built-in `read`, `edit`, and `write` tools also block direct access to a
 foreign worktree and direct the agent to `enter_worktree`. This prevents stale
 absolute file paths from modifying the parent checkout after switching. Worktree roots are discovered once per session via
-`git worktree list --porcelain`; outside a git repository nothing is filtered.
+`git worktree list --porcelain` and refreshed when the repository's worktree list
+changes, so a worktree added during the session is filtered too; outside a git
+repository nothing is filtered. A search result line is resolved against the
+search tool's own root, not the session directory, and no resolved path is cached,
+so a retargeted symlink cannot keep an old identity.
 Quoted and `@`-prefixed values are resolved (relative, absolute, and `~/`
 forms) before the containment check.
 
@@ -281,7 +289,8 @@ explicitly chooses forced removal. Existing worktrees are never removed by
 this command.
 
 Both commands wait for a running turn to finish before they switch, because a
-session replacement aborts the active turn. A cancelled switch removes the
+session replacement aborts the active turn, and only one switch runs at a time.
+A cancelled switch removes the
 worktree, branch, and forked session file it created. A switch that fails after
 replacement was requested keeps the worktree for its edits and reports the path,
 branch, and removal command, so nothing is silently left behind.

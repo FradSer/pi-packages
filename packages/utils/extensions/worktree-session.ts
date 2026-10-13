@@ -36,6 +36,7 @@ import {
 	runGit,
 	type WorktreeRecord,
 } from "./git/worktrees.ts";
+import { invalidateWorktreeRoots } from "./worktree-completion.ts";
 
 export type { WorktreeRecord };
 
@@ -177,6 +178,8 @@ function createWorktree(
 	if (result.status !== 0) {
 		return { error: result.stderr.trim() || result.stdout.trim() || "git worktree add failed" };
 	}
+	// This session just changed the repository's worktree list.
+	invalidateWorktreeRoots();
 	return {
 		baseCommit: target.baseCommit,
 		branch,
@@ -219,6 +222,7 @@ function worktreeHasChanges(state: WorktreeSessionState): boolean {
 function removeWorktree(state: WorktreeSessionState): string | null {
 	const remove = runGit(state.repoRoot, ["worktree", "remove", "--force", state.path]);
 	if (remove.status !== 0) return remove.stderr.trim() || remove.stdout.trim() || "worktree removal failed";
+	invalidateWorktreeRoots();
 	if (state.branch) {
 		const branch = runGit(state.repoRoot, ["branch", "-D", state.branch]);
 		if (branch.status !== 0) return branch.stderr.trim() || branch.stdout.trim() || "branch removal failed";
@@ -414,6 +418,12 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 	let pendingCommand: string | undefined;
 	let pendingLabel: string | undefined;
 	let transitionSignal: AbortSignal | undefined;
+	/**
+	 * One session switch at a time. Two commands that wait for the same turn would
+	 * otherwise both proceed and start a replacement: the queued-transition flag
+	 * covers tool requests, not a switch that is already running.
+	 */
+	let switchInFlight = false;
 
 	function queueTransition(transition: "enter_worktree" | "exit_worktree", command: string, signal: AbortSignal | undefined): void {
 		transitionSignal = signal;
@@ -478,15 +488,41 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 		});
 	}
 
+	/**
+	 * Runs one worktree session switch at a time.
+	 *
+	 * A command runs even while the agent streams, and a second switch would race
+	 * the first one's session replacement and can leave a replacement session
+	 * running with nobody driving it. The slot is claimed before the first await,
+	 * because two commands that start together must not both reach the wait.
+	 */
+	async function runExclusiveSwitch(ctx: ExtensionCommandContext, run: () => Promise<void>): Promise<void> {
+		// A queued transition has not been applied yet; a second switch here would
+		// race the first one's session replacement.
+		if (pendingCommand) {
+			notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) is queued and has not been applied yet — wait for it before starting another.`, "warning");
+			return;
+		}
+		if (switchInFlight) {
+			notifyPi(ctx.ui, "Another worktree session switch is still in progress — wait for it to finish before starting another.", "warning");
+			return;
+		}
+		switchInFlight = true;
+		try {
+			await settleBeforeSwitching(ctx);
+			if (pendingCommand) {
+				notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) was queued while the turn finished — it has not been applied yet.`, "warning");
+				return;
+			}
+			await run();
+		} finally {
+			switchInFlight = false;
+		}
+	}
+
 	pi.registerCommand("enter-worktree", {
 		description: "Create or enter a git worktree in a replacement Pi session",
 		handler: async (args, ctx) => {
-			// A queued transition has not been applied yet; a second switch here
-			// would race the first one's session replacement.
-			if (pendingCommand) {
-				notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) is queued and has not been applied yet — wait for it before starting another.`, "warning");
-				return;
-			}
 			let request: EnterWorktreeRequest;
 			try {
 				request = args.trim().startsWith("{") ? (JSON.parse(args) as EnterWorktreeRequest) : { name: args.trim() || undefined };
@@ -494,28 +530,14 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 				notifyPi(ctx.ui, "Invalid EnterWorktree request JSON.", "error");
 				return;
 			}
-			await settleBeforeSwitching(ctx);
-			if (pendingCommand) {
-				notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) was queued while the turn finished — it has not been applied yet.`, "warning");
-				return;
-			}
-			await switchIntoWorktree(ctx, request);
+			await runExclusiveSwitch(ctx, () => switchIntoWorktree(ctx, request));
 		},
 	});
 
 	pi.registerCommand("exit-worktree", {
 		description: "Return to the parent Pi session and optionally clean up its git worktree",
 		handler: async (_args, ctx) => {
-			if (pendingCommand) {
-				notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) is queued and has not been applied yet — wait for it before starting another.`, "warning");
-				return;
-			}
-			await settleBeforeSwitching(ctx);
-			if (pendingCommand) {
-				notifyPi(ctx.ui, `A worktree transition (${pendingLabel ?? "pending"}) was queued while the turn finished — it has not been applied yet.`, "warning");
-				return;
-			}
-			await switchOutOfWorktree(ctx);
+			await runExclusiveSwitch(ctx, () => switchOutOfWorktree(ctx));
 		},
 	});
 

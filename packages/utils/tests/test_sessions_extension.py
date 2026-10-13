@@ -444,6 +444,7 @@ const sessions = cleanAndListDirectorySessions(tmpCwd);
 console.log(JSON.stringify({{
   count: sessions.length,
   pid: sessions[0]?.pid,
+  sleeperPid: sleeper.pid,
   status: sessions[0]?.status,
   goal: sessions[0]?.latestGoal,
   recap: sessions[0]?.recap,
@@ -463,7 +464,8 @@ fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
         data = run_typescript(script)
         self.assertEqual(data, {
             "count": 1,
-            "pid": data["pid"],
+            "pid": data["sleeperPid"],
+            "sleeperPid": data["sleeperPid"],
             "status": "running",
             "goal": "Goal A",
             "recap": "Recap A",
@@ -520,6 +522,58 @@ fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
         self.assertIsNone(data["liveRecap"])
         self.assertEqual(data["deadGoal"], "Crashed goal")
         self.assertEqual(data["deadStatus"], "exited")
+
+    def test_liveness_is_observed_once_so_a_pid_change_cannot_merge_generations(self) -> None:
+        # A pid that dies and is reused inside one read pass must not move a dead
+        # record into the live session that reused it.
+        script = f"""
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {{ writeSessionInfo, cleanAndListDirectorySessions, getDirectoryRegistryPath }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+
+const tmpCwd = fs.mkdtempSync(path.join(os.tmpdir(), "sd-liveness-"));
+const now = Date.now();
+const deadPid = 2000000000;
+writeSessionInfo({{ sessionId: "crashed", pid: deadPid, cwd: tmpCwd, startedAt: now - 1000, updatedAt: now - 1000, status: "running", latestGoal: "CRASHED GOAL", recap: "CRASHED RECAP" }});
+writeSessionInfo({{ sessionId: "reused", pid: deadPid, cwd: tmpCwd, startedAt: now, updatedAt: now, status: "running" }});
+
+// The pid is dead on the liveness check and alive again when the merge runs.
+const original = process.kill;
+let calls = 0;
+process.kill = (pid, signal) => {{
+  if (pid === deadPid && signal === 0) {{
+    if (++calls === 1) throw new Error("ESRCH");
+    return true;
+  }}
+  return original.call(process, pid, signal);
+}};
+let sessions;
+try {{
+  sessions = cleanAndListDirectorySessions(tmpCwd);
+}} finally {{
+  process.kill = original;
+}}
+const live = sessions.find((session) => session.sessionId === "reused");
+const crashed = sessions.find((session) => session.sessionId === "crashed");
+console.log(JSON.stringify({{
+  count: sessions.length,
+  livenessChecks: calls,
+  liveGoal: live?.latestGoal ?? null,
+  liveRecap: live?.recap ?? null,
+  crashedStatus: crashed?.status,
+  crashedGoal: crashed?.latestGoal ?? null,
+}}));
+
+fs.rmSync(getDirectoryRegistryPath(tmpCwd), {{ recursive: true, force: true }});
+fs.rmSync(tmpCwd, {{ recursive: true, force: true }});
+"""
+        data = run_typescript(script)
+        self.assertEqual(data["count"], 2)
+        self.assertIsNone(data["liveGoal"])
+        self.assertIsNone(data["liveRecap"])
+        self.assertEqual(data["crashedStatus"], "exited")
+        self.assertEqual(data["crashedGoal"], "CRASHED GOAL")
 
     def test_registry_dir_follows_the_agent_dir_overrides(self) -> None:
         # A sandboxed session must not read or write the user's real registry:
@@ -624,6 +678,44 @@ console.log(JSON.stringify({{ afterParentStart, bothRegistered, parentRemoved, w
         self.assertTrue(data["bothRegistered"])
         self.assertTrue(data["parentRemoved"])
         self.assertTrue(data["worktreeRemoved"])
+
+    def test_an_update_keeps_fields_owned_by_other_registry_writers(self) -> None:
+        script = f"""
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import {{ writeSessionInfo, getDirectoryRegistryPath }} from {json.dumps(SESSIONS_EXTENSION.as_uri())};
+
+process.env.PI_DIRECTORY_SESSIONS_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "sd-shared-"));
+const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "sd-shared-cwd-"));
+const filePath = path.join(getDirectoryRegistryPath(cwd), "sess-1.json");
+writeSessionInfo({{ sessionId: "sess-1", pid: 9999999, cwd, startedAt: 1, updatedAt: 1, status: "idle", latestGoal: "first" }});
+
+// The keyboard package writes its glow state into the same record.
+const shared = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+fs.writeFileSync(filePath, JSON.stringify({{ ...shared, hasUnread: true, recap: "peer recap" }}));
+
+// The next activity update must not drop them.
+writeSessionInfo({{ sessionId: "sess-1", pid: 9999999, cwd, startedAt: 1, updatedAt: 2, status: "running", latestGoal: "second" }});
+const after = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+console.log(JSON.stringify({{
+  hasUnread: after.hasUnread ?? null,
+  recap: after.recap ?? null,
+  goal: after.latestGoal,
+  status: after.status,
+  updatedAt: after.updatedAt,
+}}));
+fs.rmSync(path.dirname(filePath), {{ recursive: true, force: true }});
+fs.rmSync(cwd, {{ recursive: true, force: true }});
+"""
+        data = run_typescript(script)
+        self.assertEqual(data, {
+            "hasUnread": True,
+            "recap": "peer recap",
+            "goal": "second",
+            "status": "running",
+            "updatedAt": 2,
+        })
 
     def test_session_start_registers_the_session_file(self) -> None:
         # The feature says the session registers its file, PID, cwd, and status.

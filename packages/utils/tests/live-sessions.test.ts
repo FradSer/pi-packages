@@ -23,9 +23,19 @@ test('live discovery, delivery, deduplication, stale target and private transpor
     const listed = await execute(request('list'), directory);
     assert.equal(listed.sessions?.length, 1);
     const send = request('send', { sessionId: 'session-a', text: 'hello' });
-    assert.equal((await execute(send, directory)).status, 'accepted');
-    assert.equal((await execute(send, directory)).status, 'accepted');
+    assert.equal((await execute(send, directory)).status, 'handed-over');
+    assert.equal((await execute(send, directory)).status, 'handed-over');
     assert.deepEqual(deliveries, ['hello']);
+    // The sender cannot witness delivery; the target can, and only for its own prompt.
+    const confirm = request('status', { sessionId: 'session-a', confirmRequestId: 'test' });
+    assert.equal((await execute(confirm, directory)).confirmed, false);
+    server.observe('some other prompt');
+    assert.equal((await execute(confirm, directory)).confirmed, false);
+    server.observe('hello');
+    assert.equal((await execute(confirm, directory)).confirmed, true);
+    // A replayed receipt carries the confirmation instead of guessing again.
+    assert.equal((await execute(send, directory)).confirmed, true);
+    assert.equal((await execute(request('status', { sessionId: 'session-a', confirmRequestId: 'never-sent' }), directory)).confirmed, false);
     assert.equal((await execute({ ...send, text: 'different' }, directory)).error?.code, 'request_conflict');
     state = 'running';
     assert.equal((await execute({ ...send, requestId: 'two' }, directory)).status, 'queued');

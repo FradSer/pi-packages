@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mkdtemp, rm, chmod, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, chmod, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import registerLiveSessions, { parseDelivery } from '../extensions/live-sessions.ts';
@@ -97,13 +97,13 @@ test('the /live-sessions command is the capability entry point and never claims 
     const accepted: { message: string; level: string }[] = [];
     await command.handler(`${target} check the failing test`, commandCtx(accepted));
     assert.deepEqual(deliveries.at(-1), ['check the failing test', { deliverAs: 'followUp' }]);
-    assert.match(accepted[0].message, /accepted — the text was delivered, not completed/);
+    assert.match(accepted[0].message, /handed over to its runtime — delivery is not confirmed and completion is not claimed/);
 
     idle = false;
     const queued: { message: string; level: string }[] = [];
     await command.handler(`steer ${target} stop and summarize`, commandCtx(queued));
     assert.deepEqual(deliveries.at(-1), ['stop and summarize', { deliverAs: 'steer' }]);
-    assert.match(queued[0].message, /queued as follow-up — the text was delivered, not completed/);
+    assert.match(queued[0].message, /queued as a follow-up — delivery is not confirmed and completion is not claimed/);
 
     const failed: { message: string; level: string }[] = [];
     await command.handler(`${target}`, commandCtx(failed));
@@ -114,6 +114,48 @@ test('the /live-sessions command is the capability entry point and never claims 
     await command.handler('no-such-instance hello', commandCtx(missing));
     assert.equal(missing[0].level, 'error');
     assert.match(missing[0].message, /Live delivery failed/);
+  } finally {
+    await hooks.get('session_shutdown')?.({}, sessionCtx);
+    if (previous === undefined) delete process.env.PI_UTILS_LIVE_SESSIONS_DIR;
+    else process.env.PI_UTILS_LIVE_SESSIONS_DIR = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('a delivery is confirmed when the target observes it as its own prompt', async () => {
+  const directory = await mkdtemp(join('/tmp', 'psc-confirm-'));
+  const previous = process.env.PI_UTILS_LIVE_SESSIONS_DIR;
+  process.env.PI_UTILS_LIVE_SESSIONS_DIR = directory;
+  const hooks = new Map<string, (event: unknown, ctx: ExtensionContext) => Promise<void>>();
+  const commands = new Map<string, { handler: (args: string, ctx: ExtensionContext) => Promise<void> }>();
+  const notifications: { message: string; level: string }[] = [];
+  const sessionCtx = { cwd: '/work', isIdle: () => true, sessionManager: { getSessionId: () => 'durable-confirm' } } as unknown as ExtensionContext;
+  const delivered: string[] = [];
+  const pi = {
+    on: (event: string, handler: (event: unknown, ctx: ExtensionContext) => Promise<void>) => hooks.set(event, handler),
+    registerCommand: (name: string, spec: unknown) => commands.set(name, spec as never),
+    getSessionName: () => 'confirm-target',
+    sendUserMessage: (message: string) => {
+      delivered.push(message);
+      // The target receives the text and starts its turn shortly afterwards.
+      setTimeout(() => void hooks.get('before_agent_start')?.({ prompt: message }, sessionCtx), 50);
+    },
+    getActiveTools: () => [],
+    setActiveTools: () => {},
+  } as unknown as ExtensionAPI;
+  try {
+    registerLiveSessions(pi);
+    await hooks.get('session_start')!({}, sessionCtx);
+    const target = (await execute({ version: 1, requestId: 'list', command: 'list' }, directory)).sessions![0].sessionId;
+    await commands.get('live-sessions')!.handler(`${target} check the failing test`, {
+      hasUI: false,
+      ui: { notify: (message: string, level: string) => notifications.push({ message, level }), select: async () => undefined },
+    } as unknown as ExtensionContext);
+    assert.deepEqual(delivered, ['check the failing test']);
+    assert.equal(notifications.length, 1);
+    assert.match(notifications[0].message, /confirmed the delivery to its own prompt/);
+    assert.match(notifications[0].message, /completion is still not claimed/);
+    await hooks.get('session_shutdown')?.({}, sessionCtx);
   } finally {
     await hooks.get('session_shutdown')?.({}, sessionCtx);
     if (previous === undefined) delete process.env.PI_UTILS_LIVE_SESSIONS_DIR;
@@ -156,6 +198,38 @@ test('a broken control directory is reported instead of an empty listing', async
     if (previous === undefined) delete process.env.PI_UTILS_LIVE_SESSIONS_DIR;
     else process.env.PI_UTILS_LIVE_SESSIONS_DIR = previous;
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('a startup failure is remembered by the next listing', async () => {
+  const base = await mkdtemp(join('/tmp', 'psc-long-'));
+  const directory = join(base, 'long-directory-'.repeat(4));
+  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const previous = process.env.PI_UTILS_LIVE_SESSIONS_DIR;
+  process.env.PI_UTILS_LIVE_SESSIONS_DIR = directory;
+  const hooks = new Map<string, (event: unknown, ctx: ExtensionContext) => Promise<void>>();
+  const commands = new Map<string, { handler: (args: string, ctx: ExtensionContext) => Promise<void> }>();
+  const ctx = (notifications: { message: string; level: string }[]) =>
+    ({ cwd: '/work', isIdle: () => true, sessionManager: { getSessionId: () => 'durable-long' }, ui: { notify: (message: string, level: string) => notifications.push({ message, level }) } }) as unknown as ExtensionContext;
+  try {
+    registerLiveSessions(fakePi(hooks, commands as unknown as Map<string, unknown>, []));
+    // A valid directory whose socket path is too long: discovery still succeeds,
+    // so only a remembered failure can explain the empty listing.
+    const start: { message: string; level: string }[] = [];
+    await hooks.get('session_start')!({}, ctx(start));
+    assert.equal(start[0].level, 'warning');
+    assert.match(start[0].message, /unavailable/);
+    const listed: { message: string; level: string }[] = [];
+    await commands.get('live-sessions')!.handler('', commandCtx(listed));
+    assert.equal(listed.length, 1);
+    assert.equal(listed[0].level, 'warning');
+    assert.match(listed[0].message, /unavailable in this session/);
+    assert.ok(!listed.some((entry) => /No live Pi sessions found/.test(entry.message)));
+    await hooks.get('session_shutdown')?.({}, ctx([]));
+  } finally {
+    if (previous === undefined) delete process.env.PI_UTILS_LIVE_SESSIONS_DIR;
+    else process.env.PI_UTILS_LIVE_SESSIONS_DIR = previous;
+    await rm(base, { recursive: true, force: true });
   }
 });
 

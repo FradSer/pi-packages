@@ -56,6 +56,20 @@ Feature: git worktree-aware @ completions
     Then the suggestion is dropped
     And the read tool is blocked for that path
 
+  Scenario: A worktree inside the managed directory is never exempted early
+    Given linked worktrees at ".pi/worktrees/parent" and ".pi/worktrees/parent/vendor/wt"
+    And a pi session running inside ".pi/worktrees/parent"
+    When the provider suggests "vendor/wt/file.txt" or an absolute path inside it
+    Then those suggestions are dropped
+    And the session's own files stay visible
+    And a stale directory in the managed directory is still hidden
+
+  Scenario: A search result line names a foreign path containing a space
+    Given a foreign worktree whose path contains a space
+    When a search tool returns "<foreign path>/src/index.ts:1: content"
+    Then that line is dropped
+    And a local path line and a no-match line are kept
+
   Scenario: Quoted and @-prefixed values are filtered like plain paths
     Given a session in main with a linked worktree at .pi/worktrees/foo
     When the provider suggests '@".pi/worktrees/foo/src/index.ts"'
@@ -106,10 +120,24 @@ Feature: git worktree-aware @ completions
     When the provider suggests a path inside one of the linked worktrees
     Then the suggestion is dropped
 
-  Scenario: Worktree discovery happens once per session
+  Scenario: Worktree discovery is memoized and refreshed when the list changes
     Given a pi session running in a git repository
-    When several completion rounds run in the same session
+    When several completion rounds run with an unchanged worktree list
     Then the git worktree list command runs at most once
+    When a worktree is added or removed during the session
+    Then the next round discovers it without hiding the new worktree
+
+  Scenario: Search results are resolved against the search tool's own root
+    Given a pi session in main and a linked worktree elsewhere
+    When a search whose root is that worktree returns "src/index.ts:1: content"
+    Then the line is dropped as foreign
+    When the same search runs with the session's own root
+    Then the line is kept
+
+  Scenario: A retargeted symlink cannot keep its old identity
+    Given a symlink inside the session's checkout that pointed at a local file
+    When it is retargeted into a linked worktree
+    Then the read, edit, and write tools block it
 
   Scenario: Filtering follows session replacement into a worktree
     Given a git repository with a linked worktree at .pi/worktrees/foo

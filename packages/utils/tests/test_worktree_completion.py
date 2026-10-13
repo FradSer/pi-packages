@@ -239,6 +239,106 @@ console.log(JSON.stringify({{ own: ownResult ?? null, foreign: foreignResult ?? 
         self.assertIsNone(result["own"])
         self.assertTrue(result["foreign"]["block"])
 
+    def test_worktree_nested_under_the_managed_directory_is_foreign_to_its_parent(self) -> None:
+        # A managed directory also contains worktrees, so its contents must not be
+        # exempted before the enclosing-worktree rule runs.
+        parent = self.main / ".pi" / "worktrees" / "parent"
+        nested = parent / "vendor" / "wt"
+        subprocess.run(["git", "worktree", "add", str(parent), "-b", "parent"],
+                       cwd=self.main, capture_output=True, text=True, check=True)
+        nested.parent.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "worktree", "add", str(nested), "-b", "nested"],
+                       cwd=self.main, capture_output=True, text=True, check=True)
+
+        self.assertTrue(self.is_foreign("vendor/wt/file.txt", parent))
+        self.assertTrue(self.is_foreign(str(nested / "README.md"), parent))
+        self.assertFalse(self.is_foreign("README.md", parent))
+        self.assertFalse(self.is_foreign("src/index.ts", parent))
+        self.assertTrue(self.is_foreign(str(nested / "README.md"), self.main))
+        self.assertFalse(self.is_foreign("README.md", nested))
+
+    def test_search_line_with_a_space_in_a_foreign_path_is_filtered(self) -> None:
+        # A result line is `path:line: content`, and the path can contain a space.
+        spaced = self.base / "spaced wt"
+        subprocess.run(["git", "worktree", "add", str(spaced), "-b", "spaced"],
+                       cwd=self.main, capture_output=True, text=True, check=True)
+        foreign_line = f"{spaced}/src/index.ts"
+        script = f"""
+import {{ collectWorktreeRoots, filterForeignWorktreeSearchLines }} from {json.dumps(COMPLETION_EXTENSION.as_uri())};
+const roots = collectWorktreeRoots({json.dumps(str(self.main))});
+const text = [
+  {json.dumps(foreign_line)} + ":1: foreign match",
+  "src/index.ts:12: local match",
+  "No matches found",
+].join("\\n");
+console.log(JSON.stringify({{ filtered: filterForeignWorktreeSearchLines(text, {json.dumps(str(self.main))}, roots).split("\\n") }}));
+"""
+        result = run_ts(script)
+        self.assertEqual(result["filtered"], ["src/index.ts:12: local match", "No matches found"])
+
+    def test_a_retargeted_symlink_into_a_foreign_worktree_is_blocked(self) -> None:
+        # A symlink that resolved locally and later points into a foreign worktree
+        # must not keep its old identity from a cached resolution.
+        link = self.main / "alias"
+        (self.main / "local.txt").write_text("local\n", encoding="utf-8")
+        os.symlink(self.main / "local.txt", link)
+        self.assertFalse(self.is_foreign("alias", self.main))
+        os.remove(link)
+        os.symlink(self.wt_b / "README.md", link)
+        self.assertTrue(self.is_foreign("alias", self.main))
+
+    def test_a_worktree_added_after_discovery_becomes_foreign(self) -> None:
+        # Discovery is memoized per session; a worktree that appears later must
+        # still be foreign, without running git on every completion round.
+        script = f"""
+import {{ getWorktreeRoots, isInForeignWorktree }} from {json.dumps(COMPLETION_EXTENSION.as_uri())};
+const main = {json.dumps(str(self.main))};
+const before = getWorktreeRoots(main);
+const beforeForeign = isInForeignWorktree("vendor/late/file.txt", main, before);
+const unchanged = getWorktreeRoots(main) === before;
+const added = Bun.spawnSync(["git", "-C", main, "worktree", "add", "vendor/late", "-b", "late"], {{ stdout: "pipe", stderr: "pipe" }});
+if (added.exitCode !== 0) throw new Error(added.stderr.toString());
+const after = getWorktreeRoots(main);
+const afterForeign = isInForeignWorktree("vendor/late/file.txt", main, after);
+const afterAbs = isInForeignWorktree(main + "/vendor/late/README.md", main, after);
+const memoKept = getWorktreeRoots(main) === after;
+const ownStillVisible = isInForeignWorktree("README.md", main, after);
+console.log(JSON.stringify({{ beforeForeign, afterForeign, afterAbs, ownStillVisible, unchanged, memoKept }}));
+"""
+        result = run_ts(script)
+        self.assertFalse(result["beforeForeign"])
+        self.assertTrue(result["afterForeign"])
+        self.assertTrue(result["afterAbs"])
+        self.assertFalse(result["ownStillVisible"])
+        # Unchanged discovery is still memoized: one object, no repeated git call.
+        self.assertTrue(result["unchanged"])
+        self.assertTrue(result["memoKept"])
+
+    def test_search_results_are_resolved_against_the_search_root(self) -> None:
+        # A search inside a foreign checkout returns paths relative to that root;
+        # resolving them against the session cwd would keep them all.
+        script = f"""
+import registerWorktreeCompletion from {json.dumps(COMPLETION_EXTENSION.as_uri())};
+const handlers = new Map();
+const pi = {{ on: (event, handler) => handlers.set(event, handler), getAllTools: () => [] }};
+registerWorktreeCompletion(pi);
+const main = {json.dumps(str(self.main))};
+const text = "src/index.ts:1: foreign match\\n";
+const run = (input) => {{
+  const result = handlers.get("tool_result")({{ toolName: "ffgrep", input, content: [{{ type: "text", text }}] }}, {{ cwd: main }});
+  return result ? result.content[0].text : null;
+}};
+console.log(JSON.stringify({{
+  fromForeignRoot: run({{ path: {json.dumps(str(self.wt_b))} }}),
+  fromSessionRoot: run({{ path: "src" }}),
+}}));
+"""
+        result = run_ts(script)
+        # Relative to the foreign search root this is a foreign file: dropped.
+        self.assertNotIn("foreign match", result["fromForeignRoot"] or "")
+        # Relative to the session cwd the same line is this session's own file.
+        self.assertIsNone(result["fromSessionRoot"])
+
     def test_bare_repository_session_filters_linked_worktrees(self) -> None:
         source = self.base / "bare-source"
         source.mkdir()
@@ -447,7 +547,7 @@ import registerWorktreeCompletion, {{ filterForeignWorktreeSearchLines }} from {
 const handlers = new Map();
 const declaredTools = [
   {{ name: "fffind", parameters: {{ properties: {{ exclude: {{ type: "string" }} }} }} }},
-  {{ name: "legacy-find", parameters: {{ properties: {{ path: {{ type: "string" }} }} }} }},
+  {{ name: "find", parameters: {{ properties: {{ path: {{ type: "string" }} }} }} }},
 ];
 const pi = {{
   on: (event, handler) => handlers.set(event, handler),
@@ -460,7 +560,8 @@ registerWorktreeCompletion(pi);
 const toolCallHandler = handlers.get("tool_call");
 const fffindCall = {{ toolName: "fffind", input: {{ path: "src/" }} }};
 toolCallHandler(fffindCall, ctx);
-const undeclaredCall = {{ toolName: "legacy-find", input: {{ path: "src/" }} }};
+// `find` is filtered too, but declares no exclude parameter.
+const undeclaredCall = {{ toolName: "find", input: {{ path: "src/" }} }};
 toolCallHandler(undeclaredCall, ctx);
 
 // Test tool_result filters lines
@@ -486,8 +587,8 @@ console.log(JSON.stringify({{
 """
         report = run_ts(script)
         self.assertIn(".pi/worktrees/**", report["excludeInjected"])
-        # A tool owned by another package is never given a parameter it does not
-        # declare; its output is still filtered on the way back.
+        # A search tool that declares no exclude is never given one; its output is
+        # still filtered on the way back.
         self.assertEqual(report["undeclaredInput"], {"path": "src/"})
         self.assertNotIn("wt-b", report["filteredText"])
         self.assertNotIn("wt-sub", report["filteredText"])
