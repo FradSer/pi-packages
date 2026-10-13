@@ -59,18 +59,10 @@ def test_scheduling_authorization_contracts() -> None:
     assert len(outcomes) >= 20, f"expected the full scheduling contract, got {len(outcomes)}"
 
 
-def test_prefix_stability_contracts() -> None:
-    """Consecutive requests must nest: request N is a true prefix of request N+1.
-
-    Naive tail injection breaks this at the first injection point, which is the
-    exact failure the provider's implicit prompt cache cannot tolerate. Each
-    scenario builds two requests and compares them rather than inspecting one
-    injection in isolation.
-
-    Covers the "Injected state is prefix-stable" feature block.
-    """
+def test_run_start_injection_contracts() -> None:
+    """Confirmed contract: one run-start contribution, no per-request replay."""
     outcomes = assert_all_pass("goal_live_context.mts")
-    assert len(outcomes) >= 11, f"expected the full prefix contract, got {len(outcomes)}"
+    assert len(outcomes) == 3, f"expected all run-start scenarios, got {len(outcomes)}"
 
 
 def test_completion_check_contracts() -> None:
@@ -161,7 +153,7 @@ def test_the_live_check_is_opt_in_and_gated() -> None:
 
 def test_only_the_store_reaches_a_write_primitive() -> None:
     """Only the atomic store may write Goal records."""
-    for module in ("record.ts", "scheduler.ts", "prompt.ts", "tools.ts", "commands.ts", "events.ts", "check.ts", "dashboard.ts", "core.ts", "live-context.ts", "evidence.ts"):
+    for module in ("record.ts", "scheduler.ts", "prompt.ts", "tools.ts", "commands.ts", "events.ts", "check.ts", "dashboard.ts", "core.ts", "evidence.ts"):
         source = (PACKAGE / "src" / module).read_text(encoding="utf-8")
         for primitive in ("writeJsonAtomic", "appendJsonlLine", "createExclusiveJsonFile", "writeFileSync", "appendFileSync"):
             assert primitive not in source, f"{module} reaches {primitive} outside the store"

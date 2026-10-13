@@ -2,18 +2,16 @@
  * Lifecycle handlers.
  *
  * The order of these is the runtime. `turn_start` opens a turn and its stop
- * guard; `context` injects goal state at the tail of the request in a form the
- * provider's implicit prefix cache can reuse; `tool_call` enforces the stop
+ * guard; `before_agent_start` contributes prompt sections once per run;
+ * `tool_call` enforces the stop
  * guard and refuses a stale checkpoint; `agent_before_settle` decides whether
  * the loop itself can close the goal before another run is authorized.
  */
 
-import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { detailField } from "@fradser/pi-kit";
 import { GOAL_PROCEDURE_ENTRY } from "./procedure.ts";
 import type { GoalCore } from "./core.ts";
 import { clearDashboard, refreshDashboard } from "./dashboard.ts";
-import { LiveContext } from "./live-context.ts";
 import { goalCapabilityNote, goalPromptParts, isCheckpointMessage } from "./prompt.ts";
 import { allowsAfterStop, refreshGoalToolSurface } from "./tools.ts";
 
@@ -28,14 +26,9 @@ function turnTokens(usage: unknown): number {
   return (input ?? 0) + (output ?? 0) + (read ?? 0);
 }
 
-/** A user message carrying runtime state. It is marked as a runtime reminder
- * rather than something the user said, because the model must be able to tell
- * the two apart when deciding what it was asked to do. */
+/** Register runtime handlers and run-start prompt sections. */
 export function registerGoalEvents(core: GoalCore): void {
   const { pi } = core;
-  // One retention per process, keyed by session: a second session in the same
-  // process must never re-insert a note into the wrong transcript.
-  const live = new LiveContext();
   const chargedMessages = new WeakSet<object>();
   const runGoals = new Map<string, string | undefined>();
   const messageGoals = new WeakMap<object, { goalId?: string; threadId: string }>();
@@ -43,8 +36,6 @@ export function registerGoalEvents(core: GoalCore): void {
   pi.on("tool_execution_start", event => { toolArgs.set(event.toolCallId, event.args); });
   let usageSequence = 0;
   let elapsedCharged = 0;
-  const sessionKey = (ctx: ExtensionContext): string =>
-    `${ctx.sessionManager.getSessionId() || "unidentified"}:${ctx.model?.provider ?? ""}/${ctx.model?.id ?? ""}`;
 
   pi.on("session_start", async (_event, ctx) => {
     core.restore(ctx);
@@ -62,13 +53,22 @@ export function registerGoalEvents(core: GoalCore): void {
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {
-    live.reset(sessionKey(ctx));
     core.shutdown();
     clearDashboard(ctx);
   });
 
-  pi.on("before_agent_start", async (event) => {
-    core.acceptGoalSetting(event.prompt);
+  pi.on("before_agent_start", async (event, ctx) => {
+    // Pi 1.2 custom starts have no prompt; preserve the pending procedure until delivery.
+    if (typeof event.prompt === "string") core.acceptGoalSetting(event.prompt);
+    const goal = core.goal;
+    const sections = event.systemPromptOptions.sections;
+    sections.goal_capability = goalCapabilityNote(Boolean(goal));
+    if (goal) {
+      const { state, counters } = goalPromptParts(goal, core.settings(ctx), { unmet: core.currentUnmet() });
+      sections.goal_runtime = `${state}\n\n${counters}`;
+    } else {
+      delete sections.goal_runtime;
+    }
   });
 
   pi.on("agent_start", async (_event, ctx) => {
@@ -85,33 +85,6 @@ export function registerGoalEvents(core: GoalCore): void {
     // A new turn means a new claim. Without this a refused checkpoint from the
     // previous turn would keep acting on the new one.
     refreshDashboard(core, ctx);
-  });
-
-  /**
-   * Inject goal state at the tail of the request, prefix-stably.
-   *
-   * Three things can be said here and exactly one is: the active goal's state, a
-   * note that goals are open but none is focused, or — when nothing is in flight —
-   * the capability note. `LiveContext` re-inserts whichever was already sent at
-   * the index it was sent from, so this request begins with exactly the previous
-   * one. Without that, the first injection point would end the provider's implicit
-   * prefix cache and every later request would re-read the whole session.
-   */
-  pi.on("context", async (event, ctx) => {
-    const goal = core.goal;
-    let content: string | undefined;
-    if (goal) {
-      const { state, counters } = goalPromptParts(goal, core.settings(ctx), { unmet: core.currentUnmet() });
-      content = `${state}\n\n${counters}`;
-    } else {
-      // With no goal in flight the model still needs to know it can make one,
-      // and to know when that is warranted. Without this the only way to start a
-      // goal is typing /goal, which misses the case where the model should
-      // recognise by itself that a request is worth making durable.
-      content = goalCapabilityNote(false);
-    }
-    const applied = live.apply(sessionKey(ctx), event.messages, content, Date.now());
-    return { messages: applied.messages };
   });
 
   pi.on("tool_call", async (event, _ctx) => {
@@ -139,8 +112,7 @@ export function registerGoalEvents(core: GoalCore): void {
       const threadId = ctx.sessionManager.getSessionId();
       messageGoals.set(message, { threadId, goalId: runGoals.get(threadId) });
     }
-    // Custom-message delivery never fires before_agent_start, so the /goal
-    // procedure row accepts here instead. The match is the same stored prompt
+    // The custom startup event has no prompt. Accept the /goal procedure body here. The match is the same stored prompt
     // against the delivered body; a mismatch still drops the intent silently.
     if (message.customType === GOAL_PROCEDURE_ENTRY && typeof message.content === "string") {
       core.acceptGoalSetting(message.content);

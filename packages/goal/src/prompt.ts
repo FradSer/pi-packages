@@ -181,7 +181,7 @@ function formatUsage(goal: GoalRecord): string {
 }
 
 /**
- * The capability note, injected on every request.
+ * The capability note, contributed once when each run starts.
  *
  * Without it the model can only start a goal when the user types `/goal`, which
  * misses the case the user actually cares about: recognising by itself that a

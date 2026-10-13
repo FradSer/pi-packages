@@ -38,6 +38,10 @@ Use ordinary work tools for research. There is no `research_goal`, saved
 `next_action`, or separate Goal history tool. Old history reads direct the caller
 to the thread transcript. Empty updates and mixed operations are rejected.
 
+## Run-start context
+
+Pi 1.2 `before_agent_start` contributes Goal capability and current state through structured system prompt sections once per run. Tool rounds do not inject or replay runtime messages. The runtime enforces current state independently; use `get_goal` for updated details during a run.
+
 ## Continuation and completion
 
 A normal settled turn does not invoke a checker. The runtime authorizes another

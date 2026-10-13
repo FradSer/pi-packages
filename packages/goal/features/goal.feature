@@ -471,84 +471,11 @@ Feature: Goal scheduling
 
 Feature: Goal prompt replay
 
-  Scenario: Goal prompt replay: the second request begins with the first one exactly
-    Given the isolated fixtures for the second request begins with the first one exactly
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.ok( isPrefixOf(first.messages, second.messages), "the previous request must be a true prefix of this one", ) holds for every observed invocation
-    And the predicate assert.equal(second.reason, "preserved") holds for every observed invocation
-    And the predicate assert.equal(second.preserved, true) holds for every observed invocation
-
-  Scenario: Goal prompt replay: re-inserted state is the state that was actually sent, not the current one
-    Given the isolated fixtures for re-inserted state is the state that was actually sent, not the current one
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(contents.filter((content) => content.includes("STATE v1")).length, 1) holds for every observed invocation
-    And the predicate assert.equal(contents.filter((content) => content.includes("STATE v2")).length, 1) holds for every observed invocation
-    And the predicate assert.ok(contents.indexOf(contents.find((c) => c.includes("STATE v1"))!) < contents.findIndex((c) => c.includes("STATE v2"))) holds for every observed invocation
-    And the predicate assert.ok(first.messages.length < second.messages.length) holds for every observed invocation
-
-  Scenario: Goal prompt replay: consecutive turns stay prefix-stable until the retained window fills
-    Given the isolated fixtures for consecutive turns stay prefix-stable until the retained window fills
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.ok(isPrefixOf(previous.messages, next.messages), `turn ${turn} broke the prefix: ${next.reason}`) holds for every observed invocation
-
-  Scenario: Goal prompt replay: overflowing the window costs one break and then stability resumes
-    Given the isolated fixtures for overflowing the window costs one break and then stability resumes
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.ok(breaks.length <= 2, `expected at most two deliberate breaks, got ${breaks.length} at turns ${breaks.join(",")}`) holds for every observed invocation
-    And the predicate assert.ok(turn > 32, `break at turn ${turn} came before the window could fill`) holds for every observed invocation
-    And the predicate assert.equal(dense.length, 0, `breaks must not be consecutive: ${breaks.join(",")}`) holds for every observed invocation
-
-  Scenario: Goal prompt replay: replayed notes are bounded rather than accumulating without limit
-    Given the isolated fixtures for replayed notes are bounded rather than accumulating without limit
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.ok(live.retained <= 32, `retained ${live.retained} notes at turn ${turn}`) holds for every observed invocation
-    And the predicate assert.ok(last.messages.length <= history.length + 33, `request ${turn} carried ${last.messages.length} messages`) holds for every observed invocation
-
-  Scenario: Goal prompt replay: every note already sent is replayed, not just the newest
-    Given the isolated fixtures for every note already sent is replayed, not just the newest
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.ok(found, `STATE ${earlier} vanished at turn ${turn}`) holds for every observed invocation
-    And the predicate assert.ok(isPrefixOf(previous.messages, next.messages), `turn ${turn} broke the prefix`) holds for every observed invocation
-
-  Scenario: Goal prompt replay: identical state across requests appends nothing extra
-    Given the isolated fixtures for identical state across requests appends nothing extra
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(notes.length, 2) holds for every observed invocation
-    And the predicate assert.equal(String(notes[0]?.content), String(notes[1]?.content)) holds for every observed invocation
-
-  Scenario: Goal prompt replay: a rewritten history resets instead of re-inserting into the wrong place
-    Given the isolated fixtures for a rewritten history resets instead of re-inserting into the wrong place
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(applied.reason, "history-rewritten") holds for every observed invocation
-    And the predicate assert.equal(applied.preserved, false) holds for every observed invocation
-    And the predicate assert.equal(notes.length, 1, "the stale note was dropped rather than re-inserted") holds for every observed invocation
-    And the predicate assert.match(String(notes[0]?.content), /STATE v2/) holds for every observed invocation
-
-  Scenario: Goal prompt replay: a truncated history cannot re-insert at a vanished anchor
-    Given the isolated fixtures for a truncated history cannot re-insert at a vanished anchor
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.ok(applied.reason === "anchor-lost" || applied.reason === "history-rewritten", applied.reason) holds for every observed invocation
-    And the predicate assert.equal(applied.preserved, false) holds for every observed invocation
-    And the predicate assert.equal(notes.length, 1) holds for every observed invocation
-
-  Scenario: Goal prompt replay: notes never cross sessions, in either direction
-    Given the isolated fixtures for notes never cross sessions, in either direction
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(other.reason, "session-changed") holds for every observed invocation
-    And the predicate assert.ok(!other.messages.some((m) => String(m.content).includes("STATE s1")), "s1 leaked into s2") holds for every observed invocation
-    And the predicate assert.ok(!back.messages.some((m) => String(m.content).includes("STATE s2")), "s2 leaked back into s1") holds for every observed invocation
-    And the predicate assert.equal(back.reason, "session-changed") holds for every observed invocation
-    And the predicate assert.ok(!isPrefixOf(first.messages, back.messages)) holds for every observed invocation
-
-  Scenario: Goal prompt replay: the note says it is not a message from the user
-    Given the isolated fixtures for the note says it is not a message from the user
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.match(content, /not a message from the user/i) holds for every observed invocation
-    And the predicate assert.match(content, /not a\s+request from the user/i) holds for every observed invocation
-    And the predicate assert.match(content, /GOAL STATE/) holds for every observed invocation
-    And the predicate assert.match(content, /\[pi-goal runtime state/, "and is labelled as runtime state") holds for every observed invocation
-
-Feature: Goal completion transport
+  Scenario: Goal context enters once at run start
+    Given a new run with or without a focused Goal
+    When Pi dispatches before_agent_start
+    Then Goal contributes structured system prompt sections once
+    And context does not append or replay runtime messages
 
   Scenario: Goal completion transport: the check really spawns a child and reads its verdict
     Given the isolated fixtures for the check really spawns a child and reads its verdict

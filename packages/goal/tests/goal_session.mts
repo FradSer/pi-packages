@@ -167,9 +167,8 @@ export default function (pi: Parameters<typeof goal>[0]) {
   let receivedPrompt: string | undefined;
   const provider = fauxProvider({ provider: "goal-test", models: [{ id: "worker" }] });
   provider.setResponses((options.extraResponses ?? []).concat(options.responses).map((response) => (context) => {
-    const text = context.messages.map((message) =>
-      typeof message.content === "string" ? message.content : JSON.stringify(message.content),
-    ).join("\n");
+    // Retain structured system sections as well as conversation content.
+    const text = context.messages.map(message => JSON.stringify(message)).join("\n");
     receivedPrompt = text;
     return response as ReturnType<typeof fauxAssistantMessage>;
   }));
