@@ -559,11 +559,17 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     });
   }
 
-  pi.on("before_agent_start", async (event) => ({
-    systemPrompt: `${event.systemPrompt}\n\n${activeWorkflow
+  pi.on("before_agent_start", async (event) => {
+    const options = event.systemPromptOptions;
+    if (!("sections" in options) || !options.sections || typeof options.sections !== "object" || Array.isArray(options.sections)) {
+      throw new Error("This extension requires Pi structured prompt sections.");
+    }
+    const sections = options.sections;
+    Reflect.deleteProperty(sections, "matt_pocock_workflow");
+    Object.assign(sections, { matt_pocock_workflow: activeWorkflow
       ? workflowGuidance(activeWorkflow, availableReferences(activeWorkflow))
-      : availableWorkflowsGuidance()}`,
-  }));
+      : availableWorkflowsGuidance() });
+  });
 
   pi.registerTool({
     name: "matt_pocock_workflow",

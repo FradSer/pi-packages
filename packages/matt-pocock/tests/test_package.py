@@ -76,7 +76,9 @@ def test_gateway_starts_workflow_with_versioned_work_item_state() -> None:
     result = run_typescript(RUNTIME_HARNESS + """
         const r = runtime();
         const execution = await r.call("matt_pocock_workflow", { mode: "workflow", route: "architecture" });
-        const prompt = await r.events.get("before_agent_start")({ systemPrompt: "base" }, r.ctx);
+        const prompt = {sections: {}};
+        const reply = await r.events.get("before_agent_start")({ systemPrompt: "base", systemPromptOptions: prompt }, r.ctx);
+        if (reply !== undefined) throw new Error("Additive guidance must not return an override");
         console.log(JSON.stringify({ entries: r.entries, execution, activeTools: r.active(), prompt }));
     """)
     state = result["entries"][0]["data"]
@@ -96,7 +98,7 @@ def test_gateway_starts_workflow_with_versioned_work_item_state() -> None:
     assert "Allowed next: codebase-design, implement, code-review" in text
     assert "matt_pocock_active" in result["activeTools"]
     assert "matt_pocock_ask" in result["activeTools"]
-    assert state["workItemId"] in result["prompt"]["systemPrompt"]
+    assert state["workItemId"] in result["prompt"]["sections"]["matt_pocock_workflow"]
 
 
 def test_model_standalone_writing_for_agents_has_no_persistent_state() -> None:

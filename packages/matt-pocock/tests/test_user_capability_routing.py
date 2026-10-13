@@ -53,8 +53,10 @@ def test_injected_guidance_names_every_user_invocation_capability() -> None:
     """Given an inactive session, the prompt tells the model what the user can ask for."""
     result = run_typescript(RUNTIME_HARNESS + """
         const r = runtime();
-        const { systemPrompt: prompt } = await r.events.get("before_agent_start")({ systemPrompt: "base" }, r.ctx);
-        console.log(JSON.stringify({ prompt }));
+        const options = {sections: {}};
+        const reply = await r.events.get("before_agent_start")({ systemPrompt: "base", systemPromptOptions: options }, r.ctx);
+        if (reply !== undefined) throw new Error("Additive guidance must not return an override");
+        console.log(JSON.stringify({ prompt: Object.values(options.sections).join("\\n") }));
     """)
     prompt = result["prompt"]
     assert '"mode":"user-capability","capability":"<id>"' in prompt
