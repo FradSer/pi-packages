@@ -45,8 +45,8 @@ def test_actual_semantic_worker_receives_guidance_without_new_write_authority() 
     assert [entry['snapshotIndex'] for entry in shown] == [0, 1]
     assert [entry['entry']['role'] for entry in shown] == ['user', 'toolResult']
     assert [entry['entry']['content']['citationLines'] for entry in shown] == [
-        {'block': 0, 'lines': [{'line': 1, 'text': 'Use Vitest for future tasks.'}]},
-        {'block': 0, 'lines': [{'line': 1, 'text': 'Verified migration to Vitest.'}]},
+        {'block': 0, 'lines': [{'line': 1, 'text': 'Use Vitest for future tasks.', 'ref': 'e0.b0.l1'}]},
+        {'block': 0, 'lines': [{'line': 1, 'text': 'Verified migration to Vitest.', 'ref': 'e1.b0.l1'}]},
     ]
     assert value['shownContext']['existingMemories'] == []
     assert all(tools == [] for tools in value['tools'])
@@ -68,3 +68,16 @@ def test_repair_schema_demonstrates_a_fact_without_authorizing_example_copy() ->
     ''')
     assert value['description'] == value['body']
     assert value['exampleIsNotEvidence']
+
+
+def test_initial_and_repair_generation_examples_do_not_reintroduce_legacy_citation_fields() -> None:
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs';import {mock} from 'bun:test';const kit=await import('./packages/kit/src/index.ts');let prompt;
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{prompt=input.prompt;return {exitCode:0,stderr:'',text:'{}'}}}));
+      const {repairIncrementalMemoryPlan}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      await repairIncrementalMemoryPlan({identity:{runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h'},rejectedPlan:{operations:[],newMemories:[]},errors:['citation'],selectedNames:[],structuralCorrection:true,semanticContext:{frozenEvidence:{entries:[{role:'user',content:'Observed fact'}]},existingMemories:[]}});
+      const template=fs.readFileSync('./packages/continual-learning/prompts/incremental-memory-consolidator.md','utf8');const instructions=prompt.slice(0,prompt.lastIndexOf('\n'));
+      console.log(JSON.stringify({examples:[template,instructions].map(text=>Array.from(text.matchAll(/(?:"evidence"|evidence:)\s*:?\s*\[\s*\{\s*(?:"?)(\w+)/g),m=>m[1])),copyQuotes:instructions.includes('Copy those exact quotes'),legacyInstruction:template.includes('each evidence item has a snapshot `index`')}));
+    ''')
+    assert all(examples and set(examples) == {'ref'} for examples in value['examples'])
+    assert not value['copyQuotes'] and not value['legacyInstruction']

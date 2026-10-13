@@ -1,3 +1,4 @@
+import { memoryReferenceResults } from "./memory-evidence-provenance";
 import { prepareTransactionWrite, recordTransactionWrite, removeTransactionFile, restoreOwnedFile, withOwnedFileTransaction } from "./file-transaction";
 import * as crypto from "node:crypto";
 import * as fsp from "node:fs/promises";
@@ -1485,6 +1486,28 @@ function containsAssignedCredentialMaterial(value: string, depth = 0): boolean {
 }
 
 export function containsSensitiveMemoryMaterial(value: string): boolean {
+  // Judge decoded values, not JSON escape sequences adjoining a code/env
+  // reference. Encoding must neither invent a secret nor hide a real one.
+  let decoded: unknown;
+  try { decoded = JSON.parse(value); } catch { /* ordinary source/prose */ }
+  if (decoded !== undefined) {
+    if (typeof decoded === "string") return containsSensitiveMemoryMaterial(decoded);
+    if (decoded && typeof decoded === "object") {
+      const pending: unknown[] = [decoded];
+      while (pending.length) {
+        const current = pending.pop();
+        if (typeof current === "string" && containsSensitiveMemoryMaterial(current)) return true;
+        if (!current || typeof current !== "object") continue;
+        for (const [key, child] of Object.entries(current)) {
+          if (containsSensitiveMemoryMaterial(key)) return true;
+          if (typeof child === "string" && containsAssignedCredentialMaterial(`${key}: ${child}`)) return true;
+          pending.push(child);
+        }
+      }
+      return false;
+    }
+    return false;
+  }
   return SENSITIVE_MEMORY_PATTERNS.some((pattern) => pattern.test(value)) || containsAssignedCredentialMaterial(value);
 }
 
@@ -1617,6 +1640,7 @@ function normalizeNewMemoryEvidence(raw: unknown, entries: readonly unknown[], l
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_NEW_MEMORY_EVIDENCE) {
     throw new Error(`${label} must contain 1..${MAX_NEW_MEMORY_EVIDENCE} entries`);
   }
+  const memoryReferences = memoryReferenceResults(entries);
   return raw.map((value, index) => {
     const itemLabel = `${label}[${index}]`;
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${itemLabel} must be an object`);
@@ -1631,6 +1655,7 @@ function normalizeNewMemoryEvidence(raw: unknown, entries: readonly unknown[], l
     if (containsSensitiveMemoryMaterial(quote)) throw new Error(`${itemLabel}.quote contains sensitive material`);
     const role = snapshotEntryRole(entry);
     if (role !== "user" && role !== "toolResult") throw new Error(`${itemLabel} must cite a user or tool result snapshot entry`);
+    if (memoryReferences.has(entryIndex)) throw new Error(`${itemLabel}: Memory readback is context, not independent evidence`);
     if (!snapshotContainsQuote(entry, quote)) throw new Error(`${itemLabel}.quote is not present in the cited snapshot entry`);
     if (item.role !== undefined && item.role !== role) throw new Error(`${itemLabel}.role does not match the cited snapshot entry`);
     return { index: entryIndex, quote, role };

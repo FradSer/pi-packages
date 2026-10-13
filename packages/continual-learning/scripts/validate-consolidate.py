@@ -294,6 +294,43 @@ def new_memory_raw_value(plan: dict[str, Any]) -> Any:
     return plan.get("newMemories", MISSING)
 
 
+LOCAL_MEMORY_TOOLS = {"read", "learning_read", "bash", "exec", "exec_command", "codemode", "functions.exec", "edit", "write"}
+MEMORY_SURFACE = re.compile(r"(?:^|[\\/\s\"'`])\.memory(?=[\\/\s\"'`]|$)|(?:^|[\\/\s\"'`])\.pi[\\/]+agent[\\/]+memory(?=[\\/\s\"'`]|$)|(?:^|[\\/\s\"'`])memory[\\/]+--[^\\/\"'`]+--(?=[\\/\s\"'`]|$)", re.I)
+
+
+def touches_memory(value: Any) -> bool:
+    if isinstance(value, str):
+        return MEMORY_SURFACE.search(value) is not None
+    if isinstance(value, list):
+        return any(touches_memory(item) for item in value)
+    if isinstance(value, dict):
+        return any(touches_memory(item) for item in value.values())
+    return False
+
+
+def memory_reference_results(entries: list[Any]) -> set[int]:
+    """Retain readbacks/mixed aggregates as context, never independent facts."""
+    invocations: set[tuple[str, str]] = set()
+    results: set[int] = set()
+    for index, entry in enumerate(entries):
+        row = snapshot_entry_record(entry)
+        if not isinstance(row, dict):
+            continue
+        if row.get("role") == "assistant" and isinstance(row.get("content"), list):
+            for call in row["content"]:
+                if not isinstance(call, dict) or call.get("type") != "toolCall" or not isinstance(call.get("id"), str) or not isinstance(call.get("name"), str) or call["name"] not in LOCAL_MEMORY_TOOLS:
+                    continue
+                arguments = call.get("arguments")
+                inspected = arguments
+                if call["name"] in {"read", "learning_read", "edit", "write"}:
+                    inspected = arguments.get("path", arguments.get("file_path")) if isinstance(arguments, dict) else None
+                if touches_memory(inspected):
+                    invocations.add((call["name"], call["id"]))
+        if row.get("role") == "toolResult" and row.get("isError") is not True and isinstance(row.get("toolName"), str) and isinstance(row.get("toolCallId"), str) and (row["toolName"], row["toolCallId"]) in invocations:
+            results.add(index)
+    return results
+
+
 def normalize_new_memory_proposals(
     value: Any,
     selected: list[str],
@@ -319,6 +356,7 @@ def normalize_new_memory_proposals(
     entries = snapshot_entries(snapshot)
     if not entries:
         raise ValidationError("context_evidence", "newMemories require an enabled immutable context snapshot with entries")
+    memory_references = memory_reference_results(entries)
     selected_keys = {name.casefold() for name in selected}
     names: set[str] = set()
     total_bytes = 0
@@ -388,6 +426,8 @@ def normalize_new_memory_proposals(
             role = snapshot_entry_role(entry)
             if role not in {"user", "toolResult"}:
                 raise ValidationError("context_evidence", f"{evidence_label} must cite a user or tool result snapshot entry")
+            if raw_index in memory_references:
+                raise ValidationError("context_evidence", f"{evidence_label}: Memory readback is context, not independent evidence")
             if not snapshot_contains_quote(entry, quote):
                 raise ValidationError("context_evidence", f"{evidence_label}.quote is not present in the cited snapshot entry")
             if "role" in item and item["role"] != role:
@@ -674,6 +714,7 @@ def validate_operations(
     metadata: dict[str, dict[str, Any]],
     staleness: dict[str, dict[str, Any]],
     repo_root: Path | None,
+    new_memories: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     if value is None:
         return []
@@ -725,7 +766,7 @@ def validate_operations(
                 for item in operations if isinstance(item, dict) and item.get("kind") in {"create", "rewrite"}
             }
             for target in preserved:
-                if target in operation_names:
+                if target in operation_names or target in {item["name"] for item in new_memories}:
                     continue
                 if repo_root is None:
                     raise ValidationError("destructive", f"operations[{index}]: preservedIn requires repository verification")
@@ -768,7 +809,6 @@ def validate_plan(
     staleness = validate_staleness(artifacts["staleness"], inventory)
     grounding = validate_grounding(artifacts["grounding"], inventory, repo_root)
     report = validate_report(artifacts["report"], inventory)
-    operations = validate_operations(plan.get("operations"), inventory, metadata, staleness, repo_root)
     new_memories = normalize_new_memory_proposals(
         new_memory_raw_value(plan),
         selected,
@@ -776,6 +816,7 @@ def validate_plan(
         expected_run_id=plan.get("runId"),
         expected_scope_key=plan.get("scopeKey"),
     )
+    operations = validate_operations(plan.get("operations"), inventory, metadata, staleness, repo_root, new_memories)
     supplied_hash = plan["artifactHash"]
     calculated_hash = digest(artifact_payload(plan))
     # A parent may bind a precomputed hash of the serialized artifact.  When it

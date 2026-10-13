@@ -194,9 +194,25 @@ def test_experiment_proxy_bounds_routing_and_never_copies_host_credentials(tmp_p
             assert status == 200 and b"real-upstream-response" in data and data.endswith(b"[DONE]\n\n")
             assert observed == [{"path": "/v1/chat/completions", "auth": "Bearer HOST_ONLY_SECRET",
                                  "body": {"model": "selected", "messages": []}}]
+            assert proxy.model_observations == [{'request': 1, 'toolCount': 0,
+                'toolChoice': 'other-or-absent', 'messageCount': 0, 'retainedToolResults': 0,
+                'responseFormatType': 'other-or-absent', 'responseSchemaName': 'other-or-absent', 'responseSchemaStrict': False}]
+            assert request('/v1/chat/completions', {'model': 'selected', 'tools': [], 'tool_choice': 'none',
+                'messages': [{'role': 'tool', 'content': 'PRIVATE_BODY_NOT_FOR_METADATA'}],
+                'response_format': {'type': 'json_schema', 'json_schema': {'name': 'memory_delta', 'strict': True, 'schema': {'private': 'PRIVATE_BODY_NOT_FOR_METADATA'}}}})[0] == 200
+            assert proxy.model_observations[-1] == {'request': 2, 'toolCount': 0,
+                'toolChoice': 'none', 'messageCount': 1, 'retainedToolResults': 1,
+                'responseFormatType': 'json_schema', 'responseSchemaName': 'memory_delta', 'responseSchemaStrict': True}
+            assert 'PRIVATE_BODY_NOT_FOR_METADATA' not in json.dumps(proxy.model_observations)
+            assert request('/v1/chat/completions', {'model': 'selected', 'response_format': {
+                'type': 'PRIVATE_BODY_NOT_FOR_METADATA', 'json_schema': {'name': 'PRIVATE_BODY_NOT_FOR_METADATA', 'strict': 'true'}}})[0] == 200
+            assert proxy.model_observations[-1]['responseFormatType'] == 'other-or-absent'
+            assert proxy.model_observations[-1]['responseSchemaName'] == 'other-or-absent'
+            assert proxy.model_observations[-1]['responseSchemaStrict'] is False
+            assert 'PRIVATE_BODY_NOT_FOR_METADATA' not in json.dumps(proxy.model_observations)
             proxy.requests = 180
             assert request("/v1/chat/completions", {"model": "selected"})[0] == 429
-            assert len(observed) == 1
+            assert len(observed) == 3
     finally:
         upstream.shutdown()
         upstream.server_close()
@@ -266,7 +282,8 @@ def test_real_jev_proxy_route_and_model_stream_do_not_compete_for_slots(tmp_path
 
 
 @pytest.mark.parametrize("status", [200, 502])
-def test_jev_bun_forwarder_preserves_wire_and_keeps_secret_out_of_arguments(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int) -> None:
+@pytest.mark.parametrize("evidence_bytes", [20, 90000])
+def test_jev_bun_forwarder_preserves_wire_and_keeps_secret_out_of_arguments(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, status: int, evidence_bytes: int) -> None:
     root=tmp_path/'host';root.mkdir()
     (root/'memory.json').write_text(json.dumps({'provider':'fixture','model':'selected'}))
     (root/'models.json').write_text(json.dumps({'providers':{'fixture':{'apiKey':'MODEL_SECRET','baseUrl':'https://example.invalid/v1','models':[{'id':'selected'}]}}}))
@@ -276,7 +293,7 @@ def test_jev_bun_forwarder_preserves_wire_and_keeps_secret_out_of_arguments(tmp_
         body=json.dumps({'model':'jev-1.13.0','usage':{'input_tokens':17,'output_tokens':3},'answers':{}}) if status==200 else 'error HOST_JEV_SECRET MODEL_SECRET'
         return __import__('subprocess').CompletedProcess(args,0,json.dumps({'status':status,'body':body}).encode(),b'')
     monkeypatch.setattr(docker_experiment.subprocess,'run',run)
-    payload=json.dumps({'model':'jev-1.13.0','state':'complete frozen evidence','questions':{}}).encode()
+    payload=json.dumps({'model':'jev-1.13.0','state':'complete frozen evidence'+'x'*evidence_bytes,'questions':{}}).encode()
     with InferenceProxy(root,jev_key='HOST_JEV_SECRET',jev_transport='bun-fetch') as proxy:
         conn=http.client.HTTPConnection('127.0.0.1',proxy.server.server_address[1],timeout=5)
         conn.request('POST','/jev/v1/systemone',payload,headers={'Authorization':f'Bearer {proxy.token}'})

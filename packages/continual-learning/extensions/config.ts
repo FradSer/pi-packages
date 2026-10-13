@@ -245,7 +245,7 @@ export function readJevConfigState(): JevConfigState {
 }
 
 /** Explicit capability opt-in for a verified learning-model gateway. */
-export function plannerJsonOutputEnabled(): boolean {
+function plannerOutputCapabilityEnabled(key: "plannerJsonOutput" | "plannerStructuredOutput"): boolean {
   try {
     const file = join(assertSafeAgentDir(false), "continual-learning.json");
     if (!lstatIfPresent(file)) return false;
@@ -253,6 +253,15 @@ export function plannerJsonOutputEnabled(): boolean {
     if (lstatSync(file).size > 4096) return false;
     const raw: unknown = JSON.parse(readFileSync(file, "utf8"));
     return !!raw && typeof raw === "object" && !Array.isArray(raw)
-      && (raw as Record<string, unknown>).plannerJsonOutput === true;
+      && (raw as Record<string, unknown>)[key] === true;
   } catch { return false; }
+}
+
+export function plannerJsonOutputEnabled(): boolean {
+  return plannerOutputCapabilityEnabled("plannerJsonOutput");
+}
+
+/** Separate opt-in: JSON syntax support does not establish schema support. */
+export function plannerStructuredOutputEnabled(): boolean {
+  return plannerOutputCapabilityEnabled("plannerStructuredOutput");
 }

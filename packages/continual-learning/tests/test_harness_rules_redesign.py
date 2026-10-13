@@ -681,38 +681,40 @@ def test_harness_guidance_hook_integration() -> None:
 
       // before_agent_start fires once per user prompt; sessionManager exposes the
       // retained branch. Empty retained -> first-turn delivery from the prompt.
-      const ctx = { cwd: tmpDir, sessionManager: { buildContextEntries: () => [] } };
+      const ctx = { cwd: tmpDir, sessionManager: { buildContextEntries: () => [], getBranch: () => [] } };
 
       // Text rule triggers from the user prompt.
-      const textRes = await hooks['before_agent_start']({
+      const textOptions = {skills: [], sections: {}};
+      await hooks['before_agent_start']({
         type: 'before_agent_start',
         prompt: '关于 Project A 有什么要求？',
         systemPrompt: '',
-        systemPromptOptions: { skills: [] },
+        systemPromptOptions: textOptions,
       }, ctx);
 
       // Skill rule triggers from an expanded skill invocation.
       const NL = String.fromCharCode(10);
       const expanded = ['<skill name="open-deskos-widget" location="/tmp/w/SKILL.md">', 'body', '</skill>', '', 'build a fullscreen popup'].join(NL);
-      const skillRes = await hooks['before_agent_start']({
+      const skillOptions = {skills: [{name: 'open-deskos-widget'}], sections: {}};
+      await hooks['before_agent_start']({
         type: 'before_agent_start',
         prompt: expanded,
         systemPrompt: '',
-        systemPromptOptions: { skills: [{ name: 'open-deskos-widget' }] },
+        systemPromptOptions: skillOptions,
       }, ctx);
 
       fs.rmSync(tmpDir, { recursive: true, force: true });
 
       console.log(JSON.stringify({
-        textCustomType: textRes?.message?.customType,
-        textContent: textRes?.message?.content,
-        textEntries: textRes?.message?.details?.entries,
-        skillContent: skillRes?.message?.content,
-        skillRuleIds: skillRes?.message?.details?.skillRuleIds,
+        textCustomType: null,
+        textContent: textOptions.sections.harness_guidance,
+        textEntries: entries.find(e=>e.type==='harness-guidance-delivery').data.entries,
+        skillContent: skillOptions.sections.harness_guidance,
+        skillRuleIds: entries.filter(e=>e.type==='harness-guidance-delivery').at(-1).data.skillRuleIds,
       }));
     ''')
-    # Text guidance is delivered as ONE persistent message (durable, retained).
-    assert result['textCustomType'] == 'harness-guidance'
+    # Structured guidance has a separate non-context delivery ledger.
+    assert result['textCustomType'] is None
     assert 'Project A is deprecated.' in result['textContent']
     assert result['textEntries'][0]['id'] == 'text-rule'
     assert result['textEntries'][0]['status'] == 'active'
@@ -738,31 +740,36 @@ def test_registered_text_guidance_reports_scoped_source_and_retirement_owner(tmp
       fs.writeFileSync(paths.userScoped, JSON.stringify({{rules:[{{id:'scoped-text',text:'needle',instructions:'Scoped guidance'}}]}}));
       const hooks={{}}, entries=[];
       registerHarnessGuidance({{on:(name,handler)=>hooks[name]=handler,registerEntryRenderer(){{}},appendEntry:(type,data)=>entries.push({{type,data}})}});
-      const event={{type:'before_agent_start',prompt:'needle',systemPrompt:'',systemPromptOptions:{{skills:[]}}}};
-      const first=await hooks.before_agent_start(event,{{cwd,sessionManager:{{buildContextEntries:()=>[]}}}});
+      const event={{type:'before_agent_start',prompt:'needle',systemPrompt:'',systemPromptOptions:{{sections:{{}},skills:[]}}}};
+      await hooks.before_agent_start(event,{{cwd,sessionManager:{{buildContextEntries:()=>[],getBranch:()=>[]}}}});
+      const first={{message:{{content:event.systemPromptOptions.sections.harness_guidance,details:entries.at(-1).data}}}};
       fs.rmSync(paths.userScoped,{{force:true}});
       const retained=[{{type:'custom_message',customType:'harness-guidance',content:first.message.content,display:false,details:first.message.details}}];
       fs.mkdirSync(path.dirname(paths.project),{{recursive:true}});
       fs.writeFileSync(paths.project, JSON.stringify({{rules:[{{id:'scoped-text',text:'needle',instructions:'Scoped guidance'}}]}}));
-      const ownerChanged=await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>retained}}}});
+      await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>retained,getBranch:()=>retained}}}});
+      const ownerChanged=entries.at(-1).data;
       fs.rmSync(paths.project,{{force:true}});
-      const second=await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>retained}}}});
+      await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>retained,getBranch:()=>retained}}}});
+      const second=entries.at(-1).data;
       const oldRetained=[{{type:'custom_message',customType:'harness-guidance',content:first.message.content,display:false,details:{{entries:[{{id:'scoped-text',revision:first.message.details.entries[0].revision,status:'active'}}]}}}}];
-      const oldRetired=await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>oldRetained}}}});
+      await hooks.before_agent_start({{...event,prompt:'plain'}},{{cwd,sessionManager:{{buildContextEntries:()=>oldRetained,getBranch:()=>oldRetained}}}});
+      const oldRetired=entries.at(-1).data;
       console.log(JSON.stringify({{
         paths, first:first.message.details.entries,
         firstEvent:entries.find(entry=>entry.data?.kind==='text-rule')?.data,
-        ownerChanged:ownerChanged?.message?.details?.entries ?? [],
-        retired:second.message.details.entries,
+        ownerChanged:ownerChanged.entries,
+        retired:second.entries,
         retiredEvent:entries.find(entry=>entry.data?.kind==='text-rule' && entry.data?.source==='user.scoped' && entry.data?.prompt.includes('retired'))?.data,
-        oldRetired:oldRetired.message.details.entries,
-        oldRetiredEvent:entries.at(-1)?.data,
+        oldRetired:oldRetired.entries,
+        oldRetiredEvent:entries.filter(e=>e.data?.kind==='text-rule').at(-1)?.data,
       }}));
     ''')
     assert result['first'][0]['source'] == 'user.scoped'
     assert result['firstEvent']['source'] == 'user.scoped'
     assert result['firstEvent']['file'] == result['paths']['userScoped']
-    assert result['ownerChanged'] == []
+    # Preserve unchanged scoped guidance even if its original trigger is absent.
+    assert result['ownerChanged'][0]['source'] == 'project'
     assert result['retired'][0]['status'] == 'retired'
     assert result['retired'][0]['source'] == 'user.scoped'
     assert result['retiredEvent']['source'] == 'user.scoped'
@@ -783,7 +790,7 @@ def test_registered_guidance_holds_text_plan_when_context_rebuild_fails(tmp_path
       const hooks={{}}, entries=[];
       registerHarnessGuidance({{on:(name,handler)=>hooks[name]=handler,registerEntryRenderer(){{}},appendEntry:(type,data)=>entries.push({{type,data}})}});
       const result=await hooks.before_agent_start(
-        {{type:'before_agent_start',prompt:'needle',systemPrompt:'',systemPromptOptions:{{skills:[]}}}},
+        {{type:'before_agent_start',prompt:'needle',systemPrompt:'',systemPromptOptions:{{sections:{{}},skills:[]}}}},
         {{cwd,sessionManager:{{buildContextEntries:()=>{{throw new Error('context-failure')}}}}}},
       );
       console.log(JSON.stringify({{result,entries}}));
@@ -799,9 +806,8 @@ def test_registered_guidance_holds_text_plan_when_context_rebuild_fails(tmp_path
 
 
 def test_retained_scan_runs_only_when_text_rules_can_match() -> None:
-    # The retained branch is rebuilt and scanned only when an enabled text rule
-    # can match something. Without one, only delivered guidance entries are
-    # converted, so stale guidance still retires while the per-turn cost drops.
+    # Rebuild the conversation only when text rules can match.
+    # The separate branch ledger still records retirement without a scan.
     result = run_bun('''
       import path from 'node:path';
       import fs from 'node:fs';
@@ -813,9 +819,9 @@ def test_retained_scan_runs_only_when_text_rules_can_match() -> None:
         const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-scan-test-'));
         fs.mkdirSync(path.join(tmpDir, '.pi'), { recursive: true });
         fs.writeFileSync(path.join(tmpDir, '.pi', 'harness.json'), JSON.stringify({ rules }));
-        const hooks = {};
-        registerHarnessGuidance({ on: (event, handler) => { hooks[event] = handler; }, registerEntryRenderer: () => {}, appendEntry: () => {} });
-        return { tmpDir, hooks };
+        const hooks = {}, deliveries=[];
+        registerHarnessGuidance({ on: (event, handler) => { hooks[event] = handler; }, registerEntryRenderer: () => {}, appendEntry: (type,data) => {if(type==='harness-guidance-delivery') deliveries.push(data)} });
+        return { tmpDir, hooks, deliveries };
       };
       const base = (tmpDir) => [
         { type: 'message', id: 'e1', parentId: null, timestamp: now, message: { role: 'user', content: [{ type: 'text', text: 'start' }], timestamp: now } },
@@ -825,9 +831,10 @@ def test_retained_scan_runs_only_when_text_rules_can_match() -> None:
       // A rule exists, and its keyword appears only in retained conversation.
       const withRule = mk([{ id: 'text-rule', text: 'Project A', instructions: 'Project A is deprecated.' }]);
       const retainedForRule = base(withRule.tmpDir);
-      const matched = await withRule.hooks['before_agent_start'](
-        { type: 'before_agent_start', prompt: 'carry on', systemPrompt: '', systemPromptOptions: { skills: [] } },
-        { cwd: withRule.tmpDir, sessionManager: { buildContextEntries: () => retainedForRule } },
+      const matchedOptions={skills:[],sections:{}};
+      await withRule.hooks['before_agent_start'](
+        { type: 'before_agent_start', prompt: 'carry on', systemPrompt: '', systemPromptOptions: matchedOptions },
+        { cwd: withRule.tmpDir, sessionManager: { buildContextEntries: () => retainedForRule, getBranch: () => retainedForRule } },
       );
 
       // No rule exists, and delivered guidance for a removed rule is retained.
@@ -836,19 +843,20 @@ def test_retained_scan_runs_only_when_text_rules_can_match() -> None:
         ...base(withoutRule.tmpDir),
         { type: 'custom_message', id: 'e3', parentId: 'e2', timestamp: now, customType: 'harness-guidance', content: 'older guidance', display: false, details: { entries: [{ id: 'text-rule', status: 'active', revision: 'stale' }] } },
       ];
-      const retired = await withoutRule.hooks['before_agent_start'](
-        { type: 'before_agent_start', prompt: 'plain prompt', systemPrompt: '', systemPromptOptions: { skills: [] } },
-        { cwd: withoutRule.tmpDir, sessionManager: { buildContextEntries: () => retainedForRetirement } },
+      const retiredOptions={skills:[],sections:{}};
+      await withoutRule.hooks['before_agent_start'](
+        { type: 'before_agent_start', prompt: 'plain prompt', systemPrompt: '', systemPromptOptions: retiredOptions },
+        { cwd: withoutRule.tmpDir, sessionManager: { buildContextEntries: () => retainedForRetirement, getBranch: () => retainedForRetirement } },
       );
 
       fs.rmSync(withRule.tmpDir, { recursive: true, force: true });
       fs.rmSync(withoutRule.tmpDir, { recursive: true, force: true });
 
       console.log(JSON.stringify({
-        matchedContent: matched?.message?.content ?? null,
-        matchedIds: (matched?.message?.details?.entries ?? []).map((entry) => entry.id),
-        retiredContent: retired?.message?.content ?? null,
-        retiredStatuses: (retired?.message?.details?.entries ?? []).map((entry) => entry.status),
+        matchedContent: matchedOptions.sections.harness_guidance ?? null,
+        matchedIds: (withRule.deliveries.at(-1)?.entries ?? []).map((entry) => entry.id),
+        retiredContent: retiredOptions.sections.harness_guidance ?? null,
+        retiredStatuses: (withoutRule.deliveries.at(-1)?.entries ?? []).map((entry) => entry.status),
       }));
     ''')
     assert result['matchedIds'] == ['text-rule']

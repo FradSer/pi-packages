@@ -149,8 +149,9 @@ def test_production_pipeline_keeps_verified_independent_knowledge_available_to_n
     # The user-requested discovery contract exposes filenames, not bodies.
     # Independent admitted facts remain discoverable; the held fact stays absent.
     assert delivered == []
+    assert all(hook['result'] is None for hook in value['nextMemory'])
     indexed = {name for hook in value['nextMemory'] for name in
-               re.findall(r'^- ([^\n]+?\.md)(?: — |$)', hook.get('message', {}).get('content', ''), re.MULTILINE)}
+               re.findall(r'^- ([^\n]+?\.md)(?: — |$)', hook['systemPromptOptions']['sections'].get('project_memory_discovery', ''), re.MULTILINE)}
     assert indexed == {'tools.md', 'license.md'}
     assert all('cache.md' not in str(hook) for hook in value['nextMemory'])
     assert any(record.get('proposal', {}).get('heldIndexes') == [1] for record in value['history'])

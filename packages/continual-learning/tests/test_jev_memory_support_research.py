@@ -10,7 +10,7 @@ def test_narrow_memory_support_preserves_other_checks_and_held_plan() -> None:
       const snapshot={contextEnabled:true,entries:[{role:'user',content:quote}]};
       const candidate={name:'fact.md',kind:'project',classification:'safe',content:`---\nname: fact\ndescription: ${quote}\ntype: project\n---\n${quote}`,evidence:[{index:0,quote,role:'user'}]};const rows=[];
       try{for(const mode of ['yes','no','unknown','counter-held','private','legacy']){
-       const requests=[];const judge=fixture.createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
+       const requests=[];const judge=fixture.createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
         const r=JSON.parse(String(init.body));requests.push(r);const answers={};
         for(const[k,q]of Object.entries(r.questions)){
          if(q.type==='noul')answers[k]={type:'noul',noul:mode==='no'?.05:mode==='unknown'?.5:.99};

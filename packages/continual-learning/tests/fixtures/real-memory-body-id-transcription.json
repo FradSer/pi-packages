@@ -1,0 +1,23 @@
+{
+  "target": {
+    "source": "candidate",
+    "index": 0,
+    "name": "resolve_before_completion.md",
+    "content": "---\nname: resolve_before_completion\ndescription: p-limit run() resolves the caller promise with the task promise before awaiting it, swallowing errors only locally\ntype: project\n---\nIn /work/p-limit `index.js`, `run` is `async (function_, resolve, arguments_) => {...}`: it builds `const result = (async () => function_(...arguments_))();`, then calls `resolve(result)` and only afterwards does `try { await result; } catch {}` followed by `next()`.\n\nBecause the outer promise is resolved *with* the task promise, the caller observes the task's eventual state rather than completion-before-reservation: resolving with a promise adopts whatever that promise later settles to, and nothing in this path makes the caller wait for the task to finish before its own promise is settled. The local `catch {}` exists to avoid an unhandled rejection inside `run`; the original rejection is still conveyed to the caller through the adopted promise.\n\nConcurrency reservation itself is gated in `resumeNext` by `if (activeCount < concurrency && queue.size > 0) { activeCount++; queue.dequeue().run(); }`, and `enqueue` calls `resumeNext()` only `if (activeCount < concurrency)`.",
+    "bodySha256": "f7955654a7645e444599918756e51fa35ed3ebee88ebe67c3a9c73795a01f625",
+    "id": "19e34ae7ef91bb5aa1b0c10211c023b6b5a162f6117232b5aadf8946b3acd143"
+  },
+  "response": {
+    "reviews": [
+      {
+        "id": "19e34ae7ef91bb5aa1b0c10211c023b6b5a162f6117232b5aadf8946b3ac73795a01f625",
+        "bodySha256": "f7955654a7645e444599918756e51fa35ed3ebee88ebe67c3a9c73795a01f625",
+        "verdict": "consistent",
+        "conflictingQuotes": [],
+        "reason": "All claims cohere under standard JS semantics: resolve(result) invokes the resolution procedure with a thenable, which triggers adoption; the outer (caller) promise settles in lockstep with the inner task promise\u2014hence 'the caller observes the task's eventual state.' The 'nothing \u2026 makes the caller wait' clause is a correct statement about the non-blocking nature of JS promises (no synchronous await is imposed on the caller), not a denial that the outer promise's final state is coupled to the task via adoption. The local catch{} suppresses an unhandled-rejection at run()'s own scope while the rejection still propagates to the caller through the adopted promise\u2014consistent with 'swallowing errors only locally.' Concurrency-gating claims (activeCount check in resumeNext; conditional resumeNext call in enqueue) describe a standard semaphore release/re-acquire pattern and are compatible with the described execution flow."
+      }
+    ]
+  },
+  "responseSha256": "ddc4dd86e4c0519ffdbaf0494d69ec6515f9dcc5033416e05e38608d87d4d59d",
+  "provenance": "Actual no-tool Pi1.0 Qwen xhigh review of previously applied public p-limit Memory; original response transcribed target id incorrectly and also falsely judged the known bad body consistent. No application, correction or benefit established."
+}

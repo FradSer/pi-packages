@@ -1,4 +1,5 @@
 from support import isolated_run_bun
+import pytest
 
 
 def test_maintenance_audit_requires_actual_current_source_and_retains_cost_on_failure() -> None:
@@ -11,7 +12,7 @@ def test_maintenance_audit_requires_actual_current_source_and_retains_cost_on_fa
         const scope=JSON.parse(options.prompt.split('\n').at(-1));
         if(JSON.stringify(options.tools)!==JSON.stringify(['learning_read']) || !options.minimal)throw Error('Audit must not grant native tools');
         const {recordMaintenanceRead}=await import('./packages/continual-learning/extensions/memory-maintenance-audit.ts');
-        await recordMaintenanceRead(scope.observationsPath, {path:memory,offset:1,limit:200,result:'Old runtime knowledge.\n[lines 1-1 of 1]'});
+        if(mode!=='good')await recordMaintenanceRead(scope.observationsPath, {path:memory,offset:1,limit:200,result:'Old runtime knowledge.\n[lines 1-1 of 1]'});
         const {readPlannerFileSnapshot}=await import('./packages/continual-learning/extensions/planner-read-scope.ts');
         if(mode==='good'){const source=await readPlannerFileSnapshot('runtime.ts',scope.readScope);await recordMaintenanceRead(scope.observationsPath,{path:path.join(cwd,'runtime.ts'),offset:1,limit:200,result:source.text,sha256:source.sha256});}
         if(mode==='failed')return {exitCode:1,stderr:'untrusted worker error',text:'',usage:{input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:0.01}};
@@ -72,7 +73,8 @@ def test_source_observations_append_without_omitting_original_task_evidence() ->
     assert all(result['rejected'])
 
 
-def test_actual_pi_source_audit_has_only_scoped_reader_then_no_tools(tmp_path) -> None:
+@pytest.mark.parametrize('overflow', [False, True])
+def test_actual_pi_source_audit_exhaustion_and_overflow(tmp_path, overflow) -> None:
     import json
     import subprocess
     from pathlib import Path
@@ -88,12 +90,23 @@ def test_actual_pi_source_audit_has_only_scoped_reader_then_no_tools(tmp_path) -
                '-e', str(Path(__file__).with_name('maintenance-reader-live-fixture.ts')),
                '--model', 'maintenance-reader-fixture/deterministic', '--session', str(session),
                '--print', '--mode', 'json', 'Inspect source read scope']
-    result = subprocess.run(command, cwd=project, env=isolated_environment(tmp_path, agent), capture_output=True, timeout=15)
+    environment = isolated_environment(tmp_path, agent)
+    if overflow:
+        environment['MAINTENANCE_READER_OVERFLOW'] = '1'
+    result = subprocess.run(command, cwd=project, env=environment, capture_output=True, timeout=15)
     assert result.returncode == 0, result.stderr.decode()
     rows = [json.loads(line) for line in session.read_text().splitlines()]
-    assert [row['data']['tools'] for row in rows if row.get('customType') == 'maintenance-reader-provider'] == [['learning_read'], []]
+    assert [row['data']['tools'] for row in rows if row.get('customType') == 'maintenance-reader-provider'] == ([['learning_read']] if overflow else [['learning_read'], []])
     observations = [row['data'] for row in rows if row.get('customType') == 'maintenance-reader-observed']
-    assert len(observations) == 3
-    assert sum(bool(row.get('sourceSha256')) for row in observations) == 2
-    assert sum(bool(row.get('error')) for row in observations) == 1
+    assert len(observations) == (3 if overflow else 2)
+    successes = sum(bool(row.get('sourceSha256')) for row in observations)
+    errors = [row['error'] for row in observations if row.get('error')]
+    if overflow:
+        # Pi executes a batch concurrently. Abort may cancel admitted reads
+        # still in flight; the entire overflowing audit must remain invalid.
+        assert successes <= 2
+        assert errors.count('Source audit read budget exceeded') == 1
+        assert all(error in ('Source audit read budget exceeded', 'Scoped source read refused') for error in errors)
+    else:
+        assert successes == 2 and errors == []
     assert source.read_text() == 'export const runtime = "current";\n'

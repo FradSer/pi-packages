@@ -328,15 +328,14 @@ async function normalizeOperations(
       ...(value.evidence !== undefined ? { evidence: normalizeSnapshotEvidence(value.evidence, snapshot) } : {}),
     });
   }
-  await validateDeletePreservation(operations, repoRoot);
   return operations;
 }
 
-async function validateDeletePreservation(operations: readonly IncrementalMemoryOperation[], repoRoot: string): Promise<void> {
+async function validateDeletePreservation(operations: readonly IncrementalMemoryOperation[], newMemories: readonly NewMemoryProposal[], repoRoot: string): Promise<void> {
   const rewritten = new Set(
     operations
       .filter((operation) => operation.kind === "create" || operation.kind === "rewrite")
-      .map((operation) => operation.name),
+      .map((operation) => operation.name).concat(newMemories.map(proposal => proposal.name)),
   );
   for (const operation of operations) {
     if (operation.kind !== "delete") continue;
@@ -423,6 +422,8 @@ export async function expandIncrementalMemoryPlan(
   delta = resolved;
   const operations = await normalizeOperations(delta.operations, selected, classifications, run.manifest.cwd, snapshot);
   const newMemories = await normalizeNewMemories(delta.newMemories, selected, run);
+  // Only fully validated same-batch proposals can supply preservation targets.
+  await validateDeletePreservation(operations, newMemories, run.manifest.cwd);
   const operationByName = new Map(operations.map((operation) => [operation.name.toLowerCase(), operation]));
   const inventory = selected.map((name) => ({ name, classification: classifications.get(name.toLowerCase())! }));
   const staleness = selected.map((name) => {

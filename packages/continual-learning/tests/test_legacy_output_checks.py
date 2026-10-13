@@ -146,17 +146,24 @@ def test_harness_guidance_is_registered_separately_from_guardrail_enforcement() 
       const cwd = path.join(tmp, "project");
       fs.mkdirSync(path.join(cwd, ".pi"), { recursive: true });
       fs.writeFileSync(path.join(cwd, ".pi", "harness.json"), JSON.stringify({ skillPrompts: { review: { prompt: "use the review checklist", target: "system" } } }));
-      const event = { type: "before_agent_start", prompt: '<skill name="review" location="/tmp/review/SKILL.md">\ncheck\n</skill>', systemPrompt: "base", systemPromptOptions: {skills:[{name:"review"}]} };
-      const ctx = { cwd, hasUI: false, sessionManager: { buildContextEntries: () => [] } };
+      const event = { type: "before_agent_start", prompt: '<skill name="review" location="/tmp/review/SKILL.md">\ncheck\n</skill>', systemPrompt: "base", systemPromptOptions: {sections:{other:"KEEP"},promptGuidelines:[],skills:[{name:"review"}]} };
+      const ctx = { cwd, hasUI: false, sessionManager: { buildContextEntries: () => [], getBranch: () => [] } };
       registerGuardrails(pi);
       const guardrailBefore = hooks.before_agent_start?.length ?? 0;
       registerHarnessGuidance(pi);
       const guidanceResult = await hooks.before_agent_start[0](event, ctx);
-      console.log(JSON.stringify({ guardrailBefore, guidanceResult, eventCount: entries.length }));
+      console.log(JSON.stringify({ guardrailBefore, guidanceResult:guidanceResult??null, options:event.systemPromptOptions, eventCount: entries.filter(entry=>entry.data?.kind==='skill-prompt').length }));
     '''
     result = run_bun(source)
     assert result["guardrailBefore"] == 0
-    assert result["guidanceResult"]["systemPrompt"] == "base\n\nuse the review checklist"
+    # The required contract delivers legacy guidance through additive sections.
+    assert result["guidanceResult"] is None
+    # Legacy guidance has the same explicit task boundary as flat skill guidance.
+    assert result["options"]["sections"]["harness_guidance"] == (
+        "[harness:legacy-skill] Only for this /skill:review task; retained history does not extend its scope.\n"
+        "use the review checklist"
+    )
+    assert result["options"]["sections"]["other"] == "KEEP"
     assert result["eventCount"] == 1
 
 

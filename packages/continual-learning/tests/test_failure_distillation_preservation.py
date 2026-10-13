@@ -2,20 +2,20 @@ from support import isolated_run_bun
 
 
 def test_actual_repaired_failure_body_and_sources_survive_optional_distillation() -> None:
-    # Given a real correction scopes failure to the last observed source state,
+    # Given a historical real correction scopes failure to the last observed source state,
     # When optional distillation runs with the original description's checklist,
     # Then the corrected body and citations survive rather than reverting to
-    # the original causal description. This proves preservation, not semantics.
+    # the original causal description. Replay the exact historical candidates,
+    # not current admission: their self-citations are now rejected below.
+    # This proves preservation only, never semantics or mutation authority.
     result = isolated_run_bun(r'''
       import {createHash} from 'node:crypto';
       import {distillReviewedNewMemory} from './packages/continual-learning/extensions/inject-memory.ts';
-      import {normalizeNewMemoryProposals} from './packages/continual-learning/extensions/consolidation-run.ts';
-      import {resolveMemoryPlanCitations} from './packages/continual-learning/extensions/memory-citation-locations.ts';
       const f=await Bun.file('./packages/continual-learning/tests/fixtures/real-failure-distillation-overwrite.json').json();
-      const candidates=[...f.originalPlan.operations,...normalizeNewMemoryProposals(f.originalPlan,f.snapshot)];
+      const candidates=[...f.originalPlan.operations,...f.originalPlan.newMemories];
       const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
       const name='onidle_absent_from_index_d_ts.md';
-      const repaired=resolveMemoryPlanCitations(f.repairResponse,f.snapshot).newMemories.find(x=>x.name===name);
+      const repaired=f.repairResponse.newMemories.find(x=>x.name===name);
       const original=candidates.find(x=>x.name===name);
       const run=item=>distillReviewedNewMemory({operations:[],newMemories:[item]},candidates,f.review,f.snapshot,f.existingMemories,11);
       const changed=run(repaired), unchanged=run(original);
@@ -34,56 +34,28 @@ def test_actual_repaired_failure_body_and_sources_survive_optional_distillation(
     assert result['unchanged']['names'] == ['onidle_absent_from_index_d_ts.md']
 
 
-def test_complete_corrected_failure_plan_fits_without_dropping_source_or_preservation_context() -> None:
-    # Given the actual corrected v14 response, When the full parent path reviews
-    # it, Then all source entries, exact replacement bodies and each proposal's
-    # original citations remain reviewable within the unchanged wire bounds.
-    # All-positive transport answers below prove coverage only, not correctness.
+def test_historical_full_failure_plan_is_rejected_for_memory_self_evidence() -> None:
+    # Given the unchanged original v14 plan and repair now fail provenance,
+    # When current parent admission runs, Then no old review or positive fake
+    # judge can authorize them. Do not change citations or drop failing cases
+    # to revive the former positive coverage claim.
     result = isolated_run_bun(r'''
-      import {mock} from 'bun:test';
-      const kit=await import('./packages/kit/src/index.ts');
-      const f=await Bun.file('./packages/continual-learning/tests/fixtures/real-failure-distillation-overwrite.json').json();
-      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async()=>({text:JSON.stringify(f.repairResponse),exitCode:0,stderr:'',cancelled:false})}));
-      const {repairIncrementalMemoryPlan,semanticMemoryRepairFields,distillReviewedNewMemory}=await import('./packages/continual-learning/extensions/inject-memory.ts');
-      const {normalizeNewMemoryProposals,normalizeSnapshotEvidence}=await import('./packages/continual-learning/extensions/consolidation-run.ts');
-      const {createJevJudge}=await import('./packages/continual-learning/extensions/jev-learning.ts');
-      const candidates=[...f.originalPlan.operations,...normalizeNewMemoryProposals(f.originalPlan,f.snapshot)];
-      const repair=await repairIncrementalMemoryPlan({identity:f.originalRawPlan,rejectedPlan:f.originalRawPlan,selectedNames:f.existingMemories.map(x=>x.name),errors:['Actual original review held candidates and retained record'],repairableNames:['limit_function_type_contract.md','onidle_absent_from_index_d_ts.md','onidle_method_in_index_js.md'],retainedRepairNames:['clear_queue_pending_only.md'],repairableFields:semanticMemoryRepairFields(candidates,f.review),semanticContext:{frozenEvidence:f.snapshot,existingMemories:f.existingMemories}});
-      const plan=distillReviewedNewMemory(repair.plan,candidates,f.review,f.snapshot,f.existingMemories,11).plan;
-      const next=[...plan.operations,...normalizeNewMemoryProposals(plan,f.snapshot)];
-      const before=JSON.stringify(next);
-      const {createHash}=await import('node:crypto');
-      const digest=x=>createHash('sha256').update(x).digest('hex');
-      const calls=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_u,init)=>{
-        const r=JSON.parse(init.body);calls.push(r);
-        const answers=Object.fromEntries(Object.entries(r.questions).map(([key,q])=>{
-          const keys=Object.keys(q.criteria),choice=keys.find(k=>['grounded','compatible','unrelated','same'].includes(k))??keys[0];
-          return [key,{type:'choice',choice,confidence:1,probabilities:Object.fromEntries(keys.map(k=>[k,k===choice?1:0]))}];
-        }));
-        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:0,output_tokens:0}}));
-      }});
-      const verdict=await judge.validate('memory',f.snapshot,next,f.existingMemories);
-      const entries=new Map(),cited=new Set();let exactBodies=true,exactCitations=true,exactAssociations=true;
-      for(const r of calls){
-        const s=r.state;
-        for(const x of s.reviewEvidence?.entries??[])entries.set(x.index,x.entry);
-        for(const [key,refs] of Object.entries(s.originalCitationsByCandidate??{})){
-          cited.add(Number(key));
-          exactCitations &&= JSON.stringify(refs)===JSON.stringify(normalizeSnapshotEvidence(next[Number(key)].evidence,f.snapshot));
-        }
-        if(s.proposedMemoryOperations)exactAssociations &&= s.mutationComparison.evidenceDigest===digest(JSON.stringify(f.snapshot))&&s.proposedMemoryOperations.every((x,i)=>x.candidateIndex===i&&JSON.stringify(x.originalCitationSources)===JSON.stringify(normalizeSnapshotEvidence(next[i].evidence,f.snapshot).map(ref=>({snapshotIndex:ref.index,role:ref.role,quoteSha256:digest(ref.quote)}))));
-        if(s.proposedMemoryOperations)exactBodies &&= s.proposedMemoryOperations.length===next.length && s.proposedMemoryOperations.every((x,i)=>x.name===next[i].name&&x.kind===next[i].kind&&x.content===next[i].content&&JSON.stringify(x.preservedIn)===JSON.stringify(next[i].preservedIn));
-      }
-      console.log(JSON.stringify({telemetry:verdict.telemetry,requests:calls.length,maxBytes:Math.max(0,...calls.map(r=>Buffer.byteLength(JSON.stringify(r)))),
-        covered:entries.size,indexes:[...entries.keys()].sort((a,b)=>a-b),excludedTypes:[1,41,45].map(i=>f.snapshot.entries[i].customType),sourceExact:f.snapshot.entries.every((x,i)=>[1,41,45].includes(i)||JSON.stringify(entries.get(i))===JSON.stringify(x)),exactBodies,exactCitations,exactAssociations,inputUnchanged:JSON.stringify(next)===before,cited:cited.size,candidates:next.length}));
+      import {createHash} from 'node:crypto';
+      import {normalizeNewMemoryProposals} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {resolveMemoryPlanCitations} from './packages/continual-learning/extensions/memory-citation-locations.ts';
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const file='./packages/continual-learning/tests/fixtures/real-failure-distillation-overwrite.json';
+      const bytes=await Bun.file(file).text(),f=JSON.parse(bytes);
+      let originalError,repairError;
+      try{normalizeNewMemoryProposals(f.originalPlan,f.snapshot)}catch(e){originalError=e.message}
+      try{resolveMemoryPlanCitations(f.repairResponse,f.snapshot)}catch(e){repairError=e.message}
+      let calls=0;const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>{calls++;throw Error('Must reject before transport')}});
+      const verdict=await judge.validate('memory',f.snapshot,[...f.originalPlan.operations,...f.originalPlan.newMemories],f.existingMemories);
+      const digest=text=>createHash('sha256').update(text).digest('hex');
+      console.log(JSON.stringify({originalError,repairError,calls,verdict:verdict.decision,reason:verdict.telemetry.reason,unchanged:digest(bytes)===digest(await Bun.file(file).text()),entries:f.snapshot.entries.length,candidates:f.originalPlan.operations.length+f.originalPlan.newMemories.length}));
     ''')
-    assert result['telemetry']['reason'] != 'bounds'
-    assert 0 < result['requests'] <= 68
-    assert result['maxBytes'] <= 64_000
-    assert result['covered'] == 48 and result['sourceExact']
-    assert result['indexes'] == [i for i in range(51) if i not in {1, 41, 45}]
-    assert result['excludedTypes'] == ['continual-learning-memory-reference', 'continual-learning-result', 'continual-learning-memory-reference']
-    assert result['exactBodies'] and result['exactCitations']
-    assert result['exactAssociations'] and result['inputUnchanged']
-    assert result['cited'] == result['candidates']
+    assert 'Memory readback is context, not independent evidence' in result['originalError']
+    assert 'memory-reference-not-independent' in result['repairError']
+    assert result['calls'] == 0 and result['verdict'] != 'allow'
+    assert result['reason'] == 'invalid-response' and result['unchanged']
+    assert result['entries'] == 51 and result['candidates'] > 0

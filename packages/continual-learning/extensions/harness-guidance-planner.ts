@@ -1,13 +1,10 @@
 /**
  * Pure text-guidance lifecycle planner.
  *
- * Scans the model-visible retained conversation, decides which text-rule
- * guidance must be delivered on the NEXT agent start, and keeps delivery stable
- * for prefix caching: already-delivered guidance stays where it is, only new,
- * updated, or retired guidance is emitted as a fresh tail message.
- *
- * Delivery itself is a persistent before_agent_start message (durable, retained
- * on the branch). This planner is pure application logic with no Pi imports.
+ * Scans retained conversation and plans scoped guidance for the next run.
+ * Run-start mode reads non-context branch delivery records and contributes all
+ * applicable guidance through structured sections. The default delta mode
+ * remains available for pure lifecycle inspection. No mode injects context.
  */
 
 import crypto from "node:crypto";
@@ -149,9 +146,11 @@ export interface TextGuidancePlan {
    * incomplete. Callers must preserve prior delivery state and report this
    * rather than treating it as "no match" or a confirmed retirement. */
   incomplete: boolean;
+  preservationNotice?: string;
 }
 
 interface DeliveredState {
+  text?: string;
   revision?: string;
   status: GuidanceStatus;
   source?: string;
@@ -167,14 +166,50 @@ function readDeliveredState(messages: unknown[]): Map<string, DeliveredState> {
     if (!raw || typeof raw !== "object") continue;
     const msg = raw as Record<string, unknown>;
     if (msg.customType !== HARNESS_GUIDANCE_CUSTOM_TYPE) continue;
-    const details = msg.details as { entries?: Array<{ id?: string; revision?: string; status?: GuidanceStatus; source?: string }> } | undefined;
+    const details = msg.details as { entries?: Array<{ id?: string; text?: string; revision?: string; status?: GuidanceStatus; source?: string }> } | undefined;
     for (const e of details?.entries ?? []) {
       if (typeof e?.id !== "string") continue;
       // Last delivered state per id wins (messages are in branch order).
-      state.set(e.id, { revision: e.revision, status: e.status ?? "active", source: e.source });
+      state.set(e.id, { text: e.text, revision: e.revision, status: e.status ?? "active", source: e.source });
     }
   }
   return state;
+}
+
+/** Admit only the exact scoped delivery format. A saved body alone cannot
+ * establish its selector, and the current rule cannot scope an older revision.
+ */
+function hasCompleteTextScope(id: string, text: string | undefined): text is string {
+  if (!text) return false;
+  const prefix = `[harness:${id}] Only for subjects matching `;
+  const suffix = "; a historical match does not extend this guidance to unrelated tasks.";
+  const end = text.indexOf("\n");
+  const header = text.slice(0, end);
+  if (end < 0 || !text.slice(end + 1).trim() || !header.startsWith(prefix) || !header.endsWith(suffix)) return false;
+  const encoded = header.slice(prefix.length, -suffix.length);
+  try {
+    const selector: unknown = JSON.parse(encoded);
+    return typeof selector === "string" && selector.length > 0 && JSON.stringify(selector) === encoded;
+  } catch { return false; }
+}
+
+/** Preserve complete scoped deliveries when a scan cannot establish new state. */
+export function retainedTextGuidance(messages: unknown[]): TextGuidanceEntry[] {
+  return [...readDeliveredState(messages)].flatMap(([id, state]) =>
+    state.status !== "retired" && hasCompleteTextScope(id, state.text)
+      ? [{ id, ...state, text: state.text, status: state.status }]
+      : []);
+}
+
+export function incompleteTextGuidance(messages: unknown[]): TextGuidancePlan {
+  const scopeUnavailable = [...readDeliveredState(messages)].some(([id, state]) =>
+    state.status !== "retired" && !hasCompleteTextScope(id, state.text));
+  return {
+    entries: retainedTextGuidance(messages), incomplete: true,
+    preservationNotice: scopeUnavailable
+      ? "Prior guidance without a complete verified scope remains in history but is not delivered. Complete scoped guidance is preserved."
+      : "Complete prior scoped guidance is preserved; matching or configuration is incomplete.",
+  };
 }
 
 /**
@@ -187,13 +222,16 @@ export function planTextGuidance(
   retainedMessages: unknown[],
   currentPromptText: string,
   config: ResolvedHarnessConfig,
+  runStart = false,
 ): TextGuidancePlan {
   const delivered = readDeliveredState(retainedMessages);
   const texts = [...extractModelVisibleTexts(retainedMessages), currentPromptText];
   const { matches, incomplete } = evaluateText(config, texts, TEXT_SCAN_BUDGET);
 
   // Indeterminate matching: preserve state, deliver nothing, report incomplete.
-  if (incomplete) return { entries: [], incomplete: true };
+  if (incomplete || config.configReadIncomplete) return runStart
+    ? incompleteTextGuidance(retainedMessages)
+    : { entries: [], incomplete: true };
 
   const entries: TextGuidanceEntry[] = [];
 
@@ -201,7 +239,7 @@ export function planTextGuidance(
   for (const rule of matches) {
     const revision = hashRuleRevision(rule);
     const prior = delivered.get(rule.id);
-    if (!prior) {
+    if (!prior || runStart) {
       entries.push({ id: rule.id, revision, status: "active", text: scopedTextGuidance(rule), source: rule.source });
     } else if (prior.status === "retired" || prior.revision !== revision) {
       const reactivation = prior.status === "retired";
@@ -228,7 +266,14 @@ export function planTextGuidance(
     const goneOrDisabled = !rule || rule.enabled === false;
     const outdatedUnmatched = rule && !matchedIds.has(id) &&
       (!("text" in rule) || prior.revision !== hashRuleRevision(rule));
-    if (!goneOrDisabled && !outdatedUnmatched) continue;
+    if (!goneOrDisabled && !outdatedUnmatched) {
+      // Structured sections do not persist as custom context. Re-deliver an
+      // unchanged scoped revision that previously remained on this branch.
+      if (runStart && rule && "text" in rule && !matchedIds.has(id)) {
+        entries.push({ id, revision: hashRuleRevision(rule), status: "active", text: scopedTextGuidance(rule), source: rule.source });
+      }
+      continue;
+    }
     // A vanished rule under an incomplete config read is indeterminate, not a
     // confirmed removal — do not emit a definitive retirement.
     if (config.configReadIncomplete) continue;

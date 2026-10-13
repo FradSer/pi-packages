@@ -156,3 +156,170 @@ Ask native per-run consent before explicit private Memory maintenance can spend
 model calls on a plan that Jev privacy policy will refuse. Keep the original
 judge configuration frozen, preserve all semantic gates and refused proposals,
 and report preflight refusals with zero calls and known zero added cost.
+
+Inspect decoded JSON evidence for credentials so Markdown headings and escaped
+line breaks cannot falsely block Memory maintenance, while real credentials in
+values and keys remain refused. Report citation-count and coordinate failures
+together to the existing single repair without changing either acceptance bound.
+
+Recheck missing scoped source paths without treating them as facts or discarding
+independently verified reads. Explicitly disable OpenAI completions tool calls
+when a source audit exhausts its read budget, and abort excess calls while
+retaining their failed observations and costs.
+
+Label citation eligibility on each lossless evidence entry to keep assistant
+inferences out of learned knowledge, and send damaged-output recovery guidance
+only for actual damaged plans instead of confusing existing-record repairs.
+
+Admit the observed positional selector spelling with bounded surface notes to
+the existing single independent correction; never accept aliases or infer phase
+flags from those notes, and keep both failed and corrected call costs.
+
+Permit one independent selector correction for a confirmed missing terminal
+object brace; diagnostic reconstruction never becomes a routing decision.
+
+Allow explicit existing-Memory maintenance one independent fresh plan after a
+cleanly terminated incomplete JSON response. Recheck current source and Memory,
+reuse the complete frozen dossier, preserve the first failure and both costs,
+and keep every final citation, semantic, privacy and write gate unchanged.
+
+Ground existing-operation classifications in the frozen parent inventory during
+structural correction. Report classification conflicts alongside other repair
+errors instead of preserving an invalid model classification; new proposal and
+semantic amendment privacy remain immutable.
+
+Bound mutation review batches to exact candidate and preservation dependencies,
+keeping complete predecessor and same-plan replacement bodies in the request.
+Avoid repeating replacement bodies in questions, retain every original evidence
+window for every candidate, and count a window only after all its groups finish.
+Oversized joint source context remains refused; quotations and hashes cannot
+replace full cited context or authorize partial learning.
+
+Allow structural correction to reconsider an unvalidated selected deletion as a
+complete rewrite only when current Memory semantic review is enabled. Bind
+complete original-source and predecessor-preservation checks to the exact final
+candidates before application; disabled, partial or stale proof cannot write.
+Preserve the rejected deletion, correction costs and all existing mutation gates.
+
+Stop the read-only Memory source collector after complete budgeted result delivery.
+Bind its independently rechecked source prefix to actual calls, results and a
+trusted abort terminal event, while retaining the failed/cancelled worker state.
+Reject partial, refused, changed or externally cancelled evidence and retain known
+usage with incomplete usage/cost flags. Collection success never authorizes Memory.
+
+Bound unknown selector schemas to one independent redecision from the original task and index. Retain rejected output and both costs without copying rejected aliases into the correction prompt or deriving phase flags from them. Final identity, index and phase checks remain mandatory.
+
+Recognize a fully validated same-batch new Memory as a deletion preservation target in both parent validators. Preserve complete semantic predecessor/replacement review and transaction checks; a declared new name alone cannot satisfy preservation.
+
+Expose parent-generated citation references for frozen source lines and long-line chunks, resolve only exact displayed positions, and retain legacy locations and quotations. Keep missing/unsupported evidence rejected and preserve snapshot binding, role, privacy, semantic and mutation checks.
+
+Keep managed Memory readbacks and mixed local-tool aggregates as complete context while rejecting their use as independent factual citations. Bind classification to actual preceding call identity and invocation paths, including relative and Windows paths; retain independent source observations and observed read failures.
+
+Allow separately verified Qwen selector workers to request their exact strict JSON Schema through an explicit capability opt-in. Preserve legacy JSON mode, caller constraints, independent phase decisions and parent range/identity/semantic gates; never treat a schema-conformant decision as learned benefit.
+
+Extend the separately enabled structured worker output to incremental Memory deltas and candidate-bound semantic amendments. Require complete envelope and non-empty supported citation forms without selecting evidence or changing parent identity, intent, privacy, semantic preservation and transaction validation.
+
+Bind strict Memory generation to the complete parent-owned eligible citation
+index/reference catalog, excluding Memory self-evidence while retaining full
+context and independent parent validation. Refuse oversized catalogs only for
+capable workers; permit source-free abstention without claiming learning.
+
+Avoid encoding a complete Memory predecessor twice in a mutation counterreview
+when the exact body already exists in the unchanged original evidence. Use a
+hashed in-state UTF-16 reference with explicit complete-reading instructions;
+retain all source evidence, preservation dependencies, wire bounds and semantic
+thresholds. Unmatched bodies and retain-only reviews remain inline.
+
+Pass the parent-indexed Memory discovery metadata to explicit maintenance source
+collection. Keep it scoped and context-only, allowing bounded reads to focus on
+actual source instead of rediscovering old Memory topics.
+
+Replace maintenance worker directory navigation with bounded parent-scoped file
+discovery and a regular-file-only reader. Preserve ordinary planner directory
+listing, explicit inventory incompleteness, secure path checks and the same
+eighteen source-read budget; path metadata never becomes factual evidence.
+
+Bind maintenance collection proof to exact current messages and tool results
+instead of repeatedly storing native SDK cumulative context. Preserve all actual
+deliveries and the unchanged proof-size, digest, terminal and authorization gates.
+
+Keep explicit-maintenance collection source-only so repeated Memory readbacks
+cannot consume its independent-source budget. Discover audit topics through
+untrusted names/descriptions; preserve complete predecessor bodies and original
+frozen task evidence in the later planner and semantic review.
+
+When a complete citation domain is supplied, constrain strict Memory generation
+to its reference IDs instead of also allowing free coordinates/quotes. Align
+initial and repair guidance with this contract. Preserve legacy parent inputs,
+complete original evidence, quote bounds and independent semantic validation.
+
+For parent-classified citation failures, repair only candidate-bound reference
+arrays instead of regenerating complete Memory bodies. Keep all other proposal
+fields and omitted candidates exact; reject body patches, stale/duplicate IDs and
+empty amendments. Full citation and independent semantic review still follow.
+
+Avoid false semantic-review capacity failures by referencing exact duplicated quotations and source entries, and packing adjacent whole-entry windows only after actual wire checks. Preserve complete evidence and all review bounds.
+
+Keep unique matching invocation provenance with uncited Memory counterevidence results even when whole-entry windows separate the call from its result. This preserves verification scope without treating arguments as outcomes or changing review bounds.
+
+Separate body-only consistency questions from full source review without changing
+Jev wire limits. Add independent, complete-body no-tool review with parent-bound
+conflict spans and the existing single correction slot; split independent bodies,
+retain per-call costs, and recheck corrected bodies and complete sources before
+application. Preserve optional-judge behavior when infrastructure cannot start.
+
+Use configured model/service capacity for normal project requests instead of an
+artificial request-byte cap. Keep optional explicit byte bounds for historical
+experiments, full evidence, count/deadline limits, semantic thresholds and retained
+failures/costs.
+
+Admit one independent selector correction for the observed current-digest positional
+alias response, preserving strict identity/index checks and the rejected attempt.
+
+Remove duplicate retained Memory corpus state from source-counterevidence requests.
+Keep every target body, complete source coverage and full mutation-preservation
+dependencies; retain actual context refusals, failed retries and their costs.
+
+Use candidate-bound amendments in the existing structural correction slot for
+citation-rejected plans containing unvalidated deletions under complete semantic
+review. Permit only parent-inventory-bound same-name delete-to-rewrite replacement;
+preserve every unaffected candidate without regenerating the full plan.
+
+Recover normal-exit empty provider tool delimiters through the existing single
+scoped structural correction, retaining the failed output and all costs without
+recovering tool actions, sharing intent or bypassing semantic validation.
+
+Split normal-project mutation counterreviews per candidate, retaining complete source/preservation context and coverage gates; derive the normal mutation call budget from at most 32 candidates and 16 windows plus support/novelty (576 prepared calls) while historical modes retain 68.
+
+Clarify that Memory organization should correct specific source-backed claims while preserving unrelated knowledge, rather than summarize all selected records.
+
+Exclude whitespace-only fragments from generated citation choices while preserving full source text and legacy valid range endpoints.
+
+Preserve digest-bound held-field feedback from completed Jev requests when another
+request fails. Permit one existing semantic correction attempt while retaining
+the original transport failure and costs; incomplete observations never authorize
+writes, subset admission or skipping full review of the corrected plan.
+
+Require explicit combined repair coverage for held proposed and retained records.
+Send parent-bound internal-consistency text-change requirements to sparse and
+combined workers, rejecting unchanged inconsistent bodies before another paid
+review while preserving support-only same-text citation correction.
+
+Provide exact parent-bound old Memory bodies as untrusted maintenance questions
+for current-source collection, without treating readbacks as observed facts or
+expanding the collector's tools. Bind safe complete entry revisions before writes
+and keep source-only checks after application so legitimate corrections survive.
+
+Extend candidate-bound semantic amendments to mixed proposed/retained correction.
+Parent-owned proposal kinds and privacy cannot be regenerated into a different
+list; retained operations have their own exact scope. Constrain opted-in workers
+to the complete eligible candidate-ID enum and reject incomplete or malformed
+identity domains without changing legacy provider defaults or semantic gates.
+
+Do not force Memory body changes from uncertain coherence preferences. Require
+an explicit contradiction at the existing probability/confidence thresholds;
+keep uncertain fields held and preserve full revalidation and mutation gates.
+
+Include independent Memory body reviewers in explicitly opted-in structured
+output. Require one judgment per complete parent-bound slot while retaining
+legacy response validation, exact contradiction witnesses and all source gates.

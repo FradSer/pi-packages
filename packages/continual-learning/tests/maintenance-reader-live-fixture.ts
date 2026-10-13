@@ -21,8 +21,8 @@ export default function(pi: ExtensionAPI): void {
       assert.deepEqual(tools, calls === 1 ? ["learning_read"] : []);
       assert.ok(calls <= 2);
       const message: AssistantMessage = {role: "assistant", api: model.api, provider: model.provider, model: model.id,
-        content: calls === 1 ? [0, 1, 2].map(index => ({type: "toolCall" as const, id: `source-${index}`, name: "learning_read", arguments: {path: path.join(process.cwd(), "runtime.ts")}}))
-          : [{type: "text", text: "Scoped source reads finished; excess read refused."}],
+        content: calls === 1 ? Array.from({length: process.env.MAINTENANCE_READER_OVERFLOW === "1" ? 3 : 2}, (_, index) => ({type: "toolCall" as const, id: `source-${index}`, name: "learning_read", arguments: {path: path.join(process.cwd(), "runtime.ts")}}))
+          : [{type: "text", text: "Scoped source reads finished."}],
         stopReason: calls === 1 ? "toolUse" : "stop", usage: {input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2,
           cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0}}, timestamp: Date.now()};
       const stream = createAssistantMessageEventStream();

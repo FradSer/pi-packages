@@ -261,7 +261,7 @@ def test_scoped_user_source_points_to_scoped_file_in_guardrails_and_guidance(tmp
       ], skillPrompts:{{known:{{target:'user',prompt:'Scoped guidance'}}}}}}));
       const blocked = await hooks.tool_call[0]({{toolName:'bash',toolCallId:'fixture',input:{{command:'fixture'}}}}, {{cwd,hasUI:false}});
       for (const handler of hooks.before_agent_start ?? []) await handler(
-        {{prompt:'<skill name="known" location="/tmp/SKILL.md">\\nbody\\n</skill>\\n\\nneedle',systemPrompt:'base',systemPromptOptions:{{skills:[{{name:'known'}}]}}}},
+        {{prompt:'<skill name="known" location="/tmp/SKILL.md">\\nbody\\n</skill>\\n\\nneedle',systemPrompt:'base',systemPromptOptions:{{sections:{{}},skills:[{{name:'known'}}]}}}},
         {{cwd,sessionManager:{{buildContextEntries:() => []}}}}
       );
       console.log(JSON.stringify({{blocked,paths,entries}}));

@@ -5,6 +5,50 @@ import tempfile
 from support import isolated_run_bun
 
 
+def test_missing_terminal_selector_brace_requires_independent_correction() -> None:
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+      const cwd=path.join(process.env.PI_CODING_AGENT_DIR,'project');fs.mkdirSync(cwd);execFileSync('git',['init','-q',cwd]);
+      const kit=await import('./packages/kit/src/index.ts');let replies,calls;const usage={input:1,output:1,cacheRead:0,cacheWrite:0,totalTokens:2,cost:.01};
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async()=>{calls++;return {text:replies.shift(),exitCode:0,stderr:'',usage}}}));
+      const {selectIncrementalLearning}=await import('./packages/continual-learning/extensions/incremental-learning.ts');
+      const good={selectedIndices:[],memory:true,harness:false,agents:false,reason:'Complete source-bound decision.'};
+      const damaged=JSON.stringify(good).slice(0,-1);const rows=[];
+      const stale={kind:'incremental-memory-selection',version:1,contextDigest:'stale',selected:[],memory:true,harness:false,agents:false,reason:'stale'};
+      for(const [i,first,second] of [[0,damaged,JSON.stringify(good)],[1,damaged,damaged],[2,JSON.stringify({...good,memory:'yes'}).slice(0,-1),JSON.stringify(good)],[3,JSON.stringify(stale).slice(0,-1),JSON.stringify(good)],[4,damaged.slice(0,-1),JSON.stringify(good)]]){
+        replies=[first,second];calls=0;const out=await selectIncrementalLearning({cwd,outputDir:path.join(cwd,String(i)),contextDigest:'current',taskSlice:{kind:'learning-task-slice',version:1,entries:[]},jevJudge:{select:async()=>({telemetry:{status:'disabled'}})}});rows.push({out,calls});
+      }console.log(JSON.stringify(rows));
+    ''')
+    assert result[0]['calls'] == 2 and result[0]['out']['outcome'] == 'selected'
+    assert result[0]['out']['usage']['cost'] == .02
+    assert [a['outcome'] for a in result[0]['out']['attempts']] == ['failed', 'applied']
+    assert result[1]['calls'] == 2 and result[1]['out']['outcome'] == 'failed'
+    assert all(row['calls'] == 1 and row['out']['outcome'] == 'failed' for row in result[2:])
+
+
+def test_positional_alias_with_surface_notes_requires_fresh_complete_decision() -> None:
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+      const cwd=path.join(process.env.PI_CODING_AGENT_DIR,'project');fs.mkdirSync(path.join(cwd,'.memory'),{recursive:true});
+      execFileSync('git',['init','-q',cwd]);
+      fs.writeFileSync(path.join(cwd,'.memory','a.md'),'---\ndescription: Existing source fact\ntype: project\n---\nExisting fact.');
+      const kit=await import('./packages/kit/src/index.ts');let replies,calls;const usage={input:1,output:1,cacheRead:0,cacheWrite:0,totalTokens:2,cost:.01};
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async()=>{calls++;return {text:JSON.stringify(replies.shift()),exitCode:0,stderr:'',usage}}}));
+      const {selectIncrementalLearning}=await import('./packages/continual-learning/extensions/incremental-learning.ts');
+      const alias={selectedIndexes:[0],reason:'Related source work.',mode:'delta',surfaces:['memory'],omittedEntries:false,note:'Other surfaces outside request.'};
+      const good={selectedIndices:[0],memory:true,harness:false,agents:false,reason:'Independent complete decision.'};const rows=[];
+      for(const [i,first,second] of [[0,alias,good],[1,alias,alias],[2,{...alias,selectedIndexes:[0,0]},good],[3,{...alias,surfaces:['unknown']},good],[4,{...alias,memory:'yes'},good]]){
+        replies=[first,second];calls=0;const out=await selectIncrementalLearning({cwd,outputDir:path.join(cwd,String(i)),contextDigest:'current',taskSlice:{kind:'learning-task-slice',version:1,entries:[]},jevJudge:{select:async()=>({telemetry:{status:'disabled'}})}});rows.push({out,calls});
+      }console.log(JSON.stringify(rows));
+    ''')
+    assert result[0]['calls'] == 2 and result[0]['out']['outcome'] == 'selected'
+    assert result[0]['out']['selection']['selected'] == ['a.md']
+    assert result[0]['out']['usage']['cost'] == .02
+    assert [a['outcome'] for a in result[0]['out']['attempts']] == ['failed', 'applied']
+    assert result[1]['calls'] == 2 and result[1]['out']['outcome'] == 'failed'
+    assert all(row['calls'] == 1 and row['out']['outcome'] == 'failed' for row in result[2:])
+
+
 def test_selector_repairs_only_digest_bound_missing_fields_once() -> None:
     with tempfile.TemporaryDirectory() as root:
         result = isolated_run_bun(r'''
@@ -118,3 +162,72 @@ def test_real_position_alias_can_request_one_correction_but_is_never_a_decision(
     for row in result[1:5]:
         assert row['calls'] == 1 and row['out']['outcome'] == 'failed'
     assert result[5]['calls'] == 2 and result[5]['out']['outcome'] == 'failed'
+
+
+def test_memory_entries_alias_requires_fresh_complete_decision() -> None:
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+      const cwd=path.join(process.env.PI_CODING_AGENT_DIR,'project');fs.mkdirSync(path.join(cwd,'.memory'),{recursive:true});
+      execFileSync('git',['init','-q',cwd]);
+      fs.writeFileSync(path.join(cwd,'.memory','a.md'),'---\ndescription: Existing source fact\ntype: project\n---\nExisting fact.');
+      const kit=await import('./packages/kit/src/index.ts');let replies,calls;const usage={input:1,output:1,cacheRead:0,cacheWrite:0,totalTokens:2,cost:.01};
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async()=>{calls++;return {text:JSON.stringify(replies.shift()),exitCode:0,stderr:'',usage}}}));
+      const {selectIncrementalLearning}=await import('./packages/continual-learning/extensions/incremental-learning.ts');
+      const alias={memoryEntries:[0],reason:'Related source work.',mode:'delta',surfaces:['memory'],harnessEntries:[],agentsFiles:[]};
+      const good={selectedIndices:[0],memory:true,harness:false,agents:false,reason:'Independent complete decision.'};const rows=[];
+      for(const [i,first,second] of [[0,alias,good],[1,alias,alias],[2,{...alias,memoryEntries:[0,0]},good],[3,{...alias,surfaces:['unknown']},good],[4,{...alias,memory:'yes'},good],[5,{...alias,harnessEntries:[0]},good],[6,{...alias,agentsFiles:['AGENTS.md']},good],[7,{...alias,contextDigest:'stale'},good]]){
+        replies=[first,second];calls=0;const out=await selectIncrementalLearning({cwd,outputDir:path.join(cwd,String(i)),contextDigest:'current',taskSlice:{kind:'learning-task-slice',version:1,entries:[]},jevJudge:{select:async()=>({telemetry:{status:'disabled'}})}});rows.push({out,calls});
+      }console.log(JSON.stringify(rows));
+    ''')
+    assert result[0]['calls'] == 2 and result[0]['out']['outcome'] == 'selected'
+    assert result[0]['out']['selection']['selected'] == ['a.md']
+    assert result[0]['out']['usage']['cost'] == .02
+    assert [a['outcome'] for a in result[0]['out']['attempts']] == ['failed', 'applied']
+    assert result[1]['calls'] == 2 and result[1]['out']['outcome'] == 'failed'
+    assert all(row['calls'] == 1 and row['out']['outcome'] == 'failed' for row in result[2:])
+
+
+def test_unrecognized_selector_schema_can_request_one_independent_decision_without_alias_conversion() -> None:
+    result = isolated_run_bun(r'''
+      import {mock} from 'bun:test';import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+      const cwd=path.join(process.env.PI_CODING_AGENT_DIR,'project');fs.mkdirSync(path.join(cwd,'.memory'),{recursive:true});
+      execFileSync('git',['init','-q',cwd]);
+      fs.writeFileSync(path.join(cwd,'.memory','a.md'),'---\ndescription: Existing source fact\ntype: project\n---\nExisting fact.');
+      const kit=await import('./packages/kit/src/index.ts');let replies,calls,prompts;const usage={input:1,output:1,cacheRead:0,cacheWrite:0,totalTokens:2,cost:.01};
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{prompts.push(input.prompt);calls++;return {text:JSON.stringify(replies.shift()),exitCode:0,stderr:'',usage}}}));
+      const {selectIncrementalLearning}=await import('./packages/continual-learning/extensions/incremental-learning.ts');
+      const alias={selectedMemoryIndexes:[0],rationale:'Related source work.',mode:'delta',routers:['memory'],harnessIndexes:[],agentsIndexes:[]};
+      const good={selectedIndices:[0],memory:true,harness:false,agents:false,reason:'Independent complete decision.'};const rows=[];
+      for(const [i,first,second] of [[0,alias,good],[1,alias,alias],[2,{...alias,memory:'yes'},good],[3,{...alias,reason:12},good],[4,{...alias,contextDigest:'stale'},good],[5,{...alias,kind:'unexpected'},good]]){
+        replies=[first,second];calls=0;prompts=[];const out=await selectIncrementalLearning({cwd,outputDir:path.join(cwd,String(i)),contextDigest:'current',taskSlice:{kind:'learning-task-slice',version:1,entries:[]},jevJudge:{select:async()=>({telemetry:{status:'disabled'}})}});rows.push({out,calls,repeatedAlias:prompts[1]?.includes('selectedMemoryIndexes')??false});
+      }console.log(JSON.stringify(rows));
+    ''')
+    assert result[0]['calls'] == 2 and result[0]['out']['outcome'] == 'selected'
+    assert result[0]['out']['selection']['selected'] == ['a.md']
+    assert not result[0]['repeatedAlias']
+    assert result[0]['out']['usage']['cost'] == .02
+    assert [a['outcome'] for a in result[0]['out']['attempts']] == ['failed', 'applied']
+    assert result[1]['calls'] == 2 and result[1]['out']['outcome'] == 'failed'
+    assert all(row['calls'] == 1 and row['out']['outcome'] == 'failed' for row in result[2:])
+
+
+def test_current_digest_position_alias_with_rationale_only_admits_fresh_correction() -> None:
+    value = isolated_run_bun(r'''
+      import {mock} from 'bun:test';import fs from 'node:fs';import path from 'node:path';import {execFileSync} from 'node:child_process';
+      const cwd=path.join(process.env.PI_CODING_AGENT_DIR,'project');fs.mkdirSync(path.join(cwd,'.memory'),{recursive:true});execFileSync('git',['init','-q',cwd]);
+      fs.writeFileSync(path.join(cwd,'.memory','a.md'),'---\ndescription: Existing source fact\ntype: project\n---\nExisting fact.');
+      const kit=await import('./packages/kit/src/index.ts');let calls,replies;const usage={input:1,output:1,cacheRead:0,cacheWrite:0,totalTokens:2,cost:.01};
+      mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async()=>({text:JSON.stringify(replies[calls++]),exitCode:0,stderr:'',usage})}));
+      const {selectIncrementalLearning}=await import('./packages/continual-learning/extensions/incremental-learning.ts');
+      const alias={mode:'delta',surfaces:['memory'],selectedEntries:[0],rationale:'Related source work.',omittedEntries:false,contextDigest:'current'};
+      const good={selectedIndices:[0],memory:true,harness:false,agents:false,reason:'Fresh independent decision.'},rows=[];
+      for(const [i,first,second] of [[0,alias,good],[1,alias,alias],[2,{...alias,contextDigest:'stale'},good],[3,{...alias,selectedEntries:[99]},good],[4,{...alias,rationale:{}},good],[5,{...alias,unexpected:true},good]]){
+        calls=0;replies=[first,second];const out=await selectIncrementalLearning({cwd,outputDir:path.join(cwd,String(i)),contextDigest:'current',taskSlice:{kind:'learning-task-slice',version:1,entries:[]},jevJudge:{select:async()=>({telemetry:{status:'disabled'}})}});rows.push({calls,out});
+      }console.log(JSON.stringify(rows));
+    ''')
+    assert value[0]['calls'] == 2 and value[0]['out']['outcome'] == 'selected'
+    assert value[0]['out']['selection']['selected'] == ['a.md']
+    assert value[0]['out']['usage']['cost'] == .02
+    assert [a['outcome'] for a in value[0]['out']['attempts']] == ['failed', 'applied']
+    assert value[1]['calls'] == 2 and value[1]['out']['outcome'] == 'failed'
+    assert all(r['calls'] == 1 and r['out']['outcome'] == 'failed' for r in value[2:])

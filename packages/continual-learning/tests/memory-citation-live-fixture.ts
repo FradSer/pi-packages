@@ -4,6 +4,7 @@ import {readFileSync, writeFileSync} from "node:fs";
 import {createAssistantMessageEventStream, type AssistantMessage} from "@earendil-works/pi-ai";
 import type {ExtensionAPI} from "@earendil-works/pi-coding-agent";
 import {registerPlannerRead} from "../extensions/planner-read-scope.ts";
+import {normalizeSnapshotEvidence} from "../extensions/consolidation-run.ts";
 import {resolveMemoryPlanCitations} from "../extensions/memory-citation-locations.ts";
 
 export default function (pi: ExtensionAPI): void {
@@ -40,11 +41,17 @@ export default function (pi: ExtensionAPI): void {
           const plan = resolveMemoryPlanCitations({operations: [{evidence: [{index: 0,
             lines: {block: 0, start: 23, end: 23, characters: {start: chunk.start, end: chunk.end}}}]}]}, snapshot) as {operations: {evidence: {quote: string}[]}[]};
           assert.equal(plan.operations[0].evidence[0].quote, chunk.text);
+          const referenced = resolveMemoryPlanCitations({operations: [{evidence: [{ref: chunk.ref}]}]}, snapshot) as {operations: {evidence: {quote: string}[]}[]};
+          assert.equal(referenced.operations[0].evidence[0].quote, chunk.text);
         }
+        assert.equal(shown.entries[2].citationEligible, false);
+        assert.deepEqual(shown.entries[2].entry, snapshot.entries[2]);
+        assert.throws(() => resolveMemoryPlanCitations({operations: [{evidence: [{ref: "e2.b0.l1"}]}]}, snapshot));
+        assert.throws(() => normalizeSnapshotEvidence([{index: 2, quote: snapshot.entries[2].content}], snapshot));
         assert.equal(readFileSync(file, "utf8"), original);
         writeFileSync(process.env.PI_CITATION_FIXTURE_RESULT!, JSON.stringify({status: "passed", remoteRequests: 0,
           actualToolResults: 1, originalLineCharacters: expected.length, chunks: line.chunks.length,
-          allOriginalCharactersPreserved: true, exactParentExtraction: true, sourceUnchanged: true, efficacyEstablished: false}));
+          allOriginalCharactersPreserved: true, exactParentExtraction: true, parentLabelledReferences: true, sourceUnchanged: true, memoryReadbackPreservedButNotIndependent: true, efficacyEstablished: false}));
         content = [{type: "text", text: "Scoped citation fixture passed"}];
         stopReason = "stop";
       }

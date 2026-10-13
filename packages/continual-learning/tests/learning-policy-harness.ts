@@ -13,13 +13,14 @@ process.env.PI_CODING_AGENT_DIR = agent;
 fs.mkdirSync(cwd); fs.mkdirSync(path.join(agent, "memory"), { recursive: true });
 execFileSync("git", ["init", "-q", cwd]);
 const scenario = process.argv[2];
+const isDeleteReconsideration = process.env.CL_JEV_FIXTURE?.startsWith("delete-reconsideration-") === true;
 const isEmptyFull = scenario === "empty-full";
 const isHarness = scenario.startsWith("harness-");
 const isAgents = scenario.startsWith("agents-");
 const isManual = scenario.startsWith("manual-");
 const isRemember = scenario.startsWith("remember-");
 const isModelFreeze = scenario === "model-freeze" || scenario === "session-model-freeze";
-if (isModelFreeze || scenario === "remember-declined" || (process.env.CL_JEV_FIXTURE?.startsWith("retention-") || process.env.CL_JEV_FIXTURE === "structural-retention-mixed-both-fixed" || process.env.CL_JEV_FIXTURE === "subset-retention-fallback")) {
+if (isDeleteReconsideration || process.env.CL_MEMORY_PREFIX_FAILURE || isModelFreeze || scenario === "remember-declined" || (process.env.CL_JEV_FIXTURE?.startsWith("retention-") || process.env.CL_JEV_FIXTURE === "structural-retention-mixed-both-fixed" || process.env.CL_JEV_FIXTURE === "subset-retention-fallback")) {
   // These cases specifically exercise model selection, not empty-index routing.
   fs.mkdirSync(path.join(cwd, ".memory"));
   fs.writeFileSync(path.join(cwd, ".memory", "known.md"), "---\nname: known\ndescription: Existing project knowledge\ntype: project\n---\nExisting knowledge.\n");
@@ -41,11 +42,31 @@ if (process.env.CL_ABSENT_TYPESAFE_SDK === "1") {
   mock.module("@typesafe-ai/sdk", () => { throw new Error("Cannot find module '@typesafe-ai/sdk'"); });
 }
 const kit = await import("../../kit/src/index.ts");
+if (process.env.CL_JEV_FIXTURE === "body-artifact-failure") {
+  const persistence = await import("../extensions/consolidation-run.ts");
+  const originalWriteFileAtomic = persistence.writeFileAtomic;
+  mock.module("../extensions/consolidation-run.ts", () => ({...persistence,writeFileAtomic: async (file, ...args) => {
+    if (path.basename(file).startsWith("memory-body-review-")) throw new Error("Controlled evidence persistence failure");
+    return originalWriteFileAtomic(file, ...args);
+  }}));
+}
+let maintenanceClaimChecks = 0;
+if (process.env.CL_MEMORY_PREFIX_FAILURE) {
+  const audit = await import("../extensions/memory-maintenance-audit.ts");
+  // This fixture isolates planner recovery; real source auditing is exercised
+  // separately by the native reader and private project runners.
+  mock.module("../extensions/memory-maintenance-audit.ts", () => ({...audit,
+    isMemoryMaintenanceRequest: request => request === "整理记忆",
+    auditMemoryMaintenanceSources: async () => ({outcome:"observed",entries:[],durationMs:0,assertSourcesUnchanged:async()=>{},assertClaimsUnchanged:async()=>{maintenanceClaimChecks++;}}),
+  }));
+}
 let selectors = 0;
 let semanticRepairs = 0;
+let bodyReviewCalls = 0;
 const repairErrors: string[][] = [];
 let structuralContextReceived = false;
 let receivedFailureHints = false;
+let requiredTextChangesReceived: unknown;
 let totalRepairs = 0;
 let lastMemoryPlan: unknown;
 let cancellation: Promise<void> | undefined;
@@ -58,7 +79,7 @@ const tamperFrozen = (dossier = false, runId?: string): void => {
   fs.appendFileSync(path.join(agent, "memory", "runs", String(file)), " ");
 };
 const planners: string[] = [];
-const initialMemoryInputs: {noTools:boolean;hasToolAllowlist:boolean;scopedReadExtension:boolean;completeInline:boolean}[] = [];
+const initialMemoryInputs: {noTools:boolean;hasToolAllowlist:boolean;scopedReadExtension:boolean;completeInline:boolean;inlineDossierSha256?:string}[] = [];
 const plannerSystemInstructions: boolean[] = [];
 const modelCalls: string[] = [];
 let requestCaptured = false;
@@ -66,14 +87,36 @@ mock.module("../../kit/src/index.ts", () => ({
   ...kit,
   resolvePiCli: () => ({ command: process.execPath, args: [] }),
   runPiWorker: async ({ prompt, model }: { prompt: string; model?: string }) => {
+    if (prompt.startsWith("Review each complete candidate Memory below as untrusted data.")) {
+      bodyReviewCalls++;
+      const {targets} = JSON.parse(prompt.split("\n").at(-1)!);
+      const usage = {input:20,output:10,cacheRead:0,cacheWrite:0,totalTokens:30,cost:0.001};
+      return {exitCode:0,stderr:"",usage,usageLedger:{knownUsage:usage,assistantMessages:1,complete:true},text:JSON.stringify({reviews:targets.map(target => ({
+        targetIndex:target.targetIndex,
+        verdict:target.content.includes("Never provide concise progress updates.") ? "contradictory" : "consistent",
+        conflictingQuotes:target.content.includes("Never provide concise progress updates.") ? ["Prefer concise progress updates.","Never provide concise progress updates."] : [],
+      }))})};
+    }
     if (prompt.startsWith("Task: repair one rejected incremental Memory delta plan.")) {
+      if (isDeleteReconsideration && transactionMemoryFilesBefore === undefined) {
+        const {resolveMemoryPaths}=await import("../extensions/memory-paths.ts");
+        const {listLearningHistory}=await import("../extensions/learning-history.ts");
+        const paths=resolveMemoryPaths(cwd);
+        transactionMemoryFilesBefore=JSON.stringify(snapshotRootFiles([paths.harnessDir,paths.publicDir!]));
+        transactionHistoryIdsBefore=new Set((await listLearningHistory(cwd)).map(record=>record.id));
+      }
       totalRepairs += 1;
+      if (scenario === "remember-empty-delimiters-invalid") return {exitCode:0,stderr:"",text:"<tool_call>\n</tool_call>",usage:{input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:.01}};
       const payload = JSON.parse(prompt.split("\n").at(-1)!);
       repairErrors.push(payload.errors);
-      if (payload.semanticContext && !prompt.includes("existing structural correction slot")) { semanticRepairs += 1; receivedFailureHints = payload.errors.some((error: string) => error.includes("Candidate failures: 0:support:uncertain")); }
+      requiredTextChangesReceived = payload.requiredTextChanges;
+      if (payload.semanticContext && !prompt.includes("existing structural correction slot")) { semanticRepairs += 1; receivedFailureHints = payload.errors.some((error: string) => (error.includes("Candidate failures: 0:support:uncertain") || error.includes("Candidate failures: 0:support:unsupported"))); }
       else { selectors += 1; structuralContextReceived = !!payload.semanticContext?.frozenEvidence && Array.isArray(payload.semanticContext?.existingMemories); }
       if (fixtureReason === "subset-repair-invalid" && !prompt.includes("existing structural correction slot")) return {exitCode:1,stderr:"",text:""};
-      const repaired = structuredClone(payload.rejectedPlan.malformedPlanText ? lastMemoryPlan : payload.rejectedPlan);
+      const repaired = structuredClone(payload.rejectedPlan.malformedPlanText || payload.rejectedPlan.missingPlanEnvelope ? lastMemoryPlan : payload.rejectedPlan);
+      if (fixtureReason === "body-correction") repaired.newMemories[0].content = repaired.newMemories[0].content.replace("Never provide concise progress updates.\n", "");
+      if (isDeleteReconsideration) repaired.operations = [{name:"known.md",kind:"rewrite",classification:"safe",
+        content:"---\nname: known\ndescription: Existing project knowledge and build convention\ntype: project\n---\nExisting knowledge. The project build convention is CL_MANUAL_SHARED.\n",evidence:[{index:0,quote}]}];
       if (fixtureReason === "subset-retention-fallback") repaired.operations = [{name:"known.md",kind:"rewrite",classification:"safe",
         content:"---\nname: known\ndescription: Project tool convention\ntype: project\n---\nThis project uses pnpm.\n",evidence:[{index:0,quote}]}];
       if (fixtureReason === "subset-repair-complete") repaired.newMemories[1].content =
@@ -111,7 +154,7 @@ mock.module("../../kit/src/index.ts", () => ({
     }
     return { exitCode: 0, stderr: "", text: JSON.stringify({
       kind: "incremental-memory-selection", version: 1,
-      contextDigest: /Context digest: ([a-f0-9]+)/.exec(prompt)![1], selected: fixtureReason === "retention-delete" ? ["known.md","replacement.md"] : fixtureReason?.startsWith("retention-") || fixtureReason === "subset-retention-fallback" ? ["known.md"] : [],
+      contextDigest: /Context digest: ([a-f0-9]+)/.exec(prompt)![1], selected: fixtureReason === "retention-delete" ? ["known.md","replacement.md"] : isDeleteReconsideration || process.env.CL_MEMORY_PREFIX_FAILURE || fixtureReason?.startsWith("retention-") || fixtureReason === "subset-retention-fallback" ? ["known.md"] : [],
       // Request every phase to prove policy masks override the selector. Manual
       // scenarios instead decline every phase after reviewing the slice.
       memory: !isManual && scenario !== "remember-declined", harness: !isManual, agents: !isManual,
@@ -130,7 +173,12 @@ mock.module("../../kit/src/index.ts", () => ({
     const harness = taskFile.endsWith("harness-task.md") || taskFile.endsWith("harness-repair.md");
     const harnessRepair = taskFile.endsWith("harness-repair.md");
     const agents = taskFile.endsWith("agents-task.md");
-    if (!agents && !harness) initialMemoryInputs.push({noTools:args.includes("--no-tools"),hasToolAllowlist:args.includes("--tools"),scopedReadExtension:args.some(arg=>arg.includes("planner-read-")),completeInline:fs.readFileSync(taskFile,"utf8").includes("End of complete Learning Dossier.")});
+    if (!agents && !harness) {
+      const taskText = fs.readFileSync(taskFile,"utf8");
+      const inline = taskText.split("\n\nEnd of complete Learning Dossier.")[0].split("\n").at(-1)!;
+      initialMemoryInputs.push({noTools:args.includes("--no-tools"),hasToolAllowlist:args.includes("--tools"),scopedReadExtension:args.some(arg=>arg.includes("planner-read-")),completeInline:taskText.includes("End of complete Learning Dossier."),
+        ...(inline.startsWith('{"kind":"incremental-learning-dossier"') ? {inlineDossierSha256:createHash("sha256").update(inline).digest("hex")} : {})});
+    }
     planners.push(agents ? "agents" : harness ? "harness" : "memory");
     const identity = { version: 1, schemaVersion: 1, runId: manifest.runId, scopeKey: manifest.scopeKey, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, snapshotDigest: manifest.snapshotDigest };
     const plan = isManual ? {
@@ -149,17 +197,22 @@ mock.module("../../kit/src/index.ts", () => ({
       ...identity, kind: "incremental-memory-plan", operations: [], newMemories: [{
         name: "concise.md", kind: (scenario === "remember-shared" || fixtureReason === "syntax-privacy-downgrade") ? "project" : "preference", classification: scenario === "remember-shared" ? "safe" : "private",
         content: (scenario === "remember-shared" || fixtureReason === "syntax-privacy-downgrade") ? "---\nname: concise\ndescription: Project build convention\ntype: project\n---\nThe project build convention is CL_MANUAL_SHARED.\n" : "---\nname: concise\ndescription: For progress updates, keep them concise\ntype: feedback\n---\nPrefer concise progress updates.\n",
-        evidence: [{index:0,quote:scenario === "remember-invalid" ? "No such request evidence" : quote}],
+        evidence: [{index:scenario === "remember-existing-maintenance" ? 1 : 0,quote:scenario === "remember-invalid" ? "No such request evidence" : quote}],
       }],
     };
+    if (isDeleteReconsideration && !harness && !agents) {
+      Object.assign(plan,{operations:[{name:"known.md",kind:"delete",classification:"safe",verdict:"SUPERSEDED",preservedIn:["missing.md"],evidence:[{index:99,quote}]}],newMemories:[]});
+    }
+    if (fixtureReason === "body-correction" && !harness && !agents) plan.newMemories[0].content += "Never provide concise progress updates.\n";
     if (scenario === "remember-subset" && !harness && !agents) {
       const facts = [["tools.md", "This project uses pnpm."], ["cache.md", "Cache service is permanently unavailable."], ["license.md", "Its license is MIT."]];
       (plan as {newMemories: unknown[]}).newMemories = facts.map(([name, body]) => ({name, kind: "project", classification: "safe",
         content: `---\nname: ${name.slice(0,-3)}\ndescription: ${body}\ntype: project\n---\n${body}\n`, evidence: [{index: 0, quote}]}));
     }
     if ((fixtureReason?.startsWith("structural-") || structuralFirst) && !harness && !agents) (plan as {newMemories: Array<{kind:string}>}).newMemories[0].kind = "project-fact";
-    if (fixtureReason?.startsWith("located-") && !harness && !agents) {
-      (plan as {newMemories:Array<{evidence:unknown[]}>}).newMemories[0].evidence = [{index:0,lines:{block:0,start:1,end:1}}];
+    if ((fixtureReason?.startsWith("located-") || fixtureReason?.startsWith("referenced-")) && !harness && !agents) {
+      (plan as {newMemories:Array<{evidence:unknown[]}>}).newMemories[0].evidence = fixtureReason?.startsWith("referenced-")
+        ? [{ref:"e0.b0.l1"}] : [{index:0,lines:{block:0,start:1,end:1}}];
     }
     if (fixtureReason?.startsWith("patch-") && !harness && !agents) {
       (plan as {newMemories:Array<{evidence:unknown[]}>}).newMemories[0].evidence = [{index:2,lines:{source:"patch",block:0,start:1,end:1}}];
@@ -185,8 +238,10 @@ mock.module("../../kit/src/index.ts", () => ({
         if (costTrace === "malformed") child.stdout.emit("data",Buffer.from('{"type":"message_end",bad\n'));
       }
       const tracksRepair = scenario === "harness-repair-cost" && harness;
-      const text = scenario.startsWith("remember-syntax") ? JSON.stringify(plan).replace('"concise.md"', '"concise.md') : tracksRepair && !harnessRepair ? "The planner returned prose instead of a plan." : JSON.stringify(plan);
-      const usage = tracksRepair ? { input: harnessRepair ? 20 : 10, output: harnessRepair ? 4 : 2, cacheRead: harnessRepair ? 6 : 3, cacheWrite: 0, totalTokens: harnessRepair ? 30 : 15, cost: {total: harnessRepair ? 0.02 : 0.01} } : costTrace ? {input:10,output:2,totalTokens:12,cost:{total:.01}} : undefined;
+      const prefixFailure = process.env.CL_MEMORY_PREFIX_FAILURE && !harness && !agents
+        && (process.env.CL_MEMORY_PREFIX_FAILURE === "always" || planners.filter(phase=>phase==="memory").length === 1);
+      const text = prefixFailure ? JSON.stringify(plan).split('"operations"')[0] + '"operations":[' : scenario.startsWith("remember-empty-delimiters") ? "<tool_call>\n<tool_call>\n</function>\n</tool_call>" : scenario.startsWith("remember-syntax") ? JSON.stringify(plan).replace('"concise.md"', '"concise.md') : tracksRepair && !harnessRepair ? "The planner returned prose instead of a plan." : JSON.stringify(plan);
+      const usage = tracksRepair ? { input: harnessRepair ? 20 : 10, output: harnessRepair ? 4 : 2, cacheRead: harnessRepair ? 6 : 3, cacheWrite: 0, totalTokens: harnessRepair ? 30 : 15, cost: {total: harnessRepair ? 0.02 : 0.01} } : costTrace || process.env.CL_MEMORY_PREFIX_FAILURE ? {input:10,output:2,cacheRead:0,cacheWrite:0,totalTokens:12,cost:{total:.01}} : undefined;
       if (scenario === "remember-syntax-multiple") for (let i=0;i<2;i++) child.stdout.emit("data", Buffer.from(JSON.stringify({type:"message_end",message:{role:"assistant",content:[{type:"text",text:JSON.stringify(plan)}]}})+"\n"));
       child.stdout.emit("data", Buffer.from(JSON.stringify({type:"message_end",message:{role:"assistant",content:[{type:"text",text}],...(usage ? {usage} : {})}}) + "\n"));
       child.exitCode = 0; child.emit("close", 0);
@@ -220,10 +275,29 @@ const fixtureDigest = (value: unknown) => createHash("sha256").update(JSON.strin
 if (process.env.CL_JEV_FIXTURE) {
   const jevModule = await import("../extensions/jev-learning.ts");
   const reason = fixtureReason;
+  const productionJudgeFactory = jevModule.createJevJudge;
   mock.module("../extensions/jev-learning.ts", () => ({ ...jevModule,
     createJevJudge: (options?: {independentMemoryApplication?: boolean; composedMemoryApplication?: boolean}) => {
       productionJudgeOptions = options;
+      if (isDeleteReconsideration) {
+        const judge=productionJudgeFactory({...options,enabled:true,apiKey:"fixture",allowPrivateMemory:true,fetch:async(_url,init)=>{
+          reviewWireCalls++;const request=JSON.parse(String(init.body));
+          const answers=Object.fromEntries(Object.entries(request.questions).map(([key,q])=>{
+            const keys=Object.keys(q.criteria);const label=keys.find(k=>["grounded","compatible","unrelated"].includes(k))??keys[0];
+            return [key,{type:"choice",choice:label,confidence:1,probabilities:Object.fromEntries(keys.map(k=>[k,k===label?1:0]))}];
+          }));return new Response(JSON.stringify({model:request.model,answers,usage:{input_tokens:1,output_tokens:1}}));
+        }});
+        return {...judge,memoryReviewEnabled:!reason.endsWith("scope-off") && !reason.endsWith("disabled"),selectionEnabled:false,validate:async(...args)=>{
+          jevValidations.push(args[0]);const verdict=await judge.validate(...args);
+          if(reason.endsWith("wrong-predecessor"))return {...verdict,candidateReview:{...verdict.candidateReview,existingDigest:"0".repeat(64)}};
+          if(reason.endsWith("wrong-evidence"))return {...verdict,candidateReview:{...verdict.candidateReview,evidenceDigest:"0".repeat(64)}};
+          if(reason.endsWith("missing-proof"))return {...verdict,candidateReview:undefined};
+          if(reason.endsWith("partial-proof"))return {...verdict,telemetry:{...verdict.telemetry,completedWindows:0}};
+          return verdict;
+        }};
+      }
       return { enabled: true, selectionEnabled: true,
+      independentMemoryBodyReviewEnabled: reason?.startsWith("body-"),
       independentMemoryApplicationEnabled: reason.startsWith("subset-production") ? options?.independentMemoryApplication === true : reason.startsWith("subset-") && reason !== "subset-disabled",
       composedMemoryApplicationEnabled: reason.startsWith("subset-production") ? options?.composedMemoryApplication === true : reason === "subset-composed",
       reviewMemoryRelations: async (evidence: unknown, candidates: unknown[], existing: unknown[], review: {evidenceDigest:string;existingDigest:string;candidatesDigest:string;model:string}) => {
@@ -249,6 +323,26 @@ if (process.env.CL_JEV_FIXTURE) {
       },
       select: async () => ({ selection: reason === "discover" ? {memory:true,harness:false,selected:[]} : null, telemetry: {stage:"selection",status:"fallback",reason:"unavailable",durationMs:1} }),
       validate: async (stage: string, evidence: unknown, candidates: unknown[], existing: unknown[]) => {
+        if (reason?.startsWith("partial-review-")) {
+          jevValidations.push(stage);
+          const consistency = ["partial-review-consistency", "partial-review-compatible", "partial-review-low-contradiction"].includes(reason);
+          const failures=[{candidateIndex:0,dimension:"support",reason:reason === "partial-review-consistency" ? "unsupported" : "uncertain",
+            ...(consistency ? {internalConsistency:true, choice:reason === "partial-review-compatible" ? "compatible" : "contradictory",
+              probability:reason === "partial-review-consistency" ? 1 : .74, confidence:reason === "partial-review-consistency" ? 1 : .61} : {})}];
+          return {decision:"propose",telemetry:{stage,status:"propose",reason:"timeout",durationMs:2,model:"jev-1.13.0",
+            requestCount:4,completedRequests:3,knownInputTokens:30,knownEstimatedCostUsd:.001,candidateFailures:failures},
+            incompleteReview:{version:1,purpose:"diagnostic-only",complete:false,model:"jev-1.13.0",
+              evidenceDigest:reason === "partial-review-stale" ? "wrong" : fixtureDigest(evidence),
+              existingDigest:fixtureDigest(existing),candidatesDigest:fixtureDigest(candidates),failures}};
+        }
+        if (reason?.startsWith("body-")) {
+          jevValidations.push(stage);
+          if (reason === "body-missing-key") return {decision:"allow",telemetry:{stage,status:"disabled",reason:"missing-key",durationMs:0}};
+          return {decision:"allow",telemetry:{stage,status:"decided",reason:"supported",durationMs:1,model:"jev-1.13.0",inputTokens:10,outputTokens:2,requestCount:1,completedRequests:1},
+            candidateReview:{version:1,purpose:"diagnostic-only",complete:true,sameBatchIndependenceReviewed:false,
+              evidenceDigest:fixtureDigest(evidence),existingDigest:fixtureDigest(existing),candidatesDigest:fixtureDigest(candidates),model:"jev-1.13.0",
+              candidates:candidates.map((candidate,index)=>({index,candidateDigest:fixtureDigest(candidate),outcome:"passed",passedChecks:[`coherence_${index}`,`supported_${index}`,`supported_description_${index}`,`counter_${index}_0`,`counter_description_${index}_0`],heldChecks:[]}))}};
+        }
         if(reason.startsWith("subset-")) {
           jevValidations.push(stage);
           const checks=(i:number)=>[`coherence_${i}`,`supported_${i}`,`supported_description_${i}`, ...(existing.length?[`relation_${i}`,`relation_description_${i}`]:[]),`counter_${i}_0`,`counter_description_${i}_0`];
@@ -274,8 +368,8 @@ if (process.env.CL_JEV_FIXTURE) {
         if (reason === "tamper-first" || reason === "tamper-dossier") tamperFrozen(reason === "tamper-dossier");
         if (reason === "tamper-second" && jevValidations.length === 2) tamperFrozen();
         const combinedHeld = reason === "retention-mixed-both-fixed" && (!candidates.length || candidates.some(value => JSON.stringify(value).includes("Unsupported causal explanation.")));
-        const allowed = !combinedHeld && ((reason === "retention-fixed" || reason === "retention-delete" || reason.startsWith("retention-mixed-")) && candidates.length > 0 || reason === "patch-supported" || reason === "patch-repair" && jevValidations.length === 2 || reason === "located-supported" || reason === "located-repair" && jevValidations.length === 2 || reason === "supported" || reason === "syntax-privacy-downgrade" || reason === "tamper-first" || reason === "tamper-dossier" || reason === "tamper-queue" || (reason === "repair-supported" || reason === "tamper-second") && jevValidations.length === 2);
-        const judgment = reason.startsWith("retention-") ? allowed ? "supported" : "conflict" : (reason.startsWith("repair-") || reason === "patch-repair" || reason === "located-repair" || reason === "structural-held" || reason === "tamper-second" || reason === "tamper-repair") ? allowed ? "supported" : "uncertain" : reason;
+        const allowed = !combinedHeld && ((reason === "retention-fixed" || reason === "retention-delete" || reason.startsWith("retention-mixed-")) && candidates.length > 0 || reason === "patch-supported" || reason === "patch-repair" && jevValidations.length === 2 || reason === "located-supported" || reason === "located-repair" && jevValidations.length === 2 || reason === "referenced-supported" || reason === "referenced-repair" && jevValidations.length === 2 || reason === "supported" || reason === "syntax-privacy-downgrade" || reason === "tamper-first" || reason === "tamper-dossier" || reason === "tamper-queue" || (reason === "repair-supported" || reason === "tamper-second") && jevValidations.length === 2);
+        const judgment = reason.startsWith("retention-") ? allowed ? "supported" : "conflict" : (reason.startsWith("repair-") || reason === "patch-repair" || reason === "located-repair" || reason === "referenced-repair" || reason === "structural-held" || reason === "tamper-second" || reason === "tamper-repair") ? allowed ? "supported" : "uncertain" : reason;
         const telemetry = {stage,status:allowed ? "decided" : "propose",reason:judgment,durationMs:2,model:"jev-1.13.0",inputTokens:10,outputTokens:2,...(!allowed ? {candidateIndex:0,dimension:"support",candidateFailures:(reason === "retention-delete" ? [0,1] : [0]).map(candidateIndex=>({candidateIndex,dimension:"support",reason:"uncertain"}))} : {}),requestCount:jevValidations.length,completedRequests:jevValidations.length};
         reviewTelemetry.push(telemetry);
         return {decision:allowed ? "allow" : "propose",telemetry};
@@ -380,7 +474,7 @@ try {
   const memoryFilesBefore = snapshotMemoryFiles();
   const historyIdsBefore = new Set((await listLearningHistory(cwd)).map(record=>record.id));
   if (isEmptyFull) await commands.get("consolidate")!("full", ctx);
-  else if (isRemember) await commands.get("memory")!(quote, ctx);
+  else if (isRemember) await commands.get("memory")!(scenario === "remember-existing-maintenance" ? "整理记忆" : quote, ctx);
   else if (isManual) await commands.get("consolidate")!("", ctx);
   else {
     await runHook("agent_settled", {});
@@ -393,8 +487,9 @@ try {
   await cancellation;
   const nextMemory: unknown[] = [];
   if (scenario === "remember-subset") for (const fn of hooks.get("before_agent_start") ?? []) {
-    const result = await fn({prompt:"Use pnpm project build tools and MIT license",systemPrompt:"Task"},ctx);
-    if (result) nextMemory.push(result);
+    const systemPromptOptions = { sections: {}, promptGuidelines: [], skills: [] };
+    const result = await fn({prompt:"Use pnpm project build tools and MIT license",systemPrompt:"Task",systemPromptOptions},ctx);
+    nextMemory.push({ systemPromptOptions, result: result ?? null });
   }
   await runHook("session_shutdown", {});
   const paths = resolveMemoryPaths(cwd);
@@ -414,7 +509,7 @@ try {
     publicFiles: fs.existsSync(paths.publicDir!) ? fs.readdirSync(paths.publicDir!) : [],
     numericUsageLedgers: fs.existsSync(paths.runsDir) ? fs.readdirSync(paths.runsDir,{recursive:true}).filter(name=>String(name).endsWith("memory-task-usage.json")).map(name=>{const file=path.join(paths.runsDir,String(name));return {mode:fs.statSync(file).mode & 0o777,...JSON.parse(fs.readFileSync(file,"utf8"))};}) : [],
     runs, registryReceipt: savedReceipt, receiptComplete: !!savedReceipt && learningReceiptComplete(savedReceipt),
-    semanticRepairs, totalRepairs, receivedFailureHints, structuralContextReceived, repairErrors,
+    bodyReviewCalls, conciseMemory: fs.existsSync(path.join(paths.harnessDir,"concise.md")) ? fs.readFileSync(path.join(paths.harnessDir,"concise.md"),"utf8") : undefined, semanticRepairs, totalRepairs, maintenanceClaimChecks, receivedFailureHints, requiredTextChangesReceived, structuralContextReceived, repairErrors,
     structuralRejectionRecorded: fs.existsSync(path.join(agent,"memory","runs")) && fs.readdirSync(path.join(agent,"memory","runs"), {recursive:true}).some(name => String(name).endsWith("structural-rejection.json")),
     structuralResponseRetained: fs.existsSync(path.join(agent,"memory","runs")) && fs.readdirSync(path.join(agent,"memory","runs"), {recursive:true}).some(name => String(name).endsWith("structural-repair-response.json")),
     originalProposalRetained: history.some(record => {

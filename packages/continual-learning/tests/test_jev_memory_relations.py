@@ -18,7 +18,7 @@ const transport=async(_url,init)=>{
  return new Response(JSON.stringify({model:mode==='model-mismatch'?'jev-1.12.0':'jev-1.13.0',
   answers:{relation:mode==='missing-answer'?undefined:answer(label)},usage:{input_tokens:10,output_tokens:3}}));
 };
-const judge=createJevJudge({enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],allowPrivateMemory:true,fetch:transport});
+const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-only',defaultModel:'jev-1.13.0',scopes:['memory'],allowPrivateMemory:true,fetch:transport});
 '''
 
 
@@ -76,7 +76,7 @@ def test_relation_privacy_checks_full_evidence_existing_and_all_jobs_before_any_
       for(const snapshot of snapshots)results.push(await judge.reviewMemoryRelations(snapshot,candidates,existing,{...review,evidenceDigest:digest(snapshot)}));
       const prior=[{name:'private.md',classification:'safe',type:'project',description:'prior',content:secret}];
       results.push(await judge.reviewMemoryRelations(evidence,candidates,prior,{...review,existingDigest:digest(prior)}));
-      const denied=createJevJudge({enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:false,fetch:transport});
+      const denied=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:false,fetch:transport});
       results.push(await denied.reviewMemoryRelations(evidence,candidates,existing,review));
       console.log(JSON.stringify({results,calls:calls.length}));
     ''')
@@ -116,7 +116,7 @@ def test_relation_scope_disable_bounds_and_precancel_make_no_calls() -> None:
     value = isolated_run_bun(BASE + r'''
       const rows=[];
       for(const config of [{enabled:false,scopes:['memory']},{enabled:true,scopes:['harness']}]){
-        const j=createJevJudge({...config,apiKey:'fixture-only',allowPrivateMemory:true,fetch:transport});rows.push(await j.reviewMemoryRelations(evidence,candidates,existing,review));
+        const j=createJevJudge({maxRequestBytes:64_000,...config,apiKey:'fixture-only',allowPrivateMemory:true,fetch:transport});rows.push(await j.reviewMemoryRelations(evidence,candidates,existing,review));
       }
       const controller=new AbortController();controller.abort();rows.push(await judge.reviewMemoryRelations(evidence,candidates,existing,review,controller.signal));
       const all=Array.from({length:6},(_,i)=>({...candidates[0],name:`fact-${i}.md`}));
@@ -130,10 +130,10 @@ def test_relation_scope_disable_bounds_and_precancel_make_no_calls() -> None:
 
 def test_relation_output_strips_provider_extra_text_and_rejects_support_review_mutation() -> None:
     value = isolated_run_bun(BASE + r'''
-      const leaking=createJevJudge({enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>
+      const leaking=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>
        new Response(JSON.stringify({model:'jev-1.13.0',answers:{relation:{...answer('independent'),explanation:'PRIVATE CANDIDATE RAW TEXT'}},usage:{input_tokens:10,output_tokens:3}}))});
       const safe=await leaking.reviewMemoryRelations(evidence,candidates,existing,review);
-      const mutating=createJevJudge({enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>{
+      const mutating=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>{
        review.candidates[1].outcome='passed';review.candidates[1].passedChecks=checks(1);review.candidates[1].heldChecks=[];
        return new Response(JSON.stringify({model:'jev-1.13.0',answers:{relation:answer('independent')},usage:{input_tokens:10,output_tokens:3}}));
       }});
@@ -162,7 +162,7 @@ def test_partial_service_failure_keeps_lower_bound_usage_and_returns_no_proof() 
     value = isolated_run_bun(BASE + r'''
       const all=[...candidates,{...candidates[0],name:'third.md'}];
       const r={...review,candidatesDigest:digest(all),candidates:[...review.candidates,{index:2,candidateDigest:digest(all[2]),outcome:'passed',passedChecks:checks(2),heldChecks:[]}]};
-      let attempts=0;const faulty=createJevJudge({enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>{
+      let attempts=0;const faulty=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>{
        if(++attempts===3)return new Response('PRIVATE RESPONSE ERROR',{status:503});
        return new Response(JSON.stringify({model:'jev-1.13.0',answers:{relation:answer('independent')},usage:{input_tokens:10,output_tokens:3}}));
       }});
@@ -184,10 +184,10 @@ def test_relation_timeout_and_inflight_cancellation_return_no_proof() -> None:
        if(init.signal.aborted)reject(new DOMException('PRIVATE ERROR','AbortError'));
        else init.signal.addEventListener('abort',()=>reject(new DOMException('PRIVATE ERROR','AbortError')),{once:true});
       });
-      const timed=createJevJudge({enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,timeout:10,fetch:abortingFetch});
+      const timed=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,timeout:10,fetch:abortingFetch});
       const timeout=await timed.reviewMemoryRelations(evidence,candidates,existing,review);
       const controller=new AbortController();
-      const cancelled=createJevJudge({enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async(_url,init)=>{
+      const cancelled=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async(_url,init)=>{
        controller.abort();return abortingFetch(_url,init);
       }});
       const cancellation=await cancelled.reviewMemoryRelations(evidence,candidates,existing,review,controller.signal);
@@ -218,7 +218,7 @@ def test_mixed_actual_models_and_candidate_or_existing_mutation_hold_complete_pr
        const all=[...structuredClone(candidates),{...candidates[0],name:'third.md'}];
        const prior=issue==='existing-mutation'?[{name:'prior.md',classification:'safe',type:'project',description:'prior',content:'Use pnpm.'}]:[];
        const r={...review,existingDigest:digest(prior),candidatesDigest:digest(all),candidates:all.map((c,index)=>({index,candidateDigest:digest(c),outcome:'passed',passedChecks:[...checks(index),...(prior.length?[`relation_${index}`,`relation_description_${index}`]:[])],heldChecks:[]}))};
-       let n=0;const j=createJevJudge({enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>{
+       let n=0;const j=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>{
         n++;if(issue==='candidate-mutation')all[0].content+=' altered';if(issue==='existing-mutation')prior[0].content+=' altered';
         return new Response(JSON.stringify({model:issue==='mixed-model'&&n===2?'jev-1.12.0':'jev-1.13.0',answers:{relation:answer('independent')},usage:{input_tokens:10,output_tokens:3}}));
        }});rows.push({issue,result:await j.reviewMemoryRelations(evidence,all,prior,r)});
@@ -234,7 +234,7 @@ def test_inflight_cancellation_does_not_start_later_relation_batches() -> None:
       const all=Array.from({length:5},(_,i)=>({...candidates[0],name:`fact-${i}.md`}));
       const r={...review,candidatesDigest:digest(all),candidates:all.map((c,index)=>({index,candidateDigest:digest(c),outcome:'passed',passedChecks:checks(index),heldChecks:[]}))};
       const controller=new AbortController();let n=0;
-      const j=createJevJudge({enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>{
+      const j=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-only',scopes:['memory'],allowPrivateMemory:true,fetch:async()=>{
        n++;controller.abort();return new Response(JSON.stringify({model:'jev-1.13.0',answers:{relation:answer('independent')},usage:{input_tokens:10,output_tokens:3}}));
       }});
       const result=await j.reviewMemoryRelations(evidence,all,existing,r,controller.signal);

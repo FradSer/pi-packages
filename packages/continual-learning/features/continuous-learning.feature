@@ -55,6 +55,23 @@ Feature: Learn, use, correct and recover across real tasks
     And mutation identity, preservation intent and existing bodies remain available to the judge
     And forged citations and a contradiction in the final window prevent application
 
+  Scenario: Mutation batches preserve exact same-plan dependencies
+    Given several existing Memory operations with complete frozen predecessors
+    And a deletion preserves knowledge in a same-plan replacement or an unchanged record
+    When support and counterevidence are grouped by candidate
+    Then each question receives its complete predecessor and preservation dependency closure
+    And exact replacement bodies remain available in the same request through bound references
+    And every candidate still receives every complete original counterevidence window
+    And only completion of every group counts as a completed window
+    And the unchanged request, batch, global request and probability bounds apply
+
+  Scenario: Large complete context cannot be replaced by quotation references
+    Given a complete cited source binds an alias outside the selected quotation
+    And a later original entry changes the aliased service
+    When their complete joint mutation review exceeds the wire bound
+    Then no request replaces full cited context with quotations or hashes
+    And the plan remains proposed without a partial scan or mutation
+
   Scenario: Relevant Memory reaches a fresh task with revision evidence
     Given established project Memory and a new related user task
     When the next model request is prepared
@@ -660,6 +677,14 @@ Feature: Learn, use, correct and recover across real tasks
     And a contradiction, uncertainty or missing answer holds the original candidate
     And original evidence, thresholds and all mutation gates remain unchanged
 
+  Scenario: Independent body review requires one answer for every immutable candidate
+    Given a real rejected body-review response repeated candidate zero
+    When an explicitly opted-in Qwen worker reviews the complete candidate bodies
+    Then the service schema requires exactly one judgment property per parent-owned slot
+    And the parent still rejects missing, extra, duplicated or stale judgments
+    And legacy array responses retain their complete-coverage validation
+    And body consistency alone cannot authorize learning or file mutations
+
   Scenario: Incremental planners receive the complete already-frozen dossier once
     Given the parent has a digest-bound complete incremental Learning Dossier
     When the read-only Memory planner starts
@@ -682,3 +707,132 @@ Feature: Learn, use, correct and recover across real tasks
     Then the review uses the original model, credentials, and scopes
     And candidates still pass full evidence, privacy, semantic and mutation validation
     And the next run does not inherit this run's private review permission
+
+  Scenario: Deletion preservation may target a validated same-batch new Memory
+    Given a selected predecessor and a cited new Memory in one immutable plan
+    When the deletion names that new Memory as its preservation target
+    Then both parent validators recognize the validated replacement
+    And complete semantic preservation review and atomic rollback remain required
+
+  Scenario: Memory cites parent-labelled frozen evidence instead of transcribing positions
+    Given complete frozen evidence including a retained long encoded verifier line
+    When the planner selects displayed source references within one original block
+    Then the parent extracts the exact original contiguous substring
+    And unknown references, cross-source ranges, missing citations and oversized quotes remain rejected
+    And raw evidence, snapshot ownership, semantic review and mutation gates remain unchanged
+
+  Scenario: A Memory readback cannot independently support its own knowledge
+    Given frozen task evidence containing a successful direct or aggregated read of managed Memory
+    When a proposal cites that result as independent fact support
+    Then parent citation validation rejects the reference without guessing a replacement
+    And the complete readback remains context for correction and preservation review
+    And independently observed project source and original user corrections remain citable
+
+  Scenario: Maintenance source collection receives the existing discovery index
+    Given a parent-indexed Memory inventory with names and descriptions
+    And a bounded read-only collector previously spent its budget rediscovering Memory topics
+    When explicit Memory maintenance starts source collection
+    Then the collector receives the same scoped discovery metadata as untrusted context
+    And metadata cannot introduce files outside the existing read scope or become a source observation
+    And only independently rechecked actual source reads enter the learning evidence
+    And the original source read budget and all mutation and semantic gates remain unchanged
+
+  Scenario: Maintenance spends source reads on files rather than directory navigation
+    Given a source collector that repeatedly reads directories without observing project facts
+    When the parent prepares the maintenance worker
+    Then it supplies a bounded scoped regular-file path inventory as discovery only
+    And the maintenance reader refuses directory requests while ordinary planner readers remain compatible
+    And symlinks, sensitive paths and excluded roots never enter the inventory
+    And truncation and cancellation remain explicit
+    And file contents become evidence only after actual read and parent revision verification
+
+  Scenario: Collector proof binds deliveries without duplicating cumulative SDK context
+    Given complete actual source reads and a native turn event containing cumulative historical context
+    When the collector freezes proof of its admitted read prefix
+    Then it retains every exact current assistant tool call and tool result
+    And it does not duplicate the unused cumulative context field
+    And scope, nonce, observation, prefix, terminal and exact delivery checks remain required
+    And the unchanged proof bound still refuses genuinely oversized required delivery data
+
+  Scenario: Maintenance source collection spends its read budget on independent source
+    Given complete selected predecessor bodies remain available to later Memory planning and review
+    And the source collector receives untrusted Memory names and descriptions for topic discovery
+    When the source collector attempts a private or public managed Memory body read
+    Then that read is outside its source-only scope
+    And project source remains readable under the existing eighteen-read budget
+    And no original task evidence or predecessor review is removed
+
+  Scenario: A complete citation catalog makes generation select source references
+    Given the parent provides every eligible source reference without trimming evidence
+    When strict Memory delta or amendment generation receives that complete domain
+    Then its schema admits only existing reference IDs and optional existing end IDs
+    And free quote or coordinate alternatives cannot bypass the reference domain
+    And parent legacy-input compatibility and all citation and semantic gates remain intact
+
+  Scenario: Citation failure correction cannot regenerate learned claims
+    Given a frozen candidate fails only the parent citation admission stage
+    When its one structural correction selects original-source refs by candidate-bound ID
+    Then the parent replaces only evidence and preserves all complete bodies and mutation intents
+    And omitted candidates remain unchanged and still require full validation
+    And body changes, duplicate patches, stale IDs and empty amendments are rejected
+    And complete citation, privacy, preservation and semantic checks still precede every write
+
+  Scenario: Normal-project mutation review separates candidate context without trimming sources
+    Given seven Memory mutations with distinct complete cited source entries and predecessor bodies
+    When the normal-project Jev review prepares counterevidence requests
+    Then each request reviews one candidate and its complete preservation dependencies
+    And every candidate is checked against every original evidence window
+    And a final revocation still prevents application
+    And the bounded normal-project total request budget and unchanged confidence gates remain enforced
+
+  Scenario: Memory organization corrects claims rather than replacing records with summaries
+    Given an explicit request to organize existing Memory
+    And selected entries contain established knowledge alongside a source-backed obsolete claim
+    When the incremental planner prepares its delta
+    Then it corrects the identified obsolete claim without broadly summarizing the selected records
+    And it preserves unrelated knowledge and conditions
+    And each citation is necessary for a specific proposed claim or mutation
+    And all original evidence still receives semantic review
+
+  Scenario: A later review failure preserves bound correction feedback without partial admission
+    Given an immutable Memory mutation plan and complete original evidence
+    And completed Jev requests hold specific candidate fields at the unchanged thresholds
+    When another request times out or fails before the full review completes
+    Then the original transport failure and all known costs remain recorded
+    And only digest-bound held fields may enter the existing single semantic correction slot
+    And the corrected entire plan requires fresh complete review before any write
+    And no passed field, subset admission or partial-review application proof is inferred
+
+  Scenario: Both correction shapes receive parent-bound consistency requirements
+    Given incomplete review confirms a candidate body contradiction at the original thresholds
+    When the existing correction slot uses a sparse or combined worker
+    Then that worker receives the exact required text-change fields
+    And returning the same inconsistent body remains failed without another review
+    And combined correction explicitly covers every held proposed and retained record
+    And support-only same-text citation corrections still require full fresh review
+
+  Scenario: Maintenance observes current source for exact old claims
+    Given indexed Memory has complete parent-owned predecessor bodies
+    And private review is authorized before maintenance collection
+    When the source collector chooses what to inspect
+    Then it receives those exact bodies as untrusted questions with revision hashes
+    And only actual scoped source reads enter evidence
+    And old bodies cannot authorize commands, sharing or mutations
+    And changed old claims stop planning retries and application before writes
+    And authorized Memory rewrites do not fail source-only post-apply validation
+
+  Scenario: Mixed proposed and retained correction keeps proposal identity in the parent
+    Given held existing rewrites, newly proposed Memory and retained records
+    When the single semantic correction worker returns candidate-ID patches and retained operations
+    Then the parent restores exact original names, kinds, classifications and ordering
+    And every held proposed candidate and retained name must be explicitly covered
+    And stale or duplicated IDs, foreign retained operations and privacy changes fail
+    And a legacy response moving a new proposal into existing rewrites remains rejected
+    And the complete merged plan still requires every citation, semantic and apply gate
+
+  Scenario: Low-confidence consistency does not authorize forced knowledge changes
+    Given a frozen review prefers compatible or contradictory below the existing thresholds
+    When incomplete feedback enters semantic correction
+    Then its uncertainty remains unresolved and application is still blocked
+    And it does not require a speculative body change
+    And only a confirmed contradiction at probability 0.9 and confidence 0.8 requires changed text

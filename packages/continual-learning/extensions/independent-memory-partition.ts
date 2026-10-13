@@ -1,6 +1,6 @@
 import {interpretStandaloneMemory} from "./jev-memory-readiness";
 import {createHash} from "node:crypto";
-import {citedMemoryEvidence, memoryDescriptionClaim, type JevCandidateReview, type JevMemoryRelationsReview} from "./jev-learning";
+import {reviewedMemoryEvidence, memoryDescriptionClaim, type JevCandidateReview, type JevMemoryRelationsReview} from "./jev-learning";
 import {interpretMemoryPair} from "./jev-memory-relations";
 import type {SelectedMemory} from "./incremental-learning";
 
@@ -16,7 +16,7 @@ export function partitionReviewedNewMemory(
   const all = candidates.map((_, index) => index);
   const denied = () => ({eligible: [], held: all, writeAuthorized: false as const});
   const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-  const prepared = citedMemoryEvidence(evidence, candidates);
+  const prepared = reviewedMemoryEvidence(evidence, candidates, review);
   if (!prepared || typeof prepared === "string" || !review || !relations
     || review.version !== 1 || relations.version !== 1 || review.purpose !== "diagnostic-only" || relations.purpose !== "diagnostic-only"
     || review.complete !== true || relations.complete !== true || review.sameBatchIndependenceReviewed !== false

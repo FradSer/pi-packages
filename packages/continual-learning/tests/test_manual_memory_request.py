@@ -115,3 +115,38 @@ def test_malformed_regeneration_cannot_publish_reclassified_private_project() ->
     assert result['registryReceipt']['operations'] == 1
     assert 'concise.md' in result['privateFiles']
     assert 'concise.md' not in result['publicFiles'], result
+
+
+def test_only_empty_tool_delimiters_admit_one_frozen_fresh_plan() -> None:
+    result = run_bun(r'''
+      import {emptyPlannerToolDelimiters} from './packages/continual-learning/extensions/inject-memory.ts';
+      console.log(JSON.stringify({observed:emptyPlannerToolDelimiters('<tool_call>\n<tool_call>\n<tool_call>\n</function>\n</tool_call>'),denied:['','Please retry','<tool_call>rm -rf x</tool_call>','{"kind":"incremental-memory-plan"}','<other></other>','<tool_call>'.repeat(1000)].map(emptyPlannerToolDelimiters)}));
+    ''')
+    assert result['observed'] is True
+    assert result['denied'] == [False] * 6
+
+
+def test_normal_exit_empty_tool_delimiters_use_existing_slot_without_skipping_semantics() -> None:
+    for reason in ['supported', 'unsupported']:
+        result = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-empty-delimiters', env={'CL_JEV_FIXTURE': reason})
+        assert result['totalRepairs'] >= 1
+        assert result['registryReceipt']['operations'] == (1 if reason == 'supported' else 0)
+        assert 'memory' in result['jevValidations']
+        assert 'concise.md' not in result['publicFiles']
+
+
+def test_empty_tool_delimiter_recovery_preserves_selected_scope_and_retention_review() -> None:
+    result = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-empty-delimiters', env={'CL_JEV_FIXTURE': 'retention-fixed'})
+    assert result['registryReceipt']['operations'] == 1
+    assert result['totalRepairs'] == 2  # One structure slot and the existing semantic correction.
+    assert result['jevValidations'].count('memory') >= 2
+    assert 'known.md' in result['privateFiles']
+    assert 'concise.md' not in result['privateFiles']
+
+
+def test_second_empty_tool_delimiter_answer_stays_failed_without_another_structural_retry() -> None:
+    result = run_bun_script(Path(__file__).with_name('learning-policy-harness.ts'), 'remember-empty-delimiters-invalid', env={'CL_JEV_FIXTURE': 'supported'})
+    assert result['totalRepairs'] == 1
+    assert result['registryReceipt']['operations'] == 0
+    assert result['jevValidations'] == []
+    assert 'concise.md' not in result['privateFiles']

@@ -1,6 +1,6 @@
 // Host-only transparent JSON transport. Keys never enter Docker or argv.
 const body = await Bun.stdin.text();
-if (Buffer.byteLength(body) > 64000 || JSON.parse(body).model !== 'jev-1.13.0'
+if (JSON.parse(body).model !== 'jev-1.13.0'
   || !process.env.TYPESAFE_API_KEY) throw new Error('Invalid Jev forwarding request');
 let response;
 let text;

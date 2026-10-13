@@ -123,14 +123,19 @@ class InferenceProxy:
     """Transparent streaming transport, not a provider fixture or model stub."""
 
     def __init__(self, config_root: Path, *, jev_key: str | None = None, request_budget: int = 180,
-                 selection: dict[str, str] | None = None, jev_transport: str = "python-http") -> None:
+                 selection: dict[str, str] | None = None, jev_transport: str = "python-http",
+                 max_request_bytes: int | None = None) -> None:
         if jev_transport not in ("python-http", "bun-fetch"):
             raise ValueError("Unknown Jev transport")
+        if max_request_bytes is not None and max_request_bytes <= 0:
+            raise ValueError("max_request_bytes must be positive")
+        self.max_request_bytes = max_request_bytes
         self.jev_transport = jev_transport
         self.request_budget = request_budget
         self.jev_requests = 0
         self.jev_usage: list[dict] = []
         self.jev_observations: list[dict] = []
+        self.model_observations: list[dict] = []
         self.jev_key = jev_key
         self.selection = dict(selection) if selection is not None else json.loads((config_root / "memory.json").read_text())
         provider = json.loads((config_root / "models.json").read_text())["providers"][self.selection["provider"]]
@@ -172,7 +177,7 @@ class InferenceProxy:
                     return
                 try:
                     length = int(self.headers.get("Content-Length", "0"))
-                    if not 0 < length <= 2 * 1024 * 1024:
+                    if length <= 0 or (owner.max_request_bytes is not None and length > owner.max_request_bytes):
                         self.send_error(413)
                         return
                     body = self.rfile.read(length)
@@ -207,10 +212,25 @@ class InferenceProxy:
                         owner.requests += 1
                         if is_jev:
                             owner.jev_requests += 1
+                        elif len(owner.model_observations) < owner.request_budget:
+                            messages = payload.get('messages', [])
+                            tools = payload.get('tools', [])
+                            choice = payload.get('tool_choice')
+                            response_format = payload.get('response_format')
+                            response_format = response_format if isinstance(response_format, dict) else {}
+                            format_type = response_format.get('type')
+                            schema = response_format.get('json_schema')
+                            schema = schema if format_type == 'json_schema' and isinstance(schema, dict) else {}
+                            schema_name = schema.get('name')
+                            owner.model_observations.append({'request': owner.requests,
+                                'toolCount': len(tools) if isinstance(tools, list) else None,
+                                'toolChoice': choice if choice in ('none', 'auto', 'required') else 'other-or-absent',
+                                'messageCount': len(messages) if isinstance(messages, list) else None,
+                                'retainedToolResults': sum(isinstance(m, dict) and m.get('role') == 'tool' for m in messages) if isinstance(messages, list) else None,
+                                'responseFormatType': format_type if format_type in ('json_object', 'json_schema') else 'other-or-absent',
+                                'responseSchemaName': schema_name if schema_name in ('memory_selector', 'memory_delta', 'memory_amendment') else 'other-or-absent',
+                                'responseSchemaStrict': schema.get('strict') is True})
                     if is_jev and owner.jev_transport == "bun-fetch":
-                        if len(body) > 64000:
-                            self.send_error(413)
-                            return
                         forward_env = {key: value for key, value in os.environ.items() if key in
                                        ("PATH", "HOME", "SSL_CERT_FILE", "SSL_CERT_DIR", "HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "NO_PROXY")}
                         forward_env["TYPESAFE_API_KEY"] = owner.jev_key

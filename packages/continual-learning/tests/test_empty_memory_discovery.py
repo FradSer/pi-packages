@@ -13,14 +13,17 @@ def test_empty_memory_discovery_is_explicit_with_or_without_an_empty_index(tmp_p
       await fs.writeFile(paths.settingsFile,JSON.stringify({{autoMemory:false}}));
       const hooks=new Map(); register({{on:(n,f)=>hooks.set(n,f),registerCommand:()=>{{}},sendMessage:()=>{{}},appendEntry:()=>{{}},getCommands:()=>[],exec:async()=>({{stdout:'',stderr:'',code:0}})}});
       const ctx={{cwd,ui:{{notify:()=>{{}}}}}};
-      const missing=await hooks.get('before_agent_start')({{systemPrompt:'TRUSTED'}},ctx);
+      const options={{promptGuidelines:[],sections:{{project_memory_discovery:'STALE_DISCOVERY',project_memory_auto_learning:'STALE_AUTO',other:'KEEP'}}}};
+      const missing=await hooks.get('before_agent_start')({{systemPrompt:'TRUSTED',systemPromptOptions:options}},ctx);
       await fs.writeFile(paths.harnessDir+'/MEMORY.md','# Memory Index\\n\\n');
-      const emptyIndex=await hooks.get('before_agent_start')({{systemPrompt:'TRUSTED'}},ctx);
-      console.log(JSON.stringify({{missing:missing??null,emptyIndex:emptyIndex??null}}));
+      const emptyIndex=await hooks.get('before_agent_start')({{systemPrompt:'TRUSTED',systemPromptOptions:options}},ctx);
+      console.log(JSON.stringify({{missing:{{...missing,guidance:Object.values(options.sections),sections:options.sections}},emptyIndex:{{...emptyIndex,guidance:Object.values(options.sections),sections:options.sections}}}}));
     ''',env={'PI_CODING_AGENT_DIR':str(tmp_path / 'agent')})
     for state in ('missing','emptyIndex'):
         assert result[state] is not None, 'Empty Memory discovery was omitted'
         assert 'message' not in result[state], 'Empty discovery must not append a placeholder reference'
-        assert 'If no established entries are available' in result[state]['systemPrompt']
-        assert 'do not search guessed or alternative Memory locations' in result[state]['systemPrompt']
+        assert result[state]['sections']['other'] == 'KEEP'
+        assert set(result[state]['sections']) == {'other', 'project_memory_protocol'}
+        assert 'If no established entries are available' in ' '.join(result[state]['guidance'])
+        assert 'do not search guessed or alternative Memory locations' in ' '.join(result[state]['guidance'])
     assert result['missing'] == result['emptyIndex']

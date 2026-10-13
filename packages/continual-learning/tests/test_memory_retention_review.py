@@ -14,7 +14,7 @@ def test_real_noop_cannot_skip_review_of_retained_outdated_memory() -> None:
       const before=JSON.stringify({snapshot,existing});
       const held=await judge.validate('memory',snapshot,[],existing);const first=requests.splice(0);
       mode='compatible';const allowed=await judge.validate('memory',snapshot,[],existing);
-      console.log(JSON.stringify({held,allowed,rows:first.map(r=>({keys:Object.keys(r.questions),existingExact:JSON.stringify((typeof r.state === "string" ? JSON.parse(r.state) : r.state).existingMemories)===JSON.stringify(existing),indexes:(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence.entries.map(e=>e.index)})),entries:snapshot.entries.length,evidenceIndexes:snapshot.entries.flatMap((e,i)=>(e.customType??'').startsWith('continual-learning-')?[]:[i]),injected:snapshot.entries.filter(e=>(e.customType??'').startsWith('continual-learning-')).length,unchanged:before===JSON.stringify({snapshot,existing})}));
+      console.log(JSON.stringify({held,allowed,rows:first.map(r=>({keys:Object.keys(r.questions),existingExact:existing.every((item,index)=>{const bodyQuestions=Object.entries(r.questions).filter(([key])=>new RegExp(`^counter_${index}_\\d+$`).test(key));return bodyQuestions.length===1&&bodyQuestions.every(([,q])=>q.instructions.candidate.content===item.content.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, ""))}),indexes:(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence.entries.map(e=>e.index)})),entries:snapshot.entries.length,evidenceIndexes:snapshot.entries.flatMap((e,i)=>(e.customType??'').startsWith('continual-learning-')?[]:[i]),injected:snapshot.entries.filter(e=>(e.customType??'').startsWith('continual-learning-')).length,unchanged:before===JSON.stringify({snapshot,existing})}));
     ''')
     assert result['held']['decision'] == 'propose'
     assert result['held']['telemetry']['reason'] == 'conflict'
@@ -158,6 +158,7 @@ def test_actual_mixed_failure_scopes_allow_only_held_replacements_and_retained_a
         {...next,operations:[retained,{...rewrite,kind:'delete'}]},
         {...next,newMemories:[{...proposal,classification:'private'}]},
         {...next,newMemories:[{...proposal,name:'unexpected.md'}]},
+        {...next,newMemories:[proposal,{...proposal,name:'unexpected.md'}]},
         {...next,operations:[retained,retained]},
         {...next,operations:[]}
       ]) {next=bad;errors.push(await repairIncrementalMemoryPlan(input));}

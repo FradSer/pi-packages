@@ -51,15 +51,18 @@ def test_parent_revisits_successful_reads_without_expanding_explicit_memory_scop
         {message:{role:'assistant',content:[{type:'toolCall',id:'observed',name:'read',arguments:{path:path.join(cwd,'.memory','read_fact.md'),offset:1,limit:20}}]}},
         {message:{role:'toolResult',toolCallId:'observed',toolName:'read',isError:false,content:[{type:'text',text:'Old public knowledge.'}]}}];
       const input={cwd,contextDigest:'scope',outputDir:path.join(process.env.TEST_ROOT,'automatic'),taskSlice:{kind:'learning-task-slice',version:1,entries}};
+      const metadataOnly=await selectIncrementalLearning({...input,outputDir:path.join(process.env.TEST_ROOT,'metadata-only'),taskSlice:{...input.taskSlice,entries:[entries[0],{customType:'continual-learning-memory-reference',details:{retrieved:[{filename:'read_fact.md',revision:'a'.repeat(64),readPath:path.join(p.harnessDir,'read_fact.md')}]}}]}});
       const automatic=await selectIncrementalLearning(input);
       const explicit=await selectIncrementalLearning({...input,outputDir:path.join(process.env.TEST_ROOT,'explicit'),memoryOnly:true});
       const dossier=JSON.parse(fs.readFileSync(automatic.dossierPath,'utf8'));
-      console.log(JSON.stringify({automatic:automatic.selection,explicit:explicit.selection,dossierSelected:dossier.selectedMemories.map(m=>m.name),preferredBody:dossier.selectedMemories[0].content,evidencePreserved:JSON.stringify(dossier.taskSlice.entries)===JSON.stringify(entries)}));
+      console.log(JSON.stringify({metadataOnly:metadataOnly.selection,automatic:automatic.selection,explicit:explicit.selection,dossierSelected:dossier.selectedMemories.map(m=>m.name),preferredBody:dossier.selectedMemories[0].content,evidencePreserved:JSON.stringify(dossier.taskSlice.entries)===JSON.stringify(entries)}));
     ''', {'TEST_ROOT': str(tmp_path)})
     assert value['automatic']['memory'] is True
     assert value['automatic']['selected'] == value['dossierSelected'] == ['read_fact.md']
     assert value['evidencePreserved'] is True
     assert value['explicit']['selected'] == []
+    assert value['metadataOnly']['selected'] == []
+    assert value['metadataOnly']['memory'] is False
 
     assert 'Existing observed knowledge.' in value['preferredBody']
     assert 'Old public knowledge.' not in value['preferredBody']

@@ -12,7 +12,7 @@ def test_complete_candidate_review_is_bound_and_never_partial_write_permission()
        const snapshot={contextEnabled:true,runId:'fixture-run',scopeKey:'fixture-scope',entries:[{role:'user',content:quote}]};
        const candidates=[0,1].map(i=>({name:`fact-${i}.md`,kind:'project',classification:'safe',content:`---\nname: fact-${i}\ndescription: ${quote}\ntype: project\n---\n${quote}`,evidence:[{index:0,quote,role:'user'}]}));
        const original=JSON.stringify(candidates);let changed=false;
-       const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
+       const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
         if(mode==='unavailable')throw Error('fixture unavailable');const r=JSON.parse(String(init.body));const answers={};
         for(const [k,q]of Object.entries(r.questions)){
          if(mode==='missing'&&k==='supported_description_1')continue;
@@ -51,7 +51,7 @@ def test_candidate_review_absent_for_incomplete_or_ineligible_inputs() -> None:
        const snapshot={contextEnabled:mode!=='legacy',entries:[{role:'user',content:quote}]};const existing=[];
        const candidate={name:'fact.md',kind:'project',classification:mode==='private'?'private':'safe',content:`---\nname: fact\ndescription: ${quote}\ntype: project\n---\n${quote}`,evidence:[{index:0,quote,role:'user'}],...(mode==='rewrite'?{op:'rewrite'}:{})};
        const controller=new AbortController();if(mode==='cancelled')controller.abort();let calls=0;
-       const judge=createJevJudge({enabled:mode!=='disabled',apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
+       const judge=createJevJudge({maxRequestBytes:64_000,enabled:mode!=='disabled',apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
         calls++;const r=JSON.parse(String(init.body));const answers={};
         for(const [k,q]of Object.entries(r.questions)){if(q.type==='noul')answers[k]={type:'noul',noul:.99};else {const label=k.startsWith('coherence_')?'compatible':k.startsWith('supported')?'grounded':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};}}
         if(mode==='evidence-mutation')snapshot.entries[0].content+=' altered';if(mode==='existing-mutation')existing.push({name:'altered',content:'altered'});
@@ -70,7 +70,7 @@ def test_candidate_review_includes_existing_relationship_and_all_windows() -> No
       const snapshot={contextEnabled:true,entries:[{role:'user',content:quote},{role:'toolResult',content:'Verified public fixture observation. '.repeat(900)}]};
       const existing=[{name:'prior.md',classification:'safe',type:'project',description:'Prior toolchain fact.',content:'The project has a TypeScript API.'}];
       const candidate={name:'fact.md',kind:'project',classification:'safe',content:`---\nname: fact\ndescription: ${quote}\ntype: project\n---\n${quote}`,evidence:[{index:0,quote,role:'user'}]};
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
        const r=JSON.parse(String(init.body)),answers={};for(const [k,q]of Object.entries(r.questions)){
         const label=k.startsWith('coherence_')?'compatible':k.startsWith('supported')?'grounded':k.startsWith('relation')?'supplement':'compatible';answers[k]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};
        }return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));

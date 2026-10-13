@@ -133,20 +133,21 @@ def test_legacy_skill_suffix_and_target_coexist_with_flat_guidance(tmp_path: Pat
       const cwd={json.dumps(str(tmp_path))};fs.mkdirSync(path.join(cwd,'.pi'));
       fs.writeFileSync(path.join(cwd,'.pi/harness.json'),JSON.stringify({{rules:[{{id:'new',skill:'review',instructions:'flat addition'}}],skillPrompts:{{review:{{prompt:'exact legacy guidance',target:{json.dumps(target)},userMessagePattern:'^approved suffix$'}}}}}}));
       const hooks={{}},entries=[];register({{on:(n,f)=>hooks[n]=f,registerEntryRenderer(){{}},appendEntry:(t,d)=>entries.push(d)}});
-      const ctx={{cwd,sessionManager:{{buildContextEntries:()=>[]}}}};
-      const event=prompt=>({{prompt,systemPrompt:'base',systemPromptOptions:{{skills:[{{name:'review'}}]}}}});
+      const ctx={{cwd,sessionManager:{{buildContextEntries:()=>[],getBranch:()=>[]}}}};
+      const event=prompt=>({{prompt,systemPromptOptions:{{sections:{{}},skills:[{{name:'review'}}]}}}});
+      const start=async prompt=>{{const e=event(prompt);const returned=await hooks.before_agent_start(e,ctx);return {{...e.systemPromptOptions,returned:returned??null}};}};
       const expanded=suffix=>['<skill name="review" location="/fixture/SKILL.md">','approved suffix in body','</skill>','',suffix].join('\\n');
-      const positive=await hooks.before_agent_start(event(expanded('approved suffix')),ctx);
-      const negative=await hooks.before_agent_start(event(expanded('unrelated')),ctx);
-      const plain=await hooks.before_agent_start(event('Read /fixture/SKILL.md approved suffix'),ctx);
-      const repeated=await hooks.before_agent_start(event(expanded('approved suffix')),ctx);
+      const positive=await start(expanded('approved suffix'));
+      const negative=await start(expanded('unrelated'));
+      const plain=await start('Read /fixture/SKILL.md approved suffix');
+      const repeated=await start(expanded('approved suffix'));
       const texts=extractModelVisibleTexts([{{role:'custom',customType:'skill-prompt-guidance',content:'never self-trigger'}}]);
       console.log(JSON.stringify({{positive,negative,plain:plain??null,repeated,texts}}));
     ''')
-    assert 'flat addition' in result['positive']['message']['content']
-    legacy_text = result['positive'].get('systemPrompt', '') if target == 'system' else result['positive']['message']['content']
+    assert 'flat addition' in result['positive']['sections']['harness_guidance']
+    legacy_text = result['positive']['sections']['harness_guidance']
     assert 'exact legacy guidance' in legacy_text
-    assert 'exact legacy guidance' not in json.dumps(result['negative']) and result['plain'] is None
+    assert 'exact legacy guidance' not in json.dumps(result['negative']) and 'harness_guidance' not in result['plain']['sections']
     assert 'exact legacy guidance' in json.dumps(result['repeated'])
     assert result['texts'] == []
 

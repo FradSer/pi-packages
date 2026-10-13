@@ -14,7 +14,7 @@ def test_expands_delta_to_validator_and_apply_compatible_full_plan() -> None:
     with tempfile.TemporaryDirectory(prefix="incremental-memory-plan-") as temporary:
         result = run_bun(
             r"""
-              import { mkdir, readFile, writeFile } from 'node:fs/promises';
+              import { mkdir, readFile, writeFile, realpath } from 'node:fs/promises';
               import { join } from 'node:path';
               import {
                 applyConsolidationPlan,
@@ -22,7 +22,7 @@ def test_expands_delta_to_validator_and_apply_compatible_full_plan() -> None:
               } from './packages/continual-learning/extensions/consolidation-run.ts';
               import { expandIncrementalMemoryPlan } from './packages/continual-learning/extensions/incremental-memory-plan.ts';
 
-              const root = process.env.TEST_ROOT;
+              const root = await realpath(process.env.TEST_ROOT);
               const repo = join(root, 'repo');
               const harness = join(root, 'harness');
               const publicDir = join(root, 'public');
@@ -123,7 +123,26 @@ def test_expands_delta_to_validator_and_apply_compatible_full_plan() -> None:
                 '--expected-artifact-hash', manifest.snapshotDigest,
                 '--expected-selected', JSON.stringify(['project_config.md', 'preference_style.md']),
               ], { cwd: process.cwd() });
-              const applied = await applyConsolidationPlan(run, plan);
+              // Given a source audit bound to old claims, its post-apply check
+              // must allow our own validated rewrite, while claims gate only entry.
+              const {mock} = await import('bun:test');
+              const kit = await import('./packages/kit/src/index.ts');
+              mock.module('./packages/kit/src/index.ts', () => ({...kit, runPiWorker: async options => {
+                const context = JSON.parse(options.prompt.split('\n').at(-1));
+                const {recordMaintenanceRead} = await import('./packages/continual-learning/extensions/memory-maintenance-audit.ts');
+                const {readPlannerFileSnapshot} = await import('./packages/continual-learning/extensions/planner-read-scope.ts');
+                const source = await readPlannerFileSnapshot('src/config.ts', context.readScope);
+                await recordMaintenanceRead(context.observationsPath, {path: join(repo, 'src/config.ts'), offset: 1, limit: 200, result: source.text, sha256: source.sha256});
+                return {exitCode: 0, stderr: '', text: '', usage: {input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, cost: 0}};
+              }}));
+              const {auditMemoryMaintenanceSources} = await import('./packages/continual-learning/extensions/memory-maintenance-audit.ts');
+              const audit = await auditMemoryMaintenanceSources({cwd: repo, request: '整理记忆', memoryFiles: [join(harness, 'project_config.md')], memoryIndex: [{name: 'project_config.md', description: 'Project configuration', type: 'project', classification: 'safe'}], outputDir: root});
+              if (audit.outcome !== 'observed') throw Error('Audit fixture did not observe source');
+              await audit.assertClaimsUnchanged();
+              const applied = await applyConsolidationPlan(run, plan, undefined, async () => {await audit.assertSourcesUnchanged();});
+              let ownMutationChangesClaim = false;
+              try {await audit.assertClaimsUnchanged();} catch {ownMutationChangesClaim = true;}
+              if (!ownMutationChangesClaim) throw Error('Claim binding did not detect changed body');
               console.log(JSON.stringify({
                 plan,
                 validatorExit: validator.exitCode,
@@ -461,3 +480,191 @@ def test_rejects_repository_observation_through_parent_symlink(tmp_path: Path) -
     payload = json.loads(result.stdout.strip().splitlines()[-1])
     assert payload["inside"] == {"status": "VERIFIED"}
     assert "canonical root" in payload["outside"]["error"]
+
+def test_delete_can_preserve_knowledge_in_validated_same_batch_new_memory() -> None:
+    with tempfile.TemporaryDirectory(prefix="incremental-memory-plan-") as temporary:
+        result = run_bun(
+            r"""
+              import { mkdir, readFile, writeFile } from 'node:fs/promises';
+              import { join } from 'node:path';
+              import {
+                applyConsolidationPlan,
+                sha256Digest,
+              } from './packages/continual-learning/extensions/consolidation-run.ts';
+              import { expandIncrementalMemoryPlan } from './packages/continual-learning/extensions/incremental-memory-plan.ts';
+
+              const root = process.env.TEST_ROOT;
+              const repo = join(root, 'repo');
+              const harness = join(root, 'harness');
+              const publicDir = join(root, 'public');
+              const runDir = join(root, 'run');
+              await mkdir(join(repo, 'src'), { recursive: true });
+              await mkdir(harness, { recursive: true });
+              await mkdir(publicDir, { recursive: true });
+              await mkdir(runDir, { recursive: true });
+              await writeFile(join(repo, 'src', 'config.ts'), 'export const mode = "strict";\n');
+              await writeFile(join(harness, 'project_config.md'), 'old project fact\n');
+              await writeFile(join(publicDir, 'project_config.md'), 'old project fact\n');
+              await writeFile(join(harness, 'preference_style.md'), 'Prefer concise output.\n');
+              await writeFile(join(harness, 'MEMORY.md'), '# Memory Index\n\n- [preference_style.md](preference_style.md) (harness only)\n- [project_config.md](project_config.md)\n');
+              await writeFile(join(publicDir, 'MEMORY.md'), '# Memory Index\n\n- [project_config.md](project_config.md)\n');
+
+              const snapshot = {
+                schemaVersion: 1,
+                runId: 'run_delta',
+                scopeKey: 'c'.repeat(64),
+                contextEnabled: true,
+                entries: [{ type: 'message', message: { role: 'user', content: 'Remember that releases use changesets.' } }],
+              };
+              const snapshotText = JSON.stringify(snapshot, null, 2) + '\n';
+              const snapshotFile = join(runDir, 'snapshot.json');
+              await writeFile(snapshotFile, snapshotText);
+              const snapshotDigest = sha256Digest(snapshotText);
+              const manifest = {
+                schemaVersion: 1,
+                runId: 'run_delta',
+                cwd: repo,
+                scopeKey: 'c'.repeat(64),
+                scopeDigest: 'b'.repeat(64),
+                harnessDir: harness,
+                publicDir,
+                runDir,
+                contextEnabled: true,
+                contextMode: 'snapshot',
+                snapshotPath: snapshotFile,
+                snapshotDigest,
+                createdAt: new Date(0).toISOString(),
+                sourceHashes: {
+                  harness: {
+                    'MEMORY.md': sha256Digest(await readFile(join(harness, 'MEMORY.md'))),
+                    'preference_style.md': sha256Digest(await readFile(join(harness, 'preference_style.md'))),
+                    'project_config.md': sha256Digest(await readFile(join(harness, 'project_config.md'))),
+                  },
+                  public: {
+                    'MEMORY.md': sha256Digest(await readFile(join(publicDir, 'MEMORY.md'))),
+                    'project_config.md': sha256Digest(await readFile(join(publicDir, 'project_config.md'))),
+                  },
+                },
+              };
+              const run = {
+                manifest,
+                paths: { snapshotFile },
+                lockPath: join(root, 'lock'),
+                released: false,
+                normalization: { repaired: [], removed: [] },
+              };
+              const delta = {
+                kind: 'incremental-memory-plan',
+                version: 1,
+                schemaVersion: 1,
+                runId: manifest.runId,
+                scopeKey: manifest.scopeKey,
+                scopeDigest: manifest.scopeDigest,
+                artifactHash: manifest.snapshotDigest,
+                snapshotDigest: manifest.snapshotDigest,
+                operations: [{
+                  name: 'project_config.md',
+                  kind: 'delete',
+                  classification: 'safe',
+                  verdict: 'SUPERSEDED',
+                  preservedIn: ['release_process.md'],
+                  observations: [{ path: 'src/config.ts', status: 'found' }],
+                }],
+                newMemories: [{
+                  name: 'release_process.md',
+                  kind: 'project',
+                  classification: 'safe',
+                  content: 'Releases use changesets.\n',
+                  evidence: [{ index: 0, quote: 'Remember that releases use changesets.' }],
+                }],
+              };
+
+              const rejected = [];
+              for (const invalid of [
+                {...delta, newMemories: []},
+                {...delta, newMemories: [{...delta.newMemories[0], evidence: [{index: 0, quote: 'unsupported'}]}]},
+                {...delta, newMemories: [delta.newMemories[0], delta.newMemories[0]]},
+                {...delta, newMemories: [{...delta.newMemories[0], content: ''}]},
+              ]) {
+                try { await expandIncrementalMemoryPlan(run, ['project_config.md', 'preference_style.md'], invalid); rejected.push(false); }
+                catch { rejected.push(true); }
+              }
+              const originalUnchanged = await readFile(join(harness, 'project_config.md'), 'utf8') === 'old project fact\n';
+              const plan = await expandIncrementalMemoryPlan(run, ['project_config.md', 'preference_style.md'], delta);
+              const planPath = join(runDir, 'plan.json');
+              await writeFile(planPath, JSON.stringify(plan, null, 2) + '\n');
+              const validator = Bun.spawnSync([
+                'python3',
+                './packages/continual-learning/scripts/validate-consolidate.py',
+                '--plan', planPath,
+                '--snapshot', snapshotFile,
+                '--repo-root', repo,
+                '--check=plan',
+                '--expected-run-id', manifest.runId,
+                '--expected-scope-key', manifest.scopeKey,
+                '--expected-scope-digest', manifest.scopeDigest,
+                '--expected-artifact-hash', manifest.snapshotDigest,
+                '--expected-selected', JSON.stringify(['project_config.md', 'preference_style.md']),
+              ], { cwd: process.cwd() });
+              const applied = await applyConsolidationPlan(run, plan);
+              console.log(JSON.stringify({
+                plan, rejected, originalUnchanged,
+                validatorExit: validator.exitCode,
+                validatorOutput: validator.stdout.toString(),
+                applied,
+                deleted: !await (await import('node:fs/promises')).stat(join(harness, 'project_config.md')).then(() => true, () => false),
+                untouchedPrivate: await readFile(join(harness, 'preference_style.md'), 'utf8'),
+                createdPublic: await readFile(join(publicDir, 'release_process.md'), 'utf8'),
+              }));
+            """,
+            {"TEST_ROOT": temporary},
+        )
+        assert result.returncode == 0, result.stderr
+        payload = json.loads(result.stdout.strip().splitlines()[-1])
+        assert payload["validatorExit"] == 0, payload["validatorOutput"]
+        assert all(payload["rejected"]) and payload["originalUnchanged"]
+        assert payload["deleted"]
+        assert payload["applied"]["created"] == ["release_process.md"]
+        assert payload["createdPublic"] == "Releases use changesets.\n"
+        assert payload["untouchedPrivate"] == "Prefer concise output.\n"
+
+
+def test_private_same_batch_preservation_rolls_back_and_undo_restores_exact_predecessor() -> None:
+    from support import isolated_run_bun
+    value = isolated_run_bun(r'''
+      import {mkdir,writeFile,readFile,stat,chmod} from 'node:fs/promises';
+      import {existsSync} from 'node:fs';import {join} from 'node:path';
+      import {resolveConsolidationRunPaths,applyConsolidationPlan,sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {expandIncrementalMemoryPlan} from './packages/continual-learning/extensions/incremental-memory-plan.ts';
+      import {recordLearningMutation,memoryMutationFiles,listLearningHistory,previewLearningUndo,undoLearningChange} from './packages/continual-learning/extensions/learning-history.ts';
+      const cwd=join(process.env.PI_CODING_AGENT_DIR,'project');await mkdir(cwd,{recursive:true});
+      const paths=resolveConsolidationRunPaths(cwd,'run_preserve');await mkdir(paths.runDir,{recursive:true});
+      await mkdir(paths.memory.harnessDir,{recursive:true});
+      const old=join(paths.memory.harnessDir,'old.md'),index=join(paths.memory.harnessDir,'MEMORY.md'),next=join(paths.memory.harnessDir,'next.md');
+      const oldBytes='Private queue contract: retain clearQueue.\n';
+      const indexBytes='# Memory\n- [old.md](old.md) (harness only)\n';
+      await writeFile(old,oldBytes,{mode:0o640});await chmod(old,0o640);await writeFile(index,indexBytes,{mode:0o600});
+      const source='Private queue contract: retain clearQueue; now also expose onIdle.';
+      const snapshot={schemaVersion:1,runId:'run_preserve',scopeKey:paths.memory.scopeKey,contextEnabled:true,entries:[{role:'toolResult',content:source}]};
+      const bytes=JSON.stringify(snapshot);await writeFile(paths.snapshotFile,bytes);
+      const manifest={runId:snapshot.runId,cwd,scopeKey:snapshot.scopeKey,scopeDigest:'b'.repeat(64),snapshotDigest:sha256Digest(bytes),harnessDir:paths.memory.harnessDir,publicDir:paths.memory.publicDir,sourceHashes:{harness:{'old.md':sha256Digest(oldBytes),'MEMORY.md':sha256Digest(indexBytes)},public:{}}};
+      const run={manifest,paths,released:false};
+      const delta={kind:'incremental-memory-plan',version:1,schemaVersion:1,runId:manifest.runId,scopeKey:manifest.scopeKey,scopeDigest:manifest.scopeDigest,artifactHash:manifest.snapshotDigest,snapshotDigest:manifest.snapshotDigest,
+        operations:[{name:'old.md',kind:'delete',classification:'private',verdict:'SUPERSEDED',preservedIn:['next.md'],evidence:[{index:0,quote:source}]}],
+        newMemories:[{name:'next.md',kind:'project',classification:'private',content:source,evidence:[{index:0,quote:source}]}]};
+      const plan=await expandIncrementalMemoryPlan(run,['old.md'],delta);
+      const state=async()=>({old:existsSync(old)?await readFile(old,'utf8'):null,mode:existsSync(old)?(await stat(old)).mode&0o777:null,index:await readFile(index,'utf8'),next:existsSync(next),publicExists:existsSync(paths.memory.publicDir)});
+      const before=await state();let observed=false,rejected=false;
+      const apply=verify=>recordLearningMutation(cwd,'memory',memoryMutationFiles(cwd,['old.md','next.md']),()=>applyConsolidationPlan(run,plan,undefined,verify),plan);
+      try{await apply(async()=>{observed=!existsSync(old)&&existsSync(next);throw Error('injected final verification failure');});}catch(e){rejected=e.message.includes('injected');}
+      const rolledBack=JSON.stringify(before)===JSON.stringify(await state());
+      const failedHistory=await listLearningHistory(cwd);
+      await apply();const appliedState=await state();const history=await listLearningHistory(cwd);
+      const preview=await previewLearningUndo(cwd,history[0].id);await undoLearningChange(cwd,history[0].id,preview.digest);
+      console.log(JSON.stringify({observed,rejected,rolledBack,failedHistory,appliedState,restored:JSON.stringify(before)===JSON.stringify(await state()),history:await listLearningHistory(cwd)}));
+    ''')
+    assert value['observed'] and value['rejected'] and value['rolledBack']
+    assert value['failedHistory'] == []
+    assert value['appliedState']['old'] is None and value['appliedState']['next']
+    assert not value['appliedState']['publicExists']
+    assert value['restored'] and value['history'][0]['status'] == 'undone'

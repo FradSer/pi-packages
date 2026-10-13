@@ -24,6 +24,8 @@ export interface LearningAttempt {
   /** Pending original records preserved separately from applied operations. */
   pendingOperations?: number;
   usage?: PiWorkerUsage;
+  /** False retains known usage while acknowledging interrupted or unreported usage. */
+  usageComplete?: boolean;
   /** Parent-owned numeric ledger identity; included only with this attempt. */
   usageLedgerId?: string;
   /** A parent preflight can fail before any planner call. Legacy attempts count as one. */
@@ -347,7 +349,7 @@ export interface LearningInputSource {
 }
 
 function allLearningUsageAvailable(attempts: readonly LearningAttempt[]): boolean {
-  return attempts.every(attempt => attempt.usage !== undefined || attempt.outcome === "skipped" || attempt.outcome === "screened");
+  return attempts.every(attempt => attempt.usageComplete !== false && (attempt.usage !== undefined || attempt.outcome === "skipped" || attempt.outcome === "screened"));
 }
 
 export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen, attempts: LearningAttempt[], input?: LearningInputSource, batchId?: string): LearningPipelineReceipt {
@@ -361,6 +363,7 @@ export function buildLearningReceipt(mode: LearningMode, screen: LearningScreen,
     totals: totalLearningUsage(attempts),
     usageAvailable: allLearningUsageAvailable(attempts),
     costAvailable: attempts.every((attempt) => {
+      if (attempt.usageComplete === false) return false;
       if (!attempt.usage) return (attempt.outcome === "skipped" || attempt.outcome === "screened") && attempt.costAvailable !== false;
       const hasUsage = attempt.usage.input > 0 || attempt.usage.output > 0 || attempt.usage.cacheRead > 0 || attempt.usage.cacheWrite > 0 || attempt.usage.totalTokens > 0;
       return attempt.costAvailable ?? !(hasUsage && attempt.usage.cost === 0);
@@ -429,7 +432,7 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
     typeof receipt.mode === "string" && modes.includes(receipt.mode as LearningMode) &&
     Boolean(screen && typeof screen.memory === "boolean" && typeof screen.harness === "boolean" && typeof screen.agents === "boolean" && Array.isArray(screen.reasons) && screen.reasons.every((reason) => typeof reason === "string")) &&
     Array.isArray(receipt.attempts) && receipt.attempts.every((attempt) =>
-      Boolean(attempt && phases.includes(attempt.phase) && outcomes.includes(attempt.outcome) && Number.isSafeInteger(attempt.attempt) && attempt.attempt >= 0 && finiteNumber(attempt.durationMs) && finiteNumber(attempt.operations) && (attempt.modelCalls === undefined || attempt.modelCalls === 0) && (attempt.pendingOperations === undefined || Number.isSafeInteger(attempt.pendingOperations) && attempt.pendingOperations >= 0) && (attempt.usage === undefined || validUsage(attempt.usage)))) &&
+      Boolean(attempt && phases.includes(attempt.phase) && outcomes.includes(attempt.outcome) && Number.isSafeInteger(attempt.attempt) && attempt.attempt >= 0 && finiteNumber(attempt.durationMs) && finiteNumber(attempt.operations) && (attempt.modelCalls === undefined || attempt.modelCalls === 0) && (attempt.pendingOperations === undefined || Number.isSafeInteger(attempt.pendingOperations) && attempt.pendingOperations >= 0) && (attempt.usageComplete === undefined || typeof attempt.usageComplete === "boolean") && (attempt.usage === undefined || validUsage(attempt.usage)))) &&
     (receipt.usageAvailable === undefined || typeof receipt.usageAvailable === "boolean") &&
     validUsage(receipt.totals) && finiteNumber(receipt.operations) && typeof receipt.retries === "number" && Number.isSafeInteger(receipt.retries) && receipt.retries >= 0 && typeof receipt.costAvailable === "boolean";
 }

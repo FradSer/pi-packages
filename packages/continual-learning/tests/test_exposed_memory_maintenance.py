@@ -29,7 +29,8 @@ def test_real_selector_schema_recovery_preserves_independent_phase_routing() -> 
             const dossier=out.dossierPath?JSON.parse(fs.readFileSync(out.dossierPath,'utf8')):null;
             rows.push({mode,out,calls:calls-before,hasDossier:!!dossier,
               evidenceUnchanged:JSON.stringify(dossier?.taskSlice.entries)===JSON.stringify(entries),
-              bodiesUnchanged:!!dossier&&fixture.memories.every(old=>dossier.selectedMemories.some(item=>item.name===old.name&&item.content===old.content))});
+              selectedBodies:dossier?.selectedMemories ?? [],
+              sourceBodiesUnchanged:fixture.memories.every(old=>fs.readFileSync(path.join(cwd,'.memory',old.name),'utf8')===old.content)});
           }
           console.log(JSON.stringify({rows,
             exposed:deliveredMemoryNames(fixture.snapshot.entries),sensitive:containsSensitiveMemoryMaterial(JSON.stringify(fixture))}));
@@ -42,13 +43,20 @@ def test_real_selector_schema_recovery_preserves_independent_phase_routing() -> 
     assert complete['out']['selection']['agents'] is True
     assert [a['outcome'] for a in complete['out']['attempts']] == ['failed', 'applied']
     assert complete['out']['usage']['cost'] == 0.02
-    assert sorted(complete['out']['selection']['selected']) == sorted(result['exposed'])
+    # Historical retrieved[] metadata is discovery, not actual read provenance.
+    # Schema recovery still preserves independent routing, evidence, and usage.
+    assert result['exposed']
+    assert complete['out']['selection']['selected'] == []
     assert complete['out']['selection']['memory'] is True
     assert complete['evidenceUnchanged'] is True
-    assert complete['bodiesUnchanged'] is True
+    assert complete['selectedBodies'] == []
+    assert complete['sourceBodiesUnchanged'] is True
     for row in (partial, unexposed, explicit):
         assert row['out']['outcome'] == 'selected'
         assert row['calls'] == 2
         assert row['hasDossier'] is True
+        assert row['out']['selection']['selected'] == []
+        assert row['selectedBodies'] == []
+        assert row['sourceBodiesUnchanged'] is True
     assert explicit['out']['selection']['harness'] is False
     assert explicit['out']['selection']['agents'] is False

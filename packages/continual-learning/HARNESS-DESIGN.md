@@ -1,5 +1,17 @@
 # Harness 最终设计：扁平规则与增量上下文
 
+## Current delivery amendment
+
+This amendment replaces the custom-message delivery descriptions below.
+Skill and text guidance use additive structured sections at `before_agent_start`.
+Legacy skill declarations use the same surface; saved target values remain audit metadata.
+No guidance hook replaces the complete system prompt or returns a custom injection message.
+Non-context branch entries retain complete scoped deliveries, revisions and sources.
+Context filtering removes prior injection messages without a replacement display.
+Incomplete scans preserve complete scoped guidance from the branch ledger.
+Installed execution policies, matching, authorization and saved configuration remain unchanged.
+Guidance delivery is not compliance evidence.
+
 状态：新建、自动 consolidation 和 AGENTS 提取统一使用 `rules`。实际升级发现，拒绝旧配置会把仅约束 write/edit 的策略扩大为全局 Bash 锁死，因此旧格式立即退役的决定已由 @docs/adr/0005-preserve-installed-harness-protections.md 取代：存量 `policies`/`disabled`/`skillPrompts` 按原语义运行，不自动改写，也不降低原有保护。新规则与存量策略共存但不混淆所有权。新格式文本指导采用 `before_agent_start` 回合起始持久化投递，正文保留适用范围；存量 skill 的 system/user 目标继续按原语义处理。mid-run 即时投递与单模式正则抢占仍是已知限制。验证结果以本次实际测试及运行报告为准。
 
 > 一个扁平 `rules` 列表，三个明确的匹配入口，一套按身份覆盖的规则。

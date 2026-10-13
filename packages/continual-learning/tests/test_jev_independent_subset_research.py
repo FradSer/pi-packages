@@ -2,7 +2,7 @@ from support import isolated_run_bun
 
 
 SETUP = r'''
-import {simulateIndependentMemorySubset} from './packages/continual-learning/tests/independent-memory-subset-research.ts';
+import {simulateIndependentMemorySubset} from './packages/continual-learning/tests/independent-memory-subset-bounded-replay.ts';
 import {createHash} from 'node:crypto';
 const digest=v=>createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const evidence={contextEnabled:true,entries:[{role:'user',content:'Use pnpm. Report in Chinese.'}]};
@@ -12,7 +12,7 @@ const candidates=[
 ];
 const existing=[];
 const checks=i=>[`supported_${i}`,`supported_description_${i}`,`counter_${i}_0`,`counter_description_${i}_0`];
-const review={version:1,purpose:'diagnostic-only',complete:true,sameBatchIndependenceReviewed:false,
+const review={version:1,purpose:'diagnostic-only',complete:true,sameBatchIndependenceReviewed:false,maxRequestBytes:64000,
  evidenceDigest:digest(evidence),existingDigest:digest(existing),candidatesDigest:digest(candidates),model:'jev-1.13.0',
  candidates:candidates.map((c,index)=>({index,candidateDigest:digest(c),outcome:index?'held':'passed',
  passedChecks:checks(index).filter(k=>!index||k!==`supported_description_${index}`),heldChecks:index?[`supported_description_${index}`]:[]}))};

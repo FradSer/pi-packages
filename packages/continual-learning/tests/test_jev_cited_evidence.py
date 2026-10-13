@@ -15,7 +15,7 @@ def test_cited_rewrites_and_deletions_keep_full_review_and_mutation_intent() -> 
       const existing=[{name:'database.md',classification:'safe',content:'Old database note.',type:'project',description:'old'},
         {name:'duplicate.md',classification:'safe',content:'Duplicate note.',type:'project',description:'duplicate'}];
       let mode='good',calls=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);calls.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(mode==='conflict'&&state.reviewEvidence.entries.some(e=>e.index===36)?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';
@@ -31,7 +31,7 @@ def test_cited_rewrites_and_deletions_keep_full_review_and_mutation_intent() -> 
         coverage:requests.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries.map(e=>e.index)??[]),
         maxBytes:requests.length?Math.max(...requests.map(r=>Buffer.byteLength(JSON.stringify(r)))):null,
         rewrite:support?.questions.supported_0.instructions.candidate,
-        deletion:support?.questions.supported_1.instructions.candidate,
+        deletion:requests.find(r=>r.questions.supported_1)?.questions.supported_1.instructions.candidate,
         counterStates:requests.filter(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence).map(r=>{
           const s=(typeof r.state === "string" ? JSON.parse(r.state) : r.state);return {existingMemories:s.existingMemories,proposedMemoryOperations:s.proposedMemoryOperations};
         }),
@@ -46,8 +46,8 @@ def test_cited_rewrites_and_deletions_keep_full_review_and_mutation_intent() -> 
     assert result['rewrite']['observations'] == [{'path': 'schema.sql', 'status': 'updated'}]
     assert result['deletion']['kind'] == 'delete'
     assert result['deletion']['preservedIn'] == ['database.md']
-    assert len(result['existing']) == 2
-    assert all(state['existingMemories'] == result['existing'] for state in result['counterStates'])
+    assert [item['name'] for item in result['existing']] == ['database.md']
+    assert all([item['name'] for item in state['existingMemories']] == ['database.md', 'duplicate.md'] for state in result['counterStates'])
     assert all(state['proposedMemoryOperations'][0]['content'] == 'PostgreSQL.' for state in result['counterStates'])
     assert 'preservation' in result['deletionCounter']['question']
     assert result['deletionCounter']['candidate']['preservedIn'] == ['database.md']
@@ -66,7 +66,7 @@ def test_cited_memory_requires_complete_bounded_review() -> None:
       const snapshot={contextEnabled:true,entries};
       const candidates=[{name:'database.md',kind:'project',classification:'safe',content:'This project uses SQLite.',evidence:[{index:0,role:'user',quote:'This project uses SQLite.'}]}];
       let mode='good',calls=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);calls.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const review=state.reviewEvidence;
         if(mode==='offline'&&review?.entries.some(e=>e.index===36))throw new Error('provider private detail');
@@ -101,13 +101,13 @@ def test_cited_memory_preflights_uncited_privacy_citations_and_bounds() -> None:
     result = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let calls=0;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>{calls++;throw new Error('must not call');}});
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async()=>{calls++;throw new Error('must not call');}});
       const candidate={name:'database.md',kind:'project',classification:'safe',content:'This project uses SQLite.',evidence:[{index:0,role:'user',quote:'This project uses SQLite.'}]};
       const base={contextEnabled:true,entries:[{role:'user',content:'This project uses SQLite.'}]};
       const sensitive=await judge.validate('memory',{...base,entries:[...base.entries,{role:'toolResult',content:'api_key: super-secret-fixture-value'}]},[candidate],[]);
       const forged=await judge.validate('memory',base,[{...candidate,evidence:[{index:0,role:'user',quote:'Missing original quote.'}]}],[]);
       const huge=await judge.validate('memory',{...base,entries:[...base.entries,{role:'toolResult',content:'x'.repeat(70_000)}]},[candidate],[]);
-      const tooMany=await judge.validate('memory',{...base,entries:[...base.entries,...Array.from({length:30},()=>({role:'toolResult',content:'x'.repeat(20_000)}))]},[candidate],[]);
+      const tooMany=await judge.validate('memory',{...base,entries:[...base.entries,...Array.from({length:30},()=>({role:'toolResult',content:'x'.repeat(40_000)}))]},[candidate],[]);
       console.log(JSON.stringify({calls,sensitive,forged,huge,tooMany}));
     ''')
     assert result["calls"] == 0
@@ -122,7 +122,7 @@ def test_cited_review_freezes_every_request_before_first_transport() -> None:
       const snapshot={contextEnabled:true,entries:[{role:'user',content:'This project uses SQLite.'},...Array.from({length:8},()=>({role:'toolResult',content:'x'.repeat(2800)})),{role:'toolResult',content:'Verified source schema: PostgreSQL, not SQLite.'}]};
       const candidate={name:'database.md',kind:'project',classification:'safe',content:'This project uses SQLite.',evidence:[{index:0,role:'user',quote:'This project uses SQLite.'}]};
       let first=true,retained=false;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body), state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         if(first){first=false;snapshot.entries.at(-1).content='Altered after planning';}
         const contradiction=state.reviewEvidence?.entries.some(e=>JSON.stringify(e.entry).includes('Verified source schema: PostgreSQL'));
@@ -146,7 +146,7 @@ def test_harness_citations_use_complete_review_without_losing_authority_checks()
       const candidates=[{op:'addRule',rule:{bash:'^git[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))',action:'block',message:'Never run git push.'}}];
       const citations=[{index:0,eventIndex:0,source:'user',quote:'Never run git push in this project in future tasks.',count:1}];
       let mode='good', calls=[],keys=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body),state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);calls.push(req);keys.push(...Object.keys(req.questions));
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(mode==='exception'&&state.reviewEvidence.entries.some(e=>e.index===31)?'contradicts':'compatible'):key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':'faithful';
@@ -174,7 +174,7 @@ def test_early_window_contradiction_is_not_overwritten_by_later_compatibility() 
       const snapshot={contextEnabled:true,entries:[{role:'user',content:'This project uses SQLite.'},{role:'toolResult',content:'Verified: PostgreSQL, not SQLite.'},...Array.from({length:18},()=>({role:'toolResult',content:'unrelated '.repeat(280)}))]};
       const candidate={name:'database.md',kind:'project',classification:'safe',content:'This project uses SQLite.',evidence:[{index:0,role:'user',quote:'This project uses SQLite.'}]};
       const responses=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body), state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const conflict=state.reviewEvidence?.entries.some(e=>e.index===1);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
@@ -198,7 +198,7 @@ def test_cancelled_jobs_do_not_count_as_outbound_requests() -> None:
       const controller=new AbortController();let calls=0;
       const snapshot={contextEnabled:true,entries:[{role:'user',content:'This project uses SQLite.'},...Array.from({length:25},()=>({role:'toolResult',content:'x'.repeat(2800)}))]};
       const candidate={name:'database.md',kind:'project',classification:'safe',content:'This project uses SQLite.',evidence:[{index:0,role:'user',quote:'This project uses SQLite.'}]};
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>{calls++;controller.abort();throw new Error('abort');}});
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async()=>{calls++;controller.abort();throw new Error('abort');}});
       const result=await judge.validate('memory',snapshot,[candidate],[],controller.signal);
       console.log(JSON.stringify({calls,result}));
     ''')
@@ -214,7 +214,7 @@ def test_twelve_cited_harness_operations_split_support_with_atomic_results() -> 
       const candidates=entries.map((_,i)=>({op:'addRule',rule:{bash:`^git[ \\t]+operation${i}(?:[ \\t]|$(?![\\s\\S]))`,action:'block',message:`Never run git operation${i}.`}}));
       const citations=entries.map((e,i)=>({index:i,eventIndex:i,source:'user',quote:e.content,count:1}));
       let requests=[],active=0,peak=0,fail=false;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);requests.push(req);active++;peak=Math.max(peak,active);
         await Promise.resolve();active--;
         if(fail&&Object.hasOwn(req.questions,'family_11'))throw new Error('offline');
@@ -244,7 +244,7 @@ def test_harness_explanation_judgment_includes_parent_validated_scope() -> None:
     result = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let meaning;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);if(req.questions.explanation_0)meaning=req.questions.explanation_0;
         throw new Error('fixture stops before any decision');
       }});
@@ -262,9 +262,11 @@ def test_full_review_keeps_support_context_and_oversized_whole_entries() -> None
       const snapshot={contextEnabled:true,entries:[{role:'user',content:source},longEntry,{role:'toolResult',content:'Unrelated successful read.'}]};
       const candidate={name:'test-command.md',kind:'project',classification:'safe',content:'The regression command is pnpm test.',evidence:[{index:0,role:'user',quote:source}]};
       let requests=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);requests.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
-        const supported=state.supportEvidence?.entries.some(e=>e.index===0&&e.entry.content===source);
+        const supported=state.supportEvidence?.entries.some(e=>e.index===0&&e.entry.content===source)
+          || (state.supportEvidence?.reviewEntryIndexes?.includes(0)
+            && state.reviewEvidence.entries.some(e=>e.index===0&&e.entry.content===source));
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(supported?'compatible':'unclear'):'grounded';
           return [key,{type:'choice',choice:selected,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===selected?1:0]))}];
@@ -290,7 +292,7 @@ def test_verbatim_harness_explanation_keeps_authority_and_scope_checks() -> None
       const candidate={op:'addRule',rule:{bash:'^git[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))',action:'block',message:source}};
       const citation={index:0,eventIndex:0,source:'user',quote:source,count:1};
       let keys=[],authority='lasting',family='authorized';
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);keys.push(...Object.keys(req.questions));
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const selected=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?'compatible':key.startsWith('authority_')?authority:key.startsWith('family_')?family:'faithful';
@@ -319,7 +321,7 @@ def test_memory_counterevidence_judges_content_without_write_metadata() -> None:
       let counterMeanings=[];
       const source='For future personal reports, always end with PUBLIC_SYNTHETIC_SIGNOFF.';
       const candidate={name:'report.md',kind:'preference',classification:'private',content:source,evidence:[{index:0,role:'user',quote:source}]};
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const counter=key.startsWith('counter_');if(counter)counterMeanings.push(q.instructions.candidate);
@@ -341,7 +343,7 @@ def test_literal_tab_classes_keep_proved_family_without_widening_grammar() -> No
       const snapshot={contextEnabled:true,entries:[{role:'user',content:source}]};
       const citation={index:0,eventIndex:0,source:'user',quote:source,count:1};
       let keys=[],mode='good',calls=0;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         calls++;const req=JSON.parse(init.body);keys.push(...Object.keys(req.questions));
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const choice=key.startsWith('coherence_')?'compatible':key.startsWith('authority_')?(mode==='approval'?'conditional':'lasting'):key.startsWith('family_')?(mode==='exact'?'extra':'authorized'):key.startsWith('counter_')?(mode==='revoked'?'contradicts':'compatible'):'unclear';
@@ -385,7 +387,7 @@ def test_proved_family_counterevidence_uses_matching_meaning_and_preserves_excep
       const candidate={op:'addRule',rule:{id:'administrative-id',bash:'^git[ \\t]+push(?:[ \\t]|$(?![\\s\\S]))',action:'block',message:source},cases:{positive:[{bash:'git push --dry-run'}],negative:[{bash:'git status'}]}};
       const citation={index:0,eventIndex:0,source:'user',quote:source,count:1};
       let mode='good',counters=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);const answers={};
         for(const [key,q] of Object.entries(req.questions)){
           let choice=key.startsWith('authority_')?'lasting':key.startsWith('family_')?'authorized':key.startsWith('supported_')?'grounded':key.startsWith('expands_')?'same':'faithful';
@@ -421,7 +423,7 @@ def test_cited_new_memory_support_judges_only_body_and_keeps_privacy_preflight()
       const candidate={name:'report.md',kind:'preference',classification:'private',content:source,evidence:[{index:0,role:'user',quote:source}]};
       const snapshot={contextEnabled:true,entries:[{role:'user',content:source}]};
       let calls=0,meanings=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{
         calls++;const req=JSON.parse(init.body);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const support=key.startsWith('supported_');if(support)meanings.push(q.instructions.candidate);
@@ -431,7 +433,7 @@ def test_cited_new_memory_support_judges_only_body_and_keeps_privacy_preflight()
       }});
       const good=await judge.validate('memory',snapshot,[candidate],[]);const before=calls;
       const sensitive=await judge.validate('memory',snapshot,[{...candidate,name:'api_key=sk-'+ 'x'.repeat(24)}],[]);
-      const privateDenied=await createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>{throw new Error('must not transport');}}).validate('memory',snapshot,[candidate],[]);
+      const privateDenied=await createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async()=>{throw new Error('must not transport');}}).validate('memory',snapshot,[candidate],[]);
       console.log(JSON.stringify({good,meanings,sensitive,privateDenied,sensitiveCalls:calls-before}));
     ''')
     assert result['good']['decision'] == 'allow'
@@ -448,7 +450,7 @@ def test_single_executable_family_proves_only_matching_and_retains_semantic_hold
       const snapshot={contextEnabled:true,entries:[{role:'user',content:quote}]};
       const citation={index:0,eventIndex:0,source:'user',quote,count:1};
       let mode='good',keys=[],meanings=[],familyMatching='';
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body),answers={};keys.push(...Object.keys(req.questions));
         for(const [key,q] of Object.entries(req.questions)){
           if(key.startsWith('counter_'))meanings.push(q.instructions.candidate);
@@ -488,7 +490,7 @@ def test_encoded_mutation_context_splits_whole_review_windows_before_transport()
       const candidates=[{kind:'rewrite',name:'db.md',classification:'safe',content:'SQLite. '+'replacement '.repeat(250),evidence}];
       const existing=[{name:'db.md',content:'SQLite. '+'predecessor '.repeat(250),description:'database',type:'project',classification:'safe'}];
       let conflict=false,calls=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_u,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_u,init)=>{
         const req=JSON.parse(init.body);calls.push(req);const s=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const choice=key.startsWith('coherence_')?'compatible':key.startsWith('counter_')?(conflict&&s.reviewEvidence.entries.some(e=>e.index===16)?'contradicts':'compatible'):key.startsWith('relation_')?'supplement':'grounded';

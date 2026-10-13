@@ -1,0 +1,7 @@
+{
+  "project": "public p-limit",
+  "stage": "orientation",
+  "responseSha256": "c5bad30118916d56b5f47930c488faa30aacaed09134b984d61419d295f75bdb",
+  "output": "{\"reviews\":[{\"targetIndex\":0,\"verdict\":\"consistent\",\"conflictingQuotes\":[],\"reason\":\"The quoted declaration, input PromiseLike versus output Promise, and clearQueue-only intersection are mutually compatible, with the runtime non-enforcement caveat coherent as a type-level statement.\"},{\"targetIndex\":0,\"verdict\":\"consistent\",\"conflictingQuotes\":[],\"reason\":\"\"},{\"targetIndex\":1,\"verdict\":\"consistent\",\"conflictingQuotes\":[],\"reason\":\"The described internal pLimit closure, zero-arg inner thunk, and copying only clearQueue support the stated wrapper boundary; the return-then-define phrasing does not itself establish a contradiction.\"},{\"targetIndex\":2,\"verdict\":\"consistent\",\"conflictingQuotes\":[],\"reason\":\"The rejectOnClear validation and two clearQueue modes are internally compatible: calling queued items' reject is distinguished from changing active state or invoking already-running work.\"}]}",
+  "expected": "invalid-response; duplicate targetIndex 0; no deduplication"
+}

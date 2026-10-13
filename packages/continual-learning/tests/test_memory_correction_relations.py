@@ -57,10 +57,10 @@ def test_rewrite_excludes_only_its_predecessor_and_preserves_mutation_checks() -
     assert value['allowed'] == 'allow' and value['refused'] == 'propose'
     assert value['relations'][0]['names'] == ['other.md']
     assert value['relations'][0]['state']['existingMemories'] == [value['original'][1]]
-    assert value['support']['existingMemories'] == value['original']
+    assert value['support']['existingMemories'] == [value['original'][0]]
     assert len(value['support']['proposedMemoryOperations']) == 1
     for state in value['counterStates']:
-        assert state['existingMemories'] == value['original']
+        assert state['existingMemories'] == [value['original'][0]]
         assert len(state['proposedMemoryOperations']) == 1
     assert value['review']['complete']
 

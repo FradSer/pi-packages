@@ -12,7 +12,7 @@ def test_counter_failure_locates_original_window_for_body_and_description() -> N
        const snapshot={contextEnabled:true,entries:[{role:'user',content:quote},{role:'toolResult',content:'Public observation. '.repeat(1300)},{role:'user',content:'Unrelated public note.'}]};
        const candidate={name:'PRIVATE_FILENAME.md',kind:'project',classification:'safe',content:`---\nname: fact\ndescription: ${quote}\ntype: project\n---\n${quote}`,evidence:[{index:0,quote,role:'user'}]};
        const controller=new AbortController();let requests=0;
-       const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
+       const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
         requests++;const r=JSON.parse(String(init.body)),answers={};
         if(mode==='unavailable'&&Object.hasOwn(r.questions,'counter_0_1'))throw Error('PRIVATE_ERROR');
         for(const [k,q]of Object.entries(r.questions)){

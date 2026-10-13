@@ -1,23 +1,10 @@
-/**
- * Harness guidance: skill-scoped and text-scoped rules for the pre-generation
- * surface.
- *
- * Delivery is a single persistent before_agent_start message per turn, so
- * guidance is retained on the branch, deduplicated against what is already
- * retained, and keeps the request prefix stable for caching. The ephemeral
- * `context` hook is intentionally NOT used: its return value builds one request
- * and is never persisted, which would re-append guidance every call and break
- * the prefix.
- *
- * Timing limitation (by design): before_agent_start fires once per user prompt,
- * so a keyword that first appears in a mid-run tool result is picked up on the
- * next agent start, not within the same run.
+/** Harness guidance contributes scoped structured sections at run start.
+ * Non-context entries retain delivery evidence. Matching is not compliance.
  */
 
 import {
   buildSessionContext,
   parseSkillBlock,
-  sessionEntryToContextMessages,
   keyHint,
   ToolExecutionComponent,
   type EntryRenderer,
@@ -26,6 +13,7 @@ import {
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { bindLifecycleRenderers, eventToolLifecycle, fieldBlock, fieldLine, safeDisplayText } from "@fradser/pi-kit";
 
+import { setRunStartSection } from "./run-start-section.ts";
 import { resolveHarnessConfig } from "./guardrail-config.ts";
 import { enabledTextRules, evaluateSkill } from "./guardrail-engine.ts";
 import {
@@ -33,6 +21,7 @@ import {
   HARNESS_GUIDANCE_ENTRY_TYPE,
   LEGACY_GUIDANCE_ENTRY_TYPE,
   planTextGuidance,
+  incompleteTextGuidance,
   type TextGuidanceEntry,
 } from "./harness-guidance-planner.ts";
 
@@ -103,59 +92,64 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
   // retained transcript keeps its guidance view instead of degrading to raw data.
   pi.registerEntryRenderer(LEGACY_GUIDANCE_ENTRY_TYPE, renderGuidance);
 
+  pi.on("context", (event) => ({
+    messages: event.messages.filter(message => message.role !== "custom" ||
+      ![HARNESS_GUIDANCE_CUSTOM_TYPE, "skill-prompt-guidance", "harness-text-guidance"].includes(message.customType)),
+  }));
+
   pi.on("before_agent_start", (event, ctx) => {
     const availableSkills = new Set(event.systemPromptOptions.skills?.map((skill) => skill.name) ?? []);
     const cwd = ctx.cwd || process.cwd();
     const resolved = resolveHarnessConfig(cwd, undefined, availableSkills);
-    const skill = parseSkillBlock(event.prompt);
+    const skill = parseSkillBlock(event.prompt ?? "");
     const candidate = skill ? resolved.config.legacy.skillPrompts[skill.name] : undefined;
     const legacy = candidate && (!candidate.userMessagePattern || new RegExp(candidate.userMessagePattern).test(skill?.userMessage ?? "")) ? candidate : undefined;
     if (legacy) pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
       kind: "skill-prompt", skill: skill!.name, target: legacy.target, prompt: legacy.prompt,
       source: legacy.source ?? "unknown", file: sourceFile(legacy.source, resolved.paths),
     } satisfies HarnessGuidanceEvent);
-    const systemPrompt = legacy?.target === "system"
-      ? event.systemPrompt.includes(legacy.prompt) ? event.systemPrompt : `${event.systemPrompt}${event.systemPrompt ? "\n\n" : ""}${legacy.prompt}`
-      : undefined;
-
     const skillRules = skill ? evaluateSkill(resolved.config, skill.name) : [];
     let retained: unknown[] = [];
+    let delivery: unknown[] = [];
     let contextReadIncomplete = false;
+    // The branch ledger is not model context. It records complete scoped text
+    // so an incomplete scan cannot silently remove established guidance.
     try {
-      // The retained conversation is only needed to scan for text rules. With no
-      // enabled text rule nothing can match from it, so only the delivered
-      // guidance entries are converted: stale guidance still retires, and the
-      // full branch is neither rebuilt nor re-scanned on every turn.
-      const contextEntries = ctx.sessionManager.buildContextEntries();
-      retained = enabledTextRules(resolved.config).length > 0
-        ? buildSessionContext(contextEntries).messages as unknown[]
-        : contextEntries
-          .filter((entry) => entry.type === "custom_message" && entry.customType === HARNESS_GUIDANCE_CUSTOM_TYPE)
-          .flatMap((entry) => sessionEntryToContextMessages(entry)) as unknown[];
-    } catch {
-      contextReadIncomplete = true;
-      retained = [];
-    }
+      delivery = ctx.sessionManager.getBranch().flatMap(entry =>
+        entry.type === "custom" && entry.customType === "harness-guidance-delivery"
+          ? [{ customType: HARNESS_GUIDANCE_CUSTOM_TYPE, details: entry.data }]
+          : entry.type === "custom_message" && entry.customType === HARNESS_GUIDANCE_CUSTOM_TYPE
+            ? [{ customType: HARNESS_GUIDANCE_CUSTOM_TYPE, details: entry.details }]
+            : []);
+    } catch { contextReadIncomplete = true; }
+    try {
+      if (enabledTextRules(resolved.config).length > 0) {
+        retained = buildSessionContext(ctx.sessionManager.buildContextEntries()).messages;
+      }
+    } catch { contextReadIncomplete = true; }
     const textPlan = contextReadIncomplete
-      ? { entries: [] as TextGuidanceEntry[], incomplete: true }
-      : planTextGuidance(retained, event.prompt, resolved.config);
+      ? incompleteTextGuidance(delivery)
+      : planTextGuidance([...retained, ...delivery], event.prompt ?? "", resolved.config, true);
 
     if (textPlan.incomplete) {
       pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
         kind: "text-incomplete",
-        prompt: "Text-rule matching did not complete this turn; prior guidance state is preserved.",
+        prompt: textPlan.preservationNotice ?? "Text-rule matching did not complete this turn; prior scoped guidance state is preserved.",
         source: "unknown",
         file: "(unknown)",
       } satisfies HarnessGuidanceEvent);
     }
 
-    if (skillRules.length === 0 && textPlan.entries.length === 0 && legacy?.target !== "user") return systemPrompt === undefined ? undefined : { systemPrompt };
+
 
     const skillSections = skillRules.map((r) =>
       `[harness:${r.id}] Only for this /skill:${r.skill} task; retained history does not extend its scope.\n${r.instructions}`,
     );
     const textSections = textPlan.entries.map((e) => e.text);
-    const content = [...(legacy?.target === "user" ? [legacy.prompt] : []), ...skillSections, ...textSections].join("\n\n");
+    const legacySections = legacy && skill
+      ? [`[harness:legacy-skill] Only for this /skill:${skill.name} task; retained history does not extend its scope.\n${legacy.prompt}`]
+      : [];
+    const content = [...legacySections, ...skillSections, ...textSections].join("\n\n");
 
     for (const r of skillRules) {
       pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
@@ -183,14 +177,7 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
     if (skill) details.skill = skill.name;
     if (skillRules.length > 0) details.skillRuleIds = skillRules.map((r) => r.id);
 
-    return {
-      ...(systemPrompt === undefined ? {} : { systemPrompt }),
-      message: {
-        customType: HARNESS_GUIDANCE_CUSTOM_TYPE,
-        content,
-        display: false,
-        details,
-      },
-    };
+    pi.appendEntry("harness-guidance-delivery", details);
+    setRunStartSection(event.systemPromptOptions, "harness_guidance", content);
   });
 }

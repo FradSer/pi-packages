@@ -22,7 +22,7 @@ def main() -> None:
         cwd.mkdir()
         agent.mkdir()
         evidence_file = cwd / 'frozen-evidence.json'
-        evidence_file.write_text(json.dumps({'entries': [fixture['entry']]}, ensure_ascii=False))
+        evidence_file.write_text(json.dumps({'entries': [fixture['entry'], {'role': 'assistant', 'content': [{'type': 'toolCall', 'id': 'old-memory', 'name': 'read', 'arguments': {'path': '.memory/deployment.md'}}]}, {'role': 'toolResult', 'toolCallId': 'old-memory', 'toolName': 'read', 'isError': False, 'content': 'Old Memory deployment claim'}]}, ensure_ascii=False))
         (agent / 'settings.json').write_text(json.dumps({'packages': [], 'quietStartup': True}))
         result = root / 'result.json'
         env = {k: v for k, v in os.environ.items() if k in {'PATH', 'LANG', 'LC_ALL'}}

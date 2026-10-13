@@ -19,7 +19,7 @@ def test_memory_batches_keep_candidate_citations_and_complete_global_counterrevi
         evidence:[{index:2+i*2,role:'toolResult',quote:`Source contract ${i}:`}]}));
       const existing=[{name:'contract-0.md',classification:'safe',type:'project',description:'old contract',content:'Old exact body.'}];
       let mode='good',calls=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const req=JSON.parse(init.body);calls.push(req);const state=(typeof req.state === "string" ? JSON.parse(req.state) : req.state);
         const answers=Object.fromEntries(Object.entries(req.questions).map(([key,q])=>{
           const conflict=mode==='conflict'&&/^counter(?:_description)?_0_/.test(key)&&state.reviewEvidence.entries.some(e=>e.index===entries.length-1);
@@ -42,7 +42,10 @@ def test_memory_batches_keep_candidate_citations_and_complete_global_counterrevi
           const fullReview=!state.reviewEvidence||state.reviewEvidence.entries.every(e=>JSON.stringify(e.entry)===JSON.stringify(entries[e.index]));
           support.citationToolCalls=support.citationToolCalls.map(c=>({...c,toolCall:{...c.toolCall,arguments:{...c.toolCall.arguments,contextIntact:c.toolCall.arguments.context==='p'.repeat(2000),context:undefined}}}));
           support.entries=support.entries.map(e=>({index:e.index}));
-          if(state.reviewEvidence)state.reviewEvidence.entries=state.reviewEvidence.entries.map(e=>({index:e.index}));
+          if(state.reviewEvidence){
+            state.reviewEvidence.entries=state.reviewEvidence.entries.map(e=>({index:e.index}));
+            state.reviewEvidence.citationToolCalls=state.reviewEvidence.citationToolCalls.map(c=>({...c,toolCall:{...c.toolCall,arguments:{...c.toolCall.arguments,contextIntact:c.toolCall.arguments.context==='p'.repeat(2000),context:undefined}}}));
+          }
           return {state,keys:Object.keys(r.questions),fullCitations,fullReview};
         })}));
     ''')
@@ -53,14 +56,15 @@ def test_memory_batches_keep_candidate_citations_and_complete_global_counterrevi
     for request in result['requests']:
         assert request['fullCitations'] and request['fullReview']
         state = request['state']
-        assert state['existingMemories'] == result['existing']
+        assert all(item in result['existing'] for item in state['existingMemories'])
         if any(key.startswith('relation_') for key in request['keys']):
             assert all(key.startswith('relation_') for key in request['keys'])
             assert 'relation_0' not in request['keys']
             assert 'proposedMemoryOperations' not in state
         else:
-            for index, (projected, original) in enumerate(zip(state['proposedMemoryOperations'], result['candidates'], strict=True)):
-                assert projected['candidateIndex'] == index
+            for projected in state['proposedMemoryOperations']:
+                index = projected['candidateIndex']
+                original = result['candidates'][index]
                 assert projected['originalCitationSources'] == [
                     {'snapshotIndex': ref['index'], 'role': ref['role'],
                      'quoteSha256': hashlib.sha256(ref['quote'].encode()).hexdigest()}
@@ -71,6 +75,9 @@ def test_memory_batches_keep_candidate_citations_and_complete_global_counterrevi
                     key: value for key, value in original.items() if key != 'evidence'
                 }
             assert 'never authority or verified knowledge' in state['mutationComparison']['citationSources']
+            required = {int(key.replace('_description', '').split('_')[1]) for key in request['keys']}
+            assert required <= {item['candidateIndex'] for item in state['proposedMemoryOperations']}
+            assert state['existingMemories'] == ([result['existing'][0]] if 0 in required else [])
         support = state.get('frozenEvidence', state.get('supportEvidence'))
         indexes = {entry['index'] for entry in support['entries']} | set(support.get('reviewEntryIndexes', []))
         expected = set()

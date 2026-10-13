@@ -1,0 +1,67 @@
+{
+  "sourceFixtureSha256": "4368e6667379a4435ef610f303c801f87aaf54af96a74c17e8da357105386957",
+  "model": "cli-proxy/bailian/qwen3.8-flash",
+  "requestedThinking": "xhigh",
+  "original": {
+    "name": "resolve_before_completion.md",
+    "kind": "project",
+    "classification": "safe",
+    "content": "---\nname: resolve_before_completion\ndescription: p-limit run() resolves the caller promise with the task promise before awaiting it, swallowing errors only locally\ntype: project\n---\nIn /work/p-limit `index.js`, `run` is `async (function_, resolve, arguments_) => {...}`: it builds `const result = (async () => function_(...arguments_))();`, then calls `resolve(result)` and only afterwards does `try { await result; } catch {}` followed by `next()`.\n\nBecause the outer promise is resolved *with* the task promise, the caller observes the task's eventual state rather than completion-before-reservation: resolving with a promise adopts whatever that promise later settles to, and nothing in this path makes the caller wait for the task to finish before its own promise is settled. The local `catch {}` exists to avoid an unhandled rejection inside `run`; the original rejection is still conveyed to the caller through the adopted promise.\n\nConcurrency reservation itself is gated in `resumeNext` by `if (activeCount < concurrency && queue.size > 0) { activeCount++; queue.dequeue().run(); }`, and `enqueue` calls `resumeNext()` only `if (activeCount < concurrency)`.",
+    "evidence": [
+      {
+        "index": 2,
+        "quote": "\tconst run = async (function_, resolve, arguments_) => {\n\t\t// Execute the function and capture the result promise\n\t\tconst result = (async () => function_(...arguments_))();\n\n\t\t// Resolve immediately with the promise (don't wait for completion)\n\t\tresolve(result);\n\n\t\t// Wait for the function to complete (success or failure)\n\t\t// We catch errors here to prevent unhandled rejections,\n\t\t// but the original promise rejection is preserved for the caller\n\t\ttry {\n\t\t\tawait result;\n\t\t} catch {}\n\n\t\t// Decrement active count and process next queued function\n\t\tnext();\n\t};",
+        "role": "toolResult"
+      },
+      {
+        "index": 2,
+        "quote": "\tconst resumeNext = () => {\n\t\t// Process the next queued function if we're under the concurrency limit\n\t\tif (activeCount < concurrency && queue.size > 0) {\n\t\t\tactiveCount++;\n\t\t\tqueue.dequeue().run();\n\t\t}\n\t};",
+        "role": "toolResult"
+      },
+      {
+        "index": 2,
+        "quote": "\t\t// Start processing immediately if we haven't reached the concurrency limit\n\t\tif (activeCount < concurrency) {\n\t\t\tresumeNext();\n\t\t}",
+        "role": "toolResult"
+      }
+    ]
+  },
+  "corrected": {
+    "name": "resolve_before_completion.md",
+    "kind": "project",
+    "classification": "safe",
+    "content": "---\nname: resolve_before_completion\ndescription: p-limit run() resolves the caller promise with the task promise before awaiting it, swallowing errors only locally\ntype: project\n---\nIn /work/p-limit `index.js`, `run` is `async (function_, resolve, arguments_) => {...}`: it builds `const result = (async () => function_(...arguments_))();`, then calls `resolve(result)` and only afterwards does `try { await result; } catch {}` followed by `next()`.\n\nBecause the outer promise is resolved *with* the task promise, the caller observes the task's eventual state: resolving with a promise adopts whatever that promise later settles to, so the caller-visible settlement occurs only after the task finishes. The structural `resolve(result)` call precedes `await result`, but adoption semantics mean the caller does not proceed until the adopted promise settles. The local `catch {}` exists to avoid an unhandled rejection inside `run`; the original rejection is still conveyed to the caller through the adopted promise.\n\nConcurrency reservation itself is gated in `resumeNext` by `if (activeCount < concurrency && queue.size > 0) { activeCount++; queue.dequeue().run(); }`, and `enqueue` calls `resumeNext()` only `if (activeCount < concurrency)`.",
+    "evidence": [
+      {
+        "index": 2,
+        "quote": "\tconst run = async (function_, resolve, arguments_) => {\n\t\t// Execute the function and capture the result promise\n\t\tconst result = (async () => function_(...arguments_))();\n\n\t\t// Resolve immediately with the promise (don't wait for completion)\n\t\tresolve(result);\n\n\t\t// Wait for the function to complete (success or failure)\n\t\t// We catch errors here to prevent unhandled rejections,\n\t\t// but the original promise rejection is preserved for the caller\n\t\ttry {\n\t\t\tawait result;\n\t\t} catch {}\n\n\t\t// Decrement active count and process next queued function\n\t\tnext();\n\t};",
+        "role": "toolResult"
+      },
+      {
+        "index": 2,
+        "quote": "\tconst resumeNext = () => {\n\t\t// Process the next queued function if we're under the concurrency limit\n\t\tif (activeCount < concurrency && queue.size > 0) {\n\t\t\tactiveCount++;\n\t\t\tqueue.dequeue().run();\n\t\t}\n\t};",
+        "role": "toolResult"
+      },
+      {
+        "index": 2,
+        "quote": "\t\t// Start processing immediately if we haven't reached the concurrency limit\n\t\tif (activeCount < concurrency) {\n\t\t\tresumeNext();\n\t\t}",
+        "role": "toolResult"
+      }
+    ]
+  },
+  "originalResponse": {
+    "bodySha256": "f7955654a7645e444599918756e51fa35ed3ebee88ebe67c3a9c73795a01f625",
+    "verdict": "contradictory",
+    "conflictingQuotes": [
+      "resolving with a promise adopts whatever that promise later settles to",
+      "nothing in this path makes the caller wait for the task to finish before its own promise is settled"
+    ],
+    "reason": "Ordinary JavaScript promise semantics distinguish calling a resolver from the promise settling: if a promise is resolved with another promise, the outer promise remains pending until the inner promise settles. The Memory correctly states that resolving with the task promise adopts its eventual settled state, but then says nothing makes the caller wait for the task to finish before the caller promise is settled, which contradicts the adoption semantics."
+  },
+  "correctedResponse": {
+    "bodySha256": "723e6c5bf4084607ee4035b08c66a876809edfd8dbcc7ff52c8a4483697ddb5b",
+    "verdict": "consistent",
+    "conflictingQuotes": [],
+    "reason": "The Memory distinguishes the early structural invocation of resolve(result) from the later settlement of the caller-visible promise via promise adoption. Its claims that the caller observes the task's eventual fulfillment/rejection, that settlement occurs only after the task finishes, and that the local catch only prevents an unhandled rejection inside run are mutually consistent under ordinary JavaScript semantics."
+  },
+  "provenance": "Two actual no-tool Pi1.0 model diagnostics; original public p-limit generated Memory and model-generated correction. Body consistency only, not source support or learning benefit."
+}

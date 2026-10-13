@@ -1,3 +1,5 @@
+import hashlib
+
 from support import isolated_run_bun
 
 
@@ -31,7 +33,21 @@ def test_review_wire_preserves_structured_state_and_shared_exact_citations() -> 
                 assert instructions['originalCitationsReference'] == 'originalCitationsByCandidate.0'
                 assert 'originalCitationsReference' in instructions['question']
                 assert 'originalCitations' not in instructions
-                assert state['originalCitationsByCandidate']['0'] == result['candidate']['evidence']
+                restored = []
+                for citation in state['originalCitationsByCandidate']['0']:
+                    item = dict(citation)
+                    ref = item.pop('quoteReference', None)
+                    if ref:
+                        assert ref['units'] == 'UTF-16'
+                        text = state
+                        for component in ref['statePath']:
+                            text = text[component]
+                        quote = text.encode('utf-16-le')[ref['start'] * 2:ref['end'] * 2].decode('utf-16-le')
+                        assert hashlib.sha256(quote.encode()).hexdigest() == ref['sha256']
+                        item['quote'] = quote
+                        assert 'quoteReference' in instructions['question']
+                    restored.append(item)
+                assert restored == result['candidate']['evidence']
             if key.startswith('counter'):
                 covered.update(entry['index'] for entry in state['reviewEvidence']['entries'])
         for name in ('frozenEvidence', 'supportEvidence', 'reviewEvidence'):

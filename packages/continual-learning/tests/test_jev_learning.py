@@ -6,7 +6,7 @@ def test_jev_directions_relationships_and_failures() -> None:
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let calls=[];
       let mode='good';
-      const judge=createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['selection','memory','harness'],apiKey:'fixture',fetch:async(url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,defaultModel:'jev-1.13.0',scopes:['selection','memory','harness'],apiKey:'fixture',fetch:async(url,init)=>{
         const request=JSON.parse(init.body); calls.push(request);
         if(mode==='offline') throw new Error('PRIVATE PROVIDER ERROR');
         const answers={};
@@ -77,13 +77,13 @@ def test_adapter_keeps_unknown_timeouts_and_input_bounds_out_of_noop() -> None:
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let calls=0;
       const fetch=async()=>{calls++;return new Response(JSON.stringify({model:'jev-1.13.0',answers:{},usage:{input_tokens:1,output_tokens:1}}))};
-      const judge=createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['selection','memory','harness'],apiKey:'fixture',fetch});
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,defaultModel:'jev-1.13.0',scopes:['selection','memory','harness'],apiKey:'fixture',fetch});
       const tooLarge=await judge.select('x'.repeat(70000),[],false);
       const secret=await judge.validate('memory','api_key: abcdefghijklmnop',['fact'],[]);
       const invalid=await judge.select('durable',[],false);
       const aborted=await judge.select('durable',[],false,AbortSignal.abort());
-      const disabled=await createJevJudge({enabled:false,fetch}).select('durable',[],false);
-      const timeout=await createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['selection','memory','harness'],apiKey:'fixture',timeout:5,fetch:async(_url,init)=>new Promise((_resolve,reject)=>init.signal.addEventListener('abort',()=>reject(new Error('private timeout'))))}).validate('harness','evidence',['rule'],[]);
+      const disabled=await createJevJudge({maxRequestBytes:64_000,enabled:false,fetch}).select('durable',[],false);
+      const timeout=await createJevJudge({maxRequestBytes:64_000,enabled:true,defaultModel:'jev-1.13.0',scopes:['selection','memory','harness'],apiKey:'fixture',timeout:5,fetch:async(_url,init)=>new Promise((_resolve,reject)=>init.signal.addEventListener('abort',()=>reject(new Error('private timeout'))))}).validate('harness','evidence',['rule'],[]);
       console.log(JSON.stringify({tooLarge,secret,invalid,aborted,disabled,timeout,calls}));
     ''')
     assert value['tooLarge']['telemetry']['reason'] == 'bounds'
@@ -136,18 +136,18 @@ def test_unified_config_or_environment_key_enables_jev_with_explicit_disable() -
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       delete process.env.TYPESAFE_API_KEY;
       let calls=0;const fetch=async()=>{calls++;throw new Error('should not be called')};
-      const absent=await createJevJudge({fetch}).select('evidence',[],false);
+      const absent=await createJevJudge({maxRequestBytes:64_000,fetch}).select('evidence',[],false);
       process.env.TYPESAFE_API_KEY='fixture';
-      const environment=await createJevJudge({fetch}).select('evidence',[],false);
+      const environment=await createJevJudge({maxRequestBytes:64_000,fetch}).select('evidence',[],false);
       fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({jev:{model:'jev-1.13.0',scopes:['harness']}}));
-      const scoped=createJevJudge({fetch});
+      const scoped=createJevJudge({maxRequestBytes:64_000,fetch});
       const selection=await scoped.select('evidence',[],false);
       const memory=await scoped.validate('memory','evidence',['candidate'],[]);
       const privateMemory=await scoped.validate('harness','evidence',['rule'],[{name:'private.md',classification:'private',type:'feedback',description:'Private preference',content:'Private body'}]);
       fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({jev:{model:'jev-1.13.0',scopes:['write-files']}}));
-      const invalid=await createJevJudge({fetch}).select('evidence',[],false);
+      const invalid=await createJevJudge({maxRequestBytes:64_000,fetch}).select('evidence',[],false);
       fs.writeFileSync(path.join(process.env.PI_CODING_AGENT_DIR,'continual-learning.json'),JSON.stringify({jev:false}));
-      const disabled=await createJevJudge({fetch}).select('evidence',[],false);
+      const disabled=await createJevJudge({maxRequestBytes:64_000,fetch}).select('evidence',[],false);
       console.log(JSON.stringify({absent,environment,selection,memory,privateMemory,invalid,disabled,calls}));
     ''')
     # Justification: the environment-key case is the only reachable request, and
@@ -176,7 +176,7 @@ def test_credentials_are_checked_before_json_encoding_or_any_external_request() 
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let calls=0;
-      const judge=createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['selection','memory','harness'],apiKey:'fixture',
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,defaultModel:'jev-1.13.0',scopes:['selection','memory','harness'],apiKey:'fixture',
         fetch:async()=>{calls++;throw new Error('Must not send');}});
       const results=[];
       for (const evidence of ['password\n=\nopaquecredential123456789',
@@ -202,13 +202,13 @@ def test_unified_jev_section_supplies_auth_model_and_scope_without_environment()
       let calls=0,requestedModel;
       const fetch=async(_url,init)=>{calls++;const q=JSON.parse(init.body);requestedModel=q.model;
         return new Response(JSON.stringify({model:'jev-1.13.0',answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:'grounded',confidence:0.99,probabilities:{grounded:1,speculative:0,transient:0,unsupported:0,unclear:0}}},usage:{input_tokens:10,output_tokens:1}}));};
-      const judge=createJevJudge({fetch});
+      const judge=createJevJudge({maxRequestBytes:64_000,fetch});
       const denied=await judge.select('Public evidence',[],false);
       const allowed=await judge.validate('memory','Public evidence',[{content:'Public fact'}],[]);
       const unchanged=fs.readFileSync(file,'utf8')===raw;
       fs.writeFileSync(file,JSON.stringify({jev:{enabled:false}}));
       process.env.TYPESAFE_API_KEY='fixture';
-      const disabled=await createJevJudge({fetch}).select('Public evidence',[],false);
+      const disabled=await createJevJudge({maxRequestBytes:64_000,fetch}).select('Public evidence',[],false);
       console.log(JSON.stringify({calls,requestedModel,denied,allowed,disabled,unchanged}));
     ''')
     assert value['calls'] == 1 and value['requestedModel'] == 'jev-latest'
@@ -224,7 +224,7 @@ def test_adjacent_relevance_levels_share_one_decision_and_semantic_content_exclu
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const calls=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);calls.push(request);
         const answers={};for(const [key,q] of Object.entries(request.questions)) {
           if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
@@ -258,7 +258,7 @@ def test_adjacent_relevance_levels_share_one_decision_and_semantic_content_exclu
 def test_compatible_choice_probability_mass_does_not_reject_grounded_knowledge() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:'grounded',confidence:0.97,probabilities:{grounded:0.98,speculative:0,transient:0,unsupported:0.02,unclear:0}},relation_0:{type:'choice',choice:'supplement',confidence:0.59,probabilities:{unrelated:0.32,supplement:0.68,duplicate:0,conflict:0,unclear:0}}}}))});
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async()=>new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:'grounded',confidence:0.97,probabilities:{grounded:0.98,speculative:0,transient:0,unsupported:0.02,unclear:0}},relation_0:{type:'choice',choice:'supplement',confidence:0.59,probabilities:{unrelated:0.32,supplement:0.68,duplicate:0,conflict:0,unclear:0}}}}))});
       console.log(JSON.stringify(await judge.validate('memory','Verified command',[{content:'Verified command'}],[{name:'known.md',classification:'safe',type:'project',description:'Dependency manager',content:'Uses pnpm'}])));
     ''')
     assert value['decision'] == 'allow'
@@ -268,7 +268,7 @@ def test_exact_command_scope_is_proved_in_code_but_authorization_stays_semantic(
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let calls=[];let supported=true;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);calls.push(request);const answers={};
         for(const key of Object.keys(request.questions)) answers[key]=key.startsWith('expands')?{type:'choice',choice:'unclear',confidence:0.99,probabilities:{same:0,narrower:0,broader:0,unclear:1}}:key.startsWith('explanation')?{type:'choice',choice:'faithful',confidence:0.99,probabilities:{faithful:1,extra:0,invented:0,unclear:0}}:key.startsWith('authority')?{type:'choice',choice:supported?'lasting':'conditional',confidence:0.99,probabilities:{lasting:supported?0.99:0.01,conditional:supported?0.01:0.99,temporary:0,elsewhere:0,absent:0}}:{type:'noul',noul:key.startsWith('expands')?0.2:supported?0.99:0.01};
         return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:10,output_tokens:1}}));
@@ -296,7 +296,7 @@ def test_literal_authority_does_not_skip_message_or_unicode_scope() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const requests=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const r=JSON.parse(init.body);requests.push(r);const answers={};
         for(const [key,q] of Object.entries(r.questions))answers[key]=key.startsWith('expands')?{type:'choice',choice:'broader',confidence:0.99,probabilities:{same:0,narrower:0,broader:1,unclear:0}}:key.startsWith('explanation')?{type:'choice',choice:'extra',confidence:0.99,probabilities:{faithful:0,extra:1,invented:0,unclear:0}}:q.type==='choice'?{type:'choice',choice:'lasting',confidence:0.99,probabilities:{lasting:1,conditional:0,temporary:0,elsewhere:0,absent:0}}:{type:'noul',noul:key.startsWith('expands')?0.99:r.questions.authority_0?0.01:0.99};
         return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:10,output_tokens:1}}));
@@ -318,7 +318,7 @@ def test_literal_authority_classes_and_unknowns_are_proposals() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let kind='lasting';let confidence=0.99;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:1},answers:{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async()=>new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:1},answers:{
         authority_0:{type:'choice',choice:kind,confidence,probabilities:Object.fromEntries(['lasting','conditional','temporary','elsewhere','absent'].map(k=>[k,k===kind?1:0]))},
         explanation_0:{type:'choice',choice:'faithful',confidence:0.99,probabilities:{faithful:1,extra:0,invented:0,unclear:0}}}}))});
       const candidate={op:'addRule',rule:{id:'r',bash:'^echo PUBLIC$(?![\\s\\S])',action:'block',message:'Do not execute echo PUBLIC.'}};
@@ -336,7 +336,7 @@ def test_memory_grounding_uses_explicit_evidence_categories() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let category='grounded';const requests=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         requests.push(JSON.parse(init.body));return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:1},answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:category,confidence:0.99,probabilities:Object.fromEntries(['grounded','speculative','transient','unsupported','unclear'].map(k=>[k,k===category?1:0]))}}}));
       }});
       const results={};for(const c of ['grounded','speculative','transient','unsupported','unclear']){category=c;results[c]=await judge.validate('memory','Public facts',[{content:'The project uses uv.'}],[]);}
@@ -351,7 +351,7 @@ def test_generic_harness_scope_groups_same_and_narrower_without_allowing_broaden
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let broad=false;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:1},answers:{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async()=>new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:10,output_tokens:1},answers:{
         supported_0:{type:'noul',noul:0.99},expands_0:{type:'choice',choice:broad?'broader':'same',confidence:broad?0.99:0.61,probabilities:{same:broad?0:0.7,narrower:broad?0:0.28,broader:broad?1:0.01,unclear:broad?0:0.01}}}}))});
       const candidate={op:'addRule',rule:{id:'r',bash:'^git\\s+push(?:\\s|$)',action:'block',message:'Do not push in this repository.'}};
       const narrow=await judge.validate('harness','Never push in future tasks in this repository.',[candidate],[]);
@@ -366,7 +366,7 @@ def test_command_family_proof_preserves_exact_only_authority_and_shell_boundarie
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let requests=[],scope='authorized';
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);requests.push(request);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
           if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
@@ -397,7 +397,7 @@ def test_rewrite_still_requires_grounding_and_private_review_without_self_novelt
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let requests=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);requests.push(request);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
           if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
@@ -433,7 +433,7 @@ def test_literal_confirmation_judges_per_run_authority_without_weakening_a_ban()
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let authority='lasting';let explanation='faithful';const questions=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);questions.push(Object.keys(request.questions));const answers={};
         for(const [key,q] of Object.entries(request.questions)){
           if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
@@ -511,7 +511,7 @@ def test_legal_family_batch_is_atomic_bounded_and_accounts_partial_failures() ->
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const candidates=Array.from({length:12},(_,i)=>({rule:{bash:`^git[ \\t]+op${i}(?:[ \\t]|$(?![\\s\\S]))`,action:'block',message:`Never run git op${i}.`}}));
       let mode='good', calls=[], active=0, peak=0;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         const r=JSON.parse(init.body);calls.push(r);active++;peak=Math.max(peak,active);
         await new Promise(resolve=>setTimeout(resolve,5));active--;
         if(mode==='failure' && Object.keys(r.questions).includes('family_11')) throw new Error('private provider text');
@@ -552,7 +552,7 @@ def test_observed_score_rounding_boundary_preserves_uncertainty_not_invalid_resp
       const observed=[{score:.92,probabilities:{0:.64,1:.06,2:.06,3:.24}},{score:1.06,probabilities:{0:.36,1:.32,2:.2,3:.12}},
         {score:.99,probabilities:{0:.57,1:.11,2:.06,3:.26}},{score:.64,probabilities:{0:.74,1:.06,2:.04,3:.16}}];
       let current=observed[0];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:551,output_tokens:53},
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async()=>new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:551,output_tokens:53},
         answers:{memory:{type:'noul',noul:.8},harness:{type:'noul',noul:.4},related_0:{type:'score',confidence:.1,...current}}}))});
       const metadata=[{name:'known.md',classification:'safe',type:'project',description:'Public fixture'}];
       const rows=[];for(const answer of observed){current=answer;rows.push(await judge.select('public evidence',metadata,false));}
@@ -570,7 +570,7 @@ def test_parallel_batch_never_accepts_mixed_versions_or_invalid_late_answers() -
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const candidates=Array.from({length:12},(_,i)=>({rule:{bash:`^git[ \\t]+op${i}(?:[ \\t]|$(?![\\s\\S]))`,action:'block',message:`Never run git op${i}.`}}));
       let mode='mixed', calls=0;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         calls++;const r=JSON.parse(init.body),late='family_11' in r.questions,answers={};
         for(const [key,q] of Object.entries(r.questions)){
           if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
@@ -601,7 +601,7 @@ def test_realistic_frozen_tool_evidence_is_preserved_with_bounded_transport() ->
         ...Array.from({length:40},(_,i)=>({message:{role:'toolResult',toolCallId:`call${i}`,toolName:'read',isError:false,content:[{type:'text',text:'Public code observation '+i+' '+ 'a'.repeat(1000)}]}})),
         {message:{role:'user',content:'Correction: the timeout is now 31 seconds, superseding the earlier value.'}}]};
       let sent;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         sent=JSON.parse(init.body);return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:11000,output_tokens:20},answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:'unsupported',confidence:1,
           probabilities:{grounded:0,speculative:0,transient:0,unsupported:1,unclear:0}}}}));
       }});
@@ -618,7 +618,7 @@ def test_transport_byte_bound_includes_sdk_model_field() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let sizes=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         sizes.push(Buffer.byteLength(init.body));const r=JSON.parse(init.body);return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:1,output_tokens:1},answers:Object.fromEntries(Object.keys(r.questions).map(k=>[k,{type:'noul',noul:0}]))}));
       }});
       await judge.select('',[],false);
@@ -637,7 +637,7 @@ def test_private_memory_judgment_knows_the_parent_bound_storage_scope() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let sent;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{sent=JSON.parse(init.body);
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',allowPrivateMemory:true,fetch:async(_url,init)=>{sent=JSON.parse(init.body);
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers:{coherence_0:{type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}},supported_0:{type:'choice',choice:'grounded',confidence:1,probabilities:{grounded:1,speculative:0,transient:0,unsupported:0,unclear:0}}}}));
       }});
       const result=await judge.validate('memory','For my private reports always finish with PUBLIC_SYNTHETIC_MARKER. Keep it out of project files.',
@@ -652,7 +652,7 @@ def test_delete_without_body_still_requires_knowledge_preservation_judgment() ->
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let sent;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{sent=JSON.parse(init.body);
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{sent=JSON.parse(init.body);
         return new Response(JSON.stringify({model:'jev-1.13.0',usage:{input_tokens:100,output_tokens:20},answers:{supported_0:{type:'choice',choice:'unsupported',confidence:1,probabilities:{grounded:0,speculative:0,transient:0,unsupported:1,unclear:0}}}}));
       }});
       const result=await judge.validate('memory','Retain the release procedure.',[{op:'delete',name:'release.md',preservedIn:['replacement.md']}],[]);
@@ -670,7 +670,7 @@ def test_all_candidate_failures_are_reported_without_partial_permission() -> Non
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let requests=0;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         requests++;const request=JSON.parse(init.body);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
           if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
@@ -715,7 +715,7 @@ def test_proven_finite_git_matching_is_separate_from_support_and_authorization()
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const sample=(await Bun.file('./packages/continual-learning/tests/fixtures/jev-harness-support-corpus.json').json())[0];
       const requests=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',defaultModel:'jev-1.13.0',scopes:['harness'],fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',defaultModel:'jev-1.13.0',scopes:['harness'],fetch:async(_url,init)=>{
         const r=JSON.parse(String(init.body));requests.push(r);const answers={};
         for(const [key,q] of Object.entries(r.questions)) {
           if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
@@ -759,7 +759,7 @@ def test_finite_git_proof_never_bypasses_semantic_holds_or_service_failure() -> 
       const outcomes=[];
       for(const action of ['block','confirm']) for(const mode of ['supported','unsupported','uncertain','scope','counter','unavailable']) {
         const plan=structuredClone(sample.plan);plan.operations[0].rule.action=action;
-        const judge=createJevJudge({enabled:true,apiKey:'fixture',defaultModel:'jev-1.13.0',scopes:['harness'],fetch:async(_url,init)=>{
+        const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',defaultModel:'jev-1.13.0',scopes:['harness'],fetch:async(_url,init)=>{
           if(mode==='unavailable')throw Error('fixture service unavailable');
           const r=JSON.parse(String(init.body));const answers={};
           for(const [key,q] of Object.entries(r.questions)) {
@@ -788,12 +788,12 @@ def test_http_failures_keep_only_trusted_status_and_preserve_proposal() -> None:
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const rows=[];
       for(const status of [400,401,403,429,500,503]){
-        const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async()=>new Response(JSON.stringify({error:'PRIVATE_DIAGNOSTIC_DO_NOT_LOG'}),{status})});
+        const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async()=>new Response(JSON.stringify({error:'PRIVATE_DIAGNOSTIC_DO_NOT_LOG'}),{status})});
         rows.push({status,result:await judge.validate('memory','evidence',['candidate'],[])});
       }
-      const generic=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async()=>{throw Object.assign(new Error('PRIVATE_DIAGNOSTIC_DO_NOT_LOG'),{status:429});}});
+      const generic=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async()=>{throw Object.assign(new Error('PRIVATE_DIAGNOSTIC_DO_NOT_LOG'),{status:429});}});
       const unknown=await generic.validate('memory','evidence',['candidate'],[]);
-      const selection=await createJevJudge({enabled:true,apiKey:'fixture',scopes:['selection'],fetch:async()=>new Response('PRIVATE_DIAGNOSTIC_DO_NOT_LOG',{status:429})}).select('For future tasks remember this project fact.',[],true);
+      const selection=await createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['selection'],fetch:async()=>new Response('PRIVATE_DIAGNOSTIC_DO_NOT_LOG',{status:429})}).select('For future tasks remember this project fact.',[],true);
       console.log(JSON.stringify({rows,unknown,selection}));
     ''')
     for row in value['rows']:
@@ -813,7 +813,7 @@ def test_http_status_survives_split_and_cited_partial_failures() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let kind='split';
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory','harness'],fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['memory','harness'],fetch:async(_url,init)=>{
         const r=JSON.parse(String(init.body));
         if((kind==='split'&&Object.hasOwn(r.questions,'family_11'))||(kind==='cited'&&Object.hasOwn(r.questions,'counter_0_1')))
           return new Response('PRIVATE_DIAGNOSTIC_DO_NOT_LOG',{status:503});
@@ -854,7 +854,7 @@ def test_held_candidate_records_the_controlled_choice_and_probability() -> None:
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const evidence={entries:[{message:{role:'user',content:'This project uses pnpm.'}}]};
       const candidate={name:'test.md',content:'Use pnpm test.'};
-      const build=(choice,distribution,confidence)=>createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
+      const build=(choice,distribution,confidence)=>createJevJudge({maxRequestBytes:64_000,enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
         const request=JSON.parse(init.body);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
           if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
@@ -915,7 +915,7 @@ def test_placeholder_credentials_in_tool_output_do_not_refuse_a_review() -> None
       const placeholderEvidence={entries:[{message:{role:'toolResult',content:'Configuration sample:\n  passwd: <password>'}}]};
       const realEvidence={entries:[{message:{role:'toolResult',content:'Configuration:\n  password = hunter2long'}}]};
       let requests=0;
-      const judge=createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
         requests++;
         const request=JSON.parse(init.body);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
@@ -957,7 +957,7 @@ def test_bounds_refusal_names_the_specific_bound_without_content() -> None:
       const offline=async()=>{throw new Error('NO TRANSPORT EXPECTED FOR A BOUNDS REFUSAL');};
       const evidence={entries:[{message:{role:'user',content:'This project uses pnpm.'}}]};
       const candidate=i=>({name:'fact'+i+'.md',content:'Use pnpm test for verification '+i+'.',evidence:[{index:0,quote:'This project uses pnpm.',role:'user'}]});
-      const plain=()=>createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:offline});
+      const plain=()=>createJevJudge({maxRequestBytes:64_000,enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:offline});
       const huge={entries:[{message:{role:'user',content:'x'.repeat(70000)}}]};
       const bytes=await plain().validate('memory',huge,[candidate(0)],[]);
       // Windows are built from CITED entries, so many citations are needed to
@@ -1001,8 +1001,8 @@ def test_one_fixed_candidate_set_shows_the_judge_is_the_only_support_gate() -> N
       const speculation={name:'build-command.md',content:'This project builds with make build.',evidence:[{index:0,quote:'I think this project might build with make build, but I have not checked.',role:'user'}]};
       const candidates=[legitimate,speculation];
       const requestCounts={off:0,on:0};
-      const off=await createJevJudge({enabled:false,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async()=>{requestCounts.off++;throw new Error('OFF ARM MUST NOT TRANSPORT');}}).validate('memory',evidence,candidates,[]);
-      const on=await createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
+      const off=await createJevJudge({maxRequestBytes:64_000,enabled:false,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async()=>{requestCounts.off++;throw new Error('OFF ARM MUST NOT TRANSPORT');}}).validate('memory',evidence,candidates,[]);
+      const on=await createJevJudge({maxRequestBytes:64_000,enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:async(_url,init)=>{
         requestCounts.on++;const request=JSON.parse(init.body);const answers={};
         for(const [key,q] of Object.entries(request.questions)){
           if(key.startsWith('coherence_')){answers[key]={type:'choice',choice:'compatible',confidence:1,probabilities:{compatible:1,contradictory:0,unclear:0}};continue;}
@@ -1039,7 +1039,7 @@ def test_complete_small_windows_fit_without_unsafe_count_merging() -> None:
     value = isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const offline=async()=>{throw new Error('NO TRANSPORT');};
-      const plain=()=>createJevJudge({enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:offline});
+      const plain=()=>createJevJudge({maxRequestBytes:64_000,enabled:true,defaultModel:'jev-1.13.0',scopes:['memory'],apiKey:'fixture',fetch:offline});
       // 10 entries of 13 KB each:
       const entries=Array.from({length:10},(_,i)=>({message:{role:'user',content:'entry_'+i+'_'+'z'.repeat(13000)}}));
       const candidate={name:'fact.md',kind:'project',classification:'safe',content:'Use pnpm test.',evidence:[{index:0,quote:'entry_0',role:'user'}]};
@@ -1057,7 +1057,7 @@ def test_full_review_budget_counts_batches_per_window_without_skipping_late_evid
         content:`---\nname: fact_${i}\ndescription: FACT_${i} is documented in the project\ntype: project\n---\n`+'A documented project fact. '.repeat(96),
         evidence:[{index:0,quote:'FACT_0',role:'user'},{index:1,quote:'FACT_1',role:'user'}]}));
       let mode='allow',active=0,peak=0; const requests=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         active++;peak=Math.max(peak,active); const r=JSON.parse(init.body);requests.push(r);await Promise.resolve();
         const state=(typeof r.state === "string" ? JSON.parse(r.state) : r.state),late=state.reviewEvidence?.entries.some(e=>e.index===9),answers={};
         for(const [k,q] of Object.entries(r.questions)){
@@ -1092,7 +1092,7 @@ def test_real_pluggy_trace_preserves_complete_evidence_within_actual_wire_budget
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       const {evidence,candidates}=await Bun.file('./packages/continual-learning/tests/fixtures/real-project-wire.json').json();
       let mode='allow',active=0,peak=0;const calls=[];
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async(_url,init)=>{
         active++;peak=Math.max(peak,active);const r=JSON.parse(init.body);calls.push(r);await Promise.resolve();
         const state=(typeof r.state === "string" ? JSON.parse(r.state) : r.state),late=state.reviewEvidence?.entries.some(e=>e.index===204),answers={};
         for(const [k,q]of Object.entries(r.questions)){
@@ -1139,7 +1139,7 @@ def test_wire_bounds_diagnostic_reports_the_encoded_request_size():
     value=isolated_run_bun(r'''
       import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
       let calls=0;
-      const judge=createJevJudge({enabled:true,apiKey:'fixture',fetch:async()=>{calls++;throw new Error('must preflight first');}});
+      const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',fetch:async()=>{calls++;throw new Error('must preflight first');}});
       const evidence={contextEnabled:true,entries:[{message:{role:'toolResult',content:'Known project fact '+String.fromCharCode(92).repeat(30000)}}]};
       const candidate={name:'fact.md',kind:'project',classification:'safe',content:'Known project fact '+('x'.repeat(5000)),evidence:[{index:0,quote:'Known project fact'}]};
       const result=await judge.validate('memory',evidence,[candidate],[]);

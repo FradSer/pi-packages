@@ -49,7 +49,7 @@ def test_production_memory_description_counter_and_relationship_cannot_bypass_wh
         const quote='This project uses pnpm.';
         const candidate={name:'fact.md',kind:'project',classification:'safe',content:'---\nname: fact\ndescription: '+quote+'\ntype: project\n---\n'+quote,evidence:[{index:0,quote,role:'user'}]};
         for(const mode of ['duplicate-summary','duplicate-body','counter','relationship','uncertain','unavailable']){
-          const keys=[];const judge=research.createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
+          const keys=[];const judge=research.createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
             if(mode==='unavailable')throw Error('fixture unavailable');const r=JSON.parse(String(init.body));const answers={};
             for(const [k,q]of Object.entries(r.questions)){
               keys.push(k);const label=k.startsWith('supported')?(mode==='uncertain'&&k.startsWith('supported_description')?'unclear':'grounded'):k.startsWith('relation_description')?(mode==='relationship'?'conflict':'duplicate'):k.startsWith('relation')?(mode==='duplicate-body'?'duplicate':'supplement'):mode==='counter'&&k.startsWith('counter_description')?'contradicts':'compatible';
@@ -81,7 +81,7 @@ def test_production_memory_description_preflights_all_extra_questions_before_tra
       const research={createJevJudge,dispose:async()=>{}};let calls=0;
       try {
         const quote='This project uses pnpm.';const candidates=Array.from({length:16},(_,i)=>({name:'fact-'+i+'.md',kind:'project',classification:'safe',content:'---\nname: fact\ndescription: '+ 'x'.repeat(15000)+'\ntype: project\n---\n'+quote,evidence:[{index:0,quote,role:'user'}]}));
-        const judge=research.createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async()=>{calls++;throw Error('must not transport');}});
+        const judge=research.createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async()=>{calls++;throw Error('must not transport');}});
         const result=await judge.validate('memory',{contextEnabled:true,entries:[{role:'user',content:quote}]},candidates,[]);
         console.log(JSON.stringify({calls,result}));
       }finally{await research.dispose();}
@@ -107,7 +107,7 @@ def test_production_description_keeps_complete_claim_and_original_secret_guard()
         let calls=0;const descriptions=[];const body='This project uses pnpm.\n';
         const description='"'+ 'x'.repeat(4000)+' COMPLETE_TAIL"';
         const candidate={name:'fact.md',kind:'project',classification:'safe',content:'---\r\nname: administrative\r\ndescription: '+description+'\r\ndescription: IGNORE_SECOND\r\n'+(secret?'api_key: SYNTHETIC_SECRET_VALUE\r\n':'')+'type: project\r\n---\r\n'+body,evidence:[{index:0,quote:body,role:'user'}]};
-        const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
+        const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
           calls++;const r=JSON.parse(String(init.body));const answers={};
           for(const [key,q]of Object.entries(r.questions)){
             if(key.includes('_description_'))descriptions.push(q.instructions.candidate.content);
