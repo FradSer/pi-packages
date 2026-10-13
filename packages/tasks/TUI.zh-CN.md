@@ -1,6 +1,6 @@
 # Tasks TUI 场景
 
-所有行由 pi-kit 生命周期渲染器绘制，统一 `[tasks]` 前缀。所有工具结果和自动消息默认收起：收起行只显示 `[tasks] <action> · <标题>`，展开提示跟在标题的最后一行，正文需展开后查看。标题超宽时整体换行显示，不省略中间，除最后一行外都按整宽换行，只有最后一行给展开提示留位，完整任务名和结尾状态（如 `(in progress)`、`(blocked)`）都保留。显式工具结果的正文按窗口宽度换行。使用 Ctrl+O 或原生行操作展开完整详情。显示编号按全任务集的创建顺序固定，存储 id 留在结构化结果中。列表收起时只显示任务数量，完整正文通过展开或 `get_task` 读取。
+所有行由 pi-kit 生命周期渲染器绘制，统一 `[tasks]` 前缀。所有工具结果默认收起：收起行只显示 `[tasks] <action> · <标题>`，展开提示跟在标题的最后一行，正文需展开后查看。标题超宽时整体换行显示，不省略中间，除最后一行外都按整宽换行，只有最后一行给展开提示留位，完整任务名和结尾状态（如 `(in progress)`、`(blocked)`）都保留。显式工具结果的正文按窗口宽度换行。使用 Ctrl+O 或原生行操作展开完整详情。显示编号按全任务集的创建顺序固定，存储 id 留在结构化结果中。列表收起时只显示任务数量，完整正文通过展开或 `get_task` 读取。
 
 下表的正文内容均指展开后的内容。
 
@@ -22,10 +22,6 @@
 | 替换 | 创建新任务时指定 supersedes | 新任务 create 行，Replaced；旧记录保留并显示 Replaced by |
 | 拒绝 | 未知 id、非法参数、权限、依赖、证据、gate、恢复理由或预算不满足 | `<action> not applied`，完整错误；同调用中已接受的内容修改明确保留 |
 | 持久化告警 | 文件无法读取/写入或恢复修复了异常记录 | `Notice:` 完整原因；后续成功写入清除写入告警 |
-| 自动继续 | 正常结束，有新的成功工具结果、可执行任务、剩余额度且无用户输入 | `continue · N unfinished tasks`，默认收起；展开后显示完整任务摘要、正文及证据 |
-| 等待 | 无新工作、无可执行任务或三次额度耗尽 | `waiting · N unfinished tasks`，默认收起；展开后显示原因、当前阻塞、交接信息、原计划及证据；相同状态和原因只显示一次 |
-| 无自动行 | 全部完成/已替换/执行历史，取消、出错、待处理输入或其他 handler 已继续 | 不追加 Tasks 消息，不消耗额度 |
-| 无界面等待 | headless 会话无法继续 | 保留最终回答，避免状态消息替换 `pi --print` 输出 |
 
 ```text
 [tasks] update · #2 Validate dependency behavior (blocked) · to expand
@@ -39,12 +35,6 @@ Depends on #1
 Reason: The test environment is unavailable.
 Evidence: The setup command failed with the recorded diagnostic.
 
-[tasks] waiting · 1 unfinished task · to expand
-
-# Ctrl+O 展开后：
-Reason: no runnable task; recovery inspection required
-- #2 Validate dependency behavior (blocked)
-Blocker: The test environment is unavailable.
 ```
 
-`waiting` 属于运行器；Tasks 不自动生成用户 `paused`。依赖未完成本身不把 pending 变成 blocked。额度由真实用户输入重置，扩展消息不重置。重复相同工具参数与结果、四个 Tasks 工具和监控轮询不授予续跑；失败工具也不授予续跑。
+Tasks 只记录任务，不注入模型指令，不自动续跑，也不显示 waiting 或 continue 行。模型可以在收尾时主动调用 `list_tasks` 查询 pending、in_progress、blocked，再用 `get_task` 检查详情。未完成任务不会阻止模型结束。

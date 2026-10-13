@@ -53,6 +53,13 @@ Feature: Transparent image reading for text-only models
     Then the text-only model receives the original prompt and image unchanged
     And no image-analysis block or internal provider error is injected into its context
 
+  Scenario: Skip image analysis for a custom run without a user prompt
+    Given an earlier user prompt has an image attachment
+    When a custom run starts without a prompt
+    Then the run starts without an image-key error
+    And earlier user image context remains unchanged
+    And no custom message is added by the vision extension
+
   Scenario: Bound cached analysis across context callbacks
     Given the active model does not support image input
     And the configured vision model can analyze an image

@@ -44,7 +44,7 @@ Content edits replace subject, description, dependsOn or verify; context merges 
 
 ## Rendering and pagination
 
-All tool results and automatic messages use the shared pi-kit `[tasks]` lifecycle style. Every row is collapsed by default: it shows only its `[tasks] <action> · <title>` headline with the native expansion hint on the last line. A headline wider than the row wraps in full over more lines instead of being elided: every line but the last wraps at the full width, and only the last line makes room for the hint. The task name and its trailing status group (`(in progress)`, `(blocked)`, `(cancelled)`) stay readable. Use Ctrl+O or the native row action to expand the wrapped body, which carries titles, descriptions, Verify, evidence, blockers, errors and persistence notices. A list shows only its task count until expanded. Display numbers follow creation order across the full task set; filtered pages can contain gaps. Storage ids, holders and resource locks remain in coordination data rather than ordinary rows. The public tools do not accept or return resources.
+All tool results use the shared pi-kit `[tasks]` lifecycle style. Every row is collapsed by default: it shows only its `[tasks] <action> · <title>` headline with the native expansion hint on the last line. A headline wider than the row wraps in full over more lines instead of being elided: every line but the last wraps at the full width, and only the last line makes room for the hint. The task name and its trailing status group (`(in progress)`, `(blocked)`, `(cancelled)`) stay readable. Use Ctrl+O or the native row action to expand the wrapped body, which carries titles, descriptions, Verify, evidence, blockers, errors and persistence notices. A list shows only its task count until expanded. Display numbers follow creation order across the full task set; filtered pages can contain gaps. Storage ids, holders and resource locks remain in coordination data rather than ordinary rows. The public tools do not accept or return resources.
 
 ```text
 [tasks] create · #2 Verify dependency handling (pending) · to expand
@@ -54,18 +54,20 @@ A list contains summary fields, not descriptions, gates or full results; use get
 
 See [all TUI triggers and examples](TUI.zh-CN.md).
 
-## Automatic continuation
+## Passive monitoring
 
-Pi's `agent_before_settle` checks normal completion. It continues only when all of these hold:
+Tasks records work; it does not control model execution. The extension registers no settlement, request-context or tool-activity hooks. It adds no capability note, automatic reminder, waiting row or continuation row. Open tasks never request another model turn.
 
-- New successful tool work occurred in this run. Repeated identical tool arguments/results, Task bookkeeping and monitor polling do not count.
-- A normal task can run: an unheld pending task with completed dependencies, or an in-progress task held by the caller.
-- Fewer than three automatic continuations occurred since real user input.
-- No abort, pending user input or continuation requested by another handler exists.
+Before the final answer, the model can check unfinished work explicitly:
 
-A distinct successful tool result establishes tool activity, not verified task progress. Task metadata changes alone never buy another turn. Extension-generated input does not reset the allowance. Replaced tasks and internal `recordKind=execution` records never trigger continuation. Blocked work waits for deliberate recovery; the harness does not clear blockers or infer authorization.
+1. Call `list_tasks` with `statusFilter: ["pending", "in_progress", "blocked"]`.
+2. Follow each returned cursor to read all matching rows.
+3. Call `get_task` for each task that needs a full check.
+4. Report unfinished work or record completion with its evidence.
 
-Automatic messages display `continue` or `waiting`. Continue messages show full task information. Waiting messages show the headline by default; expansion shows the reason, current blocker, handoff, original plan and evidence. Allowance exhaustion is waiting, not a user pause. Identical waiting snapshots are deduplicated. No UI means no passive row, preserving the final `pi --print` answer. Earlier boundary messages and context edits are retained. Model instructions are bounded to 20 task rows and 8 KiB; omissions direct the model to list_tasks. Display rows use full stored text.
+This check is a caller action, not a runtime requirement. Tasks never treats a final answer as task completion. Existing state and evidence checks still apply to `update_task`.
+
+The retired settlement helpers, capability-note helpers and status-message renderer are removed, including their public exports. No compatibility implementation remains. This removes the old automatic-execution API; the four task tools and saved task format remain unchanged.
 
 ## Persistence and compatibility
 

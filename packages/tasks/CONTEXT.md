@@ -1,40 +1,42 @@
 # Tasks working context
 
-Read @README.md for the task interface and persistence contract.
+Read @README.md for the current interface and persistence contract.
 
-## Current work
+## Current state
 
-Follow-ups from a review of the real task records: id stabilization, exit semantics,
-subject guidance, a long-subject fixture, dependency guidance, and now a smaller tool
-surface with a subject limit so creating a task is light.
+The user confirms passive Tasks and explicitly requests complete removal of retired compatibility code.
 
-## Changes
-
-- `src/graph.ts`: derived ids stop at a word boundary and disambiguate with `-1`, `-2`.
-- `cancelled` is a fifth terminal status with a required reason; `reopenTask` returns it to pending.
-- `src/tool.ts`: `update_task status=cancelled`, `cancelReason` projection and row line.
-- `src/tool.ts`: `MAX_TASK_SUBJECT_LENGTH = 60`; `create_task` and `update_task` refuse a
-  longer subject with a message pointing at `description`. The store stays permissive.
-- `src/tool.ts`: the four tool descriptions and every parameter description were trimmed,
-  and `description`/`verify` are documented as optional. Surface: 7482 -> 6044 characters.
-- `tests/task-stop-live-fixture.ts`: the long-subject case uses a 60-character subject.
-- Agent Teams reports cancelled counts; its long-subject fixture seeds through the store.
+- The extension registers four tools and session persistence only.
+- No capability injection, settlement instructions, automatic messages or model continuation remains.
+- Deleted `src/stop-check.ts` and `src/presence.ts` and their package exports.
+- Deleted the status renderer from `src/rows.ts` and its obsolete formatting tests.
+- A regression test requires all retired public exports to be absent.
+- The four tools, persistence, ownership, dependencies and completion evidence remain unchanged.
+- The Changeset uses a minor release because the user authorizes removal of public exports.
+- Saved session history remains untouched. Old persisted custom messages can still use the host fallback renderer.
+  Source removal does not erase historical messages. No compatibility display or hiding implementation was added.
 
 ## Verification
 
-- Tasks suite: 177 passed (`python3 -m pytest packages/tasks/tests -q`).
-- Agent Teams consumer suite: 302 passed (`python3 -m pytest packages/agent-teams/tests -q`).
-- Typecheck passed with `pnpm --config.verify-deps-before-run=false typecheck`.
-- Repository packed-manifest check passed for 18 packages; `git diff --check` clean.
-- Native waiting frames: 12 captures in `/tmp/tasks-compact-native`.
-- Surface measurement: `create_task 622+642`, `get_task 221+184`, `list_tasks 226+712`,
-  `update_task 903+2534` characters (description + parameter schema).
+- RED: export-removal regression identifies all ten retained exports before deletion.
+- Tasks suite: 154 passed with `python3 -m pytest packages/tasks/tests -q`.
+- `pnpm typecheck` and the Tasks package dry-run passed.
+- The packed Tasks manifest excludes both deleted modules.
+- `pnpm pack:check` validated all 18 packed manifests.
+- `git diff --check` passed after removing a trailing blank line.
+- Source search finds no retired status identifier or execution helpers in Tasks source or package entry.
+- Actual isolated CLI tests stop with open tasks and use explicit list/get.
+- Real isolated Pi PTY run passes expansion and same-component resize at 120x40, 48x24 and 48x12.
+- Evidence: `/tmp/tasks-removed-status-native`; inspected restored composed screen.
 
-## Limitations and next checks
+## Independent review and limitations
 
-- The subject limit is model-facing only; stored records may be longer and still render whole.
-- The id stays the creation handle after a rename; renames are not tracked.
-- A cancelled prerequisite still blocks its dependents.
-- Matt Pocock, Goal and Impeccable test runs fail in this workspace on missing `tsx` or an
-  unverified dependency tree; that is an environment gap, not this change.
-- A reload is needed before a running Pi session loads the updated tools and renderer.
+- Fresh read-only review returns PASS for the final export-removal candidate.
+- The reviewer independently confirms 154 tests, typecheck, package dry-run and no remaining consumers.
+- The reviewer finds a stale package description; it now describes passive records and persistence.
+- Package dry-run and scoped diff checks pass after that metadata correction.
+- The earlier installation check fails for ten other missing packages, not Tasks.
+- No settings changes, saved-session edits, commits or publication occurred.
+- The current Pi session requires a reload to unload previous handlers.
+- Offline evidence does not prove real-model task checking, physical themes or screen-reader behavior.
+- Unrelated changes in other packages remain untouched.

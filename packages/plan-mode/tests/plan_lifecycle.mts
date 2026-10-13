@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai/providers/faux";
 import { createAgentSessionFromServices, createAgentSessionServices, createAgentSessionRuntime,
   ModelRuntime, SessionManager, SettingsManager, type CreateAgentSessionRuntimeFactory,
-  type ExtensionUIDialogOptions } from "@earendil-works/pi-coding-agent";
+  type ExtensionUIDialogOptions } from "../../../node_modules/@earendil-works/pi-coding-agent/dist/index.js";
 
 const root = mkdtempSync(join(tmpdir(), "plan-lifecycle-"));
 const originalArgv = process.argv[1];

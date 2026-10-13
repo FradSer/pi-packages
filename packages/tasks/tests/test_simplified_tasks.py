@@ -49,61 +49,6 @@ def test_given_long_task_when_rendered_then_the_collapsed_row_hides_the_body_and
     assert 1 <= len(create_lines) <= 3, 'the collapsed create row wraps instead of eliding'
     assert 'Long task' in ' '.join(' '.join(create_lines).split()), 'the full task name stays visible'
 
-def test_given_effective_work_when_settling_then_only_runnable_work_continues():
-    r=run_node('''
-    import * as t from './index.ts';
-    t.createTask({id:'one',subject:'Task title '.repeat(40)+'TITLE_TAIL'});
-    const check=new t.TaskStopCheck();
-    const event={outcome:'completed',entries:[],continue:false,context:{pendingMessages:[]}};
-    const options={caller:'main',hasUI:true};
-    const idle=check.check(event,options);
-    const work=check.check(event,{...options,performedWork:true});
-    const again=check.check(event,options);
-    const input=check.check(event,{...options,performedWork:true,pendingInput:true});
-    const long=t.taskStatusSpec(work.entries.at(-1).details);
-    t.takeTask('one','other');
-    const unavailable=new t.TaskStopCheck().check(event,{...options,performedWork:true});
-    console.log(JSON.stringify({idle,work,again,input,long,unavailable}));
-    ''')
-    assert r['idle']['continue'] is False
-    assert r['work']['continue'] is True
-    assert r['again']['continue'] is False
-    assert 'input' not in r
-    assert r['unavailable']['continue'] is False
-    assert r['unavailable']['entries'][-1]['details']['status']=='waiting'
-    assert 'TITLE_TAIL' in '\n'.join(r['long']['summary'])
-    assert r['long']['expandedSummary'] is True
-    assert r['long'].get('fullSummary') is not True
-
-def test_given_tool_receipts_when_repeated_then_metadata_and_reads_do_not_buy_continuations():
-    r=run_node('''
-    import * as t from './index.ts';
-    const handlers=new Map();t.default({registerTool(){},on(n,h){handlers.set(n,h)},events:{emit(){}}});
-    t.createTask({id:'one',subject:'Work'});
-    const ctx={hasUI:true,hasPendingMessages:()=>false};
-    const event={outcome:'completed',entries:[],continue:false,context:{pendingMessages:[]}};
-    const run=async(name,args,result)=>{
-      await handlers.get('agent_start')({},ctx);
-      await handlers.get('tool_execution_start')({toolCallId:'id',toolName:name,args},ctx);
-      await handlers.get('tool_execution_end')({toolCallId:'id',toolName:name,result,isError:false},ctx);
-      return handlers.get('agent_before_settle')(event,ctx);
-    };
-    const first=await run('read',{path:'file'},{content:[{type:'text',text:'Original'}]});
-    const repeat=await run('read',{path:'file'},{content:[{type:'text',text:'Original'}]});
-    const metadata=await run('update_task',{id:'one',description:'Changed'},{content:[{type:'text',text:'OK'}]});
-    const changed=await run('read',{path:'file'},{content:[{type:'text',text:'Changed'}]});
-    const more=await run('write',{path:'file',content:'New'},{content:[{type:'text',text:'OK'}]});
-    const exhausted=await run('write',{path:'file',content:'Another'},{content:[{type:'text',text:'OK'}]});
-    console.log(JSON.stringify({first,repeat,metadata,changed,more,exhausted}));
-    ''')
-    assert r['first']['continue'] is True
-    assert r['repeat']['continue'] is False
-    assert 'metadata' not in r, 'identical waiting reminders are suppressed'
-    assert r['changed']['continue'] is True and r['more']['continue'] is True
-    assert r['exhausted']['continue'] is False
-    details=r['exhausted']['entries'][-1]['details']
-    assert details['status']=='waiting' and 'limit' in details['reason']
-
 def test_given_a_blocker_when_recorded_then_it_can_be_recovered_and_evidence_survives():
     r=run_node('''
     import * as t from './index.ts';
@@ -168,25 +113,6 @@ def test_given_legacy_failure_when_recovered_then_success_retains_the_old_eviden
     assert r['failureEvidence']=='LEGACY_FAILURE_TAIL'
     assert r['result']=='New verification'
 
-def test_given_reordered_read_arguments_when_repeated_then_it_is_not_new_work():
-    r=run_node('''
-    import * as t from './index.ts';
-    const handlers=new Map();t.default({registerTool(){},on(n,h){handlers.set(n,h)},events:{emit(){}}});
-    t.createTask({subject:'Work'});const ctx={hasUI:true,hasPendingMessages:()=>false};
-    const event={outcome:'completed',entries:[],continue:false,context:{pendingMessages:[]}};
-    const read=async(args,part)=>{
-      await handlers.get('agent_start')({},ctx);
-      await handlers.get('tool_execution_start')({toolCallId:'id',toolName:'read',args},ctx);
-      await handlers.get('tool_execution_end')({toolCallId:'id',toolName:'read',result:{content:[part]},isError:false},ctx);
-      return handlers.get('agent_before_settle')(event,ctx);
-    };
-    const first=await read({path:'file',offset:1},{type:'text',text:'Content'});
-    const repeated=await read({offset:1,path:'file'},{text:'Content',type:'text'});
-    console.log(JSON.stringify({first,repeated}));
-    ''')
-    assert r['first']['continue'] is True
-    assert r['repeated']['continue'] is False
-
 def test_given_a_stopped_holder_when_failure_evidence_exceeds_budget_then_its_lease_is_released():
     r=run_node('''
     import * as t from './index.ts';
@@ -232,21 +158,6 @@ def test_given_legacy_replacement_without_a_target_when_restored_then_it_cannot_
     assert r['discard'] is False
     assert r['task']['replacementUnresolved'] is True
     assert 'inspection' in r['notice']
-
-def test_given_waiting_work_when_blocker_or_notice_changes_then_the_new_information_is_shown():
-    r=run_node('''
-    import * as t from './index.ts';
-    t.createTask({id:'one',subject:'Work'});t.blockTask('one','main','Initial reason');
-    const check=new t.TaskStopCheck();const event={outcome:'completed',entries:[],continue:false,context:{pendingMessages:[]}};
-    const options={caller:'main',hasUI:true};
-    const first=check.check(event,options);
-    t.blockTask('one','main','NEW_BLOCKER_TAIL');const changed=check.check(event,options);
-    t.setStoreNotice('NEW_NOTICE_TAIL');const notice=check.check(event,options);
-    console.log(JSON.stringify({first,changed,notice}));
-    ''')
-    assert r['changed']['entries'][0]['details']['tasks'][0]['blockedReason']=='NEW_BLOCKER_TAIL'
-    assert r['notice']['entries'][0]['details']['notice']=='NEW_NOTICE_TAIL'
-    assert all(r[key]['continue'] is False for key in ['first','changed','notice'])
 
 def test_given_long_errors_and_notices_when_rendered_then_the_collapsed_row_hides_the_tails_and_expansion_keeps_them():
     r=run_node('''

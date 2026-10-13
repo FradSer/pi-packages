@@ -86,23 +86,17 @@ def test_native_tui_collapses_rows_and_expands_without_holder_rows(tmp_path: Pat
         wait_for(lambda: any(item.get("type") == "ready" for item in events()), "startup")
         os.write(master, b"Exercise the task content flow.\r")
         wait_for(lambda: any(item.get("type") == "settled" for item in events()), "settlement")
-        wait_for(lambda: "TASK_STOP_TEST_DONE" in screen_text(), "final response")
+        wait_for(lambda: ("The tasks are planned. I am stopping now." if mode == "ignore" else "TASK_STOP_TEST_DONE") in screen_text(), "final response")
         settled = next(item for item in events() if item.get("type") == "settled")
         assert len(settled["failures"]) == (1 if mode == "refusal" else 0)
         if mode == "ignore":
-            assert settled["requests"] == 5
-            assert settled["reminders"][-1]["details"]["status"] == "waiting"
-            wait_for(lambda: "[tasks] waiting · 2 unfinished tasks" in screen_text(), "waiting row")
-            wait_for(lambda: "to expand" in screen_text(), "native expansion hint")
-            waiting_line = next(line for line in screen_text().splitlines() if "[tasks] waiting · 2 unfinished tasks" in line)
-            assert "to expand" in waiting_line, "the waiting hint shares its headline line"
-            before = len(output)
-            os.write(master, b"\x0f")
-            wait_for(lambda: "no new successful tool result" in ANSI.sub("", output[before:].decode("utf-8", errors="replace")), "expanded waiting details")
-            assert "continuation limit reached" not in screen_text()
-            assert "Blocked by #1" in screen_text()
-            assert "Task status check before settlement." not in screen_text(), "The transcript must keep full task instructions hidden"
-            assert "[Task]" not in screen_text()
+            # Confirmed passive contract: open records never add automatic transcript rows.
+            assert settled["requests"] == 4
+            assert settled["reminders"] == []
+            assert "[tasks] waiting" not in screen_text()
+            assert "[tasks] continue" not in screen_text()
+            assert "[tasks] create" in screen_text()
+            assert "[tasks] update" in screen_text()
             return
         if mode == "refusal":
             assert settled["requests"] == 2

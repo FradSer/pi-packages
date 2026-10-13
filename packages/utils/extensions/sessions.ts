@@ -487,15 +487,16 @@ export default function (pi: ExtensionAPI) {
       currentSessionFile = file;
     }
 
-    currentGoal = event.prompt.trim().slice(0, 300);
+    if (typeof event.prompt === "string") currentGoal = event.prompt.trim().slice(0, 300);
     updateSelf(ctx.cwd, "running");
 
     const otherSessions = syncSessionTool(ctx.cwd);
+    const sections = event.systemPromptOptions.sections;
     if (otherSessions.length > 0) {
       const recapText = formatCrossSessionRecap(otherSessions);
-      return {
-        systemPrompt: event.systemPrompt + "\n\n" + recapText,
-      };
+      sections.directory_sessions = recapText.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    } else {
+      delete sections.directory_sessions;
     }
   });
 

@@ -291,6 +291,14 @@ temporary roles do not. Entries describe reusable methods, judgment criteria and
 operating patterns. Project facts, decisions and history belong to Project Memory,
 which `pi-continual-learning` owns.
 
+Pi receives Agent Memory in the named `agent_memory` prompt section at run start.
+This contribution preserves other sections and guidelines without replacing the complete system prompt or adding a custom message.
+The section identifies Memory as untrusted reference data, not instructions or authorization.
+At startup, the complete index and displayed identity encode `&`, `<`, and `>` as entities.
+Before reading a path, decode `&lt;` and `&gt;` first, then `&amp;`, once only.
+This order preserves literal entity-shaped path bytes. The encoded section obeys the same 8 KiB limit.
+Custom-message starts refresh the same section without requiring a user prompt.
+
 Only the bounded index of filenames and one-line relevance cues is injected,
 never entry bodies. The complete Memory block, including guidance and omission
 notices, obeys the 8 KiB UTF-8 budget. `MEMORY.md` obeys the same budget. Shortening

@@ -143,6 +143,12 @@ but a different session file does not import another session's tasks automatical
 
 ## Coordination and delivery
 
+Leader and worker guidance use the owned `agent_teams_leader` and `agent_teams_worker` prompt sections at run start.
+These sections remain present with either Pi's default preamble or an authored `customPrompt`.
+They do not replace the complete system prompt or add context through custom messages.
+Custom-message starts have no user prompt; worker disclosure checks the current assignment without assuming a task notice.
+Historical report filtering and report delivery remain separate from these prompt contributions.
+
 Leader guidance uses the same delivery contract before and after a team starts:
 
 - Delegate separable work with a task-scoped baseline, acceptance criteria and safe local checks. Use `task create` with `dependsOn` for prerequisites and shared `resources` tags for conflicting writes; participants take eligible Tasks. Independent delegation is not a substitute for dependencies.

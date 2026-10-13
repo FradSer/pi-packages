@@ -31,7 +31,7 @@ const TASK_DISCLOSURE_TOOLS = ["task"] as const;
 type TaskDisclosure = "none" | "notice" | "held";
 
 export interface WorkerToolDisclosure {
-  update(prompt: string): void;
+  update(prompt?: string): void;
   reset(): void;
 }
 
@@ -57,7 +57,7 @@ function createWorkerToolDisclosure(pi: ExtensionAPI): WorkerToolDisclosure {
       if (binding && rosterEntry && rosterEntry.spawnId === binding.spawnId
         && rosterEntry.status !== "stopped" && assignment) {
         state = "held";
-      } else if (!assignment && prompt.includes("=== TASK NOTICE ===")) state = "notice";
+      } else if (!assignment && prompt?.includes("=== TASK NOTICE ===")) state = "notice";
       else state = "none";
       apply();
     },

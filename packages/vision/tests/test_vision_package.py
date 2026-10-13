@@ -64,6 +64,20 @@ def run_input_harness(
     return json.loads(completed.stdout.strip().splitlines()[-1])
 
 
+def test_custom_run_without_prompt_clears_prior_image_analysis(tmp_path: Path) -> None:
+    completed = subprocess.run(
+        ["pnpm", "exec", "tsx", str(PACKAGE / "tests" / "vision_custom_start_harness.ts")],
+        cwd=PACKAGE.parents[1],
+        env={**os.environ, "PI_CODING_AGENT_DIR": str(tmp_path / "agent")},
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    result = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert result == {"customStart": "passed", "visionCalls": 1, "originalImageUnchanged": True}
+
+
 def test_manifest_declares_native_pi_package() -> None:
     manifest = json.loads((PACKAGE / "package.json").read_text(encoding="utf-8"))
     assert "pi-package" in manifest["keywords"]

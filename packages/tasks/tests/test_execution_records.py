@@ -1,55 +1,32 @@
-"""Execution history and actionable task separation through the shipped hook."""
+"""Execution classification and evidence remain available through explicit reads."""
 from pathlib import Path
+from task_helpers import run_node
 
-from test_task_stop_check import run
+def run(script: str, tmp_path: Path):
+    return run_node("import * as task from './index.ts';" + script, env_overrides={"PI_CODING_AGENT_DIR": str(tmp_path)})
 
-
-def test_execution_history_is_retained_without_continuation(tmp_path: Path) -> None:
-    result = run(
-        """
-        task.createTask({ id: "run", subject: "Review a candidate", recordKind: "execution" });
-        task.takeTask("run", "main");
-        task.completeTaskWithOutcome("run", "main", "failed", "Provider disconnected");
-        const alone = await settle();
-        task.createTask({ id: "explicit", subject: "Implement the change" });
-        const mixed = await settle();
-        const full = await task.executeTaskGet({id:"run"});
-        console.log(JSON.stringify({alone:alone??null,content:mixed.entries[0].content,
-          count:mixed.entries[0].details.remaining, evidence:full.details.task.result,
-          status:full.details.task.status}));
-        """,
-        tmp_path,
-    )
-    assert result["alone"] is None
-    assert result["count"] == 1
-    assert "id=explicit" in result["content"]
-    assert "id=run" not in result["content"]
+def test_execution_history_is_retained_without_continuation(tmp_path: Path):
+    result = run('''
+      task.createTask({id:"run",subject:"Review",recordKind:"execution"});
+      task.takeTask("run","main");
+      task.completeTaskWithOutcome("run","main","failed","Provider disconnected");
+      task.createTask({id:"explicit",subject:"Implement"});
+      const full=await task.executeTaskGet({id:"run"});
+      console.log(JSON.stringify({evidence:full.details.task.result,status:full.details.task.status}));
+    ''',tmp_path)
     assert result["evidence"] == "Provider disconnected"
     assert result["status"] == "blocked"
 
-
-def test_restored_generated_execution_does_not_hide_explicit_recovery(tmp_path: Path) -> None:
-    result = run(
-        """
-        const generated="work:83bf154f-e05b-4919-b26d-51f150c5a58c";
-        const base={dependsOn:[],resources:[],createdAt:1,updatedAt:1,status:"pending",recoveryRequired:true};
-        task.loadTasks({[generated]:{...base,id:generated,subject:"Earlier review",result:"Interrupted"},
-          explicit:{...base,id:"explicit",subject:"User task"}});
-        const receipt=await settle({}, {...ctx,hasUI:true});
-        console.log(JSON.stringify({count:receipt.entries[0].details.remaining,
-          content:receipt.entries[0].content,kind:task.getTask(generated).recordKind,
-          evidence:task.getTask(generated).result,hold:task.getTask(generated).status === "blocked",
-          status:receipt.entries[0].details.status}));
-        """,
-        tmp_path,
-    )
-    assert result["count"] == 1
-    assert result["kind"] == "execution"
-    assert result["evidence"] == "Interrupted"
-    assert result["hold"] is True
-    assert result["status"] == "waiting", "blocked snapshots require deliberate recovery"
-    assert "id=work:" not in result["content"]
-
+def test_restored_execution_and_explicit_recovery_remain_readable(tmp_path: Path):
+    result = run('''
+      const generated="work:83bf154f-e05b-4919-b26d-51f150c5a58c";
+      const base={dependsOn:[],resources:[],createdAt:1,updatedAt:1,status:"pending",recoveryRequired:true};
+      task.loadTasks({[generated]:{...base,id:generated,subject:"Earlier review",result:"Interrupted"},
+        explicit:{...base,id:"explicit",subject:"User task"}});
+      console.log(JSON.stringify({kind:task.getTask(generated).recordKind,
+        evidence:task.getTask(generated).result,status:task.getTask("explicit").status}));
+    ''',tmp_path)
+    assert result == {"kind":"execution","evidence":"Interrupted","status":"blocked"}
 
 def test_invalid_present_classification_is_repaired_not_inferred(tmp_path: Path) -> None:
     result = run(

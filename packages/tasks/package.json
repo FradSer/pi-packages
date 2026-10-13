@@ -1,7 +1,7 @@
 {
   "name": "@fradser/pi-tasks",
   "version": "0.1.0",
-  "description": "Durable tasks for Pi: dependency-aware task tools, completion evidence, successor context, and bounded unfinished-task reminders before settlement.",
+  "description": "Passive task records for Pi: dependency-aware task tools, completion evidence, successor context, and durable persistence.",
   "keywords": [
     "pi-tasks",
     "pi-packages",

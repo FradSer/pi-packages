@@ -77,17 +77,17 @@ with tempfile.TemporaryDirectory(prefix="tasks-native-") as directory:
         wait(lambda: any(item["type"] == "ready" for item in events()) and frames.count > 0)
         os.write(master, b"Exercise waiting recovery.\r")
         wait(lambda: any(item["type"] == "settled" for item in events()))
-        wait(lambda: "[tasks] waiting" in screen() and "to expand" in screen())
-        assert "Current blocker:" not in screen()
-        assert "Candidate checked:" not in screen()
-        assert "Prior findings:" not in screen()
-        assert "ctrl+o" in screen().lower(), "the native action must name its configured key"
+        wait(lambda: "TASK_STOP_TEST_DONE" in screen() and "[tasks] get" in screen())
+        settled = next(item for item in events() if item["type"] == "settled")
+        assert settled["reminders"] == []
+        assert settled["requests"] == 8
+        assert len(settled["taskReads"]) == 1
+        assert len(settled["taskLists"]) == 1
+        assert settled["taskReads"][0]["task"]["blockedReason"] == "Current access blocker"
+        assert "[tasks] waiting" not in screen() and "[tasks] continue" not in screen()
         capture("collapsed-120x40")
         os.write(master, b"\x0f")
-        wait(lambda: all(marker in screen() for marker in (
-            "Current blocker:", "Candidate checked: NATIVE_CANDIDATE_MARKER",
-            "Prior findings: NATIVE_FINDING_MARKER",
-        )))
+        wait(lambda: "NATIVE_CANDIDATE_MARKER" in screen())
         capture("expanded-120x40")
         for width, height in [(48, 24), (48, 12), (120, 40)]:
             before = frames.count
@@ -98,21 +98,15 @@ with tempfile.TemporaryDirectory(prefix="tasks-native-") as directory:
             wait(lambda: frames.count > before)
             capture(f"expanded-{width}x{height}")
             os.write(master, b"\x0f")
-            wait(lambda: "[tasks] waiting" in screen() and "to expand" in screen())
-            assert "Current blocker:" not in screen()
-            assert "Candidate checked:" not in screen()
-            assert "Prior findings:" not in screen()
-            assert "ctrl+o" in screen().lower(), "resize must retain a readable expansion action"
+            wait(lambda: "Tool output: collapsed" in screen() and "(blocked)" in screen() and "to expand" in screen())
+            assert "NATIVE_CANDIDATE_MARKER" not in screen()
             capture(f"collapsed-{width}x{height}")
             os.write(master, b"\x0f")
-            wait(lambda: "Tool output: expanded" in screen() and "Previous recovery:" in screen())
-        assert "Candidate checked: NATIVE_CANDIDATE_MARKER" in screen()
-        assert "Prior findings: NATIVE_FINDING_MARKER" in screen()
-        capture("expanded-restored-120x40")
-        assert "Current blocker:" in screen()
-        assert "Original plan:" in screen()
-        assert "Latest verification:" in screen()
+            wait(lambda: "Tool output: expanded" in screen())
+        wait(lambda: "NATIVE_CANDIDATE_MARKER" in screen())
+        assert "NATIVE_FINDING_MARKER" in screen()
         assert "Task status check before settlement." not in screen()
+        capture("expanded-restored-120x40")
         (out / "events.jsonl").write_text(trace.read_text())
     finally:
         (out / "terminal.ansi").write_bytes(raw)

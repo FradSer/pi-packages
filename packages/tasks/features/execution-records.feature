@@ -4,7 +4,7 @@ Feature: Execution records do not become task reminders
     Given an internal execution record and an explicit user task
     When execution fails and the model settles
     Then the failed execution evidence remains readable
-    And only the user task participates in continuation
+    And neither record triggers another model turn
 
   Scenario: Earlier generated execution records are restored
     Given a saved generated work record from an earlier runtime
@@ -19,8 +19,8 @@ Feature: Execution records do not become task reminders
     And evidence stays readable
     And generated-id inference does not hide the invalid record
 
-  Scenario: An explicit task retains continuation
+  Scenario: An explicit task remains available for inspection
     Given an ordinary task under a blocked state
-    When the model settles
-    Then the task receives blocker inspection
+    When the model calls get_task
+    Then the saved blocker remains readable
     And its hold is not cleared automatically

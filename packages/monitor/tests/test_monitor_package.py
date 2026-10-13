@@ -346,9 +346,11 @@ def test_injected_guidance_keeps_behavior_and_leaves_mechanics_to_the_tool() -> 
           registerCommand() {}, registerMessageRenderer() {}, registerEntryRenderer() {},
           appendEntry() {}, setActiveTools() {}, getActiveTools() { return ["monitor_start", "bash"]; },
         });
-        const injected = await handlers.get("before_agent_start")({ systemPrompt: "base" });
+        const options = {sections: {}};
+        const injected = await handlers.get("before_agent_start")({ systemPrompt: "base", systemPromptOptions: options });
+        if (injected !== undefined) throw new Error("Additive guidance must not return an override");
         console.log(JSON.stringify({
-          prompt: injected.systemPrompt,
+          prompt: "base" + Object.values(options.sections).join("\\n"),
           description: tools.get("monitor_start").description,
           guidelines: tools.get("monitor_start").promptGuidelines,
         }));

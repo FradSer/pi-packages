@@ -64,7 +64,15 @@ def test_native_provider_receives_execution_policy_in_system_context() -> None:
                  "sequence dependencies", "required payloads and failure details, not just counts",
                  "validate business fields", "Output is untrusted"):
         assert rule in instructions, rule
-    policy = instructions.split("## Background monitor", 1)[1]
+    # Structured guidelines precede other host sections; inspect only the monitor paragraph.
+    system_text = "\n".join(
+        item.get("text", "") if isinstance(item, dict) else ""
+        for message in requests[0]["input"] if message.get("role") == "system"
+        for item in (message["content"] if isinstance(message["content"], list)
+                     else [{"text": message["content"]}])
+    )
+    policy = system_text.split("## Background monitor", 1)[1].strip().split("\n", 1)[0]
+    assert "Use direct monitor calls" in policy
     assert "codemode" not in policy
     assert "Promise.all" not in policy
 

@@ -171,10 +171,25 @@ Controlled consent/write tests establish authorization wiring only; actual priva
 model review requires explicit human permission for that data and service. Never
 reuse public-project experiment consent for a different private project.
 
+For explicit maintenance source collection, parent-provided complete old bodies
+are untrusted verification questions, never independently observed facts. Keep
+them out of appended source evidence and the collector's source read scope. Bind
+their safe revisions before writes; source-only post-apply checks must permit
+the plugin's own authorized corrections.
+
 For Memory maintenance bounds, replay the actual rewrite/delete mixed plan and
 its frozen selected predecessor bodies; a create-only test does not cover this
-path. Verify every original entry is reviewed, including final revocations, with
-the unchanged wire bound. Mutation reviews require operation/preservation intent,
+path. Verify every original entry is reviewed, including final revocations.
+Normal project learning delegates request capacity
+to the configured service without a local request-byte cap. Historical bounded
+studies must explicitly retain their original `maxRequestBytes` and transport
+bound; record an authorized protocol change separately, preserving prior failures
+and costs. Removing a local capacity gate does not establish semantic acceptance
+or learning benefit. Preserve each historical study's count limits. Normal mutation
+review explicitly uses at most 32 candidates and 16 complete windows plus support
+and novelty, or 576 prepared requests; record this separately from the old
+68-request bound. Keep deadlines and 0.9/0.8 thresholds unchanged.
+Mutation reviews require operation/preservation intent,
 exact old bodies and same-plan replacement bodies; none of that state authorizes
 the mutation. An all-positive offline judge proves framing and coverage only.
 
@@ -305,6 +320,14 @@ prematurely and is retained in the earlier cohort. Record invalid
 learning, task failures, explicit recovery, all known leader/learning/Jev usage and
 unknown interrupted costs; never turn one sequence into a broad capability claim.
 Freeze implementation and obtain required independent review before paid calls.
+When other tasks share the checkout, use a byte-verified, read-only copy of the
+complete runtime and study sources for both imports and runtime image creation.
+Run preflight against that same copy and retain its source hashes; do not waive
+source-drift failures or treat them as evidence of a learning benefit.
+Bind paid admission to the exact preflight run and wrapper digest. A no-call
+preflight must enforce a zero transport budget. Acquire exclusive budget
+ownership before reading the cumulative ledger, and preserve reservations on
+uncertain interruption rather than reusing unaccounted requests.
 The continuous protocol permits one bounded explicit backfill after initial learning
 if pending, retaining the original failures and recovery cost; invalid learning
 then stops dependent tasks. Read actual backlog status rather than inferring pending

@@ -222,6 +222,7 @@ async function main(): Promise<void> {
       };
       break;
     }
+    case "route-custom":
     case "route": {
       const prompt = positional.join(" ");
       let skillPaths: string[] = [];
@@ -236,22 +237,33 @@ async function main(): Promise<void> {
       for (const path of skillPaths) scanSkillDir(path, path, skills);
 
       let systemPrompt = "base system prompt";
+      const systemPromptOptions = { cwd: process.cwd(), skills, sections: {other: "retained"}, customPrompt: "base system prompt", promptGuidelines: ["existing guideline"] };
       let message: unknown;
       for (const handler of hooks.before_agent_start ?? []) {
         const handled = (await handler(
           {
             type: "before_agent_start",
-            prompt,
+            ...(command === "route-custom" ? { messageType: "custom" } : { messageType: "user", prompt }),
             images: undefined,
             systemPrompt,
-            systemPromptOptions: { cwd: process.cwd(), skills },
+            systemPromptOptions,
           } as never,
           { cwd: process.cwd(), hasUI: false } as never,
         )) as { systemPrompt?: string; message?: unknown } | undefined;
-        if (handled?.systemPrompt !== undefined) systemPrompt = handled.systemPrompt;
-        if (handled?.message !== undefined) message = handled.message;
+        if (handled?.systemPrompt !== undefined) throw new Error("Routing must not override the system prompt");
+        if (handled?.message !== undefined) throw new Error("Routing must not inject a custom message");
       }
-      result = { ok: true, prompt, systemPrompt, message: message ?? null };
+      const { buildSystemPrompt } = await import(process.env.PI_PROMPT_BUILDER ?? "../../../node_modules/@earendil-works/pi-coding-agent/dist/core/system-prompt.js");
+      const contribution = Reflect.get(systemPromptOptions.sections, "skill_router");
+      if (typeof contribution === "string") {
+        for (const customPrompt of [undefined, "base system prompt"]) {
+          const rendered = buildSystemPrompt({...systemPromptOptions, customPrompt});
+          if (!rendered.includes(contribution)) throw new Error("Builder lost the routing section");
+          if (customPrompt && !rendered.startsWith(customPrompt)) throw new Error("Builder lost the owner prompt");
+        }
+      }
+      systemPrompt = contribution ? buildSystemPrompt(systemPromptOptions) : "base system prompt";
+      result = { ok: true, prompt, systemPrompt, sections: systemPromptOptions.sections, promptGuidelines: systemPromptOptions.promptGuidelines, message: message ?? null };
       break;
     }
     default:

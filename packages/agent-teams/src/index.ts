@@ -110,7 +110,11 @@ export default function (pi: ExtensionAPI) {
     });
     pi.on("before_agent_start", async (event) => {
       workerToolDisclosure.update(event.prompt);
-      return { systemPrompt: event.systemPrompt + WORKER_GUIDANCE };
+      const options = event.systemPromptOptions;
+      if (!("sections" in options) || !options.sections || typeof options.sections !== "object") {
+        throw new Error("Agent Teams requires Pi structured prompt sections.");
+      }
+      Object.assign(options.sections, { agent_teams_worker: WORKER_GUIDANCE.trim() });
     });
     pi.on("session_shutdown", async () => {
       workerToolDisclosure.reset();
@@ -311,11 +315,13 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", async (event, ctx) => {
     leaderCtx = ctx;
     const teamIsActive = hasActiveTeamState();
-    return {
-      systemPrompt: event.systemPrompt + (teamIsActive
-        ? buildTeamLeaderGuidance(ctx?.cwd ?? process.cwd())
-        : buildIdleLeaderGuidance(ctx?.cwd ?? process.cwd())),
-    };
+    const options = event.systemPromptOptions;
+    if (!("sections" in options) || !options.sections || typeof options.sections !== "object") {
+      throw new Error("Agent Teams requires Pi structured prompt sections.");
+    }
+    Object.assign(options.sections, { agent_teams_leader: (teamIsActive
+      ? buildTeamLeaderGuidance(ctx?.cwd ?? process.cwd())
+      : buildIdleLeaderGuidance(ctx?.cwd ?? process.cwd())).trim() });
   });
 
   pi.on("session_shutdown", async (_event, ctx) => {

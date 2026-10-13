@@ -117,13 +117,18 @@ def test_registered_extension_injects_contract_in_idle_and_active_contexts(tmp_p
       }});
       const ctx = {{ cwd: {str(tmp_path)!r} }};
       resetState();
-      const idle = await events.get("before_agent_start")({{ systemPrompt: "base" }}, ctx);
+      const options = {{ sections: {{ peer: "Peer section" }}, promptGuidelines: ["Peer guideline"] }};
+      const idle = await events.get("before_agent_start")({{ messageType: "custom", systemPrompt: "base", systemPromptOptions: options }}, ctx);
+      const idleText = options.sections.agent_teams_leader;
+      options.promptGuidelines = ["Peer guideline"];
       createTask({{ subject: "candidate review" }});
-      const active = await events.get("before_agent_start")({{ systemPrompt: "base" }}, ctx);
-      console.log(JSON.stringify({{ idle: idle.systemPrompt, active: active.systemPrompt }}));
+      const active = await events.get("before_agent_start")({{ messageType: "custom", systemPrompt: "base", systemPromptOptions: options }}, ctx);
+      if (idle !== undefined || active !== undefined) throw new Error("No prompt override or custom injection message is permitted");
+      if (options.sections.peer !== "Peer section" || options.promptGuidelines[0] !== "Peer guideline") throw new Error("Peer contributions changed");
+      console.log(JSON.stringify({{ idle: idleText, active: options.sections.agent_teams_leader }}));
     ''', env_overrides={"HOME": str(tmp_path), "PI_CODING_AGENT_DIR": str(tmp_path / "agent")})
     for text in payload.values():
-        assert text.startswith("base")
+        assert not text.startswith("base")
         assert text.count("### Delivery contract") == 1
         assert "yield without declaring completion" in text
 

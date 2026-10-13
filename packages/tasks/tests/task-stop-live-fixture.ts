@@ -35,7 +35,7 @@ export default function fixture(pi: ExtensionAPI): void {
           .includes("Task status check before settlement."));
       let content: AssistantMessage["content"];
       if (mode === "waiting") {
-        const calls = [
+        const calls: Array<{ name: string; arguments: Record<string, unknown> }> = [
           { name: "create_task", arguments: { subject: "Recovery task", description: "Check the original implementation plan." } },
           { name: "update_task", arguments: { id: "recovery-task", status: "in_progress" } },
           { name: "update_task", arguments: { id: "recovery-task", status: "blocked", reason: "Previous access blocker" } },
@@ -48,6 +48,11 @@ export default function fixture(pi: ExtensionAPI): void {
             } },
           } },
         ];
+        // Explicit final inspection; Tasks itself never requests these calls.
+        calls.push(
+          { name: "list_tasks", arguments: { statusFilter: ["pending", "in_progress", "blocked"] } },
+          { name: "get_task", arguments: { id: "recovery-task" } },
+        );
         const call = calls[requests - 1];
         content = call ? [{ type: "toolCall", id: `waiting-${requests}`, name: call.name, arguments: call.arguments }]
           : [{ type: "text", text: "TASK_STOP_TEST_DONE" }];

@@ -26,6 +26,14 @@ Feature: Cross-session awareness and directory recap
     And the injected recap text is stripped of terminal escape sequences
     And it is framed as untrusted peer-session text that never supplies instructions
     And each peer goal, recap, and file entry is bounded in length
+    And the recap contributes structured prompt guidelines without replacing the complete prompt
+
+  Scenario: Custom startup preserves the latest user goal
+    Given a registered session with a latest user goal and active peers
+    When before_agent_start receives a custom startup with no prompt
+    Then session registration and peer discovery continue without an error
+    And the latest user goal remains unchanged
+    And the peer recap contributes guidelines without a custom message
 
   Scenario: Dead session PIDs are automatically cleaned up
     Given a registered session with a PID that is no longer running

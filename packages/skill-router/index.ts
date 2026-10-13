@@ -11,13 +11,19 @@ export default function skillRouter(pi: ExtensionAPI): void {
   }));
 
   pi.on("before_agent_start", (event: BeforeAgentStartEvent) => {
-    if (isExplicitSkillInvocation(event.prompt)) return;
+    const options = event.systemPromptOptions;
+    if (!("sections" in options) || !options.sections || typeof options.sections !== "object" || Array.isArray(options.sections)) {
+      throw new Error("This extension requires Pi structured prompt sections.");
+    }
+    const sections = options.sections;
+    Reflect.deleteProperty(sections, "skill_router");
+    if (typeof event.prompt !== "string" || isExplicitSkillInvocation(event.prompt)) return;
 
     const skills = event.systemPromptOptions.skills ?? [];
     const match = routePrompt(event.prompt, loadCollections(routerRoot()), new Map(skills.map((skill) => [skill.name, skill])));
     if (!match) return;
 
-    return { systemPrompt: `${event.systemPrompt}\n\n${routingGuidance(match)}` };
+    Object.assign(sections, { skill_router: routingGuidance(match) });
   });
 
   pi.registerCommand("skill-router", {

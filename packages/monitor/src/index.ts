@@ -325,6 +325,12 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
+    const options = event.systemPromptOptions;
+    if (!("sections" in options) || !options.sections || typeof options.sections !== "object" || Array.isArray(options.sections)) {
+      throw new Error("This extension requires Pi structured prompt sections.");
+    }
+    const sections = options.sections;
+    Reflect.deleteProperty(sections, "monitor_policy");
     const activeTools = pi.getActiveTools();
     if (!activeTools.includes("monitor_start") && manager.listAll().length === 0) {
       // Restored results still need output-safety guidance; compaction may hide their origin.
@@ -336,9 +342,9 @@ export default function (pi: ExtensionAPI) {
           (entry.message.role === "toolResult" && entry.message.toolName === "monitor_start")
         )),
       );
-      if (!hasHistory) return { systemPrompt: event.systemPrompt };
+      if (!hasHistory) return;
     }
-    return { systemPrompt: event.systemPrompt + monitorGuidance(activeTools) };
+    Object.assign(sections, { monitor_policy: monitorGuidance(activeTools) });
   });
 
   pi.registerTool({

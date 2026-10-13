@@ -579,11 +579,13 @@ def test_child_extension_needs_no_memory_opt_in_and_refreshes_each_input(tmp_pat
         EXTENSION_PROBE
         + '''
         const before = handlers.get("before_agent_start");
-        const initial = before ? await before({ systemPrompt: "BASE" }) : undefined;
+        const initialOptions = { sections: {}, promptGuidelines: [] };
+        await before({ systemPrompt: "BASE", systemPromptOptions: initialOptions });
         const tool = registered.find(tool => tool.name === "agent_memory");
         const append = tool ? await tool.execute("call", { action: "append", name: "fresh", description: "Use after learning.", body: "A fresh capability." }) : undefined;
-        const next = before ? await before({ systemPrompt: "BASE" }) : undefined;
-        console.log(JSON.stringify({ names: registered.map(tool => tool.name), initial: initial?.systemPrompt ?? "", next: next?.systemPrompt ?? "", append }));
+        const nextOptions = { sections: {}, promptGuidelines: [] };
+        await before({ systemPrompt: "BASE", systemPromptOptions: nextOptions });
+        console.log(JSON.stringify({ names: registered.map(tool => tool.name), initial: initialOptions.sections.agent_memory ?? "", next: nextOptions.sections.agent_memory ?? "", append }));
         ''',
         tmp_path,
         PI_SUBAGENT_ROLE="reviewer",
@@ -606,8 +608,9 @@ def test_child_heading_and_complete_memory_contribution_fit_eight_kib(tmp_path: 
         EXTENSION_PROBE
         + '''
         const before = handlers.get("before_agent_start");
-        const injected = before ? await before({ systemPrompt: "BASE" }) : undefined;
-        const contribution = injected?.systemPrompt.slice("BASE".length) ?? "";
+        const options = { sections: {}, promptGuidelines: [] };
+        await before({ systemPrompt: "BASE", systemPromptOptions: options });
+        const contribution = options.sections.agent_memory ?? "";
         console.log(JSON.stringify({ contribution, bytes: Buffer.byteLength(contribution) }));
         ''',
         tmp_path,
@@ -628,12 +631,14 @@ def test_empty_durable_child_registers_refresh_handler_and_memory_tool(tmp_path:
         EXTENSION_PROBE
         + '''
         const before = handlers.get("before_agent_start");
-        const initial = before ? await before({ systemPrompt: "BASE" }) : undefined;
+        const options = { sections: { agent_memory: "stale section" }, promptGuidelines: [] };
+        const initial = before ? await before({ systemPrompt: "BASE", systemPromptOptions: options }) : undefined;
+        if ("agent_memory" in options.sections) throw new Error("Empty memory must remove its section");
         const root = sa.agentMemoryRoot("reviewer");
         const createdByLoad = fs.existsSync(root);
         sa.appendMemoryEntry(root, { name: "new-entry", description: "New cue.", body: "New method." }, { writable: true });
-        const next = before ? await before({ systemPrompt: "BASE" }) : undefined;
-        console.log(JSON.stringify({ handlers: [...handlers.keys()], tools: registered.map(tool => tool.name), initial: initial ?? null, createdByLoad, next: next?.systemPrompt ?? "" }));
+        await before({ systemPrompt: "BASE", systemPromptOptions: options });
+        console.log(JSON.stringify({ handlers: [...handlers.keys()], tools: registered.map(tool => tool.name), initial: initial ?? null, createdByLoad, next: options.sections.agent_memory ?? "" }));
         ''',
         tmp_path,
         PI_SUBAGENT_ROLE="reviewer",

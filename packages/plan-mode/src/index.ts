@@ -723,12 +723,21 @@ export default function planMode(extensionApi: ExtensionAPI): void {
 
   // Inject planning prompt
   pi.on("before_agent_start", async (event, _ctx) => {
-    if (!planModeActive) return;
-    if (awaitingPlanRequest) {
-      activePlanRequest ??= event.prompt;
-      awaitingPlanRequest = false;
+    const options = event.systemPromptOptions;
+    if (!("sections" in options) || !options.sections || typeof options.sections !== "object" || Array.isArray(options.sections)) {
+      throw new Error("This extension requires Pi structured prompt sections.");
     }
-    const planPath = ensurePlanPath(event.prompt);
-    return { systemPrompt: `${event.systemPrompt}\n\n${buildPlanPrompt(planPath)}` };
+    const sections = options.sections;
+    Reflect.deleteProperty(sections, "plan_mode");
+    if (!planModeActive) return;
+    if (typeof event.prompt === "string") {
+      if (awaitingPlanRequest) {
+        activePlanRequest ??= event.prompt;
+        awaitingPlanRequest = false;
+      }
+      ensurePlanPath(event.prompt);
+    }
+    // Custom runs keep an existing plan, but do not select the first user topic.
+    if (activePlanPath) Object.assign(sections, { plan_mode: buildPlanPrompt(activePlanPath) });
   });
 }

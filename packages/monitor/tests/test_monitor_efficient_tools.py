@@ -1,4 +1,17 @@
-from test_monitor_package import run_harness
+from test_monitor_package import run_harness as run_extension_harness
+
+
+def run_harness(script: str) -> None:
+    # These content checks render structured guidance; composition checks test the hook directly.
+    script = script.replace('await fire("before_agent_start",', 'await renderedGuidance(')
+    run_extension_harness(r'''
+      const renderedGuidance = async (event, context) => {
+        event.systemPromptOptions = {sections: {}};
+        const reply = await fire("before_agent_start", event, context);
+        assert.equal(reply, undefined);
+        return {systemPrompt: event.systemPrompt + Object.values(event.systemPromptOptions.sections).join("\\n")};
+      };
+    ''' + script)
 
 
 def test_completion_schema_and_registered_tool_follow_finite_contract() -> None:

@@ -12,7 +12,7 @@ from task_helpers import PACKAGE, REPO
 
 
 @pytest.mark.parametrize("mode", ["recover", "ignore", "progress", "restore", "inspect-only", "content"])
-def test_native_pi_delivers_task_state_and_bounds_continuation(tmp_path: Path, mode: str) -> None:
+def test_native_pi_preserves_tools_and_never_continues_after_a_final_answer(tmp_path: Path, mode: str) -> None:
     agent_dir = tmp_path / "agent"
     agent_dir.mkdir()
     (agent_dir / "settings.json").write_text(json.dumps({
@@ -117,29 +117,11 @@ def test_native_pi_delivers_task_state_and_bounds_continuation(tmp_path: Path, m
             assert tasks["restored-task"]["result"] == "The interrupted attempt created a partial output"
             assert (tmp_path / "first.txt").read_text() == "Interrupted task output\n"
         return
+    # Confirmed passive contract: the provider final answer ends the run, even with open tasks.
     assert len(tasks) == 2
-    assert requests[3]["reminders"] == 0
-    assert requests[4]["reminders"] == 1, "The reminder must reach the next real provider request"
-    if mode == "recover":
-        assert len(requests) == 12
-        assert len(settled["reminders"]) == 1
-        assert [tasks[id]["status"] for id in ["first-task", "second-task"]] == ["completed", "completed"]
-        assert "blocked_by=first-task" in settled["reminders"][0]["content"]
-        assert (tmp_path / "first.txt").read_text() == "First task implementation\n"
-        assert (tmp_path / "second.txt").read_text() == "Dependent task implementation\n"
-    else:
-        assert [task["status"] for task in tasks.values()] == ["in_progress", "pending"]
-        assert not (tmp_path / "first.txt").exists()
-        assert not (tmp_path / "second.txt").exists()
-        if mode == "ignore":
-            assert len(requests) == 5, "An unchanged task snapshot receives only one continuation"
-            # Only the continuation row reaches a headless transcript. The
-            # waiting row is a transcript row for a session that has one; its
-            # content contract lives in tests/test_task_stop_check.py.
-            assert [item["details"]["status"] for item in settled["reminders"]] == ["continue"]
-        else:
-            assert len(requests) == 6, "Metadata edits do not buy another automatic turn"
-            # Three continuation rows. The paused notice needs a transcript, so
-            # headless settlement returns no result and the run prints instead.
-            # The paused-row contract lives in tests/test_task_stop_check.py.
-            assert [item["details"]["status"] for item in settled["reminders"]] == ["continue"]
+    assert len(requests) == 4
+    assert settled["reminders"] == []
+    assert all(request["reminders"] == 0 for request in requests)
+    assert [task["status"] for task in tasks.values()] == ["in_progress", "pending"]
+    assert not (tmp_path / "first.txt").exists()
+    assert not (tmp_path / "second.txt").exists()

@@ -316,7 +316,9 @@ export default function visionExtension(pi: ExtensionAPI): void {
   }
 
   pi.on("before_agent_start", (event) => {
-    activePromptKey = analysisKey(event.prompt, event.images ?? []);
+    activePromptKey = typeof event.prompt === "string"
+      ? analysisKey(event.prompt, event.images ?? [])
+      : undefined;
     activeAnalysis = undefined;
   });
 
