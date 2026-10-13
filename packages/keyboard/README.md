@@ -32,7 +32,10 @@ Supports discrete control for keyboard lighting channels:
 ## Shared Directory Session Registry
 
 Per-session glow records use pi-kit’s canonical directory identity, hashed into
-the registry directory name. Existing paths are resolved through `realpath`,
+the registry directory name. The registry location also comes from pi-kit, so
+`PI_DIRECTORY_SESSIONS_DIR`, `PI_CODING_AGENT_DIR`, and `PI_AGENT_DIR` point every
+writer in this process at one directory instead of splitting the registry. Existing
+paths are resolved through `realpath`,
 while missing paths use their absolute path; this keeps slash-versus-hyphen
 project names separate. Reads, cleanup, and clean shutdown verify the stored
 `cwd` belongs to the requested directory. Older registry directory names are

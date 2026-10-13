@@ -168,3 +168,9 @@ Feature: Pi Keyboard Lighting Indicator
   Scenario: Keyboard state notifications use Pi's native notification surface
     Given the keyboard extension reports an interactive command outcome
     Then it uses ctx.ui.notify without a custom notification renderer
+
+  Scenario: The glow registry follows the shared agent directory
+    Given PI_CODING_AGENT_DIR or PI_AGENT_DIR points outside the default home registry
+    When a session writes its glow record
+    Then it writes to that directory
+    And it resolves the same directory as every other registry writer

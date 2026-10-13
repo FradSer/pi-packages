@@ -1,7 +1,6 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { getDirectorySessionKey, isSameDirectory } from "@fradser/pi-kit";
+import { directorySessionsDir, getDirectorySessionKey, isSameDirectory } from "@fradser/pi-kit";
 import type { KeyboardState } from "./types";
 
 export interface SessionGlowRecord {
@@ -14,11 +13,10 @@ export interface SessionGlowRecord {
 }
 
 export function getRegistryDir(): string {
-  // Test seam: allow pointing at an isolated registry so tests never touch the
-  // real ~/.pi/agent/directory-sessions directory.
-  const override = process.env.PI_DIRECTORY_SESSIONS_DIR;
-  if (override) return override;
-  return path.join(os.homedir(), ".pi", "agent", "directory-sessions");
+  // pi-kit owns the shared location: its PI_DIRECTORY_SESSIONS_DIR override is the
+  // test seam, and the agent-directory overrides must agree with every other
+  // registry writer, or a sandboxed session splits the registry in two.
+  return directorySessionsDir();
 }
 
 /** Shared directory-session key used by every registry writer and reader. */

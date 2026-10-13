@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 import textwrap
 from pathlib import Path
 
@@ -15,6 +16,7 @@ STATE_MACHINE_URI = (SRC / "state-machine.ts").as_uri()
 GLOBAL_SESSIONS_URI = (SRC / "global-sessions.ts").as_uri()
 DRIVER_URI = (SRC / "driver.ts").as_uri()
 INDEX_URI = (SRC / "index.ts").as_uri()
+UTILS_SESSIONS_URI = (REPO / "packages" / "utils" / "extensions" / "sessions.ts").as_uri()
 
 
 def run_typescript(script: str) -> dict[str, object]:
@@ -341,6 +343,65 @@ def test_glow_registry_does_not_remove_foreign_cwd_records() -> None:
         assert parsed["removed"] == 0
         assert parsed["remains"] is True
         assert parsed["activeSessionCount"] == 0
+
+
+def test_registry_directory_matches_every_other_writer() -> None:
+    # utils and keyboard share one registry directory. When an agent directory is
+    # configured, a writer that hardcodes the home path splits it in two: the
+    # sandboxed session writes elsewhere and the peers never see each other.
+    script = f"""
+    import fs from "node:fs";
+    import path from "node:path";
+    import {{ getRegistryDir }} from "{GLOBAL_SESSIONS_URI}";
+    import {{ directorySessionsDir, getDirectorySessionKey, isSameDirectory }} from "@fradser/pi-kit";
+    import {{ getRegistryDir as utilsDir }} from "{UTILS_SESSIONS_URI}";
+    console.log(JSON.stringify({{
+      agentDir: getRegistryDir(),
+      kitDir: directorySessionsDir(),
+      utilsDir: utilsDir(),
+      explicit: process.env.PI_DIRECTORY_SESSIONS_DIR ?? null,
+      realHome: path.join(process.env.HOME ?? "", ".pi", "agent", "directory-sessions"),
+    }}));
+    """
+    with tempfile.TemporaryDirectory() as agent_dir:
+        env = {**os.environ, "PI_DIRECTORY_SESSIONS_DIR": "", "PI_CODING_AGENT_DIR": agent_dir}
+        env.pop("PI_DIRECTORY_SESSIONS_DIR", None)
+        env.pop("PI_AGENT_DIR", None)
+        result = subprocess.run(
+            ["node", "--import", "tsx", "--input-type=module"],
+            cwd=REPO,
+            input=textwrap.dedent(script),
+            text=True,
+            capture_output=True,
+            timeout=15,
+            env=env,
+        )
+        assert result.returncode == 0, f"registry check failed:\n{result.stderr}\n{result.stdout}"
+        parsed = json.loads(result.stdout.strip().splitlines()[-1])
+    assert parsed["agentDir"] == str(Path(agent_dir) / "directory-sessions")
+    assert parsed["agentDir"] == parsed["kitDir"] == parsed["utilsDir"]
+    assert parsed["agentDir"] != parsed["realHome"]
+
+
+def test_registry_directory_override_still_wins() -> None:
+    script = f"""
+    import {{ getRegistryDir }} from "{GLOBAL_SESSIONS_URI}";
+    console.log(JSON.stringify({{ dir: getRegistryDir() }}));
+    """
+    with tempfile.TemporaryDirectory() as isolated:
+        env = {**os.environ, "PI_DIRECTORY_SESSIONS_DIR": isolated, "PI_CODING_AGENT_DIR": "/nonexistent-agent-dir"}
+        result = subprocess.run(
+            ["node", "--import", "tsx", "--input-type=module"],
+            cwd=REPO,
+            input=textwrap.dedent(script),
+            text=True,
+            capture_output=True,
+            timeout=15,
+            env=env,
+        )
+        assert result.returncode == 0, f"override check failed:\n{result.stderr}\n{result.stdout}"
+        parsed = json.loads(result.stdout.strip().splitlines()[-1])
+    assert parsed["dir"] == isolated
 
 
 def test_extension_registers_expected_hooks() -> None:
