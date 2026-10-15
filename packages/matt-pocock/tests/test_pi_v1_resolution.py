@@ -35,7 +35,10 @@ def test_package_resolves_pi_v1_without_narrowing_published_peers() -> None:
     )
     assert process.returncode == 0, process.stderr
     result = json.loads(process.stdout)
-    assert set(result.values()) == {"1.0.0"}, result
+    # The root development requirement is the cohort of record; this asserts package-local
+    # resolution matches it rather than pinning the version a fourth time.
+    expected = json.loads((REPO / "package.json").read_text())["devDependencies"]["@earendil-works/pi-coding-agent"].lstrip("^")
+    assert set(result.values()) == {expected}, result
     manifest = json.loads((PACKAGE / "package.json").read_text())
     for name in result:
         assert name not in manifest.get("dependencies", {})

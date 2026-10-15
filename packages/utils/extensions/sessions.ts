@@ -487,7 +487,8 @@ export default function (pi: ExtensionAPI) {
       currentSessionFile = file;
     }
 
-    if (typeof event.prompt === "string") currentGoal = event.prompt.trim().slice(0, 300);
+    const prompt = "prompt" in event ? event.prompt : undefined;
+    if (typeof prompt === "string") currentGoal = prompt.trim().slice(0, 300);
     updateSelf(ctx.cwd, "running");
 
     const otherSessions = syncSessionTool(ctx.cwd);

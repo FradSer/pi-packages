@@ -260,7 +260,7 @@ Each package keeps behavior scenarios in `features/` and tests in `tests/`.
 
 The test suite requires Python 3 with `pytest` and Bun 1.4.1 for subprocess fixtures. The CI workflows install both runtimes before running `pnpm check`.
 
-The `kit` / `subagents` / `tasks` / `agent-teams` development chain selects the root Pi 1.0.0 cohort explicitly. Published Pi core imports remain `"*"` peers supplied by the host, never runtime dependencies. @features/pi-core-cohort.feature and @tests/test_pi_core_cohort.py check both installed resolution and manifests.
+The `kit` / `subagents` / `tasks` / `agent-teams` development chain selects the root Pi 1.2.0 cohort explicitly. Published Pi core imports remain `"*"` peers supplied by the host, never runtime dependencies. @features/pi-core-cohort.feature and @tests/test_pi_core_cohort.py check both installed resolution and manifests.
 
 Use `pnpm --dir packages/<name> pack --dry-run` to inspect one package's contents before publishing.
 

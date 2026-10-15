@@ -464,6 +464,8 @@ def test_native_types_accept_schema_and_discriminated_output_without_any() -> No
             result = subprocess.run(
                 ["pnpm", "exec", "tsc", "--noEmit", "--strict", "--skipLibCheck", "--target", "ES2022",
                  "--module", "ESNext", "--moduleResolution", "bundler", "--allowImportingTsExtensions", str(fixture)],
-                cwd=REPO, env=isolated_env(home), capture_output=True, text=True, timeout=60,
+                # The repository type surface under the current Pi cohort needs more than a
+                # minute on a loaded machine; the check is the verdict, not the stopwatch.
+                cwd=REPO, env=isolated_env(home), capture_output=True, text=True, timeout=180,
             )
     assert result.returncode == 0, result.stdout + result.stderr

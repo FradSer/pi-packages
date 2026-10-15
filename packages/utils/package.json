@@ -47,6 +47,6 @@
   },
   "type": "module",
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^1.0.0"
+    "@earendil-works/pi-coding-agent": "^1.2.0"
   }
 }

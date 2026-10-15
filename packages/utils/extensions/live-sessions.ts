@@ -179,8 +179,8 @@ export default function registerLiveSessions(pi: ExtensionAPI): void {
 
 	pi.on("before_agent_start", (event) => {
 		// The delivered text arrives as this turn's prompt, so this is where the
-		// target confirms that it really received it.
-		server?.observe(event.prompt);
+		// target confirms that it really received it. A custom start has no prompt.
+		if ("prompt" in event) server?.observe(event.prompt);
 	});
 
 	pi.on("session_shutdown", async () => {

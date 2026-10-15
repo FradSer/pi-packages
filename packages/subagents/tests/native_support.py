@@ -121,10 +121,13 @@ def native_command(tmp_path: Path, request: pytest.FixtureRequest) -> Iterator[t
     pi = REPO / 'node_modules' / '.bin' / 'pi'
     if not pi.is_file():
         pytest.skip('Repository Pi CLI is required for native subagent verification')
+    # The root development requirement is the cohort of record, so native verification follows
+    # it instead of pinning the version again.
+    expected = json.loads((REPO / 'package.json').read_text(encoding='utf-8'))['devDependencies']['@earendil-works/pi-coding-agent'].lstrip('^')
     for core in ('pi-ai', 'pi-coding-agent', 'pi-tui'):
         manifest = REPO / 'node_modules' / '@earendil-works' / core / 'package.json'
         version = json.loads(manifest.read_text(encoding='utf-8'))['version']
-        assert version == '1.0.0', f'Native verification requires {core}@1.0.0, found {version}'
+        assert version == expected, f'Native verification requires {core}@{expected}, found {version}'
     requests: list[dict[str, Any]] = []
     release = threading.Event()
     result_text = str(getattr(request, "param", "2"))

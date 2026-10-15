@@ -101,7 +101,8 @@ def measure() -> dict[str, int]:
       on: (name, handler) => { hooks[`context:${name}`] = handler; },
     } as never);
     const section = async (key: string) => {
-      const result = await hooks[key]({ systemPrompt: '' }) as { systemPrompt?: string } | undefined;
+      // The hooks read structured prompt sections, so the measured event must carry them.
+      const result = await hooks[key]({ systemPrompt: '', systemPromptOptions: { sections: {} } }) as { systemPrompt?: string } | undefined;
       return (result?.systemPrompt ?? '').length;
     };
 
