@@ -42,7 +42,7 @@ done | grep -o "\"@earendil-works/[a-z-]*\"" | tr -d "\"" | sed "s|^@earendil-wo
   done
   printf "    \"@fradser/pi-kit\": \"file:/receipts/%s\",\n" "$kit_tgz"
   printf "    \"@fradser/pi-goal\": \"file:/receipts/%s\",\n" "$goal_tgz"
-  printf "    \"tsx\": \"^4.19.0\",\n    \"@babel/parser\": \"^7.29.9\"\n  }\n}\n"
+  printf "    \"tsx\": \"^4.19.0\",\n    \"@babel/parser\": \"^7.29.9\",\n    \"typescript\": \"^5.9.0\",\n    \"@types/node\": \"^22.0.0\"\n  }\n}\n"
 } > "$receipt_dir/isolated-package.json"
 
 
@@ -65,8 +65,12 @@ pnpm install
 apt-get update -qq
 apt-get install -y -qq python3 python3-venv >/dev/null
 python3 -m venv /verify/venv
-/verify/venv/bin/pip install -q pyte
-cp -R /goal-tests/. /verify/packages/goal/tests/
+/verify/venv/bin/pip install -q pyte pytest
+mkdir -p /verify/packages/goal
+cp -R /goal-package/tests/. /verify/packages/goal/tests/
+for entry in features package.json tsconfig.json tsconfig.tests.json AGENTS.md README.md TUI.zh-CN.md CONTEXT.md; do
+  cp -R "/goal-package/$entry" /verify/packages/goal/
+done
 mkdir -p /verify/tests/e2e
 cp -R /shared-support /verify/tests/e2e/support
 ln -s /isolated/node_modules/@fradser/pi-goal/src /verify/packages/goal/src
@@ -84,17 +88,19 @@ if grep -E "@fradser/pi-|/packages/(kit|tasks|utils|subagents|monitor|recap|keyb
   echo "another package is loaded in the isolated environment" >&2; exit 1
 fi
 # The fixture registers its own provider; PI_OFFLINE keeps the acceptance from reaching a real
-# model, and the isolated tree has no credentials to reach one with.
+# model, and the isolated tree has no credentials to reach one with. The whole goal acceptance
+# runs here: the package gate first, then every PTY probe the package documents.
+cd /verify
+echo "=== goal package gate: pytest packages/goal/tests ==="
+PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python -m pytest packages/goal/tests/ -q
+echo "=== goal PTY probes: completion (scripted and autoload), request row, revision ==="
 PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_completion.py
 PI_OFFLINE=1 PI_GOAL_AUTOLOAD=1 GOAL_INSTALLED_PATH=/isolated/node_modules/@fradser/pi-goal GOAL_CASES=empty,long GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_completion.py
-cd /verify
-node --import tsx packages/goal/tests/goal_simplified.mts
-node --import tsx packages/goal/tests/goal_store.mts
-node --import tsx packages/goal/tests/goal_scheduling.mts
-node --import tsx packages/goal/tests/goal_session.mts
+PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_request_row.py
+PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_revision.py
 node --input-type=module -e 'import {readFileSync,readdirSync} from "node:fs"; import {createHash} from "node:crypto"; const settings=JSON.parse(readFileSync("/isolated/agent/settings.json")); if(settings.packages.length!==1) throw Error("Expected only the Goal package"); const tarballs=Object.fromEntries(readdirSync("/receipts").filter(n=>/^fradser-pi-.*\.tgz$/.test(n)).map(n=>[n,createHash("sha256").update(readFileSync("/receipts/"+n)).digest("hex")])); console.log(JSON.stringify({piVersion:readFileSync("/receipts/pi-version.txt","utf8").trim(),packages:settings.packages,loadedPackages:readFileSync("/receipts/pi-list.txt","utf8").split("\n").map(l=>l.trim()).filter(Boolean),tarballs}));'
 SETUP
-docker run -d --name "$container_name" -v "$receipt_dir:/receipts" -v "$repo_root/packages/goal/tests:/goal-tests:ro" -v "$repo_root/tests/e2e/support:/shared-support:ro" node:24-bookworm-slim sleep infinity > "$receipt_dir/container-id"
+docker run -d --name "$container_name" -v "$receipt_dir:/receipts" -v "$repo_root/packages/goal:/goal-package:ro" -v "$repo_root/tests/e2e/support:/shared-support:ro" node:24-bookworm-slim sleep infinity > "$receipt_dir/container-id"
 if docker exec "$container_name" sh /receipts/setup.sh > "$receipt_dir/verification.log" 2>&1; then
   printf 'GOAL_DOCKER_OK %s\n' "$receipt_dir"
 else
