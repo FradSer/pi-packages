@@ -17,11 +17,15 @@ export default function (pi: ExtensionAPI): void {
   };
 
   pi.on("session_start", () => log({ kind: "ready" }));
+  // `messageType` and `prompt` are Pi 1.2 fields. An older host reports
+  // neither, so the record carries whatever the running host provides and the
+  // test reads that, instead of failing on a version difference.
   pi.on("before_agent_start", (event) => {
+    const record = event as unknown as { messageType?: unknown; prompt?: unknown };
     log({
       kind: "start",
-      messageType: event.messageType,
-      prompt: event.messageType === "user" ? event.prompt : null,
+      messageType: typeof record.messageType === "string" ? record.messageType : null,
+      prompt: typeof record.prompt === "string" ? record.prompt : null,
     });
   });
 
