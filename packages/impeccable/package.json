@@ -42,8 +42,8 @@
     "htmlparser2": "^12.0.0"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^1.0.0",
-    "@earendil-works/pi-tui": "^1.0.0"
+    "@earendil-works/pi-coding-agent": "^1.2.0",
+    "@earendil-works/pi-tui": "^1.2.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
