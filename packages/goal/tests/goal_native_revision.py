@@ -96,7 +96,7 @@ def main() -> None:
                     return False
                 scheduler = goals[0].get("scheduler") or {}
                 return (goals[0]["objective"] == MERGED and goals[0]["autoContinue"] is True
-                        and (goals[0].get("scheduler") or {}).get("phase") in {"ready", "claimed", "running"})
+                        and scheduler.get("phase") in {"ready", "claimed", "running"})
             until(revised_and_pursuing)
             until(lambda: "Pursuing goal" in screen())
             drain()

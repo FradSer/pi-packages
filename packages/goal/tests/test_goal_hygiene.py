@@ -139,7 +139,7 @@ def _normalize_aliases(source: str) -> str:
     all, and a live export was reported dead.
     """
     # Do the renaming directly rather than inside a replace callback.
-    for names, module in re.findall(
+    for names, _ in re.findall(
         r"import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['\"]([^'\"]+)['\"]", source
     ):
         for entry in names.split(","):
