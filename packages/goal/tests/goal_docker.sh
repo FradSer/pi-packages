@@ -1,5 +1,10 @@
 #!/bin/sh
-# Registry-free Goal/kit tarballs, isolated Pi 1.0.4, scripted native acceptance.
+# Registry-free Goal/kit tarballs, isolated Pi (latest by default), scripted native acceptance.
+#
+# The isolated baseline must be the current Pi. The version is resolved from the registry at
+# run time, and every @earendil-works package in the isolated tree is pinned to it, so a
+# transitive release cannot pull a second copy of the runtime in. Set PI_VERSION=x.y.z only to
+# reproduce an older baseline deliberately.
 set -eu
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)
 receipt_dir=$(mktemp -d "${TMPDIR:-/tmp}/goal-docker-XXXXXXXX")
@@ -7,33 +12,55 @@ container_name="goal-isolated-$$"
 cleanup() { docker rm -f "$container_name" >/dev/null 2>&1 || true; }
 trap cleanup EXIT INT TERM
 cd "$repo_root"
+
+pi_version=${PI_VERSION:-}
+if [ -z "$pi_version" ]; then
+  pi_version=$(pnpm view @earendil-works/pi-coding-agent dist-tags.latest 2>/dev/null | tr -d "[:space:]")
+  if [ -z "$pi_version" ]; then
+    printf "%s\n" "cannot resolve the latest Pi version from the registry; set PI_VERSION to pin one" >&2
+    exit 1
+  fi
+fi
+printf "%s\n" "$pi_version" > "$receipt_dir/pi-version.txt"
+printf "isolated Pi baseline: %s\n" "$pi_version" >&2
+
 pnpm --dir packages/kit pack --pack-destination "$receipt_dir" > "$receipt_dir/kit-pack.log"
 pnpm --dir packages/goal pack --pack-destination "$receipt_dir" > "$receipt_dir/goal-pack.log"
+kit_tgz=$(basename "$(ls "$receipt_dir"/fradser-pi-kit-*.tgz | head -1)")
+goal_tgz=$(basename "$(ls "$receipt_dir"/fradser-pi-goal-*.tgz | head -1)")
+
+# Every @earendil-works package the Pi entry points depend on at this version.
+pi_family=$(for pkg in pi-coding-agent pi-ai pi-tui; do
+  pnpm view "@earendil-works/$pkg@$pi_version" dependencies --json 2>/dev/null
+done | grep -o "\"@earendil-works/[a-z-]*\"" | tr -d "\"" | sed "s|^@earendil-works/||" | sort -u)
+
+{
+  printf "{\n  \"name\": \"isolated-goal-verification\",\n  \"private\": true,\n  \"type\": \"module\",\n"
+  printf "  \"packageManager\": \"pnpm@11.21.0\",\n  \"dependencies\": {\n"
+  for pkg in pi-coding-agent pi-ai pi-tui; do
+    printf "    \"@earendil-works/%s\": \"%s\",\n" "$pkg" "$pi_version"
+  done
+  printf "    \"@fradser/pi-kit\": \"file:/receipts/%s\",\n" "$kit_tgz"
+  printf "    \"@fradser/pi-goal\": \"file:/receipts/%s\",\n" "$goal_tgz"
+  printf "    \"tsx\": \"^4.19.0\",\n    \"@babel/parser\": \"^7.29.9\"\n  }\n}\n"
+} > "$receipt_dir/isolated-package.json"
+
+
+{
+  printf "packages:\n  - .\noverrides:\n"
+  printf "  \"@fradser/pi-kit\": file:/receipts/%s\n" "$kit_tgz"
+  { for pkg in pi-coding-agent pi-ai pi-tui $pi_family; do printf "  \"@earendil-works/%s\": %s\n" "$pkg" "$pi_version"; done; } | sort -u
+  printf "allowBuilds:\n  esbuild: true\n  \"@google/genai\": true\n  protobufjs: true\n"
+} > "$receipt_dir/isolated-workspace.yaml"
+
 cat > "$receipt_dir/setup.sh" <<'SETUP'
 #!/bin/sh
 set -eu
 corepack enable
 mkdir -p /isolated /verify/packages/goal/tests
 cd /isolated
-cat > package.json <<'JSON'
-{"name":"isolated-goal-verification","private":true,"type":"module","packageManager":"pnpm@11.21.0","dependencies":{"@earendil-works/pi-coding-agent":"1.0.4","@earendil-works/pi-ai":"1.0.4","@earendil-works/pi-tui":"1.0.4","@fradser/pi-kit":"file:/receipts/fradser-pi-kit-0.5.1.tgz","@fradser/pi-goal":"file:/receipts/fradser-pi-goal-0.1.0.tgz","tsx":"^4.19.0","@babel/parser":"^7.29.9"}}
-JSON
-cat > pnpm-workspace.yaml <<'YAML'
-packages:
-  - '.'
-overrides:
-  '@fradser/pi-kit': file:/receipts/fradser-pi-kit-0.5.1.tgz
-  '@earendil-works/chord': 1.0.4
-  '@earendil-works/pi-agent-core': 1.0.4
-  '@earendil-works/pi-ai': 1.0.4
-  '@earendil-works/pi-codemode': 1.0.4
-  '@earendil-works/pi-mcp': 1.0.4
-  '@earendil-works/pi-tui': 1.0.4
-allowBuilds:
-  esbuild: true
-  '@google/genai': true
-  protobufjs: true
-YAML
+cp /receipts/isolated-package.json package.json
+cp /receipts/isolated-workspace.yaml pnpm-workspace.yaml
 pnpm install
 apt-get update -qq
 apt-get install -y -qq python3 python3-venv >/dev/null
@@ -50,14 +77,16 @@ mkdir -p /isolated/agent
 printf '%s\n' '{"packages":["/isolated/node_modules/@fradser/pi-goal"]}' > /isolated/agent/settings.json
 PI_CODING_AGENT_DIR=/isolated/agent pi list
 pi --version
-GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_completion.py
-PI_GOAL_AUTOLOAD=1 GOAL_INSTALLED_PATH=/isolated/node_modules/@fradser/pi-goal GOAL_CASES=empty,long GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_completion.py
+# The fixture registers its own provider; PI_OFFLINE keeps the acceptance from reaching a real
+# model, and the isolated tree has no credentials to reach one with.
+PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_completion.py
+PI_OFFLINE=1 PI_GOAL_AUTOLOAD=1 GOAL_INSTALLED_PATH=/isolated/node_modules/@fradser/pi-goal GOAL_CASES=empty,long GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_completion.py
 cd /verify
 node --import tsx packages/goal/tests/goal_simplified.mts
 node --import tsx packages/goal/tests/goal_store.mts
 node --import tsx packages/goal/tests/goal_scheduling.mts
 node --import tsx packages/goal/tests/goal_session.mts
-node --input-type=module -e 'import {readFileSync} from "node:fs"; import {createHash} from "node:crypto"; const settings=JSON.parse(readFileSync("/isolated/agent/settings.json")); if(settings.packages.length!==1) throw Error("Expected only the Goal package"); console.log(JSON.stringify({packages:settings.packages,goalSha256:createHash("sha256").update(readFileSync("/receipts/fradser-pi-goal-0.1.0.tgz")).digest("hex"),kitSha256:createHash("sha256").update(readFileSync("/receipts/fradser-pi-kit-0.5.1.tgz")).digest("hex")}));'
+node --input-type=module -e 'import {readFileSync,readdirSync} from "node:fs"; import {createHash} from "node:crypto"; const settings=JSON.parse(readFileSync("/isolated/agent/settings.json")); if(settings.packages.length!==1) throw Error("Expected only the Goal package"); const tarballs=Object.fromEntries(readdirSync("/receipts").filter(n=>/^fradser-pi-.*\.tgz$/.test(n)).map(n=>[n,createHash("sha256").update(readFileSync("/receipts/"+n)).digest("hex")])); console.log(JSON.stringify({piVersion:readFileSync("/receipts/pi-version.txt","utf8").trim(),packages:settings.packages,tarballs}));'
 SETUP
 docker run -d --name "$container_name" -v "$receipt_dir:/receipts" -v "$repo_root/packages/goal/tests:/goal-tests:ro" -v "$repo_root/tests/e2e/support:/shared-support:ro" node:24-bookworm-slim sleep infinity > "$receipt_dir/container-id"
 if docker exec "$container_name" sh /receipts/setup.sh > "$receipt_dir/verification.log" 2>&1; then

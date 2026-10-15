@@ -19,7 +19,7 @@
 
 ## Docker 隔离验收
 
-执行 `sh packages/goal/tests/goal_docker.sh`，使用 `node:24-bookworm-slim`、Pi **1.0.4** 和 pnpm **11.21.0**。先打包 Goal 与必需依赖 pi-kit，再从 tarball 安装；不挂载宿主凭据、Pi 设置或其他扩展。
+执行 `sh packages/goal/tests/goal_docker.sh`，使用 `node:24-bookworm-slim`、**最新的 Pi**（默认在运行时从 registry 解析，`PI_VERSION` 可固定基线）和 pnpm **11.21.0**。先打包 Goal 与必需依赖 pi-kit，再从 tarball 安装；不挂载宿主凭据、Pi 设置或其他扩展。
 
 Pi 的 packages 配置仅为 `/isolated/node_modules/@fradser/pi-goal`。pi-kit 是运行依赖，测试 provider 仅用于驱动可重复的模型响应。
 

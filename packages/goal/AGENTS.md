@@ -69,7 +69,11 @@ pnpm --dir packages/goal pack --dry-run
 uv run --no-project --with pyte python packages/goal/tests/goal_native_completion.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py
+sh packages/goal/tests/goal_docker.sh
 ```
+
+The Docker acceptance packs this tree, installs it into an isolated Pi that resolves to the
+latest published version, and mounts no host credentials and no other extension.
 
 Use isolated native CLI/TUI sessions. Decode terminal frames, not occurrences in
 repaint bytes. Separate scripted-provider acceptance from real-model evidence.

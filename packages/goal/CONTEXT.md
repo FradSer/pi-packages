@@ -219,8 +219,13 @@ is 33 tests because `goal_native_rejection.mts` is now driven by one of them.
 ## Docker isolation acceptance
 
 `sh packages/goal/tests/goal_docker.sh` packed this tree and ran it in a container with nothing
-else installed. Result: `GOAL_DOCKER_OK`, receipt directory left at
-`$TMPDIR/goal-docker-9YPKt5aW`, zero `FAIL` lines in the log.
+else installed. It was run once on the old pinned Pi 1.0.4 baseline (`GOAL_DOCKER_OK`, receipt
+directory `$TMPDIR/goal-docker-9YPKt5aW`) and again after the script resolved the latest Pi
+instead: `isolated Pi baseline: 1.2.0`, `GOAL_DOCKER_OK`, receipt directory
+`$TMPDIR/goal-docker-PJbbo50O`, zero `FAIL` lines in the log. The run installs
+`pi-coding-agent`, `pi-ai` and `pi-tui` 1.2.0 plus the derived family override set
+(`pi-agent-core`, `pi-codemode`, `pi-mcp`, `pi-telemetry`, ...), and its receipt now records
+`piVersion`.
 
 - Artifacts: `fradser-pi-goal-0.1.0.tgz` SHA256 `60c15943...`, `fradser-pi-kit-0.5.1.tgz`
   SHA256 `44a281c3...`; the container recomputed the same Goal hash, so the tested artifact is
@@ -228,7 +233,10 @@ else installed. Result: `GOAL_DOCKER_OK`, receipt directory left at
 - Isolation: `node:24-bookworm-slim`, mounts limited to the receipts directory and the two
   read-only test trees, no host credentials or HOME; the isolated agent settings held exactly
   `["/isolated/node_modules/@fradser/pi-goal"]`.
-- Baseline: Pi 1.0.4 and kit 0.5.1, pinned by the script, not the workspace Pi 1.2.0.
+- Baseline: the latest published Pi, resolved from the registry at run time and pinned with
+  every `@earendil-works/*` package it depends on, so a transitive release cannot install a
+  second runtime; `PI_VERSION` pins one deliberately. The packed Goal and kit versions come
+  from the packed files rather than from hardcoded names.
 - Ran: the scripted native acceptance for all 13 cases (`GOAL_NATIVE_SIMPLIFIED_OK`), the same
   acceptance through Pi's own package autoload path for the empty and long cases
   (`GOAL_NATIVE_SIMPLIFIED_OK`), and four harnesses — `goal_simplified` 51 ok,
