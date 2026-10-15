@@ -20,7 +20,7 @@ Root files changed: `scripts/publish-release.mjs` (publish scope, right after pi
 
 ## Last verified
 
-- `python3 -m pytest packages/loop/tests/ -q` -> 10 passed (includes a real PTY run).
+- `python3 -m pytest packages/loop/tests/ -q` -> 15 passed (includes a real PTY run).
 - `pnpm typecheck` -> pass. `pnpm pack:check` -> 19 packed manifests validated.
 - `pnpm --dir packages/loop pack --dry-run` -> pass; no `workspace:` protocol in the tarball.
 - `tests/` release, install-wiring and root-entry tests -> 60 passed.
@@ -47,6 +47,11 @@ Root files changed: `scripts/publish-release.mjs` (publish scope, right after pi
 - Install audit: `node scripts/check-installation.mjs <settings with workspace paths>` ->
   `OK: 18 workspace pi packages installed`.
 
+## Commits on pi/worktree/loop
+
+- `7cb3ed7 feat(loop): add scheduled self-prompting package`
+- `2675ac8 test(loop): verify surface and unify reports`
+
 ## Open items
 
 - `packages/loop` is live-installed in the real `~/.pi/agent/settings.json` as
@@ -63,6 +68,10 @@ Root files changed: `scripts/publish-release.mjs` (publish scope, right after pi
   which reports sessions to Open DeskOS. Extension loading was verified in isolation instead.
 - `test_readable_private_root_preserves_whitespace` is environment-specific; it asserts the
   local home path spelling. It cannot pass on this machine.
+- The command surface is covered by `tests/loop-command-fixture.ts` + `test_loop_command.py`:
+  no injection before the interval, one lifecycle row with `triggerTurn: false`, the status
+  report, the stop path clearing the row, every refusal with its level, and the headless
+  notice. The idle condition has one wording in both the status and the stop path.
 - Not measured: physical-terminal and theme rendering, screen-reader output, and real-model
   Jev accuracy or service cost.
 - Nothing is committed, pushed or published.
