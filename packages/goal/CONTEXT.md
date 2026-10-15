@@ -216,6 +216,25 @@ is 33 tests because `goal_native_rejection.mts` is now driven by one of them.
     the change the clean review above already covered, so it is left recorded and is not
     resubmitted.
 
+## Docker isolation acceptance
+
+`sh packages/goal/tests/goal_docker.sh` packed this tree and ran it in a container with nothing
+else installed. Result: `GOAL_DOCKER_OK`, receipt directory left at
+`$TMPDIR/goal-docker-9YPKt5aW`, zero `FAIL` lines in the log.
+
+- Artifacts: `fradser-pi-goal-0.1.0.tgz` SHA256 `60c15943...`, `fradser-pi-kit-0.5.1.tgz`
+  SHA256 `44a281c3...`; the container recomputed the same Goal hash, so the tested artifact is
+  the packed current tree.
+- Isolation: `node:24-bookworm-slim`, mounts limited to the receipts directory and the two
+  read-only test trees, no host credentials or HOME; the isolated agent settings held exactly
+  `["/isolated/node_modules/@fradser/pi-goal"]`.
+- Baseline: Pi 1.0.4 and kit 0.5.1, pinned by the script, not the workspace Pi 1.2.0.
+- Ran: the scripted native acceptance for all 13 cases (`GOAL_NATIVE_SIMPLIFIED_OK`), the same
+  acceptance through Pi's own package autoload path for the empty and long cases
+  (`GOAL_NATIVE_SIMPLIFIED_OK`), and four harnesses — `goal_simplified` 51 ok,
+  `goal_store` 15 ok, `goal_scheduling` 35 ok, `goal_session` 15 ok, none failed.
+- The log's only warnings are npm download-speed and one deprecated subdependency.
+
 ## Closeout
 
 Six review rounds ran. The last one states plainly that no blocking issue remains and that its
