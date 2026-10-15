@@ -13,10 +13,9 @@ repeat. A natural-language stopping condition is judged by one closed noul
 question after each settled turn, against an explicit threshold.
 
 A tick whose previous injection has not settled is skipped and counted, so a slow
-turn cannot queue prompts. A repetition that cannot be delivered is reported and
-ends the loop, because the promise `pi.sendUserMessage` returns is observed
-rather than discarded. `/loop stop` and session shutdown release the only
-timer, and a stopped loop cannot restart.
+turn cannot queue prompts. A delivery the host refuses is reported and ends the
+loop. `/loop stop` and session shutdown release the only timer, and a stopped loop
+cannot restart.
 
 Verified with deterministic module checks, a loopback decision endpoint covering
 low confidence, unspecified cadence, unknown answers and rejected credentials,

@@ -108,25 +108,18 @@ def test_scheduler_limit_skip_and_stop() -> None:
     assert data["firstStart"]["threw"] is True
 
 
-def test_an_undeliverable_injection_ends_the_loop_without_a_timer() -> None:
-    """A repetition that never reached the session is reported, not counted as delivered.
+def test_a_refused_injection_ends_the_loop_without_a_timer() -> None:
+    """A delivery the host refuses is reported, and no timer survives it.
 
-    The promise `pi.sendUserMessage` returns used to be discarded, so a failed
-    delivery left the loop running with no pending timer and no report. A call
-    that throws never hands the text over, so it emits no `injected`; a promise
-    that rejects was already accepted for delivery, so it emits one first.
+    `pi.sendUserMessage` returns void: Pi reports a turn that fails after it
+    accepts the message on its own error channel, so the only refusal the loop
+    can see is the synchronous throw raised for a captured extension API that has
+    gone stale. The loop must never stay active with nothing pending.
     """
     data = value(run("delivery"), "delivery")
-    expected = {
-        "thrown": ["undelivered:1", "stopped:delivery"],
-        "rejected": ["injected:1", "undelivered:1", "stopped:delivery"],
-    }
-    for shape, events in expected.items():
-        case = data[shape]
-        assert case["events"] == events, (shape, case)
-        assert case["injections"] == 1, (shape, case)
-        assert case["active"] is False and case["pending"] == 0, (shape, case)
-    assert data["rejected"]["undelivered"] == {"reason": "the session is closed", "terminal": True}, data
-    # A failure that arrives after the loop stopped is reported, never re-armed.
-    assert data["late"] == {"active": False, "pending": 0}, data
+    assert data["events"] == ["undelivered:1", "stopped:delivery"], data
+    assert data["sent"] == ["go"], data
+    assert data["injections"] == 1, data
+    assert data["active"] is False and data["pending"] == 0, data
+    assert "stale" in str(data["undelivered"]), data
 

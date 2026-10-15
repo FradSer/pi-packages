@@ -43,10 +43,11 @@ a harness import that Bun erases at runtime is invisible to every other gate.
 - **Delivery**: inject with `pi.sendUserMessage` so each repetition is a real user
   turn. Never use a custom message for the repetition itself.
 - **Scheduling**: skip a tick whose previous repetition has not settled, and count
-  it. Observe the promise `send` returns: a delivery that throws or rejects is
-  reported as `undelivered` and ends the loop, because a repetition that never
-  arrived cannot be judged. `stop()` is terminal and releases the timer. Start no
-  timer in the extension factory.
+  it. `send` returns void: Pi reports a turn that fails after acceptance on its own
+  error channel, so the only refusal the loop can observe is the synchronous throw
+  it raises for a stale captured API. Report that as `undelivered` and end the
+  loop. `stop()` is terminal and releases the timer. Start no timer in the
+  extension factory.
 - **Transcript**: one lifecycle row for the start, through
   `bindLifecycleRenderers` and `startedToolLifecycle`. Keep per-repetition status
   in `setStatus`, not in extra rows, because the injected turn already appears.

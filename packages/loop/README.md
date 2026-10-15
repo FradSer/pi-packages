@@ -98,9 +98,9 @@ your work.
   never queues a backlog of prompts.
 - A bounded loop stops itself after its last repetition. `/loop stop` and session
   shutdown release the timer. A stopped loop cannot restart; start a new one.
-- A repetition that cannot be delivered ends the loop, and the command reports
-  the failure. A repetition that never arrived cannot be judged, so the loop
-  never keeps claiming one.
+- A delivery the host refuses ends the loop, and the command reports it. Pi
+  reports a turn that fails after it accepts the message itself, so the loop
+  never claims to see that case.
 
 ## Configuration
 

@@ -16,18 +16,20 @@ export type LoopStopReason = "user" | "limit" | "condition" | "shutdown" | "deli
 export type LoopEvent =
   | { type: "injected"; index: number; text: string }
   | { type: "skipped"; index: number; reason: "busy" }
-  /** An attempt that did not reach the session. `terminal` is true when it ended the loop. */
-  | { type: "undelivered"; index: number; reason: string; terminal: boolean }
+  /** An attempt the host refused outright, named by the stop it causes. */
+  | { type: "undelivered"; index: number; reason: string }
   | { type: "stopped"; reason: LoopStopReason; injections: number; skipped: number };
 
 export interface LoopRunnerOptions {
   plan: LoopPlan;
   timers: TimerApi;
   /**
-   * Deliver the text into the session as a user turn. A returned promise is
-   * observed: its rejection is reported, never left unhandled.
+   * Deliver the text into the session as a user turn. Pi's `sendUserMessage`
+   * returns void and reports a turn that fails after acceptance on its own error
+   * channel, so the refusal this catches is the synchronous throw the host raises
+   * for a captured extension API that has gone stale.
    */
-  send: (text: string) => void | Promise<void>;
+  send: (text: string) => void;
   now?: () => Date;
   onEvent?: (event: LoopEvent) => void;
 }
@@ -36,7 +38,7 @@ export interface LoopRunnerOptions {
 export class LoopRunner {
   readonly plan: LoopPlan;
   private readonly timers: TimerApi;
-  private readonly send: (text: string) => void | Promise<void>;
+  private readonly send: (text: string) => void;
   private readonly now: () => Date;
   private readonly onEvent: ((event: LoopEvent) => void) | undefined;
   private handle: TimerHandle | undefined;
@@ -135,15 +137,11 @@ export class LoopRunner {
     });
     this.busy = true;
     this.count = index;
-    let delivery: void | Promise<void>;
     try {
-      delivery = this.send(text);
+      this.send(text);
     } catch (error) {
       this.failDelivery(index, error);
       return;
-    }
-    if (delivery !== undefined) {
-      void Promise.resolve(delivery).catch((error: unknown) => this.failDelivery(index, error));
     }
     this.emit({ type: "injected", index, text });
     if (this.plan.maxRuns !== undefined && this.count >= this.plan.maxRuns) {
@@ -154,14 +152,13 @@ export class LoopRunner {
   }
 
   /**
-   * Report an attempt that never reached the session, and end the loop when it
-   * still runs: every later repetition would fail the same way, and the status
-   * row would keep claiming a loop that is doing nothing.
+   * Report a delivery the host refused, and end the loop: every later repetition
+   * would be refused the same way, and the status row would keep claiming a loop
+   * that is doing nothing.
    */
   private failDelivery(index: number, error: unknown): void {
-    const terminal = this.running;
-    this.emit({ type: "undelivered", index, reason: messageOf(error), terminal });
-    if (terminal) this.stop("delivery");
+    this.emit({ type: "undelivered", index, reason: messageOf(error) });
+    this.stop("delivery");
   }
 }
 

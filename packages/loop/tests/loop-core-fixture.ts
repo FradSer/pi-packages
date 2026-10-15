@@ -66,7 +66,7 @@ function tuplePair(pair: unknown): { input: unknown; expected: unknown; actual: 
   return { input: values[0], expected: values[1], actual: parseDuration(String(values[0])) };
 }
 
-const scenarios: Record<string, () => unknown | Promise<unknown>> = {
+const scenarios: Record<string, () => unknown> = {
   duration() {
     const parsed = [["30s", 30000], ["5m", 300000], ["1h", 3600000], ["2d", null], ["90", 90000], ["1h30m", 5400000], ["1m 30s", 90000], ["5", 5000], ["500ms", null], ["0s", null], ["24h", 86400000], ["25h", null], ["banana", null], ["", null], ["1x", null], [" 5m ", 300000]].map(tuplePair);
     const formatted = [[90000, "1m30s"], [300000, "5m"], [5400000, "1h30m"], [86400000, "1d"], [1000, "1s"], [500, "500ms"], [30000, "30s"]].map((pair) => {
@@ -202,72 +202,39 @@ const scenarios: Record<string, () => unknown | Promise<unknown>> = {
     return { beforeFirst, afterLimit, whileBusy, afterSettle, afterStop, restart, firstStart };
   },
 
-  async delivery() {
-    // A delivery that throws and one that rejects must behave the same way: the
-    // attempt is reported, and no timer survives it.
-    const thrown = manualClock();
-    const thrownEvents: string[] = [];
-    const thrownRunner = new LoopRunner({
+  delivery() {
+    // Pi refuses a delivery by throwing: a captured extension API goes stale
+    // after session replacement or reload. The loop must report it and release
+    // its timer rather than stay active with nothing pending.
+    const clock = manualClock();
+    const sent: string[] = [];
+    const events: string[] = [];
+    let undelivered: string | undefined;
+    const runner = new LoopRunner({
       plan: { message: "go", intervalMs: 1000, maxRuns: 3 },
-      timers: thrown.timers,
-      send: () => {
-        throw new Error("the session is closed");
+      timers: clock.timers,
+      send: (text) => {
+        sent.push(text);
+        throw new Error("This extension ctx is stale after session replacement or reload.");
       },
-      onEvent: (event) => thrownEvents.push(event.type + ":" + (event.type === "stopped" ? event.reason : String(event.index))),
-    });
-    thrownRunner.start();
-    thrown.advance(1000);
-    thrown.advance(5000);
-
-    const rejected = manualClock();
-    const rejectedEvents: string[] = [];
-    let undelivered: { reason: string; terminal: boolean } | undefined;
-    const rejectedRunner = new LoopRunner({
-      plan: { message: "go", intervalMs: 1000, maxRuns: 3 },
-      timers: rejected.timers,
-      send: () => Promise.reject(new Error("the session is closed")),
       onEvent: (event) => {
-        rejectedEvents.push(event.type + ":" + (event.type === "stopped" ? event.reason : String(event.index)));
-        if (event.type === "undelivered") undelivered = { reason: event.reason, terminal: event.terminal };
+        events.push(event.type + ":" + (event.type === "stopped" ? event.reason : String(event.index)));
+        if (event.type === "undelivered") undelivered = event.reason;
       },
     });
-    rejectedRunner.start();
-    rejected.advance(1000);
-    // The rejection settles on the microtask queue, not on the virtual clock.
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    rejected.advance(5000);
-
-    // A failure that arrives after the loop already stopped must not re-arm it.
-    const late = manualClock();
-    const lateRunner = new LoopRunner({
-      plan: { message: "go", intervalMs: 1000 },
-      timers: late.timers,
-      send: () => lateFailure.promise,
-    });
-    lateRunner.start();
-    late.advance(1000);
-    lateRunner.stop("user");
-    lateFailure.reject(new Error("the session is closed"));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-
+    runner.start();
+    clock.advance(1000);
+    clock.advance(5000);
     return {
-      thrown: { events: thrownEvents, active: thrownRunner.active, injections: thrownRunner.injections, pending: thrown.pending() },
-      rejected: { events: rejectedEvents, active: rejectedRunner.active, injections: rejectedRunner.injections, pending: rejected.pending(), undelivered },
-      late: { active: lateRunner.active, pending: late.pending() },
+      events,
+      sent,
+      undelivered,
+      active: runner.active,
+      injections: runner.injections,
+      pending: clock.pending(),
     };
   },
 };
-
-/** A rejection that settles only when the scenario decides it should. */
-function deferredFailure() {
-  let reject: (error: unknown) => void = () => {};
-  const promise = new Promise<never>((_resolve, rejectPromise) => {
-    reject = rejectPromise;
-  });
-  return { promise, reject: (error: unknown) => reject(error) };
-}
-
-const lateFailure = deferredFailure();
 
 const requested = process.argv.slice(2);
 for (const name of requested.length > 0 ? requested : Object.keys(scenarios)) {
@@ -277,7 +244,7 @@ for (const name of requested.length > 0 ? requested : Object.keys(scenarios)) {
     continue;
   }
   try {
-    console.log(JSON.stringify({ scenario: name, ok: true, value: await scenario() }));
+    console.log(JSON.stringify({ scenario: name, ok: true, value: scenario() }));
   } catch (error) {
     console.log(JSON.stringify({ scenario: name, ok: false, error: error instanceof Error ? error.message : String(error) }));
   }

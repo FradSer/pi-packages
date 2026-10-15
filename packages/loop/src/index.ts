@@ -157,21 +157,18 @@ export function registerLoop(pi: ExtensionAPI): void {
 
   const start = (resolved: ResolvedLoop): void => {
     let created: LoopRunner;
-    /** The last delivery failure, named by the stop notice that reports it. */
-    let deliveryFailure: string | undefined;
     try {
       created = new LoopRunner({
         plan: resolved.plan,
         timers: nodeTimers(),
-        // The returned promise is handed to the runner, which observes its
-        // rejection. Discarding it here would hide a repetition that never arrived.
+        // Pi reports a turn that fails after it accepts this message on its own
+        // error channel, so only a refusal reaches the runner.
         send: (text) => pi.sendUserMessage(text, { deliverAs: "followUp" }),
         onEvent: (event) => {
           if (event.type === "undelivered") {
-            deliveryFailure = event.reason;
-            // A failure that ends the loop is reported once, by the stop notice.
-            if (!event.terminal && ui !== undefined) {
-              notifyPi(ui, "loop: a scheduled injection could not be delivered (" + event.reason + ").", "error");
+            // One report: the refusal and the stop it causes are one fact.
+            if (ui !== undefined) {
+              notifyPi(ui, "loop: the session refused a scheduled injection (" + event.reason + "), so the loop stopped.", "error");
             }
             return;
           }
@@ -180,12 +177,8 @@ export function registerLoop(pi: ExtensionAPI): void {
             return;
           }
           if (ui !== undefined) clearPiStatus(ui, STATUS_KEY);
-          if (event.reason === "delivery") {
-            if (ui !== undefined) {
-              notifyPi(ui, "loop: a scheduled injection could not be delivered (" + (deliveryFailure ?? "unknown") + "), so the loop stopped.", "error");
-            }
-            return;
-          }
+          // The refusal was already reported by its own event.
+          if (event.reason === "delivery") return;
           const injections = event.injections + (event.injections === 1 ? " injection" : " injections");
           const skipped = event.skipped > 0 ? ", " + event.skipped + " skipped while busy" : "";
           if (ui !== undefined) notifyPi(ui, "loop: stopped after " + injections + skipped + " (" + event.reason + ")", "info");

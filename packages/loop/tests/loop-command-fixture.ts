@@ -18,7 +18,7 @@ interface Captured {
   events: string[];
 }
 
-function bootstrap(deliver?: (text: string) => void | Promise<void>): { captured: Captured; run: (args: string, hasUI?: boolean) => Promise<void> } {
+function bootstrap(deliver?: (text: string) => void): { captured: Captured; run: (args: string, hasUI?: boolean) => Promise<void> } {
   const captured: Captured = { commands: new Map(), messages: [], sent: [], status: [], notifications: [], events: [] };
   const api = {
     registerCommand(name: string, options: { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }) {
@@ -33,7 +33,7 @@ function bootstrap(deliver?: (text: string) => void | Promise<void>): { captured
     },
     sendUserMessage(text: string) {
       captured.sent.push(text);
-      return deliver?.(text);
+      deliver?.(text);
     },
   } as unknown as ExtensionAPI;
   loop(api);
@@ -106,20 +106,25 @@ const scenarios: Record<string, () => Promise<unknown>> = {
     await run("check the build every 10 minutes");
     const freeWithoutCredential = [...captured.notifications];
     captured.notifications.length = 0;
+    await run("--every 1h {{Index}}");
+    const placeholderTypo = [...captured.notifications];
+    captured.notifications.length = 0;
     await run("--every 1h --until \"green\" WATCH");
     const untilWithoutCredential = [...captured.notifications];
     captured.status.length = 0;
     captured.notifications.length = 0;
     captured.messages.length = 0;
     await run("status", false);
-    return { busy, badDuration, noMessage, unknownFlag, freeWithoutCredential, untilWithoutCredential, headless: [...captured.messages] };
+    return { busy, badDuration, noMessage, unknownFlag, placeholderTypo, freeWithoutCredential, untilWithoutCredential, headless: [...captured.messages] };
   },
 
   async "delivery-failure"() {
-    // The real host returns a promise. Nothing observes it but the runner.
-    const { captured, run } = bootstrap(() => Promise.reject(new Error("the session is closed")));
+    // Pi refuses a delivery by throwing, not by rejecting.
+    const { captured, run } = bootstrap(() => {
+      throw new Error("This extension ctx is stale after session replacement or reload.");
+    });
     await run("--every 1s --times 2 WATCH");
-    const reported = await until(() => captured.notifications.some((row) => row.message.includes("could not be delivered")));
+    const reported = await until(() => captured.notifications.length > 0);
     return {
       reported,
       notifications: [...captured.notifications],

@@ -61,6 +61,7 @@ def test_every_refusal_names_the_cause_and_schedules_nothing() -> None:
     for key, needle in (("badDuration", "--every must be a duration"),
                         ("noMessage", "A message is required"),
                         ("unknownFlag", "Unknown option: --bogus"),
+                        ("placeholderTypo", "Unknown placeholder: Index"),
                         ("freeWithoutCredential", "needs a decision credential"),
                         ("untilWithoutCredential", "--until needs a decision credential")):
         rows = data[key]
@@ -71,14 +72,15 @@ def test_every_refusal_names_the_cause_and_schedules_nothing() -> None:
     assert headless[0]["options"] == {"triggerTurn": False}, headless
 
 
-def test_an_undeliverable_injection_is_reported_once_and_clears_the_row() -> None:
-    """The command surface must report a repetition that never reached the session."""
+def test_a_refused_delivery_is_reported_once_and_clears_the_row() -> None:
+    """The command surface must report the delivery the host refused."""
     data = value(run("delivery-failure"), "delivery-failure")
     assert data["reported"] is True, data
-    failures = [row for row in data["notifications"] if "could not be delivered" in str(row["message"])]
-    assert len(failures) == 1, data
-    assert failures[0]["level"] == "error", failures
-    assert "the session is closed" in str(failures[0]["message"]), failures
-    assert data["sent"] == ["WATCH"], "the loop must stop after one failed attempt: " + json.dumps(data)
+    assert len(data["notifications"]) == 1, data
+    notice = data["notifications"][0]
+    assert notice["level"] == "error", notice
+    assert "refused a scheduled injection" in str(notice["message"]), notice
+    assert "stale" in str(notice["message"]), notice
+    assert data["sent"] == ["WATCH"], "the loop must stop after one refusal: " + json.dumps(data)
     assert data["status"][-1] is None, "the row must clear: " + json.dumps(data)
 
