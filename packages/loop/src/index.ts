@@ -116,8 +116,14 @@ export function registerLoop(pi: ExtensionAPI): void {
     else setPiStatus(ui, STATUS_KEY, value);
   };
 
-  /** The command report, which must also answer when no loop runs. */
-  const statusReport = (): string => statusValue() ?? "No loop is running.";
+  /**
+   * The command report: one wording for one condition, and the `loop:` prefix
+   * that every other command result uses. The row language stays prefix-free.
+   */
+  const statusReport = (): string => {
+    const value = statusValue();
+    return value === undefined ? "loop: no loop is running." : "loop: " + value;
+  };
 
   const announce = (resolved: ResolvedLoop): void => {
     const plan = resolved.plan;
@@ -248,7 +254,7 @@ export function registerLoop(pi: ExtensionAPI): void {
       }
       if (control === "stop" || control === "cancel") {
         if (runner === undefined || !runner.active) {
-          feedback(pi, ctx, "loop: no loop is running.", "info");
+          feedback(pi, ctx, "loop: no loop is running.\n" + USAGE, "info");
           return;
         }
         runner.stop("user");
