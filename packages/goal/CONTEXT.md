@@ -206,12 +206,15 @@ is 33 tests because `goal_native_rejection.mts` is now driven by one of them.
   new submission for the same evidence is what the refusal exists to prevent, so no second
   review was submitted. The corrections above therefore rest on my own verification, not on a
   reviewed round.
-- A fresh review of the updated range (`HEAD~3...HEAD`) was submitted instead, because the
-  evidence had changed and no session could be continued: review
-  `bf739228-cea4-445c-a17d-d9ff9e9c7b20`. It has been `running` for about thirty minutes of
-  retried polling with no verdict and no finding, so polling stopped rather than spending more
-  quota on a runtime that is not answering. Resume it with `--review-id` and that ID; never
-  resubmit the same evidence.
+- Because that session cannot continue and the evidence had changed, further rounds were
+  submitted as new reviews of named ranges:
+  - `19021f95-244a-4af6-883f-dfffe0327041` over `HEAD~4...HEAD`, the complete final change of
+    40 files, finished with status `done` and **no findings**. That is the current verdict on
+    the reviewed scope.
+  - `bf739228-cea4-445c-a17d-d9ff9e9c7b20` over a two-commit range is still `running` after
+    more than thirty minutes of retried polling and produced no verdict. It covers a subset of
+    the change the clean review above already covered, so it is left recorded and is not
+    resubmitted.
 
 ## Closeout
 
