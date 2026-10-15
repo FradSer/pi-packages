@@ -7,9 +7,10 @@ Run from the repository root:
 What it establishes: with the installed `pi` CLI, both session replacements that
 invalidate a captured extension API (`ctx.reload()` and `ctx.newSession()`)
 deliver a `session_shutdown` row to the loop before it is invalidated, with no
-delivery attempt after that row, so the loop stops and releases its timer before
-any later tick can call the invalidated API. The control case shows the loop
-still injecting when the replacement happens, and it must carry no
+delivery attempt after that row, and the loop itself reports a stop with reason
+`shutdown`. Both observations are required: the row shows which handler ran, and
+the loop's own notice shows that handler stopped the runner. The control case
+shows the loop still injecting when the replacement happens, and it must carry no
 `session_shutdown` row, which is what makes the predicate discriminating.
 
 What it does not establish: `ctx.fork()` and `ctx.switchSession()` are not
@@ -147,6 +148,13 @@ def judge(case: dict) -> list[str]:
             failures.append("the control loop was stopped by session_shutdown: "
                             + json.dumps(case["trace"][-5:]))
         return failures
+    # Two independent observations, both required. The fixture's row proves the
+    # shutdown arrived through the right handler; the loop's own notice proves that
+    # handler stopped the runner. A replacement that lands during an in-flight turn
+    # leaves the runner busy, and the busy gate skips every later tick, so the row
+    # check alone can pass while the loop never stopped.
+    if not any("(shutdown)" in text for text in case["stopped"]):
+        failures.append("the loop never reported a shutdown stop: " + json.dumps(case["notices"]))
     if not shutdown:
         failures.append("no session_shutdown row, so the loop cannot have stopped through it: "
                         + json.dumps(case["trace"][-5:]))
