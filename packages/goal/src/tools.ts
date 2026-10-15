@@ -29,7 +29,7 @@ import { nowIso, type GoalRecord } from "./record.ts";
 import type { GoalSettings } from "./settings.ts";
 import type { GoalStore } from "./store.ts";
 
-export const GOAL_TOOLS = ["get_goal", "create_goal", "update_goal"] as const;
+const GOAL_TOOLS = ["get_goal", "create_goal", "update_goal"] as const;
 
 /** Tools allowed after a decision ended the turn: reading the goal is how the
  * model finds out what it was supposed to be doing, so it stays available.
@@ -321,15 +321,13 @@ export function goalBody(goal: GoalRecord): string {
 /**
  * The one way a goal's requirements change.
  *
- * A revision is three fields or none: the objective prose, the start of the
- * evidence window, and the reset of the refusal count. Anything that writes
- * only the objective leaves `prompt.md` describing the superseded goal, keeps
- * observations collected under the old requirement admissible for the new one,
- * and lets a stale refusal count stop a goal under requirements it never
- * refused. Both the `update_goal` tool and `/goal` route through here so the
- * two cannot drift apart.
+ * A revision moves the objective, the completion contract and the start of the
+ * evidence window together. Anything that writes only the objective keeps
+ * observations collected under the old requirement admissible for the new one.
+ * The `update_goal` tool and a `/goal <request>` that the model turns into a
+ * revision both land here, so the two cannot drift apart.
  */
-export function applyRevision(
+function applyRevision(
   store: GoalStore,
   goalId: string,
   objective: string,
@@ -363,8 +361,8 @@ function revise(
   }
   // Lifecycle state is checked even though `update_goal` is withdrawn for these
   // goals, because a call can arrive one transition late. A budget-limited goal
-  // has spent its lifetime tokens and a completed goal has ended; rewriting
-  // their requirements, prose and refusal count would revive work that stopped.
+  // has spent its lifetime tokens and a completed goal has ended; rewriting the
+  // requirements of either would revive work that stopped.
   if (goal.status !== "active" && goal.status !== "paused" && goal.status !== "blocked") {
     return result(
       { subject: "update not applied", summary: `A ${goal.status.replace("_", " ")} goal cannot be revised. Use /goal clear, then /goal <objective and completion conditions> to start a new goal.` },

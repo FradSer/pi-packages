@@ -2,10 +2,10 @@
  * Where goal state lives on disk, and the safety rules for every path that
  * reaches it.
  *
- * One directory per goal, holding the authoritative record, the user-editable
- * prose, and the append-only ledger. Splitting record from prose is what lets
- * the record go through pi-kit's atomic JSON write while the prose stays
- * ordinary text a person can open and edit without a serializer in the way.
+ * One directory per goal, holding the authoritative record and the claim markers
+ * that serialize writes to it. The record goes through pi-kit's atomic JSON write.
+ * A prose file written by an earlier version is left where it is and is never read
+ * as the objective: the record holds the objective.
  */
 
 import * as os from "node:os";
@@ -17,7 +17,7 @@ import { nonEmpty, safeFileName } from "@fradser/pi-kit";
 export const GOALS_DIR = ".pi/goals";
 
 /** Directory holding one open goal. */
-export function goalDir(projectRoot: string, goalId: string): string {
+function goalDir(projectRoot: string, goalId: string): string {
   return path.join(projectRoot, GOALS_DIR, safeGoalId(goalId));
 }
 
@@ -26,7 +26,8 @@ export function goalRecordPath(projectRoot: string, goalId: string): string {
   return path.join(goalDir(projectRoot, goalId), "record.json");
 }
 
-/** The objective as editable prose. Plain Markdown, no metadata. */
+/** Where an earlier version kept the objective as editable prose. The record
+ * holds the objective now, and this file is preserved but never read as it. */
 export function goalPromptPath(projectRoot: string, goalId: string): string {
   return path.join(goalDir(projectRoot, goalId), "prompt.md");
 }
@@ -84,7 +85,7 @@ export function agentDir(): string {
  * overridden agent directory is an isolation knob, and treating an arbitrary
  * directory as pi's home would make every project that happens to sit next to
  * it look nested. */
-export function piHomeDir(): string {
+function piHomeDir(): string {
   return path.join(process.env.HOME ?? os.homedir(), ".pi");
 }
 
@@ -97,9 +98,9 @@ export function piHomeDir(): string {
  * directory next to pi's sessions and memory. Both are refused rather than
  * created, because a doubled directory is not a project a person can find.
  *
- * Only new state is refused. Reads, ledger appends, and an already stored goal
- * keep working where they are, so a goal created before this rule existed is
- * never stranded by it. Returns undefined when the placement is fine.
+ * Only new state is refused. Reads, and writes to an already stored goal, keep
+ * working where they are, so a goal created before this rule existed is never
+ * stranded by it. Returns undefined when the placement is fine.
  */
 export function goalsPlacementRefusal(projectRoot: string): string | undefined {
   const root = goalsRoot(path.resolve(projectRoot));

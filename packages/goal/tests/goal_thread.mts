@@ -108,7 +108,7 @@ await scenario('explicit goal text activates revision but ordinary edits preserv
   await edit('New goal with E2E acceptance.');
   assert.equal(f.core.goal?.status, 'active', 'the explicit setting request activates its successful revision');
   assert.ok(f.core.scheduler.isArmed());
-  // Two actors resume a goal, and the ledger has to tell them apart: the user
+  // Two actors resume a goal, and the record has to tell them apart: the user
   // typed `/goal <text>` and the model revised, which is not the user typing
   // `/goal resume`.
   f.core.scheduler.pause(f.core.goal!, 'Paused again', 'user');

@@ -1,9 +1,10 @@
 """Native frame acceptance must reject missing results and truncated tails."""
 import pytest
-from goal_native_live import assert_progress_frame, assert_settled_frame
+from goal_native_live import REQUEST_WORDS, assert_progress_frame, assert_request_frame, assert_settled_frame
 from goal_native_completion import assert_completion_frame
 
 SETTLED = ["[goal] started", "Objective: Export CSV", "GOAL_REQUIREMENT_END", "[goal] active", "Completion conditions:", "GOAL_CONTRACT_END"]
+REQUEST = ["[goal] requesting", REQUEST_WORDS, "[goal] started", "Objective: Export CSV"]
 
 
 def test_complete_authored_bodies_require_both_tails() -> None:
@@ -21,9 +22,11 @@ def test_repaint_duplicates_and_expansion_requirements_are_failures() -> None:
 
 
 def test_checker_progress_is_neutral_and_present() -> None:
-    assert_progress_frame(["[goal] checking", "Evaluating the objective and recorded evidence"])
+    assert_progress_frame(["Evaluating the objective and recorded evidence..."])
     with pytest.raises(AssertionError):
-        assert_progress_frame(["[goal] completed"])
+        assert_progress_frame(["[goal] checking...", "Evaluating the objective and recorded evidence..."])
+    with pytest.raises(AssertionError):
+        assert_progress_frame(["Evaluating the objective and recorded evidence...", "NOT MET"])
 
 
 def test_refusal_cannot_be_a_pause() -> None:
@@ -42,3 +45,18 @@ def test_completion_is_an_actual_completion_result() -> None:
     with pytest.raises(AssertionError):
         assert_completion_frame(["Goal paused", "archived history"], "complete")
     assert_completion_frame(["[goal] completed", "Verified."], "complete")
+
+
+def test_request_row_shows_the_words_before_the_creation_result() -> None:
+    assert_request_frame(REQUEST, created=False)
+    assert_request_frame(REQUEST)
+    for missing in ("[goal] requesting", REQUEST_WORDS, "[goal] started"):
+        with pytest.raises(AssertionError):
+            assert_request_frame([line for line in REQUEST if missing not in line])
+    with pytest.raises(AssertionError):
+        assert_request_frame(["[goal] started", "Objective: Export CSV", "[goal] requesting", REQUEST_WORDS])
+    with pytest.raises(AssertionError):
+        assert_request_frame(REQUEST + REQUEST)
+    with pytest.raises(AssertionError):
+        assert_request_frame(REQUEST + ["Preserve all acceptance conditions and scope constraints."])
+

@@ -55,7 +55,7 @@ try {
   assert.ok(errors.some(error => /No model selected|reading .api./.test(error)), JSON.stringify(errors));
   session.agent.state.model = model;
   await session.prompt("Only an ordinary internal text edit");
-  assert.equal(store.readGoalFromDisk(goal.id)?.status, "paused");
+  assert.equal(store.readGoal(goal.id)?.status, "paused");
   console.log("GOAL_NATIVE_REJECTION_OK");
 } finally {
   runtime.session.dispose();

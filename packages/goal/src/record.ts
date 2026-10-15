@@ -43,9 +43,6 @@ export interface GoalSchedulerState {
    * its session ended, so the goal is paused rather than resumed, because the
    * dispatch that would have finished it never will. */
   phase: "idle" | "ready" | "claimed" | "running" | "interrupted";
-  /** What the model said comes next. Recorded so the following turn starts from
-   * the model's own answer rather than from nothing. It does not authorize
-   * anything: the loop continues either way. */
   /** Automatic runs consumed in the current period. Only creation or an explicit
    * resume resets it. */
   used: number;
@@ -77,6 +74,9 @@ export interface GoalRecord {
   /** Monotonic mutation counter, compared under the write lock so a stale
    * writer is refused instead of overwriting a newer record. */
   revision: number;
+  /** Legacy record location, preserved only so a record written earlier keeps
+   * its field. Nothing derives a path from it: the store builds every path
+   * itself. */
   activePath?: string;
   stopReason?: StopReason;
   pauseReason?: string;

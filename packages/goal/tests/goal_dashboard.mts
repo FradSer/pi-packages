@@ -73,15 +73,19 @@ await scenario("the status row never carries the goal tag", () => {
       assert.ok(!text.includes(glyph), `the row must not carry the marker ${glyph}: ${text}`);
     }
   }
-  // The check replaces the goal status with a two-line, passive activity row.
+  // The check replaces the goal status with one passive activity line. The row
+  // already sits below the editor under a running goal, so a second heading
+  // named \`[goal] checking...\` would only repeat what the position says.
   let checking: string[] = [];
   const ctx = { mode: "tui", ui: { setWidget: (_key: string, factory: Function | undefined) => {
     if (!factory) return;
     checking = factory({ requestRender() {} }, theme).render(120);
   } } };
-  refreshDashboard({ goal: goalWith(), checkProgress: { label: "[goal] checking...", detail: "Evaluating the objective and recorded evidence..." } } as never, ctx as never);
-  assert.match(checking[0] ?? "", /\[goal\] checking\.\.\./, `the check row has its lifecycle label: ${checking}`);
-  assert.match(checking.join("\n"), /Evaluating the objective and recorded evidence\.\.\./, `the neutral activity text appears beneath the title: ${checking}`);
+  refreshDashboard({ goal: goalWith(), checkProgress: "Evaluating the objective and recorded evidence..." } as never, ctx as never);
+  assert.equal(checking.length, 1, `the check row is one line: ${checking}`);
+  assert.match(checking[0] ?? "", /Evaluating the objective and recorded evidence\.\.\./, `the neutral activity text: ${checking}`);
+  assert.doesNotMatch(checking.join("\n"), /\[goal\]/, `the check row carries no goal tag: ${checking}`);
+  assert.doesNotMatch(checking.join("\n"), /checking\.\.\./, `no separate heading repeats the position: ${checking}`);
   assert.doesNotMatch(checking.join("\n"), /NOT MET|MET|private checker output/, `the checker result is not exposed while in flight: ${checking}`);
 });
 

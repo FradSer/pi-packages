@@ -174,7 +174,7 @@ await scenario("failing, omitted, edited, and credential-bearing observations st
 await scenario("three malformed checker answers never spend a valid refusal", async () => {
   // A checker that crashed, timed out or answered without a verdict produces an
   // error, not a decision. End to end, that error must leave the goal running and
-  // the refusal count at zero, so a broken checker cannot pause real work.
+  // the recorded outcome unchanged, so a broken checker cannot pause real work.
   let calls = 0;
   const f = fixture(async () => {
     calls += 1;
@@ -266,8 +266,8 @@ await scenario("completion cannot release requirements revised after verdict val
 
 await scenario("a stopped goal refuses a late revision", async () => {
   // `update_goal` is withdrawn for a budget-limited goal, but a call can still
-  // arrive one transition late. Revising it would rewrite the prose, move the
-  // evidence window and reset the refusal count of work that has stopped.
+  // arrive one transition late. Revising it would rewrite the objective, move the
+  // evidence window of work that has stopped.
   const f = fixture(async () => ({ met: false, report: "Missing independent review." }));
   const before = f.core.goal!;
   f.core.store.apply({
@@ -290,12 +290,12 @@ await scenario("a stopped goal refuses a late revision", async () => {
   const after = f.core.goal!;
   assert.equal(after.objective, before.objective, "the objective is untouched");
   assert.equal(after.evidenceSince, "2020-01-01T00:00:00.000Z", "the evidence window did not move");
-  const prose = f.core.store.readPrompt(before.id);
-  assert.doesNotMatch(prose, /PDF/, "and the prose was not rewritten");
+  const objective = f.core.store.readObjective(before.id);
+  assert.doesNotMatch(objective, /PDF/, "and the objective was not rewritten");
   f.core.shutdown();
 });
 
-await scenario("a tool revision moves prose, evidence window and refusal count together", async () => {
+await scenario("a tool revision moves the objective, the evidence window and the contract together", async () => {
   // The command path pins these three. The tool path shares the writer, but a
   // shared writer is a structure, not a test, so it is pinned here too.
   const f = fixture(async () => ({ met: false, report: "Missing independent review." }));
@@ -312,9 +312,9 @@ await scenario("a tool revision moves prose, evidence window and refusal count t
     f.ctx,
   );
   const after = f.core.goal!;
-  const prose = f.core.store.readPrompt(before.id);
+  const objective = f.core.store.readObjective(before.id);
   assert.match(after.objective, /PDF/, "the objective is revised");
-  assert.match(prose, /PDF/, `prompt.md must carry the new objective: ${prose.slice(0, 120)}`);
+  assert.match(objective, /PDF/, `the record carries the new objective: ${objective.slice(0, 120)}`);
   assert.notEqual(after.evidenceSince, "2020-01-01T00:00:00.000Z", "the evidence window must move with it");
   f.core.shutdown();
 });

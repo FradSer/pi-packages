@@ -1,7 +1,7 @@
 /**
  * Live-session contracts for the layer that touches Pi's API.
  *
- * The pure-logic harnesses cover the store, ledger, scheduler, and prompts. This
+ * The pure-logic harnesses cover the store, the scheduler and the prompts. This
  * one covers what only a real session can show: that the tools are registered
  * and gated by lifecycle, that a completion request really runs the check and
  * really archives, that `/goal` hands the model a seed rather than creating one, and that a

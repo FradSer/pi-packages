@@ -41,8 +41,14 @@ Read @TUI.zh-CN.md when editing any Goal display path.
 Use pi-kit lifecycle bands, `renderShell: "self"`, empty tool calls, consistent
 lowercase transcript action words, and complete width-wrapped settled bodies.
 Commands and automatic lifecycle results use durable custom messages. Do not emit
-both a tool result and a notification for one outcome. Hidden request/checkpoint
-messages carry context without pretending work has already started.
+both a tool result and a notification for one outcome. `/goal <request>` shows one
+`[goal] requesting` row with the typed words and keeps the complete request body
+out of the terminal transcript; checkpoint messages stay hidden. No hidden message may
+claim that work already started.
+
+Pi persists `display` with the entry, so a session replayed without this renderer
+falls back to Pi's default custom-message rendering, which prints the whole body.
+That residual case is accepted, and the send-time check does not cover it.
 
 The passive below-editor footer is the explicit exception to transcript framing:
 `Pursuing goal · 2h 25m` during actual work or authorized continuation; accurate
@@ -61,6 +67,8 @@ pnpm exec tsc --noEmit -p packages/goal/tsconfig.tests.json
 pnpm typecheck
 pnpm --dir packages/goal pack --dry-run
 uv run --no-project --with pyte python packages/goal/tests/goal_native_completion.py
+uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py
+uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py
 ```
 
 Use isolated native CLI/TUI sessions. Decode terminal frames, not occurrences in

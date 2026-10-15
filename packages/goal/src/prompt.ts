@@ -139,7 +139,7 @@ function memoizedPolicy(goal: GoalRecord, settings: GoalSettings): string {
   return value;
 }
 
-export function statusLabel(goal: GoalRecord): string {
+function statusLabel(goal: GoalRecord): string {
   if (goal.status === "active" && goal.autoContinue) return "running";
   if (goal.status === "paused" && goal.stopReason === "agent") return "paused (agent)";
   if (goal.status === "blocked") return "blocked";

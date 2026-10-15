@@ -14,21 +14,89 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
+import tempfile
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
 REPO = PACKAGE.parents[1]
+FEATURES = sorted((PACKAGE / "features").glob("*.feature"))
+
+_PREDICATE_PREFIXES = ("Then the predicate ", "And the predicate ")
+_PREDICATE_SUFFIX = " holds for every observed invocation"
+
+
+def _collapse(text: str) -> str:
+    """One line of prose, so a wrapped assertion still matches the feature file."""
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _unique(items: list[str]) -> list[str]:
+    seen: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.append(item)
+    return seen
+
+
+def _feature_scenarios() -> dict[str, list[str]]:
+    """Every scenario in every contract file, with the predicates it states.
+
+    A short title must be unique across the files: two scenarios with the same
+    title would otherwise silently share whichever predicates were read last.
+    """
+    scenarios: dict[str, list[str]] = {}
+    for feature in FEATURES:
+        title: str | None = None
+        for line in feature.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped.startswith("Scenario: "):
+                title = stripped[len("Scenario: ") :].split(": ", 1)[-1]
+                assert title not in scenarios, f"{title} appears in more than one feature file"
+                scenarios[title] = []
+            elif title is not None and stripped.startswith(_PREDICATE_PREFIXES):
+                expression = stripped.split("the predicate ", 1)[1].rsplit(_PREDICATE_SUFFIX, 1)[0]
+                scenarios[title].append(_collapse(expression))
+    return scenarios
+
+
+def verify_recorded_scenarios(name: str, observations: Path) -> None:
+    """Require the contract file to be exactly what the harness observed.
+
+    A scenario the harness runs but the file does not state is a contract nobody
+    wrote down; a predicate that differs is a contract that drifted. Both used to
+    be invisible: the file is prose, and nothing compared it with the run.
+    """
+    harness = PACKAGE / "tests" / name
+    if not harness.exists() or "assertion-observer" not in harness.read_text(encoding="utf-8"):
+        return  # This harness does not record observations.
+    assert observations.exists(), f"{name} records observations but wrote none"
+    known = _feature_scenarios()
+    recorded = json.loads(observations.read_text(encoding="utf-8"))
+    assert recorded, f"{name} recorded no scenario"
+    for scenario in recorded:
+        title = scenario["name"]
+        observed = _unique([_collapse(item["source"]) for item in scenario["assertions"]])
+        assert title in known, f"{name}: {title} is in no feature file"
+        assert known[title] == observed, (
+            f"{name}: {title} drifted from the feature files\n"
+            f"  feature: {known[title]}\n  observed: {observed}"
+        )
 
 
 def run_harness(name: str) -> list[str]:
-    result = subprocess.run(
-        ["node", "--import", "tsx", f"packages/goal/tests/{name}"],
-        cwd=REPO,
-        text=True,
-        capture_output=True,
-    )
-    assert result.returncode == 0, f"{name} stderr: {result.stderr}"
+    with tempfile.TemporaryDirectory(prefix="goal-observations-") as raw:
+        observations = Path(raw) / "observations.json"
+        result = subprocess.run(
+            ["node", "--import", "tsx", f"packages/goal/tests/{name}"],
+            cwd=REPO,
+            text=True,
+            capture_output=True,
+            env=dict(os.environ, PI_E2E_ASSERTION_PATH=str(observations)),
+        )
+        assert result.returncode == 0, f"{name} stderr: {result.stderr}"
+        verify_recorded_scenarios(name, observations)
     return json.loads(result.stdout)
 
 
@@ -48,6 +116,22 @@ def test_durable_state_contracts() -> None:
 
 def test_probe_cleanup_observations() -> None:
     assert_all_pass("goal_probe_cleanup.mts")
+
+
+def test_sdk_preflight_rejection_contract() -> None:
+    """A refused completion while a turn settles must not activate a paused revision.
+
+    This harness runs the real agent session rather than a stub, and it records no
+    frame observations, so it is driven directly and its marker is the assertion.
+    """
+    result = subprocess.run(
+        ["node", "--import", "tsx", "packages/goal/tests/goal_native_rejection.mts"],
+        cwd=REPO,
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "GOAL_NATIVE_REJECTION_OK" in result.stdout, result.stdout + result.stderr
 
 
 def test_scheduling_authorization_contracts() -> None:

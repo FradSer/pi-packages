@@ -24,7 +24,7 @@ const store = new GoalStore({ projectRoot });
 // Read first, so every writer is competing for the same revision. Without the
 // lock this is a lost update: all eight would see revision 0 and all eight
 // would write revision 1.
-store.readGoalFromDisk(goalId);
+store.readGoal(goalId);
 
 while (Date.now() < barrier) {
   // Spin to the shared start instant rather than sleeping a fixed amount, so the

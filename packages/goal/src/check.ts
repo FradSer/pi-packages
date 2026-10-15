@@ -30,17 +30,14 @@ export interface CheckVerdict {
   /** One line naming what is still missing, or why the evidence is insufficient. */
   report: string;
   /** False when the answer carried no verdict marker. An answer that never said
-   * MET or NOT MET is unusable, and must not spend one of the valid attempts. */
+   * MET or NOT MET decided nothing, so it is an error rather than a refusal. */
   valid?: boolean;
   usage?: PiWorkerUsage;
   model?: string;
   error?: string;
-  /** A result superseded by goal state must not consume a completion attempt. */
+  /** A result superseded by goal state is not a judgement of the current goal. */
   stale?: boolean;
   cancelled?: boolean;
-  attempts?: number;
-  advice?: string;
-  stopped?: boolean;
 }
 
 /**

@@ -1,3 +1,6 @@
+# Readable form of the rules below. Each clause is executed and recorded under its own
+# scenario name in features/goal.feature (the "Goal monitor evidence" block), where the
+# recorded assertions live; these clauses are prose and carry no predicates of their own.
 Feature: Monitor outcomes in goal completion evidence
   Scenario: A pending monitor is not completed work
     Given a recorded monitor_start call

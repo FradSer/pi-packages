@@ -45,8 +45,10 @@ export class GoalCore {
   private focusedGoalId: string | undefined;
   /** Abort for the check in flight, so focus change or shutdown stops it. */
   private checkAbort: AbortController | undefined;
-  /** Neutral check activity for the below-editor surface. */
-  checkProgress: { label: string; detail: string } | undefined;
+  /** One neutral activity line for the below-editor surface while a check runs.
+   * The line is the whole row: that surface already belongs to the running goal,
+   * so a heading above it would only repeat what the position says. */
+  checkProgress: string | undefined;
   /** Tool names this extension owns, re-asserted on every surface change. */
   private readonly runCheck: typeof runCompletionCheck;
   private activationGoalId: string | undefined;
@@ -103,17 +105,13 @@ export class GoalCore {
 
   get goal(): GoalRecord | undefined {
     if (!this.focusedGoalId) return undefined;
-    const goal = this.store.readGoalFromDisk(this.focusedGoalId);
+    const goal = this.store.readGoal(this.focusedGoalId);
     // The goal may have been cleared or completed by another session since it
     // was focused. Reporting it as still focused would let a command act on a
     // goal that no longer exists.
     if (!goal || goal.status === "complete") return undefined;
     if (goal.threadId && goal.threadId !== this.owner()) return undefined;
     return goal;
-  }
-
-  get focusedId(): string | undefined {
-    return this.focusedGoalId;
   }
 
   settings(ctx: ExtensionContext): GoalSettings {
@@ -147,7 +145,7 @@ export class GoalCore {
   }
 
   focus(goalId: string, ctx: ExtensionContext, reason: GoalFocusEntry["reason"]): boolean {
-    const record = this.store.readGoalFromDisk(goalId);
+    const record = this.store.readGoal(goalId);
     if (!record || (record.threadId && record.threadId !== this.owner())) {
       this.notify(ctx, "No goal is open.", "warning");
       return false;
@@ -366,10 +364,7 @@ export class GoalCore {
     const toolSignal = typeof signal === "object" ? signal : undefined;
     toolSignal?.addEventListener("abort", cancel, { once: true });
     if (toolSignal?.aborted) cancel();
-    this.checkProgress = {
-      label: "[goal] checking...",
-      detail: "Evaluating the objective and recorded evidence...",
-    };
+    this.checkProgress = "Evaluating the objective and recorded evidence...";
     this.refreshUi(ctx);
     const model = this.childModel(settings.provider, settings.model, ctx.model);
     const evidence = collectGoalEvidence(ctx.sessionManager.getBranch(), goal, this.owner());
@@ -386,7 +381,7 @@ export class GoalCore {
       const current = this.goal;
       // Account the child even when it was cancelled or superseded. Charges
       // target the same goal id, never a replacement goal, and do not certify it.
-      let charged = this.store.readGoalFromDisk(goal.id);
+      let charged = this.store.readGoal(goal.id);
       if (charged && result.usage?.totalTokens) {
         const usage = this.store.apply({ expectedGoalId: goal.id, mutate: draft => {
           const charged = { ...draft, usage: { ...draft.usage, tokensUsed: draft.usage.tokensUsed + Math.max(0, result.usage!.totalTokens) } };
@@ -618,10 +613,6 @@ export class GoalCore {
     this.turnSeq += 1;
     this.turnStartedAt = Date.now();
     this.turnStopped = undefined;
-    return this.turnSeq;
-  }
-
-  currentTurnSeq(): number {
     return this.turnSeq;
   }
 

@@ -9,13 +9,11 @@ import {
   writeJsonAtomic,
 } from "@fradser/pi-kit";
 import {
-  GOALS_DIR,
   goalClaimDir,
   goalRecordPath,
   goalsRoot,
   goalsPlacementRefusal,
   isInside,
-  safeGoalId,
 } from "./paths.ts";
 import {
   GOAL_RECORD_VERSION,
@@ -91,20 +89,15 @@ export class GoalStore {
     return goals;
   }
 
-  /** One goal by id, or undefined. */
+  /** One goal by id, or undefined. Every read goes to disk: there is no cache,
+   * so a mutation always starts from what is actually stored. */
   readGoal(goalId: string): GoalRecord | undefined {
-    const record = this.readRecordFile(goalRecordPath(this.projectRoot, goalId));
-    return record;
-  }
-
-  /** Read straight from disk. The write path uses this so
-   * a mutation always starts from what is actually stored. */
-  readGoalFromDisk(goalId: string): GoalRecord | undefined {
     return this.readRecordFile(goalRecordPath(this.projectRoot, goalId));
   }
 
-  /** The user-editable objective prose. */
-  readPrompt(goalId: string): string {
+  /** The objective. The name is kept from the version whose objective lived in
+   * an editable prose file; that file is legacy and never overrides the record. */
+  readObjective(goalId: string): string {
     return this.readGoal(goalId)?.objective ?? "";
   }
 
@@ -144,11 +137,10 @@ export class GoalStore {
       goal.status = "budget_limited"; goal.autoContinue = false;
       goal.pauseReason = `The lifetime token cap of ${goal.tokenBudget} tokens was reached during creation.`;
     }
-    goal.activePath = path.posix.join(GOALS_DIR, safeGoalId(input.id), "record.json");
     try {
       const locked: { ok: true; goal: GoalRecord } | { ok: false; message: string } =
         this.withLock(input.id, (stillHeld) => {
-          if (this.readGoalFromDisk(input.id)) {
+          if (this.readGoal(input.id)) {
             return { ok: false as const, message: `A goal with that id already exists.` };
           }
           this.writeGoalFiles(goal, stillHeld);
@@ -172,7 +164,7 @@ export class GoalStore {
       const locked: { ok: true; goal: GoalRecord } | { ok: false; message: string } =
         this.withLock(goalId, (stillHeld) => {
           // 1. Reconcile: disk is authoritative.
-          const current = this.readGoalFromDisk(goalId);
+          const current = this.readGoal(goalId);
           if (!current) return { ok: false as const, message: `The goal no longer exists.` };
           // 2. Identity checks against the record just read.
           if (spec.expectedRevision !== undefined && current.revision !== spec.expectedRevision) {

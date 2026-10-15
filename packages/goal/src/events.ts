@@ -138,7 +138,7 @@ export function registerGoalEvents(core: GoalCore): void {
     const attribution = messageGoals.get(message) ?? { threadId, goalId: runGoals.get(threadId) };
     const focused = core.goal;
     if (!attribution.goalId && focused?.threadId && focused.threadId !== attribution.threadId) { chargedMessages.add(message); return; }
-    const goal = attribution.goalId ? core.store.readGoalFromDisk(attribution.goalId) : focused;
+    const goal = attribution.goalId ? core.store.readGoal(attribution.goalId) : focused;
     // A released Goal's late usage must never migrate into the replacement.
     if (attribution.goalId && !goal) { chargedMessages.add(message); return; }
     if (!goal) { chargedMessages.add(message); core.recordCreationUsage(turnTokens(message.usage), attribution.threadId); return; }

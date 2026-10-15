@@ -352,19 +352,29 @@ def test_barrel_matcher_sees_a_real_consumer() -> None:
 
 
 def test_removed_dead_surface_stays_removed() -> None:
-    """Names deleted as dead in this audit must not quietly come back.
+    """Names deleted as dead must not quietly come back.
 
-    The removals of `openGoals`, `unfocus`, `markInterrupted` and `emptyGoal`
-    rest on grep evidence alone. A public class member with no caller is
-    invisible to the export scan, and a dedicated check for that shape was
-    attempted twice and discarded both times, once for false positives on object
-    literals and once for scanning nothing. This pins those removals directly,
-    which is weaker than proving they were dead but fails if one returns.
+    The removals rest on grep evidence alone. A public class member, a reader
+    method or an interface field with no caller is invisible to the export scan,
+    and a dedicated check for that shape was attempted twice and discarded both
+    times, once for false positives on object literals and once for scanning
+    nothing. This pins those removals directly, which is weaker than proving they
+    were dead but fails if one returns.
     """
     code = _code([path.read_text(encoding="utf-8") for path in _typescript_sources()])
     for name in ("openGoals", "unfocus", "markInterrupted", "emptyGoal"):
         assert not re.search(rf"\b{re.escape(name)}\b", code), (
             f"{name} was removed as dead surface and is present again"
+        )
+    # Members and fields removed by the audit: the duplicate reader, the reader
+    # whose name promised a prose file, two accessors nothing called, and the
+    # three verdict fields the retired attempt accounting owned. The field
+    # patterns require the optional-field syntax, so an unrelated local variable
+    # of the same name elsewhere cannot trip them.
+    for pattern in ("readGoalFromDisk", "readPrompt", "currentTurnSeq", "focusedId",
+                    r"attempts\?:", r"advice\?:", r"stopped\?:"):
+        assert not re.search(rf"\b{pattern}", code), (
+            f"/{pattern}/ was removed as dead surface and is present again"
         )
 
 
@@ -450,3 +460,19 @@ def test_command_source_and_docs_register_one_command() -> None:
                 if name in line and ("/" + name) in line:
                     stale.append(f"{path.relative_to(REPO)}: {line.strip()[:80]}")
     assert not stale, "stale command references: " + "; ".join(stale)
+
+
+def test_working_context_states_a_verdict_for_every_surface() -> None:
+    """The audit inventory must cover the package, not a sample of it.
+
+    CONTEXT.md is the handoff document: it claims a verdict for every module, every
+    documented surface, and every acceptance probe. A surface missing from it reads as
+    audited when nobody audited it, so the inventory itself is checked here.
+    """
+    context = (PACKAGE / "CONTEXT.md").read_text(encoding="utf-8")
+    surfaces = [path.name for path in PACKAGE.glob("src/*.ts")]
+    surfaces += ["AGENTS.md", "README.md", "TUI.zh-CN.md"]
+    surfaces += [path.name for path in PACKAGE.glob("features/*.feature")]
+    surfaces += [path.name for path in PACKAGE.glob("tests/goal_native_*")]
+    missing = sorted(name for name in surfaces if name not in context)
+    assert not missing, f"CONTEXT.md states no verdict for: {missing}"

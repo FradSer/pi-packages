@@ -25,12 +25,12 @@ export interface GoalSettings {
 
 /** Project override file, inside the goals directory so a project's goal state
  * and its goal settings live together and travel with the project. */
-export function projectSettingsPath(projectRoot: string): string {
+function projectSettingsPath(projectRoot: string): string {
   return path.join(projectRoot, GOALS_DIR, "settings.json");
 }
 
 /** Global defaults, under the agent directory so they apply everywhere. */
-export function globalSettingsPath(): string {
+function globalSettingsPath(): string {
   return path.join(agentDir(), "goal.json");
 }
 

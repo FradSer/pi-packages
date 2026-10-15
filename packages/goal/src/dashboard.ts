@@ -11,10 +11,12 @@ import type { GoalCore } from "./core.ts";
 import { formatElapsed, type GoalRecord } from "./record.ts";
 
 /** One passive widget below the editor. It never owns input. The goal row reads
- * `<verb> · <elapsed>` without a tag. A running check replaces it with a tagged
- * two-line status. No goal id appears because a session holds one goal. */
+ * `<verb> · <elapsed>` without a tag. A running check replaces it with one
+ * neutral activity line, for the same reason: the row already belongs to this
+ * goal, so a `[goal]` heading above it says nothing new. No goal id appears,
+ * because a session holds one goal. */
 function statusRow(core: GoalCore): string[] {
-  if (core.checkProgress) return [core.checkProgress.label, core.checkProgress.detail];
+  if (core.checkProgress) return [core.checkProgress];
   const goal = core.goal;
   if (!goal) return [];
   return [`${goalPhrase(goal, core)} · ${formatElapsed(goal.usage.activeSeconds)}`];

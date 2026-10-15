@@ -15,15 +15,14 @@ import { observedAssert as assert, observeScenario, observedScenarios } from "..
 import { writeFileSync as writeObservationFile } from "node:fs";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { GoalStore, newGoalId } from "../src/store.ts";
 import { GoalScheduler, type SchedulerHost } from "../src/scheduler.ts";
-import { goalPromptParts, statusLabel, untrustedObjectiveBlock, verificationContractBlock } from "../src/prompt.ts";
+import { goalPromptParts, untrustedObjectiveBlock, verificationContractBlock } from "../src/prompt.ts";
 import { randomToken, type GoalRecord } from "../src/record.ts";
 import type { GoalSettings } from "../src/settings.ts";
 
 const root = mkdtempSync(join(tmpdir(), "goal-sched-"));
-const repoRoot = resolve(import.meta.dirname, "..", "..", "..");
 const store = new GoalStore({ projectRoot: root });
 const results: string[] = [];
 
@@ -38,7 +37,7 @@ async function scenario(name: string, body: () => Promise<void> | void): Promise
 }
 
 function read(goalId: string): GoalRecord | undefined {
-  return store.readGoalFromDisk(goalId);
+  return store.readGoal(goalId);
 }
 
 const noSettings: GoalSettings = {};
@@ -81,8 +80,6 @@ function arm(goalId: string): GoalRecord {
   assert.ok(outcome.ok, JSON.stringify(outcome));
   return outcome.goal;
 }
-
-void repoRoot;
 
 await scenario("a hostile objective stays inside its block", () => {
   // Asserting that the wrapper exists proves the prose was written, not that the
@@ -755,6 +752,5 @@ await scenario("a successful claim is durable without a separate history", () =>
 });
 
 rmSync(root, { recursive: true, force: true });
-void statusLabel;
 process.stdout.write(`${JSON.stringify(results)}\n`);
 if (process.env.PI_E2E_ASSERTION_PATH) writeObservationFile(process.env.PI_E2E_ASSERTION_PATH, JSON.stringify(observedScenarios()));

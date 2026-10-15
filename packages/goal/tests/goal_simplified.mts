@@ -17,7 +17,7 @@ async function scenario(name: string, body: () => unknown) {
   catch (error) { results.push(`FAIL ${name}: ${error instanceof Error ? error.message : String(error)}`); process.exitCode = 1; }
 }
 const theme = { fg: (_: string, s: string) => s, bg: (_: string, s: string) => s, bold: (s: string) => s };
-function fixture(runCheck: GoalCoreOptions["runCheck"] = async () => ({ met: true, report: "Verified." })) {
+function fixture(runCheck: GoalCoreOptions["runCheck"] = async () => ({ met: true, report: "Verified." }), host: { messageRenderers?: boolean } = {}) {
   const cwd = mkdtempSync(join(tmpdir(), "goal-simple-"));
   const tools = new Map<string, any>();
   const events = new Map<string, Function>();
@@ -30,13 +30,20 @@ function fixture(runCheck: GoalCoreOptions["runCheck"] = async () => ({ met: tru
   let busy = true;
   let pending = false;
   let aborted = 0;
+  let refuseCheckpoint = false;
+  let checkpointAttempts = 0;
   const pi = {
     on: (name: string, handler: Function) => events.set(name, handler),
     registerTool: (tool: any) => tools.set(tool.name, tool),
     registerCommand: (name: string, command: any) => commands.set(name, command),
-    registerMessageRenderer: (name: string, renderer: Function) => renderers.set(name, renderer),
+    ...(host.messageRenderers === false ? {} : { registerMessageRenderer: (name: string, renderer: Function) => renderers.set(name, renderer) }),
     appendEntry: (customType: string, data: unknown) => branch.push({ type: "custom", customType, data }),
-    sendMessage: (message: any, _options: any) => { sent.push(message); branch.push({ type: "custom_message", ...message }); },
+    sendMessage: (message: any, _options: any) => {
+      // Counted before the refusal, so a retry of a refused delivery is visible.
+      if (message.customType === "pi-goal-checkpoint") checkpointAttempts += 1;
+      if (refuseCheckpoint && message.customType === "pi-goal-checkpoint") throw new Error("the host refused the checkpoint");
+      sent.push(message); branch.push({ type: "custom_message", ...message });
+    },
     getActiveTools: () => ["read", "bash"], getAllTools: () => [...tools.keys()].map(name => ({name})), setActiveTools() {},
   };
   const ctx = { cwd, mode: "tui", hasUI: true,
@@ -57,10 +64,25 @@ function fixture(runCheck: GoalCoreOptions["runCheck"] = async () => ({ met: tru
     command: (text: string) => commands.get("goal").handler(text, ctx),
     row: () => { refreshDashboard(core, ctx as never); return widget?.render(120).join("\n").trimEnd() ?? ""; },
     busy: (value: boolean) => {busy = value;}, pending: (value: boolean) => {pending = value;}, aborted: () => aborted,
+    refuseCheckpoint: (value: boolean) => {refuseCheckpoint = value;},
+    checkpointAttempts: () => checkpointAttempts,
+    settle: async (predicate: () => boolean, seconds = 2) => {
+      const deadline = Date.now() + seconds * 1000;
+      while (!predicate()) {
+        if (Date.now() > deadline) throw new Error("the condition was not reached in time");
+        await new Promise(resolve => setTimeout(resolve, 5));
+      }
+    },
+    arm: () => {
+      const outcome = core.store.apply({ expectedGoalId: "simple-goal",
+        mutate: goal => goal.scheduler ? { ...goal, scheduler: { ...goal.scheduler, phase: "ready" } } : undefined });
+      assert.ok(outcome.ok, JSON.stringify(outcome));
+      core.scheduler.schedule(core.goal!, {});
+    },
     close: () => core.shutdown() };
 }
-async function use(body: (f: ReturnType<typeof fixture>) => unknown, check?: GoalCoreOptions["runCheck"]) {
-  const f = fixture(check); try { await body(f); } finally { f.close(); }
+async function use(body: (f: ReturnType<typeof fixture>) => unknown, check?: GoalCoreOptions["runCheck"], host?: { messageRenderers?: boolean }) {
+  const f = fixture(check, host); try { await body(f); } finally { f.close(); }
 }
 await scenario("Given a loaded Goal extension When tools register Then only three Goal tools exist", () => use(f => {
   assert.deepEqual([...f.tools.keys()].sort(), ["create_goal", "get_goal", "update_goal"]);
@@ -245,7 +267,7 @@ await scenario("Given a switched thread When cancelled checking returns usage Th
     const other={...f.ctx,sessionManager:{getSessionId:()=>"other-thread",getBranch:()=>[]}};
     f.core.restore(other as never);
     release({met:false,cancelled:true,report:"Cancelled.",usage:{totalTokens:80}});
-    await pending; assert.equal(f.core.store.readGoalFromDisk("simple-goal")?.usage.tokensUsed,80);
+    await pending; assert.equal(f.core.store.readGoal("simple-goal")?.usage.tokensUsed,80);
   },()=>new Promise(resolve=>{release=resolve;}));
 });
 await scenario("Given accepted paused revision When its model responds Then account its usage",()=>use(async f=>{
@@ -272,7 +294,7 @@ await scenario("Given an old-thread checker exceeding cap When cancelled usage r
     const pending=f.call("update_goal",{status:"complete"});
     f.core.restore({...f.ctx,sessionManager:{getSessionId:()=>"other-thread",getBranch:()=>[]}} as never);
     release({met:false,cancelled:true,report:"Cancelled.",usage:{totalTokens:110}}); await pending;
-    const old=f.core.store.readGoalFromDisk("simple-goal")!; assert.equal(old.status,"budget_limited"); assert.equal(old.autoContinue,false);
+    const old=f.core.store.readGoal("simple-goal")!; assert.equal(old.status,"budget_limited"); assert.equal(old.autoContinue,false);
   },()=>new Promise(resolve=>{release=resolve;}));
 });
 await scenario("Given requirements revised before an error stop lock When old check fails Then discard without stopping new work",()=>use(async f=>{
@@ -294,7 +316,7 @@ await scenario("Given an attributed model run When thread changes before usage T
   await f.fire("agent_start");
   f.core.restore({...f.ctx,sessionManager:{getSessionId:()=>"other-thread",getBranch:()=>[]}} as never);
   await f.fire("message_end",{message:{role:"assistant",usage:{totalTokens:55}}});
-  assert.equal(f.core.store.readGoalFromDisk("simple-goal")?.usage.tokensUsed,55);
+  assert.equal(f.core.store.readGoal("simple-goal")?.usage.tokensUsed,55);
 }));
 await scenario("Given overlapping thread messages When old usage ends after a new run Then keep original attribution",()=>use(async f=>{
   await f.fire("agent_start"); const old={role:"assistant",usage:{totalTokens:55}};
@@ -302,8 +324,8 @@ await scenario("Given overlapping thread messages When old usage ends after a ne
   const other={...f.ctx,sessionManager:{getSessionId:()=>"other-thread",getBranch:()=>[]}};
   f.core.restore(other as never); f.core.store.create({id:"other-goal",owner:"other-thread",objective:"Other goal."}); f.core.focus("other-goal",other as never,"created");
   await f.events.get("agent_start")!({},other); await f.fire("message_end",{message:old});
-  assert.equal(f.core.store.readGoalFromDisk("simple-goal")?.usage.tokensUsed,55);
-  assert.equal(f.core.store.readGoalFromDisk("other-goal")?.usage.tokensUsed,0);
+  assert.equal(f.core.store.readGoal("simple-goal")?.usage.tokensUsed,55);
+  assert.equal(f.core.store.readGoal("other-goal")?.usage.tokensUsed,0);
 }));
 await scenario("Given fenced Markdown with blank lines When rendering Then preserve authored code spacing", () => use(f => {
   const authored = "Before.\n\n```text\nFIRST_CODE_LINE\n\nLAST_CODE_LINE\n```\n\nAfter.";
@@ -363,6 +385,67 @@ await scenario("Given a paused Goal When accepting an explicit full revision The
   assert.equal(f.core.scheduler.isArmed(),true);
   assert.match(f.row(),/Pursuing goal/);
   assert.doesNotMatch(f.row(),/Paused|Waiting/);
+}));
+await scenario("Given an explicit goal request When the command delivers it Then show one requesting row with the verbatim words", () => use(async f => {
+  await f.command("Add Windows validation.");
+  const delivered = f.sent.at(-1);
+  assert.equal(delivered.customType,"goal-procedure");
+  assert.equal(delivered.display,true,"the request row is a durable visible message");
+  assert.equal(delivered.details.request,"Add Windows validation.");
+  const rendered = f.renderers.get("goal-procedure")!(delivered,{},theme).render(80).join("\n");
+  assert.match(rendered,/\[goal\] requesting/);
+  assert.match(rendered,/Add Windows validation\./);
+  assert.doesNotMatch(rendered,/Preserve all acceptance conditions/);
+  assert.doesNotMatch(rendered,/to expand/);
+  assert.equal((rendered.match(/\[goal\] requesting/g) ?? []).length,1,"one request row, not one per repaint");
+}));
+await scenario("Given a request carrying terminal escapes When the row renders Then keep only the plain words", () => use(async f => {
+  await f.command("red\u001b[31mRED\u001b]0;OSC TITLE\u0007tail");
+  const rendered = f.renderers.get("goal-procedure")!(f.sent.at(-1),{},theme).render(80).join("\n");
+  assert.ok(!rendered.includes("\u001b"),"no escape byte survives into the row");
+  assert.ok(!rendered.includes("\u0007"),"no bell byte survives into the row");
+  assert.ok(!rendered.includes("OSC TITLE"),"no operating-system command survives into the row");
+  assert.match(rendered,/red/); assert.match(rendered,/tail/);
+}));
+await scenario("Given a host without message renderers When the command delivers a request Then keep the body off the transcript", () => use(async f => {
+  await f.command("Add Windows validation.");
+  assert.equal(f.sent.at(-1).display,false,"no renderer means no visible row");
+  assert.equal(f.renderers.size,0,"the host registers no renderer for this row");
+}, undefined, { messageRenderers: false }));
+await scenario("Given an armed decision When the host is idle Then deliver exactly one checkpoint for it", () => use(async f => {
+  f.busy(false);
+  const before = f.sent.length;
+  f.arm();
+  assert.equal(f.core.scheduler.isArmed(),true,"the decision is armed before delivery");
+  await f.settle(() => f.core.store.readGoal("simple-goal")!.scheduler?.phase === "claimed");
+  const delivered = f.sent.slice(before).filter(message => message.customType === "pi-goal-checkpoint");
+  assert.equal(delivered.length,1,"one armed decision delivers exactly one checkpoint");
+  assert.equal(f.checkpointAttempts(),1,"and it is attempted once");
+  const goal = f.core.store.readGoal("simple-goal")!;
+  assert.equal(goal.scheduler?.phase,"claimed","delivery claims the decision");
+  assert.equal(delivered[0].details.goalId,goal.id);
+  assert.equal(delivered[0].details.generation,goal.scheduler?.generation);
+  assert.equal(delivered[0].details.dispatchId,goal.scheduler?.dispatch?.id);
+  assert.equal(f.core.scheduler.isArmed(),false,"the claim spends the decision");
+}));
+await scenario("Given a claimed decision the host refuses to deliver When delivery fails Then stop the goal without replay", () => use(async f => {
+  f.busy(false);
+  f.refuseCheckpoint(true);
+  const before = f.sent.length;
+  f.arm();
+  await f.settle(() => f.core.store.readGoal("simple-goal")!.autoContinue === false);
+  const goal = f.core.store.readGoal("simple-goal")!;
+  assert.equal(goal.autoContinue,false,"an undeliverable claim stops the loop");
+  assert.equal(goal.stopReason,"agent");
+  assert.match(goal.pauseReason ?? "",/could not be delivered/);
+  assert.equal(goal.scheduler?.used,1,"the run was spent, not restored");
+  assert.equal(f.core.scheduler.isArmed(),false);
+  assert.equal(f.checkpointAttempts(),1,"the refused claim is attempted once and never replayed");
+  assert.equal(f.sent.slice(before).filter(message => message.customType === "pi-goal-checkpoint").length,0,"no checkpoint reached the transcript");
+  assert.ok(f.sent.slice(before).some(message => message.details?.subject === "waiting"),"the failure is reported once");
+  assert.equal(f.core.scheduler.isRunning(),false);
+  assert.match(f.row(),/Goal waiting/,"the footer reports the wait, not pursuit");
+  assert.doesNotMatch(f.row(),/Pursuing goal/);
 }));
 console.log(JSON.stringify(results));
 

@@ -70,7 +70,8 @@ def main() -> None:
                         os.write(master, b"Verify Goal.\r")
                         if mode == "cancel":
                             until(lambda: any(e["kind"] == "checking" for e in entries()))
-                            until(lambda: "[goal] checking" in "\n".join(frames.display))
+                            until(lambda: "Evaluating the objective and recorded evidence" in "\n".join(frames.display))
+                            assert "checking..." not in "\n".join(frames.display), "the replaced heading must not survive"
                             os.write(master, b"/goal pause\r")
                             until(lambda: "Goal paused" in "\n".join(frames.display))
                             release.touch()

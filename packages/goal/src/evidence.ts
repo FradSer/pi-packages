@@ -22,6 +22,9 @@ export interface GoalEvidence {
   omitted: number;
 }
 
+/** Goal tools report the goal, not work on it, so they are never evidence. `research_goal`
+ * is retired and stays listed: a legacy transcript's findings must not become evidence for a
+ * goal that never owned them. */
 const EXCLUDED_TOOLS = new Set(["create_goal", "get_goal", "update_goal", "research_goal"]);
 const MAX_OBSERVATIONS = 16;
 const MAX_OUTPUT_CHARS = 3_000;

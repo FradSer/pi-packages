@@ -1,5 +1,5 @@
 /**
- * Storage, ledger, and prompt-budget contracts.
+ * Storage and prompt-block contracts.
  *
  * These run against the real pi-kit primitives the store binds, so a change in
  * either package fails here rather than diverging silently. The scenarios are
@@ -41,11 +41,11 @@ await scenario("a created goal is durable before any work begins", () => {
   // Readable through a brand new store, i.e. through disk and nothing else.
   const fresh = new GoalStore({ projectRoot: root });
   assert.equal(fresh.readGoal(id)?.objective, objective);
-  assert.equal(fresh.readPrompt(id).trim(), objective);
+  assert.equal(fresh.readObjective(id).trim(), objective);
   assert.equal(existsSync(join(root,".pi/goals",id,"history.jsonl")),false);
 });
 
-await scenario("a failed record write appends no ledger event", () => {
+await scenario("a failed record write leaves the directory untouched", () => {
   const id = newGoalId();
   // Occupy the goals directory with a regular file so mkdir fails.
   writeFileSync(join(root, ".pi", "goals", `${id}`), "occupied");
@@ -138,11 +138,11 @@ await scenario("disk wins over a stale cached copy", () => {
 await scenario("a stale revision is refused and changes nothing", () => {
   const id = "goal_conflict";
   store.create({ objective, owner: "session-a", id });
-  const before = store.readGoalFromDisk(id)?.revision;
+  const before = store.readGoal(id)?.revision;
   const outcome = store.apply({ expectedGoalId: id, expectedRevision: before! + 99, mutate: (goal) => ({ ...goal, pauseReason: "nope" }) });
   assert.equal(outcome.ok, false);
   if (!outcome.ok) assert.match(outcome.message, /changed underneath this write/);
-  assert.equal(store.readGoalFromDisk(id)?.revision, before, "a refused write changes nothing");
+  assert.equal(store.readGoal(id)?.revision, before, "a refused write changes nothing");
 });
 
 await scenario("finishing releases runtime state without creating an archive", () => {
@@ -159,7 +159,7 @@ await scenario("a writer whose lock was taken from it writes nothing", () => {
   // goal from the same revision.
   const id = "goal_displaced";
   store.create({ objective, owner: "session-a", id });
-  const revision = store.readGoalFromDisk(id)!.revision;
+  const revision = store.readGoal(id)!.revision;
   const lockFile = join(root, ".pi", "goals", id, "claims", "write-lock.json");
 
   const outcome = store.apply({
@@ -173,7 +173,7 @@ await scenario("a writer whose lock was taken from it writes nothing", () => {
 
   assert.equal(outcome.ok, false, "the displaced writer is refused");
   if (!outcome.ok) assert.match(outcome.message, /lost its write lock/);
-  const after = new GoalStore({ projectRoot: root }).readGoalFromDisk(id)!;
+  const after = new GoalStore({ projectRoot: root }).readGoal(id)!;
   assert.equal(after.revision, revision, "the record was not advanced");
   assert.equal(after.pauseReason, undefined, "and the change it had computed was discarded");
 });
@@ -185,7 +185,7 @@ await scenario("real processes racing for one goal produce exactly one winner", 
   // all eight would write revision 1.
   const id = "goal_process_race";
   store.create({ objective, owner: "session-a", id });
-  assert.equal(store.readGoalFromDisk(id)?.revision, 0, "the goal starts at revision 0");
+  assert.equal(store.readGoal(id)?.revision, 0, "the goal starts at revision 0");
 
   const worker = resolve(repoRoot, "packages/goal/tests/goal_race_worker.mts");
   const racers = 8;
@@ -208,7 +208,7 @@ await scenario("real processes racing for one goal produce exactly one winner", 
   const verdicts = outputs.map((output) => output.trim());
   const won = verdicts.filter((verdict) => verdict === "won");
   assert.equal(won.length, 1, `expected exactly one winner, got ${JSON.stringify(verdicts)}`);
-  const after = new GoalStore({ projectRoot: root }).readGoalFromDisk(id)!;
+  const after = new GoalStore({ projectRoot: root }).readGoal(id)!;
   assert.equal(after.revision, 1, "the record advanced exactly once");
   assert.match(after.pauseReason ?? "", /^writer \d+$/, "and the surviving write is one of the racers");
 });
@@ -227,15 +227,15 @@ await scenario("a record from a newer version is refused, not partially read", (
   assert.equal(new GoalStore({ projectRoot: root }).readGoal("goal_future"), undefined);
 });
 
-await scenario("prose written directly by a user is picked up without a record revision", () => {
+await scenario("prose written directly by a user never overrides the record", () => {
   const id = "goal_prose";
   store.create({ objective, owner: "session-a", id });
-  const revision = store.readGoalFromDisk(id)!.revision;
+  const revision = store.readGoal(id)!.revision;
   writeFileSync(goalPromptPath(root, id), "objective the user edited by hand\n");
   const outcome = store.apply({ expectedGoalId: id, mutate: (goal) => goal });
   assert.ok(outcome.ok);
   assert.equal(outcome.goal.revision, revision + 1);
-  assert.equal(new GoalStore({ projectRoot: root }).readPrompt(id).trim(), objective, "legacy prose does not override the atomic record");
+  assert.equal(new GoalStore({ projectRoot: root }).readObjective(id).trim(), objective, "legacy prose does not override the atomic record");
   assert.equal(readFileSync(goalPromptPath(root,id), "utf8"), "objective the user edited by hand\n", "legacy files remain untouched");
 });
 

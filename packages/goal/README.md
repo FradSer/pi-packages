@@ -10,7 +10,7 @@ pi install npm:@fradser/pi-goal
 
 | Command | Behavior |
 | --- | --- |
-| `/goal <objective and completion conditions>` | Ask the model to create a complete objective, or merge this request into the current objective. |
+| `/goal <objective and completion conditions>` | Show one `[goal] requesting` row with the typed words, and ask the model to create a complete objective or merge this request into the current objective. |
 | `/goal` | Show the complete current objective, conditions, reason, and usage. |
 | `/goal pause` | Stop current Goal work and pending continuation. |
 | `/goal resume` | Authorize continuation, preserving accumulated tokens, elapsed time and run count. |
@@ -77,10 +77,18 @@ and automatic results are durable custom session messages, not replaceable info
 notifications. Each event has one result. Settled objectives, conditions, reasons
 and reports wrap in full without `ctrl+o` expansion.
 
+`/goal <request>` keeps its own row: one `[goal] requesting` line with the typed
+words under it. The shared band strips control bytes from those words. The complete
+request body stays out of the terminal transcript, so the row that reports what the
+goal became never sits under a wall of prompt text. That body still reaches the
+model, and it remains in the session record. A session replayed without this
+renderer is the one exception: Pi then prints the stored body through its default
+custom-message rendering.
+
 The passive footer keeps the Codex-style `Pursuing goal · 2h 25m` while work is
 running or continuation is authorized. Otherwise it reads `Goal waiting`,
 `Goal paused`, `Goal blocked`, or `Goal budget limited`, followed by elapsed time.
-A running check temporarily shows neutral `[goal] checking` status.
+A running check temporarily replaces that row with one neutral activity line, without a `[goal]` prefix.
 
 [All TUI cases and trigger conditions](TUI.zh-CN.md).
 
@@ -108,6 +116,8 @@ pnpm exec tsc --noEmit -p packages/goal/tsconfig.tests.json
 pnpm typecheck
 pnpm --dir packages/goal pack --dry-run
 uv run --no-project --with pyte python packages/goal/tests/goal_native_completion.py
+uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py
+uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py
 ```
 
 Native acceptance uses a scripted provider inside a real Pi CLI/TUI and decodes
