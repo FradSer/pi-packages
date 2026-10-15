@@ -200,12 +200,18 @@ is 33 tests because `goal_native_rejection.mts` is now driven by one of them.
   `tests/goal_native_revision.py`. It was real and is fixed; the same scan found a second one
   (`module` in `tests/test_goal_hygiene.py`), also fixed. An AST scan of the goal tests now
   reports no stored-and-never-read local, the suite is green, and the revision probe passes.
-- The continuation of that review was refused twice with HTTP 409:
+- The continuation of that review was refused three times with HTTP 409:
   "review 58abc864-af8d-4d44-aec8-b62e9757db76 cannot run another round in its own session yet.
   No second review was submitted." The skill's rule is to report the refusal and stop, because a
   new submission for the same evidence is what the refusal exists to prevent, so no second
   review was submitted. The corrections above therefore rest on my own verification, not on a
   reviewed round.
+- A fresh review of the updated range (`HEAD~3...HEAD`) was submitted instead, because the
+  evidence had changed and no session could be continued: review
+  `bf739228-cea4-445c-a17d-d9ff9e9c7b20`. It has been `running` for about thirty minutes of
+  retried polling with no verdict and no finding, so polling stopped rather than spending more
+  quota on a runtime that is not answering. Resume it with `--review-id` and that ID; never
+  resubmit the same evidence.
 
 ## Closeout
 
