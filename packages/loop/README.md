@@ -67,7 +67,9 @@ choose among candidates that it builds:
   rejected, and the command reports that the request names no cadence.
 - `runs`: the total count, or `unbounded`. The listed values are 1, 3, 5, 10, 20
   and `unbounded`.
-- `stop`: which candidate segment states a stopping condition, or `none`.
+- `stop`: which candidate segment states a stopping condition, or `none`. A
+  segment that only states how many repetitions to run is not offered: that count
+  is the run limit, and it is stripped from the message.
 - `message`: which candidate text to repeat. This question runs only when more
   than one distinct candidate exists.
 

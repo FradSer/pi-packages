@@ -32,7 +32,12 @@ a harness import that Bun erases at runtime is invisible to every other gate.
 
 - **Determinism first**: parse flags, intervals, placeholders and text assembly in
   code. Send a request to Jev only where a real choice exists, and only over
-  candidates that code built. Never ask a model to write the repeated message.
+  candidates that code built. Never ask a model to write the repeated message. A
+  segment that only states a repetition count is the run limit, not a stopping
+  condition: `isRunCountSegment` in `src/candidates.ts` excludes it from the stop
+  candidates and `messageCandidates` strips it from the message. A measured run of
+  the real service chose "3 times" as the stopping condition for four count-only
+  requests before that exclusion existed (`tests/real-jev-accuracy.ts`).
 - **Closed questions only**: use `askSystemOne` from pi-kit. Its question types are
   `noul`, `choice` and `score`; a generative answer is unrepresentable. Keep the
   criteria objects as the single source of truth for both the question and the
@@ -66,7 +71,11 @@ classes; never stub the transport. `tests/loop-live-fixture.ts` drives the real
 `messageType: "user"`, and it pairs a met stop condition (0.95) with a
 below-threshold one (0.3) so the threshold, not something else, is what ends the loop. Keep the fixture runs isolated: a disposable `HOME` and `PI_CODING_AGENT_DIR`, `PI_OFFLINE=1`, and no `TYPESAFE_API_KEY`. `tests/live_loop_rows.py` is the explicit-run terminal probe. Run it with `uv run --no-project --with pyte python packages/loop/tests/live_loop_rows.py`. It composes the real terminal with pyte and checks the start row and the status row at 120x40, after a live resize to 48x24, and by PageUp at 48x12. Keep the below-editor row read as `<verb> · <detail>` with no package tag.
 
-`tests/live_delivery_refusal.py` is the explicit-run probe for the delivery refusal. It drives RPC mode, so an extension `notify` arrives as a structured record: run `uv run --no-project python packages/loop/tests/live_delivery_refusal.py`. It measures that `ctx.reload()` and `ctx.newSession()` stop the loop through `session_shutdown` before any tick can call an invalidated API, and it keeps the control case that must still deliver turns. It does not measure `ctx.fork()` or `ctx.switchSession()`.
+`tests/live_delivery_refusal.py` is the explicit-run probe for the delivery refusal. It drives RPC mode, so an extension `notify` arrives as a structured record: run `uv run --no-project python packages/loop/tests/live_delivery_refusal.py`. It measures that all four replacements — `ctx.reload()`, `ctx.newSession()`, `ctx.fork()` and `ctx.switchSession()` — stop the loop through `session_shutdown` before any tick can call an invalidated API, and it keeps the control case that must still deliver turns. It does not measure whether some other host path could invalidate a captured API without that shutdown.
+
+`tests/real-jev-accuracy.ts` is the explicit-run **paid** probe for accuracy, usage and cost: run `bun packages/loop/tests/real-jev-accuracy.ts` with `TYPESAFE_API_KEY` set. It spends real credits, resolves twelve labelled requests plus one `met` judgment, and reports per-question accuracy and tokens per case. `--from <saved run>` recomputes the summary without spending.
+`tests/live_terminal_accessibility.py` is the explicit-run probe for real terminal rendering and assistive text. It needs macOS, Accessibility permission and Screen Recording permission, and it opens real Terminal.app windows: run `uv run --no-project python packages/loop/tests/live_terminal_accessibility.py`. It records OS screenshots of the window content and the terminal's accessibility text area at 120x40, 48x24, 48x12 and a fresh 48x12 window, excluding the title bar because this host's Terminal profile prints credentials there. VoiceOver speech output stays unverified.
+
 ## Safety
 
 Never log or write the decision credential. Never send private session text to a
