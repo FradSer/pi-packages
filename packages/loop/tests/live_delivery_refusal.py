@@ -4,19 +4,22 @@ Run from the repository root:
 
     uv run --no-project python packages/loop/tests/live_delivery_refusal.py
 
-What it establishes: with the installed `pi` CLI, both session replacements that
-invalidate a captured extension API (`ctx.reload()` and `ctx.newSession()`)
-deliver a `session_shutdown` row to the loop before it is invalidated, with no
-delivery attempt after that row, and the loop itself reports a stop with reason
-`shutdown`. Both observations are required: the row shows which handler ran, and
-the loop's own notice shows that handler stopped the runner. The control case
-shows the loop still injecting when the replacement happens, and it must carry no
-`session_shutdown` row, which is what makes the predicate discriminating.
+What it establishes: with the installed `pi` CLI, all four replacements that
+invalidate a captured extension API (`ctx.reload()`, `ctx.newSession()`,
+`ctx.fork()` and `ctx.switchSession()`) deliver a `session_shutdown` row to the
+loop before it is invalidated, with no delivery attempt after that row, and the
+loop itself reports a stop with reason `shutdown`. Both observations are
+required: the row shows which handler ran, and the loop's own notice shows that
+handler stopped the runner. The control case shows the loop still injecting when
+the replacement happens, and it must carry no `session_shutdown` row, which is
+what makes the predicate discriminating.
 
-What it does not establish: `ctx.fork()` and `ctx.switchSession()` are not
-exercised, and a host that invalidates without a preceding `session_shutdown`
-would make the loop's defensive refusal report load-bearing. Real-model and
-remote-service behaviour is out of scope.
+What it does not establish: that no other host path can invalidate a captured
+API without a preceding `session_shutdown`, and which session a surviving loop
+would write to if one did. Real-model and remote-service behaviour is out of
+scope. The `ctx.switchSession()` case needs a second session file, so this probe
+runs with sessions enabled and prepares one under a disposable agent directory;
+`--no-session` was used before that case existed.
 
 RPC mode is used because an extension `notify` becomes a structured record, so
 the loop's own report is the evidence instead of a scraped screen. The trace and
@@ -40,6 +43,21 @@ FIXTURE = pathlib.Path(__file__).with_name("delivery-refusal-fixture.ts")
 LOOP_COMMAND = "/loop --every 1s --times 20 PROBE"
 
 
+def prepare_second_session(root: pathlib.Path, name: str, fixture: pathlib.Path, env: dict) -> None:
+    """Write one extra session file, so `ctx.switchSession()` has a target.
+
+    It gets its own trace file: sharing the case's trace let the preparation
+    process's rows reach the judge, which then compared a delivery index against
+    a shutdown row written by a different process.
+    """
+    prepared = dict(env, LOOP_REFUSAL_TRACE=str(root / f"{name}.prepare.trace.jsonl"))
+    subprocess.run(
+        ["pi", "--print", "prepare an unused session", "-ne", "-ns", "-np", "-nc",
+         "-e", str(fixture), "--model", "loop-probe/scripted"],
+        cwd=REPO, env=prepared, capture_output=True, text=True, timeout=120, check=False,
+    )
+
+
 def run_case(root: pathlib.Path, name: str, replacement: str | None, observe: float) -> dict:
     trace = root / f"{name}.trace.jsonl"
     records_path = root / f"{name}.records.jsonl"
@@ -48,8 +66,10 @@ def run_case(root: pathlib.Path, name: str, replacement: str | None, observe: fl
     env.pop("TYPESAFE_API_KEY", None)
     for directory in (root / f"{name}-home", root / f"{name}-agent"):
         directory.mkdir(parents=True, exist_ok=True)
+    if replacement == "probe-switch-session":
+        prepare_second_session(root, name, FIXTURE, env)
     child = subprocess.Popen(
-        ["pi", "--mode", "rpc", "--no-session", "-ne", "-ns", "-np", "-nc",
+        ["pi", "--mode", "rpc", "-ne", "-ns", "-np", "-nc",
          "-e", str(FIXTURE), "--model", "loop-probe/scripted"],
         cwd=REPO, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, text=True, bufsize=1,
@@ -148,6 +168,11 @@ def judge(case: dict) -> list[str]:
             failures.append("the control loop was stopped by session_shutdown: "
                             + json.dumps(case["trace"][-5:]))
         return failures
+    # A replacement that failed measured nothing, so it must never read as a pass.
+    if any(kind == "replace:error" for kind in kinds):
+        failures.append("the replacement itself failed: " + json.dumps(case["trace"][-5:]))
+    elif "replace:done" not in kinds:
+        failures.append("the replacement never completed: " + json.dumps(case["trace"][-5:]))
     # Two independent observations, both required. The fixture's row proves the
     # shutdown arrived through the right handler; the loop's own notice proves that
     # handler stopped the runner. A replacement that lands during an in-flight turn
@@ -175,7 +200,8 @@ def main() -> int:
         return 1
     root = pathlib.Path(tempfile.mkdtemp(prefix="loop-refusal-"))
     planned = [("control", None, 6.0), ("reload", "probe-reload", 12.0),
-               ("new-session", "probe-new-session", 12.0)]
+               ("new-session", "probe-new-session", 12.0), ("fork", "probe-fork", 12.0),
+               ("switch-session", "probe-switch-session", 12.0)]
     wanted = sys.argv[1:]
     failures: list[str] = []
     for name, replacement, observe in planned:

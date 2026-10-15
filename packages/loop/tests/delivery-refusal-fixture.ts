@@ -2,10 +2,11 @@
  * Probe fixture for the delivery-refusal path.
  *
  * Loads the real package under test, runs a scripted local provider so turns
- * settle, and offers the two session replacements that invalidate a captured
+ * settle, and offers every session replacement that invalidates a captured
  * extension API. `tests/live_delivery_refusal.py` drives it over RPC.
  */
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { createAssistantMessageEventStream, type AssistantMessage } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import loop from "../src/index.ts";
@@ -43,6 +44,24 @@ export default function (pi: ExtensionAPI): void {
   };
   replacement("probe-reload", async (ctx) => await ctx.reload());
   replacement("probe-new-session", async (ctx) => await ctx.newSession());
+  replacement("probe-fork", async (ctx) => {
+    // `position: "before"` accepts a user message entry only (agent-session-runtime.js).
+    const entry = ctx.sessionManager.getEntries()
+      .find((row) => row.type === "message" && row.message.role === "user");
+    if (entry === undefined) throw new Error("no user message entry to fork from");
+    return await ctx.fork(entry.id);
+  });
+  replacement("probe-switch-session", async (ctx) => {
+    const current = ctx.sessionManager.getSessionFile();
+    const dir = ctx.sessionManager.getSessionDir();
+    const others = readdirSync(dir, { recursive: true })
+      .map((name) => join(dir, String(name)))
+      .filter((path) => path.endsWith(".jsonl") && path !== current)
+      .sort((left, right) => statSync(right).mtimeMs - statSync(left).mtimeMs);
+    const target = others[0];
+    if (target === undefined) throw new Error("no other session file in " + dir);
+    return await ctx.switchSession(target);
+  });
 
   // The real package, loaded as an installed user loads it.
   loop(pi);
