@@ -1,8 +1,10 @@
 /**
  * Typed placeholder expansion for the injected message.
  *
- * Placeholders are a closed set. An unknown placeholder is an error rather than
- * literal text, because a typo that silently reaches the model wastes a turn.
+ * Every `{{...}}` token is a placeholder and the set of names is closed. A name
+ * outside the set is an error rather than literal text, because a typo that
+ * silently reaches the model wastes a turn. A group that never closes is not a
+ * token at all, so `compare {{ before` stays literal.
  */
 
 /** Raised for a placeholder outside the closed set. */
@@ -24,7 +26,7 @@ export interface TemplateContext {
   date: string;
 }
 
-const PLACEHOLDER = /\{\{\s*([a-z]+)\s*\}\}/g;
+const PLACEHOLDER = /\{\{\s*([^{}]*?)\s*\}\}/g;
 const KNOWN = ["index", "total", "remaining", "time", "date"];
 
 /** List the distinct placeholder names in a text, in first-seen order. */
@@ -39,7 +41,9 @@ export function templatePlaceholders(text: string): string[] {
 
 /** Return the first placeholder name outside the closed set, if one exists. */
 export function unknownPlaceholder(text: string): string | undefined {
-  return templatePlaceholders(text).find((name) => !KNOWN.includes(name));
+  const unknown = templatePlaceholders(text).find((name) => !KNOWN.includes(name));
+  // An empty name has nothing to quote, so the token itself names the mistake.
+  return unknown === "" ? "{{}}" : unknown;
 }
 
 /**

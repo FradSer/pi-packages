@@ -31,6 +31,20 @@ def read_trace(path: pathlib.Path) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
+def host_omits_the_starting_prompt(started: list[dict]) -> bool:
+    """Whether every start row fits a host that reports no starting prompt.
+
+    A host older than the `prompt` field reports neither `prompt` nor a non-user
+    `messageType`, so the run can skip. A repetition delivered as a custom message
+    instead of `pi.sendUserMessage` also carries no prompt, but such a host labels
+    it, and that case must fail the run instead of skipping it.
+    """
+    return bool(started) and all(
+        row.get("prompt") is None and row.get("messageType") in (None, "user")
+        for row in started
+    )
+
+
 def choice(key: str, confidence: float = 0.9) -> dict:
     return {"type": "choice", "choice": key, "probabilities": {key: confidence}, "confidence": confidence}
 
@@ -119,7 +133,7 @@ def run_native(
             starts = await_trace(reached, timeout)
             if starts is None:
                 started = [r for r in read_trace(trace) if r.get("kind") == "start"]
-                if started and all(r.get("prompt") is None for r in started):
+                if host_omits_the_starting_prompt(started):
                     pytest.skip("the installed pi does not report the starting prompt for a run")
                 assert False, "injections did not arrive: " + json.dumps(started)
             await_trace(lambda rows: None, quiet)
@@ -134,7 +148,6 @@ def run_native(
             os.close(master)
 
 
-@pytest.mark.skipif(shutil.which("pi") is None, reason="the pi CLI is not installed")
 def assert_user_turns(starts: list[dict], expected: list[str]) -> None:
     """A run started by a user prompt carries that prompt; a custom message does not."""
     assert [row["prompt"] for row in starts] == expected, starts
@@ -142,10 +155,54 @@ def assert_user_turns(starts: list[dict], expected: list[str]) -> None:
     assert all(value == "user" for value in reported), starts
 
 
+@pytest.mark.parametrize("started, expected", [
+    ([], False),
+    ([{"prompt": None, "messageType": None}], True),
+    ([{"prompt": None, "messageType": "user"}], True),
+    ([{"prompt": "x", "messageType": None}], False),
+    ([{"prompt": None, "messageType": "custom"}], False),
+])
+def test_the_promptless_skip_only_covers_a_host_that_reports_nothing(
+    started: list[dict], expected: bool
+) -> None:
+    """A labelled non-user start row must fail the run, never skip it."""
+    assert host_omits_the_starting_prompt(started) is expected
+
+
 @pytest.mark.skipif(shutil.which("pi") is None, reason="the pi CLI is not installed")
 def test_scheduled_injection_arrives_as_a_native_user_turn() -> None:
     rows, starts, _output = run_native(PARAMETERIZED, ["LOOP_PROBE 1/2", "LOOP_PROBE 2/2"])
     assert_user_turns(starts, ["LOOP_PROBE 1/2", "LOOP_PROBE 2/2"])
+    assert not [r for r in rows if isinstance(r.get("prompt"), str) and r["prompt"].startswith("/loop ")], \
+        "the command was sent to the model instead of being dispatched"
+
+
+@pytest.mark.skipif(shutil.which("pi") is None, reason="the pi CLI is not installed")
+def test_a_free_request_is_decided_and_injected_as_a_native_user_turn() -> None:
+    """The semantic plan's own end: two decision question sets, then a real user turn.
+
+    The decision seam is exercised separately against a loopback endpoint, and
+    that check stops at the resolved plan. Only this run proves the selected
+    candidate reaches the session through `pi.sendUserMessage`. The listed
+    intervals start at 30s, so the wait is the shortest one the contract allows.
+    """
+    server, seen = start_decision_server(lambda ids: envelope({"message": choice("without_schedule")})
+                                         if ids == ["message"]
+                                         else envelope({"interval": choice("30s"), "runs": choice("1"),
+                                                        "stop": choice("none")}))
+    try:
+        base = "http://127.0.0.1:%d" % server.server_address[1]
+        rows, starts, _output = run_native(
+            "/loop keep an eye on the deploy every 30 seconds",
+            ["keep an eye on the deploy"],
+            {"TYPESAFE_API_KEY": "loop-fixture-key", "TYPESAFE_BASE_URL": base},
+            quiet=1.0,
+            timeout=120,
+        )
+    finally:
+        server.shutdown()
+    assert_user_turns(starts, ["keep an eye on the deploy"])
+    assert [ids for ids in seen] == [["interval", "runs", "stop"], ["message"]], seen
     assert not [r for r in rows if isinstance(r.get("prompt"), str) and r["prompt"].startswith("/loop ")], \
         "the command was sent to the model instead of being dispatched"
 

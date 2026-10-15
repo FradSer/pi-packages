@@ -81,12 +81,11 @@ function lastAssistantTextFrom(messages: readonly unknown[]): string {
 
 /** Report to the user, with a transcript notice when no dialog UI exists. */
 function feedback(pi: ExtensionAPI, ctx: ExtensionCommandContext, text: string, level: "info" | "warning" | "error"): void {
-  const content = safeDisplayText(text);
   if (ctx.hasUI) {
-    ctx.ui.notify(content, level);
+    notifyPi(ctx.ui, text, level);
     return;
   }
-  pi.sendMessage({ customType: NOTICE_ENTRY, content, display: true }, { triggerTurn: false });
+  pi.sendMessage({ customType: NOTICE_ENTRY, content: safeDisplayText(text), display: true }, { triggerTurn: false });
 }
 
 export function registerLoop(pi: ExtensionAPI): void {
@@ -158,17 +157,35 @@ export function registerLoop(pi: ExtensionAPI): void {
 
   const start = (resolved: ResolvedLoop): void => {
     let created: LoopRunner;
+    /** The last delivery failure, named by the stop notice that reports it. */
+    let deliveryFailure: string | undefined;
     try {
       created = new LoopRunner({
         plan: resolved.plan,
         timers: nodeTimers(),
+        // The returned promise is handed to the runner, which observes its
+        // rejection. Discarding it here would hide a repetition that never arrived.
         send: (text) => pi.sendUserMessage(text, { deliverAs: "followUp" }),
         onEvent: (event) => {
+          if (event.type === "undelivered") {
+            deliveryFailure = event.reason;
+            // A failure that ends the loop is reported once, by the stop notice.
+            if (!event.terminal && ui !== undefined) {
+              notifyPi(ui, "loop: a scheduled injection could not be delivered (" + event.reason + ").", "error");
+            }
+            return;
+          }
           if (event.type !== "stopped") {
             publish();
             return;
           }
           if (ui !== undefined) clearPiStatus(ui, STATUS_KEY);
+          if (event.reason === "delivery") {
+            if (ui !== undefined) {
+              notifyPi(ui, "loop: a scheduled injection could not be delivered (" + (deliveryFailure ?? "unknown") + "), so the loop stopped.", "error");
+            }
+            return;
+          }
           const injections = event.injections + (event.injections === 1 ? " injection" : " injections");
           const skipped = event.skipped > 0 ? ", " + event.skipped + " skipped while busy" : "";
           if (ui !== undefined) notifyPi(ui, "loop: stopped after " + injections + skipped + " (" + event.reason + ")", "info");

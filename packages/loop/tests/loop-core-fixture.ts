@@ -66,7 +66,7 @@ function tuplePair(pair: unknown): { input: unknown; expected: unknown; actual: 
   return { input: values[0], expected: values[1], actual: parseDuration(String(values[0])) };
 }
 
-const scenarios: Record<string, () => unknown> = {
+const scenarios: Record<string, () => unknown | Promise<unknown>> = {
   duration() {
     const parsed = [["30s", 30000], ["5m", 300000], ["1h", 3600000], ["2d", null], ["90", 90000], ["1h30m", 5400000], ["1m 30s", 90000], ["5", 5000], ["500ms", null], ["0s", null], ["24h", 86400000], ["25h", null], ["banana", null], ["", null], ["1x", null], [" 5m ", 300000]].map(tuplePair);
     const formatted = [[90000, "1m30s"], [300000, "5m"], [5400000, "1h30m"], [86400000, "1d"], [1000, "1s"], [500, "500ms"], [30000, "30s"]].map((pair) => {
@@ -86,6 +86,15 @@ const scenarios: Record<string, () => unknown> = {
       spaced: expandTemplate("{{ index }}", { index: 7, time: clock.time, date: clock.date }),
       unknown: unknownPlaceholder("a {{bogus}} b"),
       none: unknownPlaceholder("a {{index}} b"),
+      // A brace token that is not a known lowercase name is refused too, so a
+      // typo is reported instead of reaching the model as literal text.
+      unknownCased: unknownPlaceholder("status {{Index}} of {{total}}"),
+      unknownNumeric: unknownPlaceholder("{{1}}"),
+      unknownSpacedName: unknownPlaceholder("{{ index_2 }}"),
+      unknownEmpty: unknownPlaceholder("{{}}"),
+      // A brace group that never closes is not a placeholder token.
+      unclosed: expandTemplate("compare {{ before", { index: 1, time: clock.time, date: clock.date }),
+      threwCased: captureThrown(() => expandTemplate("{{Index}}", { index: 1, time: clock.time, date: clock.date })),
       threw: captureThrown(() => expandTemplate("{{bogus}}", { index: 1, time: clock.time, date: clock.date })),
       thrownClass: TemplateError.name,
     };
@@ -105,6 +114,9 @@ const scenarios: Record<string, () => unknown> = {
       "--every 5m --times two x",
       "--every 5m --bogus x",
       "--every 5m {{bogus}}",
+      "--every 5m {{Index}}",
+      "--every 5m {{}}",
+      "--every 5m compare {{ before",
       "--every 5m --message a b",
       "--every \"5m",
       "check the build every 5 minutes",
@@ -140,7 +152,9 @@ const scenarios: Record<string, () => unknown> = {
     const runner = new LoopRunner({
       plan: { message: "tick {{index}}/{{total}}", intervalMs: 1000, maxRuns: 2 },
       timers: limit.timers,
-      send: (text) => sent.push(text),
+      send: (text) => {
+        sent.push(text);
+      },
       now: () => new Date(2026, 0, 2, 3, 4, 5),
       onEvent: (event) => events.push(event.type + ":" + (event.type === "stopped" ? event.reason : String(event.index))),
     });
@@ -156,7 +170,9 @@ const scenarios: Record<string, () => unknown> = {
     const skipRunner = new LoopRunner({
       plan: { message: "go", intervalMs: 1000, maxRuns: 3 },
       timers: skip.timers,
-      send: (text) => skippedSent.push(text),
+      send: (text) => {
+        skippedSent.push(text);
+      },
     });
     skipRunner.start();
     skip.advance(1000);
@@ -171,7 +187,9 @@ const scenarios: Record<string, () => unknown> = {
     const stopRunner = new LoopRunner({
       plan: { message: "go", intervalMs: 1000 },
       timers: stop.timers,
-      send: (text) => stoppedSent.push(text),
+      send: (text) => {
+        stoppedSent.push(text);
+      },
     });
     stopRunner.start();
     stop.advance(1000);
@@ -183,7 +201,73 @@ const scenarios: Record<string, () => unknown> = {
     const firstStart = captureThrown(() => new LoopRunner({ plan: { message: "{{bogus}}", intervalMs: 1000 }, timers: stop.timers, send: () => {} }));
     return { beforeFirst, afterLimit, whileBusy, afterSettle, afterStop, restart, firstStart };
   },
+
+  async delivery() {
+    // A delivery that throws and one that rejects must behave the same way: the
+    // attempt is reported, and no timer survives it.
+    const thrown = manualClock();
+    const thrownEvents: string[] = [];
+    const thrownRunner = new LoopRunner({
+      plan: { message: "go", intervalMs: 1000, maxRuns: 3 },
+      timers: thrown.timers,
+      send: () => {
+        throw new Error("the session is closed");
+      },
+      onEvent: (event) => thrownEvents.push(event.type + ":" + (event.type === "stopped" ? event.reason : String(event.index))),
+    });
+    thrownRunner.start();
+    thrown.advance(1000);
+    thrown.advance(5000);
+
+    const rejected = manualClock();
+    const rejectedEvents: string[] = [];
+    let undelivered: { reason: string; terminal: boolean } | undefined;
+    const rejectedRunner = new LoopRunner({
+      plan: { message: "go", intervalMs: 1000, maxRuns: 3 },
+      timers: rejected.timers,
+      send: () => Promise.reject(new Error("the session is closed")),
+      onEvent: (event) => {
+        rejectedEvents.push(event.type + ":" + (event.type === "stopped" ? event.reason : String(event.index)));
+        if (event.type === "undelivered") undelivered = { reason: event.reason, terminal: event.terminal };
+      },
+    });
+    rejectedRunner.start();
+    rejected.advance(1000);
+    // The rejection settles on the microtask queue, not on the virtual clock.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    rejected.advance(5000);
+
+    // A failure that arrives after the loop already stopped must not re-arm it.
+    const late = manualClock();
+    const lateRunner = new LoopRunner({
+      plan: { message: "go", intervalMs: 1000 },
+      timers: late.timers,
+      send: () => lateFailure.promise,
+    });
+    lateRunner.start();
+    late.advance(1000);
+    lateRunner.stop("user");
+    lateFailure.reject(new Error("the session is closed"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    return {
+      thrown: { events: thrownEvents, active: thrownRunner.active, injections: thrownRunner.injections, pending: thrown.pending() },
+      rejected: { events: rejectedEvents, active: rejectedRunner.active, injections: rejectedRunner.injections, pending: rejected.pending(), undelivered },
+      late: { active: lateRunner.active, pending: late.pending() },
+    };
+  },
 };
+
+/** A rejection that settles only when the scenario decides it should. */
+function deferredFailure() {
+  let reject: (error: unknown) => void = () => {};
+  const promise = new Promise<never>((_resolve, rejectPromise) => {
+    reject = rejectPromise;
+  });
+  return { promise, reject: (error: unknown) => reject(error) };
+}
+
+const lateFailure = deferredFailure();
 
 const requested = process.argv.slice(2);
 for (const name of requested.length > 0 ? requested : Object.keys(scenarios)) {
@@ -193,7 +277,7 @@ for (const name of requested.length > 0 ? requested : Object.keys(scenarios)) {
     continue;
   }
   try {
-    console.log(JSON.stringify({ scenario: name, ok: true, value: scenario() }));
+    console.log(JSON.stringify({ scenario: name, ok: true, value: await scenario() }));
   } catch (error) {
     console.log(JSON.stringify({ scenario: name, ok: false, error: error instanceof Error ? error.message : String(error) }));
   }

@@ -208,6 +208,7 @@ candidates the extension builds. Free requests and `--until` need
 ```bash
 pi install npm:@fradser/pi-loop
 ```
+
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)
 
 Runs one minimal read-only Pi subagent via pi-kit, then uses the native TUI to choose implementation in the current or a new session.

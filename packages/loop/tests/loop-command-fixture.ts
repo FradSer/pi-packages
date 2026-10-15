@@ -18,7 +18,7 @@ interface Captured {
   events: string[];
 }
 
-function bootstrap(): { captured: Captured; run: (args: string, hasUI?: boolean) => Promise<void> } {
+function bootstrap(deliver?: (text: string) => void | Promise<void>): { captured: Captured; run: (args: string, hasUI?: boolean) => Promise<void> } {
   const captured: Captured = { commands: new Map(), messages: [], sent: [], status: [], notifications: [], events: [] };
   const api = {
     registerCommand(name: string, options: { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }) {
@@ -33,6 +33,7 @@ function bootstrap(): { captured: Captured; run: (args: string, hasUI?: boolean)
     },
     sendUserMessage(text: string) {
       captured.sent.push(text);
+      return deliver?.(text);
     },
   } as unknown as ExtensionAPI;
   loop(api);
@@ -113,7 +114,30 @@ const scenarios: Record<string, () => Promise<unknown>> = {
     await run("status", false);
     return { busy, badDuration, noMessage, unknownFlag, freeWithoutCredential, untilWithoutCredential, headless: [...captured.messages] };
   },
+
+  async "delivery-failure"() {
+    // The real host returns a promise. Nothing observes it but the runner.
+    const { captured, run } = bootstrap(() => Promise.reject(new Error("the session is closed")));
+    await run("--every 1s --times 2 WATCH");
+    const reported = await until(() => captured.notifications.some((row) => row.message.includes("could not be delivered")));
+    return {
+      reported,
+      notifications: [...captured.notifications],
+      status: [...captured.status],
+      sent: [...captured.sent],
+    };
+  },
 };
+
+/** Poll a real timer without making the wait itself the acceptance condition. */
+async function until(predicate: () => boolean, seconds = 5): Promise<boolean> {
+  const deadline = Date.now() + seconds * 1000;
+  while (Date.now() < deadline) {
+    if (predicate()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return predicate();
+}
 
 const requested = process.argv.slice(2);
 for (const name of requested.length > 0 ? requested : Object.keys(scenarios)) {

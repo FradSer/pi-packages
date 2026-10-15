@@ -17,6 +17,11 @@ Feature: /loop repeats one message into the session as a real user turn
     Then the first injected message is "status 1 of 2"
     And the second injected message is "status 2 of 2"
 
+  Scenario: A placeholder typo is refused before any timer starts
+    When the user runs "/loop --every 5m --times 2 status {{Index}} of {{total}}"
+    Then the command reports the unknown placeholder "Index"
+    And no timer is scheduled
+
   Scenario: A free natural-language request is resolved by decision judgments
     Given the decision service is configured
     When the user runs "/loop keep an eye on the deploy every ten minutes"
@@ -37,6 +42,13 @@ Feature: /loop repeats one message into the session as a real user turn
     When the timer fires
     Then the loop counts a skipped tick
     And the loop injects nothing
+
+  Scenario: An injection that cannot be delivered ends the loop
+    Given an active loop whose injection cannot reach the session
+    When the delivery fails
+    Then the loop reports the injection as undelivered
+    And the loop stops and releases its timer
+    And no later injection happens
 
   Scenario: An invalid flag set is refused before any timer starts
     When the user runs "/loop --every 5m"

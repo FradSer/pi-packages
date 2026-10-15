@@ -11,18 +11,23 @@ import { formatDuration } from "./duration.ts";
 import { expandTemplate, templateClock, unknownPlaceholder } from "./template.ts";
 import type { LoopPlan, TimerApi, TimerHandle } from "./types.ts";
 
-export type LoopStopReason = "user" | "limit" | "condition" | "shutdown";
+export type LoopStopReason = "user" | "limit" | "condition" | "shutdown" | "delivery";
 
 export type LoopEvent =
   | { type: "injected"; index: number; text: string }
   | { type: "skipped"; index: number; reason: "busy" }
+  /** An attempt that did not reach the session. `terminal` is true when it ended the loop. */
+  | { type: "undelivered"; index: number; reason: string; terminal: boolean }
   | { type: "stopped"; reason: LoopStopReason; injections: number; skipped: number };
 
 export interface LoopRunnerOptions {
   plan: LoopPlan;
   timers: TimerApi;
-  /** Deliver the text into the session as a user turn. */
-  send: (text: string) => void;
+  /**
+   * Deliver the text into the session as a user turn. A returned promise is
+   * observed: its rejection is reported, never left unhandled.
+   */
+  send: (text: string) => void | Promise<void>;
   now?: () => Date;
   onEvent?: (event: LoopEvent) => void;
 }
@@ -31,7 +36,7 @@ export interface LoopRunnerOptions {
 export class LoopRunner {
   readonly plan: LoopPlan;
   private readonly timers: TimerApi;
-  private readonly send: (text: string) => void;
+  private readonly send: (text: string) => void | Promise<void>;
   private readonly now: () => Date;
   private readonly onEvent: ((event: LoopEvent) => void) | undefined;
   private handle: TimerHandle | undefined;
@@ -130,7 +135,16 @@ export class LoopRunner {
     });
     this.busy = true;
     this.count = index;
-    this.send(text);
+    let delivery: void | Promise<void>;
+    try {
+      delivery = this.send(text);
+    } catch (error) {
+      this.failDelivery(index, error);
+      return;
+    }
+    if (delivery !== undefined) {
+      void Promise.resolve(delivery).catch((error: unknown) => this.failDelivery(index, error));
+    }
     this.emit({ type: "injected", index, text });
     if (this.plan.maxRuns !== undefined && this.count >= this.plan.maxRuns) {
       this.stop("limit");
@@ -138,6 +152,22 @@ export class LoopRunner {
     }
     this.schedule();
   }
+
+  /**
+   * Report an attempt that never reached the session, and end the loop when it
+   * still runs: every later repetition would fail the same way, and the status
+   * row would keep claiming a loop that is doing nothing.
+   */
+  private failDelivery(index: number, error: unknown): void {
+    const terminal = this.running;
+    this.emit({ type: "undelivered", index, reason: messageOf(error), terminal });
+    if (terminal) this.stop("delivery");
+  }
+}
+
+/** A delivery failure's own text, for a report a reader can act on. */
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /** The real timer surface. A pending tick never keeps the process alive. */

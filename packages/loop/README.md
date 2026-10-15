@@ -11,7 +11,7 @@ transcript, and it enters the model context, exactly like a prompt you typed.
 | Command | Effect |
 | --- | --- |
 | `/loop <request>` | Start a repeating injection |
-| `/loop status` | Show the active loop, or `loop: idle` |
+| `/loop status` | Show the active loop, or report `loop: no loop is running.` |
 | `/loop stop` | Release the timer and end the loop |
 
 `/loop` with no argument prints the same status and the usage text.
@@ -53,15 +53,14 @@ The message may use these placeholders:
 | `{{time}}` | The local time, as `HH:MM:SS` |
 | `{{date}}` | The local date, as `YYYY-MM-DD` |
 
-A placeholder outside this list is refused at start, because a typo that reaches
-the model wastes a turn.
+Every `{{…}}` token is a placeholder, and only the names above are known. A token
+that names anything else is refused at start, so a typo such as `{{Index}}` never
+reaches the model. A brace group that never closes stays literal text.
 
 ### A free request
 
 Write the request in your own words. The extension then asks TypeSafe Jev to
 choose among candidates that it builds:
-
-**How to apply**
 
 - `interval`: which listed interval is closest to the requested cadence. The
   listed intervals are 30s, 1m, 5m, 15m, 30m, 1h and 1d. `unspecified` is
@@ -99,6 +98,9 @@ your work.
   never queues a backlog of prompts.
 - A bounded loop stops itself after its last repetition. `/loop stop` and session
   shutdown release the timer. A stopped loop cannot restart; start a new one.
+- A repetition that cannot be delivered ends the loop, and the command reports
+  the failure. A repetition that never arrived cannot be judged, so the loop
+  never keeps claiming one.
 
 ## Configuration
 

@@ -70,3 +70,15 @@ def test_every_refusal_names_the_cause_and_schedules_nothing() -> None:
     assert headless and headless[0]["customType"] == "loop-notice", headless
     assert headless[0]["options"] == {"triggerTurn": False}, headless
 
+
+def test_an_undeliverable_injection_is_reported_once_and_clears_the_row() -> None:
+    """The command surface must report a repetition that never reached the session."""
+    data = value(run("delivery-failure"), "delivery-failure")
+    assert data["reported"] is True, data
+    failures = [row for row in data["notifications"] if "could not be delivered" in str(row["message"])]
+    assert len(failures) == 1, data
+    assert failures[0]["level"] == "error", failures
+    assert "the session is closed" in str(failures[0]["message"]), failures
+    assert data["sent"] == ["WATCH"], "the loop must stop after one failed attempt: " + json.dumps(data)
+    assert data["status"][-1] is None, "the row must clear: " + json.dumps(data)
+

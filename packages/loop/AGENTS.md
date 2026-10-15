@@ -24,6 +24,10 @@ pnpm check:install
 pnpm --dir packages/loop pack --dry-run
 ```
 
+`pnpm typecheck` resolves `src/` only, so `tests/test_loop_hygiene.py` runs
+`tsc -p packages/loop/tsconfig.tests.json` over the harnesses. Keep that check:
+a harness import that Bun erases at runtime is invisible to every other gate.
+
 ## Style and Architecture
 
 - **Determinism first**: parse flags, intervals, placeholders and text assembly in
@@ -39,8 +43,10 @@ pnpm --dir packages/loop pack --dry-run
 - **Delivery**: inject with `pi.sendUserMessage` so each repetition is a real user
   turn. Never use a custom message for the repetition itself.
 - **Scheduling**: skip a tick whose previous repetition has not settled, and count
-  it. `stop()` is terminal and releases the timer. Start no timer in the extension
-  factory.
+  it. Observe the promise `send` returns: a delivery that throws or rejects is
+  reported as `undelivered` and ends the loop, because a repetition that never
+  arrived cannot be judged. `stop()` is terminal and releases the timer. Start no
+  timer in the extension factory.
 - **Transcript**: one lifecycle row for the start, through
   `bindLifecycleRenderers` and `startedToolLifecycle`. Keep per-repetition status
   in `setStatus`, not in extra rows, because the injected turn already appears.
@@ -56,7 +62,6 @@ classes; never stub the transport. `tests/loop-live-fixture.ts` drives the real
 `pi` TUI with a scripted local provider. It proves the parameterized injection arrives as
 `messageType: "user"`, and it pairs a met stop condition (0.95) with a
 below-threshold one (0.3) so the threshold, not something else, is what ends the loop. Keep the fixture runs isolated: a disposable `HOME` and `PI_CODING_AGENT_DIR`, `PI_OFFLINE=1`, and no `TYPESAFE_API_KEY`. `tests/live_loop_rows.py` is the explicit-run terminal probe. Run it with `uv run --no-project --with pyte python packages/loop/tests/live_loop_rows.py`. It composes the real terminal with pyte and checks the start row and the status row at 120x40, after a live resize to 48x24, and by PageUp at 48x12. Keep the below-editor row read as `<verb> · <detail>` with no package tag.
-
 ## Safety
 
 Never log or write the decision credential. Never send private session text to a

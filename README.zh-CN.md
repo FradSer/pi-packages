@@ -181,6 +181,29 @@ pi install npm:@fradser/pi-tasks
 pi install npm:@fradser/pi-goal
 ```
 
+### [`@fradser/pi-loop`](packages/loop/)
+
+按固定周期把同一条消息重新注入当前会话。每次注入都走原生用户输入路径，是一条真实的用户轮次，而不是系统提示，因此会像手输的提示一样出现在对话记录中。
+
+**命令：** `/loop <request>`、`/loop status`、`/loop stop`
+
+已知周期时用参数直接声明，这条路径不调用任何模型：
+
+```bash
+/loop --every 5m --times 3 check the build
+/loop --every 1h --until "the deploy is green" report deploy status
+```
+
+消息支持 `{{index}}`、`{{total}}`、`{{remaining}}`、`{{time}}` 和 `{{date}}`。上一次注入尚未结束时，本次触发会被跳过并计数，永不排队，因此慢轮次不会堆积出待办提示。
+
+也可以用自己的话描述。此时周期、次数、停止条件和重复文本由 TypeSafe Jev 在扩展构造的候选上判断选出；投递失败的重复会被报告并结束循环。自由请求和 `--until` 需要 `TYPESAFE_API_KEY`，缺失时直接拒绝，不做猜测。
+
+**安装：**
+
+```bash
+pi install npm:@fradser/pi-loop
+```
+
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)
 
 通过 pi-kit 启动最小配置的只读 Pi 子代理生成计划，再通过原生 TUI 选择在当前或新会话中执行。

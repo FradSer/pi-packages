@@ -42,8 +42,17 @@ def test_template_expansion_and_unknown_placeholder() -> None:
     assert data["remaining"] == "4"
     assert data["spaced"] == "7"
     assert data["unknown"] == "bogus" and data.get("none") is None
-    thrown = data["threw"]
-    assert thrown["threw"] is True and thrown["name"] == "TemplateError"
+    # The refusal covers every brace token, not only lowercase typos: a name the
+    # set does not know is reported as written, and an unnamed token quotes itself.
+    assert data["unknownCased"] == "Index", data["unknownCased"]
+    assert data["unknownNumeric"] == "1", data["unknownNumeric"]
+    assert data["unknownSpacedName"] == "index_2", data["unknownSpacedName"]
+    assert data["unknownEmpty"] == "{{}}", data["unknownEmpty"]
+    assert data["unclosed"] == "compare {{ before", data["unclosed"]
+    threw = data["threw"]
+    assert threw["threw"] is True and threw["name"] == "TemplateError"
+    cased = data["threwCased"]
+    assert cased["threw"] is True and cased["name"] == "TemplateError", cased
 
 
 def test_flag_parsing_equivalence_classes() -> None:
@@ -57,9 +66,12 @@ def test_flag_parsing_equivalence_classes() -> None:
     assert cases['--every 5m "quoted message"']["plan"]["message"] == "quoted message"
     assert cases["--every 5m -- everything --weird"]["plan"]["message"] == "everything --weird"
     for bad in ["--every 5m", "--every banana x", "--every 5m --times 0 x", "--every 5m --times two x",
-                "--every 5m --bogus x", "--every 5m {{bogus}}", "--every 5m --message a b", '--every "5m']:
+                "--every 5m --bogus x", "--every 5m {{bogus}}", "--every 5m {{Index}}", "--every 5m {{}}",
+                "--every 5m --message a b", '--every "5m']:
         assert cases[bad]["kind"] == "invalid", (bad, cases[bad])
         assert cases[bad]["error"]
+    # A brace group that never closes is literal text, not a refused placeholder.
+    assert cases["--every 5m compare {{ before"]["plan"]["message"] == "compare {{ before"
     for plain in ["check the build every 5 minutes", "keep an eye on the deploy"]:
         assert cases[plain]["kind"] == "not-parameterized", (plain, cases[plain])
 
@@ -94,4 +106,27 @@ def test_scheduler_limit_skip_and_stop() -> None:
     assert stopped["sent"] == ["go"] and stopped["active"] is False and stopped["pending"] == 0
     assert data["restart"]["threw"] is True, "a stopped loop must not re-arm"
     assert data["firstStart"]["threw"] is True
+
+
+def test_an_undeliverable_injection_ends_the_loop_without_a_timer() -> None:
+    """A repetition that never reached the session is reported, not counted as delivered.
+
+    The promise `pi.sendUserMessage` returns used to be discarded, so a failed
+    delivery left the loop running with no pending timer and no report. A call
+    that throws never hands the text over, so it emits no `injected`; a promise
+    that rejects was already accepted for delivery, so it emits one first.
+    """
+    data = value(run("delivery"), "delivery")
+    expected = {
+        "thrown": ["undelivered:1", "stopped:delivery"],
+        "rejected": ["injected:1", "undelivered:1", "stopped:delivery"],
+    }
+    for shape, events in expected.items():
+        case = data[shape]
+        assert case["events"] == events, (shape, case)
+        assert case["injections"] == 1, (shape, case)
+        assert case["active"] is False and case["pending"] == 0, (shape, case)
+    assert data["rejected"]["undelivered"] == {"reason": "the session is closed", "terminal": True}, data
+    # A failure that arrives after the loop stopped is reported, never re-armed.
+    assert data["late"] == {"active": False, "pending": 0}, data
 

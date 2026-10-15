@@ -30,9 +30,7 @@ export default function (pi: ExtensionAPI): void {
   });
 
   // The real package, including the real /loop command and its renderer.
-  // The installed-package run loads /loop from the agent settings instead, so
-  // the same fixture proves both entry points.
-  if (process.env.PI_LOOP_INSTALLED !== "1") loop(pi);
+  loop(pi);
 
   let step = 0;
   pi.registerProvider("loop-offline", {
