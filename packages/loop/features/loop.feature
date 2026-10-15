@@ -43,9 +43,9 @@ Feature: /loop repeats one message into the session as a real user turn
     Then the loop counts a skipped tick
     And the loop injects nothing
 
-  Scenario: An injection the host refuses ends the loop
+  Scenario: A delivery call that throws is reported and ends the loop
     Given an active loop
-    When the delivery call throws because the host invalidated the extension API
+    When the delivery call throws instead of accepting the message
     Then the loop reports the injection as undelivered
     And the loop stops and releases its timer
     And no later injection happens

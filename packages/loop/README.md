@@ -98,9 +98,10 @@ your work.
   never queues a backlog of prompts.
 - A bounded loop stops itself after its last repetition. `/loop stop` and session
   shutdown release the timer. A stopped loop cannot restart; start a new one.
-- A delivery the host refuses ends the loop, and the command reports it. Pi
-  reports a turn that fails after it accepts the message itself, so the loop
-  never claims to see that case.
+- A delivery call that throws is reported, and the loop stops. Pi reports a turn
+  that fails after it accepts the message itself, and it stops a loop through
+  `session_shutdown` before it invalidates a captured extension API, so this
+  report is defensive: no session replacement or reload reaches it.
 
 ## Configuration
 

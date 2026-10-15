@@ -44,10 +44,12 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   turn. Never use a custom message for the repetition itself.
 - **Scheduling**: skip a tick whose previous repetition has not settled, and count
   it. `send` returns void: Pi reports a turn that fails after acceptance on its own
-  error channel, so the only refusal the loop can observe is the synchronous throw
-  it raises for a stale captured API. Report that as `undelivered` and end the
-  loop. `stop()` is terminal and releases the timer. Start no timer in the
-  extension factory.
+  error channel, so the only refusal the loop could observe is the synchronous
+  throw it raises for a stale captured API. Report that as `undelivered` and end
+  the loop. The catch is defensive: `session_shutdown` stops a loop before Pi
+  invalidates a captured API, which `tests/live_delivery_refusal.py` measures for
+  `ctx.reload()` and `ctx.newSession()`. `stop()` is terminal and releases the
+  timer. Start no timer in the extension factory.
 - **Transcript**: one lifecycle row for the start, through
   `bindLifecycleRenderers` and `startedToolLifecycle`. Keep per-repetition status
   in `setStatus`, not in extra rows, because the injected turn already appears.
@@ -63,6 +65,8 @@ classes; never stub the transport. `tests/loop-live-fixture.ts` drives the real
 `pi` TUI with a scripted local provider. It proves the parameterized injection arrives as
 `messageType: "user"`, and it pairs a met stop condition (0.95) with a
 below-threshold one (0.3) so the threshold, not something else, is what ends the loop. Keep the fixture runs isolated: a disposable `HOME` and `PI_CODING_AGENT_DIR`, `PI_OFFLINE=1`, and no `TYPESAFE_API_KEY`. `tests/live_loop_rows.py` is the explicit-run terminal probe. Run it with `uv run --no-project --with pyte python packages/loop/tests/live_loop_rows.py`. It composes the real terminal with pyte and checks the start row and the status row at 120x40, after a live resize to 48x24, and by PageUp at 48x12. Keep the below-editor row read as `<verb> · <detail>` with no package tag.
+
+`tests/live_delivery_refusal.py` is the explicit-run probe for the delivery refusal. It drives RPC mode, so an extension `notify` arrives as a structured record: run `uv run --no-project python packages/loop/tests/live_delivery_refusal.py`. It measures that `ctx.reload()` and `ctx.newSession()` stop the loop through `session_shutdown` before any tick can call an invalidated API, and it keeps the control case that must still deliver turns. It does not measure `ctx.fork()` or `ctx.switchSession()`.
 ## Safety
 
 Never log or write the decision credential. Never send private session text to a

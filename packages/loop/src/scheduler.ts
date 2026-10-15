@@ -26,8 +26,10 @@ export interface LoopRunnerOptions {
   /**
    * Deliver the text into the session as a user turn. Pi's `sendUserMessage`
    * returns void and reports a turn that fails after acceptance on its own error
-   * channel, so the refusal this catches is the synchronous throw the host raises
-   * for a captured extension API that has gone stale.
+   * channel, so the only refusal this catches is the synchronous throw the host
+   * raises for a stale captured API. That catch is defensive: Pi stops a loop
+   * through `session_shutdown` before it invalidates a captured API (see
+   * `tests/live_delivery_refusal.py`), and a throw must never escape a timer.
    */
   send: (text: string) => void;
   now?: () => Date;
@@ -154,7 +156,8 @@ export class LoopRunner {
   /**
    * Report a delivery the host refused, and end the loop: every later repetition
    * would be refused the same way, and the status row would keep claiming a loop
-   * that is doing nothing.
+   * that is doing nothing. Defensive: no measured host path reaches it, because
+   * `session_shutdown` stops the loop first.
    */
   private failDelivery(index: number, error: unknown): void {
     this.emit({ type: "undelivered", index, reason: messageOf(error) });
