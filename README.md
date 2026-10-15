@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-15-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-19-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -200,8 +200,14 @@ so a slow turn cannot build a backlog of prompts.
 
 Or write the request in your own words. The cadence, the run limit, the stopping
 condition and the repeated text are then chosen by TypeSafe Jev decisions over
-candidates the extension builds. Free requests and `--until` need
-`TYPESAFE_API_KEY`; without it they are refused rather than guessed.
+candidates the extension builds. A segment that only states how many repetitions
+to run is the run limit, never a stopping condition. Free requests and `--until`
+need `TYPESAFE_API_KEY`; without it they are refused rather than guessed.
+
+Measured against the live service on twelve labelled requests, every one of those
+four questions came out right, and an eight-hour five-minute loop with a stopping
+condition costs about $0.02. Read [the package README](packages/loop/README.md#measured)
+for the numbers and for what stays unverified.
 
 **Install:**
 

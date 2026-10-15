@@ -127,8 +127,42 @@ your work.
 pi install npm:@fradser/pi-loop
 ```
 
+## Measured
+
+Recorded on 2026-10-15 against the live decision service (`jev-1.13.0`) with
+twelve labelled requests, and in a real terminal. Reproduce with
+`tests/real-jev-accuracy.ts` (paid), `tests/live_delivery_refusal.py` and
+`tests/live_terminal_accessibility.py`.
+
+- **Free-request accuracy**: the interval, the run limit, the stopping condition
+  and the message were each right on every labelled request. The two genuinely
+  ambiguous requests were refused rather than guessed: one names no cadence, one
+  was below the confidence threshold.
+- **Cost**: a plan costs one or two decision requests and 1,058-1,611 input
+  tokens, in about 0.8 seconds. One `met` judgment costs 394 input tokens, so an
+  eight-hour five-minute loop with a stopping condition is about **$0.0165** at
+  the vendor's published rate of $0.42 per million input tokens ($0.0098 at the
+  bulk rate; output tokens are not charged). Without a stopping condition, a loop
+  costs nothing after its plan.
+- **Delivery**: a repetition that cannot be delivered is reported and ends the
+  loop. No session replacement reaches that report: `ctx.reload()`,
+  `ctx.newSession()`, `ctx.fork()` and `ctx.switchSession()` each stop the loop
+  through `session_shutdown` before an invalidated API can be called, so the
+  report is defensive.
+- **Terminal**: the start row and the below-editor status row render and stay
+  readable in a real `Terminal.app` window at 120x40, 48x24 and 48x12, and the
+  terminal's accessibility text carries both rows.
+
 ## Unverified
 
-TypeSafe Jev accuracy is not measured on your own requests. The listed intervals
-and thresholds are starting points, not a measured result. Review the first
-repetitions of a loop, and keep the interval longer than a typical turn.
+- Requests other than the twelve measured ones: they are self-selected, not a
+  distribution, so your own requests can resolve differently.
+- Currency cost, which follows the vendor's published rate rather than an
+  invoice from this account.
+- VoiceOver speech output, hardware terminals, and terminal emulators other than
+  the one measured.
+- Service behavior outside what the probes exercised, such as rate limits and
+  outages.
+
+Review the first repetitions of a loop, and keep the interval longer than a
+typical turn.

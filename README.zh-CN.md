@@ -1,4 +1,4 @@
-# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-15-blue)
+# Frad 的 Pi Packages ![](https://img.shields.io/badge/packages-19-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -196,7 +196,9 @@ pi install npm:@fradser/pi-goal
 
 消息支持 `{{index}}`、`{{total}}`、`{{remaining}}`、`{{time}}` 和 `{{date}}`。上一次注入尚未结束时，本次触发会被跳过并计数，永不排队，因此慢轮次不会堆积出待办提示。
 
-也可以用自己的话描述。此时周期、次数、停止条件和重复文本由 TypeSafe Jev 在扩展构造的候选上判断选出。自由请求和 `--until` 需要 `TYPESAFE_API_KEY`，缺失时直接拒绝，不做猜测。
+也可以用自己的话描述。此时周期、次数、停止条件和重复文本由 TypeSafe Jev 在扩展构造的候选上判断选出。**只说明重复次数的片段属于次数上限，绝不是停止条件。**自由请求和 `--until` 需要 `TYPESAFE_API_KEY`，缺失时直接拒绝，不做猜测。
+
+已对真实服务用 12 条带标签请求实测：这四项判断全部正确；带停止条件的循环按 8 小时、每 5 分钟一次约花费 $0.02。数字与仍未验证的范围见 [包 README](packages/loop/README.md#measured)。
 
 **安装：**
 
