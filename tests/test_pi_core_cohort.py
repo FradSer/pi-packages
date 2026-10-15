@@ -8,7 +8,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 CHAIN = ("kit", "subagents", "tasks", "agent-teams")
 CORE = ("@earendil-works/pi-coding-agent", "@earendil-works/pi-tui")
-EXPECTED_PI_VERSION = "1.0.0"
+EXPECTED_PI_VERSION = "1.2.0"
 
 
 def test_split_packages_resolve_root_development_core() -> None:
