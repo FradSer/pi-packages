@@ -6,10 +6,11 @@ Run from the repository root:
 
 What it establishes: with the installed `pi` CLI, both session replacements that
 invalidate a captured extension API (`ctx.reload()` and `ctx.newSession()`)
-deliver `session_shutdown` to the loop first, so the loop stops with
-`(shutdown)` and releases its timer before any later tick can call the
-invalidated API. The control case shows the loop still injecting when the
-replacement happens, so the run is not vacuous.
+deliver a `session_shutdown` row to the loop before it is invalidated, with no
+delivery attempt after that row, so the loop stops and releases its timer before
+any later tick can call the invalidated API. The control case shows the loop
+still injecting when the replacement happens, and it must carry no
+`session_shutdown` row, which is what makes the predicate discriminating.
 
 What it does not establish: `ctx.fork()` and `ctx.switchSession()` are not
 exercised, and a host that invalidates without a preceding `session_shutdown`
@@ -103,6 +104,8 @@ def run_case(root: pathlib.Path, name: str, replacement: str | None, observe: fl
             send({"id": "p2", "type": "prompt", "message": "/" + replacement})
         time.sleep(observe)
         case["delivered_after"] = attempts()
+        # Snapshot before the child is terminated, so the teardown's own
+        # session_shutdown row cannot appear in the control case's trace.
         case["trace"] = traced()
     finally:
         child.terminate()
@@ -123,19 +126,38 @@ def run_case(root: pathlib.Path, name: str, replacement: str | None, observe: fl
 
 
 def judge(case: dict) -> list[str]:
+    """Assert the mechanism, not just its symptom.
+
+    The loop renders "stopped after ... (shutdown)" from both `session_shutdown`
+    and `session_start` (src/index.ts:241 and :247), so a notice alone cannot show
+    which handler stopped it. The distinguishing row is the fixture's
+    `session_shutdown` entry, and the control case proves the predicate can fail:
+    nothing stops that loop, so the row must be absent there.
+    """
     failures: list[str] = []
     if not case["fixture_loaded"]:
         failures.append("the fixture never started")
     if not case["two_turns"]:
         failures.append("the control loop never delivered two turns, so the case is vacuous")
-    if case["case"] != "control":
-        if not any("(shutdown)" in text for text in case["stopped"]):
-            failures.append("the loop did not stop through session_shutdown: " + json.dumps(case["notices"]))
-        if case["refused"]:
-            failures.append("a tick reached the invalidated API: " + json.dumps(case["refused"]))
-        if case["delivered_after"] > case["delivered_before"]:
-            failures.append("the loop kept injecting after the replacement: "
-                            f"{case['delivered_before']} -> {case['delivered_after']}")
+    kinds = [row.get("kind") for row in case["trace"]]
+    shutdown = [index for index, kind in enumerate(kinds) if kind == "session_shutdown"]
+    turns = [index for index, kind in enumerate(kinds) if kind == "turn_start"]
+    if case["case"] == "control":
+        if shutdown:
+            failures.append("the control loop was stopped by session_shutdown: "
+                            + json.dumps(case["trace"][-5:]))
+        return failures
+    if not shutdown:
+        failures.append("no session_shutdown row, so the loop cannot have stopped through it: "
+                        + json.dumps(case["trace"][-5:]))
+    elif turns and turns[-1] > shutdown[0]:
+        failures.append("a delivery was attempted after session_shutdown: "
+                        + json.dumps(case["trace"][-5:]))
+    if case["refused"]:
+        failures.append("a tick reached the invalidated API: " + json.dumps(case["refused"]))
+    if case["delivered_after"] > case["delivered_before"]:
+        failures.append("the loop kept injecting after the replacement: "
+                        f"{case['delivered_before']} -> {case['delivered_after']}")
     return failures
 
 
