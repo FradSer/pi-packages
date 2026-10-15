@@ -58,8 +58,12 @@ export function registerGoalEvents(core: GoalCore): void {
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
-    // Pi 1.2 custom starts have no prompt; preserve the pending procedure until delivery.
-    if (typeof event.prompt === "string") core.acceptGoalSetting(event.prompt);
+    // A user run carries the prompt. A custom start carries the message instead and no prompt,
+    // so its pending procedure is accepted later, when that message arrives. The presence test
+    // is what makes this correct against both the older event shape, where the prompt is always
+    // declared, and the current one, where the event is a union discriminated by run kind.
+    const prompt = "prompt" in event ? event.prompt : undefined;
+    if (typeof prompt === "string") core.acceptGoalSetting(prompt);
     const goal = core.goal;
     const sections = event.systemPromptOptions.sections;
     sections.goal_capability = goalCapabilityNote(Boolean(goal));
