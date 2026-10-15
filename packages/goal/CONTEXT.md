@@ -191,6 +191,22 @@ is 33 tests because `goal_native_rejection.mts` is now driven by one of them.
 - Clause-only feature scenarios carry no predicates, so the guard cannot see them drift; the
   rules they state are guarded under the scenario names that do carry predicates.
 
+## Commits and review
+
+- `366d812b` `fix(goal): audit package against contracts` — the audit change.
+- `3d03b7c9` `refactor(goal): clean unused variables in tests` — the Code Terrier finding below.
+- Code Terrier round 1 (review `58abc864-af8d-4d44-aec8-b62e9757db76` of `HEAD~1...HEAD`) reported
+  one low-severity finding: a stored-and-never-read `scheduler` local in
+  `tests/goal_native_revision.py`. It was real and is fixed; the same scan found a second one
+  (`module` in `tests/test_goal_hygiene.py`), also fixed. An AST scan of the goal tests now
+  reports no stored-and-never-read local, the suite is green, and the revision probe passes.
+- The continuation of that review was refused twice with HTTP 409:
+  "review 58abc864-af8d-4d44-aec8-b62e9757db76 cannot run another round in its own session yet.
+  No second review was submitted." The skill's rule is to report the refusal and stop, because a
+  new submission for the same evidence is what the refusal exists to prevent, so no second
+  review was submitted. The corrections above therefore rest on my own verification, not on a
+  reviewed round.
+
 ## Closeout
 
 Six review rounds ran. The last one states plainly that no blocking issue remains and that its
