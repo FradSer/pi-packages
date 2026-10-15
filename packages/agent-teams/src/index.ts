@@ -109,7 +109,9 @@ export default function (pi: ExtensionAPI) {
       workerToolDisclosure.reset();
     });
     pi.on("before_agent_start", async (event) => {
-      workerToolDisclosure.update(event.prompt);
+      // A custom start carries a message and no prompt, so the presence test keeps this correct
+      // against the event union; the disclosure tracks delivered text only.
+      workerToolDisclosure.update("prompt" in event ? event.prompt : undefined);
       const options = event.systemPromptOptions;
       if (!("sections" in options) || !options.sections || typeof options.sections !== "object") {
         throw new Error("Agent Teams requires Pi structured prompt sections.");
