@@ -72,6 +72,6 @@ SDK 参数验证失败也使用 Goal 的同一结果样式，正文显示参数�
 
 ## 可重复验收
 
-`python3 -m pytest packages/goal/tests/ packages/kit/tests/ -q` 运行行为、存储竞争、真实 SDK 脚本会话与渲染测试。`python3 packages/goal/tests/goal_native_completion.py` 使用真实 Pi CLI、PTY 与同步终端帧，覆盖完成、拒绝、失败、取消、阻塞、长中文换行、暂停/恢复/清除。`uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py` 输入一次 `/goal <text>`，断言屏幕上只有一行 `[goal] requesting` 与原话、窄宽度换行后仍可读，并断言请求正文从未到达终端。`uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py` 先建立一个目标并让它因无有效工作而停下，再输入一次 `/goal <text>`，断言这个目标就地被修订：原要求与完成条件都保留、目标重新处于 pursuit、且不写归档或 ledger。
+`python3 -m pytest packages/goal/tests/ -q` 运行行为、存储竞争、真实 SDK 脚本会话与渲染测试。`python3 packages/goal/tests/goal_native_completion.py` 使用真实 Pi CLI、PTY 与同步终端帧，覆盖完成、拒绝、失败、取消、阻塞、长中文换行、暂停/恢复/清除。`uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py` 输入一次 `/goal <text>`，断言屏幕上只有一行 `[goal] requesting` 与原话、窄宽度换行后仍可读，并断言请求正文从未到达终端。`uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py` 先建立一个目标并让它因无有效工作而停下，再输入一次 `/goal <text>`，断言这个目标就地被修订：原要求与完成条件都保留、目标重新处于 pursuit、且不写归档或 ledger。
 
 `sh packages/goal/tests/goal_docker.sh` 打包当前 Goal 和必需依赖 pi-kit，在 Docker 中安装**最新的 Pi**（运行时从 registry 解析，并把它依赖的每个 `@earendil-works/*` 一并固定到该版本；需要复现旧基线时用 `PI_VERSION=x.y.z`）；Pi 的 package 配置仅加载 Goal。测试同时覆盖打包源码及正常自动加载路径。模型为确定性脚本 provider，完成检查为注入式 stand-in；这些证据验证宿主集成和 TUI，不宣称真实远程模型的判断质量。

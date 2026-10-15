@@ -233,6 +233,11 @@ instead: `isolated Pi baseline: 1.2.0`, `GOAL_DOCKER_OK`, receipt directory
 - Isolation: `node:24-bookworm-slim`, mounts limited to the receipts directory and the two
   read-only test trees, no host credentials or HOME; the isolated agent settings held exactly
   `["/isolated/node_modules/@fradser/pi-goal"]`.
+- Goal only: the acceptance captures `pi list` to `/receipts/pi-list.txt` and refuses the run
+  when any package other than Goal is loaded, or when Goal is missing. The check was exercised
+  against four simulated lists (goal alone accepted; goal plus kit, goal plus a workspace path,
+  and no goal all refused). kit stays a library dependency of the package and never appears as a
+  loaded package, which the captured list shows.
 - Baseline: the latest published Pi, resolved from the registry at run time and pinned with
   every `@earendil-works/*` package it depends on, so a transitive release cannot install a
   second runtime; `PI_VERSION` pins one deliberately. The packed Goal and kit versions come
@@ -240,7 +245,13 @@ instead: `isolated Pi baseline: 1.2.0`, `GOAL_DOCKER_OK`, receipt directory
 - Ran: the scripted native acceptance for all 13 cases (`GOAL_NATIVE_SIMPLIFIED_OK`), the same
   acceptance through Pi's own package autoload path for the empty and long cases
   (`GOAL_NATIVE_SIMPLIFIED_OK`), and four harnesses — `goal_simplified` 51 ok,
-  `goal_store` 15 ok, `goal_scheduling` 35 ok, `goal_session` 15 ok, none failed.
+  `goal_store` 15 ok, `goal_scheduling` 35 ok, `goal_session` 15 ok, none failed. Every test
+  file it runs is under `packages/goal/tests`, and the package's own acceptance command is
+  `python3 -m pytest packages/goal/tests/ -q` (the goal suite only, as the package gate states).
+- The run after the goal-only assertions installed the same baseline and passed:
+  receipt directory `$TMPDIR/goal-docker-qS9AaR6S`, `piVersion` 1.2.0. Its Goal tarball hash
+  differs from the earlier run (`d5635328...`) because the shipped `TUI.zh-CN.md` changed in
+  this commit, which is exactly what the hash is for.
 - The log's only warnings are npm download-speed and one deprecated subdependency.
 
 ## Closeout

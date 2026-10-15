@@ -75,8 +75,14 @@ ln -s /isolated/node_modules /verify/node_modules
 ln -s /isolated/node_modules/.bin/pi /usr/local/bin/pi
 mkdir -p /isolated/agent
 printf '%s\n' '{"packages":["/isolated/node_modules/@fradser/pi-goal"]}' > /isolated/agent/settings.json
-PI_CODING_AGENT_DIR=/isolated/agent pi list
+PI_CODING_AGENT_DIR=/isolated/agent pi list | tee /receipts/pi-list.txt
 pi --version
+# Only the Goal package may be loaded: kit is a library dependency, never an extension, and the
+# isolated agent directory configures no other package.
+grep -q "@fradser/pi-goal" /receipts/pi-list.txt || { echo "the Goal package is not loaded" >&2; exit 1; }
+if grep -E "@fradser/pi-|/packages/(kit|tasks|utils|subagents|monitor|recap|keyboard|vision|btw|context)" /receipts/pi-list.txt | grep -qv "@fradser/pi-goal"; then
+  echo "another package is loaded in the isolated environment" >&2; exit 1
+fi
 # The fixture registers its own provider; PI_OFFLINE keeps the acceptance from reaching a real
 # model, and the isolated tree has no credentials to reach one with.
 PI_OFFLINE=1 GOAL_VERIFY_ROOT=/verify /verify/venv/bin/python /verify/packages/goal/tests/goal_native_completion.py
@@ -86,7 +92,7 @@ node --import tsx packages/goal/tests/goal_simplified.mts
 node --import tsx packages/goal/tests/goal_store.mts
 node --import tsx packages/goal/tests/goal_scheduling.mts
 node --import tsx packages/goal/tests/goal_session.mts
-node --input-type=module -e 'import {readFileSync,readdirSync} from "node:fs"; import {createHash} from "node:crypto"; const settings=JSON.parse(readFileSync("/isolated/agent/settings.json")); if(settings.packages.length!==1) throw Error("Expected only the Goal package"); const tarballs=Object.fromEntries(readdirSync("/receipts").filter(n=>/^fradser-pi-.*\.tgz$/.test(n)).map(n=>[n,createHash("sha256").update(readFileSync("/receipts/"+n)).digest("hex")])); console.log(JSON.stringify({piVersion:readFileSync("/receipts/pi-version.txt","utf8").trim(),packages:settings.packages,tarballs}));'
+node --input-type=module -e 'import {readFileSync,readdirSync} from "node:fs"; import {createHash} from "node:crypto"; const settings=JSON.parse(readFileSync("/isolated/agent/settings.json")); if(settings.packages.length!==1) throw Error("Expected only the Goal package"); const tarballs=Object.fromEntries(readdirSync("/receipts").filter(n=>/^fradser-pi-.*\.tgz$/.test(n)).map(n=>[n,createHash("sha256").update(readFileSync("/receipts/"+n)).digest("hex")])); console.log(JSON.stringify({piVersion:readFileSync("/receipts/pi-version.txt","utf8").trim(),packages:settings.packages,loadedPackages:readFileSync("/receipts/pi-list.txt","utf8").split("\n").map(l=>l.trim()).filter(Boolean),tarballs}));'
 SETUP
 docker run -d --name "$container_name" -v "$receipt_dir:/receipts" -v "$repo_root/packages/goal/tests:/goal-tests:ro" -v "$repo_root/tests/e2e/support:/shared-support:ro" node:24-bookworm-slim sleep infinity > "$receipt_dir/container-id"
 if docker exec "$container_name" sh /receipts/setup.sh > "$receipt_dir/verification.log" 2>&1; then
