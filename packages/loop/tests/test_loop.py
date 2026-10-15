@@ -92,6 +92,29 @@ def test_segmentation_and_schedule_phrase_stripping() -> None:
     assert [row["key"] for row in data["singleCandidate"]] == ["full"]  # type: ignore[union-attr]
 
 
+def test_a_run_count_is_not_a_stopping_condition() -> None:
+    """A count segment is the run limit, not a condition Pi can judge.
+
+    Measured against the real service: four count-only requests had "3 times",
+    "5 times", "20 times" or "10 times" chosen as the stopping condition, which
+    left the plan with an unjudgeable condition and one decision request per
+    settled turn. The count stays the `runs` question's job, and the message drops
+    it.
+    """
+    data = value(run("candidates"), "candidates")
+    counts = {row["input"]: row["isCount"] for row in data["counts"]}  # type: ignore[union-attr]
+    for text in ("3 times", "five times", "20 x", "10 次", "twice"):
+        assert counts[text] is True, (text, counts)
+    for text in ("3 times a day", "3", "times", "check the build", "每5分钟"):
+        assert counts[text] is False, (text, counts)
+    assert data["counted"] == ["check the build every 5 minutes", "3 times"], data["counted"]
+    # The count is stripped from the message, and a candidate is never the bare count
+    # itself: the first candidate is the task alone.
+    texts = [row["text"] for row in data["withoutCount"]]  # type: ignore[union-attr]
+    assert texts == ["check the build", "check the build every 5 minutes",
+                     "check the build every 5 minutes, 3 times"], texts
+
+
 def test_scheduler_limit_skip_and_stop() -> None:
     data = value(run("scheduler"), "scheduler")
     assert data["beforeFirst"] == {"sent": [], "pending": 1}

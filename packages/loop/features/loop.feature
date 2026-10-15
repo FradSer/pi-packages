@@ -30,6 +30,13 @@ Feature: /loop repeats one message into the session as a real user turn
     And the message question selects one candidate text
     And the loop injects the selected message through the native user-input path
 
+  Scenario: A run limit stated as its own segment is not a stopping condition
+    When the user runs "/loop check the build every 5 minutes, 3 times"
+    Then the stopping-condition question offers only the other segments
+    And the plan repeats 3 times
+    And the plan has no stopping condition
+    And the injected message is "check the build"
+
   Scenario: A natural-language stopping condition ends the loop
     Given an active loop whose stopping condition is "the deploy is green"
     And the injected turn has settled

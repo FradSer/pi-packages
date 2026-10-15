@@ -75,16 +75,56 @@ function stripSegment(request: string, segment: string): string | undefined {
   return without || undefined;
 }
 
+const COUNT_WORDS = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|several|a few";
+// A digit may take an English or Chinese unit ("10 次"), a Chinese numeral its
+// own, and "once"/"twice" carry the count without a unit at all.
+const COUNT_UNITS = "times?|x|repetitions?|cycles?|rounds?|次|回|遍";
+const COUNT_CHINESE = "[零一二三四五六七八九十百两]+|半";
+const COUNT_ALONE = "once|twice";
+
+/**
+ * Whether a segment states only how many repetitions to run.
+ *
+ * A count is the run limit, not a condition Pi can judge after a turn: a
+ * measured run of the real service chose "3 times" as the stopping condition for
+ * four count-only requests, which left the plan with an unjudgeable condition and
+ * one extra decision request per settled turn. The `runs` question already reads
+ * the count, so the segment is excluded from the stopping-condition candidates and
+ * stripped from the message instead.
+ */
+export function isRunCountSegment(text: string): boolean {
+  const trimmed = text.trim().toLowerCase();
+  if (!trimmed) return false;
+  return new RegExp(
+    "^(?:[0-9]+|(?:" + COUNT_WORDS + "))\\s*(?:" + COUNT_UNITS + ")$"
+      + "|^(?:" + COUNT_CHINESE + ")\\s*(?:" + COUNT_UNITS + ")$"
+      + "|^(?:" + COUNT_ALONE + ")$",
+  ).test(trimmed);
+}
+
 /**
  * Build the candidate texts for the repeated instruction.
  * Candidates are deduplicated by text, so a selection is never a choice between
- * identical strings. A degenerate set of one candidate needs no judgment.
+ * identical strings. A degenerate set of one candidate needs no judgment. Every
+ * schedule phrase, every run count and the segment that states the stopping
+ * condition are removed, so the message repeats the task alone.
  */
-export function messageCandidates(request: string, stopSegment?: string): TextCandidate[] {
+export function messageCandidates(
+  request: string,
+  stopSegment?: string,
+  dropSegments: readonly string[] = [],
+): TextCandidate[] {
   const full = request.trim();
+  let withoutStop = full;
+  for (const segment of stopSegment === undefined ? [] : [stopSegment]) {
+    withoutStop = stripSegment(withoutStop, segment) ?? withoutStop;
+  }
+  for (const segment of dropSegments) {
+    withoutStop = stripSegment(withoutStop, segment) ?? withoutStop;
+  }
+  const stripped = withoutStop === full ? undefined : withoutStop;
   const withoutSchedule = stripSchedulePhrase(full);
-  const withoutStop = stopSegment === undefined ? undefined : stripSegment(full, stopSegment);
-  const withoutBoth = withoutStop === undefined ? undefined : stripSchedulePhrase(withoutStop);
+  const withoutBoth = stripped === undefined ? undefined : stripSchedulePhrase(stripped);
   const candidates: TextCandidate[] = [];
   const push = (key: string, text: string | undefined): void => {
     if (text === undefined) return;
@@ -92,13 +132,13 @@ export function messageCandidates(request: string, stopSegment?: string): TextCa
     if (!value || candidates.some((candidate) => candidate.text === value)) return;
     candidates.push({ key, text: value });
   };
-  if (stopSegment === undefined) {
+  if (stripped === undefined) {
     push("without_schedule", withoutSchedule);
     push("full", full);
-  } else {
-    push("without_schedule_and_stop", withoutBoth);
-    push("without_stop", withoutStop);
-    push("full", full);
+    return candidates;
   }
+  push("without_schedule_and_stop", withoutBoth);
+  push("without_stop", stripped);
+  push("full", full);
   return candidates;
 }

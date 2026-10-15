@@ -4,7 +4,7 @@
  * One scenario per line of JSON. Pytest asserts the values, so a rule that
  * changes without a changed expectation fails here.
  */
-import { messageCandidates, stripSchedulePhrase } from "../src/candidates.ts";
+import { isRunCountSegment, messageCandidates, stripSchedulePhrase } from "../src/candidates.ts";
 import { formatDuration, MAX_INTERVAL_MS, MIN_INTERVAL_MS, parseDuration } from "../src/duration.ts";
 import { parseParameterized } from "../src/params.ts";
 import { LoopRunner } from "../src/scheduler.ts";
@@ -136,12 +136,21 @@ const scenarios: Record<string, () => unknown> = {
     ].map((input) => ({ input, stripped: stripSchedulePhrase(input) ?? null }));
     const request = "check the deploy every 10 minutes. stop when it is green";
     const segments = segmentRequest(request);
+    // A real-model run chose "3 times" as the stopping condition for count-only
+    // requests, so the count's own segment class is pinned here.
+    const counts = ["3 times", "five times", "20 x", "10 次", "3 times a day", "3", "times",
+                    "check the build", "每5分钟", "twice"].map((input) => ({ input, isCount: isRunCountSegment(input) }));
+    const counted = segmentRequest("check the build every 5 minutes, 3 times");
     return {
       stripped,
       segments,
+      counts,
+      counted,
       withoutStop: messageCandidates(request, segments[1]),
       withoutAny: messageCandidates("check the build", undefined),
       singleCandidate: messageCandidates("deploy is green", "deploy is green"),
+      withoutCount: messageCandidates("check the build every 5 minutes, 3 times", undefined,
+                                      counted.filter(isRunCountSegment)),
     };
   },
 

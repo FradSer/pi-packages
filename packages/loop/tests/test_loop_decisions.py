@@ -65,6 +65,26 @@ def test_thresholds_and_rejections_fail_closed() -> None:
     assert missing["config"] is None, missing
 
 
+def test_a_count_segment_is_never_offered_as_a_stopping_condition() -> None:
+    """The stop question must not see a segment that only states the run count.
+
+    The real service chose "3 times" as the stopping condition for four count-only
+    requests, which gave the plan an unjudgeable condition. Excluding it from the
+    candidates is deterministic, so it is checked on the wire here.
+    """
+    case = run("count-segment")
+    assert case["ok"] is True, case
+    assert case["plan"] == {"message": "check the build", "intervalMs": 300000, "maxRuns": 3}, case["plan"]
+    first = case["requests"][0]
+    stop_criteria = first["questions"]["stop"]["criteria"]
+    assert "3 times" not in json.dumps(stop_criteria), stop_criteria
+    assert set(stop_criteria) == {"none", "segment_0"}, stop_criteria
+    assert set(first["state"]["segments"][key]["text"] for key in range(len(first["state"]["segments"]))) == {
+        "check the build every 5 minutes", "3 times"}, first["state"]["segments"]
+    message_criteria = case["requests"][1]["questions"]["message"]["criteria"]
+    assert "check the build" in message_criteria.values(), message_criteria
+
+
 def test_stop_judgment_uses_the_explicit_threshold() -> None:
     met = run("stop-met")
     assert met["ok"] is True and met["verdict"] == {"met": True, "probability": 0.92}, met

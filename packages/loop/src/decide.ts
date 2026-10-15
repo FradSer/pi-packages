@@ -10,6 +10,7 @@ import { askSystemOne, DecisionServiceError, type SystemOneAnswer, type SystemOn
 import {
   INTERVAL_OPTIONS,
   RUN_LIMIT_OPTIONS,
+  isRunCountSegment,
   messageCandidates,
   type TextCandidate,
 } from "./candidates.ts";
@@ -118,10 +119,14 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
 
   // The criteria objects are the single source of truth for both the
   // question and the validation of its answer, so a declared option can
-  // never be rejected as unknown.
+  // never be rejected as unknown. A count-only segment is the run limit, which
+  // the `runs` question already reads, so it is not offered as a stopping
+  // condition and is stripped from the message instead.
   const intervalKeys = intervalCriteria();
   const runKeys = runLimitCriteria();
-  const stopKeys = stopCriteria(segments);
+  const counted = segments.filter(isRunCountSegment);
+  const stoppable = segments.filter((text) => !isRunCountSegment(text));
+  const stopKeys = stopCriteria(stoppable);
 
   const questions: Record<string, SystemOneQuestion> = {
     interval: {
@@ -139,7 +144,7 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
     stop: {
       type: "choice",
       instructions:
-        "Choose the candidate segment that states a condition which must end the loop. Choose none when no segment states a stopping condition. A repeated instruction is not a stopping condition.",
+        "Choose the candidate segment that states a condition which must end the loop. Choose none when no segment states a stopping condition. A repeated instruction is not a stopping condition. A segment that states only how many repetitions to run is not a stopping condition either: that count is the run limit.",
       criteria: stopKeys,
     },
   };
@@ -168,8 +173,8 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
     throw new PlanDecisionError("rejected", "The request names no cadence. Add --every, or name a cadence in the request.");
   }
 
-  const stopSegment = stop.key === "none" ? undefined : segmentFor(stop.key, segments);
-  const candidates: TextCandidate[] = messageCandidates(request, stopSegment);
+  const stopSegment = stop.key === "none" ? undefined : segmentFor(stop.key, stoppable);
+  const candidates: TextCandidate[] = messageCandidates(request, stopSegment, counted);
   const fallback = candidates[0]?.text ?? request.trim();
   let message = fallback;
   let messageAnswer: DecisionAnswer | undefined;
