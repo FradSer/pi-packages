@@ -1,4 +1,4 @@
-# Frad's Pi Packages ![](https://img.shields.io/badge/packages-15-blue)
+# Frad's Pi Packages ![](https://img.shields.io/badge/packages-19-blue)
 
 [![Runtime](https://img.shields.io/badge/runtime-Pi-blue)](https://pi.dev) [![Format](https://img.shields.io/badge/format-pi--package-green)](https://pi.dev/packages)
 
@@ -177,6 +177,42 @@ Thread-scoped goal runtime with three tools, authorized continuation and an expl
 
 ```bash
 pi install npm:@fradser/pi-goal
+```
+
+### [`@fradser/pi-loop`](packages/loop/)
+
+Repeats one message into the current session on a schedule. Each repetition is
+delivered through the native user-input path, so it is a real user turn rather
+than a system note, and it appears in the transcript like any prompt.
+
+**Commands:** `/loop <request>`, `/loop status`, `/loop stop`
+
+State the schedule with flags when you know it. The flag form calls no model:
+
+```bash
+/loop --every 5m --times 3 check the build
+/loop --every 1h --until "the deploy is green" report deploy status
+```
+
+The message may use `{{index}}`, `{{total}}`, `{{remaining}}`, `{{time}}` and
+`{{date}}`. A tick whose previous turn has not settled is skipped, never queued,
+so a slow turn cannot build a backlog of prompts.
+
+Or write the request in your own words. The cadence, the run limit, the stopping
+condition and the repeated text are then chosen by TypeSafe Jev decisions over
+candidates the extension builds. A segment that only states how many repetitions
+to run is the run limit, never a stopping condition. Free requests and `--until`
+need `TYPESAFE_API_KEY`; without it they are refused rather than guessed.
+
+Measured against the live service on twelve labelled requests, every one of those
+four questions came out right, and an eight-hour five-minute loop with a stopping
+condition costs about $0.02. Read [the package README](packages/loop/README.md#measured)
+for the numbers and for what stays unverified.
+
+**Install:**
+
+```bash
+pi install npm:@fradser/pi-loop
 ```
 
 ### [`@fradser/pi-plan-mode`](packages/plan-mode/)

@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 // pi-kit publishes first because the consumer packages use it at runtime.
 export const PUBLISH_SCOPE = Object.freeze([
   "@fradser/pi-kit",
+  "@fradser/pi-loop",
   "@fradser/pi-subagents",
   "@fradser/pi-tasks",
   "@fradser/pi-impeccable",
