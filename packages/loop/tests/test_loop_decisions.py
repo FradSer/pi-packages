@@ -85,6 +85,33 @@ def test_a_count_segment_is_never_offered_as_a_stopping_condition() -> None:
     assert "check the build" in message_criteria.values(), message_criteria
 
 
+def test_a_count_segment_does_not_renumber_the_stop_keys() -> None:
+    """The stop key space must match the segments the model was shown.
+
+    Keys are indexes into `state.segments`, so filtering the list before emitting
+    criteria renumbers them: with the count first, `segment_2` named the stopping
+    segment in state while the criteria called it `segment_1`, and an answer using
+    the key the model could see was rejected as unknown, failing the command.
+    """
+    case = run("count-not-last")
+    assert case["ok"] is True, case
+    assert case["plan"] == {
+        "message": "check the deploy", "intervalMs": 300000, "maxRuns": 3,
+        "until": "stop when green"}, case["plan"]
+    first = case["requests"][0]
+    state_segments = {row["key"]: row["text"] for row in first["state"]["segments"]}
+    assert state_segments == {
+        "segment_0": "3 times",
+        "segment_1": "check the deploy every 5 minutes",
+        "segment_2": "stop when green"}, state_segments
+    stop_criteria = first["questions"]["stop"]["criteria"]
+    # Every offered key must name the same text in state and in the criteria.
+    for key, text in state_segments.items():
+        if key in stop_criteria:
+            assert text in str(stop_criteria[key]), (key, text, stop_criteria)
+    assert "segment_0" not in stop_criteria, "a count segment must not be offered"
+
+
 def test_stop_judgment_uses_the_explicit_threshold() -> None:
     met = run("stop-met")
     assert met["ok"] is True and met["verdict"] == {"met": True, "probability": 0.92}, met

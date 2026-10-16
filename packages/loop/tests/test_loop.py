@@ -113,6 +113,12 @@ def test_a_run_count_is_not_a_stopping_condition() -> None:
     texts = [row["text"] for row in data["withoutCount"]]  # type: ignore[union-attr]
     assert texts == ["check the build", "check the build every 5 minutes",
                      "check the build every 5 minutes, 3 times"], texts
+    # A count that is not last must be dropped just the same, and the stop segment
+    # it precedes must still be identifiable by its position in the full list.
+    assert data["countedFirst"] == ["3 times", "check the deploy every 5 minutes", "stop when green"], data["countedFirst"]
+    first = [row["text"] for row in data["withoutCountFirst"]]  # type: ignore[union-attr]
+    assert first[0] == "check the deploy", first
+    assert all(text != "3 times" for text in first), first
 
 
 def test_scheduler_limit_skip_and_stop() -> None:

@@ -82,11 +82,18 @@ function runLimitCriteria(): Record<string, string | null> {
   return criteria;
 }
 
-function stopCriteria(segments: readonly string[]): Record<string, string | null> {
+/**
+ * Criteria for the stopping-condition question. Keys index `state.segments`, so a
+ * skipped entry leaves a gap: the model answers with the key it can see in state,
+ * and renumbering the remainder made that key denote a different text and got a
+ * correct answer rejected as unknown.
+ */
+function stopCriteria(segments: readonly string[], skip: (text: string) => boolean): Record<string, string | null> {
   const criteria: Record<string, string | null> = {
     none: "No candidate segment states a stopping condition.",
   };
   for (const [index, text] of segments.entries()) {
+    if (skip(text)) continue;
     criteria["segment_" + index] = "This segment states the stopping condition: " + text;
   }
   return criteria;
@@ -125,8 +132,7 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
   const intervalKeys = intervalCriteria();
   const runKeys = runLimitCriteria();
   const counted = segments.filter(isRunCountSegment);
-  const stoppable = segments.filter((text) => !isRunCountSegment(text));
-  const stopKeys = stopCriteria(stoppable);
+  const stopKeys = stopCriteria(segments, isRunCountSegment);
 
   const questions: Record<string, SystemOneQuestion> = {
     interval: {
@@ -173,7 +179,7 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
     throw new PlanDecisionError("rejected", "The request names no cadence. Add --every, or name a cadence in the request.");
   }
 
-  const stopSegment = stop.key === "none" ? undefined : segmentFor(stop.key, stoppable);
+  const stopSegment = stop.key === "none" ? undefined : segmentFor(stop.key, segments);
   const candidates: TextCandidate[] = messageCandidates(request, stopSegment, counted);
   const fallback = candidates[0]?.text ?? request.trim();
   let message = fallback;

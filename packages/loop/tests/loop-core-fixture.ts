@@ -141,16 +141,20 @@ const scenarios: Record<string, () => unknown> = {
     const counts = ["3 times", "five times", "20 x", "10 次", "3 times a day", "3", "times",
                     "check the build", "每5分钟", "twice"].map((input) => ({ input, isCount: isRunCountSegment(input) }));
     const counted = segmentRequest("check the build every 5 minutes, 3 times");
+    const countedFirst = segmentRequest("3 times, check the deploy every 5 minutes, stop when green");
     return {
       stripped,
       segments,
       counts,
       counted,
+      countedFirst,
       withoutStop: messageCandidates(request, segments[1]),
       withoutAny: messageCandidates("check the build", undefined),
       singleCandidate: messageCandidates("deploy is green", "deploy is green"),
       withoutCount: messageCandidates("check the build every 5 minutes, 3 times", undefined,
                                       counted.filter(isRunCountSegment)),
+      withoutCountFirst: messageCandidates("3 times, check the deploy every 5 minutes, stop when green",
+                                            "stop when green", countedFirst.filter(isRunCountSegment)),
     };
   },
 

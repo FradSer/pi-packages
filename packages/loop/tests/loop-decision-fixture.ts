@@ -39,6 +39,13 @@ function answer(body: Record<string, unknown>): Record<string, unknown> {
       usage: { input_tokens: 11, output_tokens: 4 },
     };
   }
+  if (scenario === "count-not-last") {
+    return {
+      model: "jev-1.13.0",
+      answers: { interval: choice("5m", 0.9), runs: choice("3", 0.9), stop: choice("segment_2", 0.9) },
+      usage: { input_tokens: 11, output_tokens: 4 },
+    };
+  }
   return {
     model: "jev-1.13.0",
     answers: {
@@ -95,6 +102,7 @@ async function main(): Promise<unknown> {
   return await resolveSemanticPlan(
     scenario === "single-candidate" ? "check the build"
       : scenario === "count-segment" ? "check the build every 5 minutes, 3 times"
+      : scenario === "count-not-last" ? "3 times, check the deploy every 5 minutes, stop when green"
       : REQUEST,
     { config, now: new Date(2026, 0, 2, 3, 4, 5) },
   );
