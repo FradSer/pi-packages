@@ -36,6 +36,8 @@ import { LoopRunner, nodeTimers } from "./scheduler.ts";
 import type { LoopPlan, ResolvedLoop } from "./types.ts";
 
 const PROCEDURE_ENTRY = "loop-lifecycle";
+/** The free request, echoed while its plan is resolved. */
+const REQUEST_ENTRY = "loop-request";
 const NOTICE_ENTRY = "loop-notice";
 const STATUS_KEY = "loop";
 /** Bound the text sent for one stopping judgment. */
@@ -138,13 +140,28 @@ export function registerLoop(pi: ExtensionAPI): void {
 
   /** The last row value written, so one value writes the row once. */
   let published: string | undefined;
-  const publish = (): void => {
+  /** Write the below-editor row. One value writes it once, whatever wrote it. */
+  const showStatus = (value: string | undefined): void => {
     if (ui === undefined) return;
-    const value = statusValue();
     if (value === published) return;
     published = value;
     if (value === undefined) clearPiStatus(ui, STATUS_KEY);
     else setPiStatus(ui, STATUS_KEY, value);
+  };
+  const publish = (): void => {
+    showStatus(statusValue());
+  };
+
+  /**
+   * Echo a free request, so the transcript shows what was asked before the plan
+   * exists. Nothing else reports this: the flag form states its own message, and
+   * a resolved plan is announced at the run its first repetition reaches.
+   */
+  const announceRequest = (request: string): void => {
+    pi.sendMessage(
+      { customType: REQUEST_ENTRY, content: request, display: true, details: { request } },
+      { triggerTurn: false },
+    );
   };
 
   /**
@@ -366,10 +383,13 @@ export function registerLoop(pi: ExtensionAPI): void {
         return;
       }
 
+      announceRequest(request);
+      showStatus("Analyzing · " + safeDisplayText(request));
       let resolved: ResolvedLoop;
       try {
         resolved = await resolveSemanticPlan(request, { config });
       } catch (error) {
+        showStatus(undefined);
         const detail = error instanceof PlanDecisionError
           ? error.message + " (" + error.failure + ")"
           : "the decision request failed: " + (error instanceof Error ? error.message : String(error));
@@ -381,6 +401,16 @@ export function registerLoop(pi: ExtensionAPI): void {
   });
 
   if (typeof pi.registerMessageRenderer === "function") {
+    pi.registerMessageRenderer<{ request?: string }>(REQUEST_ENTRY, (message, { expanded }, theme) => {
+      const details = (message.details ?? {}) as { request?: string };
+      const request = safeDisplayText(details.request ?? "");
+      return loopRows.message(() =>
+        startedToolLifecycle("loop", request, { label: "request", subjectBlock: true, verbatimSubject: true }))(
+        message,
+        { expanded },
+        theme,
+      );
+    });
     pi.registerMessageRenderer(PROCEDURE_ENTRY, (message, { expanded }, theme) => {
       const details = (message.details ?? {}) as { subject?: string };
       const subject = safeDisplayText(details.subject ?? "loop");

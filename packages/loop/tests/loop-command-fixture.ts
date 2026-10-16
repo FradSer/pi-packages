@@ -217,6 +217,19 @@ const scenarios: Record<string, () => Promise<unknown>> = {
     return { busy, badDuration, noMessage, unknownFlag, placeholderTypo, freeWithoutCredential, untilWithoutCredential, headless: [...captured.messages] };
   },
 
+  async "a-free-request-echoes-then-analyzes"() {
+    // The free form reports what it is doing before it can report a plan: the
+    // request is echoed, and the row says the request is being analyzed.
+    return await withPlanServer(async () => {
+      const { captured, run } = bootstrap();
+      await run("输入3次Hi");
+      return {
+        messages: captured.messages.map((row) => ({ customType: row.customType, content: row.content ?? null })),
+        status: [...captured.status],
+      };
+    });
+  },
+
   async "a-semantic-start-says-what-left-the-message"() {
     return await withPlanServer(async (hits) => {
       const { captured, run, startRun } = bootstrap();

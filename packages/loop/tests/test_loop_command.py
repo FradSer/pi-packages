@@ -92,6 +92,20 @@ def test_the_start_line_states_the_cadence_it_uses() -> None:
     assert "/loop stop" in content, content
 
 
+def test_a_free_request_echoes_the_request_then_analyzes() -> None:
+    """A free request reports itself before it reports a plan.
+
+    The flag form needs none of this: it calls no model, so it starts directly.
+    """
+    data = value(run("a-free-request-echoes-then-analyzes"), "a-free-request-echoes-then-analyzes")
+    assert data["messages"][0] == {"customType": "loop-request", "content": "输入3次Hi"}, data
+    assert data["status"] == ["Analyzing · 输入3次Hi", "Looping · every 5m · 1/3"], data
+    flags = value(run("start-flags"), "start-flags")
+    assert all(row["customType"] != "loop-request" for row in flags["lifecycle"] + [
+        {"customType": None}]), flags
+    assert data["status"][0].startswith("Analyzing ·"), data
+
+
 def test_a_semantic_start_says_what_left_the_message() -> None:
     """The line must say that the count became the schedule, not the message.
 

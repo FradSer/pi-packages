@@ -84,6 +84,14 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   a repetition was queued behind it, ask no stopping question. Keep that check:
   `tests/loop-command-fixture.ts` scenario `only-the-repetition-is-judged` covers
   both directions.
+- **A free request reports itself first**: append one `loop-request` row at command
+  time — `startedToolLifecycle("loop", request, { label: "request", subjectBlock:
+  true, verbatimSubject: true })`, so the head row and the request text are separate
+  rows — and write `Analyzing · <request>` to the status row before the decision
+  request. Both come from one place: `announceRequest` and `showStatus` in
+  `src/index.ts`. The flag form does neither, because it calls no model and starts
+  directly. Keep the echoed text the user's own words: it is the request, not the
+  resolved message.
 - **Transcript**: one lifecycle row for the start, through
   `bindLifecycleRenderers` and `startedToolLifecycle`. Keep per-repetition status
   in `setStatus`, not in extra rows, because the injected turn already appears.

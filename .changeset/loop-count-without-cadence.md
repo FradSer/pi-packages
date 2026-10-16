@@ -32,3 +32,8 @@ belongs to the code: `/loop say hi * 3` now asks one question set and injects
 and refused the whole command, and every free request paid for a question whose
 answer was already known. The message question still runs where the service's own
 answer shaped the text, such as the segment it named as the stopping condition.
+
+A free request now reports itself before it reports a plan. One `[loop] request`
+row names it, the request text follows verbatim, and the below-editor row reads
+`Analyzing · <request>` while the decision request runs. The flag form shows none
+of that: it calls no model and starts directly.

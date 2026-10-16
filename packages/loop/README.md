@@ -115,6 +115,21 @@ and so does a turn that was already running when a repetition was queued behind
 it; their answers are not this loop's result, so they ask no question and cost
 nothing.
 
+## What a start shows
+
+A free request reports itself before it can report a plan:
+
+```
+[loop] request
+say hi * 3
+Analyzing · say hi * 3
+```
+
+The row names the request and the request text follows it, verbatim as you wrote
+it. `Analyzing · …` is the below-editor row while the decision request runs, and it
+becomes the `Looping · …` row once the plan exists. The flag form shows neither: it
+calls no model and starts directly.
+
 ## The start line
 
 Starting a loop prints one line:

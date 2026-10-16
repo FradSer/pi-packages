@@ -34,6 +34,14 @@ Feature: /loop repeats one message into the session as a real user turn
     And the interval question selects one listed interval
     And the loop injects "keep an eye on the deploy" through the native user-input path
 
+  Scenario: A free request reports itself before it reports a plan
+    Given the decision service is configured
+    When the user runs "/loop say hi * 3"
+    Then one row names the request
+    And the request text follows it as the user wrote it
+    And the below-editor row reports the analysis while it runs
+    And a parameterized start shows neither
+
   Scenario: The start line says what left the message
     Given the decision service is configured
     When the user runs "/loop 输入3次Hi"
