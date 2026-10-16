@@ -83,6 +83,17 @@ const COUNT_CHINESE = "[零一二三四五六七八九十百两]+|半";
 const COUNT_ALONE = "once|twice";
 
 /**
+ * A count phrase: a number with a unit ("3 times", "10 次"), or a multiplier
+ * prefix ("* 3", "x3", "× 3"). The multiplier form is the shape a user reaches
+ * for when they mean "say this N times".
+ */
+function countPhrase(): string {
+  return "(?:[0-9]+|(?:" + COUNT_WORDS + "))\\s*(?:" + COUNT_UNITS + ")"
+    + "|(?:" + COUNT_CHINESE + ")\\s*(?:" + COUNT_UNITS + ")"
+    + "|[*×]\\s*(?:[0-9]+|(?:" + COUNT_CHINESE + "))";
+}
+
+/**
  * Whether a segment states only how many repetitions to run.
  *
  * A count is the run limit, not a condition Pi can judge after a turn: a
@@ -95,11 +106,36 @@ const COUNT_ALONE = "once|twice";
 export function isRunCountSegment(text: string): boolean {
   const trimmed = text.trim().toLowerCase();
   if (!trimmed) return false;
-  return new RegExp(
-    "^(?:[0-9]+|(?:" + COUNT_WORDS + "))\\s*(?:" + COUNT_UNITS + ")$"
-      + "|^(?:" + COUNT_CHINESE + ")\\s*(?:" + COUNT_UNITS + ")$"
-      + "|^(?:" + COUNT_ALONE + ")$",
-  ).test(trimmed);
+  return new RegExp("^(?:" + countPhrase() + ")$|^(?:" + COUNT_ALONE + ")$").test(trimmed);
+}
+
+/**
+ * Remove a count phrase that sits inside a request, and return the remainder.
+ *
+ * The count is the run limit wherever it appears, so the message keeps the
+ * user's own task words and drops the number: "输入3次Hi" repeats "输入Hi". A bare
+ * "once" or "twice" is not removed here, because inside a sentence it is as
+ * likely to be ordinary text as a run limit; a segment that is only "twice" is
+ * still offered as a count by {@link isRunCountSegment}.
+ *
+ * Return undefined when nothing was removed, so a caller never treats an
+ * unchanged text as a stripped one.
+ */
+export function stripRunCount(text: string): string | undefined {
+  const stripped = tidy(text.replace(new RegExp(countPhrase(), "gi"), ""));
+  return stripped && stripped !== tidy(text) ? stripped : undefined;
+}
+
+/**
+ * Remove a schedule phrase, then a count phrase that sits inside the text.
+ * Report which kind was removed, so the candidate key names it.
+ */
+function reduceMetadata(text: string): { text: string; count: boolean } | undefined {
+  const scheduled = stripSchedulePhrase(text);
+  const counted = stripRunCount(scheduled ?? text);
+  const result = counted ?? scheduled;
+  if (result === undefined || result === text) return undefined;
+  return { text: result, count: counted !== undefined };
 }
 
 /**
@@ -123,8 +159,6 @@ export function messageCandidates(
     withoutStop = stripSegment(withoutStop, segment) ?? withoutStop;
   }
   const stripped = withoutStop === full ? undefined : withoutStop;
-  const withoutSchedule = stripSchedulePhrase(full);
-  const withoutBoth = stripped === undefined ? undefined : stripSchedulePhrase(stripped);
   const candidates: TextCandidate[] = [];
   const push = (key: string, text: string | undefined): void => {
     if (text === undefined) return;
@@ -133,11 +167,21 @@ export function messageCandidates(
     candidates.push({ key, text: value });
   };
   if (stripped === undefined) {
-    push("without_schedule", withoutSchedule);
-    push("full", full);
+    // No segment was filtered, so only code-matched metadata can leave: a
+    // schedule phrase or a count phrase, both found by a pattern this module owns.
+    // There is nothing to judge, so the metadata-free text is the message. Offering
+    // the request back as well asked the service to make a choice code had already
+    // made, and a low-confidence answer to that choice refused the whole command.
+    const reduced = reduceMetadata(full);
+    if (reduced === undefined) {
+      push("full", full);
+      return candidates;
+    }
+    push(reduced.count ? "without_count" : "without_schedule", reduced.text);
     return candidates;
   }
-  push("without_schedule_and_stop", withoutBoth);
+  const deep = reduceMetadata(stripped);
+  push(deep?.count === true ? "without_count" : "without_schedule_and_stop", deep?.text);
   push("without_stop", stripped);
   push("full", full);
   return candidates;

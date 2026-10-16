@@ -45,6 +45,10 @@ export interface ResolvedLoop {
   plan: LoopPlan;
   mode: LoopMode;
   report?: DecisionReport;
+  /** True when the request named no cadence, so the default cadence applies. */
+  intervalAssumed?: boolean;
+  /** True when scheduling metadata left the message, so the line can say so. */
+  messageStripped?: boolean;
 }
 
 /** An opaque timer identity. */

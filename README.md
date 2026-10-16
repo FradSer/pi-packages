@@ -201,11 +201,18 @@ so a slow turn cannot build a backlog of prompts.
 Or write the request in your own words. The cadence, the run limit, the stopping
 condition and the repeated text are then chosen by TypeSafe Jev decisions over
 candidates the extension builds. A segment that only states how many repetitions
-to run is the run limit, never a stopping condition. Free requests and `--until`
-need `TYPESAFE_API_KEY`; without it they are refused rather than guessed.
+to run is the run limit, never a stopping condition, and it leaves the repeated
+message. The cadence is optional: `/loop 输入3次Hi` repeats `输入Hi` three times,
+and `/loop 检查项目修改，总结` repeats until you stop it — five minutes apart unless
+you state another interval, and the start notice says when it was assumed. The
+first repetition runs as soon as the loop starts.
+Free requests and `--until` need `TYPESAFE_API_KEY`; without it they are refused
+rather than guessed.
 
-Measured against the live service on twelve labelled requests, every one of those
-four questions came out right, and an eight-hour five-minute loop with a stopping
+Measured against the live service on twelve labelled requests, ten of them
+resolved: the interval, the stopping condition and the message were each right in
+all ten, and the run limit in all four requests that state a count. The other two
+were refused rather than guessed. An eight-hour five-minute loop with a stopping
 condition costs about $0.02. Read [the package README](packages/loop/README.md#measured)
 for the numbers and for what stays unverified.
 

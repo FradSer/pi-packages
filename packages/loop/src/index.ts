@@ -36,6 +36,8 @@ import { LoopRunner, nodeTimers } from "./scheduler.ts";
 import type { LoopPlan, ResolvedLoop } from "./types.ts";
 
 const PROCEDURE_ENTRY = "loop-lifecycle";
+/** The free request, echoed while its plan is resolved. */
+const REQUEST_ENTRY = "loop-request";
 const NOTICE_ENTRY = "loop-notice";
 const STATUS_KEY = "loop";
 /** Bound the text sent for one stopping judgment. */
@@ -51,6 +53,7 @@ const loopRows = bindLifecycleRenderers({
 const USAGE = [
   "Usage:",
   "  /loop --every 5m [--times 3] [--until \"condition\"] [--message \"text\"] [text]",
+  "  /loop --times 3 [--message \"text\"] [text]",
   "  /loop <free request>",
   "  /loop status",
   "  /loop stop",
@@ -79,6 +82,19 @@ function lastAssistantTextFrom(messages: readonly unknown[]): string {
   return "";
 }
 
+/** The text of the last user message in a finished run, or an empty string. */
+function lastUserTextFrom(messages: readonly unknown[]): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message === null || typeof message !== "object") continue;
+    const record = message as { role?: unknown; content?: unknown };
+    if (record.role !== "user") continue;
+    const text = extractTextContent(record.content).trim();
+    if (text) return text;
+  }
+  return "";
+}
+
 /** Report to the user, with a transcript notice when no dialog UI exists. */
 function feedback(pi: ExtensionAPI, ctx: ExtensionCommandContext, text: string, level: "info" | "warning" | "error"): void {
   if (ctx.hasUI) {
@@ -93,6 +109,20 @@ export function registerLoop(pi: ExtensionAPI): void {
   let config = readDecisionConfig();
   let ui: ExtensionContext["ui"] | undefined;
   let lastAssistantText = "";
+  /**
+   * The expanded text of the repetition whose turn has not settled yet. Every
+   * settled turn reaches `agent_settled`, so the text identifies the loop's own
+   * turn among them.
+   */
+  let pendingInjection: string | undefined;
+  /** True when the run that just ended was the loop's own repetition. */
+  let settledRepetition = false;
+  /**
+   * The start line waiting to be injected at the head of the turn that carries
+   * it. Injecting it at start would preempt the user's own run: a repetition is
+   * queued behind that run, so the line waits for the repetition's turn.
+   */
+  let startNotice: { content: string; details: Record<string, unknown> } | undefined;
   let judging = false;
 
   /**
@@ -108,11 +138,30 @@ export function registerLoop(pi: ExtensionAPI): void {
     return "Looping · every " + runner.intervalLabel + " · " + progress + skipped;
   };
 
-  const publish = (): void => {
+  /** The last row value written, so one value writes the row once. */
+  let published: string | undefined;
+  /** Write the below-editor row. One value writes it once, whatever wrote it. */
+  const showStatus = (value: string | undefined): void => {
     if (ui === undefined) return;
-    const value = statusValue();
+    if (value === published) return;
+    published = value;
     if (value === undefined) clearPiStatus(ui, STATUS_KEY);
     else setPiStatus(ui, STATUS_KEY, value);
+  };
+  const publish = (): void => {
+    showStatus(statusValue());
+  };
+
+  /**
+   * Echo a free request, so the transcript shows what was asked before the plan
+   * exists. Nothing else reports this: the flag form states its own message, and
+   * a resolved plan is announced at the run its first repetition reaches.
+   */
+  const announceRequest = (request: string): void => {
+    pi.sendMessage(
+      { customType: REQUEST_ENTRY, content: request, display: true, details: { request } },
+      { triggerTurn: false },
+    );
   };
 
   /**
@@ -131,8 +180,19 @@ export function registerLoop(pi: ExtensionAPI): void {
       : plan.until !== undefined
         ? " Stopping condition: " + plan.until + "."
         : " It runs until the user stops it.";
+    // The user must see a cadence they did not state, or the loop looks slower
+    // or faster than they asked for. Name the default, never a cadence the plan
+    // did not take.
+    const assumed = resolved.intervalAssumed
+      ? " The request names no cadence, so the default cadence applies."
+      : "";
+    // Say what became of the words the message does not repeat, so a reader never
+    // has to guess whether the count or the cadence is part of the message.
+    const stripped = resolved.messageStripped
+      ? " The message keeps your own words: a cadence or a run count in the request becomes the schedule, not part of the message."
+      : "";
     const content = "The user started a repeating loop. Each repetition arrives as a separate user turn. Message: "
-      + plan.message + ". Cadence: every " + formatDuration(plan.intervalMs) + "." + limits
+      + plan.message + ". Cadence: every " + formatDuration(plan.intervalMs) + "." + assumed + stripped + limits
       + " Stop it with /loop stop.";
     const details = {
       subject: planSummary(plan),
@@ -152,7 +212,7 @@ export function registerLoop(pi: ExtensionAPI): void {
           }
         : null,
     };
-    pi.sendMessage({ customType: PROCEDURE_ENTRY, content, display: true, details }, { triggerTurn: false });
+    startNotice = { content, details };
   };
 
   const start = (resolved: ResolvedLoop): void => {
@@ -165,6 +225,7 @@ export function registerLoop(pi: ExtensionAPI): void {
         // error channel, so only a refusal reaches the runner.
         send: (text) => pi.sendUserMessage(text, { deliverAs: "followUp" }),
         onEvent: (event) => {
+          if (event.type === "injected") pendingInjection = event.text;
           if (event.type === "undelivered") {
             // One report: the refusal and the stop it causes are one fact.
             if (ui !== undefined) {
@@ -176,6 +237,8 @@ export function registerLoop(pi: ExtensionAPI): void {
             publish();
             return;
           }
+          pendingInjection = undefined;
+          settledRepetition = false;
           if (ui !== undefined) clearPiStatus(ui, STATUS_KEY);
           // The refusal was already reported by its own event.
           if (event.reason === "delivery") return;
@@ -224,15 +287,31 @@ export function registerLoop(pi: ExtensionAPI): void {
     }
   };
 
+  pi.on("before_agent_start", () => {
+    if (startNotice === undefined) return undefined;
+    const notice = startNotice;
+    startNotice = undefined;
+    return { message: { customType: PROCEDURE_ENTRY, content: notice.content, display: true, details: notice.details } };
+  });
+
   pi.on("agent_end", (event) => {
     if (runner === undefined || !runner.active) return;
     lastAssistantText = lastAssistantTextFrom(event.messages);
+    // Only the loop's own repetition may be judged. Every settled turn reaches
+    // this handler, including a turn the user started and one that was already
+    // running when a repetition was queued behind it, and the answer to those is
+    // not this loop's result.
+    settledRepetition =
+      pendingInjection !== undefined && lastUserTextFrom(event.messages) === pendingInjection;
   });
 
   pi.on("agent_settled", () => {
     const active = runner;
     if (active === undefined || !active.active) return;
     active.markSettled();
+    if (!settledRepetition) return;
+    settledRepetition = false;
+    pendingInjection = undefined;
     void evaluateStop(active);
   });
 
@@ -241,11 +320,17 @@ export function registerLoop(pi: ExtensionAPI): void {
     runner?.stop("shutdown");
     runner = undefined;
     lastAssistantText = "";
+    pendingInjection = undefined;
+    settledRepetition = false;
+    startNotice = undefined;
   });
 
   pi.on("session_shutdown", () => {
     runner?.stop("shutdown");
     runner = undefined;
+    pendingInjection = undefined;
+    settledRepetition = false;
+    startNotice = undefined;
     if (ui !== undefined) clearPiStatus(ui, STATUS_KEY);
   });
 
@@ -285,7 +370,11 @@ export function registerLoop(pi: ExtensionAPI): void {
           feedback(pi, ctx, "loop: --until needs a decision credential (TYPESAFE_API_KEY), because Pi judges the condition after each turn.", "error");
           return;
         }
-        start({ plan: parsed.plan, mode: "parameterized" });
+        start({
+          plan: parsed.plan,
+          mode: "parameterized",
+          ...(parsed.intervalAssumed ? { intervalAssumed: true } : {}),
+        });
         return;
       }
 
@@ -294,10 +383,13 @@ export function registerLoop(pi: ExtensionAPI): void {
         return;
       }
 
+      announceRequest(request);
+      showStatus("Analyzing · " + safeDisplayText(request));
       let resolved: ResolvedLoop;
       try {
         resolved = await resolveSemanticPlan(request, { config });
       } catch (error) {
+        showStatus(undefined);
         const detail = error instanceof PlanDecisionError
           ? error.message + " (" + error.failure + ")"
           : "the decision request failed: " + (error instanceof Error ? error.message : String(error));
@@ -309,6 +401,16 @@ export function registerLoop(pi: ExtensionAPI): void {
   });
 
   if (typeof pi.registerMessageRenderer === "function") {
+    pi.registerMessageRenderer<{ request?: string }>(REQUEST_ENTRY, (message, { expanded }, theme) => {
+      const details = (message.details ?? {}) as { request?: string };
+      const request = safeDisplayText(details.request ?? "");
+      return loopRows.message(() =>
+        startedToolLifecycle("loop", request, { label: "request", subjectBlock: true, verbatimSubject: true }))(
+        message,
+        { expanded },
+        theme,
+      );
+    });
     pi.registerMessageRenderer(PROCEDURE_ENTRY, (message, { expanded }, theme) => {
       const details = (message.details ?? {}) as { subject?: string };
       const subject = safeDisplayText(details.subject ?? "loop");

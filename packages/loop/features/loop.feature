@@ -12,6 +12,11 @@ Feature: /loop repeats one message into the session as a real user turn
     And every injection is an independent user turn
     And no decision request is sent
 
+  Scenario: The first repetition arrives at the start
+    When the user runs "/loop --every 5m --times 2 check the build"
+    Then the loop injects "check the build" as soon as the loop starts
+    And the second injection waits for the interval
+
   Scenario: A template placeholder is expanded for each injection
     When the user runs "/loop --every 1m --times 2 status {{index}} of {{total}}"
     Then the first injected message is "status 1 of 2"
@@ -27,8 +32,54 @@ Feature: /loop repeats one message into the session as a real user turn
     When the user runs "/loop keep an eye on the deploy every ten minutes"
     Then the extension asks one bounded set of decision questions
     And the interval question selects one listed interval
-    And the message question selects one candidate text
-    And the loop injects the selected message through the native user-input path
+    And the loop injects "keep an eye on the deploy" through the native user-input path
+
+  Scenario: A free request reports itself before it reports a plan
+    Given the decision service is configured
+    When the user runs "/loop say hi * 3"
+    Then one row names the request
+    And the request text follows it as the user wrote it
+    And the below-editor row reports the analysis while it runs
+    And a parameterized start shows neither
+
+  Scenario: The start line says what left the message
+    Given the decision service is configured
+    When the user runs "/loop 输入3次Hi"
+    Then the start line states the message is "输入Hi"
+    And the start line states that the count became the schedule
+
+  Scenario: Code-matched metadata needs no message question
+    Given the decision service is configured
+    When the user runs "/loop say hi * 3"
+    Then the extension asks one bounded set of decision questions
+    And the loop injects "say hi" through the native user-input path
+
+  Scenario: A stopping-condition segment makes the message a judgment
+    Given the decision service is configured
+    When the user runs "/loop check the deploy every 10 minutes. stop when it is green"
+    Then the message question selects which candidate text to repeat
+
+  Scenario: A request with no cadence and no run count still runs
+    Given the decision service is configured
+    When the user runs "/loop 检查项目修改，总结"
+    Then the plan takes the default cadence
+    And the plan has no run limit
+    And the start notice says the cadence was assumed
+    And the injected message is "检查项目修改，总结"
+
+  Scenario: A run count with no cadence still runs
+    Given the decision service is configured
+    When the user runs "/loop 输入3次Hi"
+    Then the plan repeats 3 times
+    And the plan takes the default cadence of 5 minutes
+    And the start notice says the cadence was assumed
+    And the injected message is "输入Hi"
+
+  Scenario: Flags may state a run count without a cadence
+    When the user runs "/loop --times 3 Hi"
+    Then the plan takes the default cadence
+    And the plan repeats 3 times
+    And the loop injects "Hi" through the native user-input path
 
   Scenario: A run limit stated as its own segment is not a stopping condition
     When the user runs "/loop check the build every 5 minutes, 3 times"
@@ -42,6 +93,19 @@ Feature: /loop repeats one message into the session as a real user turn
     And the injected turn has settled
     When the stopping judgment returns a probability above the stop threshold
     Then the loop stops and releases its timer
+
+  Scenario: The start line joins the turn a repetition reaches
+    Given an active loop
+    And the first repetition is queued behind the run the command started
+    When that run begins
+    Then the loop injects the start line at the head of that run
+    And no start line is injected before the user's own input
+
+  Scenario: A settled turn that is not a repetition is not judged
+    Given an active loop whose stopping condition is "the deploy is green"
+    And a turn the user started settles with a message that states the condition
+    Then the loop asks no stopping question
+    And the loop keeps running
 
   Scenario: A tick is skipped while the previous injection has not settled
     Given an active loop with a one second interval

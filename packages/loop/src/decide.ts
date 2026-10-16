@@ -4,6 +4,11 @@
  * Questions are closed (noul, choice, score) because they travel through the
  * shared pi-kit decision client. Code assembles candidates; the decision
  * service selects among them. No step asks a model to write the message.
+ *
+ * No request carries an abort signal, because none reaches this code: Pi 1.2.0
+ * reports `ctx.signal` to a hook that runs inside a turn, but `undefined` inside
+ * an extension command and at the settle boundary. Each request is bounded by
+ * the client's own timeout instead. Read @../AGENTS.md before adding a signal.
  */
 
 import { askSystemOne, DecisionServiceError, type SystemOneAnswer, type SystemOneQuestion } from "@fradser/pi-kit";
@@ -15,6 +20,7 @@ import {
   type TextCandidate,
 } from "./candidates.ts";
 import type { DecisionConfig } from "./config.ts";
+import { DEFAULT_COUNT_INTERVAL_MS } from "./duration.ts";
 import { segmentRequest } from "./segments.ts";
 import { templateClock } from "./template.ts";
 import type { DecisionAnswer, DecisionReport, LoopPlan, ResolvedLoop } from "./types.ts";
@@ -33,7 +39,6 @@ export class PlanDecisionError extends Error {
 export interface DecisionDeps {
   config: DecisionConfig;
   now?: Date;
-  signal?: AbortSignal;
 }
 
 const STOP_QUESTION = "met";
@@ -111,6 +116,10 @@ function segmentFor(key: string, segments: readonly string[]): string | undefine
  * cadence, the run limit, and which candidate segment states the stopping
  * condition. The second request runs only when the message has more than one
  * distinct candidate, because a single candidate is not a judgment.
+ *
+ * An `unspecified` cadence is never a refusal: the plan takes the default cadence
+ * and reports that it was assumed. A request that names no cadence and no count
+ * therefore runs until the user stops it, or until a stopping condition is met.
  */
 export async function resolveSemanticPlan(request: string, deps: DecisionDeps): Promise<ResolvedLoop> {
   const segments = segmentRequest(request);
@@ -163,7 +172,6 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
       model: deps.config.model,
       state,
       questions,
-      ...(deps.signal ? { signal: deps.signal } : {}),
     });
   } catch (error) {
     throw wrap(error);
@@ -175,9 +183,11 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
   requireConfidence(interval, deps.config.minChoiceConfidence, "the interval");
   requireConfidence(runs, deps.config.minChoiceConfidence, "the run limit");
   requireConfidence(stop, deps.config.minChoiceConfidence, "the stopping condition");
-  if (interval.key === "unspecified") {
-    throw new PlanDecisionError("rejected", "The request names no cadence. Add --every, or name a cadence in the request.");
-  }
+  // An unnamed cadence is decided, never refused: the plan takes the default
+  // cadence and the start notice says it was assumed. The user can stop the loop
+  // or state a cadence; a refusal only made the command unusable for the common
+  // "watch this for me" request.
+  const intervalAssumed = interval.key === "unspecified";
 
   const stopSegment = stop.key === "none" ? undefined : segmentFor(stop.key, segments);
   const candidates: TextCandidate[] = messageCandidates(request, stopSegment, counted);
@@ -209,7 +219,6 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
             criteria,
           },
         },
-        ...(deps.signal ? { signal: deps.signal } : {}),
       });
     } catch (error) {
       throw wrap(error);
@@ -222,7 +231,9 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
     model = second.model;
   }
 
-  const intervalMs = INTERVAL_OPTIONS.find((option) => option.key === interval.key)?.ms;
+  const intervalMs = intervalAssumed
+    ? DEFAULT_COUNT_INTERVAL_MS
+    : INTERVAL_OPTIONS.find((option) => option.key === interval.key)?.ms;
   if (intervalMs === undefined) throw new PlanDecisionError("malformed", "The selected interval is not listed.");
 
   const plan: LoopPlan = { message, intervalMs };
@@ -231,7 +242,10 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
 
   const report: DecisionReport = { interval, runs, stop, model, inputTokens };
   if (messageAnswer !== undefined) report.message = messageAnswer;
-  return { plan, mode: "semantic", report };
+  const resolved: ResolvedLoop = { plan, mode: "semantic", report };
+  if (intervalAssumed) resolved.intervalAssumed = true;
+  if (message !== request.trim()) resolved.messageStripped = true;
+  return resolved;
 }
 
 /**
@@ -245,7 +259,6 @@ export async function judgeStopCondition(options: {
   config: DecisionConfig;
   condition: string;
   lastAssistantMessage: string;
-  signal?: AbortSignal;
 }): Promise<{ met: boolean; probability: number }> {
   let result: Awaited<ReturnType<typeof askSystemOne>>;
   try {
@@ -265,7 +278,6 @@ export async function judgeStopCondition(options: {
           },
         },
       },
-      ...(options.signal ? { signal: options.signal } : {}),
     });
   } catch (error) {
     throw wrap(error);

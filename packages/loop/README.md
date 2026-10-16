@@ -29,12 +29,13 @@ State every parameter, and the extension calls no model.
 /loop --every 5m --times 3 check the build
 /loop --every 1h --until "the deploy is green" report deploy status
 /loop --every 30s --message "run the smoke test"
+/loop --times 3 Hi
 /loop -e 2h -t 2 -m report
 ```
 
 | Flag | Meaning |
 | --- | --- |
-| `--every`, `-e` | The interval. Required when flags are used. |
+| `--every`, `-e` | The interval. Defaults to five minutes when it is omitted. |
 | `--times`, `-t` | The total count. Omit it to repeat until `/loop stop`. |
 | `--until`, `-u` | A stopping condition in natural language. |
 | `--message`, `-m` | The text. Equivalent to trailing text. |
@@ -42,6 +43,12 @@ State every parameter, and the extension calls no model.
 A duration is `500ms`, `30s`, `5m`, `2h`, `1d`, a combination such as `1h30m`, or a
 bare number of seconds. The shortest interval is one second and the longest is one
 day. `--` ends the flags, so the text after it may contain `--`.
+
+`--every` is optional. A request that states no cadence runs every five minutes:
+`/loop --times 3 Hi` repeats three times, and `/loop 检查项目修改，总结` repeats
+until you stop it. The start notice says the cadence was assumed. A repetition
+that is still running when the next tick arrives is skipped and counted, so the
+repetitions never queue.
 
 The message may use these placeholders:
 
@@ -63,15 +70,19 @@ Write the request in your own words. The extension then asks TypeSafe Jev to
 choose among candidates that it builds:
 
 - `interval`: which listed interval is closest to the requested cadence. The
-  listed intervals are 30s, 1m, 5m, 15m, 30m, 1h and 1d. `unspecified` is
-  rejected, and the command reports that the request names no cadence.
+  listed intervals are 30s, 1m, 5m, 15m, 30m, 1h and 1d. `unspecified` is always
+  accepted: the plan takes the default cadence of five minutes, and the start
+  notice says the cadence was assumed.
 - `runs`: the total count, or `unbounded`. The listed values are 1, 3, 5, 10, 20
   and `unbounded`.
 - `stop`: which candidate segment states a stopping condition, or `none`. A
   segment that only states how many repetitions to run is not offered: that count
   is the run limit, and it is stripped from the message.
-- `message`: which candidate text to repeat. This question runs only when more
-  than one distinct candidate exists.
+- `message`: which candidate text to repeat. This question runs only when the
+  service's own answers shaped the text, such as the segment it named as the
+  stopping condition. Metadata that code matched by itself — a schedule phrase or a
+  count — leaves one candidate, so no question is asked and no low-confidence
+  answer can refuse the command.
 
 ```bash
 /loop keep an eye on the deploy every ten minutes
@@ -81,6 +92,12 @@ choose among candidates that it builds:
 The message is never written by a model. Code assembles the candidates from your
 own words, and the model selects one. Code owns the interval arithmetic, the
 placeholder expansion, the timers and the delivery.
+
+A count is scheduling metadata wherever it appears, so it leaves the message:
+`/loop 输入3次Hi` repeats `输入Hi` three times, and the start line says so. The flag
+form is the opposite: text you state yourself is injected verbatim, so
+`/loop --every 5m --times 3 --message "say hi * 3"` repeats `say hi * 3` exactly as
+written.
 
 An unknown or low-confidence answer is refused with a report. It is never
 guessed, because a wrong cadence floods the session.
@@ -93,9 +110,44 @@ condition is met, and the loop stops above the threshold. The default threshold
 is 0.8. A failed judgment leaves the loop running: a service fault must not end
 your work.
 
+Only the loop's own repetition is judged. A turn you start yourself settles too,
+and so does a turn that was already running when a repetition was queued behind
+it; their answers are not this loop's result, so they ask no question and cost
+nothing.
+
+## What a start shows
+
+A free request reports itself before it can report a plan:
+
+```
+[loop] request
+say hi * 3
+Analyzing · say hi * 3
+```
+
+The row names the request and the request text follows it, verbatim as you wrote
+it. `Analyzing · …` is the below-editor row while the decision request runs, and it
+becomes the `Looping · …` row once the plan exists. The flag form shows neither: it
+calls no model and starts directly.
+
+## The start line
+
+Starting a loop prints one line:
+
+```
+[loop] started · every 5m · 3 times · check the build
+```
+
+The line is injected at the head of the turn a repetition reaches, so it arrives
+with the repetition rather than before the input you typed. The first repetition
+runs as soon as the loop starts, so the line appears at once.
+
 ## Scheduling rules
 
-- The first repetition happens one interval after the start, not immediately.
+- The first repetition happens as soon as the loop starts. Every later one waits
+  for the interval.
+- A count written as a multiplier is read as the run limit, so `/loop say hi * 3`
+  repeats `say hi` three times. The count leaves the message wherever it appears.
 - A tick whose previous repetition has not settled is skipped and counted. Pi
   never queues a backlog of prompts.
 - A bounded loop stops itself after its last repetition. `/loop stop` and session
@@ -134,16 +186,18 @@ twelve labelled requests, and in a real terminal. Reproduce with
 `tests/real-jev-accuracy.ts` (paid), `tests/live_delivery_refusal.py` and
 `tests/live_terminal_accessibility.py`.
 
-- **Free-request accuracy**: the interval, the run limit, the stopping condition
-  and the message were each right on every labelled request. The two genuinely
-  ambiguous requests were refused rather than guessed: one names no cadence, one
-  was below the confidence threshold.
+- **Free-request accuracy**: of the twelve labelled requests, ten were resolved
+  and two were refused. The interval was right 10 of 10, the stopping condition
+  10 of 10 and the message 10 of 10. The run limit was right 4 of 4, because only
+  four requests state a count. One refusal names no cadence and one was below the
+  confidence threshold; the probe excludes the second from every denominator.
 - **Cost**: a plan costs one or two decision requests and 1,058-1,611 input
-  tokens, in about 0.8 seconds. One `met` judgment costs 394 input tokens, so an
-  eight-hour five-minute loop with a stopping condition is about **$0.0165** at
-  the vendor's published rate of $0.42 per million input tokens ($0.0098 at the
-  bulk rate; output tokens are not charged). Without a stopping condition, a loop
-  costs nothing after its plan.
+  tokens, in about 0.8 seconds. One `met` judgment costs 394 input tokens. An
+  eight-hour five-minute loop is 96 repetitions: 96 x 394 tokens plus one plan of
+  at most 1,611 tokens, which is about **$0.0165** at the vendor's published rate
+  of $0.42 per million input tokens ($0.0098 at the bulk rate; output tokens are
+  not charged). Without a stopping condition, a loop costs nothing after its
+  plan.
 - **Delivery**: a repetition that cannot be delivered is reported and ends the
   loop. No session replacement reaches that report: `ctx.reload()`,
   `ctx.newSession()`, `ctx.fork()` and `ctx.switchSession()` each stop the loop

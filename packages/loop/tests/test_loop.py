@@ -121,16 +121,96 @@ def test_a_run_count_is_not_a_stopping_condition() -> None:
     assert all(text != "3 times" for text in first), first
 
 
+def test_a_count_with_no_cadence_still_runs() -> None:
+    """A bounded request that names no cadence must run, and lose the count.
+
+    A request such as "输入3次Hi" states a run count and nothing else. Refusing it
+    made the common "do this N times" request unusable. The count already bounds
+    the loop, so the default cadence cannot flood the session, and the count is
+    scheduling metadata: the message keeps the user's own task words.
+    """
+    data = value(run("candidates"), "candidates")
+    inline = {row["input"]: row["candidates"] for row in data["inlineCount"]}
+    # Code matched the metadata, so the metadata-free text is the message and no
+    # judgment is asked. Offering the request back invited a low-confidence answer
+    # that refused the whole command.
+    assert inline["输入3次Hi"] == [{"key": "without_count", "text": "输入Hi"}], inline["输入3次Hi"]
+    assert inline["check the build 3 times"] == [{"key": "without_count", "text": "check the build"}], \
+        inline["check the build 3 times"]
+    assert inline["check the build"] == [{"key": "full", "text": "check the build"}], inline["check the build"]
+    # A multiplier states the count too: "say hi * 3" repeats "say hi".
+    assert inline["say hi * 3"] == [{"key": "without_count", "text": "say hi"}], inline["say hi * 3"]
+
+    cases = {row["input"]: row["result"] for row in value(run("params"), "params")["cases"]}
+    assert cases["--times 3 Hi"]["plan"] == {"message": "Hi", "intervalMs": 300000, "maxRuns": 3}, cases["--times 3 Hi"]
+    assert cases["--times 3"]["kind"] == "invalid", cases["--times 3"]
+    # The flag form takes the same default: no --every and no --times still runs.
+    until = cases['--until "green" HI']
+    assert until["kind"] == "plan" and until["plan"]["intervalMs"] == 300000, until
+    assert until["plan"]["until"] == "green" and until["plan"]["message"] == "HI", until
+
+
+# One row per cadence rule: input, intervalMs, maxRuns, until.
+CADENCE_CASES: list[tuple[str, int, int | None, str | None]] = [
+    ("--every 5m --times 3 check the build", 300000, 3, None),
+    ("--every 30s --until \"tests pass\" run the suite", 30000, None, "tests pass"),
+    ("-e 2h -t 2 -m report", 7200000, 2, None),
+    ("--times 3 Hi", 300000, 3, None),
+    ('--until "green" HI', 300000, None, "green"),
+    ("--message HI", 300000, None, None),
+    ("-m HI", 300000, None, None),
+    ("--every 5m --message HI", 300000, None, None),
+]
+
+# A flag set that states no usable plan stays refused.
+REFUSED_CASES = [
+    "--times 0 x",
+    "--times two x",
+    "--every banana x",
+    "--every 5m",
+    "--message a b",
+    "--every 5m --times 3 {{bogus}}",
+    "--every 5m --times 3 {{}}",
+    '--every "5m',
+]
+
+
+def test_every_cadence_case_is_decided_or_refused() -> None:
+    """The cadence rule, one row per case the user can write.
+
+    A cadence the user states is used. A cadence the user leaves out takes the
+    five-minute default, whatever else the request states, and the plan reports
+    that it was assumed. A flag set that cannot produce a plan is still refused.
+    """
+    cases = {row["input"]: row["result"] for row in value(run("params"), "params")["cases"]}
+    for text, interval_ms, max_runs, until in CADENCE_CASES:
+        result = cases[text]
+        assert result["kind"] == "plan", (text, result)
+        plan = result["plan"]
+        assert plan["intervalMs"] == interval_ms, (text, plan)
+        assert plan.get("maxRuns") == max_runs, (text, plan)
+        assert plan.get("until") == until, (text, plan)
+        assumed = result.get("intervalAssumed") is True
+        assert assumed == ("--every" not in text and "-e" not in text), (text, result)
+    for text in REFUSED_CASES:
+        assert cases[text]["kind"] == "invalid", (text, cases[text])
+        assert cases[text]["error"], (text, cases[text])
+
+
 def test_scheduler_limit_skip_and_stop() -> None:
     data = value(run("scheduler"), "scheduler")
-    assert data["beforeFirst"] == {"sent": [], "pending": 1}
+    # The first repetition arrives at start: a user who writes a loop expects to
+    # see it run, not to wait one interval for evidence that it did.
+    assert data["beforeFirst"] == {"sent": ["tick 1/2"], "pending": 1}
     assert data["afterLimit"]["sent"] == ["tick 1/2", "tick 2/2"]
     assert data["afterLimit"]["active"] is False and data["afterLimit"]["pending"] == 0
-    assert data["afterLimit"]["events"] == ["injected:1", "injected:2", "stopped:limit"]
+    # The second repetition still waits for the interval, and the tick that
+    # arrives while the first one is unsettled is skipped and counted.
+    assert data["afterLimit"]["events"] == ["injected:1", "skipped:2", "injected:2", "stopped:limit"]
     busy = data["whileBusy"]
-    assert busy["sent"] == ["go"] and busy["skipped"] == 3 and busy["awaitingSettle"] is True
+    assert busy["sent"] == ["go"] and busy["skipped"] == 4 and busy["awaitingSettle"] is True
     after = data["afterSettle"]
-    assert after["sent"] == ["go", "go"] and after["injections"] == 2 and after["skipped"] == 3
+    assert after["sent"] == ["go", "go"] and after["injections"] == 2 and after["skipped"] == 4
     stopped = data["afterStop"]
     assert stopped["sent"] == ["go"] and stopped["active"] is False and stopped["pending"] == 0
     assert data["restart"]["threw"] is True, "a stopped loop must not re-arm"
