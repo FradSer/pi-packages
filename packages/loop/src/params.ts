@@ -143,16 +143,12 @@ export function parseParameterized(input: string): ParameterizedParse {
     maxRuns = Number(times);
   }
 
-  // A run count bounds the loop, so an unnamed cadence is not a gap: the loop
-  // repeats as soon as each repetition settles. Without a count, nothing bounds
-  // it, and a cadence is required.
+  // An unnamed cadence is not a gap: the plan takes the default cadence and the
+  // start notice says it was assumed.
   const every = flags.get("every");
   let intervalMs: number;
   let intervalAssumed = false;
   if (every === undefined) {
-    if (maxRuns === undefined) {
-      return { kind: "invalid", error: "Add --every, or state --times: a loop needs a cadence or a run count." };
-    }
     intervalMs = DEFAULT_COUNT_INTERVAL_MS;
     intervalAssumed = true;
   } else {

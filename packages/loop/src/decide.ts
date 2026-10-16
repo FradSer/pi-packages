@@ -117,9 +117,9 @@ function segmentFor(key: string, segments: readonly string[]): string | undefine
  * condition. The second request runs only when the message has more than one
  * distinct candidate, because a single candidate is not a judgment.
  *
- * An `unspecified` cadence is decided when a run count bounds the loop, and the
- * plan takes the default cadence. A request that names neither a cadence nor a
- * count is refused.
+ * An `unspecified` cadence is never a refusal: the plan takes the default cadence
+ * and reports that it was assumed. A request that names no cadence and no count
+ * therefore runs until the user stops it, or until a stopping condition is met.
  */
 export async function resolveSemanticPlan(request: string, deps: DecisionDeps): Promise<ResolvedLoop> {
   const segments = segmentRequest(request);
@@ -183,17 +183,11 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
   requireConfidence(interval, deps.config.minChoiceConfidence, "the interval");
   requireConfidence(runs, deps.config.minChoiceConfidence, "the run limit");
   requireConfidence(stop, deps.config.minChoiceConfidence, "the stopping condition");
-  // A run count bounds the loop, so an unnamed cadence is decided rather than
-  // refused. Without a count, nothing bounds it: a guessed cadence could repeat
-  // an unbounded loop for as long as the session lives.
-  const bounded = runs.key !== "unbounded";
+  // An unnamed cadence is decided, never refused: the plan takes the default
+  // cadence and the start notice says it was assumed. The user can stop the loop
+  // or state a cadence; a refusal only made the command unusable for the common
+  // "watch this for me" request.
   const intervalAssumed = interval.key === "unspecified";
-  if (intervalAssumed && !bounded) {
-    throw new PlanDecisionError(
-      "rejected",
-      "The request names no cadence and no run count. Add --every, name a cadence, or state how many times to repeat, for example \"3 times\".",
-    );
-  }
 
   const stopSegment = stop.key === "none" ? undefined : segmentFor(stop.key, segments);
   const candidates: TextCandidate[] = messageCandidates(request, stopSegment, counted);

@@ -202,9 +202,9 @@ Or write the request in your own words. The cadence, the run limit, the stopping
 condition and the repeated text are then chosen by TypeSafe Jev decisions over
 candidates the extension builds. A segment that only states how many repetitions
 to run is the run limit, never a stopping condition, and it leaves the repeated
-message. A request that states a run count needs no cadence: `/loop 输入3次Hi`
-repeats `输入Hi` three times, every five minutes by default and otherwise as soon
-as the previous repetition settles.
+message. The cadence is optional: `/loop 输入3次Hi` repeats `输入Hi` three times,
+and `/loop 检查项目修改，总结` repeats until you stop it — five minutes apart unless
+you state another interval, and the start notice says when it was assumed.
 Free requests and `--until` need `TYPESAFE_API_KEY`; without it they are refused
 rather than guessed.
 

@@ -53,12 +53,12 @@ a harness import that Bun erases at runtime is invisible to every other gate.
 - **Fail closed**: a missing credential, a low-confidence answer and an unknown
   answer key are reports, not guesses. `--until` needs a credential too, because Pi
   must judge the condition. An unnamed cadence is decided only when a run count
-  bounds the loop, and the plan then takes `DEFAULT_COUNT_INTERVAL_MS` from
+  is never a refusal: the plan takes `DEFAULT_COUNT_INTERVAL_MS` from
   `src/duration.ts` — five minutes, because a repetition is a whole agent turn and
   a shorter tick only makes the loop skip ticks. The start notice says the cadence
-  was assumed. A request that
-  names neither a cadence nor a count is refused: nothing bounds it, so a guessed
-  cadence could repeat an unbounded loop for the life of the session.
+  was assumed, so a defaulted cadence is never silent. `/loop 检查项目修改，总结`
+  therefore runs until `/loop stop` or a stopping condition; never refuse a
+  request for a cadence it left out.
 - **Delivery**: inject with `pi.sendUserMessage` so each repetition is a real user
   turn. Never use a custom message for the repetition itself.
 - **Scheduling**: skip a tick whose previous repetition has not settled, and count

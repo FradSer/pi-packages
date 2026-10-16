@@ -14,9 +14,9 @@ The count is scheduling metadata wherever it appears, so it leaves the message:
 `/loop 输入3次Hi` repeats `输入Hi`. A count-only segment already left it, and a
 count phrase inside a segment now leaves it too.
 
-A request that names neither a cadence nor a count is still refused. Nothing
-bounds it, and a guessed cadence could repeat an unbounded loop for the life of
-the session.
+An unnamed cadence is never a refusal, with or without a run count. `/loop
+检查项目修改，总结` repeats every five minutes until you run `/loop stop` or its
+stopping condition is met, and the start notice says the cadence was assumed.
 
 The start line moves to the turn a repetition reaches. Every `/loop ...` arrives
 as a user turn and the first repetition is queued behind that run, so a line sent

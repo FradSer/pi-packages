@@ -30,6 +30,14 @@ Feature: /loop repeats one message into the session as a real user turn
     And the message question selects one candidate text
     And the loop injects the selected message through the native user-input path
 
+  Scenario: A request with no cadence and no run count still runs
+    Given the decision service is configured
+    When the user runs "/loop 检查项目修改，总结"
+    Then the plan takes the default cadence
+    And the plan has no run limit
+    And the start notice says the cadence was assumed
+    And the injected message is "检查项目修改，总结"
+
   Scenario: A run count with no cadence still runs
     Given the decision service is configured
     When the user runs "/loop 输入3次Hi"

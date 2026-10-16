@@ -54,8 +54,10 @@ def test_one_candidate_needs_no_message_judgment() -> None:
 def test_thresholds_and_rejections_fail_closed() -> None:
     low = run("low-confidence")
     assert low["failure"] == "low-confidence" and low["hits"] == 1, low
+    # An unnamed cadence is no longer a failure: it takes the default cadence.
     unspecified = run("unspecified-interval")
-    assert unspecified["failure"] == "rejected" and unspecified["hits"] == 1, unspecified
+    assert unspecified["ok"] is True and unspecified["intervalAssumed"] is True, unspecified
+    assert unspecified["plan"]["intervalMs"] == 300000, unspecified
     malformed = run("malformed-choice")
     assert malformed["failure"] == "malformed", malformed
     assert "banana" in malformed["message"]
@@ -63,6 +65,20 @@ def test_thresholds_and_rejections_fail_closed() -> None:
     assert credential["failure"] == "unauthorized" and credential["hits"] == 1, credential
     missing = run("no-credential")
     assert missing["config"] is None, missing
+
+
+def test_a_request_with_no_cadence_and_no_count_still_runs() -> None:
+    """The request the user reported must run: "检查项目修改，总结".
+
+    Nothing is undetermined once an unnamed cadence has a default, so the command
+    decides the plan instead of refusing it. The loop repeats every five minutes
+    until the user stops it, and the start notice says the cadence was assumed.
+    """
+    case = run("no-cadence-no-count")
+    assert case["ok"] is True, case
+    assert case["plan"] == {"message": "检查项目修改，总结", "intervalMs": 300000}, case["plan"]
+    assert case["intervalAssumed"] is True, case
+    assert case["mode"] == "semantic" and case["hits"] == 1, case
 
 
 def test_a_count_with_no_cadence_takes_the_default_interval() -> None:

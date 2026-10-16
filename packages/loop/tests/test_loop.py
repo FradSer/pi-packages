@@ -141,8 +141,57 @@ def test_a_count_with_no_cadence_still_runs() -> None:
     cases = {row["input"]: row["result"] for row in value(run("params"), "params")["cases"]}
     assert cases["--times 3 Hi"]["plan"] == {"message": "Hi", "intervalMs": 300000, "maxRuns": 3}, cases["--times 3 Hi"]
     assert cases["--times 3"]["kind"] == "invalid", cases["--times 3"]
-    # An unnamed cadence with no count stays refused: nothing bounds that loop.
-    assert cases['--until "green" HI']["kind"] == "invalid", cases['--until "green" HI']
+    # The flag form takes the same default: no --every and no --times still runs.
+    until = cases['--until "green" HI']
+    assert until["kind"] == "plan" and until["plan"]["intervalMs"] == 300000, until
+    assert until["plan"]["until"] == "green" and until["plan"]["message"] == "HI", until
+
+
+# One row per cadence rule: input, intervalMs, maxRuns, until.
+CADENCE_CASES: list[tuple[str, int, int | None, str | None]] = [
+    ("--every 5m --times 3 check the build", 300000, 3, None),
+    ("--every 30s --until \"tests pass\" run the suite", 30000, None, "tests pass"),
+    ("-e 2h -t 2 -m report", 7200000, 2, None),
+    ("--times 3 Hi", 300000, 3, None),
+    ('--until "green" HI', 300000, None, "green"),
+    ("--message HI", 300000, None, None),
+    ("-m HI", 300000, None, None),
+    ("--every 5m --message HI", 300000, None, None),
+]
+
+# A flag set that states no usable plan stays refused.
+REFUSED_CASES = [
+    "--times 0 x",
+    "--times two x",
+    "--every banana x",
+    "--every 5m",
+    "--message a b",
+    "--every 5m --times 3 {{bogus}}",
+    "--every 5m --times 3 {{}}",
+    '--every "5m',
+]
+
+
+def test_every_cadence_case_is_decided_or_refused() -> None:
+    """The cadence rule, one row per case the user can write.
+
+    A cadence the user states is used. A cadence the user leaves out takes the
+    five-minute default, whatever else the request states, and the plan reports
+    that it was assumed. A flag set that cannot produce a plan is still refused.
+    """
+    cases = {row["input"]: row["result"] for row in value(run("params"), "params")["cases"]}
+    for text, interval_ms, max_runs, until in CADENCE_CASES:
+        result = cases[text]
+        assert result["kind"] == "plan", (text, result)
+        plan = result["plan"]
+        assert plan["intervalMs"] == interval_ms, (text, plan)
+        assert plan.get("maxRuns") == max_runs, (text, plan)
+        assert plan.get("until") == until, (text, plan)
+        assumed = result.get("intervalAssumed") is True
+        assert assumed == ("--every" not in text and "-e" not in text), (text, result)
+    for text in REFUSED_CASES:
+        assert cases[text]["kind"] == "invalid", (text, cases[text])
+        assert cases[text]["error"], (text, cases[text])
 
 
 def test_scheduler_limit_skip_and_stop() -> None:

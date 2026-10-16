@@ -35,7 +35,7 @@ State every parameter, and the extension calls no model.
 
 | Flag | Meaning |
 | --- | --- |
-| `--every`, `-e` | The interval. Required unless `--times` states a run count. |
+| `--every`, `-e` | The interval. Defaults to five minutes when it is omitted. |
 | `--times`, `-t` | The total count. Omit it to repeat until `/loop stop`. |
 | `--until`, `-u` | A stopping condition in natural language. |
 | `--message`, `-m` | The text. Equivalent to trailing text. |
@@ -44,9 +44,11 @@ A duration is `500ms`, `30s`, `5m`, `2h`, `1d`, a combination such as `1h30m`, o
 bare number of seconds. The shortest interval is one second and the longest is one
 day. `--` ends the flags, so the text after it may contain `--`.
 
-A run count may stand in for the cadence. `/loop --times 3 Hi` needs no `--every`:
-the loop then repeats every five minutes. A repetition that is still running when
-the next tick arrives is skipped and counted, so the repetitions never queue.
+`--every` is optional. A request that states no cadence runs every five minutes:
+`/loop --times 3 Hi` repeats three times, and `/loop 检查项目修改，总结` repeats
+until you stop it. The start notice says the cadence was assumed. A repetition
+that is still running when the next tick arrives is skipped and counted, so the
+repetitions never queue.
 
 The message may use these placeholders:
 
@@ -68,10 +70,9 @@ Write the request in your own words. The extension then asks TypeSafe Jev to
 choose among candidates that it builds:
 
 - `interval`: which listed interval is closest to the requested cadence. The
-  listed intervals are 30s, 1m, 5m, 15m, 30m, 1h and 1d. `unspecified` is accepted
-  when the request states a run count: the plan then takes the default cadence of
-  five minutes, and the start notice says the cadence was assumed. A request that
-  names neither a cadence nor a count is refused.
+  listed intervals are 30s, 1m, 5m, 15m, 30m, 1h and 1d. `unspecified` is always
+  accepted: the plan takes the default cadence of five minutes, and the start
+  notice says the cadence was assumed.
 - `runs`: the total count, or `unbounded`. The listed values are 1, 3, 5, 10, 20
   and `unbounded`.
 - `stop`: which candidate segment states a stopping condition, or `none`. A
