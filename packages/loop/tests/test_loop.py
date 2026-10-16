@@ -131,15 +131,15 @@ def test_a_count_with_no_cadence_still_runs() -> None:
     """
     data = value(run("candidates"), "candidates")
     inline = {row["input"]: row["candidates"] for row in data["inlineCount"]}
-    assert inline["输入3次Hi"] == [{"key": "without_count", "text": "输入Hi"},
-                                   {"key": "full", "text": "输入3次Hi"}], inline["输入3次Hi"]
-    assert inline["check the build 3 times"] == [{"key": "without_count", "text": "check the build"},
-                                                 {"key": "full", "text": "check the build 3 times"}], \
+    # Code matched the metadata, so the metadata-free text is the message and no
+    # judgment is asked. Offering the request back invited a low-confidence answer
+    # that refused the whole command.
+    assert inline["输入3次Hi"] == [{"key": "without_count", "text": "输入Hi"}], inline["输入3次Hi"]
+    assert inline["check the build 3 times"] == [{"key": "without_count", "text": "check the build"}], \
         inline["check the build 3 times"]
     assert inline["check the build"] == [{"key": "full", "text": "check the build"}], inline["check the build"]
     # A multiplier states the count too: "say hi * 3" repeats "say hi".
-    assert inline["say hi * 3"] == [{"key": "without_count", "text": "say hi"},
-                                    {"key": "full", "text": "say hi * 3"}], inline["say hi * 3"]
+    assert inline["say hi * 3"] == [{"key": "without_count", "text": "say hi"}], inline["say hi * 3"]
 
     cases = {row["input"]: row["result"] for row in value(run("params"), "params")["cases"]}
     assert cases["--times 3 Hi"]["plan"] == {"message": "Hi", "intervalMs": 300000, "maxRuns": 3}, cases["--times 3 Hi"]

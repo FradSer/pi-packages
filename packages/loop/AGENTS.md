@@ -41,6 +41,14 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   phrase inside a segment counts too: `stripRunCount` leaves it out of the message,
   so `/loop 输入3次Hi` repeats `输入Hi`. Keep that rule: the count is scheduling
   metadata wherever it appears.
+- **Ask only what code cannot decide**: the message question runs only when the
+  service's own answer shaped the text, which is the stopping-condition segment.
+  Metadata this module matched itself — a schedule phrase or a count phrase — must
+  never come back as a choice: offering the untouched request asked the service to
+  repeat a decision code had already made, and a low-confidence answer to it
+  refused the whole command (`/loop say hi * 3` failed with 0.22 < 0.30 against the
+  live service). One question set per free request, and no paid question where the
+  answer is already known.
 - **Closed questions only**: use `askSystemOne` from pi-kit. Its question types are
   `noul`, `choice` and `score`; a generative answer is unrepresentable. Keep the
   criteria objects as the single source of truth for both the question and the

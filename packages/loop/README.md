@@ -78,8 +78,11 @@ choose among candidates that it builds:
 - `stop`: which candidate segment states a stopping condition, or `none`. A
   segment that only states how many repetitions to run is not offered: that count
   is the run limit, and it is stripped from the message.
-- `message`: which candidate text to repeat. This question runs only when more
-  than one distinct candidate exists.
+- `message`: which candidate text to repeat. This question runs only when the
+  service's own answers shaped the text, such as the segment it named as the
+  stopping condition. Metadata that code matched by itself — a schedule phrase or a
+  count — leaves one candidate, so no question is asked and no low-confidence
+  answer can refuse the command.
 
 ```bash
 /loop keep an eye on the deploy every ten minutes

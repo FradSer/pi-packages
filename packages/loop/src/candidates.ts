@@ -167,12 +167,17 @@ export function messageCandidates(
     candidates.push({ key, text: value });
   };
   if (stripped === undefined) {
-    // No segment was filtered, so only the text's own metadata can leave: the
-    // deepest candidate goes first, and a skipped message question falls back to
-    // the task without its scheduling metadata rather than to the whole request.
+    // No segment was filtered, so only code-matched metadata can leave: a
+    // schedule phrase or a count phrase, both found by a pattern this module owns.
+    // There is nothing to judge, so the metadata-free text is the message. Offering
+    // the request back as well asked the service to make a choice code had already
+    // made, and a low-confidence answer to that choice refused the whole command.
     const reduced = reduceMetadata(full);
-    if (reduced !== undefined) push(reduced.count ? "without_count" : "without_schedule", reduced.text);
-    push("full", full);
+    if (reduced === undefined) {
+      push("full", full);
+      return candidates;
+    }
+    push(reduced.count ? "without_count" : "without_schedule", reduced.text);
     return candidates;
   }
   const deep = reduceMetadata(stripped);

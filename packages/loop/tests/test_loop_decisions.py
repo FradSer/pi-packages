@@ -92,11 +92,12 @@ def test_a_count_with_no_cadence_takes_the_default_interval() -> None:
     assert case["ok"] is True, case
     assert case["plan"] == {"message": "输入Hi", "intervalMs": 300000, "maxRuns": 3}, case["plan"]
     assert case["intervalAssumed"] is True, case
-    assert case["mode"] == "semantic" and case["hits"] == 2, case
+    # The count is code-matched metadata, so the message needs no judgment: one
+    # request set, and no low-confidence refusal.
+    assert case["mode"] == "semantic" and case["hits"] == 1, case
     first = case["requests"][0]
     assert first["questions"]["interval"]["criteria"]["unspecified"], first["questions"]["interval"]
-    message_criteria = case["requests"][1]["questions"]["message"]["criteria"]
-    assert set(message_criteria) == {"without_count", "full"}, message_criteria
+    assert sorted(first["questions"]) == ["interval", "runs", "stop"], first["questions"]
 
 
 def test_a_count_segment_is_never_offered_as_a_stopping_condition() -> None:

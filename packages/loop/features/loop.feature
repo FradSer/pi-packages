@@ -32,8 +32,18 @@ Feature: /loop repeats one message into the session as a real user turn
     When the user runs "/loop keep an eye on the deploy every ten minutes"
     Then the extension asks one bounded set of decision questions
     And the interval question selects one listed interval
-    And the message question selects one candidate text
-    And the loop injects the selected message through the native user-input path
+    And the loop injects "keep an eye on the deploy" through the native user-input path
+
+  Scenario: Code-matched metadata needs no message question
+    Given the decision service is configured
+    When the user runs "/loop say hi * 3"
+    Then the extension asks one bounded set of decision questions
+    And the loop injects "say hi" through the native user-input path
+
+  Scenario: A stopping-condition segment makes the message a judgment
+    Given the decision service is configured
+    When the user runs "/loop check the deploy every 10 minutes. stop when it is green"
+    Then the message question selects which candidate text to repeat
 
   Scenario: A request with no cadence and no run count still runs
     Given the decision service is configured

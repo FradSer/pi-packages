@@ -179,12 +179,13 @@ def test_scheduled_injection_arrives_as_a_native_user_turn() -> None:
 
 @pytest.mark.skipif(shutil.which("pi") is None, reason="the pi CLI is not installed")
 def test_a_free_request_is_decided_and_injected_as_a_native_user_turn() -> None:
-    """The semantic plan's own end: two decision question sets, then a real user turn.
+    """The semantic plan's own end: one decision question set, then a real user turn.
 
     The decision seam is exercised separately against a loopback endpoint, and
-    that check stops at the resolved plan. Only this run proves the selected
-    candidate reaches the session through `pi.sendUserMessage`. The listed
-    intervals start at 30s, so the wait is the shortest one the contract allows.
+    that check stops at the resolved plan. Only this run proves the resolved
+    message reaches the session through `pi.sendUserMessage`. The schedule phrase
+    is code-matched metadata, so the text needs no message question and the run
+    asks one question set.
     """
     server, seen = start_decision_server(lambda ids: envelope({"message": choice("without_schedule")})
                                          if ids == ["message"]
@@ -202,7 +203,7 @@ def test_a_free_request_is_decided_and_injected_as_a_native_user_turn() -> None:
     finally:
         server.shutdown()
     assert_user_turns(starts, ["keep an eye on the deploy"])
-    assert [ids for ids in seen] == [["interval", "runs", "stop"], ["message"]], seen
+    assert [ids for ids in seen] == [["interval", "runs", "stop"]], seen
     assert not [r for r in rows if isinstance(r.get("prompt"), str) and r["prompt"].startswith("/loop ")], \
         "the command was sent to the model instead of being dispatched"
 

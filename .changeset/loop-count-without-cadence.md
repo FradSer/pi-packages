@@ -24,3 +24,11 @@ from the command landed ahead of the input you typed. The line is now injected a
 the head of the next run, which is the run a repetition reaches. A start with no
 cadence reaches it at its first repetition, which now runs as soon as the loop
 starts.
+
+Code-matched metadata no longer becomes a message question. The request and its
+metadata-free text differ only by a phrase this code matched itself, so the choice
+belongs to the code: `/loop say hi * 3` now asks one question set and injects
+`say hi`. Against the live service the two-way choice came back at 0.22 confidence
+and refused the whole command, and every free request paid for a question whose
+answer was already known. The message question still runs where the service's own
+answer shaped the text, such as the segment it named as the stopping condition.
