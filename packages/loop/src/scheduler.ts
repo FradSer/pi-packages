@@ -84,12 +84,17 @@ export class LoopRunner {
     return formatDuration(this.plan.intervalMs);
   }
 
-  /** Schedule the first injection one interval from now. */
+  /**
+   * Inject the first repetition now, then keep the interval.
+   *
+   * A user who writes a loop expects to see it run: waiting one interval for the
+   * first repetition leaves a full interval with nothing to show for it.
+   */
   start(): void {
     if (this.finished) throw new Error("A stopped loop cannot restart; start a new loop.");
     if (this.running) throw new Error("The loop is already running.");
     this.running = true;
-    this.schedule();
+    this.tick();
   }
 
   /** Release the timer. Later calls do nothing. */

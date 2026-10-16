@@ -204,7 +204,8 @@ candidates the extension builds. A segment that only states how many repetitions
 to run is the run limit, never a stopping condition, and it leaves the repeated
 message. The cadence is optional: `/loop 输入3次Hi` repeats `输入Hi` three times,
 and `/loop 检查项目修改，总结` repeats until you stop it — five minutes apart unless
-you state another interval, and the start notice says when it was assumed.
+you state another interval, and the start notice says when it was assumed. The
+first repetition runs as soon as the loop starts.
 Free requests and `--until` need `TYPESAFE_API_KEY`; without it they are refused
 rather than guessed.
 

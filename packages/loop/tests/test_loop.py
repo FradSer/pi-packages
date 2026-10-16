@@ -137,6 +137,9 @@ def test_a_count_with_no_cadence_still_runs() -> None:
                                                  {"key": "full", "text": "check the build 3 times"}], \
         inline["check the build 3 times"]
     assert inline["check the build"] == [{"key": "full", "text": "check the build"}], inline["check the build"]
+    # A multiplier states the count too: "say hi * 3" repeats "say hi".
+    assert inline["say hi * 3"] == [{"key": "without_count", "text": "say hi"},
+                                    {"key": "full", "text": "say hi * 3"}], inline["say hi * 3"]
 
     cases = {row["input"]: row["result"] for row in value(run("params"), "params")["cases"]}
     assert cases["--times 3 Hi"]["plan"] == {"message": "Hi", "intervalMs": 300000, "maxRuns": 3}, cases["--times 3 Hi"]
@@ -196,14 +199,18 @@ def test_every_cadence_case_is_decided_or_refused() -> None:
 
 def test_scheduler_limit_skip_and_stop() -> None:
     data = value(run("scheduler"), "scheduler")
-    assert data["beforeFirst"] == {"sent": [], "pending": 1}
+    # The first repetition arrives at start: a user who writes a loop expects to
+    # see it run, not to wait one interval for evidence that it did.
+    assert data["beforeFirst"] == {"sent": ["tick 1/2"], "pending": 1}
     assert data["afterLimit"]["sent"] == ["tick 1/2", "tick 2/2"]
     assert data["afterLimit"]["active"] is False and data["afterLimit"]["pending"] == 0
-    assert data["afterLimit"]["events"] == ["injected:1", "injected:2", "stopped:limit"]
+    # The second repetition still waits for the interval, and the tick that
+    # arrives while the first one is unsettled is skipped and counted.
+    assert data["afterLimit"]["events"] == ["injected:1", "skipped:2", "injected:2", "stopped:limit"]
     busy = data["whileBusy"]
-    assert busy["sent"] == ["go"] and busy["skipped"] == 3 and busy["awaitingSettle"] is True
+    assert busy["sent"] == ["go"] and busy["skipped"] == 4 and busy["awaitingSettle"] is True
     after = data["afterSettle"]
-    assert after["sent"] == ["go", "go"] and after["injections"] == 2 and after["skipped"] == 3
+    assert after["sent"] == ["go", "go"] and after["injections"] == 2 and after["skipped"] == 4
     stopped = data["afterStop"]
     assert stopped["sent"] == ["go"] and stopped["active"] is False and stopped["pending"] == 0
     assert data["restart"]["threw"] is True, "a stopped loop must not re-arm"

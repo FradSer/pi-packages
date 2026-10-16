@@ -33,10 +33,16 @@ def said(rows: list[dict[str, object]], needle: str) -> bool:
     return any(needle in message for message in messages(rows))
 
 
-def test_starting_a_loop_announces_it_without_consuming_a_turn() -> None:
+def test_starting_a_loop_runs_the_first_repetition_and_announces_it() -> None:
+    """A start injects the first repetition at once, and the line reports the plan.
+
+    The notice itself consumes no turn: it is queued and injected at the head of
+    the run the first repetition reaches.
+    """
     data = value(run("start-flags"), "start-flags")
-    assert data["sent"] == [], "a parameterized start must not inject before the interval"
-    assert data["status"] == ["Looping · every 1h · 0/2"], data["status"]
+    assert data["sent"] == ["CHECK THE BUILD"], "the first repetition arrives at start"
+    assert data["status"] == ["Looping · every 1h · 1/2"], data["status"]
+    assert data["lifecycle"] == [], "the notice must not be appended at start: " + json.dumps(data)
     assert data["events"] == ["before_agent_start", "agent_end", "agent_settled", "session_start",
                               "session_shutdown"], data["events"]
 
@@ -45,10 +51,11 @@ def test_status_and_stop_report_state_and_clear_the_row() -> None:
     data = value(run("status-and-stop"), "status-and-stop")
     assert said(data["before"]["notifications"], "loop: no loop is running."), data["before"]
     assert said(data["before"]["notifications"], "Usage:"), data["before"]
-    assert data["started"]["status"] == ["Looping · every 1h · 0/3"], data["started"]
-    assert said(data["status"]["notifications"], "loop: Looping · every 1h · 0/3"), data["status"]
+    assert data["started"]["status"] == ["Looping · every 1h · 1/3"], data["started"]
+    assert said(data["status"]["notifications"], "loop: Looping · every 1h · 1/3"), data["status"]
     assert data["stopped"]["status"] == [None], "stopping must clear the row: " + json.dumps(data["stopped"])
-    assert said(data["stopped"]["notifications"], "stopped after 0 injections (user)"), data["stopped"]
+    # The first repetition ran at start, so a stop reports one injection.
+    assert said(data["stopped"]["notifications"], "stopped after 1 injection (user)"), data["stopped"]
     assert said(data["afterStop"], "loop: no loop is running."), data["afterStop"]
 
 
@@ -68,6 +75,19 @@ def test_every_refusal_names_the_cause_and_schedules_nothing() -> None:
     headless = data["headless"]
     assert headless and headless[0]["customType"] == "loop-notice", headless
     assert headless[0]["options"] == {"triggerTurn": False}, headless
+
+
+def test_the_start_line_states_the_cadence_it_uses() -> None:
+    """The notice must describe the cadence the plan actually took.
+
+    The line said "the loop repeats as soon as each repetition settles" while the
+    cadence was five minutes, so a reader was told one thing and shown another.
+    """
+    data = value(run("start-flags"), "start-flags")
+    content = str(data["notice"])
+    assert "every 1h" in content, content
+    assert "as soon as each repetition settles" not in content, content
+    assert "/loop stop" in content, content
 
 
 def test_a_start_line_does_not_preempt_the_run_it_started() -> None:

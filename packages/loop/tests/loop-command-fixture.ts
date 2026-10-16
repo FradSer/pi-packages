@@ -124,10 +124,11 @@ async function withStopServer(run: (hits: string[]) => Promise<unknown>): Promis
 
 const scenarios: Record<string, () => Promise<unknown>> = {
   async "start-flags"() {
-    const { captured, run } = bootstrap();
+    const { captured, run, startRun } = bootstrap();
     await run("--every 1h --times 2 CHECK THE BUILD");
     return {
       sent: captured.sent,
+      notice: (startRun("--every 1h --times 2 CHECK THE BUILD")[0]?.content as string | undefined) ?? null,
       lifecycle: captured.messages.map((m) => ({ customType: m.customType, display: m.display, triggerTurn: (m.options as { triggerTurn?: boolean }).triggerTurn })),
       status: captured.status,
       notifications: captured.notifications,

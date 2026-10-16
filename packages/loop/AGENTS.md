@@ -86,9 +86,9 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   `startNotice` and is injected by the `before_agent_start` handler at the head of
   the next run, which is the run a repetition reaches. Measured on Pi 1.2.0: the
   resulting run is `system, user, custom, assistant`, and a start with
-  `triggerTurn: true` drops the user's own command text from the run. A start with
-  no cadence reaches the line only at its first repetition, because the default is
-  five minutes and the tick starts after the interval.
+  `triggerTurn: true` drops the user's own command text from the run. The first
+  repetition runs at start, so the line appears with it rather than an interval
+  later.
 - **Bounds**: keep the interval between 1s and 1d, and bound the text sent for one
   stopping judgment.
 

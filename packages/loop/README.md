@@ -118,13 +118,15 @@ Starting a loop prints one line:
 ```
 
 The line is injected at the head of the turn a repetition reaches, so it arrives
-with the repetition rather than before the input you typed. A start with no
-cadence reaches it at its first repetition, because the default cadence is five
-minutes and the first tick comes one interval after the start.
+with the repetition rather than before the input you typed. The first repetition
+runs as soon as the loop starts, so the line appears at once.
 
 ## Scheduling rules
 
-- The first repetition happens one interval after the start, not immediately.
+- The first repetition happens as soon as the loop starts. Every later one waits
+  for the interval.
+- A count written as a multiplier is read as the run limit, so `/loop say hi * 3`
+  repeats `say hi` three times. The count leaves the message wherever it appears.
 - A tick whose previous repetition has not settled is skipped and counted. Pi
   never queues a backlog of prompts.
 - A bounded loop stops itself after its last repetition. `/loop stop` and session

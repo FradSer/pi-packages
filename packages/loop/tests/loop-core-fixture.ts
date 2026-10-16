@@ -150,7 +150,7 @@ const scenarios: Record<string, () => unknown> = {
     // A real-model run chose "3 times" as the stopping condition for count-only
     // requests, so the count's own segment class is pinned here.
     const counts = ["3 times", "five times", "20 x", "10 次", "3 times a day", "3", "times",
-                    "check the build", "每5分钟", "twice"].map((input) => ({ input, isCount: isRunCountSegment(input) }));
+                    "check the build", "每5分钟", "twice", "* 3", "× 3"].map((input) => ({ input, isCount: isRunCountSegment(input) }));
     const counted = segmentRequest("check the build every 5 minutes, 3 times");
     const countedFirst = segmentRequest("3 times, check the deploy every 5 minutes, stop when green");
     return {
@@ -168,7 +168,7 @@ const scenarios: Record<string, () => unknown> = {
                                             "stop when green", countedFirst.filter(isRunCountSegment)),
       // A count inside a segment is the run limit too, so the message keeps the
       // user's own words and drops the count metadata.
-      inlineCount: ["输入3次Hi", "check the build 3 times", "check the build"]
+      inlineCount: ["输入3次Hi", "check the build 3 times", "check the build", "say hi * 3"]
         .map((input) => ({ input, candidates: messageCandidates(input, undefined) })),
     };
   },

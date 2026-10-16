@@ -136,9 +136,13 @@ export function registerLoop(pi: ExtensionAPI): void {
     return "Looping · every " + runner.intervalLabel + " · " + progress + skipped;
   };
 
+  /** The last row value written, so one value writes the row once. */
+  let published: string | undefined;
   const publish = (): void => {
     if (ui === undefined) return;
     const value = statusValue();
+    if (value === published) return;
+    published = value;
     if (value === undefined) clearPiStatus(ui, STATUS_KEY);
     else setPiStatus(ui, STATUS_KEY, value);
   };
@@ -160,9 +164,10 @@ export function registerLoop(pi: ExtensionAPI): void {
         ? " Stopping condition: " + plan.until + "."
         : " It runs until the user stops it.";
     // The user must see a cadence they did not state, or the loop looks slower
-    // or faster than they asked for.
+    // or faster than they asked for. Name the default, never a cadence the plan
+    // did not take.
     const assumed = resolved.intervalAssumed
-      ? " The request names no cadence, so the loop repeats as soon as each repetition settles."
+      ? " The request names no cadence, so the default cadence applies."
       : "";
     const content = "The user started a repeating loop. Each repetition arrives as a separate user turn. Message: "
       + plan.message + ". Cadence: every " + formatDuration(plan.intervalMs) + "." + assumed + limits

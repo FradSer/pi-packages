@@ -82,10 +82,15 @@ const COUNT_UNITS = "times?|x|repetitions?|cycles?|rounds?|次|回|遍";
 const COUNT_CHINESE = "[零一二三四五六七八九十百两]+|半";
 const COUNT_ALONE = "once|twice";
 
-/** A count phrase that carries a unit: "3 times", "five times", "10 次". */
+/**
+ * A count phrase: a number with a unit ("3 times", "10 次"), or a multiplier
+ * prefix ("* 3", "x3", "× 3"). The multiplier form is the shape a user reaches
+ * for when they mean "say this N times".
+ */
 function countPhrase(): string {
   return "(?:[0-9]+|(?:" + COUNT_WORDS + "))\\s*(?:" + COUNT_UNITS + ")"
-    + "|(?:" + COUNT_CHINESE + ")\\s*(?:" + COUNT_UNITS + ")";
+    + "|(?:" + COUNT_CHINESE + ")\\s*(?:" + COUNT_UNITS + ")"
+    + "|[*×]\\s*(?:[0-9]+|(?:" + COUNT_CHINESE + "))";
 }
 
 /**

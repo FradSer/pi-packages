@@ -22,4 +22,5 @@ The start line moves to the turn a repetition reaches. Every `/loop ...` arrives
 as a user turn and the first repetition is queued behind that run, so a line sent
 from the command landed ahead of the input you typed. The line is now injected at
 the head of the next run, which is the run a repetition reaches. A start with no
-cadence reaches it at its first repetition, five minutes later.
+cadence reaches it at its first repetition, which now runs as soon as the loop
+starts.

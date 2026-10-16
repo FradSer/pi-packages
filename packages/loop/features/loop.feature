@@ -12,6 +12,11 @@ Feature: /loop repeats one message into the session as a real user turn
     And every injection is an independent user turn
     And no decision request is sent
 
+  Scenario: The first repetition arrives at the start
+    When the user runs "/loop --every 5m --times 2 check the build"
+    Then the loop injects "check the build" as soon as the loop starts
+    And the second injection waits for the interval
+
   Scenario: A template placeholder is expanded for each injection
     When the user runs "/loop --every 1m --times 2 status {{index}} of {{total}}"
     Then the first injected message is "status 1 of 2"
