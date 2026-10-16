@@ -51,6 +51,7 @@ const loopRows = bindLifecycleRenderers({
 const USAGE = [
   "Usage:",
   "  /loop --every 5m [--times 3] [--until \"condition\"] [--message \"text\"] [text]",
+  "  /loop --times 3 [--message \"text\"] [text]",
   "  /loop <free request>",
   "  /loop status",
   "  /loop stop",
@@ -152,8 +153,13 @@ export function registerLoop(pi: ExtensionAPI): void {
       : plan.until !== undefined
         ? " Stopping condition: " + plan.until + "."
         : " It runs until the user stops it.";
+    // The user must see a cadence they did not state, or the loop looks slower
+    // or faster than they asked for.
+    const assumed = resolved.intervalAssumed
+      ? " The request names no cadence, so the loop repeats as soon as each repetition settles."
+      : "";
     const content = "The user started a repeating loop. Each repetition arrives as a separate user turn. Message: "
-      + plan.message + ". Cadence: every " + formatDuration(plan.intervalMs) + "." + limits
+      + plan.message + ". Cadence: every " + formatDuration(plan.intervalMs) + "." + assumed + limits
       + " Stop it with /loop stop.";
     const details = {
       subject: planSummary(plan),
@@ -322,7 +328,11 @@ export function registerLoop(pi: ExtensionAPI): void {
           feedback(pi, ctx, "loop: --until needs a decision credential (TYPESAFE_API_KEY), because Pi judges the condition after each turn.", "error");
           return;
         }
-        start({ plan: parsed.plan, mode: "parameterized" });
+        start({
+          plan: parsed.plan,
+          mode: "parameterized",
+          ...(parsed.intervalAssumed ? { intervalAssumed: true } : {}),
+        });
         return;
       }
 

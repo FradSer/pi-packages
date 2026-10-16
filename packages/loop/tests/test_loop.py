@@ -121,6 +121,30 @@ def test_a_run_count_is_not_a_stopping_condition() -> None:
     assert all(text != "3 times" for text in first), first
 
 
+def test_a_count_with_no_cadence_still_runs() -> None:
+    """A bounded request that names no cadence must run, and lose the count.
+
+    A request such as "输入3次Hi" states a run count and nothing else. Refusing it
+    made the common "do this N times" request unusable. The count already bounds
+    the loop, so the default cadence cannot flood the session, and the count is
+    scheduling metadata: the message keeps the user's own task words.
+    """
+    data = value(run("candidates"), "candidates")
+    inline = {row["input"]: row["candidates"] for row in data["inlineCount"]}
+    assert inline["输入3次Hi"] == [{"key": "without_count", "text": "输入Hi"},
+                                   {"key": "full", "text": "输入3次Hi"}], inline["输入3次Hi"]
+    assert inline["check the build 3 times"] == [{"key": "without_count", "text": "check the build"},
+                                                 {"key": "full", "text": "check the build 3 times"}], \
+        inline["check the build 3 times"]
+    assert inline["check the build"] == [{"key": "full", "text": "check the build"}], inline["check the build"]
+
+    cases = {row["input"]: row["result"] for row in value(run("params"), "params")["cases"]}
+    assert cases["--times 3 Hi"]["plan"] == {"message": "Hi", "intervalMs": 1000, "maxRuns": 3}, cases["--times 3 Hi"]
+    assert cases["--times 3"]["kind"] == "invalid", cases["--times 3"]
+    # An unnamed cadence with no count stays refused: nothing bounds that loop.
+    assert cases['--until "green" HI']["kind"] == "invalid", cases['--until "green" HI']
+
+
 def test_scheduler_limit_skip_and_stop() -> None:
     data = value(run("scheduler"), "scheduler")
     assert data["beforeFirst"] == {"sent": [], "pending": 1}

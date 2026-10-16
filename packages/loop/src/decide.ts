@@ -20,6 +20,7 @@ import {
   type TextCandidate,
 } from "./candidates.ts";
 import type { DecisionConfig } from "./config.ts";
+import { DEFAULT_COUNT_INTERVAL_MS } from "./duration.ts";
 import { segmentRequest } from "./segments.ts";
 import { templateClock } from "./template.ts";
 import type { DecisionAnswer, DecisionReport, LoopPlan, ResolvedLoop } from "./types.ts";
@@ -115,6 +116,10 @@ function segmentFor(key: string, segments: readonly string[]): string | undefine
  * cadence, the run limit, and which candidate segment states the stopping
  * condition. The second request runs only when the message has more than one
  * distinct candidate, because a single candidate is not a judgment.
+ *
+ * An `unspecified` cadence is decided when a run count bounds the loop, and the
+ * plan takes the default cadence. A request that names neither a cadence nor a
+ * count is refused.
  */
 export async function resolveSemanticPlan(request: string, deps: DecisionDeps): Promise<ResolvedLoop> {
   const segments = segmentRequest(request);
@@ -178,8 +183,16 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
   requireConfidence(interval, deps.config.minChoiceConfidence, "the interval");
   requireConfidence(runs, deps.config.minChoiceConfidence, "the run limit");
   requireConfidence(stop, deps.config.minChoiceConfidence, "the stopping condition");
-  if (interval.key === "unspecified") {
-    throw new PlanDecisionError("rejected", "The request names no cadence. Add --every, or name a cadence in the request.");
+  // A run count bounds the loop, so an unnamed cadence is decided rather than
+  // refused. Without a count, nothing bounds it: a guessed cadence could repeat
+  // an unbounded loop for as long as the session lives.
+  const bounded = runs.key !== "unbounded";
+  const intervalAssumed = interval.key === "unspecified";
+  if (intervalAssumed && !bounded) {
+    throw new PlanDecisionError(
+      "rejected",
+      "The request names no cadence and no run count. Add --every, name a cadence, or state how many times to repeat, for example \"3 times\".",
+    );
   }
 
   const stopSegment = stop.key === "none" ? undefined : segmentFor(stop.key, segments);
@@ -224,7 +237,9 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
     model = second.model;
   }
 
-  const intervalMs = INTERVAL_OPTIONS.find((option) => option.key === interval.key)?.ms;
+  const intervalMs = intervalAssumed
+    ? DEFAULT_COUNT_INTERVAL_MS
+    : INTERVAL_OPTIONS.find((option) => option.key === interval.key)?.ms;
   if (intervalMs === undefined) throw new PlanDecisionError("malformed", "The selected interval is not listed.");
 
   const plan: LoopPlan = { message, intervalMs };
@@ -233,7 +248,9 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
 
   const report: DecisionReport = { interval, runs, stop, model, inputTokens };
   if (messageAnswer !== undefined) report.message = messageAnswer;
-  return { plan, mode: "semantic", report };
+  return intervalAssumed
+    ? { plan, mode: "semantic", report, intervalAssumed }
+    : { plan, mode: "semantic", report };
 }
 
 /**

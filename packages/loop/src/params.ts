@@ -7,7 +7,7 @@
  * request to the decision service.
  */
 
-import { parseDuration } from "./duration.ts";
+import { DEFAULT_COUNT_INTERVAL_MS, parseDuration } from "./duration.ts";
 import { unknownPlaceholder } from "./template.ts";
 
 export interface ParameterizedPlan {
@@ -20,7 +20,8 @@ export interface ParameterizedPlan {
 export type ParameterizedParse =
   | { kind: "not-parameterized" }
   | { kind: "invalid"; error: string }
-  | { kind: "plan"; plan: ParameterizedPlan };
+  /** `intervalAssumed` reports a cadence the parser supplied; see duration.ts. */
+  | { kind: "plan"; plan: ParameterizedPlan; intervalAssumed?: boolean };
 
 const FLAG_ALIASES: Record<string, string> = {
   "--every": "every",
@@ -133,11 +134,33 @@ export function parseParameterized(input: string): ParameterizedParse {
     positional.push(token);
   }
 
+  const times = flags.get("times")?.trim();
+  let maxRuns: number | undefined;
+  if (times !== undefined) {
+    if (!/^[0-9]+$/.test(times) || Number(times) < 1) {
+      return { kind: "invalid", error: "--times must be a whole number of at least 1." };
+    }
+    maxRuns = Number(times);
+  }
+
+  // A run count bounds the loop, so an unnamed cadence is not a gap: the loop
+  // repeats as soon as each repetition settles. Without a count, nothing bounds
+  // it, and a cadence is required.
   const every = flags.get("every");
-  if (every === undefined) return { kind: "invalid", error: "Add --every when the request uses flags." };
-  const intervalMs = parseDuration(every);
-  if (intervalMs === undefined) {
-    return { kind: "invalid", error: "--every must be a duration between 1s and 1d, for example 5m." };
+  let intervalMs: number;
+  let intervalAssumed = false;
+  if (every === undefined) {
+    if (maxRuns === undefined) {
+      return { kind: "invalid", error: "Add --every, or state --times: a loop needs a cadence or a run count." };
+    }
+    intervalMs = DEFAULT_COUNT_INTERVAL_MS;
+    intervalAssumed = true;
+  } else {
+    const parsedInterval = parseDuration(every);
+    if (parsedInterval === undefined) {
+      return { kind: "invalid", error: "--every must be a duration between 1s and 1d, for example 5m." };
+    }
+    intervalMs = parsedInterval;
   }
 
   const messageFlag = flags.get("message");
@@ -149,15 +172,6 @@ export function parseParameterized(input: string): ParameterizedParse {
   const unknown = unknownPlaceholder(message);
   if (unknown !== undefined) return { kind: "invalid", error: "Unknown placeholder: " + unknown };
 
-  const times = flags.get("times")?.trim();
-  let maxRuns: number | undefined;
-  if (times !== undefined) {
-    if (!/^[0-9]+$/.test(times) || Number(times) < 1) {
-      return { kind: "invalid", error: "--times must be a whole number of at least 1." };
-    }
-    maxRuns = Number(times);
-  }
-
   const until = flags.get("until")?.trim();
   if (until !== undefined && until === "") {
     return { kind: "invalid", error: "--until needs a condition." };
@@ -166,5 +180,5 @@ export function parseParameterized(input: string): ParameterizedParse {
   const plan: ParameterizedPlan = { message, intervalMs };
   if (maxRuns !== undefined) plan.maxRuns = maxRuns;
   if (until !== undefined) plan.until = until;
-  return { kind: "plan", plan };
+  return intervalAssumed ? { kind: "plan", plan, intervalAssumed } : { kind: "plan", plan };
 }

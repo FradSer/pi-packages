@@ -119,6 +119,9 @@ const scenarios: Record<string, () => unknown> = {
       "--every 5m compare {{ before",
       "--every 5m --message a b",
       "--every \"5m",
+      "--times 3 Hi",
+      "--times 3",
+      "--until \"green\" HI",
       "check the build every 5 minutes",
       "keep an eye on the deploy",
     ];
@@ -155,6 +158,10 @@ const scenarios: Record<string, () => unknown> = {
                                       counted.filter(isRunCountSegment)),
       withoutCountFirst: messageCandidates("3 times, check the deploy every 5 minutes, stop when green",
                                             "stop when green", countedFirst.filter(isRunCountSegment)),
+      // A count inside a segment is the run limit too, so the message keeps the
+      // user's own words and drops the count metadata.
+      inlineCount: ["输入3次Hi", "check the build 3 times", "check the build"]
+        .map((input) => ({ input, candidates: messageCandidates(input, undefined) })),
     };
   },
 

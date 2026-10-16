@@ -37,7 +37,10 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   condition: `isRunCountSegment` in `src/candidates.ts` excludes it from the stop
   candidates and `messageCandidates` strips it from the message. A measured run of
   the real service chose "3 times" as the stopping condition for four count-only
-  requests before that exclusion existed (`tests/real-jev-accuracy.ts`).
+  requests before that exclusion existed (`tests/real-jev-accuracy.ts`). A count
+  phrase inside a segment counts too: `stripRunCount` leaves it out of the message,
+  so `/loop 输入3次Hi` repeats `输入Hi`. Keep that rule: the count is scheduling
+  metadata wherever it appears.
 - **Closed questions only**: use `askSystemOne` from pi-kit. Its question types are
   `noul`, `choice` and `score`; a generative answer is unrepresentable. Keep the
   criteria objects as the single source of truth for both the question and the
@@ -47,9 +50,13 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   turn, such as `turn_start` or `message_start`, and `undefined` to an extension
   command and at `agent_settled`. The client's own timeout bounds each request.
   Measure the host again before you add a signal to `src/decide.ts`.
-- **Fail closed**: a missing credential, an unspecified cadence, a low-confidence
-  answer and an unknown answer key are reports, not guesses. `--until` needs a
-  credential too, because Pi must judge the condition.
+- **Fail closed**: a missing credential, a low-confidence answer and an unknown
+  answer key are reports, not guesses. `--until` needs a credential too, because Pi
+  must judge the condition. An unnamed cadence is decided only when a run count
+  bounds the loop, and the plan then takes `DEFAULT_COUNT_INTERVAL_MS` from
+  `src/duration.ts`. The start notice says the cadence was assumed. A request that
+  names neither a cadence nor a count is refused: nothing bounds it, so a guessed
+  cadence could repeat an unbounded loop for the life of the session.
 - **Delivery**: inject with `pi.sendUserMessage` so each repetition is a real user
   turn. Never use a custom message for the repetition itself.
 - **Scheduling**: skip a tick whose previous repetition has not settled, and count
@@ -85,7 +92,10 @@ runs every Jev question against a real loopback endpoint, including the failure
 classes; never stub the transport. `tests/loop-live-fixture.ts` drives the real
 `pi` TUI with a scripted local provider. It proves the parameterized injection arrives as
 `messageType: "user"`, and it pairs a met stop condition (0.95) with a
-below-threshold one (0.3) so the threshold, not something else, is what ends the loop. Keep the fixture runs isolated: a disposable `HOME` and `PI_CODING_AGENT_DIR`, `PI_OFFLINE=1`, and no `TYPESAFE_API_KEY`. `tests/live_loop_rows.py` is the explicit-run terminal probe. Run it with `uv run --no-project --with pyte python packages/loop/tests/live_loop_rows.py`. It composes the real terminal with pyte and checks the start row and the status row at 120x40, after a live resize to 48x24, and by PageUp at 48x12. Keep the below-editor row read as `<verb> · <detail>` with no package tag.
+below-threshold one (0.3) so the threshold, not something else, is what ends the loop. Keep the fixture runs isolated: a disposable `HOME` and `PI_CODING_AGENT_DIR`, `PI_OFFLINE=1`, and no `TYPESAFE_API_KEY`. `tests/loop-decision-fixture.ts` scenario `count-without-cadence` covers the
+defaulted cadence on the wire, and scenario `only-the-repetition-is-judged` in
+`tests/loop-command-fixture.ts` covers which settled turn is judged.
+`tests/live_loop_rows.py` is the explicit-run terminal probe. Run it with `uv run --no-project --with pyte python packages/loop/tests/live_loop_rows.py`. It composes the real terminal with pyte and checks the start row and the status row at 120x40, after a live resize to 48x24, and by PageUp at 48x12. Keep the below-editor row read as `<verb> · <detail>` with no package tag.
 
 `tests/live_delivery_refusal.py` is the explicit-run probe for the delivery refusal. It drives RPC mode, so an extension `notify` arrives as a structured record: run `uv run --no-project python packages/loop/tests/live_delivery_refusal.py`. It measures that all four replacements — `ctx.reload()`, `ctx.newSession()`, `ctx.fork()` and `ctx.switchSession()` — stop the loop through `session_shutdown` before any tick can call an invalidated API, and it keeps the control case that must still deliver turns. It does not measure whether some other host path could invalidate a captured API without that shutdown.
 

@@ -11,6 +11,16 @@ export const MIN_INTERVAL_MS = 1000;
 /** The longest permitted interval: one day. */
 export const MAX_INTERVAL_MS = 86400000;
 
+/**
+ * The cadence a bounded request takes when it names no cadence.
+ *
+ * A request such as "3 times" states its own limit, so the loop repeats as soon
+ * as each repetition settles. The shortest permitted tick is safe here because
+ * the run count bounds the loop and a tick that arrives while a repetition is
+ * still running is skipped, never queued.
+ */
+export const DEFAULT_COUNT_INTERVAL_MS = MIN_INTERVAL_MS;
+
 const UNIT_MS = { ms: 1, s: 1000, m: 60000, h: 3600000, d: 86400000 } as const;
 
 type Unit = keyof typeof UNIT_MS;

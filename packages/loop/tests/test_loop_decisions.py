@@ -65,6 +65,24 @@ def test_thresholds_and_rejections_fail_closed() -> None:
     assert missing["config"] is None, missing
 
 
+def test_a_count_with_no_cadence_takes_the_default_interval() -> None:
+    """The resolved plan states the default cadence and says it was assumed.
+
+    features/loop.feature: a run count bounds the loop, so a request that names no
+    cadence is decided, not refused. The start notice tells the user the cadence
+    was assumed.
+    """
+    case = run("count-without-cadence")
+    assert case["ok"] is True, case
+    assert case["plan"] == {"message": "输入Hi", "intervalMs": 1000, "maxRuns": 3}, case["plan"]
+    assert case["intervalAssumed"] is True, case
+    assert case["mode"] == "semantic" and case["hits"] == 2, case
+    first = case["requests"][0]
+    assert first["questions"]["interval"]["criteria"]["unspecified"], first["questions"]["interval"]
+    message_criteria = case["requests"][1]["questions"]["message"]["criteria"]
+    assert set(message_criteria) == {"without_count", "full"}, message_criteria
+
+
 def test_a_count_segment_is_never_offered_as_a_stopping_condition() -> None:
     """The stop question must not see a segment that only states the run count.
 

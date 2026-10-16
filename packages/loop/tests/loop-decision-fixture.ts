@@ -29,6 +29,15 @@ function answer(body: Record<string, unknown>): Record<string, unknown> {
   if (ids.includes("met")) {
     return { model: "jev-1.13.0", answers: { met: noul(scenario === "stop-met" ? 0.92 : 0.3) }, usage: { input_tokens: 5, output_tokens: 1 } };
   }
+  if (scenario === "count-without-cadence") {
+    return ids.includes("message")
+      ? { model: "jev-1.13.0", answers: { message: choice("without_count", 0.8) }, usage: { input_tokens: 7, output_tokens: 2 } }
+      : {
+          model: "jev-1.13.0",
+          answers: { interval: choice("unspecified", 0.9), runs: choice("3", 0.9), stop: choice("none", 0.9) },
+          usage: { input_tokens: 11, output_tokens: 4 },
+        };
+  }
   if (ids.includes("message")) {
     return { model: "jev-1.13.0", answers: { message: choice("without_schedule_and_stop", 0.7) }, usage: { input_tokens: 7, output_tokens: 2 } };
   }
@@ -103,6 +112,7 @@ async function main(): Promise<unknown> {
     scenario === "single-candidate" ? "check the build"
       : scenario === "count-segment" ? "check the build every 5 minutes, 3 times"
       : scenario === "count-not-last" ? "3 times, check the deploy every 5 minutes, stop when green"
+      : scenario === "count-without-cadence" ? "输入3次Hi"
       : REQUEST,
     { config, now: new Date(2026, 0, 2, 3, 4, 5) },
   );
@@ -116,6 +126,7 @@ try {
     ok: true,
     plan: payload.plan ?? null,
     mode: payload.mode ?? null,
+    intervalAssumed: payload.intervalAssumed ?? null,
     report: payload.report ?? null,
     verdict: payload.verdict ?? (payload.met === undefined ? null : result),
     config: payload.config ?? null,

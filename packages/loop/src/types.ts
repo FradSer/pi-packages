@@ -45,6 +45,8 @@ export interface ResolvedLoop {
   plan: LoopPlan;
   mode: LoopMode;
   report?: DecisionReport;
+  /** True when the request named no cadence, so the default cadence applies. */
+  intervalAssumed?: boolean;
 }
 
 /** An opaque timer identity. */

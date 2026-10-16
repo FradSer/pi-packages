@@ -201,8 +201,11 @@ so a slow turn cannot build a backlog of prompts.
 Or write the request in your own words. The cadence, the run limit, the stopping
 condition and the repeated text are then chosen by TypeSafe Jev decisions over
 candidates the extension builds. A segment that only states how many repetitions
-to run is the run limit, never a stopping condition. Free requests and `--until`
-need `TYPESAFE_API_KEY`; without it they are refused rather than guessed.
+to run is the run limit, never a stopping condition, and it leaves the repeated
+message. A request that states a run count needs no cadence: `/loop 输入3次Hi`
+repeats `输入Hi` three times, each repetition as soon as the previous one settles.
+Free requests and `--until` need `TYPESAFE_API_KEY`; without it they are refused
+rather than guessed.
 
 Measured against the live service on twelve labelled requests, ten of them
 resolved: the interval, the stopping condition and the message were each right in

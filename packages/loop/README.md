@@ -29,12 +29,13 @@ State every parameter, and the extension calls no model.
 /loop --every 5m --times 3 check the build
 /loop --every 1h --until "the deploy is green" report deploy status
 /loop --every 30s --message "run the smoke test"
+/loop --times 3 Hi
 /loop -e 2h -t 2 -m report
 ```
 
 | Flag | Meaning |
 | --- | --- |
-| `--every`, `-e` | The interval. Required when flags are used. |
+| `--every`, `-e` | The interval. Required unless `--times` states a run count. |
 | `--times`, `-t` | The total count. Omit it to repeat until `/loop stop`. |
 | `--until`, `-u` | A stopping condition in natural language. |
 | `--message`, `-m` | The text. Equivalent to trailing text. |
@@ -42,6 +43,11 @@ State every parameter, and the extension calls no model.
 A duration is `500ms`, `30s`, `5m`, `2h`, `1d`, a combination such as `1h30m`, or a
 bare number of seconds. The shortest interval is one second and the longest is one
 day. `--` ends the flags, so the text after it may contain `--`.
+
+A run count may stand in for the cadence. `/loop --times 3 Hi` needs no `--every`:
+the loop repeats as soon as each repetition settles, which is the shortest
+permitted tick. A repetition that is still running when the next tick arrives is
+skipped and counted, so the repetitions never queue.
 
 The message may use these placeholders:
 
@@ -63,8 +69,10 @@ Write the request in your own words. The extension then asks TypeSafe Jev to
 choose among candidates that it builds:
 
 - `interval`: which listed interval is closest to the requested cadence. The
-  listed intervals are 30s, 1m, 5m, 15m, 30m, 1h and 1d. `unspecified` is
-  rejected, and the command reports that the request names no cadence.
+  listed intervals are 30s, 1m, 5m, 15m, 30m, 1h and 1d. `unspecified` is accepted
+  when the request states a run count: the loop then repeats as soon as each
+  repetition settles, and the start notice says the cadence was assumed. A request
+  that names neither a cadence nor a count is refused.
 - `runs`: the total count, or `unbounded`. The listed values are 1, 3, 5, 10, 20
   and `unbounded`.
 - `stop`: which candidate segment states a stopping condition, or `none`. A
@@ -81,6 +89,9 @@ choose among candidates that it builds:
 The message is never written by a model. Code assembles the candidates from your
 own words, and the model selects one. Code owns the interval arithmetic, the
 placeholder expansion, the timers and the delivery.
+
+A count is scheduling metadata wherever it appears, so it leaves the message:
+`/loop 输入3次Hi` repeats `输入Hi` three times.
 
 An unknown or low-confidence answer is refused with a report. It is never
 guessed, because a wrong cadence floods the session.

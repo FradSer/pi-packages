@@ -30,6 +30,20 @@ Feature: /loop repeats one message into the session as a real user turn
     And the message question selects one candidate text
     And the loop injects the selected message through the native user-input path
 
+  Scenario: A run count with no cadence still runs
+    Given the decision service is configured
+    When the user runs "/loop 输入3次Hi"
+    Then the plan repeats 3 times
+    And the plan takes the default cadence
+    And the start notice says the cadence was assumed
+    And the injected message is "输入Hi"
+
+  Scenario: Flags may state a run count without a cadence
+    When the user runs "/loop --times 3 Hi"
+    Then the plan takes the default cadence
+    And the plan repeats 3 times
+    And the loop injects "Hi" through the native user-input path
+
   Scenario: A run limit stated as its own segment is not a stopping condition
     When the user runs "/loop check the build every 5 minutes, 3 times"
     Then the stopping-condition question offers only the other segments

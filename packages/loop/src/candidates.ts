@@ -82,6 +82,12 @@ const COUNT_UNITS = "times?|x|repetitions?|cycles?|rounds?|次|回|遍";
 const COUNT_CHINESE = "[零一二三四五六七八九十百两]+|半";
 const COUNT_ALONE = "once|twice";
 
+/** A count phrase that carries a unit: "3 times", "five times", "10 次". */
+function countPhrase(): string {
+  return "(?:[0-9]+|(?:" + COUNT_WORDS + "))\\s*(?:" + COUNT_UNITS + ")"
+    + "|(?:" + COUNT_CHINESE + ")\\s*(?:" + COUNT_UNITS + ")";
+}
+
 /**
  * Whether a segment states only how many repetitions to run.
  *
@@ -95,11 +101,36 @@ const COUNT_ALONE = "once|twice";
 export function isRunCountSegment(text: string): boolean {
   const trimmed = text.trim().toLowerCase();
   if (!trimmed) return false;
-  return new RegExp(
-    "^(?:[0-9]+|(?:" + COUNT_WORDS + "))\\s*(?:" + COUNT_UNITS + ")$"
-      + "|^(?:" + COUNT_CHINESE + ")\\s*(?:" + COUNT_UNITS + ")$"
-      + "|^(?:" + COUNT_ALONE + ")$",
-  ).test(trimmed);
+  return new RegExp("^(?:" + countPhrase() + ")$|^(?:" + COUNT_ALONE + ")$").test(trimmed);
+}
+
+/**
+ * Remove a count phrase that sits inside a request, and return the remainder.
+ *
+ * The count is the run limit wherever it appears, so the message keeps the
+ * user's own task words and drops the number: "输入3次Hi" repeats "输入Hi". A bare
+ * "once" or "twice" is not removed here, because inside a sentence it is as
+ * likely to be ordinary text as a run limit; a segment that is only "twice" is
+ * still offered as a count by {@link isRunCountSegment}.
+ *
+ * Return undefined when nothing was removed, so a caller never treats an
+ * unchanged text as a stripped one.
+ */
+export function stripRunCount(text: string): string | undefined {
+  const stripped = tidy(text.replace(new RegExp(countPhrase(), "gi"), ""));
+  return stripped && stripped !== tidy(text) ? stripped : undefined;
+}
+
+/**
+ * Remove a schedule phrase, then a count phrase that sits inside the text.
+ * Report which kind was removed, so the candidate key names it.
+ */
+function reduceMetadata(text: string): { text: string; count: boolean } | undefined {
+  const scheduled = stripSchedulePhrase(text);
+  const counted = stripRunCount(scheduled ?? text);
+  const result = counted ?? scheduled;
+  if (result === undefined || result === text) return undefined;
+  return { text: result, count: counted !== undefined };
 }
 
 /**
@@ -123,8 +154,6 @@ export function messageCandidates(
     withoutStop = stripSegment(withoutStop, segment) ?? withoutStop;
   }
   const stripped = withoutStop === full ? undefined : withoutStop;
-  const withoutSchedule = stripSchedulePhrase(full);
-  const withoutBoth = stripped === undefined ? undefined : stripSchedulePhrase(stripped);
   const candidates: TextCandidate[] = [];
   const push = (key: string, text: string | undefined): void => {
     if (text === undefined) return;
@@ -133,11 +162,16 @@ export function messageCandidates(
     candidates.push({ key, text: value });
   };
   if (stripped === undefined) {
-    push("without_schedule", withoutSchedule);
+    // No segment was filtered, so only the text's own metadata can leave: the
+    // deepest candidate goes first, and a skipped message question falls back to
+    // the task without its scheduling metadata rather than to the whole request.
+    const reduced = reduceMetadata(full);
+    if (reduced !== undefined) push(reduced.count ? "without_count" : "without_schedule", reduced.text);
     push("full", full);
     return candidates;
   }
-  push("without_schedule_and_stop", withoutBoth);
+  const deep = reduceMetadata(stripped);
+  push(deep?.count === true ? "without_count" : "without_schedule_and_stop", deep?.text);
   push("without_stop", stripped);
   push("full", full);
   return candidates;
