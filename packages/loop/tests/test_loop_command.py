@@ -72,6 +72,32 @@ def test_every_refusal_names_the_cause_and_schedules_nothing() -> None:
     assert headless[0]["options"] == {"triggerTurn": False}, headless
 
 
+def test_only_the_loop_own_repetition_is_judged() -> None:
+    """A settle that carries no repetition must ask no question and change nothing.
+
+    features/loop.feature: the stopping judgment runs after the injected turn
+    settles. Every settled turn reaches the extension, so a turn the user started
+    (or one that was already running when the repetition was queued behind it)
+    must not spend a decision request on an answer that is not this loop's result.
+    """
+    data = value(run("only-the-repetition-is-judged"), "only-the-repetition-is-judged")
+    assert data["injected"] is True, data
+    assert data["repetition"] == "WATCH", data
+    assert str(data["running"][-1]).startswith("Looping · every 1s · "), data
+    foreign = data["foreign"]
+    assert foreign["hits"] == [], "a foreign settle must ask no stopping question: " + json.dumps(foreign)
+    assert str(foreign["status"][-1]).startswith("Looping · every 1s · "), foreign
+    assert all("stopped" not in row["message"] for row in foreign["notifications"]), foreign
+    after = data["after"]
+    assert after["hits"] == ["met"], after
+    assert data["judged"] is True, data
+    assert after["status"][-1] is None, after
+    # How many ticks elapsed before the repetition settled is timing, so the
+    # report's count is asserted by shape, not by value.
+    stopped = str(after["notifications"][-1]["message"])
+    assert stopped.startswith("loop: stopped after ") and stopped.endswith("(condition)"), after
+
+
 def test_a_refused_delivery_is_reported_once_and_clears_the_row() -> None:
     """The command surface must report the delivery the host refused."""
     data = value(run("delivery-failure"), "delivery-failure")

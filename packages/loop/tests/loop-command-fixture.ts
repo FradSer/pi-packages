@@ -9,6 +9,8 @@ import loop from "../src/index.ts";
 delete process.env.TYPESAFE_API_KEY;
 delete process.env.TYPESAFE_BASE_URL;
 
+type Handler = (event: unknown, ctx: ExtensionCommandContext) => unknown;
+
 interface Captured {
   commands: Map<string, (args: string, ctx: ExtensionCommandContext) => Promise<void>>;
   messages: Array<Record<string, unknown>>;
@@ -16,17 +18,31 @@ interface Captured {
   status: Array<string | undefined>;
   notifications: Array<{ message: string; level: string }>;
   events: string[];
+  handlers: Map<string, Handler[]>;
 }
 
-function bootstrap(deliver?: (text: string) => void): { captured: Captured; run: (args: string, hasUI?: boolean) => Promise<void> } {
-  const captured: Captured = { commands: new Map(), messages: [], sent: [], status: [], notifications: [], events: [] };
+/** The message list Pi hands to `agent_end` for one settled run. */
+function settled(userText: string, assistantText: string): Array<Record<string, unknown>> {
+  return [
+    { role: "user", content: [{ type: "text", text: userText }] },
+    { role: "assistant", content: [{ type: "text", text: assistantText }] },
+  ];
+}
+
+function bootstrap(deliver?: (text: string) => void): {
+  captured: Captured;
+  fire: (event: string, payload?: unknown) => void;
+  run: (args: string, hasUI?: boolean) => Promise<void>;
+} {
+  const captured: Captured = { commands: new Map(), messages: [], sent: [], status: [], notifications: [], events: [], handlers: new Map() };
   const api = {
     registerCommand(name: string, options: { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }) {
       captured.commands.set(name, options.handler);
     },
     registerMessageRenderer() {},
-    on(event: string) {
+    on(event: string, handler: Handler) {
       captured.events.push(event);
+      captured.handlers.set(event, [...(captured.handlers.get(event) ?? []), handler]);
     },
     sendMessage(message: Record<string, unknown>, options: Record<string, unknown>) {
       captured.messages.push({ ...message, options });
@@ -51,7 +67,40 @@ function bootstrap(deliver?: (text: string) => void): { captured: Captured; run:
     } as unknown as ExtensionCommandContext;
     await handler(args, ctx);
   };
-  return { captured, run };
+  // The loop reads only the event in these handlers, so the stand-in context
+  // carries no UI and no signal.
+  const fire = (event: string, payload: unknown = {}): void => {
+    for (const registered of captured.handlers.get(event) ?? []) {
+      void registered(payload, { hasUI: false, cwd: process.cwd() } as unknown as ExtensionCommandContext);
+    }
+  };
+  return { captured, fire, run };
+}
+
+/** One decided stopping judgment, on a real loopback endpoint. */
+async function withStopServer(run: (hits: string[]) => Promise<unknown>): Promise<unknown> {
+  const hits: string[] = [];
+  const server = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      const body = (await request.json()) as { questions: Record<string, unknown> };
+      hits.push(Object.keys(body.questions).join(","));
+      return Response.json({
+        model: "jev-1.13.0",
+        answers: { met: { type: "noul", noul: 0.95 } },
+        usage: { input_tokens: 5, output_tokens: 1 },
+      });
+    },
+  });
+  process.env.TYPESAFE_API_KEY = "loop-fixture-key";
+  process.env.TYPESAFE_BASE_URL = "http://127.0.0.1:" + server.port;
+  try {
+    return await run(hits);
+  } finally {
+    server.stop(true);
+    delete process.env.TYPESAFE_API_KEY;
+    delete process.env.TYPESAFE_BASE_URL;
+  }
 }
 
 const scenarios: Record<string, () => Promise<unknown>> = {
@@ -116,6 +165,35 @@ const scenarios: Record<string, () => Promise<unknown>> = {
     captured.messages.length = 0;
     await run("status", false);
     return { busy, badDuration, noMessage, unknownFlag, placeholderTypo, freeWithoutCredential, untilWithoutCredential, headless: [...captured.messages] };
+  },
+
+  async "only-the-repetition-is-judged"() {
+    // Every settled turn reaches the extension, including one the user started
+    // or one that was already running when the repetition was queued behind it.
+    return await withStopServer(async (hits) => {
+      const { captured, fire, run } = bootstrap();
+      await run('--every 1s --until "the deploy is green" WATCH');
+      const injected = await until(() => captured.sent.length > 0);
+      const repetition = captured.sent[0] ?? "";
+      const running = [...captured.status];
+
+      fire("agent_end", { messages: settled("what did the release say?", "The deploy is green in production.") });
+      fire("agent_settled");
+      await until(() => hits.length > 0, 1.5);
+      const foreign = { hits: [...hits], status: [...captured.status], notifications: [...captured.notifications] };
+
+      fire("agent_end", { messages: settled(repetition, "The deploy is green in production.") });
+      fire("agent_settled");
+      const judged = await until(() => captured.status.at(-1) === undefined);
+      return {
+        injected,
+        repetition,
+        running,
+        foreign,
+        judged,
+        after: { hits: [...hits], status: [...captured.status], notifications: [...captured.notifications] },
+      };
+    });
   },
 
   async "delivery-failure"() {

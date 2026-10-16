@@ -13,6 +13,8 @@ Latest state only. Superseded evidence, old verification totals, resolved incide
 - Root/kit typechecks, packed manifests, installation, and diff checks pass. Unrelated task-contract checks still fail; no whole-workspace clean result is claimed.
 - 2026-10-15 `packages/loop` (`@fradser/pi-loop`) is implemented on branch `pi/worktree/loop`: `/loop <request>` repeats one message into the session through `pi.sendUserMessage`, so every repetition is a real user turn. Explicit flags call no model; a free request is resolved by pi-kit `askSystemOne` choices over candidates that code builds. Read @packages/loop/README.md for the surface and @packages/loop/features/loop.feature for the contract.
 
+- 2026-10-16 independent review of merged PR 43, then the corrections it asked for on branch `fix/loop-review-findings`: the stopping judgment now runs only for the loop's own repetition (`agent_end` matches the run's last user message against the pending injection, so a turn the user started asks no paid question and cannot end the loop), the unused abort-signal parameters are removed from `src/decide.ts` because Pi 1.2.0 passes no signal to an extension command or to `agent_settled`, the package `AGENTS.md` records why the start notice deviates from the root send shape, and the measured accuracy and cost claims now carry their denominators and arithmetic. Read @packages/loop/AGENTS.md.
+
 ## Active work
 
 - E2E review finds two P2 gaps. RED regressions reproduce complete intent-only clearing and swallowed stop failures; fixes retain selections and make outer evidence assertions own acceptance.
@@ -31,8 +33,9 @@ Latest state only. Superseded evidence, old verification totals, resolved incide
 - Real user-history migration stays dry-run until an independent current-candidate review arrives. The dry-run plan is READY: one flat `calc-check` definition and one old private session, no conflicts. The migration module is implemented and tested; no user data was changed.
 - Reviews that returned an empty Session Result (resident-final-review, review-memory-fork-fix) are not verdicts. Never infer a PASS from an empty result, and do not poll or read child session files to wait.
 - Latest `pnpm check:install` passes. Reload is needed to load new renderer and recovery extension code; existing children do not acquire new extensions.
-- The repository-root suite reports one failure at this revision: `tests/test_runtime_workspace_contracts.py` wants `typebox` declared as a `*` peer of `packages/continual-learning`. The branch does not touch that package, and `pnpm check:install` of this worktree is not evidence about the main checkout's settings.
-- Pull request 43's own Quality run had not concluded on the reviewed candidate. The five most recent Quality runs on `main` all failed for unrelated reasons.
+- `@fradser/pi-loop` is merged but not installed: `~/.pi/agent/settings.json` carries 11 package sources and none for loop, so no session has `/loop` yet. `node scripts/check-installation.mjs` cannot see it either, because the main checkout still sits at `cb47dc3f` and has no `packages/loop` directory. Installing it needs the merged commit in the main checkout first; that checkout holds another session's uncommitted work across `packages/continual-learning`, `packages/utils` and root `AGENTS.md`, so its fast-forward is not this task's to make.
+- The repository-root suite reports one failure at this revision: `tests/test_runtime_workspace_contracts.py` wants `typebox` declared as a `*` peer of `packages/continual-learning`. The branch does not touch that package.
+- Quality on the merge commit `48731417` reports the same 38 failures as its base `05ab406` (3468 passed before, 3495 after; the difference is the 27 `packages/loop` checks), so the merge adds no failing check. The 38 failures are pre-existing: `packages/subagents/tests/test_intent_tui.py`, `tests/test_install_wiring.py` (a pnpm 11 no-TTY purge abort inside its fixture), `tests/test_agent_management_output.py`, `packages/btw/tests/test_btw_tui.py` and the `typebox` peer check. The published log is truncated, so that list is partial.
 
 ## Decisions (current)
 

@@ -93,6 +93,11 @@ condition is met, and the loop stops above the threshold. The default threshold
 is 0.8. A failed judgment leaves the loop running: a service fault must not end
 your work.
 
+Only the loop's own repetition is judged. A turn you start yourself settles too,
+and so does a turn that was already running when a repetition was queued behind
+it; their answers are not this loop's result, so they ask no question and cost
+nothing.
+
 ## Scheduling rules
 
 - The first repetition happens one interval after the start, not immediately.
@@ -134,16 +139,18 @@ twelve labelled requests, and in a real terminal. Reproduce with
 `tests/real-jev-accuracy.ts` (paid), `tests/live_delivery_refusal.py` and
 `tests/live_terminal_accessibility.py`.
 
-- **Free-request accuracy**: the interval, the run limit, the stopping condition
-  and the message were each right on every labelled request. The two genuinely
-  ambiguous requests were refused rather than guessed: one names no cadence, one
-  was below the confidence threshold.
+- **Free-request accuracy**: of the twelve labelled requests, ten were resolved
+  and two were refused. The interval was right 10 of 10, the stopping condition
+  10 of 10 and the message 10 of 10. The run limit was right 4 of 4, because only
+  four requests state a count. One refusal names no cadence and one was below the
+  confidence threshold; the probe excludes the second from every denominator.
 - **Cost**: a plan costs one or two decision requests and 1,058-1,611 input
-  tokens, in about 0.8 seconds. One `met` judgment costs 394 input tokens, so an
-  eight-hour five-minute loop with a stopping condition is about **$0.0165** at
-  the vendor's published rate of $0.42 per million input tokens ($0.0098 at the
-  bulk rate; output tokens are not charged). Without a stopping condition, a loop
-  costs nothing after its plan.
+  tokens, in about 0.8 seconds. One `met` judgment costs 394 input tokens. An
+  eight-hour five-minute loop is 96 repetitions: 96 x 394 tokens plus one plan of
+  at most 1,611 tokens, which is about **$0.0165** at the vendor's published rate
+  of $0.42 per million input tokens ($0.0098 at the bulk rate; output tokens are
+  not charged). Without a stopping condition, a loop costs nothing after its
+  plan.
 - **Delivery**: a repetition that cannot be delivered is reported and ends the
   loop. No session replacement reaches that report: `ctx.reload()`,
   `ctx.newSession()`, `ctx.fork()` and `ctx.switchSession()` each stop the loop

@@ -42,6 +42,11 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   `noul`, `choice` and `score`; a generative answer is unrepresentable. Keep the
   criteria objects as the single source of truth for both the question and the
   answer validation, so a declared option cannot be rejected as unknown.
+- **No cancellation**: a decision request carries no abort signal, because none
+  reaches this code. Pi 1.2.0 passes `ctx.signal` to a hook that runs inside a
+  turn, such as `turn_start` or `message_start`, and `undefined` to an extension
+  command and at `agent_settled`. The client's own timeout bounds each request.
+  Measure the host again before you add a signal to `src/decide.ts`.
 - **Fail closed**: a missing credential, an unspecified cadence, a low-confidence
   answer and an unknown answer key are reports, not guesses. `--until` needs a
   credential too, because Pi must judge the condition.
@@ -54,10 +59,21 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   the loop. The catch is defensive: `session_shutdown` stops a loop before Pi
   invalidates a captured API, which `tests/live_delivery_refusal.py` measures for
   `ctx.reload()` and `ctx.newSession()`. `stop()` is terminal and releases the
-  timer. Start no timer in the extension factory.
+  timer. Start no timer in the extension factory. Only the loop's own repetition
+  may be judged: `agent_end` compares the run's last user message with the pending
+  injection, so a turn the user started, and a turn that was already running when
+  a repetition was queued behind it, ask no stopping question. Keep that check:
+  `tests/loop-command-fixture.ts` scenario `only-the-repetition-is-judged` covers
+  both directions.
 - **Transcript**: one lifecycle row for the start, through
   `bindLifecycleRenderers` and `startedToolLifecycle`. Keep per-repetition status
   in `setStatus`, not in extra rows, because the injected turn already appears.
+  The start notice is a deliberate exception to the root guidance's send shape:
+  it uses `triggerTurn: false` and no `deliverAs`, because a turn triggered at
+  the start would inject a model turn the user did not ask for and would break
+  the rule that the first repetition arrives one interval later. The custom
+  message is appended to the session, so it enters the model context on the next
+  turn, and it still renders as one row.
 - **Bounds**: keep the interval between 1s and 1d, and bound the text sent for one
   stopping judgment.
 

@@ -43,6 +43,12 @@ Feature: /loop repeats one message into the session as a real user turn
     When the stopping judgment returns a probability above the stop threshold
     Then the loop stops and releases its timer
 
+  Scenario: A settled turn that is not a repetition is not judged
+    Given an active loop whose stopping condition is "the deploy is green"
+    And a turn the user started settles with a message that states the condition
+    Then the loop asks no stopping question
+    And the loop keeps running
+
   Scenario: A tick is skipped while the previous injection has not settled
     Given an active loop with a one second interval
     And the previous injection has not settled

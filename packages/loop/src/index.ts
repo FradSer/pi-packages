@@ -79,6 +79,19 @@ function lastAssistantTextFrom(messages: readonly unknown[]): string {
   return "";
 }
 
+/** The text of the last user message in a finished run, or an empty string. */
+function lastUserTextFrom(messages: readonly unknown[]): string {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message === null || typeof message !== "object") continue;
+    const record = message as { role?: unknown; content?: unknown };
+    if (record.role !== "user") continue;
+    const text = extractTextContent(record.content).trim();
+    if (text) return text;
+  }
+  return "";
+}
+
 /** Report to the user, with a transcript notice when no dialog UI exists. */
 function feedback(pi: ExtensionAPI, ctx: ExtensionCommandContext, text: string, level: "info" | "warning" | "error"): void {
   if (ctx.hasUI) {
@@ -93,6 +106,14 @@ export function registerLoop(pi: ExtensionAPI): void {
   let config = readDecisionConfig();
   let ui: ExtensionContext["ui"] | undefined;
   let lastAssistantText = "";
+  /**
+   * The expanded text of the repetition whose turn has not settled yet. Every
+   * settled turn reaches `agent_settled`, so the text identifies the loop's own
+   * turn among them.
+   */
+  let pendingInjection: string | undefined;
+  /** True when the run that just ended was the loop's own repetition. */
+  let settledRepetition = false;
   let judging = false;
 
   /**
@@ -165,6 +186,7 @@ export function registerLoop(pi: ExtensionAPI): void {
         // error channel, so only a refusal reaches the runner.
         send: (text) => pi.sendUserMessage(text, { deliverAs: "followUp" }),
         onEvent: (event) => {
+          if (event.type === "injected") pendingInjection = event.text;
           if (event.type === "undelivered") {
             // One report: the refusal and the stop it causes are one fact.
             if (ui !== undefined) {
@@ -176,6 +198,8 @@ export function registerLoop(pi: ExtensionAPI): void {
             publish();
             return;
           }
+          pendingInjection = undefined;
+          settledRepetition = false;
           if (ui !== undefined) clearPiStatus(ui, STATUS_KEY);
           // The refusal was already reported by its own event.
           if (event.reason === "delivery") return;
@@ -227,12 +251,21 @@ export function registerLoop(pi: ExtensionAPI): void {
   pi.on("agent_end", (event) => {
     if (runner === undefined || !runner.active) return;
     lastAssistantText = lastAssistantTextFrom(event.messages);
+    // Only the loop's own repetition may be judged. Every settled turn reaches
+    // this handler, including a turn the user started and one that was already
+    // running when a repetition was queued behind it, and the answer to those is
+    // not this loop's result.
+    settledRepetition =
+      pendingInjection !== undefined && lastUserTextFrom(event.messages) === pendingInjection;
   });
 
   pi.on("agent_settled", () => {
     const active = runner;
     if (active === undefined || !active.active) return;
     active.markSettled();
+    if (!settledRepetition) return;
+    settledRepetition = false;
+    pendingInjection = undefined;
     void evaluateStop(active);
   });
 
@@ -241,11 +274,15 @@ export function registerLoop(pi: ExtensionAPI): void {
     runner?.stop("shutdown");
     runner = undefined;
     lastAssistantText = "";
+    pendingInjection = undefined;
+    settledRepetition = false;
   });
 
   pi.on("session_shutdown", () => {
     runner?.stop("shutdown");
     runner = undefined;
+    pendingInjection = undefined;
+    settledRepetition = false;
     if (ui !== undefined) clearPiStatus(ui, STATUS_KEY);
   });
 

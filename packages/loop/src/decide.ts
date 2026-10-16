@@ -4,6 +4,11 @@
  * Questions are closed (noul, choice, score) because they travel through the
  * shared pi-kit decision client. Code assembles candidates; the decision
  * service selects among them. No step asks a model to write the message.
+ *
+ * No request carries an abort signal, because none reaches this code: Pi 1.2.0
+ * reports `ctx.signal` to a hook that runs inside a turn, but `undefined` inside
+ * an extension command and at the settle boundary. Each request is bounded by
+ * the client's own timeout instead. Read @../AGENTS.md before adding a signal.
  */
 
 import { askSystemOne, DecisionServiceError, type SystemOneAnswer, type SystemOneQuestion } from "@fradser/pi-kit";
@@ -33,7 +38,6 @@ export class PlanDecisionError extends Error {
 export interface DecisionDeps {
   config: DecisionConfig;
   now?: Date;
-  signal?: AbortSignal;
 }
 
 const STOP_QUESTION = "met";
@@ -163,7 +167,6 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
       model: deps.config.model,
       state,
       questions,
-      ...(deps.signal ? { signal: deps.signal } : {}),
     });
   } catch (error) {
     throw wrap(error);
@@ -209,7 +212,6 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
             criteria,
           },
         },
-        ...(deps.signal ? { signal: deps.signal } : {}),
       });
     } catch (error) {
       throw wrap(error);
@@ -245,7 +247,6 @@ export async function judgeStopCondition(options: {
   config: DecisionConfig;
   condition: string;
   lastAssistantMessage: string;
-  signal?: AbortSignal;
 }): Promise<{ met: boolean; probability: number }> {
   let result: Awaited<ReturnType<typeof askSystemOne>>;
   try {
@@ -265,7 +266,6 @@ export async function judgeStopCondition(options: {
           },
         },
       },
-      ...(options.signal ? { signal: options.signal } : {}),
     });
   } catch (error) {
     throw wrap(error);
