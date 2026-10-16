@@ -43,6 +43,8 @@ def test_starting_a_loop_runs_the_first_repetition_and_announces_it() -> None:
     assert data["sent"] == ["CHECK THE BUILD"], "the first repetition arrives at start"
     assert data["status"] == ["Looping · every 1h · 1/2"], data["status"]
     assert data["lifecycle"] == [], "the notice must not be appended at start: " + json.dumps(data)
+    assert "becomes the schedule" not in str(data["notice"]), \
+        "a parameterized start states its own message: " + json.dumps(data)
     assert data["events"] == ["before_agent_start", "agent_end", "agent_settled", "session_start",
                               "session_shutdown"], data["events"]
 
@@ -88,6 +90,22 @@ def test_the_start_line_states_the_cadence_it_uses() -> None:
     assert "every 1h" in content, content
     assert "as soon as each repetition settles" not in content, content
     assert "/loop stop" in content, content
+
+
+def test_a_semantic_start_says_what_left_the_message() -> None:
+    """The line must say that the count became the schedule, not the message.
+
+    A reader who typed "输入3次Hi" has to learn from the line that the message is
+    "输入Hi" and why.
+    """
+    data = value(run("a-semantic-start-says-what-left-the-message"),
+                 "a-semantic-start-says-what-left-the-message")
+    assert data["hits"] == ["interval,runs,stop"], data
+    assert data["sent"] == ["输入Hi"], data
+    content = str(data["notice"])
+    assert "Message: 输入Hi." in content, content
+    assert "becomes the schedule, not part of the message" in content, content
+    assert "Cadence: every 5m" in content, content
 
 
 def test_a_start_line_does_not_preempt_the_run_it_started() -> None:

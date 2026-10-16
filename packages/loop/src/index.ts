@@ -169,8 +169,13 @@ export function registerLoop(pi: ExtensionAPI): void {
     const assumed = resolved.intervalAssumed
       ? " The request names no cadence, so the default cadence applies."
       : "";
+    // Say what became of the words the message does not repeat, so a reader never
+    // has to guess whether the count or the cadence is part of the message.
+    const stripped = resolved.messageStripped
+      ? " The message keeps your own words: a cadence or a run count in the request becomes the schedule, not part of the message."
+      : "";
     const content = "The user started a repeating loop. Each repetition arrives as a separate user turn. Message: "
-      + plan.message + ". Cadence: every " + formatDuration(plan.intervalMs) + "." + assumed + limits
+      + plan.message + ". Cadence: every " + formatDuration(plan.intervalMs) + "." + assumed + stripped + limits
       + " Stop it with /loop stop.";
     const details = {
       subject: planSummary(plan),

@@ -96,6 +96,36 @@ function bootstrap(deliver?: (text: string) => void): {
   return { captured, fire, run, startRun };
 }
 
+/** One decided plan, on a real loopback endpoint: no cadence, three runs. */
+async function withPlanServer(run: (hits: string[]) => Promise<unknown>): Promise<unknown> {
+  const hits: string[] = [];
+  const server = Bun.serve({
+    port: 0,
+    async fetch(request) {
+      const body = (await request.json()) as { questions: Record<string, unknown> };
+      hits.push(Object.keys(body.questions).join(","));
+      return Response.json({
+        model: "jev-1.13.0",
+        answers: {
+          interval: { type: "choice", choice: "unspecified", probabilities: { unspecified: 0.9 }, confidence: 0.9 },
+          runs: { type: "choice", choice: "3", probabilities: { "3": 0.9 }, confidence: 0.9 },
+          stop: { type: "choice", choice: "none", probabilities: { none: 0.9 }, confidence: 0.9 },
+        },
+        usage: { input_tokens: 11, output_tokens: 4 },
+      });
+    },
+  });
+  process.env.TYPESAFE_API_KEY = "loop-fixture-key";
+  process.env.TYPESAFE_BASE_URL = "http://127.0.0.1:" + server.port;
+  try {
+    return await run(hits);
+  } finally {
+    server.stop(true);
+    delete process.env.TYPESAFE_API_KEY;
+    delete process.env.TYPESAFE_BASE_URL;
+  }
+}
+
 /** One decided stopping judgment, on a real loopback endpoint. */
 async function withStopServer(run: (hits: string[]) => Promise<unknown>): Promise<unknown> {
   const hits: string[] = [];
@@ -185,6 +215,15 @@ const scenarios: Record<string, () => Promise<unknown>> = {
     captured.messages.length = 0;
     await run("status", false);
     return { busy, badDuration, noMessage, unknownFlag, placeholderTypo, freeWithoutCredential, untilWithoutCredential, headless: [...captured.messages] };
+  },
+
+  async "a-semantic-start-says-what-left-the-message"() {
+    return await withPlanServer(async (hits) => {
+      const { captured, run, startRun } = bootstrap();
+      await run("输入3次Hi");
+      const notice = (startRun("输入3次Hi")[0]?.content as string | undefined) ?? null;
+      return { hits, notice, sent: [...captured.sent], status: [...captured.status] };
+    });
   },
 
   async "the-start-line-belongs-to-the-next-run"() {

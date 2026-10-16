@@ -39,8 +39,10 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   the real service chose "3 times" as the stopping condition for four count-only
   requests before that exclusion existed (`tests/real-jev-accuracy.ts`). A count
   phrase inside a segment counts too: `stripRunCount` leaves it out of the message,
-  so `/loop 输入3次Hi` repeats `输入Hi`. Keep that rule: the count is scheduling
-  metadata wherever it appears.
+  so `/loop 输入3次Hi` repeats `输入Hi`, and `ResolvedLoop.messageStripped` makes the
+  start line say so. Keep that rule for a free request: the count is scheduling
+  metadata wherever it appears. Text stated with `--message` or after `--` is
+  injected verbatim, because the user wrote it as the message.
 - **Ask only what code cannot decide**: the message question runs only when the
   service's own answer shaped the text, which is the stopping-condition segment.
   Metadata this module matched itself — a schedule phrase or a count phrase — must

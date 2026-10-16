@@ -242,9 +242,10 @@ export async function resolveSemanticPlan(request: string, deps: DecisionDeps): 
 
   const report: DecisionReport = { interval, runs, stop, model, inputTokens };
   if (messageAnswer !== undefined) report.message = messageAnswer;
-  return intervalAssumed
-    ? { plan, mode: "semantic", report, intervalAssumed }
-    : { plan, mode: "semantic", report };
+  const resolved: ResolvedLoop = { plan, mode: "semantic", report };
+  if (intervalAssumed) resolved.intervalAssumed = true;
+  if (message !== request.trim()) resolved.messageStripped = true;
+  return resolved;
 }
 
 /**

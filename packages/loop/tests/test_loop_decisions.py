@@ -92,6 +92,7 @@ def test_a_count_with_no_cadence_takes_the_default_interval() -> None:
     assert case["ok"] is True, case
     assert case["plan"] == {"message": "输入Hi", "intervalMs": 300000, "maxRuns": 3}, case["plan"]
     assert case["intervalAssumed"] is True, case
+    assert case["messageStripped"] is True, case
     # The count is code-matched metadata, so the message needs no judgment: one
     # request set, and no low-confidence refusal.
     assert case["mode"] == "semantic" and case["hits"] == 1, case

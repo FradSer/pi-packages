@@ -94,7 +94,10 @@ own words, and the model selects one. Code owns the interval arithmetic, the
 placeholder expansion, the timers and the delivery.
 
 A count is scheduling metadata wherever it appears, so it leaves the message:
-`/loop 输入3次Hi` repeats `输入Hi` three times.
+`/loop 输入3次Hi` repeats `输入Hi` three times, and the start line says so. The flag
+form is the opposite: text you state yourself is injected verbatim, so
+`/loop --every 5m --times 3 --message "say hi * 3"` repeats `say hi * 3` exactly as
+written.
 
 An unknown or low-confidence answer is refused with a report. It is never
 guessed, because a wrong cadence floods the session.

@@ -147,6 +147,7 @@ try {
     plan: payload.plan ?? null,
     mode: payload.mode ?? null,
     intervalAssumed: payload.intervalAssumed ?? null,
+    messageStripped: payload.messageStripped ?? null,
     report: payload.report ?? null,
     verdict: payload.verdict ?? (payload.met === undefined ? null : result),
     config: payload.config ?? null,
