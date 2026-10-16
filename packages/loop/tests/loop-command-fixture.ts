@@ -19,6 +19,8 @@ interface Captured {
   notifications: Array<{ message: string; level: string }>;
   events: string[];
   handlers: Map<string, Handler[]>;
+  /** What each `before_agent_start` handler returned, keyed by handler order. */
+  starts: Array<Record<string, unknown> | undefined>;
 }
 
 /** The message list Pi hands to `agent_end` for one settled run. */
@@ -33,8 +35,9 @@ function bootstrap(deliver?: (text: string) => void): {
   captured: Captured;
   fire: (event: string, payload?: unknown) => void;
   run: (args: string, hasUI?: boolean) => Promise<void>;
+  startRun: (prompt: string) => Array<Record<string, unknown>>;
 } {
-  const captured: Captured = { commands: new Map(), messages: [], sent: [], status: [], notifications: [], events: [], handlers: new Map() };
+  const captured: Captured = { commands: new Map(), messages: [], sent: [], status: [], notifications: [], events: [], handlers: new Map(), starts: [] };
   const api = {
     registerCommand(name: string, options: { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }) {
       captured.commands.set(name, options.handler);
@@ -74,7 +77,23 @@ function bootstrap(deliver?: (text: string) => void): {
       void registered(payload, { hasUI: false, cwd: process.cwd() } as unknown as ExtensionCommandContext);
     }
   };
-  return { captured, fire, run };
+  /**
+   * Run the `before_agent_start` handlers as the host does, and record what each
+   * returned. A returned message is the run's start line.
+   */
+  const startRun = (prompt: string): Array<Record<string, unknown>> => {
+    const injected: Array<Record<string, unknown>> = [];
+    captured.starts.length = 0;
+    for (const registered of captured.handlers.get("before_agent_start") ?? []) {
+      const returned = registered({ type: "before_agent_start", prompt }, {
+        hasUI: false, cwd: process.cwd(),
+      } as unknown as ExtensionCommandContext) as Record<string, unknown> | undefined;
+      captured.starts.push(returned);
+      if (returned?.message) injected.push(returned.message as Record<string, unknown>);
+    }
+    return injected;
+  };
+  return { captured, fire, run, startRun };
 }
 
 /** One decided stopping judgment, on a real loopback endpoint. */
@@ -165,6 +184,31 @@ const scenarios: Record<string, () => Promise<unknown>> = {
     captured.messages.length = 0;
     await run("status", false);
     return { busy, badDuration, noMessage, unknownFlag, placeholderTypo, freeWithoutCredential, untilWithoutCredential, headless: [...captured.messages] };
+  },
+
+  async "the-start-line-belongs-to-the-next-run"() {
+    // A repetition is queued behind the turn the command itself starts, so a line
+    // sent at start would preempt that run. The line waits for the next run to
+    // begin, which is the run a repetition reaches.
+    return await withStopServer(async () => {
+      const { captured, run, startRun } = bootstrap();
+      await run('--every 1s --until "the deploy is green" WATCH');
+      const fromCommand = [...captured.messages];
+
+      // The host delivers a repetition by starting a run immediately, because the
+      // command's own run is still streaming when the first tick arrives.
+      const whileRunning = startRun("/loop --every 1s --until \"the deploy is green\" WATCH");
+      await until(() => captured.sent.length > 0, 5);
+      const beforeNextRun = [...captured.messages];
+      const second = startRun(captured.sent[0] ?? "");
+      return {
+        injections: [...captured.sent],
+        fromCommand: fromCommand.map((row) => row.customType ?? null),
+        whileRunning: whileRunning.map((row) => row.customType ?? null),
+        beforeNextRun: beforeNextRun.map((row) => row.customType ?? null),
+        second: second.map((row) => row.customType ?? null),
+      };
+    });
   },
 
   async "only-the-repetition-is-judged"() {

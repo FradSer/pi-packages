@@ -203,7 +203,8 @@ condition and the repeated text are then chosen by TypeSafe Jev decisions over
 candidates the extension builds. A segment that only states how many repetitions
 to run is the run limit, never a stopping condition, and it leaves the repeated
 message. A request that states a run count needs no cadence: `/loop 输入3次Hi`
-repeats `输入Hi` three times, each repetition as soon as the previous one settles.
+repeats `输入Hi` three times, every five minutes by default and otherwise as soon
+as the previous repetition settles.
 Free requests and `--until` need `TYPESAFE_API_KEY`; without it they are refused
 rather than guessed.
 

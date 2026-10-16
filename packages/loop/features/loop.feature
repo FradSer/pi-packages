@@ -34,7 +34,7 @@ Feature: /loop repeats one message into the session as a real user turn
     Given the decision service is configured
     When the user runs "/loop 输入3次Hi"
     Then the plan repeats 3 times
-    And the plan takes the default cadence
+    And the plan takes the default cadence of 5 minutes
     And the start notice says the cadence was assumed
     And the injected message is "输入Hi"
 
@@ -56,6 +56,13 @@ Feature: /loop repeats one message into the session as a real user turn
     And the injected turn has settled
     When the stopping judgment returns a probability above the stop threshold
     Then the loop stops and releases its timer
+
+  Scenario: The start line joins the turn a repetition reaches
+    Given an active loop
+    And the first repetition is queued behind the run the command started
+    When that run begins
+    Then the loop injects the start line at the head of that run
+    And no start line is injected before the user's own input
 
   Scenario: A settled turn that is not a repetition is not judged
     Given an active loop whose stopping condition is "the deploy is green"

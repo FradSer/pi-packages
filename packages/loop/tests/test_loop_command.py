@@ -36,11 +36,9 @@ def said(rows: list[dict[str, object]], needle: str) -> bool:
 def test_starting_a_loop_announces_it_without_consuming_a_turn() -> None:
     data = value(run("start-flags"), "start-flags")
     assert data["sent"] == [], "a parameterized start must not inject before the interval"
-    assert data["lifecycle"] == [{"customType": "loop-lifecycle", "display": True, "triggerTurn": False}], data
     assert data["status"] == ["Looping · every 1h · 0/2"], data["status"]
-    content = str(data["content"])
-    assert "CHECK THE BUILD" in content and "1h" in content and "/loop stop" in content, content
-    assert data["events"] == ["agent_end", "agent_settled", "session_start", "session_shutdown"], data["events"]
+    assert data["events"] == ["before_agent_start", "agent_end", "agent_settled", "session_start",
+                              "session_shutdown"], data["events"]
 
 
 def test_status_and_stop_report_state_and_clear_the_row() -> None:
@@ -70,6 +68,25 @@ def test_every_refusal_names_the_cause_and_schedules_nothing() -> None:
     headless = data["headless"]
     assert headless and headless[0]["customType"] == "loop-notice", headless
     assert headless[0]["options"] == {"triggerTurn": False}, headless
+
+
+def test_a_start_line_does_not_preempt_the_run_it_started() -> None:
+    """The start line must not be inserted before a repetition already queued.
+
+    Every `/loop ...` arrives as a user turn, and a repetition is queued behind
+    that run. A start line sent at start would preempt the user's own turn, so the
+    line belongs to the first repetition's turn instead: the repetition is
+    injected, and only then does the run carry the line.
+    """
+    data = value(run("the-start-line-belongs-to-the-next-run"), "the-start-line-belongs-to-the-next-run")
+    assert data["injections"] == ["WATCH"], data
+    assert data["fromCommand"] == [], "the start must not preempt the command's own run: " + json.dumps(data)
+    # The line waited for the repetition's turn: the injection was queued behind
+    # the command's run, so the start line joined the turn the repetition reached
+    # and the user's own input kept the turn it started.
+    assert data["whileRunning"] == ["loop-lifecycle"], data
+    assert data["beforeNextRun"] == [], "the repetition is already queued: " + json.dumps(data)
+    assert data["second"] == [], "the line was already injected: " + json.dumps(data)
 
 
 def test_only_the_loop_own_repetition_is_judged() -> None:

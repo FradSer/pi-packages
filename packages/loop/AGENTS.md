@@ -54,7 +54,9 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   answer key are reports, not guesses. `--until` needs a credential too, because Pi
   must judge the condition. An unnamed cadence is decided only when a run count
   bounds the loop, and the plan then takes `DEFAULT_COUNT_INTERVAL_MS` from
-  `src/duration.ts`. The start notice says the cadence was assumed. A request that
+  `src/duration.ts` — five minutes, because a repetition is a whole agent turn and
+  a shorter tick only makes the loop skip ticks. The start notice says the cadence
+  was assumed. A request that
   names neither a cadence nor a count is refused: nothing bounds it, so a guessed
   cadence could repeat an unbounded loop for the life of the session.
 - **Delivery**: inject with `pi.sendUserMessage` so each repetition is a real user
@@ -75,12 +77,18 @@ a harness import that Bun erases at runtime is invisible to every other gate.
 - **Transcript**: one lifecycle row for the start, through
   `bindLifecycleRenderers` and `startedToolLifecycle`. Keep per-repetition status
   in `setStatus`, not in extra rows, because the injected turn already appears.
-  The start notice is a deliberate exception to the root guidance's send shape:
-  it uses `triggerTurn: false` and no `deliverAs`, because a turn triggered at
-  the start would inject a model turn the user did not ask for and would break
-  the rule that the first repetition arrives one interval later. The custom
-  message is appended to the session, so it enters the model context on the next
-  turn, and it still renders as one row.
+  The start line is a deliberate exception to the root guidance's send shape, and
+  its placement is the reason. Every `/loop ...` arrives as a user turn, and the
+  first repetition is queued behind that run, so a line sent from the command
+  lands before the user's own input (`pi.sendMessage` with `triggerTurn` appends
+  immediately; `deliverAs: "followUp"` preempts the run's queue and would put the
+  line ahead of a repetition that is already queued). The line therefore waits in
+  `startNotice` and is injected by the `before_agent_start` handler at the head of
+  the next run, which is the run a repetition reaches. Measured on Pi 1.2.0: the
+  resulting run is `system, user, custom, assistant`, and a start with
+  `triggerTurn: true` drops the user's own command text from the run. A start with
+  no cadence reaches the line only at its first repetition, because the default is
+  five minutes and the tick starts after the interval.
 - **Bounds**: keep the interval between 1s and 1d, and bound the text sent for one
   stopping judgment.
 

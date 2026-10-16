@@ -45,9 +45,8 @@ bare number of seconds. The shortest interval is one second and the longest is o
 day. `--` ends the flags, so the text after it may contain `--`.
 
 A run count may stand in for the cadence. `/loop --times 3 Hi` needs no `--every`:
-the loop repeats as soon as each repetition settles, which is the shortest
-permitted tick. A repetition that is still running when the next tick arrives is
-skipped and counted, so the repetitions never queue.
+the loop then repeats every five minutes. A repetition that is still running when
+the next tick arrives is skipped and counted, so the repetitions never queue.
 
 The message may use these placeholders:
 
@@ -70,9 +69,9 @@ choose among candidates that it builds:
 
 - `interval`: which listed interval is closest to the requested cadence. The
   listed intervals are 30s, 1m, 5m, 15m, 30m, 1h and 1d. `unspecified` is accepted
-  when the request states a run count: the loop then repeats as soon as each
-  repetition settles, and the start notice says the cadence was assumed. A request
-  that names neither a cadence nor a count is refused.
+  when the request states a run count: the plan then takes the default cadence of
+  five minutes, and the start notice says the cadence was assumed. A request that
+  names neither a cadence nor a count is refused.
 - `runs`: the total count, or `unbounded`. The listed values are 1, 3, 5, 10, 20
   and `unbounded`.
 - `stop`: which candidate segment states a stopping condition, or `none`. A
@@ -108,6 +107,19 @@ Only the loop's own repetition is judged. A turn you start yourself settles too,
 and so does a turn that was already running when a repetition was queued behind
 it; their answers are not this loop's result, so they ask no question and cost
 nothing.
+
+## The start line
+
+Starting a loop prints one line:
+
+```
+[loop] started · every 5m · 3 times · check the build
+```
+
+The line is injected at the head of the turn a repetition reaches, so it arrives
+with the repetition rather than before the input you typed. A start with no
+cadence reaches it at its first repetition, because the default cadence is five
+minutes and the first tick comes one interval after the start.
 
 ## Scheduling rules
 

@@ -115,6 +115,12 @@ export function registerLoop(pi: ExtensionAPI): void {
   let pendingInjection: string | undefined;
   /** True when the run that just ended was the loop's own repetition. */
   let settledRepetition = false;
+  /**
+   * The start line waiting to be injected at the head of the turn that carries
+   * it. Injecting it at start would preempt the user's own run: a repetition is
+   * queued behind that run, so the line waits for the repetition's turn.
+   */
+  let startNotice: { content: string; details: Record<string, unknown> } | undefined;
   let judging = false;
 
   /**
@@ -179,7 +185,7 @@ export function registerLoop(pi: ExtensionAPI): void {
           }
         : null,
     };
-    pi.sendMessage({ customType: PROCEDURE_ENTRY, content, display: true, details }, { triggerTurn: false });
+    startNotice = { content, details };
   };
 
   const start = (resolved: ResolvedLoop): void => {
@@ -254,6 +260,13 @@ export function registerLoop(pi: ExtensionAPI): void {
     }
   };
 
+  pi.on("before_agent_start", () => {
+    if (startNotice === undefined) return undefined;
+    const notice = startNotice;
+    startNotice = undefined;
+    return { message: { customType: PROCEDURE_ENTRY, content: notice.content, display: true, details: notice.details } };
+  });
+
   pi.on("agent_end", (event) => {
     if (runner === undefined || !runner.active) return;
     lastAssistantText = lastAssistantTextFrom(event.messages);
@@ -282,6 +295,7 @@ export function registerLoop(pi: ExtensionAPI): void {
     lastAssistantText = "";
     pendingInjection = undefined;
     settledRepetition = false;
+    startNotice = undefined;
   });
 
   pi.on("session_shutdown", () => {
@@ -289,6 +303,7 @@ export function registerLoop(pi: ExtensionAPI): void {
     runner = undefined;
     pendingInjection = undefined;
     settledRepetition = false;
+    startNotice = undefined;
     if (ui !== undefined) clearPiStatus(ui, STATUS_KEY);
   });
 

@@ -139,7 +139,7 @@ def test_a_count_with_no_cadence_still_runs() -> None:
     assert inline["check the build"] == [{"key": "full", "text": "check the build"}], inline["check the build"]
 
     cases = {row["input"]: row["result"] for row in value(run("params"), "params")["cases"]}
-    assert cases["--times 3 Hi"]["plan"] == {"message": "Hi", "intervalMs": 1000, "maxRuns": 3}, cases["--times 3 Hi"]
+    assert cases["--times 3 Hi"]["plan"] == {"message": "Hi", "intervalMs": 300000, "maxRuns": 3}, cases["--times 3 Hi"]
     assert cases["--times 3"]["kind"] == "invalid", cases["--times 3"]
     # An unnamed cadence with no count stays refused: nothing bounds that loop.
     assert cases['--until "green" HI']["kind"] == "invalid", cases['--until "green" HI']
