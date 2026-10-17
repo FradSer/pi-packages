@@ -25,5 +25,26 @@ def test_empty_memory_discovery_is_explicit_with_or_without_an_empty_index(tmp_p
         assert result[state]['sections']['other'] == 'KEEP'
         assert set(result[state]['sections']) == {'other', 'project_memory_protocol'}
         assert 'If no established entries are available' in ' '.join(result[state]['guidance'])
+        assert 'use the read tool to inspect relevant indexed Memory entries' in result[state]['sections']['project_memory_protocol']
         assert 'do not search guessed or alternative Memory locations' in ' '.join(result[state]['guidance'])
     assert result['missing'] == result['emptyIndex']
+
+
+def test_automatic_learning_owns_durable_writes_and_remember_does_not_expand_task_scope(tmp_path):
+    result = run_bun(f'''
+      import fs from 'node:fs/promises';
+      import register from './packages/continual-learning/extensions/inject-memory.ts';
+      import {{resolveMemoryPaths}} from './packages/continual-learning/extensions/memory-paths.ts';
+      const cwd={json.dumps(str(tmp_path / 'project'))};await fs.mkdir(cwd);
+      const paths=resolveMemoryPaths(cwd);await fs.mkdir(paths.harnessDir,{{recursive:true}});
+      await fs.writeFile(paths.settingsFile,JSON.stringify({{autoMemory:true}}));
+      const hooks=new Map();register({{on:(n,f)=>hooks.set(n,f),registerCommand(){{}},sendMessage(){{}},appendEntry(){{}},getCommands:()=>[]}});
+      const options={{sections:{{}}}};await hooks.get('before_agent_start')({{systemPromptOptions:options}},{{cwd,ui:{{notify(){{}}}}}});
+      console.log(JSON.stringify(options.sections));
+    ''',env={'PI_CODING_AGENT_DIR':str(tmp_path / 'agent')})
+    guidance = result['project_memory_auto_learning']
+    assert 'The parent validates and writes them' in guidance
+    assert '"remember" does not authorize writing Memory, Harness, AGENTS.md' in guidance
+    assert 'PI.md or agent configuration, or probing enforcement' in guidance
+    assert 'explicit authoring requests take precedence' in guidance
+    assert "Respect the task's write scope" in result['project_memory_protocol']

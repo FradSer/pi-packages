@@ -2,14 +2,14 @@
 
 ## Project Structure
 
-`packages/matt-pocock/` publishes `pi-matt-pocock`, a catalog-backed Pi capability gateway. The package-root `index.ts` loads `src/index.ts`; `src/catalog.json` is the single source for resource classification and graph relationships, `src/catalog.ts` provides typed queries and validation, `src/resolver.ts` resolves bounded procedure bundles, and `src/workflow.ts` owns persisted workflow state and legal transitions. `procedures/` contains internal Markdown resources and assets. They are not Pi skills, and no child `SKILL.md` may be shipped. BDD scenarios live in `features/`, executable checks in `tests/`, upstream selection metadata in `upstream-selection.json`, and synchronization policy in `UPSTREAM.md`.
+`packages/matt-pocock/` publishes `pi-matt-pocock`, a catalog-backed Pi capability gateway. The package-root `index.ts` loads `src/index.ts`; `src/catalog.json` is the single source for resource classification and graph relationships, `src/catalog.ts` provides typed queries and validation, `src/resolver.ts` resolves bounded procedure bundles, and `src/workflow.ts` owns persisted workflow state and legal transitions. `procedures/` holds the loadable capabilities, `references/` the on-demand documents and `assets/` the templates, one directory per catalogue kind. None are Pi skills, and no child `SKILL.md` may be shipped. BDD scenarios live in `features/`, executable checks in `tests/`, real-Pi acceptance harnesses in `tests/live/`, their evidence reports in `tests/reports/`, and the upstream selection metadata, synchronization policy and checker in `upstream/`.
 
 ## Contributor Commands
 
 Run from the repository root:
 
 ```bash
-node packages/matt-pocock/scripts/check-upstream-sync.mjs
+node packages/matt-pocock/upstream/check-upstream-sync.mjs
 python3 -m pytest packages/matt-pocock/tests/ -q
 pnpm typecheck
 pnpm --dir packages/matt-pocock pack --dry-run
@@ -18,7 +18,7 @@ pnpm --dir packages/matt-pocock pack --dry-run
 When validating against an already-cloned upstream checkout, also run:
 
 ```bash
-node packages/matt-pocock/scripts/check-upstream-sync.mjs --upstream /path/to/mattpocock-skills
+node packages/matt-pocock/upstream/check-upstream-sync.mjs --upstream /path/to/mattpocock-skills
 ```
 
 The sync checker does not clone or fetch upstream.
@@ -45,6 +45,6 @@ The sync checker does not clone or fetch upstream.
 
 ## Upstream Sync and Release
 
-`upstream-selection.json` must classify every upstream skill at the recorded latest checked commit as selected or excluded. Selected entries map the upstream path and invocation mode to a local catalog id and plain resource; exclusions carry a concrete reason. Follow `UPSTREAM.md`, strip host-specific frontmatter and invocation syntax, and never copy a nested `SKILL.md` into the package.
+`upstream/upstream-selection.json` must classify every upstream skill at the recorded latest checked commit as selected or excluded. Selected entries map the upstream path and invocation mode to a local catalog id and plain resource; exclusions carry a concrete reason. Follow `upstream/UPSTREAM.md`, strip host-specific frontmatter and invocation syntax, and never copy a nested `SKILL.md` into the package.
 
 For behavior changes, update `features/matt-pocock.feature` first, add or update tests, then implement. Every published-package change requires a Changeset. Do not hand-edit package versions or dependency manifests.

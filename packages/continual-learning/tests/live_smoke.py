@@ -7,6 +7,8 @@ with fixtures; runtime fixtures are tested separately.
 
 from __future__ import annotations
 
+from live_acceptance_support import workspace_pi
+
 import json
 import re
 import os
@@ -36,7 +38,7 @@ def run_pi(
     session = project.parent / session_name
     result = subprocess.run(
         [
-            "pi", "--offline", "--no-extensions", "-e", str(probe),
+            workspace_pi(Path(__file__).resolve().parents[3]), "--offline", "--no-extensions", "-e", str(probe),
             "-e", str(PACKAGE / "index.ts"), "--no-skills", "--no-prompt-templates",
             "--no-themes", "--no-context-files", "--session", str(session),
             "--print", "--mode", "json", "--model", f"{model['provider']}/{model['model']}",

@@ -34,7 +34,7 @@ fs.mkdirSync(path.join(cwd, ".pi"), { recursive: true });
 const originalDossier = path.join(agentDir, "selector-run", "incremental-learning-dossier.json");
 fs.mkdirSync(path.dirname(originalDossier), {recursive:true});
 fs.writeFileSync(originalDossier, '{"observed":"original selector evidence"}\n');
-let recoveryRead: {dossier:boolean; unrelatedRefused:boolean} | undefined;
+let recoveryRead: {dossier:boolean; snapshot:boolean; unrelatedRefused:boolean} | undefined;
 
 const QUOTE = scenario === "semantic-message-completion" ? "Never run the retired compiler through bash. This restriction lasts for future project tasks." : "Never run the retired compiler through bash";
 /** The run identity is generated inside the run, so the child recovers it from
@@ -129,7 +129,7 @@ mock.module("../../kit/src/index.ts", () => ({
     child.stderr = stderr;
     child.kill = () => true;
     child.unref = () => child;
-    if (scenario === "missing-dossier" && spawned === 2) {
+    if (["missing-dossier", "semantic-dossier", "structural-dossier", "coverage-dossier"].includes(scenario) && spawned === 2) {
       const extension = args.find(arg => arg.includes("/planner-read-") && arg.endsWith(".mjs"))!;
       const source = fs.readFileSync(extension, "utf8");
       const scope = JSON.parse(/registerPlannerRead\(pi, (.*)\);/.exec(source)![1]);
@@ -137,8 +137,9 @@ mock.module("../../kit/src/index.ts", () => ({
         const reads = await Promise.allSettled([
           readPlannerFileSnapshot(originalDossier, scope),
           readPlannerFileSnapshot(path.join(agentDir, "unapproved.json"), scope),
+          readPlannerFileSnapshot(path.join(path.dirname(taskFile!.slice(1)), "snapshot.json"), scope),
         ]);
-        recoveryRead = {dossier:reads[0].status === "fulfilled" && reads[0].value.text.includes("original selector evidence"), unrelatedRefused:reads[1].status === "rejected" && String(reads[1].reason).includes("outside the parent-approved scope")};
+        recoveryRead = {dossier:reads[0].status === "fulfilled" && reads[0].value.text.includes("original selector evidence"), snapshot:reads[2].status === "fulfilled" && reads[2].value.text.includes(QUOTE), unrelatedRefused:reads[1].status === "rejected" && String(reads[1].reason).includes("outside the parent-approved scope")};
         const identity = identityFrom(fs.readFileSync(taskFile!.slice(1), "utf8"));
         stdout.emit("data", Buffer.from((recoveryRead.dossier ? jsonlPlan(goodPlan(identity), identity, usageFor(2)) : jsonlNoPlan(usageFor(2))) + "\n"));
         child.emit("close", 0);
@@ -187,6 +188,8 @@ mock.module("../../kit/src/index.ts", () => ({
         if (repair && scenario === "semantic-pruned-foreign") plan.operations[0].rule.id = "invented-replacement";
         if (repair && scenario === "semantic-pruned-requoted") plan.evidence[0].quote = QUOTE.slice(0, -5);
         body = jsonlPlan(plan, identity, childUsage);
+      } else if (scenario === "coverage-dossier" && !repair) {
+        body = jsonlPlan({...goodPlan(identity),operations:[],evidence:[]}, identity, childUsage);
       } else if (scenario === "report-only") {
         body = jsonlPlan({...goodPlan(identity),report:[{summary:"x".repeat(401)}]}, identity, usageFor(spawned));
       } else if (scenario === "noop-report") {
@@ -254,7 +257,8 @@ try {
         if (scenario === "semantic-judge-tamper" && semanticCalls === 2) fs.rmSync(path.join(path.dirname(taskFiles.at(-1)!.slice(1)),"snapshot.json")); const allow = scenario === "semantic-duplicate-allow" || scenario === "semantic-message-completion" || semanticCalls > 1 && scenario !== "semantic-still" && scenario !== "semantic-pruned-still" && scenario !== "semantic-duplicate-hold";
         return {decision:allow ? "allow" : "propose",telemetry:{stage:"harness",status:allow?"decided":"propose",reason:allow?"supported":scenario==="semantic-unavailable"?"unavailable":"uncertain",durationMs:1,model:"jev-1.13.0",inputTokens:10,outputTokens:2,estimatedCostUsd:0.00000042,...(!allow ? {candidateFailures:[{candidateIndex:0,dimension:"support",reason:"uncertain"}]} : {})}};
       }} : {}),
-      ...(scenario === "missing-dossier" ? {explorationPath:originalDossier, explorationDigest:createHash("sha256").update(fs.readFileSync(originalDossier)).digest("hex")} : {}),
+      ...(["missing-dossier", "semantic-dossier", "structural-dossier", "coverage-dossier"].includes(scenario) ? {explorationPath:originalDossier, explorationDigest:createHash("sha256").update(fs.readFileSync(originalDossier)).digest("hex")} : {}),
+      ...(scenario === "coverage-dossier" ? {coverageRepair:true} : {}),
       ...( ["repair-model", "missing-model"].includes(scenario) ? { model: "provider/frozen" } : {}),
       ...(["initial-timeout", "recovery-timeout"].includes(scenario) ? { timeoutMs: 10 } : {}),
     } as never,

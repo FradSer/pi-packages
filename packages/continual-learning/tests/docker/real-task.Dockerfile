@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 python3
 WORKDIR /opt/experiment
 COPY packages/kit/package.json ./packages/kit/package.json
 COPY packages/continual-learning/package.json ./packages/continual-learning/package.json
-RUN node --input-type=module -e 'import fs from "node:fs";fs.writeFileSync("package.json",JSON.stringify({private:true,type:"module",packageManager:"pnpm@11.21.0",dependencies:{"@earendil-works/pi-coding-agent":"1.0.0","@earendil-works/pi-tui":"1.0.0",tsx:"4.19.0"}}));fs.writeFileSync("pnpm-workspace.yaml","packages:\n  - packages/*\noverrides:\n  \"@earendil-works/pi-coding-agent\": 1.0.0\n  \"@earendil-works/pi-tui\": 1.0.0\nallowBuilds:\n  esbuild: true\n  \"@google/genai\": true\n  protobufjs: true\n");'
+RUN node --input-type=module -e 'import fs from "node:fs";fs.writeFileSync("package.json",JSON.stringify({private:true,type:"module",packageManager:"pnpm@11.21.0",dependencies:{"@earendil-works/pi-coding-agent":"1.2.0","@earendil-works/pi-ai":"1.2.0","@earendil-works/pi-tui":"1.2.0",tsx:"4.19.0"}}));fs.writeFileSync("pnpm-workspace.yaml","packages:\n  - packages/*\noverrides:\n  \"@earendil-works/pi-coding-agent\": 1.2.0\n  \"@earendil-works/pi-ai\": 1.2.0\n  \"@earendil-works/pi-agent-core\": 1.2.0\n  \"@earendil-works/pi-codemode\": 1.2.0\n  \"@earendil-works/pi-mcp\": 1.2.0\n  \"@earendil-works/pi-telemetry\": 1.2.0\n  \"@earendil-works/pi-tui\": 1.2.0\nallowBuilds:\n  esbuild: true\n  \"@google/genai\": true\n  protobufjs: true\n");'
 RUN pnpm install --no-frozen-lockfile
 COPY packages/kit/index.ts packages/kit/README.md ./packages/kit/
 COPY packages/kit/src ./packages/kit/src

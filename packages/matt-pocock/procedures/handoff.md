@@ -1,4 +1,4 @@
-Write a portable handoff document summarising the current conversation. This skill only writes the document: it does not create, fork, or seed a session. Save it to the temporary directory of the user's OS — not the current workspace. The user or a receiving agent may use the document in a later session.
+Write a portable handoff document summarising the current conversation. This skill only writes the document: it does not create, fork, or seed a session. Save it to the temporary directory of the user's OS (`$TMPDIR`, else `/tmp`; `%TEMP%` on Windows), not the current workspace. The user or a receiving agent may use the document in a later session.
 
 Include a "suggested skills" section in the document, which suggests skills that the agent should invoke.
 

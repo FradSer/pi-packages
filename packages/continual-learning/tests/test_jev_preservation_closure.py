@@ -95,8 +95,8 @@ def test_normal_mutation_groups_keep_full_source_and_final_revocations() -> None
       }});
       const before=JSON.stringify({entries,existing,candidates});const result=await judge.validate('memory',{contextEnabled:true,entries},candidates,existing);
       const counters=requests.filter(r=>r.state.reviewEvidence), coverage=Array.from({length:7},()=>new Set());
-      let exact=true,dependency=false;
-      for(const r of counters){const s=r.state;
+      let exact=true,dependency=false,userContext=true;
+      for(const r of counters){const s=r.state;userContext&&=JSON.stringify(s.originalUserEvidence.entries)===JSON.stringify([{index:7,entry:entries[7]}]);
         for(const key of Object.keys(r.questions)){const m=/^counter_(\d+)_/.exec(key);if(!m)continue;const i=Number(m[1]);
           for(const entry of s.reviewEvidence.entries)coverage[i].add(entry.index);
           const cited=[...s.supportEvidence.entries,...s.reviewEvidence.entries].find(e=>e.index===i);
@@ -104,11 +104,11 @@ def test_normal_mutation_groups_keep_full_source_and_final_revocations() -> None
           if(i===0)dependency||=s.existingMemories.some(m=>m.name===existing[1].name&&m.content===existing[1].content)&&s.proposedMemoryOperations.some(m=>m.name===candidates[1].name&&m.content===candidates[1].content);
         }
       }
-      console.log(JSON.stringify({result,requests:requests.length,maxCandidates:Math.max(...counters.map(r=>new Set(Object.keys(r.questions).map(k=>/^counter(?:_description)?_(\d+)_/.exec(k)?.[1])).size)),coverage:coverage.map(s=>[...s].sort()),exact,dependency,unchanged:before===JSON.stringify({entries,existing,candidates})}));
+      console.log(JSON.stringify({result,requests:requests.length,maxCandidates:Math.max(...counters.map(r=>new Set(Object.keys(r.questions).map(k=>/^counter(?:_description|_preservation|_permission)?_(\d+)_/.exec(k)?.[1])).size)),coverage:coverage.map(s=>[...s].sort()),exact,dependency,userContext,unchanged:before===JSON.stringify({entries,existing,candidates})}));
     ''')
     assert value['maxCandidates'] == 1
     assert value['requests'] <= 128
-    assert value['exact'] and value['dependency'] and value['unchanged']
+    assert value['exact'] and value['dependency'] and value['userContext'] and value['unchanged']
     assert all(indexes == list(range(8)) for indexes in value['coverage'])
     assert value['result']['decision'] == 'propose'
     assert value['result']['telemetry']['dimension'] == 'counterevidence'

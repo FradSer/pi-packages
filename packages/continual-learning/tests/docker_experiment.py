@@ -4,9 +4,11 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Callable
 import hmac
+import ipaddress
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
 import os
 from pathlib import Path
 import secrets
@@ -19,11 +21,36 @@ from urllib.parse import urlsplit
 
 PACKAGE = Path(__file__).resolve().parents[1]
 REPO = PACKAGE.parents[1]
+MAX_JEV_CAPTURE_BYTES = 2 * 1024 * 1024
+MAX_JEV_CAPTURE_TOTAL_BYTES = 64 * 1024 * 1024
 PROJECTS = (
     {"name": "click", "repository": "https://github.com/pallets/click.git", "commit": "06b2a678741131fd577ce170e23e5ca0aeba0309"},
     {"name": "p-limit", "repository": "https://github.com/sindresorhus/p-limit.git", "commit": "a8a6fbec4e0e866d6d779b10889bb4f5567e70eb"},
     {"name": "mitt", "repository": "https://github.com/developit/mitt.git", "commit": "6b41670516ed8e8b738612f60491995470aa63b3"},
 )
+
+
+def model_prompt_observation(payload: dict) -> dict[str, object]:
+    """Observe actual serialized system input; retain hashes and fixed labels only."""
+    texts: list[str] = []
+    messages = payload.get("messages", [])
+    if isinstance(messages, list):
+        for message in messages:
+            if not isinstance(message, dict) or message.get("role") not in ("system", "developer"):
+                continue
+            content = message.get("content")
+            if isinstance(content, str):
+                texts.append(content)
+            elif isinstance(content, list):
+                texts.extend(block["text"] for block in content if isinstance(block, dict)
+                             and block.get("type") == "text" and isinstance(block.get("text"), str))
+    effort = payload.get("reasoning_effort")
+    return {
+        "memoryDiscoveryOnWire": any("<project_memory_discovery>" in text and "</project_memory_discovery>" in text for text in texts),
+        "memoryProtocolOnWire": any("<project_memory_protocol>" in text and "</project_memory_protocol>" in text for text in texts),
+        "systemTextSha256": hashlib.sha256(json.dumps(texts, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest(),
+        "reasoningEffortOnWire": effort if effort in ("none", "minimal", "low", "medium", "high", "xhigh") else "other-or-absent",
+    }
 
 
 def command(args: list[str], *, timeout: int = 900, sanitize: Callable[[str], str] | None = None) -> str:
@@ -107,13 +134,13 @@ def build_image(memory_policy: str = "default") -> tuple[str, str]:
         context = Path(temporary)
         for name in ("kit", "continual-learning"):
             shutil.copytree(REPO / "packages" / name, context / "packages" / name,
-                            ignore=shutil.ignore_patterns("node_modules", "__pycache__", ".pytest_cache", ".memory", ".pi", ".git"))
+                            ignore=shutil.ignore_patterns("node_modules", "__pycache__", ".pytest_cache", ".memory", ".pi", ".git", ".jev-*"))
         prepare_memory_policy(context / "packages/continual-learning", memory_policy)
         (context / "package.json").write_text(json.dumps({
             "private": True, "type": "module", "packageManager": "pnpm@11.21.0",
-            "dependencies": {"@earendil-works/pi-coding-agent": "1.0.2", "@earendil-works/pi-tui": "^1.0.0", "tsx": "4.19.0"},
+            "dependencies": {"@earendil-works/pi-coding-agent": "1.2.0", "@earendil-works/pi-ai": "1.2.0", "@earendil-works/pi-tui": "1.2.0", "tsx": "4.19.0"},
         }))
-        (context / "pnpm-workspace.yaml").write_text('packages:\n  - packages/*\nallowBuilds:\n  esbuild: true\n  "@google/genai": true\n  protobufjs: true\n')
+        (context / "pnpm-workspace.yaml").write_text('packages:\n  - packages/*\noverrides:\n  "@earendil-works/pi-coding-agent": 1.2.0\n  "@earendil-works/pi-ai": 1.2.0\n  "@earendil-works/pi-agent-core": 1.2.0\n  "@earendil-works/pi-codemode": 1.2.0\n  "@earendil-works/pi-mcp": 1.2.0\n  "@earendil-works/pi-telemetry": 1.2.0\n  "@earendil-works/pi-tui": 1.2.0\nallowBuilds:\n  esbuild: true\n  "@google/genai": true\n  protobufjs: true\n')
         shutil.copyfile(PACKAGE / "tests" / "docker" / "Dockerfile", context / "Dockerfile")
         command(["docker", "build", "--tag", image, str(context)], timeout=1200)
     return image, digest
@@ -122,15 +149,33 @@ def build_image(memory_policy: str = "default") -> tuple[str, str]:
 class InferenceProxy:
     """Transparent streaming transport, not a provider fixture or model stub."""
 
-    def __init__(self, config_root: Path, *, jev_key: str | None = None, request_budget: int = 180,
-                 selection: dict[str, str] | None = None, jev_transport: str = "python-http",
-                 max_request_bytes: int | None = None) -> None:
-        if jev_transport not in ("python-http", "bun-fetch"):
+    def __init__(self, config_root: Path, *, jev_key: str | None = None, request_budget: int | None = 180,
+                 selection: dict[str, str] | None = None, jev_transport: str = "python-http", jev_model: str = "jev-1.13.0",
+                 max_request_bytes: int | None = None, jev_resolved_address: str | None = None,
+                 retain_jev_envelopes: bool = False) -> None:
+        if jev_resolved_address is not None:
+            try:
+                address = ipaddress.IPv4Address(jev_resolved_address)
+            except ipaddress.AddressValueError as error:
+                raise ValueError("Jev route requires a public IPv4 literal") from error
+            if not address.is_global or address.is_multicast or address.is_reserved or jev_transport not in ("bun-fetch", "node-https"):
+                raise ValueError("Jev route requires a public IPv4 literal and explicit HTTPS transport")
+        if jev_model not in ("jev-1.13.0", "jev-1.14.0"):
+            raise ValueError("Unknown fixed Jev study model")
+        self.jev_model = jev_model
+        self.jev_resolved_address = jev_resolved_address
+        if jev_transport not in ("python-http", "bun-fetch", "node-https"):
             raise ValueError("Unknown Jev transport")
         if max_request_bytes is not None and max_request_bytes <= 0:
             raise ValueError("max_request_bytes must be positive")
         self.max_request_bytes = max_request_bytes
         self.jev_transport = jev_transport
+        if retain_jev_envelopes and jev_transport != "node-https":
+            raise ValueError("Exact study envelope capture requires the reviewed Node forwarder")
+        self.retain_jev_envelopes = retain_jev_envelopes
+        self.jev_envelope_buffers: list[tuple[dict, bytes]] = []
+        self._jev_envelope_write_attempted = False
+        self.jev_envelope_bytes = 0
         self.request_budget = request_budget
         self.jev_requests = 0
         self.jev_usage: list[dict] = []
@@ -152,6 +197,8 @@ class InferenceProxy:
         self.requests = 0
         self.errors = 0
         self.counter_lock = threading.RLock()
+        self.active_requests = 0
+        self.quiescence = threading.Condition(self.counter_lock)
         selected_model = next(model for model in provider["models"] if model["id"] == self.selection["model"])
         self.model = {name: value for name, value in selected_model.items()
                       if name in {"id", "name", "api", "contextWindow", "maxTokens", "input", "cost", "reasoning", "compat", "thinkingLevelMap"}}
@@ -182,7 +229,7 @@ class InferenceProxy:
                         return
                     body = self.rfile.read(length)
                     payload = json.loads(body)
-                    if not isinstance(payload, dict) or payload.get("model") != ("jev-1.13.0" if is_jev else owner.selection["model"]):
+                    if not isinstance(payload, dict) or payload.get("model") != (owner.jev_model if is_jev else owner.selection["model"]):
                         self.send_error(403)
                         return
                 except (ValueError, json.JSONDecodeError):
@@ -197,22 +244,27 @@ class InferenceProxy:
                 connection: http.client.HTTPConnection | None = None
                 started = time.monotonic()
                 observation = None
+                admitted = False
+                captured_response = None
                 if is_jev:
-                    observation = {'wireHash': hashlib.sha256(body).hexdigest(), 'wireBytes': len(body), 'status': 'running'}
+                    observation = {'wireHash': hashlib.sha256(body).hexdigest(), 'wireBytes': len(body), 'status': 'running', 'longContext': self.headers.get('TypeSafe-Danger-Zone-Long-Context') == 'true'}
                     with owner.counter_lock:
-                        if len(owner.jev_observations) < owner.request_budget:
+                        if owner.request_budget is None or len(owner.jev_observations) < owner.request_budget:
                             owner.jev_observations.append(observation)
                 try:
                     with owner.counter_lock:
-                        if owner.requests >= owner.request_budget:
+                        if owner.request_budget is not None and owner.requests >= owner.request_budget:
                             if observation is not None:
                                 observation['status'] = 'budget-exhausted'
                             self.send_error(429, "Experiment request budget exhausted")
                             return
                         owner.requests += 1
+                        owner.active_requests += 1
+                        admitted = True
                         if is_jev:
                             owner.jev_requests += 1
-                        elif len(owner.model_observations) < owner.request_budget:
+                            observation['request'] = owner.requests
+                        elif owner.request_budget is None or len(owner.model_observations) < owner.request_budget:
                             messages = payload.get('messages', [])
                             tools = payload.get('tools', [])
                             choice = payload.get('tool_choice')
@@ -223,6 +275,7 @@ class InferenceProxy:
                             schema = schema if format_type == 'json_schema' and isinstance(schema, dict) else {}
                             schema_name = schema.get('name')
                             owner.model_observations.append({'request': owner.requests,
+                                **model_prompt_observation(payload),
                                 'toolCount': len(tools) if isinstance(tools, list) else None,
                                 'toolChoice': choice if choice in ('none', 'auto', 'required') else 'other-or-absent',
                                 'messageCount': len(messages) if isinstance(messages, list) else None,
@@ -230,20 +283,36 @@ class InferenceProxy:
                                 'responseFormatType': format_type if format_type in ('json_object', 'json_schema') else 'other-or-absent',
                                 'responseSchemaName': schema_name if schema_name in ('memory_selector', 'memory_delta', 'memory_amendment') else 'other-or-absent',
                                 'responseSchemaStrict': schema.get('strict') is True})
-                    if is_jev and owner.jev_transport == "bun-fetch":
+                    if is_jev and owner.jev_transport in ("bun-fetch", "node-https"):
                         forward_env = {key: value for key, value in os.environ.items() if key in
                                        ("PATH", "HOME", "SSL_CERT_FILE", "SSL_CERT_DIR", "HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "NO_PROXY")}
+                        if owner.jev_transport == "node-https":
+                            forward_env = {key: value for key, value in forward_env.items() if key in ("PATH", "HOME")}
+                        if self.headers.get("TypeSafe-Danger-Zone-Long-Context") == "true":
+                            forward_env["JEV_LONG_CONTEXT"] = "true"
                         forward_env["TYPESAFE_API_KEY"] = owner.jev_key
-                        forwarded = subprocess.run([shutil.which("bun") or "bun", str(Path(__file__).with_name("jev-http-forward.mjs"))],
+                        forward_env["JEV_MODEL"] = owner.jev_model
+                        if owner.jev_resolved_address is not None:
+                            forward_env["JEV_RESOLVED_ADDRESS"] = owner.jev_resolved_address
+                        runtime = "node" if owner.jev_transport == "node-https" else "bun"
+                        script = "jev-https-forward.mjs" if runtime == "node" else "jev-http-forward.mjs"
+                        forwarded = subprocess.run([shutil.which(runtime) or runtime, str(Path(__file__).with_name(script))],
                                                    input=body, env=forward_env, capture_output=True, timeout=35)
                         if forwarded.returncode:
                             observation['status'] = 'forwarder-error'
                             raise OSError("Host Jev forwarder failed")
                         value = json.loads(forwarded.stdout)
+                        phase = value.get("transportObservation")
+                        if isinstance(phase, dict) and all(type(phase.get(key)) is bool for key in
+                                ("tcpConnected", "tlsVerified", "responseHeaders", "ownAbort")) and type(phase.get("receivedBytes")) is int and 0 <= phase["receivedBytes"] <= 2**53 - 1:
+                            observation["transportObservation"] = {key: phase[key] for key in
+                                ("tcpConnected", "tlsVerified", "responseHeaders", "receivedBytes", "ownAbort")}
                         if value.get("transportFailure") in ("connection-timeout", "connection-reset", "connection-closed", "connection-refused",
-                                                              "dns-failure", "request-timeout", "aborted", "transport-unavailable"):
+                                                              "dns-failure", "request-timeout", "aborted", "tls-certificate-verification-failed", "transport-unavailable", "invalid-request", "redirect-not-allowed", "response-too-large"):
                             observation['status'] = 'forwarder-error'
                             observation['failureCategory'] = value['transportFailure']
+                            if value.get('failureCode') in ('ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'CERT_HAS_EXPIRED', 'ERR_TLS_CERT_ALTNAME_INVALID', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'SELF_SIGNED_CERT_IN_CHAIN', 'DEPTH_ZERO_SELF_SIGNED_CERT'):
+                                observation['failureCode'] = value['failureCode']
                             raise OSError("Host Jev transport failed")
                         if type(value.get("status")) is not int or not 200 <= value["status"] <= 599 or not isinstance(value.get("body"), str):
                             raise ValueError("Invalid forwarding response")
@@ -251,6 +320,7 @@ class InferenceProxy:
                         observation['httpStatus'] = value['status']
                         observation['status'] = 'completed' if value['status'] < 400 else 'http-error'
                         data = value["body"].encode()
+                        captured_response = data
                         if len(data) > 2 * 1024 * 1024:
                             raise ValueError("Oversized forwarding response")
                         if value["status"] < 400:
@@ -271,6 +341,7 @@ class InferenceProxy:
                     connection = connection_type(upstream.hostname, upstream.port, timeout=300)
                     endpoint = "/v1/systemone" if is_jev else upstream.path.rstrip("/") + self.path.removeprefix("/v1")
                     connection.request("POST", endpoint, body, headers={**({} if is_jev else owner.headers),
+                        **({"TypeSafe-Danger-Zone-Long-Context": "true"} if is_jev and self.headers.get("TypeSafe-Danger-Zone-Long-Context") == "true" else {}),
                         "Authorization": f"Bearer {owner.jev_key if is_jev else owner.key}", "Content-Type": "application/json"})
                     response = connection.getresponse()
                     if observation is not None:
@@ -294,14 +365,7 @@ class InferenceProxy:
                         if observation is not None:
                             observation['status'] = 'completed'
                         if is_jev:
-                            try:
-                                answer = json.loads(jev_body)
-                                usage = answer.get("usage", {})
-                                if answer.get("model") == "jev-1.13.0" and all(type(usage.get(k)) is int and usage[k] >= 0 for k in ("input_tokens", "output_tokens")):
-                                    with owner.counter_lock:
-                                        owner.jev_usage.append({"model": "jev-1.13.0", **{k: usage[k] for k in ("input_tokens", "output_tokens")}})
-                            except (ValueError, TypeError, AttributeError):
-                                pass
+                            owner.record_jev_usage(bytes(jev_body))
                 except (OSError, http.client.HTTPException, ValueError, subprocess.SubprocessError) as error:
                     if observation is not None:
                         if isinstance(error, (BrokenPipeError, ConnectionResetError)):
@@ -315,9 +379,22 @@ class InferenceProxy:
                 finally:
                     if observation is not None:
                         observation['durationMs'] = round((time.monotonic() - started) * 1000)
-                    if connection:
-                        connection.close()
-                    slots.release()
+                        if admitted and owner.retain_jev_envelopes:
+                            try:
+                                owner.record_jev_envelope(observation, body, payload, captured_response)
+                            except Exception:
+                                # Diagnostic retention must not alter usage,
+                                # release, retries or transport outcomes.
+                                observation.setdefault('envelopeCapture', {}).update(status='capture-error')
+                    try:
+                        if connection:
+                            connection.close()
+                    finally:
+                        slots.release()
+                        if admitted:
+                            with owner.quiescence:
+                                owner.active_requests -= 1
+                                owner.quiescence.notify_all()
 
         self.server = ThreadingHTTPServer(("0.0.0.0", 0), Handler)
         self.server.daemon_threads = True
@@ -328,21 +405,142 @@ class InferenceProxy:
         return self
 
     def __exit__(self, *_args: object) -> None:
+        # Closing the accept loop does not join daemon request handlers. Stop
+        # admission under the same lock and wait for every counted operation,
+        # including late usage accounting, before declaring transport complete.
+        with self.counter_lock:
+            self.request_budget = self.requests
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(timeout=5)
+        if not self.wait_for_quiescence():
+            raise RuntimeError("Inference transport still active; preserve reservation")
+
+    def wait_for_quiescence(self, timeout: float = 35) -> bool:
+        with self.quiescence:
+            return self.quiescence.wait_for(lambda: self.active_requests == 0, timeout=timeout)
+
+    @property
+    def transport_quiescent(self) -> bool:
+        with self.counter_lock:
+            return self.active_requests == 0
 
     def record_error(self) -> None:
         with self.counter_lock:
             self.errors += 1
 
+    def record_jev_envelope(self, observation: dict, request: bytes, payload: dict, response: bytes | None) -> None:
+        """Keep bounded authorized study buffers, never headers or auth values.
+
+        These are exact proxy UTF-8 buffers, not arbitrary upstream TLS octets.
+        Privacy screening remains required before requests reach this proxy.
+        The redactor below checks known transport credentials only.
+        """
+        def safe_answer(data: bytes) -> bool:
+            try:
+                value = json.loads(data)
+                if not isinstance(value, dict) or set(value) - {'model','answers','usage'} or value.get('model') != self.jev_model:
+                    return False
+                answers, usage = value.get('answers'), value.get('usage')
+                if not isinstance(answers, dict) or not isinstance(usage, dict) or set(usage) - {'input_tokens','output_tokens'}:
+                    return False
+                if not all(type(v) is int and v >= 0 for v in usage.values()):
+                    return False
+                questions = payload.get('questions', {})
+                for key, answer in answers.items():
+                    question = questions.get(key)
+                    if not isinstance(question, dict) or not isinstance(answer, dict) or set(answer) - {'type','choice','confidence','probabilities','noul','score','expectation'}:
+                        return False
+                    if answer.get('type') != question.get('type') or answer.get('type') not in ('choice','noul','score'):
+                        return False
+                    criteria = question.get('criteria', {})
+                    if not isinstance(criteria, dict):
+                        return False
+                    for field, item in answer.items():
+                        if field == 'type':
+                            continue
+                        if field == 'choice':
+                            if not isinstance(item, str) or item not in criteria:
+                                return False
+                        elif field == 'probabilities':
+                            if not isinstance(item, dict) or set(item) - set(criteria) or not all(type(v) in (int,float) and math.isfinite(v) and 0 <= v <= 1 for v in item.values()):
+                                return False
+                        elif type(item) not in (int,float) or not math.isfinite(item):
+                            return False
+                return True
+            except (ValueError, TypeError, AttributeError, OverflowError, RecursionError):
+                return False
+
+        capture = {'status':'buffered','exactUpstreamTlsBytes':False,'representation':'proxy-utf8-json-buffers'}
+        observation['envelopeCapture'] = capture
+        for direction, data in (('request',request), ('response',response)):
+            if data is None:
+                capture[direction] = {'status':'unavailable','reason':'no-complete-proxy-response'}
+                continue
+            item = {'status':'unavailable','sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data)}
+            capture[direction] = item
+            if len(data) > MAX_JEV_CAPTURE_BYTES:
+                item['reason'] = 'capture-size-bound'
+            elif redact_transport_bytes(data, self) != data:
+                item['reason'] = 'known-transport-credential'
+            elif direction == 'response' and not safe_answer(data):
+                item['reason'] = 'unsafe-response-shape'
+            else:
+                with self.counter_lock:
+                    if self.jev_envelope_bytes + len(data) > MAX_JEV_CAPTURE_TOTAL_BYTES:
+                        item['reason'] = 'capture-total-bound'
+                    else:
+                        item.update(status='buffered',file=f"request-{observation['request']:06d}-{direction}.json")
+                        self.jev_envelope_buffers.append((item,data))
+                        self.jev_envelope_bytes += len(data)
+
+    def write_jev_envelopes(self, output: Path) -> dict:
+        """Write private evidence once, after admission closes and handlers settle."""
+        if not self.retain_jev_envelopes:
+            return {'enabled':False}
+        with self.counter_lock:
+            if self.active_requests != 0 or self.thread.is_alive() or self.request_budget != self.requests:
+                return {'enabled':True,'status':'not-quiescent','complete':False}
+            if self._jev_envelope_write_attempted:
+                return {'enabled':True,'status':'already-attempted','complete':False}
+            self._jev_envelope_write_attempted = True
+        captures = [item['envelopeCapture'] for item in self.jev_observations if 'envelopeCapture' in item]
+        result = {'enabled':True,'status':'written','admittedExchanges':len(captures),'complete':False,
+                  'maxBytesPerBuffer':MAX_JEV_CAPTURE_BYTES,'maxTotalBufferBytes':MAX_JEV_CAPTURE_TOTAL_BYTES,
+                  'exactUpstreamTlsBytes':False}
+        try:
+            output.mkdir(mode=0o700)
+            for metadata, data in self.jev_envelope_buffers:
+                file = output / metadata['file']
+                fd = os.open(file, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, 'O_NOFOLLOW', 0), 0o600)
+                with os.fdopen(fd, 'wb') as target:
+                    target.write(data)
+                if file.read_bytes() != data:
+                    raise OSError('Captured envelope readback differs')
+                metadata['status'] = 'retained'
+            result['complete'] = len(captures) == self.jev_requests and all(
+                capture.get('status') != 'capture-error' and all(capture.get(direction, {}).get('status') == 'retained'
+                    for direction in ('request','response')) for capture in captures)
+        except OSError:
+            result['status'] = 'write-failed'
+            for metadata, _data in self.jev_envelope_buffers:
+                if metadata['status'] == 'buffered':
+                    metadata.update(status='unavailable',reason='capture-write-failed')
+        finally:
+            self.jev_envelope_buffers.clear()
+            self.jev_envelope_bytes = 0
+            for capture in captures:
+                capture['status'] = 'retained' if capture.get('status') != 'capture-error' and all(capture.get(direction, {}).get('status') == 'retained'
+                    for direction in ('request','response')) else 'incomplete'
+        return result
+
     def record_jev_usage(self, data: bytes) -> None:
         try:
             answer = json.loads(data)
             usage = answer.get("usage", {})
-            if answer.get("model") == "jev-1.13.0" and all(type(usage.get(k)) is int and usage[k] >= 0 for k in ("input_tokens", "output_tokens")):
+            if answer.get("model") in ("jev-1.13.0", "jev-1.14.0") and all(type(usage.get(k)) is int and usage[k] >= 0 for k in ("input_tokens", "output_tokens")):
                 with self.counter_lock:
-                    self.jev_usage.append({"model": "jev-1.13.0", **{k: usage[k] for k in ("input_tokens", "output_tokens")}})
+                    self.jev_usage.append({"model": answer["model"], **{k: usage[k] for k in ("input_tokens", "output_tokens")}})
         except (ValueError, TypeError, AttributeError):
             pass
 
@@ -364,7 +562,7 @@ class InferenceProxy:
         if self.jev_key:
             # Only public synthetic personal preferences are used in this experiment.
             (root / "continual-learning.json").write_text(json.dumps({"jev": {
-                "model": "jev-1.13.0", "allowPrivateMemory": True}}))
+                "model": self.jev_model, "allowPrivateMemory": True}}))
         for file in root.iterdir():
             file.chmod(0o600)
 
@@ -432,7 +630,7 @@ def run_project(image: str, digest: str, proxy: InferenceProxy, project: dict[st
             proxy.write_agent_config(config)
             if jev_enabled is not None:
                 (config / "continual-learning.json").write_text(json.dumps({"jev": {
-                    "model": "jev-1.13.0", "allowPrivateMemory": True} if jev_enabled else False}))
+                    "model": proxy.jev_model, "allowPrivateMemory": True} if jev_enabled else False}))
             contents = {file.name: file.read_text() for file in config.iterdir()}
             # Attribution experiment seam: one fixed candidate list for both arms.
             seam_contents, seam_environment = fixed_memory_seam(

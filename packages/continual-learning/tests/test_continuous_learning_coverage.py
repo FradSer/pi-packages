@@ -27,7 +27,7 @@ def test_partial_real_receipt_retains_known_cost_and_counts_unknown_usage(tmp_pa
     monkeypatch.setattr(study.base, 'export_tree', export_tree)
     monkeypatch.setattr(study.base, 'put', lambda *args: None)
     monkeypatch.setattr(study.base, 'shell', lambda *args: b'')
-    monkeypatch.setattr(study.base, 'checked', lambda args: b'{}' if 'python3' in args else b'[null]' if 'node' in args else b'{"pending":2}')
+    monkeypatch.setattr(study.base, 'checked', lambda args: b'{}' if 'python3' in args else b'{"receiptDigests":[null],"dossiers":[]}' if 'node' in args else b'{"pending":2}')
     result = study.artifacts('isolated-fixture', None, tmp_path)
     assert result['knownLearningTokens'] == 31555
     assert result['knownLearningCost'] == receipt['totals']['cost'] + .024

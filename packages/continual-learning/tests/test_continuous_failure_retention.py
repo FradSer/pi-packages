@@ -1,6 +1,7 @@
 import io
 import subprocess
 import tarfile
+import pytest
 
 from continuous_failure_retention import retain_failure_container
 
@@ -77,8 +78,10 @@ def test_truncated_source_archive_cannot_authorize_removal(tmp_path) -> None:
     assert result['surfaces']['project']['error'] == 'retention-failed'
 
 
-def test_study_failure_keeps_container_when_retention_is_incomplete(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize("pi_version, expected_containers", [("1.2.0", 2), ("1.0.0", 1)])
+def test_study_failure_keeps_container_when_retention_is_incomplete(tmp_path, monkeypatch, pi_version, expected_containers) -> None:
     import argparse
+    from pathlib import Path
     import live_continuous_project_learning as study
 
     class Proxy:
@@ -89,6 +92,8 @@ def test_study_failure_keeps_container_when_retention_is_incomplete(tmp_path, mo
         token = 'fixture-token'
         jev_key = None
         key = None
+        jev_model = 'jev-1.14.0'
+        jev_transport = 'node-https'
 
         def __init__(self, *args, **kwargs):
             pass
@@ -111,18 +116,29 @@ def test_study_failure_keeps_container_when_retention_is_incomplete(tmp_path, mo
 
     def retain(container, target, process, redact):
         retained.append(container)
-        return {'passed': False, 'container': container, 'containerRemoved': False}
+        return {'passed': False, 'container': container, 'containerRemoved': False,
+                'surfaces': {'memory': {'saved': False}, 'learning': {'saved': False}}}
 
     monkeypatch.setattr(study, 'InferenceProxy', Proxy)
     monkeypatch.setattr(study.base, 'runtime_image', lambda image: 'fixture-image')
     monkeypatch.setattr(study.base, 'container', lambda image: next(containers))
     monkeypatch.setattr(study.base, 'shell', lambda *args: b'')
     monkeypatch.setattr(study.base, 'put', lambda *args: None)
-    monkeypatch.setattr(study.base, 'checked', lambda args, **kwargs: b'1.0.0' if '--version' in args else b'{"ready":true}' if 'tsx' in args else b'')
+    monkeypatch.setattr(study.base, 'checked', lambda args, **kwargs: pi_version.encode() if '--version' in args else b'{"ready":true}' if 'tsx' in args else b'')
     monkeypatch.setattr(study.base, 'configuration', fail_configuration)
     monkeypatch.setattr(study.base, 'process', process)
     monkeypatch.setattr(study, 'retain_failure_container', retain, raising=False)
     report = study.run(argparse.Namespace(output=tmp_path, source=tmp_path, base_image='fixture', preflight_only=False))
-    assert report['status'] == 'failed' and len(retained) == 2
-    assert len(report['retainedContainers']) == 2
+    assert report['status'] == 'failed' and len(retained) == (expected_containers if pi_version == '1.2.0' else 0)
+    assert len(report['retainedContainers']) == expected_containers
     assert report['retentionIncomplete']
+    assert report['piVersions'] == [pi_version] * expected_containers
+    import json, hashlib
+    helper = Path(study.__file__).with_name('continuous-dossier-proof.mjs')
+    manifest = json.loads(next(tmp_path.glob('*/manifest.json')).read_text())
+    assert manifest['sourceHashes'][str(helper)] == hashlib.sha256(helper.read_bytes()).hexdigest()
+    # Record the selected runtime model, or no model before transport exists.
+    protocol = json.loads(next(tmp_path.glob('*/protocol.json')).read_text())
+    assert protocol['jev'] == ('jev-1.14.0' if pi_version == '1.2.0' else None)
+    if pi_version == '1.2.0':
+        assert protocol['jevTransport'] == 'node-https'

@@ -143,3 +143,11 @@ Feature: Learn from settled user tasks without a memory command
     When the parent validates and applies the plan
     Then the Memory attempt records the number of operations actually applied
     And failed or verified-noop later planner attempts remain present with zero applied operations
+
+  Scenario: A renamed successful edit does not discard other current source
+    Given a settled task successfully edited source and then renamed a file
+    When parent-scoped discovery finds the old edit path missing
+    Then retain the unavailable hint as discovery metadata and exclude it from tool authority
+    And verify the other existing edited sources without inventing an absence fact
+    And missing-only source sets remain failed with no worker call
+    And symlinks sensitive paths and out-of-scope hints remain failed

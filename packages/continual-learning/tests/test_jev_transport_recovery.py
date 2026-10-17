@@ -103,3 +103,47 @@ def test_status_failure_and_timeout_are_not_retried() -> None:
     assert value['timeout']['telemetry']['failureKind'] == 'timeout'
     assert 'retriedRequests' not in value['timeout']['telemetry']
     assert 'PRIVATE DIAGNOSTIC' not in str(value)
+
+def test_recovered_complete_cited_review_keeps_its_bound_checklist() -> None:
+    # Given complete frozen citation windows and one failed transport attempt,
+    # When its exact retry succeeds, Then all successful logical requests bind
+    # a checklist; a failed attempt remains cost-bearing, not a missing window.
+    rows = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const rows=[];
+      for(const mode of ['recovered','held','persistent']){
+        let attempts=0;
+        const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],requestConcurrency:1,fetch:async(_url,init)=>{
+          attempts++;if(attempts===1||mode==='persistent'&&attempts===2)throw Error('private transport diagnostic');
+          const request=JSON.parse(String(init.body)),answers={};
+          for(const [key,q]of Object.entries(request.questions)){
+            const choices=Object.keys(q.criteria);
+            const choice=key.startsWith('supported')?'grounded':'compatible';
+            const held=mode==='held'&&key==='counter_0_1';
+            answers[key]={type:'choice',choice,confidence:held?.7:1,probabilities:Object.fromEntries(choices.map(c=>[c,c===choice?held?.85:1:c==='unclear'&&held?.15:0]))};
+          }
+          return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:100,output_tokens:10}}));
+        }});
+        const quote='The public project uses pnpm.';
+        const evidence={contextEnabled:true,entries:[{role:'user',content:quote},{role:'toolResult',content:'Public unrelated source. '.repeat(900)}]};
+        const candidates=[{name:'project.md',kind:'project',classification:'safe',content:`---\nname: Project\ndescription: ${quote}\ntype: project\n---\n${quote}`,evidence:[{index:0,role:'user',quote}]}];
+        const result=await judge.validate('memory',evidence,candidates,[]);
+        rows.push({mode,attempts,result});
+      }console.log(JSON.stringify(rows));
+    ''')
+    recovered, held, persistent = rows
+    assert recovered['result']['decision'] == 'allow'
+    review = recovered['result'].get('candidateReview')
+    assert review and review['complete']
+    assert review['counterWindows'] == [[0], [1]]
+    assert review['candidates'][0]['outcome'] == 'passed'
+    telemetry = recovered['result']['telemetry']
+    assert telemetry['requestCount'] == telemetry['completedRequests'] + 1
+    assert telemetry['retriedRequests'] == 1
+    assert telemetry['coveredEntries'] == telemetry['evidenceEntries'] == 2
+    assert held['result']['decision'] == 'propose'
+    assert held['result']['candidateReview']['complete']
+    assert held['result']['candidateReview']['candidates'][0]['outcome'] == 'held'
+    assert persistent['result']['decision'] == 'propose'
+    assert 'candidateReview' not in persistent['result']
+    assert 'private transport diagnostic' not in str(rows)

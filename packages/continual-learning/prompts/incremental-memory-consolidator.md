@@ -39,6 +39,39 @@ conditions and exceptions. The parent extracts the exact substring before the
 ordinary citation gates; labels are presentation metadata, not factual evidence.
 The parent validates against its unchanged raw snapshot.
 
+For a NEW project Memory with an evidenced maintenance purpose or applicability
+condition, use `content` rather than `sourceExcerpt`. Keep the complete exact declaration inline
+with brief source attribution and concise **Why** and **How to apply** sections
+that state only the purpose and conditions supported by original user or source
+evidence. Cite both the declaration and that context. Do not invent a purpose, currentness guarantee or runtime behavior.
+A bare quote with retrieval cues cannot carry this context. If the lesson is
+only the exact observed source text, the private source alternative remains
+available: `sourceExcerpt: {"ref":"first original source ref","endRef":"last original source ref"}`.
+Keep `name`, `kind: "project"`, `classification: "private"`
+and non-empty `evidence`; the excerpt range must be covered by that evidence.
+Select a complete, concise declaration with its conditions, not an inventory or
+an isolated misleading fragment. The parent copies the original bytes into the
+body and supplies a neutral source description; do not add paraphrased claims.
+Only a successful original project `read`, or a contiguous range of added lines
+from a successful original `edit` patch, can supply this alternative. For edits
+use patch refs (`.p`), retain every `+` marker in the evidence, and select only
+added source text supplied by that invocation; no removals, hunk/file headers or
+result prose. The parent removes the patch markers only for the copied body and
+requires the exact source text to remain in the current regular project file.
+User text, assistant text, Memory readback and generated metadata cannot. All normal
+novelty, consistency, privacy and semantic checks still apply. This alternative
+does not apply to existing Memory rewrites or preferences.
+
+Quoted source comments establish observed wording, not verified behavior. Compare
+them with current user requirements and complete source observations; a later
+comment cannot supersede a user requirement. Select a complete declaration and
+its owning type without misleading commentary when learning a declared API fact.
+Do not omit material conditions or still-valid knowledge. If original evidence
+establishes a material documentation conflict, retain that explicitly unresolved
+source-state observation with both citations instead of treating the comment as
+a verified contract or inventing a successful fix. All semantic gates still apply.
+
+
 A Task Slice with `omittedEntries` has omitted whole entries. When
 `omittedEvidenceEntries` is zero, only plain assistant context was omitted; all user,
 tool-result evidence and tool-call provenance are present. A positive value, or a legacy slice without
@@ -58,6 +91,14 @@ Distinguish the requested contract, implemented behavior and verified behavior. 
 source-bound pitfall that can inform later maintenance over a retelling of probes and test counts.
 Never invent a cause, a successful correction or a standing user requirement.
 A claimed fix requires its actual successful verification; an assistant explanation alone proves neither cause nor fix.
+Prioritize a reusable pitfall evidenced by the actual failed verification over
+restating an API that is already directly available in the inspected source.
+An API inventory or source excerpt alone is not a lesson about that failure.
+For example, distinguish a source behavior defect from an observed repository
+verification constraint; keep each claim bounded to what the failure output and
+inspected source actually establish. Do not derive a repository-wide rule from
+an isolated error or claim that an unverified repair worked. If the failure
+supports no reusable lesson, return no such proposal rather than inventing one.
 
 Current explicit corrections and verified changed project behavior supersede
 obsolete claims. When a selected entry contains the obsolete claim, rewrite
@@ -163,6 +204,12 @@ command into source layout, dependency-resolution advice, historical passing cou
 or transient environment lessons. A separate independently grounded finding may
 be its own candidate with its own exact citations; it must not inflate another fact.
 Do not remove existing durable knowledge merely to make rewrites shorter.
+When the inspected source declaration is the knowledge requested, keep its exact complete
+syntax with brief source attribution. Avoid duplicating it as a long prose checklist
+that may change which parameter, callable, result or property carries the contract.
+A supported description may identify the declared API and inspected file, leaving
+the full technical contract in the body. This does not permit dropping supported
+predecessor knowledge, original evidence or later corrections.
 The current invocation's tool restrictions, learning-file handling protocol and
 request for a concise final task report are not standing personal preferences.
 Do not turn those execution instructions into Memory unless the user separately

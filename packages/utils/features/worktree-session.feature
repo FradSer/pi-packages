@@ -151,6 +151,14 @@ Feature: EnterWorktree and ExitWorktree session switching
     And the ExitWorktree row is `[worktree] exit · current worktree`
     And the row does not claim that the session transition is complete
 
+  Scenario: An applied transition records one entered-worktree row
+    Given a session transition into a git worktree is applied
+    When the replacement session renders that transition
+    Then it sends one displayed applied-entry message with the worktree details
+    And the row reads `[worktree] entered · .pi/worktrees/<name> (<branch>)`
+    And the expansion shows `Path: <absolute worktree directory>`
+    And the model instruction stays in context while the row is what the user reads
+
   Scenario: Worktree tool rows survive Pi's class-based Theme
     Given a theme whose bg method reads instance state like Pi's built-in Theme class
     When EnterWorktree or ExitWorktree renders a non-error result

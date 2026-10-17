@@ -6,6 +6,8 @@ deterministic; Pi and its real planner child are still the native processes.
 
 from __future__ import annotations
 
+from live_acceptance_support import workspace_pi
+
 import json
 import hashlib
 import os
@@ -85,7 +87,7 @@ def read_tool_call_paths(messages: list[dict[str, object]]) -> dict[str, str]:
             if not isinstance(call, dict) or call.get("type") != "function":
                 continue
             function = call.get("function")
-            if not isinstance(function, dict) or function.get("name") != "read":
+            if not isinstance(function, dict) or function.get("name") != "learning_read":
                 continue
             arguments = function.get("arguments")
             if isinstance(arguments, str):
@@ -118,7 +120,7 @@ def stream(handler: BaseHTTPRequestHandler, content: str, tools: list[dict[str, 
     if tools:
         delta: dict[str, object] = {"role": "assistant", "tool_calls": [
             {"index": index, "id": call["id"], "type": "function",
-             "function": {"name": "read", "arguments": json.dumps(call["arguments"], separators=(",", ":"))}}
+             "function": {"name": "learning_read", "arguments": json.dumps(call["arguments"], separators=(",", ":"))}}
             for index, call in enumerate(tools)
         ]}
         events = [
@@ -289,7 +291,7 @@ def run() -> dict[str, object]:
             )
             env = {key: value for key, value in os.environ.items() if key in {"PATH", "LANG", "LC_ALL"}}
             env.update({"HOME": str(root), "PI_CODING_AGENT_DIR": str(agent), "PI_OFFLINE": "1", "TERM": "xterm-256color"})
-            pi = shutil.which("pi") or "pi"
+            pi = workspace_pi(Path(__file__).resolve().parents[3])
             session = root / "session.jsonl"
             command = [pi, "--offline", "--no-extensions", "-e", str(fixture), "-e", str(PACKAGE / "index.ts"),
                        "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve",
@@ -471,6 +473,17 @@ def run() -> dict[str, object]:
                 assert memory_manifest.get("runId") == Provider.planner_identities[0].get("runId") and memory_manifest.get("scopeDigest") == Provider.planner_identities[0].get("scopeDigest"), {
                     "memoryPlanner": Provider.planner_identities, "memoryManifest": memory_manifest,
                 }
+                phase_snapshots = [json.loads(snapshot), json.loads((memory_plan_file.parent / "snapshot.json").read_text())]
+                invocation_ids = set()
+                for frozen in phase_snapshots:
+                    invocation = frozen["currentMaintenanceRequest"]
+                    assert invocation["command"] == "consolidate" and invocation["arguments"] == "full"
+                    assert invocation["action"] == "full-corpus" and invocation["runId"] == frozen["runId"]
+                    assert invocation["scopeKey"] == frozen["scopeKey"]
+                    entries_digest = hashlib.sha256(json.dumps(frozen["entries"], ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
+                    assert invocation["sourceEntriesDigest"] == entries_digest
+                    invocation_ids.add(invocation["invocationId"])
+                assert len(invocation_ids) == 1 and phase_snapshots[0]["entries"] == phase_snapshots[1]["entries"]
                 persisted_plan = json.loads(memory_plan_file.read_text())
                 assert persisted_plan.get("selected") == names, persisted_plan
                 session_text = session.read_text() if session.exists() else ""
@@ -478,7 +491,7 @@ def run() -> dict[str, object]:
                 return {"pi": subprocess.run([pi, "--version"], check=True, capture_output=True, text=True).stdout.strip(),
                         "command": "/consolidate full", "requestKinds": Provider.kinds,
                         "selectorRequests": Provider.kinds.count("selector"), "receipt": {"kind": run_receipt["kind"], "mode": run_receipt["mode"], "attempts": run_receipt["attempts"]},
-                        "snapshotFrozen": True, "currentSessionMarker": True, "fullCorpusNames": names, "resultCustomType": True,
+                        "snapshotFrozen": True, "currentMaintenanceCommandBound": True, "sourceEntriesUnchangedAcrossPhases": True, "currentSessionMarker": True, "fullCorpusNames": names, "resultCustomType": True,
                         "deterministicLoopback": True, "nativeTui": True, "roots": "disposable"}
             finally:
                 if process.poll() is None:

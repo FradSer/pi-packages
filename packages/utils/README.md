@@ -232,10 +232,26 @@ a command issued from a subdirectory is rewritten to the absolute
 git-ignore `.pi/`, the redirect reports that the linked worktree would appear
 as untracked; the extension never edits a repository's `.gitignore`.
 
+A rewritten creation also moves this session into the worktree it created, so
+the next relative path belongs to the new checkout. The move is reserved before
+the command runs: the rest of the tool batch is blocked, and the replacement
+session starts when the turn settles. A failed creation releases the batch and
+keeps the session where it is, and a command that produces no result at all — a
+truncated message, or a blocker — never moves the session either. A creation cannot start while another switch is already
+in flight: that bash call is blocked before execution, so no stray worktree is
+left behind, and a worktree command invoked after a reservation is refused by
+name until the turn settles. A session with no session file cannot be
+replaced, so the created worktree stays on disk and Pi reports that it cannot
+switch to it. The replacement session records one `[worktree] entered` row naming
+the managed path, so the move is confirmed in the session it happened in rather
+than only by the notice before it; Ctrl+O expands the row to `Path: <absolute
+directory>`. An explicit `/enter-worktree` in the same message wins over the
+automatic move.
+
 For safety, it only rewrites the direct `git worktree add` form. Commands with
 shell operators, redirections, substitutions, expansions, malformed quoting,
 unknown options, or extra arguments are left unchanged rather than being
-partially rewritten.
+partially rewritten, and an unchanged command never moves the session.
 
 ## Git worktree-aware @ completions
 
@@ -282,6 +298,11 @@ explicit shell paths must still target the active worktree. Their TUI uses the
 same pi-kit lifecycle style as `monitor_start`: an empty tool-call row followed
 by one compact event row, for example `[worktree] enter · feature-auth` or
 `[worktree] exit · current worktree`.
+
+A redirected `git worktree add` enters the same way, without a tool call: the
+queued entry names the path the redirect planned, and `/exit-worktree` then
+behaves exactly as it does for a worktree the session entered rather than
+created.
 
 `/exit-worktree` returns to the parent session. For worktrees created by Pi, it
 asks whether to keep or remove the worktree; dirty work is kept unless the user

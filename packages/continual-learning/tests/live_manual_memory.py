@@ -13,6 +13,8 @@ Run manually with::
 
 from __future__ import annotations
 
+from live_acceptance_support import workspace_pi
+
 import errno
 from collections.abc import Callable
 import json
@@ -212,7 +214,7 @@ def _run_fresh_print(project: Path, agent: Path, home: Path, provider: str, mode
     session = project.parent / "fresh-print-session.jsonl"
     result = subprocess.run(
         [
-            shutil.which("pi") or "pi",
+            workspace_pi(Path(__file__).resolve().parents[3]),
             "-e", str(PACKAGE / "index.ts"),
             "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
             "--no-approve", "--session", str(session), "--print", "--mode", "json",
@@ -256,7 +258,7 @@ def verify() -> dict:
         home = base / "home"
         home.mkdir()
         env = _runtime_env(agent, home)
-        pi = shutil.which("pi")
+        pi = workspace_pi(Path(__file__).resolve().parents[3])
         if not pi:
             raise RuntimeError("Pi CLI is required for the real native-TUI acceptance")
         command = [

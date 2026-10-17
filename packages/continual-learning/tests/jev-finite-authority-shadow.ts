@@ -1,3 +1,4 @@
+import { createShadowSourceDirectory } from "./shadow-source-directory";
 /** Research only. Compile an isolated source copy; never mutate production. */
 import fs from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -24,7 +25,7 @@ export async function loadFiniteAuthorityJudge(): Promise<{
 }> {
   const source = await fs.readFile(new URL("./fixtures/jev-learning-before-bound-scope.ts.txt", import.meta.url), "utf8");
   const patched = finiteAuthoritySource(source);
-  const directory = await fs.mkdtemp(new URL("./.jev-finite-authority-", import.meta.url).pathname);
+  const directory = await createShadowSourceDirectory("jev-finite-authority-");
   const dispose = () => fs.rm(directory, { recursive: true, force: true });
   try {
     // Relative dependencies stay inside the owned copy; package resolution uses

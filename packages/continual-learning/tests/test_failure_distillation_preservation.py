@@ -22,7 +22,7 @@ def test_actual_repaired_failure_body_and_sources_survive_optional_distillation(
       const citationOnly=run({...original,evidence:repaired.evidence});
       console.log(JSON.stringify({boundCandidates:digest(candidates)===f.review.candidatesDigest,
         boundEvidence:digest(f.snapshot)===f.review.evidenceDigest,boundExisting:digest(f.existingMemories)===f.review.existingDigest,
-        repaired,changed,unchanged,citationOnly,actual:f.actualDistilledPlan.newMemories.find(x=>x.name===name)}));
+        original,repaired,changed,unchanged,citationOnly,actual:f.actualDistilledPlan.newMemories.find(x=>x.name===name)}));
     ''')
     assert result['boundCandidates'] and result['boundEvidence'] and result['boundExisting']
     assert 'last observed state' in result['repaired']['content']
@@ -31,7 +31,8 @@ def test_actual_repaired_failure_body_and_sources_survive_optional_distillation(
     assert result['changed']['plan']['newMemories'][0] == result['repaired']
     assert result['citationOnly']['names'] == []
     assert result['citationOnly']['plan']['newMemories'][0]['evidence'] == result['repaired']['evidence']
-    assert result['unchanged']['names'] == ['onidle_absent_from_index_d_ts.md']
+    assert result['unchanged']['names'] == []
+    assert result['unchanged']['plan']['newMemories'][0] == result['original']
 
 
 def test_historical_full_failure_plan_is_rejected_for_memory_self_evidence() -> None:

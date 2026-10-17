@@ -18,7 +18,13 @@ Run from the repository root:
 ```bash
 python3 -m pytest packages/utils/tests/ -q
 pnpm --dir packages/utils pack --dry-run
+sh packages/utils/tests/utils_docker.sh
+UTILS_DOCKER_BASE_IMAGE=node:24-trixie-slim sh packages/utils/tests/utils_docker.sh
 ```
+
+`utils_docker.sh` packs `@fradser/pi-kit` and `@fradser/pi-utils`, installs
+both in an isolated Pi 1.2.0 container, and runs two real layers. It prints the
+receipt directory on success and keeps it on failure.
 
 ## Style and Architecture
 
@@ -32,6 +38,31 @@ package; its entry point is exercised through native Node and tsx.
   session switcher must import them instead of re-deriving roots; that
   duplication is what previously let a command run from a subdirectory create
   a worktree where no other layer looked for it.
+- **Automatic entry after a redirected creation**: a rewritten `git worktree add`
+  moves the session into the worktree it made. The redirect does not switch
+  sessions itself: it reserves the transition in `message_end`, before any tool
+  of that message runs, and settles it with the real bash result. Only a
+  successful result confirms the move: a reserved call that produces no result
+  never moves the session, because nothing proves the directory exists. The
+  session switcher owns the barrier and the queued command, so an automatic
+  entry cannot race an explicit transition, and the reserved call is the one
+  call the barrier exempts. The barrier also covers a switch that is already in
+  flight, and a worktree command invoked after a reservation is refused by name.
+  A blocked call still produces tool execution events and an error tool result,
+  so judge an outcome by the result, never by the presence of an execution
+  event. `resetTransition()` is the only place that clears this state, and both
+  `session_start` and `agent_settled` call it. Keep the registration order in
+  `index.ts`: the switcher registers first, so its `message_end` handler sets the
+  transition id before the redirect reserves. An unpersisted session cannot be
+  replaced, so the redirect reports that instead of reserving. The move is confirmed by one
+  displayed `pi-utils-worktree-applied` row of the replacement session, not by a
+  notice: a notice sent while the switch rebinds the session does not reliably
+  paint, while a transcript row is durable. Keep the row subject short (the
+  repository-relative managed path) and the absolute directory in its expansion
+  detail as `Path: <directory>`, or a narrow terminal truncates the path. Pi 1.2.0
+  reports `agent_settled.aborted`, and the package's 1.0.x type dependency still
+  omits that field: declare the event type with the optional field and treat an
+  absent value as "not aborted".
 - **Worktree Session Switching (`enter_worktree`, `exit_worktree`)**:
   - *Session Forking*: Uses `SessionManager.forkFrom` to replace the session with a worktree-rooted one instead of mutating `process.cwd`. Tools terminate their batch and dispatch `/enter-worktree` or `/exit-worktree` only at `agent_settled` (`expandPromptTemplates: true`, Pi ≥0.85.1). Block sibling tools and keep the barrier active until dispatch; resume work only through the replacement context.
   - *Foreign Worktree Protection*: Non-session worktrees are foreign checkouts; `read`, `edit`, and `write` block access until entered via `enter_worktree`.
@@ -71,6 +102,26 @@ Match each extension with its contract under `features/` and tests under
 known tree-leaf selection versus unseen disk appends, model-supported thinking
 levels, safe worktree rewriting, queued versus applied session replacement,
 registry deduplication, and npm guard parsing.
+
+For real worktree creation, `tests/worktree_creation_cases.py` drives
+`pi --print` so the real `bash` tool runs each rewritten command, then reads the
+checkout, branch, lock state and worktree list back from disk.
+`tests/worktree_notice_pty.py` drives the real interactive CLI through a PTY,
+because print mode replaces `ui.notify` with a no-op. Run both only through
+`tests/utils_docker.sh`, which isolates HOME, the agent directory and the
+repository fixtures; `test_utils_docker_harness.py` guards the harness prologue,
+which must start on a host that exports no TMPDIR. Read `creation/evidence.json`,
+`notices/evidence.json` and
+the per-case `pi.jsonl`, `pi.stderr`, `raw.bin` and `frames.txt` in the receipt.
+
+- The harness pins the current Pi release (1.2.0). A native run keeps a
+  persisted session, because a session move needs a session file; the ephemeral
+  path is covered by the PTY cases, which pass `--no-session`.
+- Never pass `-ne` to a native run that must load the installed package: it
+  disables the `packages` entries in `settings.json`. Use `-ns -np -nc
+  --no-themes` for isolation instead.
+- Debian bookworm ships git 2.39, which has no `git worktree add --orphan`, so
+  that case reports SKIP. The trixie image runs it on git 2.47.
 
 Tests must exercise behavior, not source text. An assertion that a string or an
 expression appears in an extension file passes while the behavior behind it is

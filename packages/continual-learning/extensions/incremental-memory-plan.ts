@@ -8,6 +8,7 @@ import {
   MAX_MEMORY_BYTES,
   MAX_SNAPSHOT_BYTES,
   normalizeNewMemoryProposals,
+  assertMemoryBodyContent,
   normalizeSnapshotEvidence,
   parseMemoryIndexLine,
   sha256Digest,
@@ -302,6 +303,7 @@ async function normalizeOperations(
       }
     } else {
       if (typeof value.content !== "string") throw new Error(`Write operation requires content for ${name}`);
+      assertMemoryBodyContent(value.content, `Write operation ${name}.content`);
       if (Buffer.byteLength(value.content, "utf8") > MAX_MEMORY_BYTES) throw new Error(`Write operation exceeds ${MAX_MEMORY_BYTES} bytes for ${name}`);
       if ("verdict" in value) throw new Error(`Only delete operations may provide a staleness verdict for ${name}`);
       if ("preservedIn" in value) throw new Error(`Only delete operations may provide preservedIn for ${name}`);

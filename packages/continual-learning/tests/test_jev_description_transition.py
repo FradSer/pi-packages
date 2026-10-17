@@ -20,7 +20,12 @@ def test_actual_rewrite_description_retains_parent_validated_operation_context()
           return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:0,output_tokens:0}}));
         }});
         const result=await judge.validate('memory',f.snapshot,[candidate],f.existingMemories);
-        rows.push({uncertain,result,questions:Object.assign({},...requests.map(x=>x.questions)),inputUnchanged:JSON.stringify(f)===before});
+        // Keep the assertion surface bounded; complete inline evidence is retained
+        // in requests but need not be serialized through the subprocess stdout.
+        const questions=Object.fromEntries(requests.flatMap(x=>Object.entries(x.questions))
+          .filter(([key])=>key==='supported_0'||key==='supported_description_0'||key.startsWith('counter_description_'))
+          .map(([key,q])=>[key,{instructions:{candidate:q.instructions.candidate}}]));
+        rows.push({uncertain,result,questions,inputUnchanged:JSON.stringify(f)===before});
       }
       console.log(JSON.stringify(rows));
     ''')

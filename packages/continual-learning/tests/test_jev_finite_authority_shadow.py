@@ -65,3 +65,53 @@ def test_finite_family_research_preserves_every_hold_and_unknown_path() -> None:
         else:
             assert row['result']['decision'] == 'propose'
             assert row['result']['telemetry']['reason'] != 'supported'
+
+
+def test_shadow_loaders_keep_owned_scratch_outside_source_and_remove_it() -> None:
+    # Given concurrent source inventories, loading a research judge must not
+    # create transient source entries or change installed dependency ownership.
+    value = isolated_run_bun(r'''
+      import fs from 'node:fs/promises';
+      import path from 'node:path';
+      const loaders = [
+        ['finite-authority','loadFiniteAuthorityJudge'],
+        ['description-claim','loadDescriptionClaimJudge'],
+        ['description-context','loadDescriptionContextJudge'],
+        ['description-structured','loadStructuredDescriptionJudge'],
+        ['selection-framing','loadSelectionFramingJudge'],
+        ['selection-restriction','loadSelectionRestrictionJudge'],
+        ['scope-noul','loadScopeNoulJudge'],
+        ['description-atomic','loadAtomicDescriptionJudge'],
+        ['counter-noul','loadCounterNoulJudge'],
+        ['retrieval-description','loadRetrievalDescriptionJudge'],
+        ['bound-scope','loadBoundScopeJudge'],
+      ];
+      const root=await fs.realpath('.');
+      const dependencies=await fs.realpath('./packages/continual-learning/node_modules');
+      const rows=[];const original=fs.mkdtemp;
+      try {
+        for (const [name,factory] of loaders) {
+          const directories=[];
+          fs.mkdtemp=async (...args)=>{const result=await original(...args);directories.push(result);return result;};
+          const module=await import(`./packages/continual-learning/tests/jev-${name}-shadow.ts`);
+          const research=await module[factory]();
+          let row;
+          try {
+            const directory=directories[0];
+            const relative=path.relative(root,await fs.realpath(directory));
+            row={name,count:directories.length,outside:relative==='..'||relative.startsWith(`..${path.sep}`),
+              factory:typeof research.createJevJudge==='function',
+              hashes:[research.sourceSha256,research.patchedSha256],
+              dependencies:await fs.realpath(path.join(directory,'node_modules')).catch(()=>null)===dependencies};
+          } finally {await research.dispose();}
+          row.removed=await fs.stat(directories[0]).then(()=>false,()=>true);rows.push(row);
+        }
+      } finally {fs.mkdtemp=original;}
+      console.log(JSON.stringify({rows,dependenciesIntact:await fs.realpath('./packages/continual-learning/node_modules')===dependencies}));
+    ''')
+    assert value['dependenciesIntact']
+    assert len(value['rows']) == 11
+    for row in value['rows']:
+        assert row['outside'], row['name']
+        assert row['count'] == 1 and row['factory'] and row['dependencies'] and row['removed'], row
+        assert all(len(digest) == 64 for digest in row['hashes'])

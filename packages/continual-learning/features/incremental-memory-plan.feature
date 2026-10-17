@@ -23,6 +23,15 @@ Feature: Expand an incremental Memory delta into the full parent-owned plan
     When the parent attempts expansion
     Then expansion is rejected before producing a full plan
 
+  Scenario: Semantic correction selects a short reference under a frozen proposal binding
+    Given the complete original proposal digest and exact candidate references captured before a repair worker
+    When the worker explicitly selects a candidateRef with the exact run and snapshot identity
+    Then the parent binds that reference to the original full candidate digest
+    And changed proposals, snapshots, mixed selectors and duplicate targets are rejected
+    And citation-only repairs cannot use candidateRef
+    And a malformed historical candidateId remains rejected
+    And complete source, privacy, protected-field and semantic checks remain required
+
   Scenario: Parent classifications cannot be overridden
     Given private MEMORY.md classifies a selected Memory as private
     When the delta operation labels it safe or uses an invalid classification
@@ -52,3 +61,45 @@ Feature: Expand an incremental Memory delta into the full parent-owned plan
     When its resolved target stays inside the repository
     Then regular-file observations through that alias remain valid
     But an alias resolving outside the repository is rejected
+
+  Scenario: Semantic repair can distinguish current and earlier source observations
+    Given uniquely paired successful earlier and bound later reads of the same supplied path
+    When the semantic repair worker receives complete original evidence
+    Then its generation guidance permits an optional source-cited temporal clarification
+    And it must not infer dates, releases, runtime success, or original Memory purpose
+    And stable facts and material conditions remain complete without copying the whole predecessor
+    And user revocations, privacy, and temporary restrictions still govern
+    And an uncertain verdict does not require changing an already correct body
+    And every amendment still needs full fresh semantic review before any write
+
+  Scenario: Semantic repair uses the original frontmatter shape
+    Given a held candidate with complete frontmatter that omits an optional name field
+    When the parent supplies a semantic correction example
+    Then the example preserves every protected field and its absence
+    And only a held description may change in that header
+    And the parent still preserves the original header before full review
+    And deletion reconsideration examples use the selected record header instead of inventing metadata
+
+  Scenario: A held review does not require an invented factual correction
+    Given a candidate-bound semantic correction with complete original evidence
+    When the worker considers the held claims
+    Then it first identifies a source-backed factual or citation gap
+    And it preserves supported claims while correcting incomplete citations
+    And it returns an empty amendment when no supported correction exists
+    And the parent keeps an empty amendment failed with its usage
+    And structural plan repair does not receive an incompatible amendment-only directive
+
+  Scenario: Declared roles do not imply runtime object inequality
+    Given an observed declaration and a callable that can return itself
+    When Memory generation or semantic correction explains the declaration
+    Then the worker distinguishes the callable from its declared result type
+    And type notation alone does not establish runtime identity or inequality
+    And correction preserves still-valid knowledge without adding uncited reviewer cautions
+    And complete source, body, permission and preservation review still applies
+
+  Scenario: Keep a rejected structural plan before correction
+    Given the parent rejects an original incremental Memory plan
+    When the existing bounded structural correction runs
+    Then the run artifact retains the exact rejected plan and its digest
+    And a sensitive rejected output retains its digest without its plan
+    And the original rejection, usage and all validation gates remain

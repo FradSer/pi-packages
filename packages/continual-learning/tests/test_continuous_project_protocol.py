@@ -86,7 +86,13 @@ def test_pending_queue_is_not_inferred_from_attempt_files(monkeypatch, tmp_path)
     monkeypatch.setattr(study.base,'put',lambda *_args:b'')
     monkeypatch.setattr(study.base,'shell',lambda *_args:b'')
     status={'pending':1,'unlearnable':0,'malformed':0,'unscoped':0,'reason':'ready'}
-    monkeypatch.setattr(study.base,'checked',lambda args:json.dumps({} if 'python3' in args else status).encode())
+    def checked(args):
+        if 'python3' in args:
+            return b'{}'
+        if 'node' in args:
+            return json.dumps({'receiptDigests': [], 'dossiers': []}).encode()
+        return json.dumps(status).encode()
+    monkeypatch.setattr(study.base,'checked',checked)
     result=study.artifacts('fixture-container',None,tmp_path/'new-snapshot-directory')
     assert result['pendingLearningJobs']==1
     assert result['attempts']==[]
@@ -130,3 +136,45 @@ def test_version_execution_instruction_is_scoped_to_correction_tasks() -> None:
     assert 'standalone Bash command' not in TASKS[0]['prompt']
     for index in (2,3):
         assert 'exactly npm --version as a standalone Bash command' in TASKS[index]['prompt']
+
+
+def test_current_unlimited_protocol_separates_source_tools_and_learning_parent_authority():
+    from continuous_project_tasks import COMMON, UNLIMITED_COMMON
+    # Given the same ordinary-task restrictions in both paired arms, When
+    # learning is enabled, Then its parent receives only a separate scoped grant.
+    assert 'Ordinary source-task tools must not access agent configuration or learning artifacts' in UNLIMITED_COMMON
+    assert 'They must not write Memory, Harness, or AGENTS.md.' in UNLIMITED_COMMON
+    assert 'When automatic learning is enabled, its parent may maintain source-grounded project Memory' in UNLIMITED_COMMON
+    assert 'only when later user evidence authorizes those changes' in UNLIMITED_COMMON
+    assert 'privacy, still-required knowledge, temporary-only and no-remember limits' in UNLIMITED_COMMON
+    for restriction in ('Do not install dependencies or alter package manifests, existing tests, or existing check configuration.',
+                        'Add tests only in new files.', 'Preserve source behavior outside the requested changes.',
+                        'Use pnpm test for verification.'):
+        assert restriction in COMMON and restriction in UNLIMITED_COMMON
+    assert 'Use at most 18 tool calls' in COMMON and 'Tool calls and model requests have no count cap.' in UNLIMITED_COMMON
+    assert 'automatic learning owns all Memory writes.' in COMMON
+    assert 'onIdle' not in UNLIMITED_COMMON and 'npm --version' not in UNLIMITED_COMMON
+
+
+def test_sync_requirement_migrates_only_the_public_obsolete_assertion_before_protection() -> None:
+    from continuous_project_tasks import migrate_public_sync_type_test
+    # Given the original public tests, When the sync-acceptance task starts,
+    # Then the parent changes only that obsolete expectation for both arms.
+    # Original public type tests at the protocol SOURCE_COMMIT.
+    original = b"import {expectType, expectError} from 'tsd';\nimport pLimit, {limitFunction} from './index.js';\n\nconst limit = pLimit(1);\nconst limitWithRejectOnClear = pLimit({concurrency: 1, rejectOnClear: true});\n\nconst input = [\n\tlimit(async () => 'foo'),\n\tlimit(async () => 'bar'),\n\tlimit(async () => undefined),\n];\n\nexpectType<Promise<Array<string | undefined>>>(Promise.all(input));\n\nexpectType<Promise<string>>(limit((_a: string) => '', 'test'));\nexpectType<Promise<string>>(limit(async (_a: string, _b: number) => '', 'test', 1));\n\nexpectType<number>(limit.activeCount);\nexpectType<number>(limit.pendingCount);\n\nexpectType<void>(limit.clearQueue());\nexpectType<void>(limitWithRejectOnClear.clearQueue());\n\n// LimitFunction should require a Promise-returning function\nconst lf = limitFunction(async (_a: string) => 'ok', {concurrency: 1});\nexpectType<Promise<string>>(lf('input'));\nexpectType<void>(lf.clearQueue());\n\nexpectError(limitFunction((_a: string) => 'x', {concurrency: 1}));\nexpectError(pLimit({concurrency: 1, rejectOnClear: 'nope'}));\n\n// LimitFunction.map accepts iterables\nexpectType<Promise<string[]>>(limit.map(new Set(['a', 'b', 'c']), async x => x + x));\nexpectType<Promise<number[]>>(limit.map([1, 2, 3].values(), async x => x * 2));\n"
+    changed, receipt = migrate_public_sync_type_test('repair-and-sync-wrapper', original)
+    assert receipt['task'] == 'repair-and-sync-wrapper' and receipt['version'] == 1
+    assert len(receipt['replacements']) == 2
+    restored = changed
+    for patch in receipt['replacements']:
+        assert changed.count(patch['after'].encode()) == 1
+        restored = restored.replace(patch['after'].encode(), patch['before'].encode(), 1)
+    assert restored == original
+    assert b"expectType<Promise<string>>(limitFunction((_a: string) => 'x', {concurrency: 1})('input'));" in changed
+    assert b"expectError(pLimit({concurrency: 1, rejectOnClear: 'nope'}));" in changed
+    for task in ('orientation', 'idle', 'cancellable-idle', 'clear-reason', 'wrapper-map'):
+        assert migrate_public_sync_type_test(task, original) == (original, None)
+    import pytest
+    for tampered in (original + b'\n', original.replace(b"rejectOnClear: 'nope'", b"rejectOnClear: true"), changed):
+        with pytest.raises(ValueError):
+            migrate_public_sync_type_test('repair-and-sync-wrapper', tampered)

@@ -101,7 +101,8 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
     const availableSkills = new Set(event.systemPromptOptions.skills?.map((skill) => skill.name) ?? []);
     const cwd = ctx.cwd || process.cwd();
     const resolved = resolveHarnessConfig(cwd, undefined, availableSkills);
-    const skill = parseSkillBlock(event.prompt ?? "");
+    const prompt = "prompt" in event ? event.prompt : "";
+    const skill = parseSkillBlock(prompt);
     const candidate = skill ? resolved.config.legacy.skillPrompts[skill.name] : undefined;
     const legacy = candidate && (!candidate.userMessagePattern || new RegExp(candidate.userMessagePattern).test(skill?.userMessage ?? "")) ? candidate : undefined;
     if (legacy) pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {
@@ -129,7 +130,7 @@ export default function registerHarnessGuidance(pi: ExtensionAPI): void {
     } catch { contextReadIncomplete = true; }
     const textPlan = contextReadIncomplete
       ? incompleteTextGuidance(delivery)
-      : planTextGuidance([...retained, ...delivery], event.prompt ?? "", resolved.config, true);
+      : planTextGuidance([...retained, ...delivery], prompt, resolved.config, true);
 
     if (textPlan.incomplete) {
       pi.appendEntry(HARNESS_GUIDANCE_ENTRY_TYPE, {

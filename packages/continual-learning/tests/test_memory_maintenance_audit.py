@@ -63,13 +63,15 @@ def test_scoped_source_reads_bind_full_revision_and_block_nested_memory_and_depe
 
 def test_source_observations_append_without_omitting_original_task_evidence() -> None:
     result = isolated_run_bun(r'''
-      import {appendMemorySourceObservations} from './packages/continual-learning/extensions/incremental-learning.ts';
-      const original={kind:'learning-task-slice',version:1,entries:[{role:'user',content:'整理记忆'},{role:'toolResult',content:'original observation'}]};
+      import {appendMemorySourceObservations,requestedMemoryTaskSlice} from './packages/continual-learning/extensions/incremental-learning.ts';
+      const original=requestedMemoryTaskSlice('整理记忆',[{role:'user',content:'Do not write Memory during this source task.'},{role:'toolResult',content:'original observation'}]);
       const source={role:'toolResult',content:'current source'};const merged=appendMemorySourceObservations(original,[source]);
       const rejected=[Array.from({length:256},()=>source),[{role:'toolResult',content:'x'.repeat(512000)}]].map(entries=>{try{appendMemorySourceObservations(original,entries);return false}catch{return true}});
-      console.log(JSON.stringify({merged,original,exact:merged.entries.slice(0,2).every((e,i)=>e===original.entries[i]),rejected}));
+      console.log(JSON.stringify({merged,original,exact:merged.entries.slice(0,3).every((e,i)=>e===original.entries[i]),rejected}));
     ''')
-    assert result['exact'] and len(result['merged']['entries']) == 3
+    assert result['exact'] and len(result['merged']['entries']) == 4
+    assert result['merged']['memoryRequest'] == result['original']['memoryRequest'] == {'entryIndex': 2}
+    assert result['merged']['entries'][2]['message']['content'] == '整理记忆'
     assert all(result['rejected'])
 
 

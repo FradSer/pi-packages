@@ -1,14 +1,14 @@
 # BDD-Driven TDD (Automation)
 
-BDD cycles through three phases: **Discovery** (conversations → examples), **Formulation** (Gherkin scenarios), **Automation** (red-green-refactor, driven by BDD). This procedure is the **BDD-driven Automation** reference — the how of test implementation, once [bdd](bdd.md) has defined the what.
+BDD cycles through three phases: **Discovery** (conversations → examples), **Formulation** (Gherkin scenarios), **Automation** (red-green-refactor, driven by BDD). This procedure is the **BDD-driven Automation** reference — the how of test implementation, once [bdd](../references/bdd.md) has defined the what.
 
-When invoked during [implement](implement.md) or [bdd](bdd.md), use this procedure as the test-writing authority. The bundled [bdd](bdd.md) procedure governs the scenario design and Iron Law; this procedure governs the test code quality under BDD discipline.
+When invoked during [implement](implement.md) or [bdd](../references/bdd.md), use this procedure as the test-writing authority. The bundled [bdd](../references/bdd.md) procedure governs the scenario design and Iron Law; this procedure governs the test code quality under BDD discipline.
 
 ## CRITICAL: BDD scenarios come first
 
-If you reached this procedure directly (not via [bdd](bdd.md) or [implement](implement.md)), inspect the repository and conversation for Gherkin scenarios first.
+If you reached this procedure directly (not via [bdd](../references/bdd.md) or [implement](implement.md)), inspect the repository and conversation for Gherkin scenarios first.
 
-- If scenarios are absent → follow the bundled [bdd](bdd.md) to define them, then return here for Automation.
+- If scenarios are absent → follow the bundled [bdd](../references/bdd.md) to define them, then return here for Automation.
 - If scenarios exist in `.feature` files or equivalent → proceed with the red-green loop below.
 - Ask the user only if the behavior itself is genuinely unresolved; do not ask for confirmation of facts that repository exploration can establish.
 
@@ -16,21 +16,21 @@ If you reached this procedure directly (not via [bdd](bdd.md) or [implement](imp
 
 Tests verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't. A good test reads like a specification — "user can checkout with valid cart" tells you exactly what capability exists — and survives refactors because it doesn't care about internal structure.
 
-See [tests.md](tests.md) for examples and [mocking.md](mocking.md) for mocking guidelines.
+See [tests.md](../references/tests.md) for examples and [mocking.md](../references/mocking.md) for mocking guidelines.
 
-## Seams — where tests go
+## Seams: where tests go
 
 A **seam** is the public boundary you test at: the interface where you observe behavior without reaching inside. Tests live at seams, never against internals.
 
-**Test at the highest established seam.** Record the public boundary under test and select the highest existing seam that expresses the confirmed behavior. Not everything can be tested — choosing the critical public seam deliberately is how effort lands on complex behavior instead of every edge case. Ask only when the public contract is genuinely ambiguous.
+**Test at the highest established seam.** Record the public boundary under test and select the highest existing seam that expresses the confirmed behavior. Not everything can be tested — choosing the critical public seam deliberately is how effort lands on complex behavior instead of every edge case. Ask only when the public contract is genuinely ambiguous. Give each proposed seam a one-line note on what it catches and what it misses.
 
 When the shape of that interface is itself in question — how deep the module is, where the seam belongs, what the interface should expose — load the [codebase-design](codebase-design.md) reference with `matt_pocock_active` (`action: "load"`, from available references) for the vocabulary. It is the shared source of the module, interface, depth, seam, adapter, leverage and locality terms, and it is a reference to consult, not a session to run.
 
 ## Anti-patterns
 
-- **Implementation-coupled** — mocks internal collaborators, tests private methods, or verifies through a side channel (querying the database instead of using the interface). The tell: the test breaks when you refactor but behavior hasn't changed.
-- **Tautological** — the assertion recomputes the expected value the way the code does (`expect(add(a, b)).toBe(a + b)`, a snapshot derived by hand the same way, a constant asserted equal to itself), so it passes by construction and can never disagree with the code. Expected values must come from an independent source of truth — a known-good literal, a worked example, the spec.
-- **Horizontal slicing** — writing all tests first, then all implementation. Bulk tests verify _imagined_ behavior: you test the _shape_ of things rather than user-facing behavior, the tests go insensitive to real changes, and you commit to test structure before understanding the implementation. Work in **vertical slices** instead — one test → one implementation → repeat, each test a **tracer bullet** that responds to what the last cycle taught you.
+- **Implementation-coupled**: mocks internal collaborators, tests private methods, or verifies through a side channel (querying the database instead of using the interface). The tell: the test breaks when you refactor but behavior hasn't changed.
+- **Tautological**: the assertion recomputes the expected value the way the code does (`expect(add(a, b)).toBe(a + b)`, a snapshot derived by hand the same way, a constant asserted equal to itself), so it passes by construction and can never disagree with the code. Expected values must come from an independent source of truth: a known-good literal, a worked example, the spec.
+- **Horizontal slicing**: writing all tests first, then all implementation. Bulk tests verify _imagined_ behavior: you test the _shape_ of things rather than user-facing behavior, the tests go insensitive to real changes, and you commit to test structure before understanding the implementation. Work in **vertical slices** instead: one test → one implementation → repeat, each test a **tracer bullet** that responds to what the last cycle taught you.
 
 ## Rules of the loop
 
@@ -42,10 +42,10 @@ When the shape of that interface is itself in question — how deep the module i
 
 ## CRITICAL: BDD-Driven — not standalone TDD
 
-This procedure is the **Automation** phase of the BDD lifecycle. It always runs under [bdd](bdd.md) or [implement](implement.md) as **BDD-driven TDD**. If invoked directly, see the CRITICAL check at the top of this file — confirm scenarios exist before writing test code.
+This procedure is the **Automation** phase of the BDD lifecycle. It always runs under [bdd](../references/bdd.md) or [implement](implement.md) as **BDD-driven TDD**. If invoked directly, see the CRITICAL check at the top of this file — confirm scenarios exist before writing test code.
 
-1. **Discovery** (what behavior matters) — owned by [bdd](bdd.md) via Gherkin scenarios
-2. **Formulation** (scenario as specification) — owned by [bdd](bdd.md) via `.feature` files
+1. **Discovery** (what behavior matters) — owned by [bdd](../references/bdd.md) via Gherkin scenarios
+2. **Formulation** (scenario as specification) — owned by [bdd](../references/bdd.md) via `.feature` files
 3. **Automation** (this procedure) — the red-green loop that makes the scenario pass
 
 ## When to invoke
@@ -57,6 +57,6 @@ Load this capability (`matt_pocock_workflow`, `mode: "capability"`) explicitly w
 - The user asks about mocking strategy at system boundaries
 - The user is unsure whether a test is good or tautological
 
-When invoked directly, first check if Gherkin scenarios exist (see the CRITICAL check at the top). If not, follow the bundled [bdd](bdd.md) before proceeding with Automation.
+When invoked directly, first check if Gherkin scenarios exist (see the CRITICAL check at the top). If not, follow the bundled [bdd](../references/bdd.md) before proceeding with Automation.
 
-The [implement](implement.md) procedure bundles this automatically as a required dependency during the Automation phase — you do not need to invoke it separately in that flow. From [bdd](bdd.md), load this capability (`matt_pocock_workflow`, `mode: "capability"`) when Automation begins.
+The [implement](implement.md) procedure bundles this automatically as a required dependency during the Automation phase — you do not need to invoke it separately in that flow. From [bdd](../references/bdd.md), load this capability (`matt_pocock_workflow`, `mode: "capability"`) when Automation begins.

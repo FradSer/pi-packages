@@ -15,11 +15,29 @@ export function installStudyToolBudget(pi: ExtensionAPI, limit = 18, verifierFil
     if (!removed) { removed = true; record("tools-removed"); }
   };
   pi.on("before_provider_request", (event, ctx) => {
-    if (!removed || ctx.model?.api !== "openai-completions" || pi.getActiveTools().length !== 0) return;
+    if (ctx.model?.api !== "openai-completions") return;
     const payload = event.payload;
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) return;
     const request = payload as Record<string, unknown>;
-    if (!Array.isArray(request.messages) || (request.tools !== undefined
+    if (!Array.isArray(request.messages)) return;
+    if (!removed) {
+      if (!verifierFile || limit !== 1 || !Array.isArray(request.tools)) return;
+      let changed = false;
+      const tools = request.tools.map(value => {
+        if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+        const tool = value as Record<string, unknown>;
+        const fn = tool.function as Record<string, unknown> | undefined;
+        if (tool.type !== "function" || !fn || fn.name !== "read") return value;
+        changed = true;
+        // Advertise the same complete-read authority that tool_call enforces.
+        // No observations or messages are injected, and no read is forced.
+        return {...tool, function: {...fn, parameters: {type: "object",
+          properties: {path: {type: "string", enum: [verifierFile]}},
+          required: ["path"], additionalProperties: false}}};
+      });
+      return changed ? {...request, tools} : undefined;
+    }
+    if (pi.getActiveTools().length !== 0 || (request.tools !== undefined
       && (!Array.isArray(request.tools) || request.tools.length !== 0))) return;
     // Empty definitions leave past tool calls in context. Make the exhausted
     // authorization explicit on the service wire; never discard observations.
@@ -36,7 +54,8 @@ export function installStudyToolBudget(pi: ExtensionAPI, limit = 18, verifierFil
     // The feedback phase admits only the complete, source-bound observation.
     // Rejected source/pagination calls must not spend its one authorized read.
     if (verifierFile && (event.toolName !== "read" || event.input.path !== verifierFile
-      || event.input.offset !== undefined || event.input.limit !== undefined)) {
+      || event.input.offset !== undefined || event.input.limit !== undefined
+      || Object.keys(event.input).some(key => key !== "path"))) {
       invalidVerifierCalls++;
       record("verifier-read-blocked");
       if (invalidVerifierCalls >= 3) { remove(); ctx.abort(); }

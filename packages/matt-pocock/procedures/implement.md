@@ -1,6 +1,8 @@
 Implement the work described by the user in the spec or tickets.
 
-Use [bdd](bdd.md) at the agreed seams, one red-green slice at a time. The bundled [tdd](tdd.md) owns Automation-phase test quality, seams, and mocking guidance.
+If the user passes a ticket reference, fetch it from the issue tracker and state its title before starting. If the reference is ambiguous, ask.
+
+Use [bdd](../references/bdd.md) at the agreed seams, one red-green slice at a time. The bundled [tdd](tdd.md) owns Automation-phase test quality, seams, and mocking guidance.
 
 ## Minimal fix
 

@@ -235,3 +235,108 @@ def test_completed_extension_recovers_before_older_deferred_reference_is_retried
     assert not any('New verifier feedback' in str(entry) for entry in result['seen'][1]['entries'])
     assert result['seen'][1].get('backlogCoverage') is None
     assert result['after'][result['newId']] == result['original'][result['newId']]
+
+
+def test_single_replay_receipt_preserves_parent_range_after_pending_queue_closes() -> None:
+    result = isolated_run_bun(r'''
+      import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+      import {SessionManager} from '@earendil-works/pi-coding-agent';
+      import {currentTaskSlice} from './packages/continual-learning/extensions/incremental-learning.ts';
+      import {sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {enqueueBacklog,backlogStatus} from './packages/continual-learning/extensions/learning-backlog.ts';
+      import {replayLearningBacklog} from './packages/continual-learning/extensions/learning-replay.ts';
+      import {buildLearningReceipt} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'single-range-')),agent=process.env.PI_CODING_AGENT_DIR;
+      const dir=path.join(agent,'sessions','project');fs.mkdirSync(dir,{recursive:true});const session=SessionManager.create(cwd,dir);
+      session.appendMessage({role:'user',content:'Inspect an original source contract.',timestamp:1});
+      session.appendMessage({role:'toolResult',toolName:'read',toolCallId:'source',content:[{type:'text',text:'Actual original source.'}],isError:false,timestamp:2});
+      const entries=session.buildContextEntries(),slice=currentTaskSlice(entries);const range={from:0,to:entries.length-1,digest:sha256Digest(JSON.stringify(slice))};
+      enqueueBacklog({cwd,agentDir:agent,sessionFile:session.getSessionFile(),...range,reason:'learning-failed'});
+      const seen=[];const run=await replayLearningBacklog({cwd,agentDir:agent,force:true,learn:async input=>{
+        seen.push(input);return buildLearningReceipt('manual',{memory:true,harness:false,agents:false,reasons:[]},[{phase:'memory',attempt:0,outcome:'noop',operations:0,durationMs:1}],
+          {source:'backlog-session',entryCount:input.entries.length,sessionId:input.sessionId,sourceDigest:input.sourceDigest,backlogId:input.id,backlogRange:input.backlogRange});}});
+      console.log(JSON.stringify({range,seen,run,pending:backlogStatus(cwd,agent).pending}));
+    ''')
+    assert result['seen'][0].get('backlogRange') == result['range']
+    assert result['seen'][0].get('backlogCoverage') is None
+    assert result['pending'] == 0 and result['run']['outcomes'][0]['outcome'] == 'completed'
+
+
+def test_supplied_single_owner_range_and_source_binding_cannot_drift() -> None:
+    result = isolated_run_bun(r'''
+      import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+      import {SessionManager} from '@earendil-works/pi-coding-agent';
+      import {currentTaskSlice} from './packages/continual-learning/extensions/incremental-learning.ts';
+      import {sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {enqueueBacklog,backlogStatus} from './packages/continual-learning/extensions/learning-backlog.ts';
+      import {replayLearningBacklog} from './packages/continual-learning/extensions/learning-replay.ts';
+      import {buildLearningReceipt,isLearningPipelineReceipt} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const root=fs.mkdtempSync(path.join(os.tmpdir(),'range-binding-')),out=[];
+      for(const change of ['from','to','digest','owner','source','count','session']){
+        const cwd=path.join(root,change);fs.mkdirSync(cwd);const agent=path.join(process.env.PI_CODING_AGENT_DIR,change),dir=path.join(agent,'sessions','project');fs.mkdirSync(dir,{recursive:true});
+        const s=SessionManager.create(cwd,dir);s.appendMessage({role:'user',content:'Actual source task.',timestamp:1});
+        const entries=s.buildContextEntries(),slice=currentTaskSlice(entries);enqueueBacklog({cwd,agentDir:agent,sessionFile:s.getSessionFile(),from:0,to:entries.length-1,digest:sha256Digest(JSON.stringify(slice)),reason:'learning-failed'});
+        const replay=await replayLearningBacklog({cwd,agentDir:agent,force:true,learn:async input=>{
+          const metadata={source:'backlog-session',entryCount:input.entries.length,sessionId:input.sessionId,sourceDigest:input.sourceDigest,backlogId:input.id,backlogRange:{...input.backlogRange}};
+          if(change==='from')metadata.backlogRange.from++;
+          if(change==='to')metadata.backlogRange.to++;
+          if(change==='digest')metadata.backlogRange.digest='0'.repeat(64);
+          if(change==='owner')metadata.backlogId='0'.repeat(64);
+          if(change==='source')metadata.sourceDigest='0'.repeat(64);
+          if(change==='count')metadata.entryCount++;
+          if(change==='session')metadata.sessionId='foreign';
+          return buildLearningReceipt('manual',{memory:true,harness:false,agents:false,reasons:[]},[{phase:'memory',attempt:0,outcome:'noop',operations:0,durationMs:1}],metadata);
+        }});out.push({change,replay,pending:backlogStatus(cwd,agent).pending});
+      }
+      const base=buildLearningReceipt('manual',{memory:false,harness:false,agents:false,reasons:[]},[],{source:'backlog-session',entryCount:1,backlogId:'a'.repeat(64),backlogRange:{from:0,to:0,digest:'b'.repeat(64)}});
+      const invalid=[null,[],{from:-1,to:0,digest:'b'.repeat(64)},{from:1,to:0,digest:'b'.repeat(64)},{from:0,to:0,digest:'bad'},{from:0,to:0,digest:'b'.repeat(64),extra:true}];
+      console.log(JSON.stringify({out,valid:isLearningPipelineReceipt(base),invalid:invalid.map(backlogRange=>isLearningPipelineReceipt({...base,input:{...base.input,backlogRange}}))}));
+    ''')
+    assert result['valid'] and not any(result['invalid'])
+    assert all(row['pending'] == 1 and row['replay']['outcomes'][0]['outcome'] == 'failed' for row in result['out'])
+
+
+def test_completed_range_receipt_recovery_requires_parent_source_binding() -> None:
+    result = isolated_run_bun(r'''
+      import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+      import {SessionManager} from '@earendil-works/pi-coding-agent';
+      import {currentTaskSlice} from './packages/continual-learning/extensions/incremental-learning.ts';
+      import {sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {enqueueBacklog,backlogStatus,backlogIdentity,readBacklog} from './packages/continual-learning/extensions/learning-backlog.ts';
+      import {resolveMemoryPaths} from './packages/continual-learning/extensions/memory-paths.ts';
+      import {replayLearningBacklog,recordBacklogAttempt} from './packages/continual-learning/extensions/learning-replay.ts';
+      import {buildLearningReceipt} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const root=fs.mkdtempSync(path.join(os.tmpdir(),'range-recovery-')),out=[];
+      for(const change of ['session','source','count','valid-append','missing-parent']){
+        const cwd=path.join(root,change);fs.mkdirSync(cwd);const agent=path.join(process.env.PI_CODING_AGENT_DIR,change),dir=path.join(agent,'sessions','project');fs.mkdirSync(dir,{recursive:true});
+        const session=SessionManager.create(cwd,dir);session.appendMessage({role:'user',content:'Actual original task.',timestamp:1});
+        const entries=session.buildContextEntries(),range={from:0,to:entries.length-1,digest:sha256Digest(JSON.stringify(currentTaskSlice(entries)))};
+        enqueueBacklog({cwd,agentDir:agent,sessionFile:session.getSessionFile(),...range,reason:'learning-failed'});
+        const entry=readBacklog(cwd,agent).pendingEntries[0].entry,scope=resolveMemoryPaths(cwd,agent).scopeKey,id=backlogIdentity(scope,entry),storage=path.join(agent,'learning');
+        const receipt=buildLearningReceipt('manual',{memory:true,harness:false,agents:false,reasons:[]},[{phase:'memory',attempt:0,outcome:'noop',operations:0,durationMs:1}],
+          {source:'backlog-session',entryCount:entries.length,sessionId:session.getSessionId(),sourceDigest:sha256Digest(fs.readFileSync(session.getSessionFile())),backlogId:id,backlogRange:range});
+        if(change==='missing-parent'){
+          const recorded=recordBacklogAttempt(cwd,entry,receipt,agent);out.push({change,recorded,pending:backlogStatus(cwd,agent).pending});continue;
+        }
+        await replayLearningBacklog({cwd,agentDir:agent,learn:async()=>receipt});
+        fs.writeFileSync(path.join(storage,scope,'backlog-completed.json'),'{}');
+        const file=path.join(storage,scope,`replay-${id}.json`),state=JSON.parse(fs.readFileSync(file,'utf8'));
+        const input=state.attempts.at(-1).receipt.input;
+        if(change==='session')input.sessionId='foreign';
+        if(change==='source')input.sourceDigest='0'.repeat(64);
+        if(change==='count')input.entryCount=999;
+        fs.writeFileSync(file,JSON.stringify(state));
+        session.appendMessage({role:'user',content:'A later independent task may append legally.',timestamp:2});
+        let calls=0;const restored=await replayLearningBacklog({cwd,agentDir:agent,force:true,learn:async()=>{calls++;return receipt;}});
+        out.push({change,calls,restored,pending:backlogStatus(cwd,agent).pending});
+      }
+      console.log(JSON.stringify(out));
+    ''')
+    for row in result:
+        if row['change'] == 'valid-append':
+            assert row['pending'] == 0 and row['calls'] == 0
+            assert row['restored']['outcomes'][0]['outcome'] == 'completed'
+        elif row['change'] == 'missing-parent':
+            assert not row['recorded'] and row['pending'] == 1
+        else:
+            assert row['pending'] == 1 and row['calls'] == 0 and row['restored'].get('error'), row

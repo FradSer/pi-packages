@@ -32,6 +32,7 @@ def test_private_review_consent_is_explicit_and_ui_only() -> None:
         if row['dialogs']:
             body = row['dialogs'][0]['body']
             assert 'TypeSafe Jev' in body and 'task evidence' in body and 'this run only' in body
+            assert 'bound historical task evidence' in body
 
 
 def test_consent_clone_freezes_service_config_and_does_not_change_next_run() -> None:

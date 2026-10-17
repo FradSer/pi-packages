@@ -1,3 +1,4 @@
+import { createShadowSourceDirectory } from "./shadow-source-directory";
 /** Research-only owned copy; knowledge projection retains every existing gate. */
 import fs from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -35,7 +36,7 @@ function candidateMeaning(stage:`);
 }
 export async function loadAtomicDescriptionJudge():Promise<{createJevJudge:typeof createJevJudge;baselineCreateJevJudge:typeof createJevJudge;sourceSha256:string;patchedSha256:string;dispose():Promise<void>}> {
  const source=await fs.readFile(new URL('./fixtures/jev-learning-before-description.ts.txt',import.meta.url),'utf8');const patched=atomicDescriptionSource(source);
- const directory=await fs.mkdtemp(new URL('./.jev-description-atomic-',import.meta.url).pathname);const dispose=()=>fs.rm(directory,{recursive:true,force:true});
+ const directory=await createShadowSourceDirectory("jev-description-atomic-");const dispose=()=>fs.rm(directory,{recursive:true,force:true});
  try {
   await fs.cp(new URL('../extensions/',import.meta.url),`${directory}/extensions`,{recursive:true});
   const file=`${directory}/extensions/jev-learning.ts`;await fs.writeFile(file,patched,'utf8');

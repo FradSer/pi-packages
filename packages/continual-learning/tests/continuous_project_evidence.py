@@ -1,6 +1,7 @@
 """Evidence checks for the real study; these never create learned state."""
 from __future__ import annotations
 import hashlib
+import copy
 import json
 import posixpath
 import re
@@ -8,14 +9,37 @@ from urllib.parse import urlsplit, unquote
 from pathlib import Path
 
 
+def task_deadline_evidence(rows: list[dict], *, required: bool) -> dict:
+    """A success needs the complete main lifecycle, never a lone status row."""
+    records = [r for r in rows if r.get('customType') == 'continuous-study-task-deadline']
+    events = [r.get('data') for r in records]
+    def shaped(record: dict) -> bool:
+        data = record.get('data')
+        return (record.get('type') == 'custom' and isinstance(data, dict)
+                and type(data.get('limitMs')) is int and data['limitMs'] == 900000
+                and type(data.get('elapsedMs')) is int and data['elapsedMs'] >= 0)
+    valid = (len(records) == 2 and all(shaped(r) for r in records)
+             and events[0].get('stage') == 'started' and events[0]['elapsedMs'] <= 900000
+             and events[1].get('stage') in ('settled', 'expired')
+             and events[1]['elapsedMs'] >= events[0]['elapsedMs']
+             and (events[1]['stage'] != 'settled' or events[1]['elapsedMs'] <= 900000))
+    exceeded = any(isinstance(e, dict) and (e.get('stage') == 'expired'
+                   or type(e.get('elapsedMs')) is int and e['elapsedMs'] > 900000) for e in events)
+    return {'taskDeadlineEvents': events, 'taskDeadlineMissing': required and not valid,
+            'taskDeadlineExceeded': exceeded}
+
+
 def task_outcome(inference: dict, verification: dict) -> dict:
     """Code checks alone cannot make an aborted model task successful."""
     failures=[]
     if inference.get('exitCode')!=0:failures.append('process-exit')
     for field,label in (('timedOut','timeout'),('interrupted','interrupted'),
-                        ('modelErrors','model-error'),('malformedSessionRows','malformed-session'),
+                        ('modelErrors','model-error'),('modelAborted','model-aborted'),('malformedSessionRows','malformed-session'),
                         ('temporaryInstructionLeaked','temporary-instruction-leaked'),
-                        ('toolBudgetExceeded','tool-budget-exceeded')):
+                        ('toolBudgetExceeded','tool-budget-exceeded'),
+                        ('taskDeadlineExceeded','task-deadline-exceeded'),
+                        ('taskDeadlineMissing','task-deadline-missing'),
+                        ('verifierReadBoundaryViolations','verifier-read-boundary')):
         if inference.get(field):failures.append(label)
     if verification.get('passed') is not True:failures.append('verification-failed')
     return {'passed':not failures,'failures':failures}
@@ -32,9 +56,23 @@ def exact_failure_processed(feedback: dict, learning: dict) -> bool:
     acknowledged=any(a.get('outcome')=='completed' and a.get('receipt',{}).get('input',{}).get('backlogId')==queued['id']
         and bool(a.get('receiptDigest')) and learning.get('completedBacklog',{}).get(queued['id'])==a['receiptDigest']
         for a in learning.get('attempts',[]))
-    observed=any(d.get('taskSliceDigest')==queued.get('digest') and set(feedback['originalEntryIds']).issubset(d.get('entryIds',[]))
-        and any(o.get('sessionDigest')==observation.get('sessionDigest') and o.get('logsDigest')==observation.get('logsDigest') for o in d.get('observations',[]))
-        for d in learning.get('dossiers',[]))
+    def bound_observation(entries: dict) -> bool:
+        return set(feedback['originalEntryIds']).issubset(entries.get('entryIds', [])) and any(
+            o.get('sessionDigest') == observation.get('sessionDigest') and o.get('logsDigest') == observation.get('logsDigest')
+            for o in entries.get('observations', []))
+    observed = False
+    for dossier in learning.get('dossiers', []):
+        if dossier.get('taskSliceDigest') == queued.get('digest') and bound_observation(dossier):
+            observed = True
+        for prefix in dossier.get('originalPrefixProofs', []):
+            start, end = queued.get('from'), queued.get('to')
+            if (type(start) is int and type(end) is int and 0 <= start <= end
+                    and prefix.get('from') == start and prefix.get('to') == end
+                    and prefix.get('entryCount') == end - start + 1
+                    and prefix.get('digest') == queued.get('digest')
+                    and prefix.get('reviewDigest') == dossier.get('taskSliceDigest')
+                    and bound_observation(prefix)):
+                observed = True
     return acknowledged and observed
 
 
@@ -42,8 +80,8 @@ def verifier_observation(task: str, verification: dict, output: Path, source_has
     logs={name:(output/(name+'.log')).read_text() for name in ('hidden','types','upstream') if (output/(name+'.log')).exists()}
     if sum(len(text.encode()) for text in logs.values()) > 1_000_000:
         raise ValueError('Verifier evidence exceeds bound; do not truncate it')
-    return {'kind':'actual-project-verification','task':task,'verification':verification,'logs':logs,
-            'sourceHashes':source_hashes,'sessionDigest':hashlib.sha256(session).hexdigest(),
+    return {'kind':'actual-project-verification','task':task,'verification':copy.deepcopy(verification),'logs':logs,
+            'sourceHashes':copy.deepcopy(source_hashes),'sessionDigest':hashlib.sha256(session).hexdigest(),
             'logsDigest':hashlib.sha256(json.dumps(logs,sort_keys=True).encode()).hexdigest(),
             **({'taskOutcome':task_outcome(inference,verification)} if inference is not None else {})}
 

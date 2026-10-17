@@ -92,18 +92,21 @@ def test_semantic_repair_resolves_locations_before_retaining_protected_candidate
       const kit=await import('./packages/kit/src/index.ts');let prompt='';let payload;
       mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async input=>{prompt=input.prompt;return {exitCode:0,stderr:'',text:JSON.stringify(payload),usage:{input:1,output:1,cacheRead:0,cacheWrite:0,totalTokens:2,cost:.01}};}}));
       const {repairIncrementalMemoryPlan}=await import('./packages/continual-learning/extensions/inject-memory.ts');
+      const {resolveMemoryPlanCitations}=await import('./packages/continual-learning/extensions/memory-citation-locations.ts');
       const identity={runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h'};
       const item={name:'fact.md',kind:'project',classification:'safe',content:'Project uses Vitest.',evidence:[{index:0,lines:{block:0,start:1,end:1}}]};
       const rejectedPlan={kind:'incremental-memory-plan',version:1,schemaVersion:1,...identity,operations:[],newMemories:[item]};
       payload={...rejectedPlan,newMemories:[{...item,evidence:[{index:0,quote:'Project uses Vitest.'}]}]};
       const semanticContext={frozenEvidence:{entries:[{role:'toolResult',content:'Project uses Vitest.'}]},existingMemories:[]};
+      const resolved=resolveMemoryPlanCitations(payload,semanticContext.frozenEvidence);
       const result=await repairIncrementalMemoryPlan({identity,rejectedPlan,selectedNames:[],errors:['uncertain'],repairableNames:[],semanticContext});
       payload={...payload,newMemories:[{...item,evidence:[{index:0,lines:{block:0,start:1,end:9}}]}]};
       const invalid=await repairIncrementalMemoryPlan({identity,rejectedPlan,selectedNames:[],errors:['uncertain'],semanticContext});
-      console.log(JSON.stringify({result,invalid,locatedProjection:prompt.includes('citationLines')}));
+      console.log(JSON.stringify({result,resolved,invalid,locatedProjection:prompt.includes('citationLines')}));
     ''')
-    assert value['result']['outcome'] == 'repaired'
-    assert value['result']['plan']['newMemories'][0]['evidence'] == [{'index': 0, 'quote': 'Project uses Vitest.'}]
+    assert value['result']['outcome'] == 'failed' and value['result']['failureKind'] == 'no-correction'
+    assert 'plan' not in value['result']
+    assert value['resolved']['newMemories'][0]['evidence'] == [{'index': 0, 'quote': 'Project uses Vitest.'}]
     assert value['invalid']['outcome'] == 'failed' and value['invalid']['failureKind'] == 'citation'
     assert value['invalid']['usage']['cost'] == .01
     assert value['locatedProjection']

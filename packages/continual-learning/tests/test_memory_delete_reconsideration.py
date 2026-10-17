@@ -48,6 +48,8 @@ def test_reconsideration_requires_complete_current_semantic_preservation_review(
       const good=await judge.validate('memory',evidence,candidates,existing);
       const check=(v=good,e=evidence,c=candidates,x=existing)=>deletionReconsiderationReviewed(['contract.md'],e,c,x,v);
       const accepted=check();const rejected=[check({...good,telemetry:{...good.telemetry,status:'disabled'}}),check({...good,candidateReview:undefined}),check(good,{...evidence,entries:[]}),check(good,[{...candidates[0],content:'changed'}]),check(good,[]),check({...good,telemetry:{...good.telemetry,completedWindows:0}}),check({...good,candidateReview:{...good.candidateReview,candidates:good.candidateReview.candidates.map(x=>({...x,passedChecks:x.passedChecks.filter(k=>!k.startsWith('counter_'))}))}})];
+      rejected.push(check({...good,candidateReview:{...good.candidateReview,candidates:good.candidateReview.candidates.map(x=>({...x,passedChecks:x.passedChecks.filter(k=>!k.startsWith('counter_preservation_'))}))}}));
+      rejected.push(check({...good,candidateReview:{...good.candidateReview,candidates:good.candidateReview.candidates.map(x=>({...x,passedChecks:x.passedChecks.filter(k=>!k.startsWith('counter_permission_'))}))}}));
       hold=true;const bad=await judge.validate('memory',evidence,candidates,existing);rejected.push(check(bad));
       console.log(JSON.stringify({accepted,rejected,sawPredecessor,enabled:judge.memoryReviewEnabled,disabled:createJevJudge({enabled:false}).memoryReviewEnabled,scopeOff:createJevJudge({enabled:true,scopes:['selection']}).memoryReviewEnabled}));
     ''')

@@ -1,4 +1,5 @@
 import { resolveToolTargetPath as harnessTargetPath } from "./tool-target-path";
+import { preservesOwnedHarnessRules } from "./current-user-harness-correction";
 /**
  * Guardrails — the harness surface of continual learning: declarative
  * Bash gates and flat rules that evolve through layered JSON config.
@@ -443,6 +444,9 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         if (errors.length) return { block: true, reason: `Invalid harness configuration: ${errors.join("; ")}. The file was not written. Report existing invalid entries; obtain explicit user authorization before repairing or removing them.` };
         const targetSource = targetPath === path.resolve(paths.user) ? "user" : targetPath === path.resolve(paths.project) ? "project" : "project.local";
         const candidate = JSON.parse(input.content as string) as Record<string, unknown>;
+        if (!authoringRequest && !preservesOwnedHarnessRules(previous, candidate, loadLayers(cwd).filter(layer => layer.source !== targetSource))) {
+          return {block: true, reason: "Automatically learned Harness rules require parent-reviewed correction or explicit /harness authoring with preview. Ordinary task writes must preserve their exact declarations and ownership markers. No file was written."};
+        }
         const priorConfig = previous && typeof previous === "object" && !Array.isArray(previous) ? previous as Record<string, unknown> : {};
         const removedLegacy = LEGACY_FIELDS.filter(field => Object.hasOwn(priorConfig, field) && !Object.hasOwn(candidate, field));
         const needsApproval = predecessorErrors.length > 0 || removedLegacy.length > 0;

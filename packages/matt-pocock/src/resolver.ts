@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import {
   findProcedure,
   findProcedureByFile,
   normalizeProcedureId,
+  resourcePath,
   type ProcedureDefinition,
 } from "./catalog.ts";
 
@@ -17,8 +17,6 @@ export interface ResolvedProcedureBundle {
   byteLength: number;
 }
 
-const procedureDirectory = fileURLToPath(new URL("../procedures/", import.meta.url));
-
 function requireDefinition(id: string): ProcedureDefinition {
   const definition = findProcedure(id);
   if (!definition) throw new Error(`Unknown Matt Pocock procedure: ${id}`);
@@ -26,11 +24,18 @@ function requireDefinition(id: string): ProcedureDefinition {
 }
 
 function loadContent(definition: ProcedureDefinition): string {
-  const body = readFileSync(`${procedureDirectory}${definition.file}`, "utf8").trim();
-  return body.replace(/\]\((\.\/)?([A-Za-z0-9.-]+)(#[^)]+)?\)/g, (match, _prefix, file, anchor = "") => {
-    const target = findProcedureByFile(file);
-    return target ? `](procedure:${target.id}${anchor})` : match;
-  });
+  const body = readFileSync(resourcePath(definition), "utf8").trim();
+  // A resource link is a bare file name or one reached through a relative path that
+  // starts with `./` or `../`, so the accepted form is enumerated rather than
+  // guessed: a URL (https:, mailto:), a protocol-relative host, a bare host path or
+  // any unknown name can never match. A rewritten link keeps its anchor and title.
+  return body.replace(
+    /\]\(((?:(?:\.\.?\/)(?:[^)\s/]+\/)*)?)([A-Za-z0-9._-]+)(#[^)]*)?(\s+(?:"[^"]*"|'[^']*'))?\)/g,
+    (match, _relative: string, file: string, anchor = "", title = "") => {
+      const resolved = findProcedureByFile(file);
+      return resolved ? `](procedure:${resolved.id}${anchor}${title})` : match;
+    },
+  );
 }
 
 function dependencyClosure(root: string): ProcedureDefinition[] {

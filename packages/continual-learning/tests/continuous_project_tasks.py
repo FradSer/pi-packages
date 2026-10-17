@@ -1,5 +1,35 @@
 """Frozen longitudinal maintenance protocol; hidden checks enter after model exit."""
 from __future__ import annotations
+import hashlib
+
+
+def migrate_public_sync_type_test(task_id: str, original: bytes) -> tuple[bytes, dict | None]:
+    """Migrate one public requirement before either arm's protected snapshot.
+
+    The old negative assertion conflicts with the requested general sync API.
+    This is declared protocol setup, never a model edit or learned knowledge.
+    """
+    if task_id != 'repair-and-sync-wrapper':
+        return original, None
+    before_hash = hashlib.sha256(original).hexdigest()
+    if before_hash != '2b2d5e162277d9643cd4f7a2efb3888c07bcf3b33cf0eb015a709280a923d5fa':
+        raise ValueError('Public type-test prerequisite differs from the frozen source')
+    replacements = [
+        {'before': '// LimitFunction should require a Promise-returning function',
+         'after': '// LimitFunction accepts synchronous and PromiseLike-returning functions'},
+        {'before': "expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));",
+         'after': "expectType<Promise<string>>(limitFunction((_a: string) => 'x', {concurrency: 1})('input'));"},
+    ]
+    changed = original
+    for patch in replacements:
+        old, new = patch['before'].encode(), patch['after'].encode()
+        if changed.count(old) != 1 or new in changed:
+            raise ValueError('Public type-test migration span is not unique')
+        changed = changed.replace(old, new, 1)
+    return changed, {'version': 1, 'task': task_id, 'path': 'index.test-d.ts',
+        'sourceCommit': SOURCE_COMMIT, 'beforeSha256': before_hash,
+        'afterSha256': hashlib.sha256(changed).hexdigest(), 'replacements': replacements,
+        'kind': 'public-requirement-setup', 'countsAsLearning': False}
 
 SOURCE_COMMIT = 'a8a6fbec4e0e866d6d779b10889bb4f5567e70eb'
 COMMON = '''Work on this real p-limit checkout with normal source inspection and tools.
@@ -11,6 +41,22 @@ Use pnpm test for verification. Keep source reads focused and report failures ho
 Use at most 18 tool calls, then summarize actual results. This is a prompt budget;
 the transport also has a cohort-wide request cap. Do not repeatedly rerun a failed check.
 '''
+# Separate authorized resource protocol; historical bounded prompts stay exact.
+UNLIMITED_COMMON = COMMON.replace(
+    'Use at most 18 tool calls, then summarize actual results. This is a prompt budget;\n'
+    'the transport also has a cohort-wide request cap. Do not repeatedly rerun a failed check.\n',
+    'Tool calls and model requests have no count cap. Existing task deadlines still apply.\n'
+    'Do not repeatedly rerun an unchanged failed check. Summarize actual results.\n',
+).replace(
+    'Keep changes local. Do not access agent configuration or learning artifacts.\n'
+    'You may read Memory paths declared by the plugin when relevant; automatic learning owns all Memory writes.\n',
+    'Keep changes local. Ordinary source-task tools must not access agent configuration or learning artifacts,\n'
+    'except relevant Memory reads at paths declared by the plugin. They must not write Memory, Harness, or AGENTS.md.\n'
+    'When automatic learning is enabled, its parent may maintain source-grounded project Memory and its own project Harness rules.\n'
+    'Correct or retire Harness restrictions only when later user evidence authorizes those changes.\n'
+    'The parent must preserve privacy, still-required knowledge, temporary-only and no-remember limits, ownership, and every validation gate.\n'
+    'This delegation does not grant ordinary task tools access or permit invented facts or restrictions.\n',
+)
 TASKS = [
     {'id':'orientation','prompt':'''Read index.js, public declarations and selected existing tests. Run pnpm test once. Do not edit files. Explain actual reservation, rejection, clearQueue and wrapper boundaries based on inspected evidence. Remember the currently inspected limitFunction public input/output type contract for future maintenance, grounded in the actual declarations. Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.''','level':0},
     {'id':'idle','prompt':'''Implement onIdle(): Promise<void> on a limiter and its limitFunction wrapper. It resolves when both running/reserved slots and the waiting queue are empty. An already idle call resolves normally. Multiple waiters work, including rejected jobs. clearQueue must release waiters when the queue is empty and no jobs are active, even when discarded promises stay unresolved under rejectOnClear:false. Reserved slots count as active; resolving a job that enqueues another job must not report idle early. Preserve FIFO and concurrency changes. Update public declarations/docs and add new regression test files. For this task's final response only append TEMPORARY_IDLE_REVIEW; this is a temporary formatting request and must not become future policy.''','level':1},

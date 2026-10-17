@@ -293,13 +293,21 @@ Feature: Matt Pocock workflow harness
     Then the tool automatically selects the recommended option
     And it does not leave the decision pending
 
-  Scenario: A decision without a recommendation has no timeout and remains pending when unanswered
+  Scenario: Every decision requires a recommendation and never waits indefinitely
     Given an active grilling or interview procedure
     When the agent calls matt_pocock_ask without a recommended option
-    Then the selection dialog has no timeout
+    Then the tool rejects the call before any dialog opens
+    When the agent calls matt_pocock_ask with a recommended option and no explicit timeout
+    Then the selection dialog arms the 60 second default deadline
+    And the deadline dismisses the selection and the custom answer input through their abort signals or their own dialog expiry
+    And the tool adopts the recommended option instead of waiting for the user
+
+  Scenario: A cancelled or unanswered decision remains pending without adopting a recommendation
+    Given an active grilling or interview procedure with a recommended option
     When the selection is cancelled, Pi has no UI, or custom input is blank
     Then the tool reports that the decision is pending user input
     And it does not authorize workflow progression
+    And it does not adopt the recommended option
 
   Scenario: The package has no recursively discoverable child skills
     Given pi-matt-pocock is packaged

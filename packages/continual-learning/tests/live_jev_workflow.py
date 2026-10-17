@@ -6,6 +6,8 @@ Run: uv run --no-project packages/continual-learning/tests/live_jev_workflow.py
 """
 from __future__ import annotations
 
+from live_acceptance_support import workspace_pi
+
 import json
 import hashlib
 import os
@@ -328,7 +330,7 @@ def trial(enabled: bool, base: Path, automatic: bool = False, *, scenario: dict[
                      f"pi.on('before_agent_start',e=>{{fs.writeFileSync({json.dumps(str(injected))},e.systemPrompt||'');}});}}")
     provider, model = _model(agent)
     env = _runtime_env(agent, home)
-    pi = shutil.which('pi') or 'pi'
+    pi = workspace_pi(Path(__file__).resolve().parents[3])
     session = base / 'learning.jsonl'
     command = [pi, '--no-extensions', '-e', str(PACKAGE / 'index.ts'), '-e', str(probe),
                '--no-skills', '--no-context-files', '--no-prompt-templates', '--no-themes', '--no-approve',

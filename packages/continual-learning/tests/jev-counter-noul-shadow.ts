@@ -1,3 +1,4 @@
+import { createShadowSourceDirectory } from "./shadow-source-directory";
 /** Research-only owned source copy; production files are never modified. */
 import fs from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -17,7 +18,7 @@ export function counterNoulSource(source:string):string {
 }
 export async function loadCounterNoulJudge():Promise<{createJevJudge:typeof createJevJudge;sourceSha256:string;patchedSha256:string;dispose():Promise<void>}> {
  const source=await fs.readFile(new URL('./fixtures/jev-learning-before-bound-scope.ts.txt',import.meta.url),'utf8');const patched=counterNoulSource(source);
- const directory=await fs.mkdtemp(new URL('./.jev-counter-noul-',import.meta.url).pathname);const dispose=()=>fs.rm(directory,{recursive:true,force:true});
+ const directory=await createShadowSourceDirectory("jev-counter-noul-");const dispose=()=>fs.rm(directory,{recursive:true,force:true});
  try {
   await fs.cp(new URL('../extensions/',import.meta.url),`${directory}/extensions`,{recursive:true});
   const file=`${directory}/extensions/jev-learning.ts`;await fs.writeFile(file,patched,'utf8');

@@ -46,3 +46,15 @@ def test_memory_judge_distinguishes_unresolved_source_defects_from_permanent_fai
     assert 'does not establish a cause, a successful fix, or permanent command failure' in result['question']
     assert result['accepted']['decision'] == 'allow'
     assert all(row['decision'] == 'propose' for row in result['held'].values())
+
+
+def test_failed_task_planning_prioritizes_observed_pitfalls_over_api_inventory_without_forcing_a_memory() -> None:
+    result = isolated_run_bun(r'''
+      import {buildIncrementalMemoryConsolidatorPrompt} from './packages/continual-learning/extensions/planner-prompts.ts';
+      const prompt=buildIncrementalMemoryConsolidatorPrompt({runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'a',dossierPath:'/private/dossier.json'}).replace(/\s+/g,' ');
+      console.log(JSON.stringify({priority:prompt.includes('Prioritize a reusable pitfall evidenced by the actual failed verification'),
+        inventory:prompt.includes('An API inventory or source excerpt alone is not a lesson about that failure'),
+        noForcedWrite:prompt.includes('If the failure supports no reusable lesson, return no such proposal'),
+        noInventedRecovery:prompt.includes('Never invent a cause, a successful correction or a standing user requirement')}));
+    ''')
+    assert all(result.values())

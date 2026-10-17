@@ -1,3 +1,4 @@
+import pytest
 from support import isolated_run_bun
 
 
@@ -209,24 +210,25 @@ def test_semantic_worker_restores_indentation_and_keeps_only_nonredundant_new_so
     assert len(result['roles']['newMemories'][0]['evidence']) == 2
 
 
-def test_distillation_requires_complete_bound_description_review_and_never_rewrites_old_memory() -> None:
+@pytest.mark.parametrize("model", ["jev-1.13.0", "jev-1.14.0"])
+def test_distillation_requires_complete_bound_description_review_and_never_rewrites_old_memory(model: str) -> None:
     result = isolated_run_bun(r'''
       import {createHash} from 'node:crypto';
       const {distillReviewedNewMemory}=await import('./packages/continual-learning/extensions/inject-memory.ts');
       const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
-      const content='---\nname: fact\ndescription: The wrapper declares onIdle.\ntype: project\n---\nUnsupported timing explanation.';
-      const candidate={name:'fact.md',kind:'project',classification:'private',content,evidence:[{index:0,quote:'onIdle'}]};
-      const candidates=[candidate], evidence={entries:[{role:'toolResult',content:'onIdle'}]}, existing=[];
-      const review={version:1,purpose:'diagnostic-only',complete:true,sameBatchIndependenceReviewed:false,model:'jev-1.13.0',evidenceDigest:digest(evidence),existingDigest:digest(existing),candidatesDigest:digest(candidates),candidates:[{index:0,candidateDigest:digest(candidate),outcome:'held',passedChecks:['supported_description_0','counter_0_0','counter_description_0_0'],heldChecks:['supported_0']}]};
+      const content='---\nname: fact\ndescription: Prefer concise task updates.\ntype: feedback\n---\nUnsupported timing explanation.';
+      const candidate={name:'fact.md',kind:'preference',classification:'private',content,evidence:[{index:0,quote:'Prefer concise task updates.'}]};
+      const candidates=[candidate], evidence={entries:[{role:'user',content:'Prefer concise task updates.'}]}, existing=[];
+      const review={version:1,purpose:'diagnostic-only',complete:true,sameBatchIndependenceReviewed:false,model:'__MODEL__',evidenceDigest:digest(evidence),existingDigest:digest(existing),candidatesDigest:digest(candidates),candidates:[{index:0,candidateDigest:digest(candidate),outcome:'held',passedChecks:['supported_description_0','counter_0_0','counter_description_0_0'],heldChecks:['supported_0']}]};
       const plan={operations:[],newMemories:[candidate]};
-      const run=(r=review,p=plan)=>distillReviewedNewMemory(p,candidates,r,evidence,existing,1);
+      const run=(r=review,p=plan)=>distillReviewedNewMemory(p,candidates,r,evidence,existing,1,'__MODEL__');
       const good=run();
-      const bad=[run({...review,evidenceDigest:'wrong'}),run({...review,candidates:[{...review.candidates[0],passedChecks:['supported_description_0']}]}),run({...review,candidates:[{...review.candidates[0],heldChecks:['supported_0','counter_description_0_0']}]}),run(review,{operations:[{...candidate,kind:'rewrite'}],newMemories:[]})];
+      const bad=[run({...review,model:'jev-1.15.0'}),run({...review,evidenceDigest:'wrong'}),run({...review,candidates:[{...review.candidates[0],passedChecks:['supported_description_0']}]}),run({...review,candidates:[{...review.candidates[0],heldChecks:['supported_0','counter_description_0_0']}]}),run(review,{operations:[{...candidate,kind:'rewrite'}],newMemories:[]})];
       console.log(JSON.stringify({good,bad,plan}));
-    ''')
+    '''.replace('__MODEL__', model))
     assert result['good']['names'] == ['fact.md']
     item = result['good']['plan']['newMemories'][0]
-    assert item['content'].endswith('\nThe wrapper declares onIdle.\n')
+    assert item['content'].endswith('\nPrefer concise task updates.\n')
     assert item['evidence'] == result['plan']['newMemories'][0]['evidence']
     for row in result['bad']:
         assert row['names'] == []

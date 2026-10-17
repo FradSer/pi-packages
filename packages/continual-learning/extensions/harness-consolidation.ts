@@ -1,5 +1,6 @@
 import { plannerReadArgs } from "./planner-read-scope";
 import { harnessPlannerPreviewArgs } from "./harness-planner-preview";
+import { ownedCorrectionPlan } from "./current-user-harness-correction";
 /**
  * Harness consolidation phase — the second half of the /consolidate pipeline.
  *
@@ -32,6 +33,7 @@ import {
   containsSensitiveMemoryMaterial,
   createConsolidationRun,
   extractChildPlan,
+  childOutputContainsSensitiveMaterial,
   releaseConsolidationRun,
   sha256Digest,
   terminateConsolidationChild,
@@ -80,10 +82,10 @@ function addPiWorkerUsage(previous: PiWorkerUsage | undefined, next: PiWorkerUsa
 
 /** Terminal gate for the second pipeline phase, shared by callers and tests:
  * only a finished, verified, context-captured memory phase unlocks it. */
-export type PipelineGateState = { outcome?: string; active: boolean; cancelled: boolean };
+export type PipelineGateState = { outcome?: string; active: boolean; cancelled: boolean; memoryReviewHeld?: boolean };
 export function shouldRunHarnessPhase(state: PipelineGateState): "run" | "wait" | "skip" {
   if (state.cancelled || state.outcome === undefined || state.active) return "wait";
-  return state.outcome === "completed" ? "run" : "skip";
+  return state.outcome === "completed" && !state.memoryReviewHeld ? "run" : "skip";
 }
 
 export interface HarnessOp {
@@ -805,6 +807,8 @@ export interface HarnessConsolidationPhaseOptions {
   explorationDigest?: string;
   /** Test seam for the bounded planner deadline; production defaults to 15 minutes. */
   timeoutMs?: number;
+  /** Early current-user review can only update these exact owned revisions. */
+  correctionRevisions?: Readonly<Record<string, string>>;
   /** The configured consolidation model, as `provider/model`. The package header
    *  promises consolidation runs on the separately selected model; without this
    *  the Harness phase silently inherited the session default instead. */
@@ -917,7 +921,7 @@ async function runHarnessPlannerChild(
       const parsedLedger = parsePiWorkerUsageLedger(bounded);
       const ledger = {...parsedLedger, complete: complete && parsedLedger.complete};
       options.onUsageLedger?.(ledger);
-      options.onUsage?.(ledger.complete ? ledger.knownUsage : undefined);
+      options.onUsage?.(ledger.knownUsage);
     };
     const finish = (value: { ok: true; stdout: string } | { ok: false; detail: string }) => {
       if (done) return;
@@ -1036,12 +1040,15 @@ async function repairHarnessPlan(input: {
   const childStartedAt = Date.now();
   const usageLedgerId = randomUUID();
   let childUsage: PiWorkerUsage | undefined;
-  const recordAttempt = (outcome: LearningOutcome): void => {
+  let usageLedger: PiWorkerUsageLedger | undefined;
+  const recordAttempt = (outcome: LearningOutcome, diagnostic?: string): void => {
     input.onAttempt?.({
       outcome,
+      ...(diagnostic ? { diagnostic } : {}),
       durationMs: Date.now() - childStartedAt,
       operations: 0,
-      ...(childUsage ? { usage: childUsage, usageLedgerId } : {}),
+      ...(childUsage ? { usage: childUsage, usageLedgerId, usageComplete: usageLedger?.complete === true,
+        ...(usageLedger?.complete !== true ? {costAvailable: false} : {}) } : {}),
     });
   };
   try {
@@ -1050,11 +1057,12 @@ async function repairHarnessPlan(input: {
     recordAttempt("failed");
     return { ok: false, detail: `harness repair task could not be written: ${(error as Error).message}` };
   }
-  let usageLedger: PiWorkerUsageLedger | undefined;
   const child = await runHarnessPlannerChild(input.cli, taskFile, input.cwd, {
     timeoutMs: input.timeoutMs,
-    // The dossier belongs to the original selector run, not this Harness run.
-    files: input.missingOutput ? [input.run.manifest.snapshotPath, ...(input.explorationPath ? [input.explorationPath] : [])] : [],
+    // Both repair paths retain the original protocol's mandatory reads. These
+    // exact immutable artifacts live outside cwd; project roots cannot grant
+    // them. The dossier belongs to the selector run, not this Harness run.
+    files: [input.run.manifest.snapshotPath, ...(input.explorationPath ? [input.explorationPath] : [])],
     current: input.current,
     ...(input.model ? { model: input.model } : {}),
     onChild: input.onChild,
@@ -1081,11 +1089,40 @@ async function repairHarnessPlan(input: {
     maxPlanBytes: MAX_PLAN_BYTES,
   });
   if (!extracted.ok) {
-    recordAttempt(extracted.failure === "cancelled" ? "cancelled" : extracted.failure ? "failed" : "rejected");
+    recordAttempt(extracted.failure === "cancelled" ? "cancelled" : extracted.failure ? "failed" : "rejected", `Parent Harness extraction: ${harnessExtractionCategory(extracted.error)}`);
+    await retainRejectedHarnessOutput(input.run, "repair", child.stdout, extracted.error);
     return { ok: false, detail: extracted.error };
   }
   recordAttempt("noop");
   return { ok: true, plan: extracted.plan };
+}
+
+/** Extraction errors are generated by the parent, never copied from child text. */
+function harnessExtractionCategory(error: string): string {
+  if (error.includes("identity mismatch")) return "identity";
+  if (error.startsWith("expected one structured")) return "multiple-plans";
+  if (error.includes("bound")) return "bound";
+  if (error.includes("cancelled")) return "cancelled";
+  if (error.includes("model failed")) return "model-failure";
+  if (error === MISSING_PLAN_ERROR) return "missing-plan";
+  return "structure";
+}
+
+async function retainRejectedHarnessOutput(run: ConsolidationRun, phase: "initial" | "repair", stdout: string, error: string): Promise<string> {
+  const category = harnessExtractionCategory(error);
+  const sensitive = childOutputContainsSensitiveMaterial(stdout, undefined);
+  try {
+    await writeFileAtomic(path.join(run.manifest.runDir, `harness-${phase}-output.json`), JSON.stringify({
+    version: 1, runId: run.manifest.runId, snapshotDigest: run.manifest.snapshotDigest,
+    category, semanticAcceptance: false,
+    originalTransportSha256: sha256Digest(stdout), originalTransportBytes: Buffer.byteLength(stdout, "utf8"),
+      sensitive, originalTransportRetained: !sensitive, ...(sensitive ? {} : {stdout}),
+    }));
+  } catch {
+    // Evidence retention cannot erase an already charged rejected attempt.
+    return `Parent Harness extraction: ${category}; evidence-unavailable`;
+  }
+  return `Parent Harness extraction: ${category}`;
 }
 
 /** Receipts use controlled categories, never validation text containing ids or evidence. */
@@ -1190,7 +1227,8 @@ export async function planHarnessConsolidationPhase(
         outcome,
         durationMs: Date.now() - childStartedAt,
         operations: 0,
-        ...(childUsage ? { usage: childUsage, usageLedgerId } : {}),
+        ...(childUsage ? { usage: childUsage, usageLedgerId, usageComplete: usageLedger?.complete === true,
+          ...(usageLedger?.complete !== true ? {costAvailable: false} : {}) } : {}),
       });
       return attempts.length - 1;
     };
@@ -1219,6 +1257,7 @@ export async function planHarnessConsolidationPhase(
     let recoveryAttempt = -1;
     if (!extracted.ok) {
       initialAttempt = recordInitialAttempt(extracted.failure === "cancelled" ? "cancelled" : extracted.failure ? "failed" : "rejected");
+      attempts[initialAttempt].diagnostic = await retainRejectedHarnessOutput(run, "initial", childResult.stdout, extracted.error);
       if (extracted.error !== MISSING_PLAN_ERROR) return fail(extracted.error);
       if (!current()) return fail("harness planner cancelled");
       const recovery = await repairHarnessPlan({
@@ -1288,6 +1327,9 @@ export async function planHarnessConsolidationPhase(
         candidate = withoutReport;
         errors = validateHarnessPlan(candidate, validationOptions);
       }
+      if (opts.correctionRevisions && !ownedCorrectionPlan(candidate, opts.correctionRevisions)) {
+        errors.push("Early Harness review may only correct the exact current auto-owned revisions with original user entry 0.");
+      }
       if (duplicateRepair.corrections.length) await writeFileAtomic(path.join(normalizationRunDir, `harness-case-normalization-${normalizationAttempt++}.json`), JSON.stringify({originalPlan, beforeSha256, afterSha256: sha256Digest(JSON.stringify(candidate)), corrections: duplicateRepair.corrections}));
       return { candidate, errors, caseRepair: {originalPlan, beforeSha256, afterSha256: sha256Digest(JSON.stringify(candidate)), corrections: duplicateRepair.corrections} };
     };
@@ -1318,6 +1360,7 @@ export async function planHarnessConsolidationPhase(
         cli,
         cwd: opts.cwd,
         run,
+        explorationPath: opts.explorationPath,
         rejected: plan,
         errors,
         taskText,
@@ -1353,7 +1396,7 @@ export async function planHarnessConsolidationPhase(
       // Local index: the planner block's own repairAttempt is out of scope here.
       let coverageAttempt = -1;
       const coverage = await repairHarnessPlan({
-        cli, cwd: opts.cwd, run, rejected: plan, allowOmissions: false,
+        cli, cwd: opts.cwd, run, explorationPath: opts.explorationPath, rejected: plan, allowOmissions: false,
         errors: [
           "The Harness plan contains no rule although the screened evidence states a durable prohibition. Add exactly one rule that blocks the stated restriction in this project, cited to the user's own wording.",
           "Quote the original user text exactly. Do not invent scope, approval exceptions, arguments or expiry that the user did not state.",
@@ -1418,7 +1461,7 @@ export async function planHarnessConsolidationPhase(
       semanticDecision = verdict.decision;
       if (semanticDecision === "propose" && opts.semanticRepair && attempts.length === 1
         && ["uncertain", "unsupported", "scope-expansion"].includes(verdict.telemetry.reason)) {
-        const repair = await repairHarnessPlan({ cli, cwd: opts.cwd, run, rejected: plan, allowOmissions: true,
+        const repair = await repairHarnessPlan({ cli, cwd: opts.cwd, run, explorationPath: opts.explorationPath, rejected: plan, allowOmissions: true,
           errors: [
             `Semantic verification: ${verdict.telemetry.reason}${verdict.telemetry.dimension !== undefined && verdict.telemetry.candidateIndex !== undefined ? ` in candidate ${verdict.telemetry.candidateIndex} ${verdict.telemetry.dimension}` : ""}.`,
             "Preserve the quoted authorization and exceptions. Remove unsupported facts and extra obligations from the message. Do not infer approval expiration, revocation or transferability that the evidence does not state.",

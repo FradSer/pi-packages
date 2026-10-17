@@ -55,7 +55,9 @@ def test_parent_checks_precede_jev_and_explicit_memory_is_never_silently_dropped
     assert invalid['jevValidations'] == [] and invalid['registryReceipt']['operations'] == 0
     for reason in ('uncertain', 'unavailable', 'unsupported', 'duplicate', 'conflict'):
         value = run_bun_script(fixture, 'remember-private', env={'CL_JEV_FIXTURE': reason})
-        assert value['planners'] == ['memory'] and value['jevValidations'] == ['memory'] * (2 if reason in ('uncertain', 'unsupported') else 1), value
+        # The fixture returns the unchanged plan. Its original hold remains;
+        # uncertainty does not authorize another draw of the same judgment.
+        assert value['planners'] == ['memory'] and value['jevValidations'] == ['memory'], value
         assert 'concise.md' not in value['privateFiles'] and not value['harnessExists']
         assert value['registryReceipt']['operations'] == 0
         assert any(a['outcome'] == 'proposed' and a['jev']['reason'] == reason
@@ -1149,3 +1151,38 @@ def test_wire_bounds_diagnostic_reports_the_encoded_request_size():
     assert value['result']['decision']=='propose'
     assert value['result']['telemetry']['boundsKind']=='question-bytes'
     assert value['result']['telemetry']['boundsCount']>64000
+
+
+def test_pinned_jev_version_requires_matching_response_and_keeps_usage() -> None:
+    # Given an explicitly pinned judge version, When the service returns another
+    # version, Then hold the result while retaining actual model and usage.
+    value = isolated_run_bun(r'''
+      import {createJevJudge} from './packages/continual-learning/extensions/jev-learning.ts';
+      const rows=[];
+      for(const [requested,returned] of [['jev-1.14.0','jev-1.13.0'],['jev-1.14.0','jev-1.14.0'],['jev-1.13.0','jev-1.14.0'],['jev-latest','jev-1.14.0'],['jev-preview','jev-1.14.0']]) {
+        let calls=0;
+        const judge=createJevJudge({enabled:true,defaultModel:requested,apiKey:'fixture',fetch:async(_url,init)=>{
+          const wire=JSON.parse(init.body);if(wire.model!==requested)throw Error('Wrong requested model');calls++;
+          return new Response(JSON.stringify({model:returned,usage:{input_tokens:100,output_tokens:20},answers:Object.fromEntries(Object.entries(wire.questions).map(([key,q])=>{
+            const label=key.startsWith('supported_')?'grounded':key.startsWith('relation_')?'unrelated':'compatible';
+            return [key,{type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(k=>[k,k===label?1:0]))}];
+          }))}));
+        }});
+        const evidence={contextEnabled:true,entries:[{role:'user',content:'This project uses pnpm.'}]};
+        const result=await judge.validate('memory',evidence,[{name:'workflow.md',kind:'project',classification:'safe',content:'This project uses pnpm.',evidence:[{index:0,quote:'This project uses pnpm.'}]}],[]);
+        rows.push({requested,returned,calls,result});
+      }
+      console.log(JSON.stringify(rows));
+    ''')
+    for row in value:
+        result = row['result']
+        assert row['calls'] > 0
+        assert result['telemetry']['model'] == row['returned']
+        assert result['telemetry']['inputTokens'] >= 100
+        assert result['telemetry']['estimatedCostUsd'] > 0
+        if row['requested'].startswith('jev-1.') and row['requested'] != row['returned']:
+            assert result['decision'] == 'propose', row
+            assert result['telemetry']['reason'] == 'invalid-response', row
+            assert 'candidateReview' not in result and 'incompleteReview' not in result
+        else:
+            assert result['decision'] == 'allow', row

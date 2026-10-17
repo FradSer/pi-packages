@@ -14,15 +14,15 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from continuous_failure_retention import retain_failure_container
+from continuous_failure_retention import retain_failure_container, retained_learning_costs
 import tarfile
 import time
 
 import live_real_project_memory as base
-from continuous_project_tasks import COMMON, TASKS, SOURCE_COMMIT, ORACLE, TYPES, SIGNAL_TYPES, REASON_TYPES, SYNC_TYPES, MAP_TYPES
+from continuous_project_tasks import COMMON, UNLIMITED_COMMON, TASKS, SOURCE_COMMIT, ORACLE, TYPES, SIGNAL_TYPES, REASON_TYPES, SYNC_TYPES, MAP_TYPES, migrate_public_sync_type_test
 from docker_experiment import InferenceProxy, redact_transport_bytes
 from live_acceptance_support import EvidenceRun
-from continuous_project_evidence import continuous_coverage, verifier_observation, task_outcome, feedback_accepted, exact_failure_processed, observed_memory_reads
+from continuous_project_evidence import task_deadline_evidence, continuous_coverage, verifier_observation, task_outcome, feedback_accepted, exact_failure_processed, observed_memory_reads
 from recovery_integrity import archive_surface_snapshots, verify_recovery_delta, claim_recovery
 
 
@@ -85,7 +85,12 @@ def score(c: str, level: int, proxy: InferenceProxy, output: Path, before: dict)
             'passed':intact and upstream['passed'] and (not level or (behavior['passed'] and types['passed']))}
 
 
-def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label: str, *, command: bool = False, feedback_observation: dict | None = None) -> dict:
+# Main-model time and independent learning time have different owners.
+# This outer guardian is not permission to extend any worker/service deadline.
+UNLIMITED_CLI_GUARDIAN_SECONDS = 7200
+
+
+def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label: str, *, command: bool = False, feedback_observation: dict | None = None, unlimited_budget: bool = False) -> dict:
     session=base.AGENT+'/sessions/continuous/'+label+'.jsonl'
     base.shell(c,'mkdir -p '+base.AGENT+'/sessions/continuous')
     prior_bytes=b'';prior_count=0;feedback_text='';feedback_file='/home/node/project-verification.json'
@@ -100,12 +105,14 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
     if feedback_observation is not None:args+=['-e','PI_STUDY_VERIFIER_FILE='+feedback_file,'-e','PI_STUDY_TASK_TOOL_LIMIT=1']
     args += [c,'node',base.PI,'--offline','--no-extensions','--no-context-files','--no-skills','--no-prompt-templates','--no-themes','--no-approve',
              '--model',proxy.selection['provider']+'/'+proxy.selection['model'],'--thinking','off','--tools','read' if feedback_observation is not None else 'read,bash,edit,write',
-             *([] if command else ['-e','/home/node/continuous-tool-budget.ts']),
+             *(['-e','/home/node/continuous-bash-environment.ts'] if not command and feedback_observation is None else []),
+             *([] if command or (unlimited_budget and feedback_observation is None) else ['-e','/home/node/continuous-tool-budget.ts']),
              *(['-e','/home/node/continuous-verifier-reference.ts'] if feedback_observation is not None else []),
-             '-e','/opt/experiment/packages/continual-learning/index.ts','--session',session,'--print','--mode','json',prompt if command or feedback_observation is not None else COMMON+prompt]
+             *(['-e','/home/node/continuous-task-deadline.ts'] if unlimited_budget and not command else []),
+             '-e','/opt/experiment/packages/continual-learning/index.ts','--session',session,'--print','--mode','json',prompt if command or feedback_observation is not None else (UNLIMITED_COMMON if unlimited_budget else COMMON)+prompt]
     started=time.monotonic();output.mkdir(parents=True,exist_ok=True);interrupted=False
     try:
-        p=base.process(args,timeout=900);stdout=p.stdout;stderr=p.stderr;code=p.returncode;timed_out=False
+        p=base.process(args,timeout=UNLIMITED_CLI_GUARDIAN_SECONDS if unlimited_budget else 900);stdout=p.stdout;stderr=p.stderr;code=p.returncode;timed_out=False
     except KeyboardInterrupt:
         base.checked(['docker','stop',c]);stdout=b'';stderr=b'Operator interrupted; partial session retained';code=130;timed_out=False;interrupted=True
     except subprocess.TimeoutExpired as error:
@@ -138,14 +145,16 @@ def run_session(c: str, prompt: str, proxy: InferenceProxy, output: Path, label:
                           for call in calls)
     return {'originalObservationsPreserved':original_preserved,'verifierObserved':verifier_read,'exitCode':code,'timedOut':timed_out,'interrupted':interrupted,'seconds':round(time.monotonic()-started,2),
             'temporaryInstructionLeaked':label not in ('stage-1',) and any('TEMPORARY_IDLE_REVIEW' in str(part.get('text','')) for m in messages[-1:] for part in (m.get('content',[]) if isinstance(m.get('content'),list) else []) if isinstance(part,dict)),
-            'modelErrors':sum(m.get('stopReason')=='error' for m in messages),'malformedSessionRows':malformed_rows,
+            'modelErrors':sum(m.get('stopReason')=='error' for m in messages),'modelAborted':sum(m.get('stopReason')=='aborted' for m in messages),'malformedSessionRows':malformed_rows,
             'toolCalls':sum(len([part for part in m.get('content',[]) if isinstance(part,dict) and part.get('type')=='toolCall']) for m in messages if isinstance(m.get('content'),list)),
             'usage':{k:sum(u.get(k,0) for u in usage) for k in ('input','output','cacheRead','cacheWrite','totalTokens')},
             'reportedCost':sum(u.get('cost',{}).get('total',0) for u in usage),
             'exposedMemoryReferences':len(references),
             'deliveredMemoryEntries':[item for row in references for item in row.get('details',{}).get('retrieved',[])],
             'observedMemoryReads':observed_memory_reads(rows,cwd='/work/p-limit',home='/home/node',roots=(base.AGENT+'/memory/--work-p-limit--','/work/p-limit/.memory')),
+            **task_deadline_evidence(rows,required=unlimited_budget and not command),
             'toolBudgetEvents':[r.get('data') for r in rows if r.get('customType')=='continuous-study-tool-budget'],
+            'verifierReadBoundaryViolations':sum(r.get('customType')=='continuous-study-tool-budget' and r.get('data',{}).get('outcome')=='verifier-read-blocked' for r in rows),
             'toolBudgetExceeded':any(r.get('customType')=='continuous-study-tool-budget' and r.get('data',{}).get('outcome') in ('blocked','summary-tool-loop-stopped') for r in rows),
             'harnessEvents':[r for r in rows if str(r.get('customType','')).startswith('harness-')],
             'attemptedVersionProbeCalls':[part for m in messages if isinstance(m.get('content'),list) for part in m['content'] if isinstance(part,dict) and part.get('type')=='toolCall' and part.get('name')=='bash' and 'npm --version' in str(part.get('arguments',{}))],
@@ -177,7 +186,7 @@ def failure_observation_ready(c: str, original_session: bytes, observation: dict
            'verifierPath':'/home/node/project-verification.json',
            'sourceBefore':observation['sourceHashes'],'sourceAfter':source_after,
            'queued':queued,'explicitBackfills':0,
-           'observationOutcome':'successful' if feedback.get('taskPassed') is True else 'failed'}
+           'observationOutcome':'blocked-before-read' if feedback.get('verifierReadBoundaryViolations')==1 else 'successful' if feedback.get('taskPassed') is True else 'failed'}
     base.put(c,input_file,json.dumps(value,ensure_ascii=False).encode())
     try:
         return json.loads(base.checked(['docker','exec',c,'tsx',
@@ -202,10 +211,23 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
     base.put(c,'/home/node/backlog-probe.mts',probe.encode())
     backlog=json.loads(base.checked(['docker','exec',c,'tsx','/home/node/backlog-probe.mts']))
     base.shell(c,'rm -f /home/node/backlog-probe.mts')
-    receipts=[];states=[];memory_entries=[];history=[];dossiers=[];completed_backlog={};partial_worker_usage=[]
+    receipts=[];states=[];memory_entries=[];history=[];dossiers=[];completed_backlog={};partial_worker_usage=[];raw_dossiers=[];retained_ranges=[]
     for filename in ('memory.tar.gz','backlog.tar.gz'):
         with tarfile.open(output/filename) as archive:
             for item in archive:
+                if filename=='backlog.tar.gz' and Path(item.name).parts==('backlog.jsonl',):
+                    if not item.isfile():raise RuntimeError('Original backlog range archive is not regular')
+                    for line in archive.extractfile(item).read().splitlines():
+                        row=json.loads(line)
+                        if not isinstance(row,dict):raise RuntimeError('Invalid original backlog range record')
+                        if row.get('scopeKey')!='--work-p-limit--':continue
+                        start,end=row.get('from'),row.get('to');digest=row.get('digest')
+                        if (row.get('version')!=1 or type(start) is not int or type(end) is not int
+                                or start<0 or end<start or not isinstance(digest,str)
+                                or re.fullmatch(r'[a-f0-9]{64}',digest) is None):
+                            raise RuntimeError('Invalid scoped original backlog range')
+                        retained_ranges.append({key:row[key] for key in ('from','to','digest')})
+                    continue
                 if not item.isfile():continue
                 if filename=='memory.tar.gz' and Path(item.name).parent.name=='--work-p-limit--' and item.name.endswith('.md') and Path(item.name).name!='MEMORY.md':
                     data=archive.extractfile(item).read();memory_entries.append({'filename':Path(item.name).name,'revision':hashlib.sha256(data).hexdigest(),'content':data.decode()})
@@ -213,7 +235,7 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
                 try: value=json.loads(archive.extractfile(item).read())
                 except (ValueError,UnicodeError):continue
                 if not isinstance(value,dict):continue
-                if re.fullmatch(r'(?:harness-(?:task|repair)|memory-(?:task|repair))-usage.*\.json', Path(item.name).name) and isinstance(value.get('ledgerId'),str):
+                if re.fullmatch(r'(?:harness-(?:task|repair)|memory-(?:task|repair|body)|source-audit)-usage.*\.json', Path(item.name).name) and isinstance(value.get('ledgerId'),str):
                     usage=value.get('knownUsage',{})
                     if isinstance(usage,dict) and all(isinstance(usage.get(k), (int,float)) and not isinstance(usage.get(k),bool) and 0<=usage[k]<float('inf') for k in ('input','output','cacheRead','cacheWrite','totalTokens','cost')):
                         partial_worker_usage.append({'archive':filename,'path':item.name,**value})
@@ -221,23 +243,25 @@ def artifacts(c: str, proxy: InferenceProxy, output: Path) -> dict:
                 if value.get('version')==1 and isinstance(value.get('changes'),list) and value.get('phase') in ('memory','harness','agents'):history.append(value)
                 if Path(item.name).name=='backlog-completed.json':completed_backlog.update(value)
                 if value.get('kind')=='incremental-learning-dossier':
-                    task=value.get('taskSlice',{});observations=[]
-                    for entry in task.get('entries',[]):
-                        message=entry.get('message',entry)
-                        if message.get('role')!='toolResult' or message.get('toolName')!='read' or message.get('isError') is not False:continue
-                        try:observation=json.loads(''.join(part.get('text','') for part in message.get('content',[]) if isinstance(part,dict)))
-                        except ValueError:continue
-                        if isinstance(observation,dict) and observation.get('kind')=='actual-project-verification':observations.append(observation)
-                    dossiers.append({'taskSliceDigest':hashlib.sha256(json.dumps(task,ensure_ascii=False,separators=(',',':')).encode()).hexdigest(),
-                                     'entryIds':[entry.get('id') for entry in task.get('entries',[]) if entry.get('id')], 'observations':observations})
+                    raw_dossiers.append(value['taskSlice'])
                 if Path(item.name).name.startswith('replay-'):states.append(value)
     # Per-job ledger preserves repeated and failed attempts; receipts elsewhere
     # can duplicate these and are retained separately rather than added twice.
     attempts=[a for state in states for a in state.get('attempts',[])]
     # Use the same JavaScript serialization as the production acknowledgment.
-    base.put(c,'/home/node/study-receipts.json',json.dumps([a.get('receipt') for a in attempts]).encode())
-    digest_script="const fs=require('node:fs'),crypto=require('node:crypto');console.log(JSON.stringify(JSON.parse(fs.readFileSync('/home/node/study-receipts.json','utf8')).map(r=>r?crypto.createHash('sha256').update(JSON.stringify(r)).digest('hex'):null)));"
-    digests=json.loads(base.checked(['docker','exec',c,'node','-e',digest_script]))
+    receipt_values = [a.get('receipt') for a in attempts]
+    ranges = [coverage for receipt in receipt_values if receipt
+              for coverage in receipt.get('input', {}).get('backlogCoverage', [])]
+    ranges += [receipt['input']['backlogRange'] for receipt in receipt_values if receipt
+               and isinstance(receipt.get('input',{}).get('backlogRange'),dict)]
+    ranges += retained_ranges + backlog.get('pendingEntries', [])
+    base.put(c,'/home/node/study-receipts.json',json.dumps({'receipts':receipt_values,'dossiers':raw_dossiers,'ranges':ranges}).encode())
+    digest_script = Path(__file__).with_name('continuous-dossier-proof.mjs').read_text() + "\n" + (
+        "import fs from 'node:fs';const input=JSON.parse(fs.readFileSync('/home/node/study-receipts.json','utf8'));"
+        "console.log(JSON.stringify({receiptDigests:input.receipts.map(r=>r?dossierDigest(r):null),"
+        "dossiers:input.dossiers.map(task=>summarizeDossier(task,input.ranges))}));")
+    proofs=json.loads(base.checked(['docker','exec',c,'node','--input-type=module','-e',digest_script]))
+    digests=proofs['receiptDigests'];dossiers=proofs['dossiers']
     base.shell(c,'rm -f /home/node/study-receipts.json')
     for attempt,digest in zip(attempts,digests):attempt['receiptDigest']=digest
     known=[a['receipt'] for a in attempts if a.get('receipt')]
@@ -297,14 +321,15 @@ def totals(report: dict) -> dict:
 
 
 def run(args: argparse.Namespace) -> dict:
-    paths=[base.PACKAGE/'index.ts',Path(__file__),Path(__file__).with_name('recovery_integrity.py'),Path(__file__).with_name('continuous_failure_retention.py'),Path(__file__).with_name('continuous-tool-budget.ts'),Path(__file__).with_name('continuous-verifier-reference.ts'),Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('failure-observation-proof.ts'),Path(__file__).with_name('failure-observation-proof-cli.ts'),Path(__file__).with_name('continuous-memory-audit.ts'),Path(__file__).with_name('docker_experiment.py'),Path(__file__).with_name('jev-http-forward.mjs'),Path(__file__).with_name('live_acceptance_support.py'),Path(__file__).with_name('continuous_project_tasks.py'),Path(base.__file__),
+    unlimited_budget = getattr(args, 'unlimited_budget', False)
+    paths=[base.PACKAGE/'index.ts',Path(__file__),Path(__file__).with_name('recovery_integrity.py'),Path(__file__).with_name('continuous_failure_retention.py'),Path(__file__).with_name('continuous-tool-budget.ts'),Path(__file__).with_name('continuous-bash-environment.ts'),Path(__file__).with_name('continuous-task-deadline.ts'),Path(__file__).with_name('continuous-verifier-reference.ts'),Path(__file__).with_name('continuous_project_evidence.py'),Path(__file__).with_name('continuous-dossier-proof.mjs'),Path(__file__).with_name('failure-observation-proof.ts'),Path(__file__).with_name('failure-observation-proof-cli.ts'),Path(__file__).with_name('continuous-memory-audit.ts'),Path(__file__).with_name('docker_experiment.py'),Path(__file__).with_name('jev-http-forward.mjs'),Path(__file__).with_name('jev-https-forward.mjs'),Path(__file__).with_name('live_acceptance_support.py'),Path(__file__).with_name('continuous_project_tasks.py'),Path(base.__file__),
            *base.PACKAGE.joinpath('extensions').glob('*.ts'),*base.PACKAGE.joinpath('prompts').glob('*.md'),
            *base.REPO.joinpath('packages/kit/src').glob('*.ts')]
     evidence=EvidenceRun(args.output,{str(p):p for p in paths})
     print(json.dumps({'outputDir':str(evidence.output)},ensure_ascii=False),flush=True)
     protocol={'project':'p-limit','commit':SOURCE_COMMIT,'tasks':TASKS,'arms':['without-learning','with-learning'],
               'sameCodeEachStage':True,'convergence':'first passing candidate, without-learning priority; otherwise without-learning failed source',
-              'freshSessions':True,'memorySeeded':False,'harnessSeeded':False,'jev':'1.13.0 isolated configuration only','jevTransport':'host Bun fetch transparent JSON forwarding; original failed Python HTTP cohorts retained',
+              'freshSessions':True,'memorySeeded':False,'harnessSeeded':False,'jev':None,'jevTransport':'host Bun fetch transparent JSON forwarding; original failed Python HTTP cohorts retained',
               'oracle':ORACLE,'types':[TYPES,SIGNAL_TYPES,REASON_TYPES,SYNC_TYPES,MAP_TYPES],
               'invalidLearning':'retained as operational failure; stop dependent stages after any invalid learning',
               'recovery':'one bounded explicit backfill after initial pending, retirement, or actual task verification failure; failures enter source-bound same-session read-only continuation first, no repeat-until-pass',
@@ -312,11 +337,32 @@ def run(args: argparse.Namespace) -> dict:
               'costs':'sum leader usage plus cumulative per-job learning ledger plus Jev usage; missing pricing/interrupt usage remain unknown',
               'failureFeedbackAdmission':'feedback task failure remains failure; one complete same-session verifier read plus byte-bound original and pending slice and proven removed-tool rejection can admit independent backfill without a successful parent summary; no extra parent retries; earlier v18/v19 failures retained',
               'verifierReadBoundary':'exact source/session-bound file, no offset or limit, one admitted read; rejected calls retained, at most three rejected boundary attempts before abort; earlier prompt-only cohort retained',
-              'parentTaskToolBudget':18,'budgetMechanism':'identical experimental extension removes active tools after final admitted result and blocks excess in-flight calls; independent learning workers unchanged',
+              'verifierReadWireDomain':'same OpenAI-compatible read schema in both arms: path enum is exact bound file, no pagination or additional properties; messages unchanged, no forced call; execution guard and max-one preread proof unchanged; prior broader-schema failures retained',
+              'parentTaskToolBudget':None if unlimited_budget else 18,
+              'transportRequestBudget':None if unlimited_budget else 600,
+              'mainTaskDeadlineSeconds':900,'cliGuardianSeconds':UNLIMITED_CLI_GUARDIAN_SECONDS if unlimited_budget else 900,
+              'resourceProtocol':'unlimited-counts-separated-deadlines' if unlimited_budget else 'bounded-18-tools-600-requests',
+              'budgetMechanism':('no ordinary task tool or transport request count cap; exact one-read feedback guard; main900s closes before learning, worker/service bounds unchanged; outer guardian7200s; independent learning workers unchanged' if unlimited_budget else 'identical experimental extension removes active tools after final admitted result and blocks excess in-flight calls; independent learning workers unchanged'),
               'priorUnboundedCohorts':'retained separately; this protocol change cannot be compared as an unchanged intervention',
-              'commonPrompt':COMMON,
+              'commonPrompt':UNLIMITED_COMMON if unlimited_budget else COMMON,
               'versionVerification':'correction and retirement tasks require a unique matching successful standalone npm --version result, not merely an attempted call or a post-learning pure rule probe',
-              'limitations':['one project, one sequence, no statistical generalization','task difficulty changes; no within-arm slope claim','source convergence is an intervention','parent resource cap is an experimental intervention']}
+              'limitations':['one project, one sequence, no statistical generalization','task difficulty changes; no within-arm slope claim','source convergence is an intervention','resource protocol is an experimental intervention']}
+    protocol['learningAuthorityProtocolVersion']=2 if unlimited_budget else 1
+    protocol['publicRequirementMigrationVersion']=1
+    protocol['memorySourceSupportProtocolVersion']=1
+    protocol['bashLearningCredentialEnvironment']={'version':1,'bothArms':True,
+        'scope':'Ordinary native Bash child environments omit TYPESAFE_API_KEY; the parent keeps SDK authentication. Native command, tool schema, session metadata and original observations are unchanged. This is not a filesystem sandbox or a universal secret filter. Sensitive original evidence still blocks learning. Historical cohorts remain unchanged.'}
+    protocol['memorySourceSupportIntervention']='Normal rewrite support checks current new claims with complete cited and bound current source. Complete predecessor/history context remains in every counter, permission and preservation window. Source uncertainty, all thresholds and atomic approval remain unchanged; historical cause and benefit are unproved.'
+    capture_envelopes=getattr(args,'capture_jev_envelopes',False)
+    protocol['jevEnvelopeCapture']={'enabled':capture_envelopes,'scope':'Authorized public-study proxy UTF-8 JSON buffers only; no headers. Known transport credentials and unsafe response shapes are hash-only. Not raw upstream TLS bytes. Capture is bounded independently of wire capacity and writes after quiescence.'}
+    protocol['publicRequirementMigration']={
+        'task':'repair-and-sync-wrapper','file':'index.test-d.ts',
+        'reason':'Replace the obsolete sync-rejection assertion with a positive Promise<string> assertion before both protected snapshots. Update only its stale comment; preserve every unrelated byte.',
+        'countsAsLearning':False,'ordinaryTaskMayEditExistingTests':False,
+        'historicalCohortsUnchanged':True}
+    protocol['learningAuthorityIntervention']='Explicit separate parent maintenance grant; ordinary tool and existing-test restrictions unchanged. Prior actor-ambiguous cohorts remain separate; this is not evidence of a historical semantic cause.' if unlimited_budget else 'Original bounded actor-ambiguous wording retained.'
+    protocol['piBaseline']='1.2.0'
+    protocol['historicalPiBaseline']='Pi 1.0 cohorts retained separately; not an unchanged runtime comparison'
     protocol['coverageVersion']=3
     protocol['memoryEvidence']='index only; actual successful read with exact retained revision; read exposure alone is not behavioral use or benefit'
     evidence.write('protocol.json',json.dumps(protocol,ensure_ascii=False,indent=2))
@@ -327,16 +373,22 @@ def run(args: argparse.Namespace) -> dict:
         for _ in range(2):
             c=base.container(image);containers.append(c)
             version=base.checked(['docker','exec',c,'node',base.PI,'--version']).decode().strip()
-            if version!='1.0.0':raise RuntimeError('Pi compatibility baseline changed')
             report.setdefault('piVersions',[]).append(version)
+            if version!='1.2.0':raise RuntimeError('Pi 1.2.0 study baseline required')
             base.shell(c,'mkdir -p /work/p-limit; find /work/p-limit -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf -- {} +; rm -rf /home/node/agent /home/node/results; mkdir -p /home/node/agent/memory /home/node/agent/learning /home/node/results')
             base.checked(['docker','exec','-i',c,'tar','-xf','-','-C','/work/p-limit'],data=pristine)
             base.shell(c,'cd /work/p-limit && git init -q')
             base.put(c,'/home/node/continuous-memory-audit.mts',Path(__file__).with_name('continuous-memory-audit.ts').read_text().replace('../extensions/jev-sdk','/opt/experiment/packages/continual-learning/extensions/jev-sdk.ts').encode())
             if json.loads(base.checked(['docker','exec',c,'tsx','/home/node/continuous-memory-audit.mts','--preflight'])).get('ready') is not True:raise RuntimeError('Memory audit runtime unavailable')
+            base.put(c,'/home/node/continuous-task-deadline.ts',Path(__file__).with_name('continuous-task-deadline.ts').read_bytes())
             base.put(c,'/home/node/continuous-tool-budget.ts',Path(__file__).with_name('continuous-tool-budget.ts').read_bytes())
+            base.put(c,'/home/node/continuous-bash-environment.ts',Path(__file__).with_name('continuous-bash-environment.ts').read_bytes())
             base.put(c,'/home/node/continuous-verifier-reference.ts',Path(__file__).with_name('continuous-verifier-reference.ts').read_bytes())
-        with InferenceProxy(Path(os.environ.get('PI_CODING_AGENT_DIR',str(Path.home()/'.pi/agent'))),jev_key=os.environ.get('TYPESAFE_API_KEY'),request_budget=600,jev_transport="bun-fetch") as proxy:
+        with InferenceProxy(Path(os.environ.get('PI_CODING_AGENT_DIR',str(Path.home()/'.pi/agent'))),jev_key=os.environ.get('TYPESAFE_API_KEY'),request_budget=0 if args.preflight_only else (None if unlimited_budget else 600),jev_transport="node-https" if capture_envelopes else "bun-fetch",retain_jev_envelopes=capture_envelopes) as proxy:
+            protocol['jev']=proxy.jev_model
+            protocol['jevTransport']=proxy.jev_transport
+            protocol['priorTransportCohortsRetained']=True
+            evidence.write('protocol.json',json.dumps(protocol,ensure_ascii=False,indent=2))
             report['model']={k:proxy.selection[k] for k in ('provider','model')}
             for arm,c in zip(protocol['arms'],containers):
                 base.configuration(c,proxy)
@@ -352,21 +404,34 @@ def run(args: argparse.Namespace) -> dict:
                 feedback='';valid_learning_so_far=True
                 for index,task in enumerate(TASKS):
                     evidence.verify_sources()
+                    public_migrations=[]
+                    if task['id']=='repair-and-sync-wrapper':
+                        for arm,c in zip(protocol['arms'],containers):
+                            file='/work/p-limit/index.test-d.ts'
+                            original=base.checked(['docker','exec',c,'cat',file])
+                            changed,migration=migrate_public_sync_type_test(task['id'],original)
+                            base.put(c,file,changed)
+                            if base.checked(['docker','exec',c,'cat',file])!=changed:
+                                raise RuntimeError('Public requirement migration readback failed')
+                            public_migrations.append({'arm':arm,**migration})
+                        if public_migrations[0]['afterSha256']!=public_migrations[1]['afterSha256']:
+                            raise RuntimeError('Paired public requirement migration differs')
                                         # gzip headers can differ; bind expanded regular file bytes instead.
                     hashes=[base.protected(c,'p-limit',include_source=True) for c in containers]
                     filtered=lambda h:{k:v for k,v in h.items() if not k.startswith(('.memory/','.pi/'))}
                     if filtered(hashes[0])!=filtered(hashes[1]):raise RuntimeError('Paired stage source mismatch')
                     stage={'validPairInput':valid_learning_so_far,'id':task['id'],'arms':{},'sameSource':True,'startingSource':filtered(hashes[0])};outputs={}
+                    if public_migrations:stage['publicRequirementMigrations']=public_migrations
                     report['stages'].append(stage)
                     for arm_index in ([0,1] if index%2==0 else [1,0]):
                         arm=protocol['arms'][arm_index];c=containers[arm_index];out=evidence.output/task['id']/arm;outputs[arm]=out
                         before=base.protected(c,'p-limit')
                         prompt=task['prompt']+('\nActual preceding verification results:\n'+feedback if index==4 else '')
                         jev_start=len(proxy.jev_usage);requests_start=proxy.requests
-                        inference=run_session(c,prompt,proxy,out,'stage-'+str(index))
+                        inference=run_session(c,prompt,proxy,out,'stage-'+str(index),unlimited_budget=unlimited_budget)
                         inference['jevUsage']=proxy.jev_usage[jev_start:];inference['allTransportRequests']=proxy.requests-requests_start
                         stage['arms'][arm]={'inference':inference,'passed':False,'validPairInput':valid_learning_so_far}
-                        if inference['timedOut'] or inference.get('interrupted'):
+                        if inference['timedOut'] or inference.get('interrupted') or inference.get('taskDeadlineExceeded') or inference.get('taskDeadlineMissing') or inference.get('modelAborted'):
                             stage['arms'][arm]={'inference':inference,'passed':False};raise RuntimeError('Timed-out candidate stopped; retain failure and stop dependent stages')
                         verification=score(c,task['level'],proxy,out,before)
                         if index in (2,3):
@@ -387,7 +452,7 @@ def run(args: argparse.Namespace) -> dict:
                             feedback_settings=json.loads(old_settings);feedback_settings['autoMemory']=False
                             base.put(c,settings_file,json.dumps(feedback_settings).encode())
                             try:
-                                verifier_feedback=run_session(c,'continue',proxy,out/'verifier-feedback','stage-'+str(index),feedback_observation=observation)
+                                verifier_feedback=run_session(c,'continue',proxy,out/'verifier-feedback','stage-'+str(index),feedback_observation=observation,unlimited_budget=unlimited_budget)
                                 stage['arms'][arm]['verifierFeedback']=verifier_feedback
                             finally:base.put(c,settings_file,old_settings)
                             feedback_state=artifacts(c,proxy,out/'before-failed-backfill')
@@ -412,7 +477,7 @@ def run(args: argparse.Namespace) -> dict:
                                 verifier_feedback['recoveryClaim']=str(claim)
                             source_before_recovery=base.protected(c,'p-limit',include_source=True)
                             recovery_jev_start=len(proxy.jev_usage);recovery_request_start=proxy.requests
-                            recovery=run_session(c,'/consolidate backfill',proxy,out/'explicit-recovery','recovery-'+str(index),command=True)
+                            recovery=run_session(c,'/consolidate backfill',proxy,out/'explicit-recovery','recovery-'+str(index),command=True,unlimited_budget=unlimited_budget)
                             recovery['jevUsage']=proxy.jev_usage[recovery_jev_start:];recovery['allTransportRequests']=proxy.requests-recovery_request_start
                             stage['arms'][arm]['explicitRecovery']=recovery
                             if feedback_state is not None:recovery['priorHistoryIds']=[record['id'] for record in feedback_state['history']]
@@ -475,9 +540,17 @@ def run(args: argparse.Namespace) -> dict:
             report['executionStatus']='completed';report['status']='incomplete-coverage'
         if proxy is not None:
             report['transport']={'requests':proxy.requests,'errors':proxy.errors,'jevRequests':proxy.jev_requests,'jevUsage':proxy.jev_usage,'jevObservations':proxy.jev_observations}
+            if capture_envelopes:
+                report['jevEnvelopeCapture']=proxy.write_jev_envelopes(evidence.output/'jev-envelopes')
         # On failure, preserve available raw session artifacts before cleanup.
         # Missing interrupted usage is explicitly unknown, never imputed as zero.
-        if report['status']=='failed' and proxy is not None:
+        if report['status']=='failed' and proxy is None:
+            # Version/build admission may fail before transport exists. Keep
+            # owned containers intact rather than deleting unarchived evidence.
+            report['retainedContainers']=list(containers)
+            report['retentionIncomplete']=bool(containers)
+            report['failureRetentionReason']='transport-not-initialized; containers retained without exporting unredacted data'
+        elif report['status']=='failed' and proxy is not None:
             report['interruptedCostsMayBeUnknown']=True
             report['failureRetention']=[]
             report['retainedContainers']=[]
@@ -485,6 +558,18 @@ def run(args: argparse.Namespace) -> dict:
                 target=evidence.output/f'interrupted-agent-{index}'
                 retained=retain_failure_container(c,target,base.process,lambda data:redact_transport_bytes(data,proxy))
                 report['failureRetention'].append(retained)
+                if retained['surfaces']['memory']['saved'] and retained['surfaces']['learning']['saved']:
+                    try:
+                        recovered = retained_learning_costs(target)
+                        arm = protocol['arms'][index]
+                        report.setdefault('retainedLearningCosts', {})[arm] = recovered
+                        total = report['totals'][arm]
+                        total['learningTokens'] = max(total['learningTokens'], recovered['knownLearningTokens'])
+                        total['learningReportedCost'] = max(total['learningReportedCost'], recovered['knownLearningCost'])
+                        total['allLearningCostsPriced'] = False
+                        total['interruptedCostReconciled'] = True
+                    except Exception as recovery_error:
+                        report.setdefault('retainedCostErrors', []).append(type(recovery_error).__name__)
                 if not retained['passed']:report['retainedContainers'].append(c)
             report['retentionIncomplete']=bool(report['retainedContainers'])
         else:
@@ -492,9 +577,9 @@ def run(args: argparse.Namespace) -> dict:
         report['sourceUnchanged']=evidence.hashes()==evidence.start_hashes
         if not report['sourceUnchanged']:
             report['status']='failed';report['error']='SourceDrift'
-        evidence.write('results.json',redact_transport_bytes(json.dumps(report,ensure_ascii=False,indent=2).encode(),proxy).decode() if proxy else json.dumps(report,ensure_ascii=False,indent=2));evidence.write('manifest.json',redact_transport_bytes(json.dumps({**report,'sourceHashes':evidence.start_hashes,'sourceHashesAfter':evidence.hashes()},ensure_ascii=False,indent=2).encode(),proxy).decode() if proxy else json.dumps(report,ensure_ascii=False,indent=2))
+        evidence.write('results.json',redact_transport_bytes(json.dumps(report,ensure_ascii=False,indent=2).encode(),proxy).decode() if proxy else json.dumps(report,ensure_ascii=False,indent=2));evidence.write('manifest.json',redact_transport_bytes(json.dumps({**report,'sourceHashes':evidence.start_hashes,'sourceHashesAfter':evidence.hashes()},ensure_ascii=False,indent=2).encode(),proxy).decode() if proxy else json.dumps({**report,'sourceHashes':evidence.start_hashes,'sourceHashesAfter':evidence.hashes()},ensure_ascii=False,indent=2))
     return report
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('output',type=Path);parser.add_argument('--source',type=Path,default=Path('/tmp/cl-real-project-inputs/p-limit'));parser.add_argument('--base-image',default='cl-real-trained:p-limit-445efcaf51');parser.add_argument('--preflight-only',action='store_true')
+    parser=argparse.ArgumentParser();parser.add_argument('output',type=Path);parser.add_argument('--source',type=Path,default=Path('/tmp/cl-real-project-inputs/p-limit'));parser.add_argument('--base-image',default='cl-real-trained:p-limit-20261011-rebuilt');parser.add_argument('--preflight-only',action='store_true');parser.add_argument('--unlimited-budget',action='store_true');parser.add_argument('--capture-jev-envelopes',action='store_true')
     result=run(parser.parse_args());print(json.dumps({'status':result['status'],'error':result.get('error')},ensure_ascii=False));raise SystemExit(0 if result['status'] in ('completed','preflight-passed') else 1)

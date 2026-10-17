@@ -107,6 +107,16 @@ def test_expands_delta_to_validator_and_apply_compatible_full_plan() -> None:
                 }],
               };
 
+              // Metadata alone must not replace existing knowledge; legacy bodies remain valid.
+              const oldBytes = await readFile(join(harness, 'project_config.md'), 'utf8');
+              let emptyBodyRejected = false;
+              try {
+                await expandIncrementalMemoryPlan(run, ['project_config.md', 'preference_style.md'], {
+                  ...delta, operations: [{...delta.operations[0], content: '---\nname: config\ndescription: Discovery only\ntype: project\n---\n \t\n'}],
+                });
+              } catch (error) { emptyBodyRejected = error.message.includes('non-empty Memory body'); }
+              if (!emptyBodyRejected) throw Error('Metadata-only rewrite was admitted');
+              if (oldBytes !== await readFile(join(harness, 'project_config.md'), 'utf8')) throw Error('Rejected rewrite changed old knowledge');
               const plan = await expandIncrementalMemoryPlan(run, ['project_config.md', 'preference_style.md'], delta);
               const planPath = join(runDir, 'plan.json');
               await writeFile(planPath, JSON.stringify(plan, null, 2) + '\n');

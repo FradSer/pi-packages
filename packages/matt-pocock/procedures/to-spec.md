@@ -40,7 +40,7 @@ This list of user stories should be extremely extensive and cover all aspects of
 
 ## Scenarios
 
-Executable scenarios derived from the user stories above, written as Gherkin (Given/When/Then). Each scenario pins one behavior; collectively they are the executable specification the implementation is verified against. See [bdd](bdd.md) for the scenario authoring guide and the `.feature` storage convention.
+Executable scenarios derived from the user stories above, written as Gherkin (Given/When/Then). Each scenario pins one behavior; collectively they are the executable specification the implementation is verified against. See [bdd](../references/bdd.md) for the scenario authoring guide and the `.feature` storage convention.
 
 ## Implementation Decisions
 
@@ -56,7 +56,7 @@ A list of implementation decisions that were made. This can include:
 
 Do NOT include specific file paths or code snippets. They may end up being outdated very quickly.
 
-Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it within the relevant decision and note briefly that it came from a prototype. Trim to the decision-rich parts — not a working demo, just the important bits.
+Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it within the relevant decision and note briefly that it came from a prototype. Trim to the decision-rich parts, not a working demo, just the important bits.
 
 ## Testing Decisions
 

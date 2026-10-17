@@ -8,12 +8,18 @@
  * repository root keeps the short relative spelling. Commands with shell
  * constructs or options outside Git's documented worktree-add syntax are left
  * unchanged.
+ *
+ * A rewritten creation also moves the session into the worktree it just made, so
+ * the model's next relative path belongs to the new checkout. The move itself
+ * belongs to the session switcher: this module reports which command created
+ * what, and whether that command succeeded.
  */
 
 import path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { notifyPi } from "@fradser/pi-kit";
+import type { CreatedWorktreeReservation, WorktreeEntryHost } from "./worktree-session.ts";
 import {
 	canonicalize,
 	isManagedWorktreesIgnored,
@@ -294,7 +300,54 @@ export function rewriteWorktreeAddCommand(
 	return planWorktreeAddRedirect(command, options)?.command ?? command;
 }
 
-export default function (pi: ExtensionAPI) {
+/** One planned creation, kept until its bash result reports the outcome. */
+interface PlannedCreation {
+	path: string;
+	reservation: CreatedWorktreeReservation["status"];
+}
+
+/**
+ * True when a bash command succeeded. The bash tool reports a non-zero exit as
+ * an error, and its structured result carries the same exit code.
+ */
+function bashSucceeded(event: { isError: boolean; structuredContent?: unknown }): boolean {
+	if (event.isError) return false;
+	const structured = event.structuredContent as { exit_code?: unknown } | undefined;
+	const exitCode = structured && typeof structured === "object" ? structured.exit_code : undefined;
+	return exitCode === undefined || exitCode === 0;
+}
+
+export default function registerWorktreeRedirect(pi: ExtensionAPI, host?: WorktreeEntryHost) {
+	/** Creations this session's own bash calls planned, by tool call id. */
+	const planned = new Map<string, PlannedCreation>();
+
+	pi.on("message_end", (event, ctx) => {
+		// Reserve before any tool in this message runs: a sibling edit resolved
+		// against the current checkout must not run once this session moves.
+		if (!host || event.message.role !== "assistant") return;
+		planned.clear();
+		let reserved = false;
+		for (const part of event.message.content) {
+			if (part.type !== "toolCall" || part.name !== "bash") continue;
+			const command = part.arguments?.command;
+			if (typeof command !== "string") continue;
+			const plan = planWorktreeAddRedirect(command, { cwd: ctx.cwd });
+			if (!plan) continue;
+			if (reserved) {
+				// One session move per message; the barrier blocks the rest.
+				planned.set(part.id, { path: plan.target, reservation: "taken" });
+				continue;
+			}
+			const reservation = host.reserveCreatedWorktree({
+				path: plan.target,
+				sessionFile: ctx.sessionManager.getSessionFile() ?? null,
+				toolCallId: part.id,
+			});
+			planned.set(part.id, { path: plan.target, reservation: reservation.status });
+			reserved = reservation.status === "reserved";
+		}
+	});
+
 	pi.on("tool_call", async (event, ctx) => {
 		if (!isToolCallEventType("bash", event)) return;
 
@@ -320,5 +373,34 @@ export default function (pi: ExtensionAPI) {
 				"warning",
 			);
 		}
+	});
+
+	pi.on("tool_result", (event, ctx) => {
+		if (!host || event.toolName !== "bash") return;
+		const creation = planned.get(event.toolCallId);
+		if (!creation) return;
+		planned.delete(event.toolCallId);
+		const created = bashSucceeded(event);
+		host.settleCreatedWorktree(event.toolCallId, created);
+		if (!created) {
+			if (creation.reservation === "reserved") {
+				notifyPi(ctx.ui, `the worktree was not created — this session stays in ${ctx.cwd}`, "warning");
+			}
+			return;
+		}
+		if (creation.reservation === "reserved") {
+			notifyPi(ctx.ui, `created ${creation.path} — this session moves there when the turn ends`, "info");
+			return;
+		}
+		if (creation.reservation === "unpersisted") {
+			notifyPi(
+				ctx.ui,
+				`created ${creation.path} — this session has no session file, so Pi cannot switch to it`,
+				"warning",
+			);
+			return;
+		}
+		// The remaining case is a "taken" reservation: the barrier owned that batch,
+		// so its command did not run and no created worktree exists to report.
 	});
 }

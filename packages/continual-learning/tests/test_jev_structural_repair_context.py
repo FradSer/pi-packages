@@ -1,3 +1,4 @@
+import pytest
 from support import isolated_run_bun
 
 
@@ -52,12 +53,33 @@ def test_structural_worker_receives_grounding_context_in_same_read_only_call() -
     assert value['context']['frozenEvidence']['entries'] == [{'snapshotIndex': 0, 'citationEligible': True, 'entry': {'role': 'user', 'content': {'citationLines': {'block': 0, 'lines': [{'line': 1, 'text': 'Project uses pnpm. Only this task: summarize failures.', 'ref': 'e0.b0.l1'}]}}}}]
 
 
-def test_production_structural_repair_holds_tampering_and_accounts_paid_attempt() -> None:
+@pytest.mark.parametrize("sensitive", [False, True])
+def test_production_structural_repair_holds_tampering_and_accounts_paid_attempt(sensitive: bool) -> None:
     from pathlib import Path
     from support import run_bun_script
     fixture = Path(__file__).with_name('learning-policy-harness.ts')
     for reason in ('structural-held', 'structural-tamper-snapshot', 'structural-tamper-dossier'):
-        value = run_bun_script(fixture, 'remember-shared', env={'CL_JEV_FIXTURE': reason})
+        env = {'CL_JEV_FIXTURE': reason}
+        if sensitive:
+            env['CL_MEMORY_REJECTED_PLAN_SECRET'] = '1'
+        value = run_bun_script(fixture, 'remember-shared', env=env)
+        rejected, = value['structuralRejections']
+        assert rejected['originalPlanDigest'] == value['initialMemoryPlanDigest']
+        assert rejected['originalPlanRetained'] is not sensitive
+        assert rejected['sensitive'] is sensitive
+        if sensitive:
+            assert 'originalPlan' not in rejected
+            assert 'api_key' not in str(rejected) and 'sk-' not in str(rejected)
+            assert value['registryReceipt']['operations'] == 0
+            assert not value['memoryMirrored']
+            continue
+        import hashlib
+        import json
+        original = rejected['originalPlan']
+        assert original['newMemories'][0]['kind'] == 'project-fact'
+        canonical = json.dumps(original, ensure_ascii=False, separators=(',', ':'))
+        assert hashlib.sha256(canonical.encode()).hexdigest() == rejected['originalPlanDigest']
+
         assert value['structuralContextReceived'] and value['totalRepairs'] == (2 if reason == 'structural-held' else 1)
         assert value['semanticRepairs'] == (1 if reason == 'structural-held' else 0) and not value['memoryMirrored']
         attempts = [a for a in value['registryReceipt']['attempts'] if a['phase'] == 'memory']

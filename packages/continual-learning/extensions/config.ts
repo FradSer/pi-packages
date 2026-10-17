@@ -202,6 +202,9 @@ export interface JevLearningConfig {
   /** Grants semantic participation only, never file-write authority. */
   scopes: JevStage[];
   allowPrivateMemory?: boolean;
+  requestConcurrency?: number;
+  /** Normal complete reviews request the service long context unless disabled. */
+  longContext?: boolean;
   apiKey?: string;
 }
 export interface JevConfigState {
@@ -226,10 +229,12 @@ export function readJevConfigState(): JevConfigState {
     if (jev === false) return { disabled: true };
     if (jev !== true && (!jev || typeof jev !== "object" || Array.isArray(jev))) return { invalid: "invalid-config" };
     const value = (jev === true ? {} : jev) as Record<string, unknown>;
-    if (Object.keys(value).some(key => !["model", "scopes", "enabled", "allowPrivateMemory", "apiKey"].includes(key))
+    if (Object.keys(value).some(key => !["model", "scopes", "enabled", "allowPrivateMemory", "requestConcurrency", "longContext", "apiKey"].includes(key))
       || (value.enabled !== undefined && typeof value.enabled !== "boolean")
       || (value.apiKey !== undefined && (typeof value.apiKey !== "string" || !value.apiKey.trim()))
-      || (value.allowPrivateMemory !== undefined && typeof value.allowPrivateMemory !== "boolean")) return { invalid: "invalid-config" };
+      || (value.longContext !== undefined && typeof value.longContext !== "boolean")
+      || (value.allowPrivateMemory !== undefined && typeof value.allowPrivateMemory !== "boolean")
+      || (value.requestConcurrency !== undefined && (!Number.isSafeInteger(value.requestConcurrency) || Number(value.requestConcurrency) < 1 || Number(value.requestConcurrency) > 4))) return { invalid: "invalid-config" };
     const model = value.model ?? "jev-1.13.0";
     const scopes = value.scopes ?? ["selection", "memory", "harness"];
     if (typeof model !== "string" || !/^(?:jev-[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|jev-latest|jev-preview)$/.test(model)
@@ -238,6 +243,8 @@ export function readJevConfigState(): JevConfigState {
       || new Set(scopes).size !== scopes.length) return { invalid: "invalid-config" };
     if (value.enabled === false) return { disabled: true };
     return { config: { model, scopes: scopes as JevStage[], allowPrivateMemory: value.allowPrivateMemory === true,
+      ...(typeof value.longContext === "boolean" ? {longContext: value.longContext} : {}),
+      ...(typeof value.requestConcurrency === "number" ? {requestConcurrency: value.requestConcurrency} : {}),
       ...(typeof value.apiKey === "string" ? { apiKey: value.apiKey } : {}) } };
   } catch {
     return { invalid: "invalid-config" };
@@ -264,4 +271,24 @@ export function plannerJsonOutputEnabled(): boolean {
 /** Separate opt-in: JSON syntax support does not establish schema support. */
 export function plannerStructuredOutputEnabled(): boolean {
   return plannerOutputCapabilityEnabled("plannerStructuredOutput");
+}
+
+/** Generation-only operator choice. It does not change independent reviewers. */
+export function plannerThinkingLevel(): string | undefined {
+  try {
+    const file = join(assertSafeAgentDir(false), "continual-learning.json");
+    if (!lstatIfPresent(file)) return undefined;
+    assertSafeConfigTarget(file);
+    if (lstatSync(file).size > 4096) throw new Error("Learning planner configuration exceeds its bound");
+    const raw: unknown = JSON.parse(readFileSync(file, "utf8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Invalid learning planner configuration");
+    const value = (raw as Record<string, unknown>).plannerThinkingLevel;
+    if (value === undefined) return undefined;
+    if (typeof value !== "string" || !["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value)) {
+      throw new Error("Invalid learning planner thinking level");
+    }
+    return value;
+  } catch {
+    throw new Error("Invalid learning planner configuration");
+  }
 }

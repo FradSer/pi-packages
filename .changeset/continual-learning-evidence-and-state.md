@@ -1,6 +1,39 @@
 ---
 "pi-continual-learning": patch
+"@fradser/pi-plan-mode": patch
+"pi-skill-router": patch
+"@fradser/pi-vision": patch
 ---
+
+Point historical Memory counter instructions at the actual `supportEvidence`
+and `reviewEvidence` fields. Keep source-support fields, complete evidence,
+historical bounded encoding and every approval gate unchanged.
+
+Use complete Memory content for evidenced maintenance purpose or applicability,
+with exact declarations and supported Why/How sections. Keep the source-only
+excerpt interface and existing records unchanged. This is generation guidance,
+not evidence of better learning.
+
+Retain a safe Memory setup failure reason and zero generation calls when frozen
+evidence is refused before the planner starts. Sensitive evidence still blocks
+learning and later planners.
+
+Give semantic Memory rewrite repair the same exact old/new line comparison used
+by review, beside complete records and original evidence. Clarify that metadata
+edits do not by themselves resolve a separate preservation hold. Keep supported
+scope corrections, empty refusal, high reasoning and every semantic gate.
+
+Bind actual `/consolidate` and explicit backfill invocations separately from source-task evidence. Preserve the exact current command, session, run, project and source digest. A maintenance invocation supplies no facts, policy correction or privacy waiver; historical invocations do not grant current permission.
+
+Focus normal Memory rewrite support checks on the complete new record, original citations and bound current source. Keep complete predecessor records and historical purpose in every separate counter, permission and preservation review. Preserve uncertain holds, atomic approval, privacy, source bindings and all thresholds; this input change alone does not establish better learning.
+
+Keep explicit `/memory` commands after their older task evidence. Preserve the current request under the existing evidence bounds and bind its retained index through fresh source reads and planning. Use Pi 1.2 for current native acceptance; preserve historical runtime records.
+
+Refresh complete original-task source during explicitly requested Memory
+backfill, retaining original evidence and binding the fresh read-only observations
+through validation and writes. Keep stored Memory out of that collector's scope,
+and account for its failed calls and costs. Failure planning prioritizes observed
+pitfalls without treating API inventory or unverified causes as learned fixes.
 
 Give automatic Harness planning and repair a bounded read-only case evaluator using the same parent validation. Retain real rejected cases as regressions; passing a preview grants no evidence, semantic approval, ownership or mutation authorization.
 
@@ -14,7 +47,7 @@ Make incremental planning and repair declare the same exact new-knowledge schema
 
 Render exact parent-owned identity JSON for incremental planners, retain per-candidate original citation associations in Memory support reviews, and separate Harness counter-evidence from repeated authorization. Preserve semantic thresholds, complete review windows and rejection of identity drift.
 
-Distinguish source-comment explanations and historical test counts from durable verified knowledge. Complete only strict-prefix display messages of new literal rules from a single validated user quote, retaining both plans and revalidating the actual reviewed and applied candidate.
+Distinguish source-comment explanations and historical test counts from durable verified knowledge. Keep queue-completion knowledge scoped to the inspected callback phase; an empty queue does not guarantee that future caller continuations have drained. Complete only strict-prefix display messages of new literal rules from a single validated user quote, retaining both plans and revalidating the actual reviewed and applied candidate.
 
 Retain a bounded fifteen-second default semantic-service request deadline after a real frozen response exceeded the old five-second deadline. Honor explicit deadlines and cancellation, preserve connection-only retry bounds, and distinguish task-local verification instructions from independently observed reusable source knowledge during planning and repair. Semantic thresholds and full evidence remain unchanged.
 
@@ -323,3 +356,262 @@ keep uncertain fields held and preserve full revalidation and mutation gates.
 Include independent Memory body reviewers in explicitly opted-in structured
 output. Require one judgment per complete parent-bound slot while retaining
 legacy response validation, exact contradiction witnesses and all source gates.
+
+Recognize the exact literal command-family grammar with leading ASCII whitespace
+and command-ending separators. Keep matching proof separate from authorization,
+and distinguish newlines between command words from newlines after the command.
+Clarify the subject of learned API type contracts and independent descriptions.
+
+Separate command-family permission changes from factual explanation conflicts in
+each complete counterevidence window. Require both existing semantic gates before
+application; preserve all evidence, authorization checks and uncertain proposals.
+
+Review independently retrieved Memory descriptions against their complete records.
+Do not treat missing description witnesses in a whole-record hold as field approval;
+allow the existing single correction to reconsider both knowledge fields before
+fresh complete review. Prefer existing supported sentences over lossy index summaries.
+
+Preserve exact inspected API declarations when their syntax is the learned
+contract, avoiding duplicated prose that changes the contract's subject.
+
+
+Add an optional parent-materialized source-excerpt representation for new private
+project Memory. Bind it to an original successful read, exact evidence and current
+regular source-file bytes; retain all ordinary validation and complete semantic
+review, with source identity and byte checks around application and rollback.
+
+
+Allow an explicit generation-only planner thinking level, preserving model defaults
+when absent and independent complete-record review settings. Refuse invalid or
+unsafe configuration and verify the distinct levels through the actual Pi CLI.
+
+Repair feedback now retains independent body and description failures from complete semantic review. Eligible quoted descriptions can produce a narrower new proposal using only their exact bound checklist; a corrected proposal needs its own fresh review. One deterministic narrowing still requires full plan, body, source and semantic validation. Historical real descriptions with held checks remain rejected.
+
+Clarify source chronology and partial failed-command observations in Memory review: later applied source text does not establish runtime success, and earlier absent declarations do not alone contradict a later addition. Later reverts, failed edits and original full-window gates still apply.
+
+Allow new private project Memory source excerpts from complete added lines of a successful original edit, bound to its invocation newText and unchanged current regular source file. Original marked evidence, privacy and all semantic/write gates remain mandatory; attempted edits, removals, partial-line coordinates and stale source are rejected.
+
+Preserve complete project Memory contracts when semantic body review remains held; deterministic description-only narrowing is limited to preferences.
+
+Allow explicitly bounded Jev review concurrency for service backpressure while preserving full checks, request bounds and deadlines.
+
+Align semantic amendment output with parent document validation by requiring complete frontmatter and body when content is supplied.
+
+Bound semantic Memory repair workers to the existing review worker budget,
+retain lifecycle/partial costs, and reconcile interrupted study costs without
+double-counting receipt copies or treating unknown calls as free.
+
+Make semantic amendment producer patterns consume the complete Markdown value,
+including its body, while preserving standard frontmatter search validation and
+all parent intent, citation and semantic checks.
+
+Persist single-task replay ranges with parent source bindings across crash recovery,
+and request relevant Memory reads before related implementation while keeping
+index-only discovery and current-evidence validation.
+
+Retain bounded literal source identifiers in excerpt descriptions for discovery,
+and clarify automatic learning ownership without expanding ordinary task write scope.
+
+Recover only lossless quoted JSON whitespace in a unique bounded Memory repair
+response, retaining its original output and conversion evidence before all parent
+identity, citation, intent and semantic checks.
+
+Move the shared declaration-knowledge precision contract ahead of untrusted generation and semantic-repair evidence; distinguish callable, parameter-return and invocation-result subjects without adding project facts or weakening review.
+
+Add an isolated Node HTTPS semantic-study transport that keeps the original hostname and certificate checks while routing through a verified lookup address, with one-attempt accounting, fixed TLS codes, unchanged deadlines and real local TLS positive/negative coverage. Production SDK transport is unchanged.
+
+Close experiment admission atomically and wait for all counted forwarders, including late usage, before releasing a reservation; unconfirmed termination remains reserved and cost-unknown.
+
+Reject whitespace and frontmatter-only new or rewritten Memory before semantic review in TypeScript and Python, and require non-empty bodies in opt-in producer schemas. Existing records and plain-body compatibility are preserved; a description never becomes knowledge automatically.
+
+Recover literal newline and tab serialization in initial Memory generation using the same bounded, lossless path as corrections. Preserve mutation intent and conversion hashes; keep all parent and semantic gates.
+
+Preserve explicitly successful native retries when recovering final Memory JSON string whitespace, keeping all failed responses and parent gates. Share the complete citation catalog through local schema references without changing any expanded constraint.
+
+Keep failure-derived knowledge and descriptions within the observed public contract instead of turning one missing-member check into a universal requirement for runtime properties.
+
+Review large Memory selector inputs in complete ordered record windows, preserving
+final revocations and requiring every window to finish confidently before routing.
+Routing unions only nominate full downstream review; privacy, mutation authority,
+semantic thresholds and unknown cost accounting remain unchanged.
+
+Record fixed TCP/TLS/response progress for isolated semantic-study failures,
+without response content, credentials, relaxed TLS, new retries or changed deadlines.
+
+Bind complete semantic checklists after an existing bounded connection retry
+succeeds: count successful logical requests separately from failed attempts.
+Keep all failed attempts and costs; require every original window, exact answer
+and source binding before the independent Memory body review can run.
+
+Rejected Harness initial/repair extraction now retains a private, run-bound transport artifact with a fixed parent error category. Encoded sensitive output stays hash-only. This closes a real diagnostic-loss gap; it does not recover the prior missing output, approve rejected plans, add retries, or demonstrate learning benefit.
+
+Memory mutation counterreview now considers the same original source chronology as creation review: verified successor source can supersede an earlier observation of the same subject. Reverts, failed edits, user permission, complete predecessor preservation and the original semantic gates remain intact. This corrects inconsistent review instructions, without admitting historical held plans or claiming downstream benefit.
+
+Memory rewrite/retention description counterreview now checks the short index claim independently instead of asking it to preserve the complete predecessor record. Full-body preservation and every original evidence window remain mandatory; inaccurate or condition-dropping descriptions still hold the whole plan. Historical held plans remain held.
+
+Memory retention windows can compare earlier source observations with exact, independently collected current source entries named by the retained record. The parent binds the observations and complete snapshot by hash and rechecks source revisions; source-path matching nominates comparison context only. All original windows, final revocations, independent semantic checks and thresholds remain required. Unbound audit labels, changed evidence, missing invocation provenance and failed reads cannot supply this context.
+
+Automatic learning now refreshes scoped current source after observed successful project edits, before Memory selection and generation. Original reads and patches remain intact; the collector receives source paths only, and current source revisions stay bound through semantic review and writes.
+
+Failure backfill now binds a prior source-extended review to its unchanged original task prefix, complete snapshot, parent manifest and original collector receipt/read log. Missing or ambiguous provenance remains rejected; old source observations do not become fresh learning evidence.
+
+Normal unbounded Memory review now supplies complete values inline instead of requiring semantic judgments to dereference body pointers or UTF-16 substrings. Explicitly byte-bounded historical studies keep their exact encoding; all source, preservation, privacy and semantic gates remain.
+
+Semantic Memory repair instructions now consistently require the complete parent-bound amendment envelope. Candidate patch restrictions no longer imply omitting kind/version or run identity; incomplete and foreign envelopes remain rejected without an extra repair attempt.
+
+Candidate-bound Memory patch generation avoids extra reasoning only for known description-only changes after complete bodies passed independent consistency review. Source, permission and preservation body holds, retained-record correction, unknown held fields and inconsistent bodies retain high reasoning. Fresh independent and full semantic validation, exact identity and the original worker deadline remain required.
+
+Reject a semantic amendment that reconstructs the unchanged rejected proposal after source materialization, citation resolution and protected-field restoration. Keep its output, usage and unresolved status without paying for the same review again. Effective source and citation changes still require full validation.
+
+Retain optional parent-observed origin bindings in applied private Memory history,
+with exact run artifacts, receipt creation sets and file revisions. Preserve
+unavailable origins and legacy data without changing mutation or undo authority.
+This metadata is not yet supplied to model context or semantic review.
+
+Normal unbounded Memory rewrites and deletions now receive parent-bound current-source comparison in every counterevidence window, using predecessor and replacement paths only as retrieval hints. Complete original windows, support, preservation, privacy and thresholds remain required; bounded historical wire encoding stays unchanged.
+
+Memory generation and semantic repair now distinguish observed source comments from verified behavior, compare them with current user requirements, and preserve supported unresolved documentation conflicts. Quotation and source-excerpt copying do not supply correctness; atomic submission, evidence and semantic gates remain unchanged.
+
+Normal source comparison now includes explicit original invocation/result order for uniquely paired successful same-path reads, including new project knowledge. Semantic correction generation receives the same validated index links alongside its unchanged complete original evidence, without duplicate source bodies. Invalid bindings stop before a model request. Existing Memory remains a correction target rather than source authority. This provenance does not decide supersession or truth; original source, privacy, complete-window and semantic gates remain unchanged, as does explicitly bounded historical wire encoding. The real V50 stale-declaration repair remains rejected; delivery of source order does not establish improved generation or learning.
+
+Review explicit durable corrections to still-owned Harness rules before task execution, retaining the existing semantic/fixture/transaction gates and a total 230-second bound. Prevent ordinary complete writes from silently changing owned declarations or markers; preserve explicit previewed authoring.
+
+Canonicalize selected Memory source-hash identity so mirror normalization cannot reject unchanged files solely because directory traversal order changes. Preserve exact file-content and frozen-dossier binding checks.
+
+Request the configured Jev service's supported long context for normal complete reviews, with an explicit opt-out. Preserve finite historical study modes, complete evidence, existing thresholds and deadlines; carry the fixed header through isolated study transports without changing TLS or retry behavior.
+
+Explain recognized literal Harness selector grammar for both sides of a correction,
+without dropping raw rules, entering new-rule authorization shortcuts or changing
+historical bounded requests. Keep uncertain judgments held. Give combined Memory
+repair workers an explicit retained-record operation contract distinguishing
+`rewrite`/`delete` operations from `project`/`preference` Memory types; malformed
+operations remain rejected. Real rejected responses and complete frozen source
+are regression evidence only, never seeded knowledge or learning-benefit proof.
+
+Keep automatic current-source collection usable after an edited file is renamed:
+retain unavailable edit hints as discovery metadata, grant them no exact read
+scope, and verify the remaining current sources. Missing-only sets, sensitive
+paths, symlinks and scope violations still fail; missing hints provide no facts
+or absence claims. Retain the original failed collection and its costs.
+
+Align normal Memory counterevidence choices with the question's complete source
+chronology. Only later verified observations of the same source subject and exact
+text can resolve earlier source differences; unresolved conflicts, later reverts,
+permission exceptions and preservation issues remain held. Keep every original
+entry, unchanged thresholds and finite historical/Harness criteria. Retain the
+actual old wire separately from offline legacy-criteria reconstruction.
+
+Give normal rewrite/retain description counter judgments criteria for the
+description's own claims and necessary conditions. Do not independently judge
+whole-operation knowledge preservation in that field. Keep the complete body
+preservation and authorization gates, all evidence, uncertain holds, probability
+thresholds and bounded historical request encoding unchanged. This corrects
+judgment scope; historical low-confidence causes and learning benefit remain
+unestablished.
+
+Keep normal retained-only counter criteria about actual corrections, revocations
+and observed source changes, matching the existing no-mutation review contract.
+Missing repetition or new citations alone neither contradicts nor verifies old
+knowledge. Preserve every original entry, independent body/description checks,
+uncertain holds and finite historical encoding; retention grants no write authority.
+
+Scope normal new-Memory counter criteria to each new record's claims and necessary
+conditions, with independent description criteria. Keep other operations' full
+predecessor/dependency preservation checks and atomic whole-plan admission intact.
+Explicit operation identity takes precedence over kind labels; finite historical
+wire and all original semantic thresholds remain unchanged.
+
+Align combined Memory repair examples with mandatory proposal and retained-record
+coverage. Preserve an explicit empty refusal on both sides, reject partial wire
+shapes, and keep all parent identity, privacy, source and semantic checks. Missing
+retained corrections stay unresolved rather than being reported as identity drift.
+
+Revisit actually read indexed Memory before automatic early screening, including
+when semantic phase selection is disabled and the task has no learning keywords.
+Keep current-source collection, disabled settings, exact command scope and all
+semantic and parent mutation gates. Native loopback proof establishes correction
+routing and validated writes only, not downstream learning benefit.
+
+Pin fresh continuous-study runtimes to the requested Pi 1.2.0 CLI/TUI baseline,
+including inherited workspace overrides. Check actual CLI startup before model
+transport, retain rejected-version containers and full source bindings, and keep
+historical Pi 1.0 cohorts separate.
+
+Keep normal CREATE-only Memory counterevidence state free of unrelated predecessor
+preservation obligations in mixed plans. Preserve complete original evidence and
+source context, separate rewrite/delete preservation checks, atomic approval and
+all semantic thresholds. Keep explicitly bounded historical encoding unchanged.
+
+Allow changed semantic Memory content patches to retain the exact candidate's
+original citations when the complete frozen snapshot and held fields are bound.
+Revalidate all original sources, preserve locked metadata and record provenance.
+Keep missing identity, explicit invalid evidence, unchanged effective content and
+citation-only omissions rejected. Require fresh complete semantic and mutation
+validation; source reuse does not approve learning or add a repair attempt.
+
+Preserve a separate held-review gate after saving Memory proposals. Semantically held records and partially applied subsets with pending review cannot start dependent Harness or AGENTS planners. Keep proposal outcomes, independent writes and every reported cost. Fully reviewed repairs and intentional validated propose policies still continue. Recheck run ownership before changing the gate after asynchronous work.
+
+Allow an explicitly enabled semantic correction candidate to select exact current
+audited source text instead of regenerating a quoted contract. Require full parent
+identity, explicit citations, audit membership and current regular-file hashes.
+Keep locked metadata, predecessor preservation and every fresh semantic gate;
+extraction grants no approval and adds no correction attempt.
+
+
+Let semantic Memory corrections select exact short parent-bound candidate
+references. Capture and recheck the full proposal digest and reference map;
+retain full snapshot identity, strict legacy IDs and all fresh semantic gates.
+Keep malformed historical responses rejected and add no correction attempt.
+
+Retain the exact original snapshot and selector dossier read grants for normal
+Harness repairs, as for missing-output recovery. Do not grant an agent-directory
+root or change source binding, correction budgets or semantic thresholds.
+
+Support Pi 1.2 retry logs in exact failed-task replay when a context edit removes
+only an empty assistant error. Sanitize removed metadata, preserve evidence
+indexes and source/task digests, and refuse all meaningful redactions. Keep the
+original failure and costs. Resolve workspace CLI and extension peers to Pi 1.2.0
+and narrow user-prompt access for custom-start events.
+
+Name the native read tool in relevant Memory guidance so ordinary knowledge
+consultation uses the same interface as correction nomination. Keep current-user
+exceptions, task scope and all evidence gates. Shell output remains uncredited.
+
+Separate normal unbounded Memory mutation evidence and preservation questions.
+Require both primitive 0.9/0.8 gates and a parent-computed conservative conjunction
+score lower bound of 0.9. Keep all original windows, complete predecessor and
+replacement bodies, separate description checks, exact answer coverage and atomic
+admission. Missing preservation answers stay invalid. Historical bounded wires
+remain unchanged; this protocol change does not establish learning benefit.
+
+Supply parent-computed literal source quote comparisons in normal unbounded Memory
+rewrite/delete review. Bind each quote to a unique successful same-path read and
+compare individual original text blocks. Scope facts to the reviewed candidates;
+retain complete source/knowledge/windows and every semantic threshold. Exact
+matches never grant approval. Preserve finite historical request encoding.
+
+Show exact unmatched predecessor and replacement line occurrences during normal Memory rewrite review. Preserve complete records, source review, semantic preservation gates and historical bounded transport. Text equality does not authorize mutation.
+
+Separate Memory factual compatibility from user permission and require both with complete predecessor preservation. Retain the 0.9/0.8 primitive gates and a conservative three-way score bound of 0.9. Preserve revoked user preferences even when writes are permitted. Fix bounded repair-field routing for held preservation checks and keep each held dimension in diagnostic feedback.
+
+Keep complete original user scope in every normal Memory rewrite/delete support and counter request. Preserve exact original entries, indexes, temporary restrictions and revocations; exclude quoted roles and reject conflicting wrappers. Keep citations, complete windows, historical transport and semantic gates unchanged.
+
+Copy original user context once and reject post-await changes to evidence, predecessor records or candidates. Retain known service usage without returning complete or partial review proof for changed inputs.
+
+Offer optional source-cited current-versus-earlier clarification in the existing semantic Memory repair. Require actual paired original observations and compatible task scope. Do not infer history, dates, releases, runtime success or Memory purpose. Preserve privacy, revocations, material conditions and every fresh review gate without adding attempts.
+
+Retain optional parent-bound Memory origin in private mutation history. Add a read-only interface that returns complete historical tasks only through a unique revision chain to creation. Refuse incomplete, changed, ambiguous, oversized or cancelled reads, and recheck captured records and artifacts before reuse. Keep legacy records unbound and undo based on bytes and mode. Supply complete historical tasks to normal Memory review and semantic repair only with explicit private authorization and full sensitive screening. Keep history separate from current source, citations and authority. Bind it across asynchronous work, admit only the exact parent pending transaction during writes, and publish subset audits after origin guards settle. Preserve all semantic gates and finite historical wire encoding.
+
+Keep Memory file revisions unchanged for exact rewrites with the same secure mode. Preserve transaction checks and report operation counts from actual content, presence or mode changes. This keeps complete historical origin usable across no-op consolidation without claiming a knowledge correction.
+
+Make semantic Memory correction distinguish source-backed changes, citation gaps and unsupported corrections before generating an amendment. Keep empty amendments failed. Copy exact original frontmatter into repair examples, including absent fields and locked descriptions. Use the selected record header when reconsidering an unvalidated deletion. Preserve all identity, citation, privacy and semantic checks.
+
+Pin the isolated Pi 1.2 runtime dependencies, including agent core, code mode, MCP and telemetry, to 1.2.0. Keep fresh dependency resolution separate from historical study images.
+
+Correct the Memory generation guidance that conflated declared roles with runtime object inequality. Require evidence for identity claims and prevent uncited reviewer cautions from becoming learned facts. Keep predecessor knowledge and all review gates.
+
+Reject semantic responses that do not match an explicitly pinned Jev model version. Keep actual response usage and known model prices; retain moving alias behavior. Add the published Jev 1.14 input-price estimate without changing confidence or mutation gates.
+
+Bind Memory relationship checks, partial review feedback, description correction and independent partition checks to the parent-requested Jev model. Preserve the legacy 1.13 contract for injected judges without a model binding. Keep complete evidence, protected fields, privacy, thresholds and fresh post-correction review.
+
+Keep the original rejected Memory plan in the existing run-bound structural rejection artifact before correction can replace it. Use the existing sensitive-output guard to retain hashes only for sensitive output. Keep rejection outcomes, usage and all validation gates.

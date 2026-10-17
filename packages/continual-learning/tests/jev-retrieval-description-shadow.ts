@@ -1,3 +1,4 @@
+import { createShadowSourceDirectory } from "./shadow-source-directory";
 /** Research-only body context; never evidence, authority or permission. */
 import fs from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -23,7 +24,7 @@ export function retrievalDescriptionSource(source:string):string {
 }
 export async function loadRetrievalDescriptionJudge():Promise<{createJevJudge:typeof createJevJudge;sourceSha256:string;patchedSha256:string;directory:string;dispose():Promise<void>}> {
  const source=await fs.readFile(new URL('../extensions/jev-learning.ts',import.meta.url),'utf8');const patched=retrievalDescriptionSource(source);
- const directory=await fs.mkdtemp(new URL('./.jev-retrieval-description-',import.meta.url).pathname);const dispose=()=>fs.rm(directory,{recursive:true,force:true});
+ const directory=await createShadowSourceDirectory("jev-retrieval-description-");const dispose=()=>fs.rm(directory,{recursive:true,force:true});
  try {
   await fs.cp(new URL('../extensions/',import.meta.url),`${directory}/extensions`,{recursive:true});
   const file=`${directory}/extensions/jev-learning.ts`;await fs.writeFile(file,patched,'utf8');

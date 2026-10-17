@@ -37,3 +37,13 @@ scopes:
       description: skill discovery and routing in packages/skill-router/; does not cover shared kit internals
     - name: vis
       description: image and visual input tools in packages/vision/; does not cover shared kit internals
+    - name: examples
+      description: sample scripts and usage implementations in examples/; does not cover package source code
+    - name: features
+      description: top-level Gherkin feature definitions and behavior files in features/; does not cover package features
+    - name: packages
+      description: workspace packages including agent-teams, continual-learning, and kit in packages/; does not cover root scripts or docs
+    - name: scripts
+      description: release automation and build scripts in scripts/; does not cover package runtimes
+    - name: tests
+      description: cross-package acceptance, prompt budget, and integration test suites in tests/; does not cover package-specific tests

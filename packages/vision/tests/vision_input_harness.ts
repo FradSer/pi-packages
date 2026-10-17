@@ -149,7 +149,7 @@ const readImage = defineTool({
       },
       {
         type: "image",
-        data: "iVBORw0KGgo=",
+        data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
         mimeType: "image/png",
       },
     ],

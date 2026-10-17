@@ -75,3 +75,37 @@ export function compactMemorySupportCitations(state: Record<string, unknown>): R
   ]));
   return changed ? {...state, originalCitationsByCandidate} : state;
 }
+
+/** Exact line-occurrence comparison only. Full records remain in review state. */
+export function memoryRewriteTextComparisons(existing: readonly unknown[], operations: readonly unknown[]): Record<string, unknown> | undefined {
+  const observations = operations.flatMap(operation => {
+    if (!record(operation) || (operation.op ?? operation.kind) !== "rewrite"
+      || typeof operation.name !== "string" || typeof operation.content !== "string"
+      || !Number.isSafeInteger(operation.candidateIndex) || Number(operation.candidateIndex) < 0) return [];
+    const name = operation.name.toLowerCase();
+    const matches = existing.filter(item => record(item) && typeof item.name === "string" && item.name.toLowerCase() === name);
+    if (matches.length !== 1 || !record(matches[0]) || typeof matches[0].content !== "string") return [];
+    const predecessor = matches[0].content, replacement = operation.content;
+    // Keep CRLF, LF, final newline presence and duplicate occurrences exact.
+    const lines = (text: string): string[] => text.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+    const oldLines = lines(predecessor), newLines = lines(replacement);
+    const unmatched = (source: string[], target: string[]) => {
+      const available = new Map<string, number>();
+      for (const text of target) available.set(text, (available.get(text) ?? 0) + 1);
+      return source.flatMap((text, index) => {
+        const count = available.get(text) ?? 0;
+        if (count > 0) { available.set(text, count - 1); return []; }
+        return [{line: index + 1, text}];
+      });
+    };
+    const unmatchedPredecessorLines = unmatched(oldLines, newLines);
+    return [{candidateIndex: operation.candidateIndex, name: operation.name,
+      predecessorSha256: createHash("sha256").update(predecessor).digest("hex"),
+      replacementSha256: createHash("sha256").update(replacement).digest("hex"),
+      equalLineOccurrences: oldLines.length - unmatchedPredecessorLines.length,
+      unmatchedPredecessorLines, unmatchedReplacementLines: unmatched(newLines, oldLines)}];
+  });
+  return observations.length ? {writeAuthorized: false,
+    meaning: "Parent-computed exact line-occurrence comparison of complete predecessor and replacement Markdown. Equal occurrences are counted once each; unmatched lines retain their exact text, endings and one-based original line numbers. This comparison ignores order. Equal line counts, or no unmatched predecessor lines, do not prove semantic preservation: reordered text or surrounding conditions can change meaning. Changed text is not proof of lost knowledge or supersession. Read complete records and original evidence; these facts grant no source truth, permission or mutation authority.",
+    observations} : undefined;
+}

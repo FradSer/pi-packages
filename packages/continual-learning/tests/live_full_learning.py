@@ -1,6 +1,8 @@
 """Real-provider cold-start full learning, with disposable native Pi sessions."""
 from __future__ import annotations
 
+from live_acceptance_support import workspace_pi
+
 import hashlib
 import json
 from pathlib import Path
@@ -53,7 +55,7 @@ def verify() -> dict:
         home = base / "home"
         home.mkdir()
         env = _runtime_env(agent, home)
-        pi = shutil.which("pi") or "pi"
+        pi = workspace_pi(Path(__file__).resolve().parents[3])
         ready = base / "ready"
         probe.write_text("import fs from 'node:fs';export default function(pi){pi.on('session_start',()=>"
                          f"fs.writeFileSync({json.dumps(str(ready))},'ready'));}}")

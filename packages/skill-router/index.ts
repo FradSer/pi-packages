@@ -17,7 +17,7 @@ export default function skillRouter(pi: ExtensionAPI): void {
     }
     const sections = options.sections;
     Reflect.deleteProperty(sections, "skill_router");
-    if (typeof event.prompt !== "string" || isExplicitSkillInvocation(event.prompt)) return;
+    if (!("prompt" in event) || typeof event.prompt !== "string" || isExplicitSkillInvocation(event.prompt)) return;
 
     const skills = event.systemPromptOptions.skills ?? [];
     const match = routePrompt(event.prompt, loadCollections(routerRoot()), new Map(skills.map((skill) => [skill.name, skill])));

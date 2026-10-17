@@ -92,7 +92,10 @@ def validate_learning_result(receipt: dict, records: list[dict], learned: dict, 
                 assert hashlib.sha256(data).hexdigest() == state['digest'], key
 
 
-def run(output: Path, *, real_model: bool = False) -> dict:
+def run(output: Path, *, real_model: bool = False, raw_memory_json: bool = False) -> dict:
+    if real_model and raw_memory_json:
+        raise ValueError("Raw JSON fixture is offline only")
+    LoopbackProvider.raw_memory_json = raw_memory_json
     files = [PACKAGE / 'index.ts', PACKAGE / 'package.json', REPO / 'packages/kit/package.json',
              *sorted(file for folder in ('extensions', 'prompts', 'scripts') for file in (PACKAGE / folder).rglob('*')
                      if file.is_file() and file.suffix in {'.ts', '.py', '.md', '.json', '.mjs', '.sh'}),
@@ -104,7 +107,7 @@ def run(output: Path, *, real_model: bool = False) -> dict:
               'localChanges': subprocess.run(['git', 'status', '--short'], cwd=REPO, capture_output=True, text=True).stdout.splitlines()}
     evidence.write('manifest.json', json.dumps(report, indent=2))
     try:
-        _run(evidence, report, real_model=real_model)
+        _run(evidence, report, real_model=real_model, raw_memory_json=raw_memory_json)
     except Exception as error:
         report.update({'status': 'failed', 'errorType': type(error).__name__, 'error': str(error)})
         raise
@@ -115,7 +118,7 @@ def run(output: Path, *, real_model: bool = False) -> dict:
     return report
 
 
-def _run(evidence: EvidenceRun, report: dict, *, real_model: bool) -> None:
+def _run(evidence: EvidenceRun, report: dict, *, real_model: bool, raw_memory_json: bool = False) -> None:
     output = evidence.output
     import fcntl
     import struct
@@ -239,6 +242,24 @@ def _run(evidence: EvidenceRun, report: dict, *, real_model: bool) -> None:
                 tui.wait_until(lambda: bool(receipt_files()), 480 if real_model else 180, 'Learning did not produce a final receipt')
                 receipt_file = receipt_files()[0]; receipt_bytes = receipt_file.read_bytes(); receipt = json.loads(receipt_bytes)
                 (output / 'receipt.json').write_bytes(receipt_bytes)
+                if raw_memory_json:
+                    conversions = []
+                    for conversion_file in sorted((agent / 'memory/runs').glob('**/generation-json-whitespace.json')):
+                        original_file = conversion_file.with_name('generation-original-output.json')
+                        original = json.loads(original_file.read_text())
+                        conversion = json.loads(conversion_file.read_text())
+                        assert original['originalTransportRetained'] and not original['sensitive']
+                        assert hashlib.sha256(original['stdout'].encode()).hexdigest() == original['originalTransportSha256']
+                        assert conversion['counts']['newline'] > 0 and conversion['semanticAcceptance'] is False
+                        (output / "generation-recovery" / conversion_file.parent.name).mkdir(parents=True, exist_ok=True)
+                        for file in (conversion_file, original_file):
+                            evidence.write('generation-recovery/' + conversion_file.parent.name + '/' + file.name, safe(file.read_bytes()).decode())
+                        conversions.append({'runId': conversion['runId'], 'counts': conversion['counts'],
+                                            'originalTransportSha256': original['originalTransportSha256']})
+                    assert conversions, 'Raw fixture did not exercise initial-generation recovery'
+                    assert 'memory-plan-repair' not in LoopbackProvider.responses, 'Lossless recovery spent an extra repair call'
+                    report['generationSerializationRecovery'] = {'conversions': conversions, 'originalTransportRetained': True,
+                                                                  'additionalRepairCalls': 0, 'semanticAcceptanceProven': False}
                 wait_text('[learning]')
                 capture('01-learning-result')
                 assert ({('memory', 'applied')} if real_model else {('memory', 'applied'), ('harness', 'applied')}) <= {(row['phase'], row['outcome']) for row in receipt['attempts']}, receipt
@@ -346,7 +367,8 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path, help='Parent directory; each invocation creates a new run directory')
+    parser.add_argument('--raw-memory-json', action='store_true', help='Offline initial-generation raw string whitespace regression')
     parser.add_argument('--real-model', action='store_true', help='Use configured real provider; incurs model usage')
     args = parser.parse_args()
-    result = run(args.output.resolve(), real_model=args.real_model)
+    result = run(args.output.resolve(), real_model=args.real_model, raw_memory_json=args.raw_memory_json)
     print(json.dumps({key: result[key] for key in ('status', 'outputDir', 'cliExitCode', 'sourceUnchanged')}, indent=2))

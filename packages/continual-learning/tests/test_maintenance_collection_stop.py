@@ -37,7 +37,8 @@ def test_complete_delivery_stops_collection_but_partial_or_refused_reads_do_not_
 
 
 @pytest.mark.parametrize("missing", [False, True])
-def test_actual_pi_stops_after_complete_reads_and_preserves_cancelled_worker_accounting(missing: bool) -> None:
+@pytest.mark.parametrize("purpose", ["maintenance", "backlog-replay"])
+def test_actual_pi_stops_after_complete_reads_and_preserves_cancelled_worker_accounting(missing: bool, purpose: str) -> None:
     value = isolated_run_bun(r'''
       import fs from 'node:fs/promises';import path from 'node:path';import {mock} from 'bun:test';
       const root=await fs.realpath(process.env.PI_CODING_AGENT_DIR);const cwd=path.join(root,'project');await fs.mkdir(cwd);
@@ -46,14 +47,19 @@ def test_actual_pi_stops_after_complete_reads_and_preserves_cancelled_worker_acc
       const kit=await import('./packages/kit/src/index.ts');const worker=kit.runPiWorker;let workerResult;
       mock.module('./packages/kit/src/index.ts',()=>({...kit,runPiWorker:async opts=>(workerResult=await worker({...opts,extraArgs:[...opts.extraArgs,'-e',path.resolve('packages/continual-learning/tests/maintenance-collector-live-fixture.ts')],model:'maintenance-collector-fixture/deterministic'}))}));
       const {auditMemoryMaintenanceSources}=await import('./packages/continual-learning/extensions/memory-maintenance-audit.ts');
-      const result=await auditMemoryMaintenanceSources({cwd,request:'整理记忆',memoryFiles:[],outputDir:root});
+      const result=await auditMemoryMaintenanceSources({cwd,request:'整理记忆',purpose:process.env.PI_COLLECTION_PURPOSE,replayPaths:['runtime.ts'],memoryFiles:[],outputDir:root});
       const receipt=JSON.parse(await fs.readFile(path.join(result.directory,'receipt.json'),'utf8'));
       const calls=(await fs.readFile(events,'utf8')).trim().split('\n').map(JSON.parse);
       const observations=(await fs.readFile(path.join(result.directory,'observations.jsonl'),'utf8')).trim().split('\n').map(JSON.parse);
       await result.assertSourcesUnchanged();await fs.writeFile(source,'changed');let stale=false;try{await result.assertSourcesUnchanged()}catch{stale=true}
       console.log(JSON.stringify({outcome:result.outcome,entries:result.entries.length,receipt,calls,workerResult,reads:observations.length,stale}));
-    ''', env={'PI_COLLECTION_MISSING_ONCE': '1' if missing else '0'})
+    ''', env={'PI_COLLECTION_MISSING_ONCE': '1' if missing else '0','PI_COLLECTION_PURPOSE':purpose})
     assert [row for row in value['calls'] if 'providerCall' in row] == [{'providerCall': 1}], value
+    if purpose == 'backlog-replay' and missing:
+        # A denied path outside the explicit original-file scope cannot be admitted.
+        assert value['reads'] == 18 and value['entries'] == 0 and value['outcome'] == 'failed', value
+        assert value['receipt']['sourceEvidenceStatus'] == 'hold' and not value['receipt']['usageComplete']
+        return
     assert value['reads'] == 18 and value['entries'] == (34 if missing else 36) and value['stale'], value
     assert value['outcome'] == 'observed', value
     assert value['receipt']['workerOutcome'] == 'failed', value

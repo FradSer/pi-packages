@@ -7,7 +7,14 @@ overrides:
   brace-expansion: ^5.0.12
   shell-quote: ^1.11.0
   source-map-js: ^1.2.2
-  '@earendil-works/pi-coding-agent@0.84.1>undici': 8.10.2
+  # Keep CLI and extension peer resolution on the verified Pi runtime.
+  '@earendil-works/pi-coding-agent': 1.2.0
+  '@earendil-works/pi-ai': 1.2.0
+  '@earendil-works/pi-agent-core': 1.2.0
+  '@earendil-works/pi-codemode': 1.2.0
+  '@earendil-works/pi-mcp': 1.2.0
+  '@earendil-works/pi-telemetry': 1.2.0
+  '@earendil-works/pi-tui': 1.2.0
 
 allowBuilds:
   "@google/genai": true

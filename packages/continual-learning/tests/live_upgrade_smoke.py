@@ -6,6 +6,8 @@ No simulated provider or fixture result substitutes for real Pi tool execution.
 """
 from __future__ import annotations
 
+from live_acceptance_support import workspace_pi
+
 import json
 import os
 from pathlib import Path
@@ -64,7 +66,7 @@ def verify_upgrade() -> dict[str, object]:
             "After receiving all four tool results report them briefly and stop. Do not call read or other tools."
         )
         result = subprocess.run([
-            "pi", "--offline", "--no-extensions", "-e", str(PACKAGE / "index.ts"),
+            workspace_pi(Path(__file__).resolve().parents[3]), "--offline", "--no-extensions", "-e", str(PACKAGE / "index.ts"),
             "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
             "--session", str(session), "--print", "--mode", "json", "--model", f"{provider}/{model}",
             "--tools", "bash,write,edit", prompt,

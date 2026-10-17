@@ -18,3 +18,18 @@ Feature: Read-only narrow Memory support research
     When a response contains valid Noul or Choice probabilities
     Then research records only controlled indexes labels and bounded numeric probabilities
     And malformed extra-key unknown-model or private-text answers produce no observation
+
+  Scenario: A pinned semantic model cannot silently use another version
+    Given Memory review requests an exact Jev model version
+    When the service returns a different model version with positive answers
+    Then the parent holds the review as an invalid response
+    And actual model usage and known estimated cost remain recorded
+    And explicitly moving aliases keep their configured version flexibility
+
+  Scenario: Review consumers keep the parent model binding
+    Given a parent judge requests a fixed supported Jev version
+    When its complete or incomplete Memory review reaches a correction consumer
+    Then the consumer requires the same requested and actual model version
+    And old or foreign proofs cannot unlock correction fields
+    And legacy injected judges retain the 1.13 version contract
+    And each corrected candidate still requires complete fresh source and semantic review

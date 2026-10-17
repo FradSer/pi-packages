@@ -2,6 +2,37 @@ import pytest
 from support import isolated_run_bun
 
 
+def test_incremental_knowledge_contract_precedes_untrusted_dossier() -> None:
+    value = isolated_run_bun(r'''
+      import {buildIncrementalMemoryConsolidatorPrompt, buildMemoryConsolidatorPrompt, MEMORY_KNOWLEDGE_GUIDANCE, MEMORY_CITATION_GUIDANCE} from './packages/continual-learning/extensions/planner-prompts.ts';
+      const prompt=buildIncrementalMemoryConsolidatorPrompt({runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h',dossierPath:'/fixture/dossier',dossierContents:'UNTRUSTED_FROZEN_EVIDENCE'});
+      const maintenance=buildMemoryConsolidatorPrompt({pkgDir:'/fixture/pkg',runId:'r',scopeKey:'s',scopeDigest:'d',artifactHash:'a',snapshotDigest:'h',runDir:'/fixture/run',snapshotPath:'/fixture/snapshot',harnessDir:'/fixture/harness',publicDir:'/fixture/public',repoRoot:'/fixture/repo'});
+      console.log(JSON.stringify({prompt,maintenance,contract:MEMORY_KNOWLEDGE_GUIDANCE,citation:MEMORY_CITATION_GUIDANCE}));
+    ''')
+    assert value['prompt'].startswith(value['contract'])
+    assert value['maintenance'].startswith(value['contract'])
+    assert value['maintenance'].count('Knowledge output contract:') == 1
+    assert value['prompt'].count('Knowledge output contract:') == 1
+    assert value['prompt'].index('Knowledge output contract:') < value['prompt'].index('UNTRUSTED_FROZEN_EVIDENCE')
+    assert 'no uncertainty authorizes changing a possibly correct fact' in value['contract']
+    assert 'Return only the exact attributed declaration' in value['contract']
+    assert 'PromiseLike' not in value['contract'] and 'limitFunction' not in value['contract']
+    assert 'Return only the exact attributed declaration' not in value['citation']
+    # Given a self-returning callable and overlapping value contracts, When
+    # writing declaration knowledge, Then role distinctions must not become
+    # false runtime-identity claims or new uncited reviewer caveats.
+    counterexample = isolated_run_bun(r'''
+      const self = () => self;
+      const promise = Promise.resolve(1);
+      console.log(JSON.stringify({sameCallable: self() === self,
+        promiseAlsoThenable: typeof promise.then === 'function'}));
+    ''')
+    assert counterexample == {'sameCallable': True, 'promiseAlsoThenable': True}
+    assert 'A callable returning a value is not that value.' not in value['contract']
+    assert 'Different declared roles do not establish different runtime objects or mutually exclusive values.' in value['contract']
+    assert 'Do not copy reviewer cautions into learned knowledge as new claims.' in value['contract']
+
+
 def test_known_json_capable_no_tool_planners_request_structured_output() -> None:
     # Given a JSON-capable model and an isolated no-tool worker, When its
     # request is prepared, Then constrain content on the wire without changing
@@ -34,8 +65,8 @@ def test_known_json_capable_no_tool_planners_request_structured_output() -> None
     assert any(arg.endswith('/planner-json-output.ts') for arg in value['args'])
 
 
-@pytest.mark.parametrize("strict", [False, True])
-def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, strict) -> None:
+@pytest.mark.parametrize("strict,thinking", [(False, None), (True, None), (True, "low")])
+def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, strict, thinking) -> None:
     import json
     import subprocess
     import threading
@@ -80,13 +111,13 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
 
     agent = tmp_path / 'agent'
     agent.mkdir()
-    (agent / 'continual-learning.json').write_text(json.dumps({('plannerStructuredOutput' if strict else 'plannerJsonOutput'): True, 'jev': False}))
+    (agent / 'continual-learning.json').write_text(json.dumps({('plannerStructuredOutput' if strict else 'plannerJsonOutput'): True, 'jev': False, **({'plannerThinkingLevel': thinking} if thinking else {})}))
     (agent / 'settings.json').write_text(json.dumps({'quietStartup': True, 'packages': []}))
     server = ThreadingHTTPServer(('127.0.0.1', 0), Provider)
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, daemon=True).start()
     try:
-        models = [{'id': name, 'reasoning': False, 'input': ['text'], 'contextWindow': 200000, 'maxTokens': 4096,
+        models = [{'id': name, 'reasoning': bool(thinking), **({'compat': {'thinkingFormat': 'qwen', 'supportsReasoningEffort': True}, 'thinkingLevelMap': {'off': 'none', 'minimal': None, 'low': 'low', 'medium': 'medium', 'high': None, 'xhigh': 'xhigh', 'max': None}} if thinking else {}), 'input': ['text'], 'contextWindow': 200000, 'maxTokens': 4096,
                    'cost': {'input': 0, 'output': 0, 'cacheRead': 0, 'cacheWrite': 0}}
                   for name in ['qwen3.8-flash', 'unknown']]
         (agent / 'models.json').write_text(json.dumps({'providers': {'planner-json-loopback': {
@@ -137,13 +168,28 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
             assert locked['classification'] == prior['classification']
             assert locked['evidence'][0]['quote'] == 'The project uses pnpm.'
             assert received[3]['response_format']['json_schema']['name'] == 'memory_amendment'
+            # Given ambiguous declaration prose caused real held Memory, When
+            # actual Pi prepares its semantic correction, Then the source-level
+            # knowledge contract precedes the frozen context and stays independent
+            # of this fixture's project facts.
+            semantic_prompt = '\n'.join(str(m.get('content', '')) for m in received[2]['messages'] if m.get('role') == 'user')
+            assert 'Knowledge output contract:' in semantic_prompt
+            assert 'Different declared roles do not establish different runtime objects or mutually exclusive values.' in semantic_prompt
+            assert 'Do not copy reviewer cautions into learned knowledge as new claims.' in semantic_prompt
+            assert 'not a requirement that every runtime property become public' in semantic_prompt
+            assert 'body and description' in semantic_prompt
+            assert 'the input function, its return value, the returned callable, its invocation result and its own properties' in semantic_prompt
+            assert semantic_prompt.index('Knowledge output contract:') < semantic_prompt.index('"semanticContext"')
+            assert 'Return only the exact attributed declaration when a paraphrase cannot keep those subjects distinct.' in semantic_prompt
             assert value['semantic']['outcome'] == 'repaired'
             proposal = value['semantic']['plan']['newMemories'][0]
             assert proposal['kind'] == 'project' and proposal['classification'] == 'private'
             assert proposal['evidence'][0]['quote'] == 'The project uses pnpm.'
             assert received[2]['response_format']['json_schema']['name'] == 'memory_amendment'
             evidence = received[2]['response_format']['json_schema']['schema']['properties']['replacements']['items']['properties']['evidence']['items']
-            assert evidence['properties']['ref']['enum'] == ['e0.b0.l1']
+            assert evidence['properties']['ref'] == {'$ref': '#/$defs/memorySourceReference'}
+            assert evidence['properties']['endRef'] == evidence['properties']['ref']
+            assert received[2]['response_format']['json_schema']['schema']['$defs']['memorySourceReference'] == {'type': 'string', 'enum': ['e0.b0.l1']}
             assert set(evidence['properties']) == {'ref', 'endRef', 'role'}
             assert evidence['required'] == ['ref']
             for index in (2, 3, 4):
@@ -160,6 +206,14 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
             assert combined_schema['name'] == 'memory_combined_amendment'
             assert 'operations' in combined_schema['schema']['required']
             assert 'newMemories' not in combined_schema['schema']['properties']
+        if thinking:
+            # Given semantic body scope is unknown or includes retained records,
+            # When actual Pi sends the repair, Then keep xhigh despite configured low.
+            # Structural and citation-only requests must retain their configured effort.
+            assert [request.get('reasoning_effort') for request in received] == [
+                thinking, thinking, 'xhigh', thinking, 'xhigh', 'xhigh',
+            ]
+            assert all(request.get('enable_thinking') is True for request in received)
         assert all(not request.get('tools') for request in received)
         assert 'response_format' not in received[0]
         if strict:
@@ -168,7 +222,7 @@ def test_actual_pi_no_tool_repair_transmits_json_mode_in_isolation(tmp_path, str
         else:
             assert received[1]['response_format'] == {'type': 'json_object'}
         version = subprocess.run([workspace_pi(REPO), '--version'], check=True, capture_output=True, text=True)
-        assert version.stdout.strip(), 'Actual workspace Pi version missing'
+        assert version.stdout.strip() == '1.2.0', 'Actual workspace Pi 1.2 is required'
     finally:
         server.shutdown()
         server.server_close()
@@ -281,3 +335,23 @@ def test_actual_selector_worker_transmits_schema_and_keeps_parent_range_gate(tmp
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_semantic_amendment_content_requires_complete_markdown_not_body_only() -> None:
+    # Given the actual failure returned a plain replacement paragraph,
+    # When a semantic amendment requests content, Then its wire schema requires the same complete document as parent validation.
+    import re
+    value = isolated_run_bun(r'''
+      import {learningOutputSchema} from './packages/continual-learning/extensions/planner-output-schema.ts';
+      const kinds=['memory-amendment','memory-semantic-amendment','memory-combined-amendment'];
+      console.log(JSON.stringify(kinds.map(kind=>learningOutputSchema(kind,undefined,['bound-id']).properties.replacements.items)));
+    ''')
+    actual_body = ('When `rejectOnClear` is falsy, `clearQueue` calls `queue.clear()` and returns; '
+                   'the `reject` stored on each queued item is not invoked by this path.')
+    complete = '---\nname: queue\ndescription: The clearQueue branches differ.\ntype: project\n---\n' + actual_body
+    for item in value:
+        content = item['properties']['content']
+        assert 'frontmatter' in content['description']
+        assert re.match(content['pattern'], actual_body) is None
+        assert re.match(content['pattern'], complete)
+        assert 'content' not in item['required']  # Evidence-only/delete amendments remain valid.

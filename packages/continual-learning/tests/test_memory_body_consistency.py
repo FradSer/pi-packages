@@ -48,10 +48,11 @@ def test_coherence_hold_repairs_only_body_and_keeps_reviewed_description() -> No
       const replacement={...candidate,content:candidate.content.replace('description: Established fact.','description: Unreviewed new claim.').replace('Conflicting body.','Established fact.')};
       const merged=mergeSemanticMemoryRepairDelta(plan,{operations:[],newMemories:[replacement]},['fact.md'],fields,evidence);
       const distilled=distillReviewedNewMemory(plan,candidates,review,evidence,existing,1);
-      console.log(JSON.stringify({fields,merged,distilled}));
+      console.log(JSON.stringify({fields,merged,distilled,plan}));
     ''')
     assert value['fields'] == {'fact.md': ['body']}
     body = value['merged']['newMemories'][0]['content']
     assert 'description: Established fact.' in body and 'Unreviewed new claim' not in body
     assert body.endswith('Established fact.')
-    assert value['distilled']['names'] == ['fact.md']
+    assert value['distilled']['names'] == []
+    assert value['distilled']['plan'] == value['plan']

@@ -38,7 +38,7 @@ def test_complete_candidate_review_is_bound_and_never_partial_write_permission()
     assert all(x['outcome'] == 'passed' for x in passed['result']['candidateReview']['candidates'])
     for row in [unavailable, missing, mutation]:
         assert 'candidateReview' not in row['result']
-    assert unavailable['result']['decision'] == missing['result']['decision'] == 'propose'
+    assert unavailable['result']['decision'] == missing['result']['decision'] == mutation['result']['decision'] == 'propose'
 
 
 def test_candidate_review_absent_for_incomplete_or_ineligible_inputs() -> None:
@@ -60,7 +60,7 @@ def test_candidate_review_absent_for_incomplete_or_ineligible_inputs() -> None:
       }console.log(JSON.stringify(rows));
     ''')
     assert all('candidateReview' not in row['result'] for row in rows)
-    assert next(x for x in rows if x['mode'] == 'model-mismatch')['result']['decision'] == 'propose'
+    assert all(x['result']['decision']=='propose' for x in rows if x['mode'] in ['model-mismatch','evidence-mutation','existing-mutation'])
 
 
 def test_candidate_review_includes_existing_relationship_and_all_windows() -> None:

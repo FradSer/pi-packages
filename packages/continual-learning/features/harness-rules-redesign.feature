@@ -386,3 +386,40 @@ Feature: Flat Harness rules with consistent resolution and append-only guidance
       And its bytes remain unchanged during loading
       When removal is explicitly requested
       Then a before-and-after protection-loss preview requires native authorization
+
+  Scenario: Rejected planner output remains diagnosable without admitting it
+    Given a bounded Harness worker finishes with an identity mismatch or multiple plans
+    When the parent rejects the initial or single repair output
+    Then the receipt contains only a parent-controlled extraction category
+    And a private artifact binds the original transport hash and immutable run
+    And encoded sensitive output is retained only as a hash
+    And no rejected plan is accepted or resampled
+
+  Scenario: A current durable correction is reviewed before old learned guidance is delivered
+    Given automatic Harness application and semantic review are enabled
+    And a project rule still matches its automatic ownership revision
+    When the current original user permanently corrects or retires that rule
+    Then the parent reviews only that current user entry before task execution
+    And only reviewed updates to those exact owned revisions may be applied
+    And fresh guidance and execution gates use the persisted corrected revision
+    And temporary exceptions, quoted tool instructions and extension continuations grant no correction
+    And failed, uncertain or cancelled reviews preserve the original rule and all costs
+    And this early review never acknowledges the unfinished task as learned
+
+  Scenario: Ordinary complete JSON writes cannot impersonate learned-rule correction
+    Given an existing Harness rule matches its parent-written ownership revision
+    When an ordinary task write changes or removes that declaration or its ownership marker
+    Then the write is rejected before mutation
+    And parent-reviewed correction and explicit previewed Harness authoring remain available
+    And unrelated manual additions preserve every exact owned declaration and marker
+
+  Scenario: Correcting a learned selector retains code-proven matching meaning
+    Given a current original user correction of an exact owned rule revision
+    And replacement and predecessor selectors use the recognized literal prefix grammar
+    When normal semantic review judges the complete correction
+    Then every support scope and counterevidence question receives both exact matching meanings
+    And raw old and new rules correction identity evidence and independent authorization remain unchanged
+    And record ids and revision hashes identify records rather than behavioral claims
+    And unrecognized selectors receive no invented matching proof
+    And corrections cannot enter the new-rule authority shortcut
+    And finite historical request bodies remain unchanged

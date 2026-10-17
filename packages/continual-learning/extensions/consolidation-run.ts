@@ -1,5 +1,5 @@
 import { memoryReferenceResults } from "./memory-evidence-provenance";
-import { prepareTransactionWrite, recordTransactionWrite, removeTransactionFile, restoreOwnedFile, withOwnedFileTransaction } from "./file-transaction";
+import { assertTransactionPredecessor, prepareTransactionWrite, recordTransactionWrite, removeTransactionFile, restoreOwnedFile, withOwnedFileTransaction } from "./file-transaction";
 import * as crypto from "node:crypto";
 import * as fsp from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
@@ -326,6 +326,62 @@ function normalizeSnapshotEntries(value: unknown): unknown[] {
 export interface ConsolidationSnapshotContext { cwd?: string; sessionManager?: SnapshotSessionManager }
 export type SnapshotSource = "context" | "branch" | "empty";
 
+/** Captured only by the current command handler, never from source entries. */
+export interface MaintenanceCommandInvocation {
+  kind: "user-maintenance-command";
+  version: 1;
+  command: "consolidate";
+  arguments: string;
+  action: "current-task" | "full-corpus" | "backfill";
+  invocationId: string;
+  capturedAt: string;
+  scopeKey: string;
+  sessionId?: string;
+}
+export interface BoundMaintenanceCommand extends MaintenanceCommandInvocation {
+  runId: string;
+  sourceEntriesDigest: string;
+}
+
+/** Keep the exact current input; a procedure invocation is not knowledge or a policy correction. */
+export function captureMaintenanceCommand(ctx: ExtensionContext, args: string): MaintenanceCommandInvocation {
+  const action = args.trim() === "" ? "current-task" : args.trim() === "full" ? "full-corpus"
+    : args.trim() === "backfill" ? "backfill" : undefined;
+  if (!action) throw new Error("Invalid maintenance command");
+  const sessionId = ctx.sessionManager.getSessionId?.();
+  const command: MaintenanceCommandInvocation = {kind: "user-maintenance-command", version: 1, command: "consolidate", arguments: args,
+    action, invocationId: crypto.randomUUID(), capturedAt: new Date().toISOString(),
+    scopeKey: resolveMemoryPaths(ctx.cwd || process.cwd()).scopeKey,
+    ...(sessionId ? {sessionId} : {})};
+  cloneJson(command, MAX_SNAPSHOT_BYTES);
+  return Object.freeze(command);
+}
+
+/** Validate the separate current namespace; quoted or historical copies are not current permission. */
+export function readCurrentMaintenanceCommand(snapshot: unknown): BoundMaintenanceCommand | undefined {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return undefined;
+  const state = snapshot as Record<string, unknown>;
+  if (state.currentMaintenanceRequest === undefined) return undefined;
+  const value = state.currentMaintenanceRequest;
+  const invalid = () => { throw new Error("Invalid current maintenance command binding"); };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return invalid();
+  const command = value as Record<string, unknown>;
+  const keys = ["kind", "version", "command", "arguments", "action", "invocationId", "capturedAt", "scopeKey", "sessionId", "runId", "sourceEntriesDigest"];
+  if (Object.keys(command).some(key => !keys.includes(key)) || command.kind !== "user-maintenance-command"
+    || command.version !== 1 || command.command !== "consolidate" || typeof command.arguments !== "string"
+    || typeof command.invocationId !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(command.invocationId)
+    || typeof command.capturedAt !== "string" || !Number.isFinite(Date.parse(command.capturedAt))
+    || typeof command.scopeKey !== "string" || !command.scopeKey || command.scopeKey !== state.scopeKey
+    || typeof command.runId !== "string" || !command.runId || command.runId !== state.runId
+    || command.sessionId !== undefined && (typeof command.sessionId !== "string" || !command.sessionId)
+    || state.contextEnabled !== true || !Array.isArray(state.entries)
+    || command.sourceEntriesDigest !== sha256Digest(JSON.stringify(state.entries))) return invalid();
+  const action = command.arguments.trim() === "" ? "current-task" : command.arguments.trim() === "full" ? "full-corpus"
+    : command.arguments.trim() === "backfill" ? "backfill" : undefined;
+  if (!action || command.action !== action) return invalid();
+  return command as unknown as BoundMaintenanceCommand;
+}
+
 export interface ConsolidationSnapshot {
   schemaVersion: typeof CONSOLIDATION_SCHEMA_VERSION;
   runId: string;
@@ -334,6 +390,7 @@ export interface ConsolidationSnapshot {
   source: SnapshotSource;
   contextEnabled: boolean;
   entries: unknown[];
+  currentMaintenanceRequest?: BoundMaintenanceCommand;
   branchEntries?: unknown[];
   contextEntries?: unknown[];
 }
@@ -573,6 +630,7 @@ export async function captureConsolidationSnapshot(
   ctx: ConsolidationSnapshotContext,
   paths: ConsolidationRunPaths,
   maxBytes = MAX_SNAPSHOT_BYTES,
+  maintenanceCommand?: MaintenanceCommandInvocation,
 ): Promise<{ snapshot: ConsolidationSnapshot; manifest: ContextManifest; digest: string }> {
   await ensureConsolidationRunDir(paths);
   const manager = ctx.sessionManager;
@@ -596,7 +654,10 @@ export async function captureConsolidationSnapshot(
     source,
     contextEnabled: true,
     entries,
+    ...(maintenanceCommand ? {currentMaintenanceRequest: {...maintenanceCommand,
+      runId: paths.runId, sourceEntriesDigest: sha256Digest(JSON.stringify(entries))}} : {}),
   };
+  readCurrentMaintenanceCommand(snapshot);
   const encoded = jsonText(snapshot);
   if (Buffer.byteLength(encoded, "utf8") > maxBytes) throw new Error(`Consolidation snapshot exceeds ${maxBytes} bytes.`);
   await writeFileAtomic(paths.snapshotFile, encoded);
@@ -744,8 +805,9 @@ export async function normalizeMirrorDrift(memory: MemoryPaths): Promise<MirrorN
   return { repaired: [...repairLog.values()].sort((left, right) => left.name.localeCompare(right.name)), removed: [...removed].sort() };
 }
 
-export async function createConsolidationRun(ctx: ExtensionContext, cwd: string, normalization: typeof normalizeMirrorDrift | false = normalizeMirrorDrift): Promise<ConsolidationRun> {
+export async function createConsolidationRun(ctx: ExtensionContext, cwd: string, normalization: typeof normalizeMirrorDrift | false = normalizeMirrorDrift, maintenanceCommand?: MaintenanceCommandInvocation): Promise<ConsolidationRun> {
   const paths = resolveConsolidationRunPaths(cwd);
+  if (maintenanceCommand && maintenanceCommand.scopeKey !== paths.memory.scopeKey) throw new Error("Maintenance command belongs to a different project");
   const lock = await acquireConsolidationLock(paths, { runId: paths.runId, cwd });
   try {
     await ensureConsolidationRunDir(paths);
@@ -753,7 +815,7 @@ export async function createConsolidationRun(ctx: ExtensionContext, cwd: string,
     // Every run carries a frozen snapshot. The former no-context mode skipped it
     // and had the planners work from an unfrozen context, which left
     // "evidence" ungroundable and made a proposal's provenance unverifiable.
-    const captured = await captureConsolidationSnapshot(ctx, paths);
+    const captured = await captureConsolidationSnapshot(ctx, paths, MAX_SNAPSHOT_BYTES, maintenanceCommand);
     const contextManifest = captured.manifest;
     const snapshotDigest = captured.digest;
     const manifest: ConsolidationManifest = {
@@ -1204,6 +1266,27 @@ export async function hashMemoryRoot(root: string): Promise<MemoryHashes> {
 
 async function writeMemoryFile(file: string, content: string): Promise<void> {
   if (Buffer.byteLength(content, "utf8") > MAX_MEMORY_BYTES) throw new Error(`Memory file is larger than ${MAX_MEMORY_BYTES} bytes`);
+  await assertTransactionPredecessor(file);
+  try {
+    const before = await fsp.lstat(file, {bigint: true});
+    const bytes = await readBoundedRegularFile(file, MAX_MEMORY_BYTES);
+    const after = await fsp.lstat(file, {bigint: true});
+    if (before.dev !== after.dev || before.ino !== after.ino || before.size !== after.size
+      || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs) {
+      throw new Error(`Memory file changed before write: ${file}`);
+    }
+    if ((after.mode & 0o777n) === 0o600n && bytes.equals(Buffer.from(content, "utf8"))) {
+      await assertTransactionPredecessor(file);
+      const final = await fsp.lstat(file, {bigint: true});
+      if (after.dev !== final.dev || after.ino !== final.ino || after.size !== final.size
+        || after.mtimeNs !== final.mtimeNs || after.ctimeNs !== final.ctimeNs || after.mode !== final.mode) {
+        throw new Error(`Memory file changed before unchanged write: ${file}`);
+      }
+      return;
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
   await writeFileAtomic(file, content, 0o600);
 }
 
@@ -1524,7 +1607,7 @@ function snapshotEntryRecord(entry: unknown): Record<string, unknown> | undefine
   return record;
 }
 
-function snapshotEntryRole(entry: unknown): string | undefined {
+export function snapshotEntryRole(entry: unknown): string | undefined {
   return snapshotEntryRecord(entry)?.role as string | undefined;
 }
 
@@ -1668,6 +1751,16 @@ export function normalizeSnapshotEvidence(raw: unknown, snapshot: unknown): NewM
   return normalizeNewMemoryEvidence(raw, snapshotEntries(snapshot), "semantic evidence");
 }
 
+/** Discovery metadata cannot replace the knowledge delivered by an entry read.
+ * Legacy plain bodies remain valid; existing files are not migrated here.
+ */
+export function assertMemoryBodyContent(content: string, label: string): void {
+  const document = content.replace(/^\uFEFF+/, "");
+  const frontmatter = /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(document);
+  const body = frontmatter ? document.slice(frontmatter[0].length) : document;
+  if (!body.trim()) throw new Error(`${label} requires a non-empty Memory body; discovery metadata is not a knowledge body`);
+}
+
 /** Validate and normalize context-derived files before any filesystem mutation. */
 export function normalizeNewMemoryProposals(
   plan: unknown,
@@ -1700,6 +1793,7 @@ export function normalizeNewMemoryProposals(
     const kind = newMemoryKind(item.kind, `${label}.kind`);
     const content = item.content;
     if (typeof content !== "string" || content.length === 0) throw new Error(`${label}.content must be a non-empty string`);
+    assertMemoryBodyContent(content, `${label}.content`);
     const contentBytes = Buffer.byteLength(content, "utf8");
     if (contentBytes > MAX_MEMORY_BYTES) throw new Error(`${label}.content exceeds ${MAX_MEMORY_BYTES} bytes`);
     if (containsSensitiveMemoryMaterial(content)) throw new Error(`${label}.content contains sensitive material`);
@@ -1725,6 +1819,7 @@ function newMemoryNames(value: readonly NewMemoryProposal[]): string[] {
 export interface AppliedMemoryResult {
   selected: string[];
   created: string[];
+  changed: string[];
   finalState: { harness: MemoryHashes; public: MemoryHashes };
 }
 
@@ -1896,9 +1991,15 @@ export async function applyConsolidationPlan(
       if (publicDir) await updateMemoryIndex(publicDir, new Set(), ensureActive);
     }
     ensureActive();
+    const afterFiles = await captureMemoryFiles(transactionFiles);
+    const changed = new Set(afterFiles.filter((after, index) => {
+      const before = snapshots[index];
+      return before.existed !== after.existed || before.mode !== after.mode || (before.existed && !before.content!.equals(after.content!));
+    }).map(file => path.basename(file.file)).filter(name => name !== "MEMORY.md"));
     const applied: AppliedMemoryResult = {
       selected: [...selected].sort(),
       created: newMemoryNames(newProposals),
+      changed: [...changed].sort(),
       finalState: { harness: await hashMemoryRoot(run.manifest.harnessDir), public: publicDir ? await hashMemoryRoot(publicDir) : {} },
     };
     // Keep final parent verification inside the existing rollback boundary.
@@ -1916,4 +2017,34 @@ export async function applyConsolidationPlan(
     throw error;
   }
   });
+}
+
+/** Diagnostic retention must inspect damaged inner JSON too, before a later
+ * privacy gate can reject the candidate. Unknown deep encoding stays hash-only. */
+export function childOutputContainsSensitiveMaterial(stdout: string, plan: unknown): boolean {
+  const pending: unknown[] = [plan];
+  for (const line of stdout.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    pending.push(line);
+    try { pending.push(JSON.parse(line)); } catch { /* scan damaged raw text */ }
+  }
+  while (pending.length) {
+    const value = pending.pop();
+    if (typeof value === "string") {
+      let decoded = value;
+      for (let round = 0; round < 5; round++) {
+        try { if (containsSensitiveMemoryMaterial(decoded)) return true; }
+        catch { return true; }
+        const next = decoded.replace(/\\(?:u[0-9a-f]{4}|["\\/bfnrt])/gi, match => {
+          try { return JSON.parse(`"${match}"`) as string; } catch { return match; }
+        });
+        if (next === decoded) break;
+        if (round === 4) return true;
+        decoded = next;
+      }
+    } else if (value && typeof value === "object") {
+      for (const [key, child] of Object.entries(value)) pending.push(key, child);
+    }
+  }
+  return false;
 }

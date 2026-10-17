@@ -61,3 +61,73 @@ Feature: git worktree path redirect
     Given the agent runs `git worktree list`
     When the bash tool call is intercepted
     Then the command is not rewritten
+
+  Scenario: A successful redirected creation moves the session into the new worktree
+    Given the agent runs `git worktree add ../foo feature/foo` at the repository root
+    And the session has a persisted session file
+    When the bash command succeeds
+    Then the rest of the tool batch is blocked before execution
+    And the session switches to `.pi/worktrees/foo` when the turn settles
+    And the user is told the created worktree is where this session moves
+    And the replacement session records the entered-worktree row for that directory
+    And the worktree is entered as an existing worktree, so no second worktree is created
+
+  Scenario: A failed redirected creation leaves the session in its checkout
+    Given the agent runs a redirected `git worktree add` that git rejects
+    And the session has a persisted session file
+    When the bash command fails
+    Then the session stays in its current directory
+    And the blocked tool batch is released for retry
+    And the user is told the worktree was not created
+
+  Scenario: A reserved creation that produces no result never moves the session
+    Given a redirected creation reserved the session move
+    When the bash call ends without a result, for example a truncated message or a blocker
+    Then no session switch is dispatched
+    And the user is told the command produced no result and the session did not move
+
+  Scenario: A session that starts releases a pending transition
+    Given a redirected creation reserved the session move
+    When a replacement session starts before that transition is applied
+    Then the barrier is released and later tools run again
+    And no session switch is dispatched
+
+  Scenario: A creation cannot start while another switch is in flight
+    Given a worktree switch is already in flight
+    When the model requests a redirected `git worktree add`
+    Then the bash call is blocked before execution
+    And no worktree is created
+    And the block reason names the switch in progress
+
+  Scenario: A queued creation refuses a newer switch
+    Given a redirected creation reserved the session move
+    When a worktree command is invoked before that turn settles
+    Then the command is refused with a warning naming the queued transition
+    And the reserved creation still moves the session at settlement
+
+  Scenario: A session without a session file cannot move
+    Given the agent runs a redirected `git worktree add` in a session without a session file
+    When the bash command succeeds
+    Then the worktree is created
+    And the tool batch is not blocked
+    And the user is told this session cannot switch to the created worktree
+    And no entered-worktree row is recorded
+
+  Scenario: Only a rewritten creation requests the move
+    Given the agent runs `git worktree add ../foo feature/foo && git status`
+    When the bash tool call is intercepted
+    Then the command is not rewritten
+    And the session does not move
+
+  Scenario: An explicit transition wins over the automatic move
+    Given one model message requests EnterWorktree together with a redirected `git worktree add`
+    When the batch is prepared
+    Then only the explicit transition is queued
+    And the automatic move is refused
+
+  Scenario: An aborted run drops the automatic move
+    Given a redirected creation succeeded and the automatic move is queued
+    When the user aborts the run
+    Then no session switch starts
+    And the user is told the automatic move was dropped
+    And the created worktree remains on disk

@@ -10,6 +10,7 @@ import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from docker_experiment import model_prompt_observation
 from live_learning_loop import API_KEY, MODEL, PROVIDER, message_text, pi_version, run_pi, stream_response
 
 
@@ -67,6 +68,11 @@ def run(parent: Path) -> dict:
             (root / f'turn-{i}.stderr').write_text(result.stderr)
             assert result.returncode == 0, result.stderr[-1000:]
             text = message_text(Provider.requests[-1])
+            wire_observation = model_prompt_observation(Provider.requests[-1])
+            assert wire_observation['memoryProtocolOnWire']
+            assert wire_observation['memoryDiscoveryOnWire'] is (i != 3)
+            assert 'use the read tool to inspect relevant indexed Memory entries' in text, 'Relevant Memory use protocol was not delivered'
+            assert "Respect the task's write scope" in text, 'Read-only task boundary was not delivered'
             assert 'BODY_MUST_NOT_BE_INJECTED' not in text
             assert '(harness)' not in text and '(public)' not in text
             assert text.count('# Project memories') == (0 if i == 3 else 1)
@@ -75,11 +81,11 @@ def run(parent: Path) -> dict:
             if i < 2:
                 entries = [json.loads(line) for line in session.read_text().splitlines()]
                 references = [entry for entry in entries if entry.get('type') == 'custom_message' and entry.get('customType') == 'continual-learning-memory-reference']
-                assert len(references) == 1, f'unchanged index appended again: {len(references)}'
+                assert len(references) == 0, f'legacy discovery messages appended again: {len(references)}'
         assert source_hashes() == initial_hashes, 'Sources changed during verification'
-        report.update(status='passed', providerRequests=len(Provider.requests), unchangedReferenceCount=1,
+        report.update(status='passed', providerRequests=len(Provider.requests), unchangedReferenceCount=0, structuredDiscoveryPerPayload=1,
                       changedReferenceReplaced=True, deletedReferenceRemoved=True, freshSessionRestored=True,
-                      bodyInjected=False, evidence='actual Pi CLI with deterministic loopback provider; no model learning claim')
+                      bodyInjected=False, modelWireMetadata=[model_prompt_observation(payload) for payload in Provider.requests], evidence='actual Pi CLI with deterministic loopback provider; no model learning claim')
         return report
     except BaseException as error:
         report['error'] = f'{type(error).__name__}: {error}'

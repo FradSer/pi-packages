@@ -34,7 +34,7 @@ def test_harness_counter_windows_check_revocation_without_repeating_authority() 
       const good=await judge.validate('harness',snapshot,candidates,[],undefined,citations);
       const original=requests.splice(0);mode='contradicts';const revoked=await judge.validate('harness',snapshot,candidates,[],undefined,citations);
       mode='unclear';const uncertain=await judge.validate('harness',snapshot,candidates,[],undefined,citations);
-      console.log(JSON.stringify({good,revoked,uncertain,questions:original.flatMap(r=>Object.entries(r.questions).filter(([k])=>k.startsWith('counter_')).map(([,q])=>q.instructions.question)),coverage:original.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries.map(e=>e.index)??[]),authority:original.some(r=>r.questions.authority_0&&r.questions.family_0)}));
+      console.log(JSON.stringify({good,revoked,uncertain,questions:original.flatMap(r=>Object.entries(r.questions).filter(([k])=>/^counter_\d+_/.test(k)).map(([,q])=>q.instructions.question)),coverage:original.flatMap(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state).reviewEvidence?.entries.map(e=>e.index)??[]),authority:original.some(r=>r.questions.authority_0&&r.questions.family_0)}));
     ''')
     assert result['good']['decision'] == 'allow'
     assert result['revoked']['decision'] == 'propose'

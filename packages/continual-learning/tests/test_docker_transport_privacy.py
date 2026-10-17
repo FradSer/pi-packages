@@ -7,8 +7,10 @@ import pytest
 import docker_experiment as experiment
 
 
-def test_timeout_evidence_redacts_all_transport_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize('model', ['jev-1.13.0', 'jev-1.14.0'])
+def test_timeout_evidence_redacts_all_transport_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, model: str) -> None:
     class Proxy:
+        jev_model = model
         key = 'fixture-main-credential'
         jev_key = 'fixture-jev-credential'
         token = 'fixture-container-credential'
@@ -23,8 +25,12 @@ def test_timeout_evidence_redacts_all_transport_credentials(tmp_path: Path, monk
     def command(args: list[str], **kwargs: object) -> str:
         return 'fixture-container' if args[1] == 'run' else ''
 
+    configured_models: list[str] = []
+
     def run(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         if '-c' in args:
+            config = json.loads(kwargs['input'])
+            configured_models.append(json.loads(config['continual-learning.json'])['jev']['model'])
             return subprocess.CompletedProcess(args, 0, '', '')
         raise subprocess.TimeoutExpired(args + [Proxy.key, Proxy.jev_key], 1)
 
@@ -35,12 +41,14 @@ def test_timeout_evidence_redacts_all_transport_credentials(tmp_path: Path, monk
         {'name': 'p-limit', 'repository': 'public-fixture', 'commit': 'public-fixture'}, output, jev_enabled=True)
     serialized = json.dumps(result) + ''.join(p.read_text() for p in output.iterdir() if p.is_file())
     assert result['status'] == 'failed'
+    assert configured_models == [model]
     assert 'timed out' in result['error']
     assert all(secret not in serialized for secret in (Proxy.key, Proxy.jev_key, Proxy.token))
 
 
 def test_copied_artifacts_and_merged_report_redact_transport_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     class Proxy:
+        jev_model = 'jev-1.13.0'
         key = 'fixture-main-copy-secret'
         jev_key = 'fixture-jev-copy-secret'
         token = 'fixture-container-copy-secret'
@@ -74,6 +82,7 @@ def test_copied_artifacts_and_merged_report_redact_transport_credentials(tmp_pat
 
 def test_docker_errors_redact_before_bounded_output_truncation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     class Proxy:
+        jev_model = 'jev-1.13.0'
         key = 'fixture-main-truncation-secret'
         jev_key = 'fixture-jev-truncation-secret'
         token = 'fixture-container-truncation-secret'
@@ -104,6 +113,7 @@ def test_docker_errors_redact_before_bounded_output_truncation(tmp_path: Path, m
 
 def test_credential_bearing_artifact_paths_are_rejected_before_export(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     class Proxy:
+        jev_model = 'jev-1.13.0'
         key = 'fixture-main-path-secret'
         jev_key = 'fixture-jev-path-secret'
         token = 'fixture-container-path-secret'

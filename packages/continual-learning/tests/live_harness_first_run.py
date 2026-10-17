@@ -24,6 +24,21 @@ REPO = TESTS.parents[2]
 REQUEST = '/harness 避免后续 D0 的流量被打爆'
 
 
+def current_guidance_delivered(records: list[dict], authored: dict, expected: list[dict]) -> bool:
+    """Require both current-revision bookkeeping and actual run-start context."""
+    delivered = [entry for row in records
+                 if row.get('type') == 'custom' and row.get('customType') == 'harness-guidance-delivery'
+                 for entry in row.get('data', {}).get('entries', [])]
+    sections = [row.get('message', {}).get('sections', {}).get('harness_guidance', '')
+                for row in records if row.get('type') == 'message' and row.get('message', {}).get('role') == 'system']
+    return any(entry.get('id') == wanted['id'] and entry.get('revision') == wanted['revision']
+               and entry.get('status') in ('active', 'update')
+               and any(rule.get('id') == wanted['id'] and isinstance(rule.get('instructions'), str)
+                       and any(f"[harness:{wanted['id']}]" in section and rule['instructions'] in section for section in sections)
+                       for rule in authored.get('rules', []))
+               for wanted in expected for entry in delivered)
+
+
 def verify(output: Path, real: bool = False) -> dict[str, object]:
     output.mkdir(parents=True, exist_ok=True)
     run = Path(tempfile.mkdtemp(prefix='harness-first-', dir=output)).resolve()
@@ -69,7 +84,7 @@ def verify(output: Path, real: bool = False) -> dict[str, object]:
             env['PI_HARNESS_SCHEMA_DOCS'] = json.dumps([str(p.resolve()) for p in documentation_paths])
             report['publicSchemaDocs'] = {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in schema_docs}
             version = subprocess.check_output([node, str(pi), '--version'], env=env, text=True).strip()
-            assert version == '1.0.0', 'Pi baseline changed'
+            assert version == '1.2.0', 'Pi baseline changed'
             report['piVersion'] = version
             session = run / 'session.jsonl'
             command = [node, str(pi), '--offline', '--no-extensions', '--no-skills', '--no-prompt-templates',
@@ -155,10 +170,7 @@ def verify(output: Path, real: bool = False) -> dict[str, object]:
             assert target.read_bytes() == authored_bytes, 'Fresh follow-up mutated saved rule'
             followup_records = [json.loads(line) for line in followup_session.read_text().splitlines() if line.strip()]
             assert not any(r.get('customType') == 'harness-first-boundary' for r in followup_records)
-            guidance = [r for r in followup_records if r.get('customType') == 'harness-guidance']
-            delivered = [e for r in guidance for e in r.get('details', {}).get('entries', [])]
-            assert any(e.get('id') == wanted['id'] and e.get('revision') == wanted['revision']
-                       and e.get('status') in ('active', 'update') for wanted in expected for e in delivered), 'Current authored revision not delivered on next relevant task'
+            assert current_guidance_delivered(followup_records, authored, expected), 'Current authored revision and instructions not delivered in next run-start context'
             assert not (agent / 'harness.json').exists() and not (cwd / '.pi/harness.local.json').exists()
             report.update(status='passed', absentTargetRead=True, completeWrites=1, readBack=True,
                           nextTaskGuidanceDelivered=True, freshSession=True, followupReadOnly=True, rules=authored['rules'], otherLayersUnchanged=True)

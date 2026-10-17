@@ -1,3 +1,4 @@
+import pytest
 from support import isolated_run_bun
 from test_jev_independent_subset_research import SETUP as LEGACY_SETUP
 
@@ -22,8 +23,9 @@ const judge=createJevJudge({maxRequestBytes:64_000,enabled:true,apiKey:'fixture-
 '''
 
 
-def test_relation_observation_uses_frozen_question_and_never_grants_write_authority() -> None:
-    value = isolated_run_bun(BASE + r'''
+@pytest.mark.parametrize("model", ["jev-1.13.0", "jev-1.14.0"])
+def test_relation_observation_uses_frozen_question_and_never_grants_write_authority(model: str) -> None:
+    value = isolated_run_bun(BASE.replace("jev-1.13.0", model) + r'''
       const result=await judge.reviewMemoryRelations(evidence,candidates,existing,review);
       console.log(JSON.stringify({result,calls,questionSame:JSON.stringify(calls[0].questions.relation)===JSON.stringify(frozenQuestion())}));
     ''')
@@ -32,7 +34,7 @@ def test_relation_observation_uses_frozen_question_and_never_grants_write_author
     assert 'decision' not in result
     assert result['review']['purpose'] == 'diagnostic-only'
     assert result['review']['complete'] is True
-    assert result['review']['model'] == 'jev-1.13.0'
+    assert result['review']['model'] == model
     assert result['review']['pairs'][0]['a'] == 0 and result['review']['pairs'][0]['b'] == 1
     assert result['review']['pairs'][0]['relation'] == 'independent'
     assert result['telemetry']['requestCount'] == result['telemetry']['completedRequests'] == 1

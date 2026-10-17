@@ -39,6 +39,29 @@ function validEntryGraph(entries: readonly SessionEntry[]): boolean {
   return true;
 }
 
+/** Pi retry can delete an empty failed assistant reply. It removed no learning
+ * content, but its error metadata must still stay out of returned replay data.
+ * Every meaningful edit remains refused for exact historical replay. */
+function emptyRetryRemovals(entries: readonly SessionEntry[]): Set<string> | undefined {
+  const previous = new Map<string, SessionEntry>(), removed = new Set<string>();
+  const validTimestamp = (value: unknown): boolean => typeof value === "string"
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) && Number.isFinite(Date.parse(value));
+  for (const entry of entries) {
+    if (entry.type === "context_edit") {
+      const target = previous.get(entry.targetId);
+      if (entry.replacement !== null || removed.has(entry.targetId) || !validTimestamp(entry.timestamp)
+        || Object.keys(entry).some(key => !["type", "id", "parentId", "timestamp", "targetId", "replacement"].includes(key))
+        || target?.type !== "message" || target.message.role !== "assistant"
+        || !validTimestamp(target.timestamp) || target.message.stopReason !== "error" || !Array.isArray(target.message.content) || target.message.content.length !== 0
+        || Object.keys(target).some(key => !["type", "id", "parentId", "timestamp", "message"].includes(key))
+        || typeof target.message.timestamp !== "number" || !Number.isFinite(target.message.timestamp)) return undefined;
+      removed.add(entry.targetId);
+    }
+    previous.set(entry.id, entry);
+  }
+  return removed;
+}
+
 /** Never open a SessionManager: opening can migrate/write the source log. */
 export async function recentProjectLearningInput(input: {
   cwd: string;
@@ -127,8 +150,11 @@ export async function recentProjectLearningInput(input: {
         || typeof header.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(header.id)) continue;
       const sessionEntries = parsed.filter((entry): entry is SessionEntry => entry.type !== "session");
       if (parsed.slice(1).some(entry => entry.type === "session") || !validEntryGraph(sessionEntries)) continue;
-      // Replaying an older pointer must not resurrect later redacted context.
-      if (input.requestedSessionFile && parsed.some(entry => (entry as {type:string}).type === "context_edit")) continue;
+      // An older pointer must never resurrect a meaningful later redaction.
+      // Only Pi's null-removal of a content-free assistant failure is eligible;
+      // sanitize its raw metadata too while preserving indexed backlog slots.
+      const removedErrors = input.requestedSessionFile ? emptyRetryRemovals(sessionEntries) : undefined;
+      if (input.requestedSessionFile && !removedErrors) continue;
       // Wildcard peers can resolve to an older SDK locally. Such SDKs cannot
       // project Pi v1 context edits: decline that source instead of reviving it.
       const projectionApi = piSdk as typeof piSdk & { buildSessionProjection?: (entries: SessionEntry[]) => {
@@ -136,7 +162,10 @@ export async function recentProjectLearningInput(input: {
       } };
       let entries: unknown[];
       if (projectionApi.buildSessionProjection) {
-        entries = projectionApi.buildSessionProjection(sessionEntries).entries.flatMap<unknown>(({ sourceEntry, messages }) => {
+        const projected = projectionApi.buildSessionProjection(sessionEntries).entries;
+        if (removedErrors?.size && [...removedErrors].some(id =>
+          !projected.some(row => row.sourceEntry.id === id && row.messages.length === 0))) continue;
+        entries = projected.flatMap<unknown>(({ sourceEntry, messages }) => {
           // Summaries and extension rows are not raw human/tool evidence;
           // retaining their originals could revive edited-away private text.
           if (sourceEntry.type !== "message") return [];
@@ -148,7 +177,14 @@ export async function recentProjectLearningInput(input: {
       }
       if (!hasLearningInput(entries) || input.signal?.aborted) continue;
       return { entries, sessionId: header.id, sourceDigest: sha256Digest(bytes),
-        ...(input.requestedSessionFile ? {contextEntries:buildContextEntries(sessionEntries)} : {}) };
+        ...(input.requestedSessionFile ? {contextEntries:buildContextEntries(sessionEntries).map(entry => {
+          if (!removedErrors?.has(entry.id) || entry.type !== "message" || entry.message.role !== "assistant") return entry;
+          // currentTaskSlice already projects these exact empty message fields.
+          // This skeleton retains its digest and raw range indexes without
+          // exposing a removed errorMessage, provider, model or usage payload.
+          return {type: "message", id: entry.id, parentId: entry.parentId, timestamp: entry.timestamp,
+            message: {role: "assistant", content: [], timestamp: entry.message.timestamp}};
+        })} : {}) };
     } catch {
       // An unreadable, changing, malformed or unrelated candidate is not authority.
     } finally { await handle?.close().catch(() => {}); }

@@ -3,6 +3,83 @@ from __future__ import annotations
 from support import run_bun
 
 
+def test_actual_pi12_empty_timeout_removal_keeps_exact_failed_task_replay(tmp_path) -> None:
+    import json
+    # Given the actual V53 retry log, When Pi removes only an empty failed
+    # assistant reply, Then exact replay remains digest-bound and retains the
+    # failure without reviving deleted message content.
+    result = run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      import {recentProjectLearningInput} from './packages/continual-learning/extensions/learning-input.ts';
+      import {currentTaskSlice} from './packages/continual-learning/extensions/incremental-learning.ts';
+      import {sha256Digest,containsSensitiveMemoryMaterial} from './packages/continual-learning/extensions/consolidation-run.ts';
+      import {successfulFailureObservationReady} from './packages/continual-learning/tests/failure-observation-proof.ts';
+      const f=JSON.parse(fs.readFileSync('./packages/continual-learning/tests/fixtures/real-pi12-timeout-context-edit.json','utf8'));
+      const root=ROOT,cwd=path.join(root,'project'),agent=path.join(root,'agent'),dir=path.join(agent,'sessions','scope');
+      fs.mkdirSync(cwd,{recursive:true});fs.mkdirSync(dir,{recursive:true});
+      const original=f.files['orientation/without-learning/verifier-feedback/session.jsonl'].text;
+      const rows=original.trimEnd().split('\n').map(JSON.parse);rows[0].cwd=cwd;
+      const file=path.join(dir,'stage-0.jsonl'),text=rows.map(JSON.stringify).join('\n')+'\n';fs.writeFileSync(file,text);
+      const source=await recentProjectLearningInput({cwd,agentDir:agent,sessionDir:dir,requestedSessionFile:file});
+      const task=source?.contextEntries?currentTaskSlice(source.contextEntries.slice(f.queued.from,f.queued.to+1)):undefined;
+      const read=rows.filter(row=>row.message?.role==='toolResult'&&row.message.toolName==='read').at(-1);
+      const proof=successfulFailureObservationReady({
+        originalSession:f.files['orientation/without-learning/session.jsonl'].text,currentSession:original,
+        verifierText:read.message.content[0].text,verifierPath:'/home/node/project-verification.json',
+        sourceBefore:f.observation.sourceHashes,sourceAfter:f.observation.sourceHashes,queued:f.queued,explicitBackfills:0});
+      console.log(JSON.stringify({proof,accepted:!!source,rawUnchanged:fs.readFileSync(file,'utf8')===text,
+        sourceBound:source?.sourceDigest===sha256Digest(text),taskDigest:task?sha256Digest(JSON.stringify(task)):null,expectedDigest:f.queued.digest,
+        removedReplyProjected:source?!source.entries.some(x=>x.id==='00be88a8'):false,
+        sensitive:containsSensitiveMemoryMaterial(JSON.stringify(f)),historicalFailure:f.provenance.status}));
+    '''.replace('ROOT', json.dumps(str(tmp_path))))
+    assert result['rawUnchanged'] and not result['sensitive'] and result['historicalFailure'] == 'failed'
+    assert result['accepted'] and result['sourceBound'] and result['removedReplyProjected']
+    assert result['taskDigest'] == result['expectedDigest']
+    assert result['proof']['ready'], result['proof']
+
+
+def test_exact_replay_sanitizes_removed_error_metadata_and_refuses_meaningful_edits(tmp_path) -> None:
+    import json
+    result = run_bun(r'''
+      import fs from 'node:fs';import path from 'node:path';
+      import {recentProjectLearningInput} from './packages/continual-learning/extensions/learning-input.ts';
+      import {currentTaskSlice} from './packages/continual-learning/extensions/incremental-learning.ts';
+      import {sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const f=JSON.parse(fs.readFileSync('./packages/continual-learning/tests/fixtures/real-pi12-timeout-context-edit.json','utf8'));
+      const root=ROOT,cwd=path.join(root,'project'),agent=path.join(root,'agent'),dir=path.join(agent,'sessions','scope');
+      fs.mkdirSync(cwd,{recursive:true});fs.mkdirSync(dir,{recursive:true});
+      const original=f.files['orientation/without-learning/verifier-feedback/session.jsonl'].text.trimEnd().split('\n').map(JSON.parse);
+      const file=path.join(dir,'source.jsonl'),results={};let sanitized,digest;
+      const changes={metadata:(target,edit)=>{target.message.errorMessage='REMOVED_PRIVATE_ERROR';target.message.provider='REMOVED_PRIVATE_PROVIDER';target.message.model='REMOVED_PRIVATE_MODEL'},
+        text:target=>target.message.content=[{type:'text',text:'REMOVED_PRIVATE_TEXT'}],
+        thinking:target=>target.message.content=[{type:'thinking',thinking:'REMOVED_PRIVATE_THOUGHT'}],
+        user:target=>target.message={role:'user',content:'REMOVED_PRIVATE_USER'},
+        tool:target=>target.message={role:'toolResult',toolName:'read',toolCallId:'removed',content:[{type:'text',text:'REMOVED_PRIVATE_TOOL'}]},
+        summary:target=>{delete target.message;target.type='compaction';target.summary='REMOVED_PRIVATE_SUMMARY'},
+        replacement:(_target,edit)=>edit.replacement={role:'assistant',content:[{type:'text',text:'Replacement'}]},
+        aborted:target=>target.message.stopReason='aborted',successful:target=>target.message.stopReason='stop',
+        unknownTarget:(_target,edit)=>edit.targetId='missing',extraWrapper:target=>target.privateNote='REMOVED_PRIVATE_OUTER',
+        extraEdit:(_target,edit)=>edit.privateNote='REMOVED_PRIVATE_EDIT',timestamp:target=>target.message.timestamp='REMOVED_PRIVATE_TIMESTAMP',
+        outerTimestamp:target=>target.timestamp={privateNote:'REMOVED_PRIVATE_OUTER_TIMESTAMP'},
+        outerTimestampText:target=>target.timestamp='REMOVED_PRIVATE_OUTER_TIMESTAMP',
+        editTimestamp:(_target,edit)=>edit.timestamp={privateNote:'REMOVED_PRIVATE_EDIT_TIMESTAMP'}};
+      for(const [name,change] of Object.entries(changes)){
+        const rows=structuredClone(original);rows[0].cwd=cwd;
+        const edit=rows.find(x=>x.type==='context_edit'),target=rows.find(x=>x.id===edit.targetId);change(target,edit);
+        fs.writeFileSync(file,rows.map(JSON.stringify).join('\n')+'\n');
+        const source=await recentProjectLearningInput({cwd,agentDir:agent,sessionDir:dir,requestedSessionFile:file});results[name]=!!source;
+        if(name==='metadata'&&source){
+          sanitized=!JSON.stringify({entries:source.entries,context:source.contextEntries}).includes('REMOVED_PRIVATE_');
+          digest=sha256Digest(JSON.stringify(currentTaskSlice(source.contextEntries.slice(f.queued.from,f.queued.to+1))));
+        }
+      }
+      console.log(JSON.stringify({results,sanitized,digest,expected:f.queued.digest}));
+    '''.replace('ROOT', json.dumps(str(tmp_path))))
+    assert result['results'].pop('metadata') and result['sanitized']
+    assert not any(result['results'].values()), result['results']
+    assert result['digest'] == result['expected']
+
+
 def test_recent_project_input_uses_active_context_without_mutating_source() -> None:
     result = run_bun(r'''
       import fs from 'node:fs'; import path from 'node:path';

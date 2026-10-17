@@ -1,3 +1,4 @@
+import { createShadowSourceDirectory } from "./shadow-source-directory";
 /** Research-only frozen question rewrite. No production mutation or permission. */
 import fs from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -12,6 +13,6 @@ export function selectionFramingSource(source:string):string {
 }
 export async function loadSelectionFramingJudge():Promise<{createJevJudge:typeof createJevJudge;sourceSha256:string;patchedSha256:string;dispose():Promise<void>}> {
  const source=await fs.readFile(new URL('./fixtures/jev-learning-before-selection-framing.ts.txt',import.meta.url),'utf8');const patched=selectionFramingSource(source);
- const directory=await fs.mkdtemp(new URL('./.jev-selection-framing-',import.meta.url).pathname);const dispose=()=>fs.rm(directory,{recursive:true,force:true});
+ const directory=await createShadowSourceDirectory("jev-selection-framing-");const dispose=()=>fs.rm(directory,{recursive:true,force:true});
  try{await fs.cp(new URL('../extensions/',import.meta.url),`${directory}/extensions`,{recursive:true});const file=`${directory}/extensions/jev-learning.ts`;await fs.writeFile(file,patched);const loaded:{createJevJudge:typeof createJevJudge}=await import(file);const hash=(s:string)=>createHash('sha256').update(s).digest('hex');return {createJevJudge:loaded.createJevJudge,sourceSha256:hash(source),patchedSha256:hash(patched),dispose};}catch(error){await dispose();throw error;}
 }

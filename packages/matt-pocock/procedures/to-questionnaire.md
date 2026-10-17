@@ -1,4 +1,4 @@
-Turn something the user can't answer alone into a **questionnaire** — a Markdown document they hand to one person to fill in async, or fill out together over a meeting. The recipient holds knowledge the user lacks; the questionnaire pulls it out of them.
+Turn something the user can't answer alone into a **questionnaire**: a Markdown document they hand to one person to fill in async, or fill out together over a meeting. The recipient holds knowledge the user lacks; the questionnaire pulls it out of them.
 
 **Grill the send, not the subject.** Interview the user only about the _send_, which they can always answer: who it goes to, and what they need back. The questions in the document then target the **gap** between what the recipient knows and what the user needs.
 
@@ -18,7 +18,7 @@ Frame the document as a **discovery questionnaire**: the user lacks context, the
 
 **Purpose:** why this questionnaire exists and the decision riding on it.
 
-**From:** <the user> — **To:** <the recipient> — **How your answers will be used:** <where they go>
+**From:** <the user>, **To:** <the recipient>, **How your answers will be used:** <where they go>
 
 ## Context
 
@@ -28,7 +28,7 @@ Before writing Context, separate observed current behavior, target behavior, and
 
 ## How to answer
 
-Deadline and rough effort. Partial answers and "I don't know" are useful — flag anything you're unsure of rather than skipping it.
+Deadline and rough effort. Partial answers and "I don't know" are useful: flag anything you're unsure of rather than skipping it.
 
 ## <Theme heading>
 

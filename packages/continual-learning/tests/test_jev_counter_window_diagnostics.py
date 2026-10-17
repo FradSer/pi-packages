@@ -82,3 +82,30 @@ def test_counter_locations_are_numeric_only_and_repair_hints_remain_bounded() ->
     assert len(value['bounded']) + 1 <= 16
     assert max(map(len, value['bounded'])) <= 400
     assert 'omitted' in value['bounded'][-1]
+
+
+def test_complete_review_reports_both_body_and_description_holds_to_the_repair_worker() -> None:
+    # Given one complete review holds two independent fields, When constructing
+    # repair diagnostics, Then neither field's controlled failure is hidden.
+    value = isolated_run_bun(r'''
+      import {createJevJudge,jevRepairFailureHints} from './packages/continual-learning/extensions/jev-learning.ts';
+      const quote='This project uses pnpm.';
+      const snapshot={contextEnabled:true,entries:[{role:'user',content:quote}]};
+      const candidate={name:'fact.md',kind:'project',classification:'safe',content:`---\nname: fact\ndescription: "${quote}"\ntype: project\n---\n${quote}`,evidence:[{index:0,quote,role:'user'}]};
+      const judge=createJevJudge({enabled:true,apiKey:'fixture',scopes:['memory'],fetch:async(_url,init)=>{
+        const request=JSON.parse(init.body),answers={};
+        for(const [key,q] of Object.entries(request.questions)){
+          const held=key==='supported_0'||key==='counter_description_0_0';
+          const label=held?'unclear':key.startsWith('supported_')?'grounded':'compatible';
+          answers[key]={type:'choice',choice:label,confidence:1,probabilities:Object.fromEntries(Object.keys(q.criteria).map(x=>[x,x===label?1:0]))};
+        }
+        return new Response(JSON.stringify({model:'jev-1.13.0',answers,usage:{input_tokens:1,output_tokens:0}}));
+      }});
+      const result=await judge.validate('memory',snapshot,[candidate],[]);
+      console.log(JSON.stringify({result,hints:jevRepairFailureHints(result.telemetry)}));
+    ''')
+    assert value['result']['decision']=='propose'
+    assert value['result']['candidateReview']['complete']
+    assert len(value['result']['telemetry']['candidateFailures'])==2
+    assert value['result']['telemetry']['candidateFailures'][1]['field']=='description'
+    assert 'counterevidence.description:uncertain (window 0 entries 0-0)' in str(value['hints'])

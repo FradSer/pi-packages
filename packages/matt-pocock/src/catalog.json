@@ -372,6 +372,7 @@
     ],
     "standalone": true,
     "discloses": [
+      "hitl-loop.template.sh",
       "improve-codebase-architecture"
     ],
     "workflows": [

@@ -331,6 +331,14 @@ def memory_reference_results(entries: list[Any]) -> set[int]:
     return results
 
 
+def require_memory_body(content: str, label: str) -> None:
+    document = content.lstrip("\ufeff")
+    frontmatter = re.match(r"^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)", document)
+    body = document[frontmatter.end():] if frontmatter else document
+    if not body.strip().strip("\ufeff").strip():
+        raise ValidationError("schema", f"{label} requires a non-empty Memory body; discovery metadata is not a knowledge body")
+
+
 def normalize_new_memory_proposals(
     value: Any,
     selected: list[str],
@@ -395,6 +403,7 @@ def normalize_new_memory_proposals(
         content = proposal.get("content")
         if not isinstance(content, str) or not content:
             raise ValidationError("schema", f"{label}.content must be a non-empty string")
+        require_memory_body(content, f"{label}.content")
         content_bytes = len(content.encode("utf-8"))
         if content_bytes > MAX_MEMORY_FILE_BYTES:
             raise ValidationError("memory_bounds", f"{label}.content exceeds {MAX_MEMORY_FILE_BYTES} bytes")
@@ -746,6 +755,7 @@ def validate_operations(
             content = operation.get("content")
             if not isinstance(content, str):
                 raise ValidationError("schema", f"operations[{index}]: write operation requires content")
+            require_memory_body(content, f"operations[{index}].content")
             content_hash = operation.get("contentSha256")
             if content_hash is not None:
                 if not isinstance(content_hash, str) or not HASH_RE.fullmatch(content_hash):

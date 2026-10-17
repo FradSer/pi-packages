@@ -1,0 +1,7 @@
+{
+  "provenance": "Actual generated public p-limit Memory; semantic acceptance withdrawn after independent source review. Not a seeded experimental arm.",
+  "sourceRun": "continuous-reviewed-permission-facts/cohort/20261013T105036Z-e52f0ab29517",
+  "filename": "limit-function-type-contract.md",
+  "content": "---\ndescription: limitFunction d.ts type contract: input fn returns PromiseLike, wrapper returns Promise & Pick<LimitFunction,'clearQueue'>\ntype: project\n---\n`limitFunction` in `index.d.ts` declares this type-level contract:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n  function_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n  options: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n\nType-level facts from the declaration:\n- Input `function_` returns `PromiseLike<ReturnType>`.\n- The returned callable produces `Promise<ReturnType>`.\n- The return type is an intersection with `Pick<LimitFunction, 'clearQueue'>`, including only `clearQueue` from `LimitFunction`.\n- The second parameter `options` is typed as `Options`; its `concurrency` is a required readonly number and `rejectOnClear` is an optional readonly boolean.\n",
+  "revision": "53116612849ac57e9b8d6a5aed2b8798333b0149025aa21a51c1a861ca81267d"
+}

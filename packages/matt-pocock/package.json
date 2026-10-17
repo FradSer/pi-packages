@@ -25,13 +25,13 @@
     "index.ts",
     "src",
     "procedures",
+    "references",
+    "assets",
+    "upstream",
     "TODO.md",
     "LICENSE",
     "README.md",
-    "ARCHITECTURE.zh-CN.md",
-    "UPSTREAM.md",
-    "upstream-selection.json",
-    "scripts"
+    "ARCHITECTURE.zh-CN.md"
   ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

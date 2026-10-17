@@ -38,7 +38,7 @@ Tools are progressively exposed based on active session state:
    - `action: "cancel"`: Cancel the active workflow with an explicit reason.
 3. **Active-only tool**: `matt_pocock_ask`
    - Prompt the user for structured, genuinely user-owned decisions with selectable options.
-   - Supports recommended choices, automatic adoption after an actual elapsed timeout, and custom text input. An explicit deadline dismisses the selector; elapsed clock readings alone never imply a timeout. Escape, abort, and branch changes leave the decision pending. Recommendations must match an offered option; approval-required actions need an explicit response without a timeout recommendation.
+   - Requires a recommended choice and adopts it when the deadline elapses; supports custom text input. One deadline governs the ask and dismisses both the selector and the custom-answer input; elapsed clock readings alone never imply a timeout. Escape, cancellation, abort, no UI, and a blank custom answer leave the decision pending. Recommendations must match an offered option, so an approval-required action recommends the option that does not act.
 
 ## Pi v1.0 runtime boundaries
 
@@ -194,14 +194,14 @@ Capability and reference names use readable catalog labels consistently. Transit
 Run the actual Pi checks from the repository root:
 
 ```bash
-uv run --no-project packages/matt-pocock/tests/live_smoke.py
-uv run --no-project packages/matt-pocock/tests/runtime_live.py
-uv run --no-project packages/matt-pocock/tests/restore_live.py
-uv run --no-project packages/matt-pocock/tests/decision_live.py
-uv run --no-project packages/matt-pocock/tests/active_menu_live.py
-uv run --no-project packages/matt-pocock/tests/abort_live.py
-uv run --no-project packages/matt-pocock/tests/adversarial_live.py
-node --import tsx/esm packages/matt-pocock/tests/native_real_smoke.ts
+uv run --no-project packages/matt-pocock/tests/live/live_smoke.py
+uv run --no-project packages/matt-pocock/tests/live/runtime_live.py
+uv run --no-project packages/matt-pocock/tests/live/restore_live.py
+uv run --no-project packages/matt-pocock/tests/live/decision_live.py
+uv run --no-project packages/matt-pocock/tests/live/active_menu_live.py
+uv run --no-project packages/matt-pocock/tests/live/abort_live.py
+uv run --no-project packages/matt-pocock/tests/live/adversarial_live.py
+node --import tsx/esm packages/matt-pocock/tests/live/native_real_smoke.ts
 ```
 
 The lifecycle check covers print mode, terminal rows, timeout and Escape, Ctrl+O, 48-column resizing, and the user-message band. The catalog matrix derives routes, legal transitions and standalone capabilities from the manifest and exercises them through Pi's agent loop, including persistence, restart, native tree navigation and native compaction. The compaction probe supplies a deterministic summary through `session_before_compact`; Pi still performs compaction and session persistence. Restored procedure sources are checked in the next model context.
@@ -210,7 +210,7 @@ The restart boundary check also covers completed/cancelled latest records, incom
 
 The adversarial check opens real Pi selectors and menus, then injects deterministic state changes through the registered handlers. It verifies immediate dismissal, replacement work-item identity, and reference-only loading before and after a user command. Package tests additionally derive resource/alias/disclosure/transition cases from the catalog and test exact UTF-8 size boundaries in disposable package copies.
 
-Repository verification details and reproduced failures are recorded in [the adversarial verification report](tests/ADVERSARIAL-VERIFICATION.md).
+Repository verification details and reproduced failures are recorded in [the adversarial verification report](tests/reports/ADVERSARIAL-VERIFICATION.md).
 
 The decision and active-menu checks send actual keyboard input through Pi's terminal UI. They cover option/custom input, cancellation, timeout, View, Transition, Cancel and Complete. The abort check interrupts a live selector with an AbortSignal. These Pi checks use an isolated home, allowlisted process settings and a deterministic local provider; they do not inherit provider credentials or validate external-model decisions or downstream project work performed by a procedure.
 
@@ -233,7 +233,7 @@ uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packag
 uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packages/matt-pocock/tests/developer-journey-cases.json --all --deadline 420 --output /tmp/matt-developer-journeys.json
 ```
 
-The developer journey evidence and observed limitations are documented in [DEVELOPER-JOURNEYS.md](tests/DEVELOPER-JOURNEYS.md).
+The developer journey evidence and observed limitations are documented in [DEVELOPER-JOURNEYS.md](tests/reports/DEVELOPER-JOURNEYS.md).
 
 ## Configuration
 
@@ -247,7 +247,7 @@ You can optionally configure native macOS dialog prompts for `matt_pocock_ask` v
 
 Only the boolean `true` enables native dialogs; strings and numbers keep them disabled. By default (`useNativeDialog: false` or missing file), Pi uses its built-in TUI selection dialog. Native dialogs are automatically guarded to only trigger on local macOS GUI sessions (SSH sessions, non-macOS platforms, and CI environments always fall back cleanly to terminal TUI).
 
-See the detailed [中文架构说明](ARCHITECTURE.zh-CN.md), the upstream [selection metadata](upstream-selection.json) and [sync rules](UPSTREAM.md), and the deliberately deferred items in [TODO.md](TODO.md).
+See the detailed [中文架构说明](ARCHITECTURE.zh-CN.md), the upstream [selection metadata](upstream/upstream-selection.json) and [sync rules](upstream/UPSTREAM.md), and the deliberately deferred items in [TODO.md](TODO.md).
 
 ## License
 
@@ -261,4 +261,4 @@ uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packag
 uv run --no-project packages/matt-pocock/tests/real_model_live.py --cases packages/matt-pocock/tests/expanded-type-cases.json --all --deadline 300 --output /tmp/matt-expanded-types.json
 ```
 
-The real-model verifier returns bounded redacted diagnostics and requires an immutable acceptance completion marker, so an early successful process exit cannot silently skip acceptance. See [TEST-TYPES.md](tests/TEST-TYPES.md) for the coverage inventory, actual attempts and limitations. These checks do not establish browser assistive-technology behavior, deployed services, physical input or every possible software task.
+The real-model verifier returns bounded redacted diagnostics and requires an immutable acceptance completion marker, so an early successful process exit cannot silently skip acceptance. See [TEST-TYPES.md](tests/reports/TEST-TYPES.md) for the coverage inventory, actual attempts and limitations. These checks do not establish browser assistive-technology behavior, deployed services, physical input or every possible software task.

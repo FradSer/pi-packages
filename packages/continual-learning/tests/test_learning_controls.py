@@ -12,6 +12,40 @@ from support import run_bun as _run_bun, run_bun_script
 POLICY_HARNESS = Path(__file__).with_name("learning-policy-harness.ts")
 
 
+@pytest.mark.parametrize('scenario,reason,held', [
+    ('memory-apply', 'repair-held', True),
+    ('memory-apply', 'subset-independent', True),
+    ('memory-apply', 'repair-supported', False),
+    ('memory-propose', 'supported', False),
+])
+def test_semantically_held_memory_cannot_launch_later_planners(scenario, reason, held):
+    # Given Memory that is held after its bounded repair, When later phases
+    # are selected, Then retain the proposal/cost but do not call those workers.
+    # A verified repair and an intentional validated preview still permit them.
+    value = run_bun_script(POLICY_HARNESS, scenario,
+                           env={'CL_JEV_FIXTURE': reason, 'CL_LATER_AFTER_MEMORY': '1'})
+    receipts = [r for r in [value.get('registryReceipt'), *[run.get('receipt') for run in value['runs']]] if r]
+    assert len(receipts) == 1
+    receipt = receipts[0]
+    assert receipt['screen']['harness'] and receipt['screen']['agents']
+    assert receipt['totals']['totalTokens'] >= 0
+    if held:
+        assert receipt['totals']['totalTokens'] > 0
+        assert value['planners'] == ['memory'], value['planners']
+        assert not any(a['phase'] in ('harness', 'agents') for a in receipt['attempts'])
+        assert any(a['phase'] == 'memory' and (a['outcome'] == 'proposed' or a.get('pendingOperations')) for a in receipt['attempts'])
+        if reason == 'subset-independent':
+            assert receipt['operations'] == 2
+            assert any(a.get('pendingOperations') == 1 for a in receipt['attempts'])
+        else:
+            assert receipt['operations'] == 0
+        assert any(r['phase'] == 'memory' and r['status'] == 'proposed' for r in value['history'])
+        assert not value['harnessExists'] and value['agentsUnchanged']
+    else:
+        assert set(value['planners']) == {'memory', 'harness', 'agents'}, value['planners']
+    assert not value['lock']
+
+
 def run_bun(source: str, root: Path) -> dict:
     return _run_bun(
         source,

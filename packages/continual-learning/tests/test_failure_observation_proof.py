@@ -143,3 +143,77 @@ def test_latest_failed_diagnostic_requires_full_safe_extension(mutation):
       const input={...prior,...extension,originalSession:prior.currentSession};
     '''+mutation+'''console.log(JSON.stringify(failureObservationExtensionReady(prior,input)));''')
     assert not value['ready']
+
+
+def deadline_proof(mutation=''):
+    return run_bun('''
+      import fs from 'node:fs';
+      import {successfulFailureObservationReady} from './packages/continual-learning/tests/failure-observation-proof.ts';
+      const input=JSON.parse(fs.readFileSync('./packages/continual-learning/tests/fixtures/real-deadline-verifier-feedback.json','utf8'));
+    '''+mutation+'''console.log(JSON.stringify(successfulFailureObservationReady(input)));''')
+
+
+def test_actual_successful_feedback_keeps_parent_settled_deadline_after_summary():
+    # Given V30's complete read and successful summary followed by the parent's
+    # settled marker, When admitting observed failure, Then keep every raw row
+    # and require the complete deadline proof instead of assuming the last row
+    # must be an assistant message. The original source task remains failed.
+    value=deadline_proof()
+    assert value['ready'],value
+    assert value['reason']=='complete-successful-failure-observation'
+
+
+@__import__('pytest').mark.parametrize('edit',[
+    "rows.at(-1).data.stage='expired';",
+    "rows.at(-1).data.stage='shutdown';",
+    "rows.at(-1).data.elapsedMs=900001;",
+    "rows.at(-1).data.elapsedMs=-1;",
+    "rows.at(-1).data.elapsedMs=true;",
+    "rows.at(-1).data.limitMs=900001;",
+    "rows.at(-1).data.extra='untrusted';",
+    "rows.at(-1).parentId='foreign';",
+    "rows[0].parentId='foreign';",
+    "rows[1].parentId='foreign';",
+    "rows.find(r=>r.customType==='continuous-study-task-deadline').data.stage='settled';",
+    "rows.find(r=>r.customType==='continuous-study-task-deadline').data.elapsedMs=99999;",
+    "rows.shift();",
+    "rows.push({...rows.at(-1),id:'extra-deadline'});",
+    "rows.push({type:'custom',id:'unexpected-trailer',parentId:rows.at(-1).id,customType:'other',data:{}});",
+    "rows.at(-2).message.stopReason='error';",
+])
+def test_deadline_feedback_does_not_admit_incomplete_failed_or_forged_lifecycle(edit):
+    assert not deadline_proof(r'''
+      const rows=input.currentSession.slice(input.originalSession.length).trimEnd().split('\n').map(JSON.parse);
+    '''+edit+r'''
+      input.currentSession=input.originalSession+rows.map(JSON.stringify).join('\n')+'\n';
+    ''')['ready']
+
+
+def rebound_deadline_proof(edit):
+    return deadline_proof(r'''
+      const {parseSessionEntries,buildContextEntries}=await import('@earendil-works/pi-coding-agent');
+      const {currentTaskSlice}=await import('./packages/continual-learning/extensions/incremental-learning.ts');
+      const {backlogIdentity}=await import('./packages/continual-learning/extensions/learning-backlog.ts');
+      const {createHash}=await import('node:crypto');
+      let rows=input.currentSession.slice(input.originalSession.length).trimEnd().split('\n').map(JSON.parse);
+    '''+edit+r'''
+      input.currentSession=input.originalSession+rows.map(JSON.stringify).join('\n')+'\n';
+      const context=buildContextEntries(parseSessionEntries(input.currentSession).filter(row=>row.type!=='session'));
+      input.queued.to=context.length-1;
+      input.queued.digest=createHash('sha256').update(JSON.stringify(currentTaskSlice(context.slice(input.queued.from)))).digest('hex');
+      input.queued.id=backlogIdentity(input.queued.scopeKey,input.queued);
+    ''')
+
+
+def test_current_deadline_protocol_cannot_be_stripped_to_historical_after_rebinding():
+    value=rebound_deadline_proof(r'''
+      const predecessor=JSON.parse(input.originalSession.trimEnd().split('\n').at(-1)).id;
+      rows=rows.filter(r=>r.customType!=='continuous-study-task-deadline');
+      rows[0].parentId=predecessor;
+    ''')
+    assert not value['ready'],value
+
+
+def test_started_lifecycle_cannot_be_detached_from_backlog_after_rebinding():
+    value=rebound_deadline_proof("rows[2].parentId=rows[0].parentId;")
+    assert not value['ready'],value

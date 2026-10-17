@@ -362,6 +362,8 @@ def test_should_run_harness_phase_decision_table() -> None:
           failedSkips: shouldRunHarnessPhase({{ outcome: "failed", active: false, cancelled: false }}),
           unverifiedSkips: shouldRunHarnessPhase({{ outcome: "unverified", active: false, cancelled: false }}),
           completedRuns: shouldRunHarnessPhase({{ outcome: "completed", active: false, cancelled: false }}),
+          heldMemorySkips: shouldRunHarnessPhase({{ outcome: "completed", active: false, cancelled: false, memoryReviewHeld: true }}),
+          resolvedMemoryRuns: shouldRunHarnessPhase({{ outcome: "completed", active: false, cancelled: false, memoryReviewHeld: false }}),
         }};
         console.log(JSON.stringify(table));
     """
@@ -373,6 +375,8 @@ def test_should_run_harness_phase_decision_table() -> None:
         "failedSkips": "skip",
         "unverifiedSkips": "skip",
         "completedRuns": "run",
+        "heldMemorySkips": "skip",
+        "resolvedMemoryRuns": "run",
     }
 
 
@@ -550,3 +554,60 @@ def test_procedure_declares_readonly_boundary_and_bounds() -> None:
     assert "Do not write, edit, delete, rename, or copy any file." in proc
     assert "At most 12 operations total." in proc
     assert '"harness-consolidation-plan"' in proc
+
+@pytest.mark.parametrize("mode", ["identity", "multiple-plans", "secret", "repair", "archive-unavailable"])
+def test_rejected_harness_transport_retains_bound_evidence_without_retry(tmp_path: Path, mode: str) -> None:
+    result = run_bun(rf'''
+      process.env.PI_CODING_AGENT_DIR = {json.dumps(str(tmp_path / 'agent'))};
+      import {{ mock }} from 'bun:test';
+      import fs from 'node:fs';
+      import path from 'node:path';
+      import {{ EventEmitter }} from 'node:events';
+      const tasks = [];
+      const kit = await import('./packages/kit/src/index.ts');
+      mock.module('./packages/kit/src/index.ts', () => ({{
+        ...kit,
+        spawnPiChild: (_command, args) => {{
+          const taskFile = args.find(arg => arg.startsWith('@')).slice(1);
+          tasks.push(fs.readFileSync(taskFile, 'utf8'));
+          if ({json.dumps(mode)} === 'archive-unavailable' && tasks.length === 2) fs.mkdirSync(path.join(path.dirname(taskFile), 'harness-repair-output.json'));
+          const manifest = JSON.parse(fs.readFileSync(path.join(path.dirname(taskFile), 'manifest.json'), 'utf8'));
+          const plan = {{ kind: 'harness-consolidation-plan', version: 1, schemaVersion: 1, runId: manifest.runId, scopeDigest: manifest.scopeDigest, artifactHash: manifest.snapshotDigest, operations: [], evidence: [], report: [] }}; if ({json.dumps(mode)} !== "multiple-plans") plan.runId = "foreign-run";
+          if ({json.dumps(mode)} === "secret") plan.note = "api_key=" + "sk-" + "a".repeat(40);
+          const child = new EventEmitter(); child.stdout = new EventEmitter(); child.stderr = new EventEmitter(); child.exitCode = null; child.signalCode = null;
+          queueMicrotask(() => {{ if ({json.dumps(mode)} === 'multiple-plans') child.stdout.emit('data', Buffer.from(JSON.stringify({{type:'message_end',message:{{role:'assistant',content:[{{type:'text',text:JSON.stringify(plan)}}]}}}})+'\n')); child.stdout.emit('data', Buffer.from(JSON.stringify({{ type: 'message_end', message: {{ role: 'assistant', content: [{{ type: 'text', text: (['repair','archive-unavailable'].includes({json.dumps(mode)}) && tasks.length === 1) ? 'No structured output' : JSON.stringify(plan) }}] }} }}) + '\n')); child.exitCode = 0; child.emit('close', 0); }});
+          return child;
+        }},
+      }}));
+      const {{ createConsolidationRun, releaseConsolidationRun }} = await import('./packages/continual-learning/extensions/consolidation-run.ts');
+      const {{ planHarnessConsolidationPhase }} = await import('./packages/continual-learning/extensions/harness-consolidation.ts');
+      const cwd = {json.dumps(str(tmp_path))};
+      const entries = [{{ message: {{ role: 'user', content: 'Never write generated files.' }} }}];
+      const ctx = {{ cwd, ui: {{ notify() {{}} }}, sessionManager: {{ getBranch: () => entries, buildContextEntries: () => entries }} }};
+      const run = await createConsolidationRun(ctx, cwd, false);
+      const dossier = path.join(run.manifest.runDir, 'incremental-learning-dossier.json'); fs.writeFileSync(dossier, '{{}}\n');
+      const outcome = await planHarnessConsolidationPhase(ctx, {{ pkgDir: process.cwd(), cwd, reason: 'incremental', run, explorationPath: dossier, explorationDigest: 'dossier-digest', resolveCli: () => ({{ command: process.execPath, args: [] }}) }});
+      await releaseConsolidationRun(run, {{keepArtifacts:true}});
+      console.log(JSON.stringify({{ ok: outcome.ok, attempts: outcome.attempts, calls: tasks.length, runDir: run.manifest.runDir }}));
+    ''')
+    assert result["ok"] is False
+    assert result["calls"] == (2 if mode in ("repair", "archive-unavailable") else 1)
+    category = "multiple-plans" if mode == "multiple-plans" else "identity"
+    assert result["attempts"][-1]["diagnostic"] == f"Parent Harness extraction: {category}"
+    if mode == "archive-unavailable":
+        assert len(result["attempts"]) == 2
+        assert result["attempts"][-1]["outcome"] == "rejected"
+        return
+    archive_file = Path(result["runDir"]) / ("harness-repair-output.json" if mode == "repair" else "harness-initial-output.json")
+    archive = json.loads(archive_file.read_text())
+    assert archive["category"] == category
+    assert archive["originalTransportRetained"] is (mode != "secret")
+    assert archive_file.stat().st_mode & 0o777 == 0o600
+    if mode == "secret":
+        assert "stdout" not in archive
+        assert "sk-" not in json.dumps(archive)
+        return
+    assert archive["semanticAcceptance"] is False
+    import hashlib
+    assert hashlib.sha256(archive["stdout"].encode()).hexdigest() == archive["originalTransportSha256"]
+    assert archive["originalTransportBytes"] == len(archive["stdout"].encode())

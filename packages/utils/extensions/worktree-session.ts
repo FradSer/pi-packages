@@ -42,6 +42,17 @@ export type { WorktreeRecord };
 
 export const WORKTREE_SESSION_ENTRY = "pi-utils-worktree-session";
 
+/** The replacement session's applied-entry message, rendered as one row. */
+export const WORKTREE_APPLIED_ENTRY = "pi-utils-worktree-applied";
+
+interface AppliedEntryDetails {
+	branch?: string;
+	/** Short spelling the row shows: the repository-relative managed path. */
+	label: string;
+	/** Absolute directory the replacement session runs in. */
+	path: string;
+}
+
 interface WorktreeToolResult {
 	content: Array<{ text?: string; type: string }>;
 }
@@ -82,6 +93,33 @@ export interface WorktreeSessionState {
 export interface EnterWorktreeRequest {
 	name?: string;
 	path?: string;
+}
+
+/** Label the barrier reports for an entry the redirect reserved, not a tool call. */
+const AUTOMATIC_ENTRY_LABEL = "automatic worktree entry";
+
+export interface CreatedWorktreeRequest {
+	/** The managed path the redirect planned for the bash command. */
+	path: string;
+	/** The session file, or null when this session cannot be replaced. */
+	sessionFile: string | null;
+	/** The bash tool call whose command creates the worktree. */
+	toolCallId: string;
+}
+
+export type CreatedWorktreeReservation =
+	| { status: "reserved" }
+	| { status: "unpersisted" }
+	| { status: "taken" };
+
+/**
+ * The redirect's only way to move the session into a worktree its own bash
+ * command just created. The barrier and the queued command stay owned here, so
+ * an automatic entry cannot race an explicit transition or a running switch.
+ */
+export interface WorktreeEntryHost {
+	reserveCreatedWorktree(request: CreatedWorktreeRequest): CreatedWorktreeReservation;
+	settleCreatedWorktree(toolCallId: string, created: boolean): void;
 }
 
 export interface CreatedEnterTarget {
@@ -235,6 +273,17 @@ function formatTargetLabel(state: WorktreeSessionState): string {
 	return `${state.path}${state.branch ? ` (${state.branch})` : ""}`;
 }
 
+/**
+ * The row's own spelling. A row must stay readable in a narrow terminal, so it
+ * shows the managed path inside the repository and keeps the absolute directory
+ * for expansion.
+ */
+function formatManagedLabel(state: WorktreeSessionState): string {
+	const relative = path.relative(state.repoRoot, state.path);
+	const spelling = relative && !relative.startsWith("..") ? relative : state.path;
+	return `${spelling}${state.branch ? ` (${state.branch})` : ""}`;
+}
+
 async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWorktreeRequest): Promise<void> {
 	const sourceSession = ctx.sessionManager.getSessionFile();
 	if (!sourceSession) {
@@ -295,11 +344,18 @@ async function switchIntoWorktree(ctx: ExtensionCommandContext, request: EnterWo
 		const result = await ctx.switchSession(replacementFile, {
 			withSession: async (next) => {
 				outcomeUI = next.ui;
-				notifyPi(next.ui, `Entered worktree: ${formatTargetLabel(state)}`, "info");
 				await next.sendMessage({
-					customType: "pi-utils-worktree-applied",
+					customType: WORKTREE_APPLIED_ENTRY,
 					content: `Entered worktree. Active cwd: ${state.path}. Continue the pending task here. Resolve all project paths, edits, writes, shell commands and delegated work against this cwd, not paths from the parent conversation. Other tools in the transition batch were not executed; retry needed operations here.`,
-					display: false,
+					// The row is the confirmation, so it is displayed and durable: an
+					// extension notice sent while the switch rebinds the session is not
+					// guaranteed to paint.
+					details: {
+						branch: state.branch,
+						label: formatManagedLabel(state),
+						path: state.path,
+					} satisfies AppliedEntryDetails,
+					display: true,
 				}, { triggerTurn: true });
 			},
 		});
@@ -413,11 +469,15 @@ const enterWorktreeParameters = Type.Object({
 	path: Type.Optional(Type.String({ description: "Existing registered worktree path" })),
 });
 
-export default function registerWorktreeSession(pi: ExtensionAPI): void {
+export default function registerWorktreeSession(pi: ExtensionAPI): WorktreeEntryHost {
 	let transitionCallId: string | undefined;
 	let pendingCommand: string | undefined;
 	let pendingLabel: string | undefined;
 	let transitionSignal: AbortSignal | undefined;
+	/** True while the redirect, not a tool call, owns the queued transition. */
+	let automaticEntry = false;
+	/** True once the reserved creation reported a successful bash result. */
+	let automaticEntryConfirmed = false;
 	/**
 	 * One session switch at a time. Two commands that wait for the same turn would
 	 * otherwise both proceed and start a replacement: the queued-transition flag
@@ -425,10 +485,52 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 	 */
 	let switchInFlight = false;
 
-	function queueTransition(transition: "enter_worktree" | "exit_worktree", command: string, signal: AbortSignal | undefined): void {
+	function queueTransition(label: string, command: string, signal: AbortSignal | undefined): void {
 		transitionSignal = signal;
 		pendingCommand = command;
-		pendingLabel = transition;
+		pendingLabel = label;
+	}
+
+	/**
+	 * Reserve the barrier for a worktree a bash command is about to create. The
+	 * reservation happens before that command runs, so the rest of the batch is
+	 * blocked instead of editing the checkout this session is leaving.
+	 */
+	function reserveCreatedWorktree(request: CreatedWorktreeRequest): CreatedWorktreeReservation {
+		// An explicit transition in the same message owns the barrier: it is the
+		// worktree the model asked for, and its id already blocks this batch.
+		if (pendingCommand || switchInFlight || transitionCallId) return { status: "taken" };
+		if (!request.sessionFile) return { status: "unpersisted" };
+		automaticEntry = true;
+		automaticEntryConfirmed = false;
+		queueTransition(AUTOMATIC_ENTRY_LABEL, `/enter-worktree ${JSON.stringify({ path: request.path })}`, undefined);
+		// The reserved call itself must still run, or the worktree never exists.
+		transitionCallId = request.toolCallId;
+		return { status: "reserved" };
+	}
+
+	/** Drop every trace of a queued transition, whatever ended it. */
+	function resetTransition(): void {
+		automaticEntry = false;
+		automaticEntryConfirmed = false;
+		pendingCommand = undefined;
+		pendingLabel = undefined;
+		transitionSignal = undefined;
+		transitionCallId = undefined;
+	}
+
+	/**
+	 * Record the reserved creation's outcome. Only a successful result confirms
+	 * the move; a call that produced no result at all leaves the reservation
+	 * unconfirmed, so the session never moves to a directory that was not made.
+	 */
+	function settleCreatedWorktree(toolCallId: string, created: boolean): void {
+		if (!automaticEntry || transitionCallId !== toolCallId) return;
+		if (created) {
+			automaticEntryConfirmed = true;
+			return;
+		}
+		resetTransition();
 	}
 
 	function setWorktreeToolActive(name: "enter_worktree" | "exit_worktree", active: boolean): void {
@@ -442,6 +544,17 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 		setWorktreeToolActive("exit_worktree", readWorktreeSessionState(ctx) !== null);
 	}
 
+	if (typeof pi.registerMessageRenderer === "function") {
+		pi.registerMessageRenderer<AppliedEntryDetails>(WORKTREE_APPLIED_ENTRY, (message, { expanded }, theme) => {
+			const details = message.details ?? { label: "", path: "" };
+			return rows.message(() =>
+				eventToolLifecycle("worktree", safeDisplayText(details.label), {
+					label: "entered",
+					details: details.path ? [`Path: ${details.path}`] : undefined,
+				}))(message, { expanded }, theme);
+		});
+	}
+
 	if (typeof pi.on === "function") {
 		// Inspect the whole batch before parallel preflight: even tools preceding
 		// enter_worktree in source order must not execute against the old cwd.
@@ -452,27 +565,40 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 			transitionCallId = transition?.type === "toolCall" ? transition.id : undefined;
 		});
 		pi.on("tool_call", (event) => {
-			if (pendingCommand || (transitionCallId && event.toolCallId !== transitionCallId)) {
-				// Name the pending transition: an identical transition tool in the
-				// same batch is queued behind the first one, not lost.
-				const reason = pendingCommand && pendingLabel
-					? `${pendingLabel} is already queued for this turn. This tool was not executed. Retry it only after the replacement session confirms its active cwd.`
+			// The reserved transition call itself must execute: an automatic entry
+			// reserves the barrier in message_end, before that bash call runs.
+			if (transitionCallId && event.toolCallId === transitionCallId) return;
+			if (!pendingCommand && !transitionCallId && !switchInFlight) return;
+			// Name what owns the barrier: an already queued transition, or a switch
+			// that is still waiting for this turn to end. Both mean the current
+			// checkout is about to be replaced.
+			const reason = pendingCommand && pendingLabel
+				? `${pendingLabel} is already queued for this turn. This tool was not executed. Retry it only after the replacement session confirms its active cwd.`
+				: switchInFlight
+					? "A worktree session switch is in progress. This tool was not executed. Retry it only after the replacement session confirms its active cwd."
 					: "Worktree transition pending. This tool was not executed. Retry it only after the replacement session confirms its active cwd.";
-				return { block: true, terminate: true, reason };
-			}
+			return { block: true, terminate: true, reason };
 		});
-		pi.on("agent_settled", (_event, ctx) => {
-			const command = transitionSignal?.aborted ? undefined : pendingCommand;
-			const dropped = command === undefined ? pendingLabel : undefined;
-			pendingCommand = undefined;
-			pendingLabel = undefined;
-			transitionSignal = undefined;
-			transitionCallId = undefined;
-			if (dropped) {
+		// Pi 1.2.0 reports whether the run was aborted; the package's type
+		// dependency still declares a host event without that field, so it is
+		// declared here and an absent value is not an abort.
+		type SettledEvent = { type: "agent_settled"; aborted?: boolean };
+		pi.on("agent_settled", (event: SettledEvent, ctx) => {
+			const aborted = transitionSignal?.aborted === true || (automaticEntry && event.aborted === true);
+			const unconfirmed = automaticEntry && !automaticEntryConfirmed;
+			const dropped = aborted || unconfirmed;
+			const command = dropped ? undefined : pendingCommand;
+			const label = command === undefined ? pendingLabel : undefined;
+			resetTransition();
+			if (unconfirmed && !aborted) {
+				// A reserved call that produced no result proves nothing about the
+				// directory, so the session stays and says so.
+				notifyPi(ctx.ui, "the worktree command produced no result — this session did not move", "warning");
+			} else if (label) {
 				// The model was told the transition was pending. An abort ends the
 				// run without applying it, so the user is told instead of leaving
 				// the model's expectation standing.
-				notifyPi(ctx.ui, `Queued ${dropped} was dropped: the run ended before the session transition was applied`, "warning");
+				notifyPi(ctx.ui, `Queued ${label} was dropped: the run ended before the session transition was applied`, "warning");
 			}
 			// Expanded slash commands dispatch immediately, even with followUp.
 			// Wait for settlement so forkFrom includes all tool results and no
@@ -480,6 +606,9 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 			if (command) queueTransitionCommand(pi, command);
 		});
 		pi.on("session_start", async (_event, ctx) => {
+			// A session that replaces this one owns its own state: leaving a queued
+			// transition behind would arm the barrier for the new session's tools.
+			resetTransition();
 			syncWorktreeTools(ctx);
 		});
 
@@ -585,4 +714,5 @@ export default function registerWorktreeSession(pi: ExtensionAPI): void {
 		},
 	});
 
+	return { reserveCreatedWorktree, settleCreatedWorktree };
 }

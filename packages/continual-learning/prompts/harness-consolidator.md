@@ -98,6 +98,19 @@ The complete rule carries a stable, non-empty `id` (at most 128 chars), optional
   `^git[ \t]+push(?:[ \t]|$(?![\s\S]))` matches git-push invocations; `git\npush` and
   `git\u00a0push` and `git push\r` must be negative cases. Do not use a family matcher for an
   exact-only prohibition or remove an approval exception.
+  Distinguish separators between command words from separators after the final
+  command word. `git\npush` does not invoke `git push`, but `npm\ninstall` does
+  invoke `npm` before the next command. A literal unquoted family prefix can use
+  optional leading ASCII spaces/tabs and a final command-separator boundary:
+  ```json
+  {"op":"addRule","rule":{"id":"block-command-family","bash":"^[ \\t]*npm(?:[ \\t\\n;|&<>]|$(?![\\s\\S]))","action":"block","message":"The project prohibits npm commands; use pnpm."},"cases":{"positive":[{"bash":"npm test"},{"bash":"  npm ci"},{"bash":"npm\ninstall"},{"bash":"npm;echo done"}],"negative":[{"bash":"pnpm test"},{"bash":"npm\r"},{"bash":"npm\u00a0test"},{"bash":"npmify test"},{"bash":"printf '%s' 'npm test'"},{"bash":"npm() { :; }"}]}}
+  ```
+  This example applies only to an authorized npm family prohibition; substitute
+  the authorized words and complete original explanation. Keep ASCII horizontal
+  separators between words in a multiword family. Do not make a final newline
+  negative merely because a newline between two command words is negative.
+  This prefix grammar does not cover all Bash quoting, substitutions, comments
+  or command prefixes; do not claim a complete shell parser or broader coverage.
   For a new command-family restriction, prefer that anchored matcher. Operator-prefix
   searches can match inside quoted strings: `printf '%s' 'x;git push --dry-run'`
   prints text without executing git. Include such quoted operator-and-argument

@@ -15,11 +15,12 @@ def test_explicit_request_keeps_bounded_context_without_clipping_evidence() -> N
       const slice = requestedMemoryTaskSlice('Remember MY_EXACT_REQUEST', context);
       let oversizedRequest;
       try { requestedMemoryTaskSlice('界'.repeat(180000), []); } catch(error) { oversizedRequest=error.message; }
-      console.log(JSON.stringify({bytes:Buffer.byteLength(JSON.stringify(slice)),count:slice.entries.length,first:slice.entries[0].message.content,last:slice.entries.at(-1).message.content,omitted:slice.omittedEntries,unchanged:slice.entries.slice(1).every(entry=>context.includes(entry)),oversizedRequest}));
+      console.log(JSON.stringify({bytes:Buffer.byteLength(JSON.stringify(slice)),count:slice.entries.length,first:slice.entries[0].message.content,last:slice.entries.at(-1).message.content,omitted:slice.omittedEntries,unchanged:slice.entries.slice(0,-1).every(entry=>context.includes(entry)),summary:slice.entries.some(entry=>entry.message.content==='FINAL_RESULT'),requestIndex:slice.memoryRequest.entryIndex,oversizedRequest}));
     ''')
     assert result["bytes"] <= 512_000 and result["count"] <= 256
-    assert result["first"] == "Remember MY_EXACT_REQUEST"
-    assert result["last"] == "FINAL_RESULT"
+    assert result["last"] == "Remember MY_EXACT_REQUEST"
+    assert result["summary"] is True
+    assert result["requestIndex"] == result["count"] - 1
     assert result["omitted"] > 0 and result["unchanged"] is True
     assert "request" in result["oversizedRequest"].lower()
 
@@ -38,7 +39,7 @@ def test_explicit_request_is_grounded_applied_and_memory_only(scenario: str) -> 
     assert result["memoryMirrored"] is (scenario == "remember-shared")
     assert result["lock"] is False
     dossiers = [run["dossier"] for run in result["runs"] if "dossier" in run]
-    assert len(dossiers) == 1 and dossiers[0]["memoryRequest"] == {"entryIndex": 0}, result
+    assert len(dossiers) == 1 and dossiers[0]["memoryRequest"] == {"entryIndex": 1}, result
 
 
 def test_secret_request_does_not_launch_workers_or_repeat_secret() -> None:
@@ -47,6 +48,24 @@ def test_secret_request_does_not_launch_workers_or_repeat_secret() -> None:
     assert "secret" in " ".join(result["notices"]).lower(), result
     assert "sk-test-secret" not in " ".join(result["notices"])
     assert result["privateFiles"] == [] and result["publicFiles"] == []
+
+
+def test_sensitive_tool_observation_keeps_a_safe_pre_generation_failure_reason() -> None:
+    import json
+    # Given a valid request whose original tool evidence contains a credential,
+    # When the Memory worker refuses setup, Then retain a safe reason and zero
+    # generation calls without deleting evidence or opening later planners.
+    result = run_bun_script(Path(__file__).with_name("learning-policy-harness.ts"), "remember-shared",
+                            env={"CL_STARTUP_SECRET_OBSERVATION":"1"})
+    receipt = result["registryReceipt"]
+    attempt = next(item for item in receipt["attempts"] if item["phase"] == "memory")
+    assert attempt["outcome"] == "failed" and attempt["operations"] == 0
+    assert attempt["diagnostic"] == "Memory worker setup refused sensitive frozen evidence; no planner started."
+    assert attempt["modelCalls"] == 0 and attempt["usage"]["totalTokens"] == 0
+    assert result["planners"] == [] and not result["harnessExists"]
+    assert "CL_BASH_LEARNING_SECRET_0123456789" not in json.dumps(receipt)
+    assert any("CL_BASH_LEARNING_SECRET_0123456789" in json.dumps(run.get("dossier")) for run in result["runs"])
+    assert "concise.md" not in result["privateFiles"] and result["lock"] is False
 
 
 def test_invalid_evidence_cannot_save_a_memory() -> None:
@@ -150,3 +169,39 @@ def test_second_empty_tool_delimiter_answer_stays_failed_without_another_structu
     assert result['registryReceipt']['operations'] == 0
     assert result['jevValidations'] == []
     assert 'concise.md' not in result['privateFiles']
+
+
+@pytest.mark.parametrize("scenario,action,raw_args", [("manual-consolidate", "current-task", ""), ("manual-full", "full-corpus", "  full  ")])
+def test_consolidate_current_command_is_bound_separately_from_source_evidence(scenario, action, raw_args):
+    # Given an actual command handler call after the source task, When capturing
+    # each planner run, Then preserve original entries and bind only this action.
+    result = run_bun_script(Path(__file__).with_name("learning-policy-harness.ts"), scenario)
+    snapshots = [run["snapshot"] for run in result["runs"] if run.get("snapshot")]
+    assert snapshots, result
+    invocation_ids = set()
+    for snapshot in snapshots:
+        request = snapshot.get("currentMaintenanceRequest")
+        assert request is not None, snapshot
+        assert request["kind"] == "user-maintenance-command" and request["version"] == 1
+        assert request["command"] == "consolidate" and request["arguments"] == raw_args
+        assert request["action"] == action
+        assert request["runId"] == snapshot["runId"] and request["scopeKey"] == snapshot["scopeKey"]
+        assert snapshot["entries"][0]["message"]["content"] == "Fix the failing build."
+        assert len(snapshot["entries"]) == 4
+        invocation_ids.add(request["invocationId"])
+    assert len(invocation_ids) == 1
+
+
+def test_explicit_backfill_keeps_original_task_and_current_command_namespaces_separate():
+    result = run_bun_script(Path(__file__).with_name("learning-policy-harness.ts"), "manual-backfill")
+    snapshots = [run["snapshot"] for run in result["runs"] if run.get("snapshot")]
+    assert snapshots, result
+    assert result["maintenanceClaimChecks"] > 0
+    for snapshot in snapshots:
+        command = snapshot["currentMaintenanceRequest"]
+        assert command["action"] == "backfill" and command["arguments"] == "backfill"
+        assert command["sessionId"] == "current-backfill-invocation"
+        assert command["runId"] == snapshot["runId"]
+        assert len(snapshot["entries"]) == 2
+        assert snapshot["entries"][0]["message"]["content"] == "Fix the failing build."
+        assert snapshot["entries"][1]["message"]["content"] == [{"type": "text", "text": "Original task result."}]

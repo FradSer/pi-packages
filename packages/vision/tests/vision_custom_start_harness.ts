@@ -36,7 +36,7 @@ const invoke = async (name: string, event: unknown) => {
   assert.ok(handler, `Missing registered ${name} handler`);
   return handler(event, ctx);
 };
-const image = { type: "image", mimeType: "image/png", data: "iVBORw0KGgo=" };
+const image = { type: "image", mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==" };
 const prompt = "Explain the image";
 const userMessage = { role: "user", content: [{ type: "text", text: prompt }, image], timestamp: 1 };
 const original = structuredClone(userMessage);

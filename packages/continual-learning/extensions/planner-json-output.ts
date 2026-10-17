@@ -24,7 +24,7 @@ export default function plannerJsonOutput(pi: ExtensionAPI): void {
     // the parent still validates the unique plan, citations and mutation intent.
     const outputKind = pi.getFlag("learning-output-schema");
     let domain: MemoryCitationDomain | undefined;
-    if (plannerStructuredOutputEnabled() && (outputKind === "memory-delta" || outputKind === "memory-amendment" || outputKind === "memory-combined-amendment")) {
+    if (plannerStructuredOutputEnabled() && (outputKind === "memory-delta" || outputKind === "memory-amendment" || outputKind === "memory-semantic-amendment" || outputKind === "memory-combined-amendment")) {
       const encoded = pi.getFlag("learning-citation-domain");
       if (encoded !== undefined) {
         if (encoded === "complete-catalog-overflow") throw new Error("Complete Memory citation domain exceeds worker argument bound");
@@ -44,7 +44,7 @@ export default function plannerJsonOutput(pi: ExtensionAPI): void {
       }
     }
     let candidateIds: string[] | undefined;
-    if (plannerStructuredOutputEnabled() && (outputKind === "memory-amendment" || outputKind === "memory-combined-amendment")) {
+    if (plannerStructuredOutputEnabled() && (outputKind === "memory-amendment" || outputKind === "memory-semantic-amendment" || outputKind === "memory-combined-amendment")) {
       const encoded = pi.getFlag("learning-candidate-ids");
       if (encoded !== undefined) {
         if (typeof encoded !== "string" || Buffer.byteLength(encoded) > 64_000 || encoded === "complete-candidates-overflow") throw new Error("Invalid complete Memory candidate domain");

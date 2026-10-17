@@ -13,6 +13,7 @@ def test_parent_bound_template_routes_only_with_matching_frozen_identity(variant
       import {loadBoundScopeJudge, boundScopeSourceV2} from './packages/continual-learning/tests/jev-bound-scope-shadow.ts';
       const research=await loadBoundScopeJudge();const outputs=[];
       try {
+        if (research.directory?.startsWith(process.cwd()+"/")) throw Error("Research scratch must stay outside the source checkout");
         const quote='Never run git push in this project, including --dry-run, in future tasks.';
         const snapshot={contextEnabled:true,runId:'run_fixture',scopeKey:'fixture',entries:[{role:'user',content:quote}]};
         const candidate={op:'addRule',rule:{id:'no-push',bash:projectPushTemplate('/work/project'),action:'block',message:quote},cases:{positive:[{bash:'git push --dry-run'}],negative:[{bash:'echo git push --dry-run'}]}};

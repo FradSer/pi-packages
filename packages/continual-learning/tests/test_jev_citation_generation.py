@@ -20,7 +20,17 @@ def test_generation_prompts_require_claim_specific_original_citations() -> None:
     assert 'removed lines establish the predecessor state' in guidance
     assert 'A patch is a transition' in guidance
     assert 'latest observed state is incomplete' in guidance
+    assert 'work already queued at the inspected completion check' in guidance
+    assert 'caller-facing Promise continuations' in guidance
+    assert 'instantaneous empty state' in guidance
     assert all(guidance in prompt for prompt in value['prompts'])
+    # Given an evidenced maintenance purpose, When choosing a new record format,
+    # Then keep that purpose alongside exact source, without inventing behavior.
+    initial = value['prompts'][0]
+    assert 'use `content` rather than `sourceExcerpt`' in initial
+    assert '**Why** and **How to apply**' in initial
+    assert 'Keep the complete exact declaration inline' in initial
+    assert 'Do not invent a purpose, currentness guarantee or runtime behavior' in initial
 
 
 def test_actual_semantic_worker_receives_guidance_without_new_write_authority() -> None:
@@ -39,7 +49,9 @@ def test_actual_semantic_worker_receives_guidance_without_new_write_authority() 
       console.log(JSON.stringify({semantic,structural,semanticGuidance:inputs[0].prompt.includes(MEMORY_CITATION_GUIDANCE),structuralGuidance:inputs[1].prompt.includes(MEMORY_CITATION_GUIDANCE),tools:inputs.map(i=>i.tools),contextUnchanged:JSON.stringify(context)===original,shownContext:JSON.parse(inputs[0].prompt.split('\n').at(-1)).semanticContext}));
     ''')
     assert value['semanticGuidance'] and not value['structuralGuidance']
-    assert value['semantic']['outcome'] == 'repaired'
+    # An unchanged semantic answer cannot resample the original held review.
+    assert value['semantic']['outcome'] == 'failed' and value['semantic']['failureKind'] == 'no-correction'
+    assert 'plan' not in value['semantic'] and value['structural']['outcome'] == 'repaired'
     assert value['contextUnchanged']
     shown = value['shownContext']['frozenEvidence']['entries']
     assert [entry['snapshotIndex'] for entry in shown] == [0, 1]

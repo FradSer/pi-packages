@@ -72,3 +72,11 @@ Feature: Real project Memory quality with Jev
     Then either a TypeError or an ignored assignment is accepted if state stays unchanged
     And a setter that changes state or throws an unrelated error is rejected
     And revised grading reuses archived candidates without further model sampling
+
+  Scenario: Explicit semantic version comparison preserves historical cohorts
+    Given an isolated study pins Jev 1.13 or 1.14 explicitly
+    When its proxy prepares the agent and forwards semantic requests
+    Then configuration and every transport use that fixed model
+    And foreign models and moving aliases are refused before paid transport
+    And original request bytes, TLS checks, deadlines and all usage remain intact
+    And a new version starts a separate cohort without rejudging old held plans

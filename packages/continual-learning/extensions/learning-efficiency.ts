@@ -343,6 +343,8 @@ export interface LearningInputSource {
   sessionId?: string;
   sourceDigest?: string;
   backlogId?: string;
+  /** Exact original owner range, retained even after its queue is completed. */
+  backlogRange?: { from: number; to: number; digest: string };
   /** Parent-verified same-task slices covered by this one replay batch. */
   backlogCoverage?: Array<{ id: string; from: number; to: number; digest: string }>;
 
@@ -414,6 +416,12 @@ export function isLearningPipelineReceipt(value: unknown): value is LearningPipe
   const validInput = input === undefined || Boolean(input && typeof input === "object"
     && ["current-session", "recent-project-session", "backlog-session", "existing-memory", "none"].includes(input.source)
     && (input.backlogId === undefined || (typeof input.backlogId === "string" && /^[a-f0-9]{64}$/.test(input.backlogId)))
+    && (input.backlogRange === undefined || ["current-session", "backlog-session"].includes(input.source)
+      && input.backlogId !== undefined && input.backlogRange !== null && typeof input.backlogRange === "object"
+      && !Array.isArray(input.backlogRange) && Object.keys(input.backlogRange).every(key => ["from", "to", "digest"].includes(key))
+      && Number.isSafeInteger(input.backlogRange.from) && input.backlogRange.from >= 0
+      && Number.isSafeInteger(input.backlogRange.to) && input.backlogRange.to >= input.backlogRange.from
+      && typeof input.backlogRange.digest === "string" && /^[a-f0-9]{64}$/.test(input.backlogRange.digest))
     && (input.backlogCoverage === undefined || input.source === "backlog-session"
       && Array.isArray(input.backlogCoverage) && input.backlogCoverage.length >= 2 && input.backlogCoverage.length <= 32
       && input.backlogCoverage.every(item => item && typeof item === "object"

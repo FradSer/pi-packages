@@ -28,11 +28,29 @@ export interface ProcedureDefinition {
   workflows?: WorkflowPlacement[];
 }
 
-const procedureDirectory = fileURLToPath(new URL("../procedures/", import.meta.url));
+/** The catalogue's own kinds decide where a resource lives; nothing else may. */
+const resourceDirectories: Record<ProcedureKind, string> = {
+  workflow: "procedures/",
+  utility: "procedures/",
+  reference: "references/",
+  asset: "assets/",
+};
+
+const packageDirectory = fileURLToPath(new URL("../", import.meta.url));
 const catalogPath = fileURLToPath(new URL("./catalog.json", import.meta.url));
 
 export const procedureCatalog = JSON.parse(readFileSync(catalogPath, "utf8")) as ProcedureDefinition[];
 const definitionsById = new Map(procedureCatalog.map((definition) => [definition.id, definition]));
+
+/** Absolute path of one catalogue resource, derived from its kind. */
+export function resourcePath(definition: ProcedureDefinition): string {
+  return `${packageDirectory}${resourceDirectories[definition.kind]}${definition.file}`;
+}
+
+/** Absolute directory holding every resource of one kind, so a reader can list them. */
+export function resourceDirectory(kind: ProcedureKind): string {
+  return `${packageDirectory}${resourceDirectories[kind]}`;
+}
 
 export function catalogFiles(): string[] {
   return procedureCatalog.map((definition) => definition.file);
@@ -115,7 +133,7 @@ export function validateProcedureCatalog(): string[] {
     ids.add(definition.id);
     files.add(definition.file);
 
-    if (!existsSync(`${procedureDirectory}${definition.file}`)) {
+    if (!existsSync(resourcePath(definition))) {
       errors.push(`${definition.id}: file not found: ${definition.file}`);
     }
     for (const dependency of [...(definition.requires ?? []), ...(definition.discloses ?? [])]) {

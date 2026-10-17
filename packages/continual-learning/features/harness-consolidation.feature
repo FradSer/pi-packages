@@ -39,6 +39,13 @@ Feature: Harness consolidation alongside memory consolidation
     And every proposed operation cites concrete observed evidence from that snapshot
     And the parent alone writes any configuration
 
+  Scenario: A semantic repair retains mandatory frozen artifact reads
+    Given the snapshot and original selector dossier are outside the project root
+    When the one bounded semantic repair follows the original read protocol
+    Then its learning_read tool permits those exact original artifact paths
+    And unrelated agent artifacts remain outside its read grant
+    And complete original snapshot and dossier checks still precede application
+
   Scenario: Harness evidence is bound to an observed actor and quote
     Given a harness operation cites a user requirement, user correction, or tool outcome
     When the parent validates the operation against the immutable snapshot

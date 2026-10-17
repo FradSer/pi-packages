@@ -1,0 +1,94 @@
+{
+  "scope": "Public p-limit actual failed V33 repair; output framing proof only; no semantic approval or repeated remote judgment",
+  "files": {
+    "semantic-rejected-plan.json": {
+      "sha256": "9d317da3731d617863935095b4354669731b333020919626cdca87c5cdc68090",
+      "value": {
+        "kind": "incremental-memory-plan",
+        "version": 1,
+        "schemaVersion": 1,
+        "runId": "run_mv9mc5hn_5ecc3b3517542f4e",
+        "scopeKey": "--work-p-limit--",
+        "scopeDigest": "fff28e7c05a94ea7b1dc5400bc199760d70649e33963d0bb9e0e65b9bbc7d30e",
+        "artifactHash": "5a09da9be7af7de0d5526c8d83fabc5b261c6baa1424d3da9c0df370bbec2e4d",
+        "snapshotDigest": "5a09da9be7af7de0d5526c8d83fabc5b261c6baa1424d3da9c0df370bbec2e4d",
+        "operations": [
+          {
+            "name": "limitfunction-contract.md",
+            "kind": "rewrite",
+            "classification": "private",
+            "content": "---\nname: \"limitfunction-contract.md\"\ndescription: \"Observed index.d.ts declaration; limitFunction return type picks clearQueue and onIdle.\"\ntype: project\n---\n\nObserved source excerpt from \"index.d.ts\":\n\n```text\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n```\n",
+            "evidence": [
+              {
+                "ref": "e101.b0.l154",
+                "endRef": "e101.b0.l157"
+              }
+            ]
+          }
+        ],
+        "newMemories": [
+          {
+            "name": "onidle-contract.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\ndescription: p-limit's onIdle() resolves when active slots and the waiting queue are both empty.\ntype: project\n---\n\n`index.d.ts` declares `onIdle: () => Promise<void>;` on `LimitFunction`. `index.js` defines `onIdle` on the limiter and forwards it onto the function returned by `limitFunction` via `Object.defineProperty(limitedFunction, 'onIdle', {value: limit.onIdle})`. The limiter returns `Promise.resolve()` when already idle; otherwise it stores resolvers until `activeCount === 0` and `queue.size === 0`. A reserved slot counts as active because `resumeNext` increments `activeCount` before `queue.dequeue().run()`. The idle check is deferred with `setTimeout(..., 0)` so promise-continuation enqueues are observed before resolving. `clearQueue` also schedules an idle check after clearing when no jobs are active and waiters remain.\n",
+            "evidence": [
+              {
+                "ref": "e101.b0.l46"
+              },
+              {
+                "ref": "e111.b0.l5",
+                "endRef": "e111.b0.l7"
+              },
+              {
+                "ref": "e105.b0.l140",
+                "endRef": "e105.b0.l149"
+              },
+              {
+                "ref": "e105.b0.l54",
+                "endRef": "e105.b0.l58"
+              },
+              {
+                "ref": "e105.b0.l36",
+                "endRef": "e105.b0.l51"
+              },
+              {
+                "ref": "e105.b0.l116",
+                "endRef": "e105.b0.l138"
+              }
+            ]
+          },
+          {
+            "name": "tsd-default-test-file.md",
+            "kind": "project",
+            "classification": "safe",
+            "content": "---\ndescription: Project tsd step targets index.test-d.ts, not test-d/ files, when index.test-d.ts exists.\ntype: project\n---\n\nIn `package.json`, the `test` script is `xo && ava && tsd`. In the inspected `tsd` source, `findTestFiles` first globs the typings-derived `index.test-d.ts` / `index.test-d.tsx`; if that glob finds a file, it returns those files and does not glob the configured `test-d` directory. This checkout contains `index.test-d.ts`, so a new `test-d/*.test-d.ts` file is not picked up by the default `pnpm test` unless passed with `tsd --files`.\n",
+            "evidence": [
+              {
+                "ref": "e2.b0.l45"
+              },
+              {
+                "ref": "e2.b0.l15"
+              },
+              {
+                "ref": "e35.b0.l5",
+                "endRef": "e35.b0.l23"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "repair-response.json": {
+      "sha256": "54201533d92f99240a3ccf9e668b3a77ec7cdb7f6ea7a1b4f317d86597d28b90",
+      "value": {
+        "version": 1,
+        "runId": "run_mv9mc5hn_5ecc3b3517542f4e",
+        "snapshotDigest": "5a09da9be7af7de0d5526c8d83fabc5b261c6baa1424d3da9c0df370bbec2e4d",
+        "sensitive": false,
+        "truncated": false,
+        "output": "{\"replacements\":[{\"candidateId\":\"operations:0:d842d0e1ad718ea0d7e3f2a5f2079cfe30f791880f902ff58e460cb7fb90839c\",\"content\":\"---\\nname: \\\"limitfunction-contract.md\\\"\\ndescription: \\\"`index.d.ts` declares the `limitFunction` export returning a callable.\\\"\\ntype: project\\n---\\n\\nThe `index.d.ts` declaration of `limitFunction` returns a callable intersected with `Pick<LimitFunction, 'clearQueue' | 'onIdle'>`. The earlier observed state used `Pick<LimitFunction, 'clearQueue'>`; the observed `index.d.ts` edit extended the intersection with `onIdle`:\\n\\n```text\\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\\n\\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\\n\\toptions: Options\\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\\n```\\n\",\"evidence\":[{\"ref\":\"e6.b0.l135\",\"endRef\":\"e6.b0.l138\"},{\"ref\":\"e49.b0.p36\",\"endRef\":\"e49.b0.p37\"},{\"ref\":\"e101.b0.l154\",\"endRef\":\"e101.b0.l157\"}]},{\"candidateId\":\"newMemories:0:5453d877caac23a86bd1aed5ab743e5a7c9af14d0806b3fc74aa68f04e4fb9dd\",\"content\":\"---\\nname: \\\"onidle-contract.md\\\"\\ndescription: \\\"`index.d.ts` declares `onIdle` on `LimitFunction` returning a promise.\\\"\\ntype: project\\n---\\n\\n`index.d.ts` declares `onIdle: () => Promise<void>;` on `LimitFunction`. `index.js` defines `onIdle` on the limiter and forwards it onto the function returned by `limitFunction` via `Object.defineProperty(limitedFunction, 'onIdle', {value: limit.onIdle})`. The limiter returns `Promise.resolve()` when already idle; otherwise it stores resolvers until `activeCount === 0` and `queue.size === 0`. A reserved slot counts as active because `resumeNext` increments `activeCount` before `queue.dequeue().run()`. The idle check is deferred with `setTimeout(..., 0)` so promise-continuation enqueues are observed before resolving. `clearQueue` also schedules an idle check after clearing when no jobs are active and waiters remain.\\n\",\"evidence\":[{\"ref\":\"e101.b0.l46\"},{\"ref\":\"e111.b0.l5\",\"endRef\":\"e111.b0.l7\"},{\"ref\":\"e105.b0.l140\",\"endRef\":\"e105.b0.l149\"},{\"ref\":\"e105.b0.l54\",\"endRef\":\"e105.b0.l58\"},{\"ref\":\"e105.b0.l36\",\"endRef\":\"e105.b0.l51\"},{\"ref\":\"e105.b0.l116\",\"endRef\":\"e105.b0.l138\"},{\"ref\":\"e37.b0.p84\",\"endRef\":\"e37.b0.p94\"},{\"ref\":\"e49.b0.p8\",\"endRef\":\"e49.b0.p24\"}]},{\"candidateId\":\"newMemories:1:4ffcda9631443aa8ec581cce1bfdd6d8e4ee1cb8429d193de25e48625447db27\",\"content\":\"---\\nname: \\\"tsd-default-test-file.md\\\"\\ndescription: \\\"`tsd` resolves the typings-derived `index.test-d.ts` before globbing `test-d`.\\\"\\ntype: project\\n---\\n\\nIn `package.json`, the `test` script is `xo && ava && tsd`. In the inspected `tsd` source, `findTestFiles` resolves the typings-derived `index.test-d.ts` / `index.test-d.tsx` path and globs those; it only globs the configured `test-d` directory when that glob returns no files. This checkout contains `index.test-d.ts`.\\n\",\"evidence\":[{\"ref\":\"e2.b0.l45\"},{\"ref\":\"e2.b0.l15\"},{\"ref\":\"e33.b0.l2\",\"endRef\":\"e33.b0.l3\"},{\"ref\":\"e35.b0.l5\",\"endRef\":\"e35.b0.l23\"}]}]}"
+      }
+    }
+  }
+}

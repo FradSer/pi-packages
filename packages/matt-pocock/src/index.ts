@@ -171,28 +171,40 @@ function formatDecisionAnswer(question: string, answer: string, recommendation?:
   return `${question}\n\n${quote}`;
 }
 
-/** A timeout recommendation requires this deadline to actually dismiss the selector. */
-async function selectDecision(
-  ctx: ExtensionContext, question: string, choices: string[], signal?: AbortSignal, timeout?: number,
-): Promise<MacosChooseFromListResult> {
+/**
+ * A deadline dismisses one dialog. Its own timer sets the expiry flag, never a clock
+ * reading, so a cancel that arrives before the deadline stays a cancel.
+ */
+async function askUntilDeadline<T>(
+  deadline: number, signal: AbortSignal | undefined, open: (dialogSignal: AbortSignal) => Promise<T>,
+): Promise<{ value: T; expired: boolean }> {
   const controller = new AbortController();
-  const abort = () => controller.abort();
-  signal?.addEventListener("abort", abort, { once: true });
-  if (signal?.aborted) abort();
-  let timedOut = false;
-  const timer = timeout === undefined ? undefined : setTimeout(() => {
+  const forward = () => controller.abort();
+  signal?.addEventListener("abort", forward, { once: true });
+  if (signal?.aborted) forward();
+  let expired = false;
+  const timer = setTimeout(() => {
     if (!controller.signal.aborted) {
-      timedOut = true;
+      expired = true;
       controller.abort();
     }
-  }, timeout);
+  }, Math.max(0, deadline - Date.now()));
   try {
-    const item = await ctx.ui.select(question, choices, { signal: controller.signal, timeout });
-    return { item, action: item !== undefined ? "selected" : timedOut ? "timed_out" : "cancelled" };
+    return { value: await open(controller.signal), expired };
   } finally {
-    if (timer) clearTimeout(timer);
-    signal?.removeEventListener("abort", abort);
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", forward);
   }
+}
+
+/** The deadline timer, not a clock reading, dismisses the selector and reports the expiry. */
+async function selectDecision(
+  ctx: ExtensionContext, question: string, choices: string[], deadline: number, budget: number, signal?: AbortSignal,
+): Promise<MacosChooseFromListResult> {
+  const { value, expired } = await askUntilDeadline(deadline, signal, (dialogSignal) =>
+    ctx.ui.select(question, choices, { signal: dialogSignal, timeout: budget }));
+  if (value !== undefined) return { action: "selected", item: value };
+  return { action: expired ? "timed_out" : "cancelled" };
 }
 
 export default function mattPocock(extensionApi: ExtensionAPI): void {
@@ -706,15 +718,15 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
     description: "Ask a structured workflow decision question via Pi UI selection.",
     promptSnippet: "Ask a structured question during the active Matt Pocock workflow",
     promptGuidelines: [
-      "Recommendations may time out to a default for routine preferences. For approval-required external or destructive actions, omit recommended and wait for an explicit user response.",
+      "Every call passes recommended as an exact copy of one offered option; the deadline adopts it and no question waits indefinitely. For an approval-required external or destructive action, recommend the option that does not act.",
       "Escape, cancellation, abort, and no UI leave a decision pending; do not interpret them as consent.",
     ],
     parameters: Type.Object({
       title: Type.Optional(Type.String({ description: "Short title summarizing the decision context; defaults to workflow route and phase." })),
       question: Type.String({ description: "The interview or decision question to ask the user." }),
       options: Type.Array(Type.String({ minLength: 1 }), { minItems: 2, maxItems: 4, uniqueItems: true, description: "2 to 4 suggested options, recommended option first." }),
-      recommended: Type.Optional(Type.String({ description: "An exact copy of one options entry, including annotations such as (Recommended) and whitespace. When provided, timeout automatically adopts this option." })),
-      timeout_seconds: Type.Optional(Type.Number({ exclusiveMinimum: 0, maximum: 3600, description: "Seconds to wait; default 60; needs a recommended option." })),
+      recommended: Type.String({ description: "Required. An exact copy of one options entry, including annotations such as (Recommended) and whitespace. The selection deadline automatically adopts this option." }),
+      timeout_seconds: Type.Optional(Type.Number({ exclusiveMinimum: 0, maximum: 3600, description: "Seconds to wait before adopting the recommended option; default 60." })),
       allow_custom: Type.Optional(Type.Boolean({ description: "Allow a custom typed answer; default true." })),
     }, { additionalProperties: false }),
     renderShell: "self",
@@ -730,6 +742,8 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
         : answerLines.map((line, index) => index === 0 ? `Answer: ${line}` : `  ${line}`);
       const metadata = [
         details.timed_out && details.source === "timeout_recommended" ? fieldLine("reason", "selection timed out (used recommendation)") : undefined,
+        // A deadline always adopts a recommendation now. This line only renders a
+        // pending timeout persisted by an older session, so history keeps its reason.
         details.timed_out && details.pending ? fieldLine("reason", "selection timed out") : undefined,
         details.source === "no_ui" ? fieldLine("reason", "no UI available") : undefined,
         details.is_custom ? fieldLine("source", "custom input") : undefined,
@@ -751,10 +765,10 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
           details: { pending: true, source: "aborted" },
         });
         if (interrupted()) return pendingAbort();
-        const recommended = params.recommended === undefined ? undefined
-          : params.options.includes(params.recommended) ? params.recommended : params.recommended.trim();
-        if (recommended !== undefined && !params.options.includes(recommended)) {
-          throw new Error("The recommended answer must match an offered option.");
+        const offered = typeof params.recommended === "string" ? params.recommended : "";
+        const recommended = params.options.includes(offered) ? offered : offered.trim();
+        if (!recommended || !params.options.includes(recommended)) {
+          throw new Error("A recommended answer is required and must match an offered option.");
         }
         if (!ctx.hasUI) {
           return {
@@ -762,8 +776,17 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
             details: { pending: true, source: "no_ui" },
           };
         }
-        const timeoutSeconds = recommended ? params.timeout_seconds ?? 60 : undefined;
-        const timeoutMs = timeoutSeconds === undefined ? undefined : timeoutSeconds * 1000;
+        // One deadline governs the whole ask: it dismisses the selector and the custom
+        // answer input, then adopts the recommendation so no question waits indefinitely.
+        // The first dialog receives the requested budget, and later phases the remainder.
+        const timeoutSeconds = params.timeout_seconds ?? 60;
+        const timeoutMs = timeoutSeconds * 1000;
+        const deadline = Date.now() + timeoutMs;
+        const remainingMs = () => Math.max(1, deadline - Date.now());
+        const adoptRecommendation = () => ({
+          content: [{ type: "text" as const, text: formatDecisionAnswer(params.question, recommended, recommended) }],
+          details: { answer: recommended, is_custom: false, timed_out: true, pending: false, source: "timeout_recommended" },
+        });
         let customOption = "Type custom answer...";
         while (params.options.includes(customOption)) customOption += " (custom)";
         const choices = [...params.options];
@@ -778,35 +801,39 @@ export default function mattPocock(extensionApi: ExtensionAPI): void {
           if (interrupted()) return pendingAbort();
           const choice = native
             ? await macosChooseFromList({
-              title, prompt: params.question, items: choices, defaultItem: recommended ?? choices[0],
-              okButtonName: buttons.ok, cancelButtonName: buttons.cancel, timeoutSeconds, signal: decisionSignal,
+              title, prompt: params.question, items: choices, defaultItem: recommended,
+              okButtonName: buttons.ok, cancelButtonName: buttons.cancel,
+              timeoutSeconds, signal: decisionSignal,
             })
-            : await selectDecision(ctx, params.question, choices, decisionSignal, timeoutMs);
+            : await selectDecision(ctx, params.question, choices, deadline, timeoutMs, decisionSignal);
           if (interrupted()) return pendingAbort();
-          if (choice.action === "timed_out" && recommended) {
-            return {
-              content: [{ type: "text" as const, text: formatDecisionAnswer(params.question, recommended, recommended) }],
-              details: { answer: recommended, is_custom: false, timed_out: true, pending: false, source: "timeout_recommended" },
-            };
-          }
+          if (choice.action === "timed_out") return adoptRecommendation();
           if (choice.action !== "selected" || !choice.item) {
-            const timedOut = choice.action === "timed_out";
             return {
-              content: [{ type: "text" as const, text: `[Pending user decision] ${timedOut ? "Selection timed out." : "No answer was selected."} Do not proceed until the user responds.` }],
-              details: { pending: true, timed_out: timedOut, source: "cancelled" },
+              content: [{ type: "text" as const, text: "[Pending user decision] No answer was selected. Do not proceed until the user responds." }],
+              details: { pending: true, timed_out: false, source: "cancelled" },
             };
           }
           const isCustom = allowCustom && choice.item === customOption;
           let answer = choice.item;
           if (isCustom) {
-            const input = native
-              ? await macosInputDialog({
+            if (native) {
+              const input = await macosInputDialog({
                 title, prompt: params.question, defaultAnswer: "", buttons: [buttons.cancel, buttons.ok],
-                defaultButton: buttons.ok, cancelButton: buttons.cancel, signal: decisionSignal,
-              }).then((result) => result.action === "confirmed" ? result.text : undefined)
-              : await ctx.ui.input(params.question, "Enter your answer...", { signal: decisionSignal });
-            if (interrupted()) return pendingAbort();
-            answer = input?.trim() ?? "";
+                defaultButton: buttons.ok, cancelButton: buttons.cancel,
+                timeoutSeconds: remainingMs() / 1000, signal: decisionSignal,
+              });
+              if (interrupted()) return pendingAbort();
+              if (input.action === "timed_out") return adoptRecommendation();
+              answer = input.action === "confirmed" ? input.text?.trim() ?? "" : "";
+            } else {
+              const remaining = remainingMs();
+              const { value, expired } = await askUntilDeadline(deadline, decisionSignal, (dialogSignal) =>
+                ctx.ui.input(params.question, "Enter your answer...", { signal: dialogSignal, timeout: remaining }));
+              if (interrupted()) return pendingAbort();
+              if (expired) return adoptRecommendation();
+              answer = value?.trim() ?? "";
+            }
             if (!answer) {
               return {
                 content: [{ type: "text" as const, text: "[Pending user decision] No custom answer was provided. Do not proceed until the user responds." }],

@@ -100,9 +100,9 @@ head 单独成行，一个空行分隔，随后是用户自己的任务原文（
 
 独立能力、参考资料和提问保留各自的展示对象：`started · <capability>`、`started · <capability> · <reference>`、`event · loaded <reference>` 和 `ask · <question>`，不替换成工作流阶段。提问的答案或待定状态保持可见，超时、无 UI 和自定义输入等有效 metadata 仍可展开查看，不重复答案。
 
-从仓库根目录运行 `uv run --no-project packages/matt-pocock/tests/live_smoke.py`，可在真实 Pi CLI 中验证 print 模式、交互终端提示、真实选择超时与 Escape 取消、Ctrl+O 展开、缩至 48 列，以及 `/matt-pocock hard-bug fix the login redirect` 只产生一块 user-message 底色的块状提示。脚本使用临时 HOME 与离线脚本化 provider，不读取用户凭证或调用外部模型。
+从仓库根目录运行 `uv run --no-project packages/matt-pocock/tests/live/live_smoke.py`，可在真实 Pi CLI 中验证 print 模式、交互终端提示、真实选择超时与 Escape 取消、Ctrl+O 展开、缩至 48 列，以及 `/matt-pocock hard-bug fix the login redirect` 只产生一块 user-message 底色的块状提示。脚本使用临时 HOME 与离线脚本化 provider，不读取用户凭证或调用外部模型。
 
-`tests/runtime_live.py` 从 catalog 派生全部 route、合法转移和独立能力，在真实 Pi agent loop 中运行，并验证持久化重启；`tests/decision_live.py` 通过 PTY 发送实际选择、文本输入与取消按键。运行方式同上。原生进程失败模拟与实际 macOS 对话框验证分别记录。这些验证覆盖 Pi 集成路径，不证明外部模型的决策质量，也不代表每份 procedure 的下游工程任务已执行。
+`tests/live/runtime_live.py` 从 catalog 派生全部 route、合法转移和独立能力，在真实 Pi agent loop 中运行，并验证持久化重启；`tests/live/decision_live.py` 通过 PTY 发送实际选择、文本输入与取消按键。运行方式同上。原生进程失败模拟与实际 macOS 对话框验证分别记录。这些验证覆盖 Pi 集成路径，不证明外部模型的决策质量，也不代表每份 procedure 的下游工程任务已执行。
 
 ## 协作验证与完成门槛
 
@@ -155,7 +155,7 @@ head 单独成行，一个空行分隔，随后是用户自己的任务原文（
 
 上游以多份嵌套 `SKILL.md` 分发能力。Pi 会递归发现 skill root 下的这些文件，因此 `tdd`、`research`、`implement`、`code-review` 等通用名字可能与用户安装的其他集合冲突，也不天然表达工作项状态和合法阶段迁移。
 
-本包把选定内容保存为 `procedures/*.md`、reference Markdown 或 asset，并由 extension 目录解析。包内不含子 `SKILL.md`：
+本包把选定内容按 catalog 的 kind 分目录保存：可加载的 capability 放在 `procedures/`，按需加载的 reference 放在 `references/`，模板类 asset 放在 `assets/`，并由 extension 解析。包内不含子 `SKILL.md`：
 
 - 名称不会进入全局 skill 命名空间；
 - workflow 与 standalone capability 共用同一个目录和网关；
@@ -166,17 +166,17 @@ head 单独成行，一个空行分隔，随后是用户自己的任务原文（
 
 ## 上游选择与同步校验
 
-[`upstream-selection.json`](upstream-selection.json) 是机器可读的上游选择记录。它把最新检查版本中的每个上游 skill 标为：
+[`upstream/upstream-selection.json`](upstream/upstream-selection.json) 是机器可读的上游选择记录。它把最新检查版本中的每个上游 skill 标为：
 
 - `selected`：映射到本地 catalog id、普通 Markdown resource 与上游调用模式；
 - `excluded`：保留明确排除理由，包括依赖 Claude Code hook 或后台 agent 命令的宿主专属能力。
 
-[`UPSTREAM.md`](UPSTREAM.md) 记录比较 commit、tag、tag commit、最新检查 commit 以及适配规则。[`scripts/check-upstream-sync.mjs`](scripts/check-upstream-sync.mjs) 是同步 checker：不带参数时验证本地元数据和资源；传入已克隆的上游路径时，还会检查完整 skill inventory、调用模式和正文差异。checker 不会自行 clone 或 fetch。
+[`upstream/UPSTREAM.md`](upstream/UPSTREAM.md) 记录比较 commit、tag、tag commit、最新检查 commit 以及适配规则。[`upstream/check-upstream-sync.mjs`](upstream/check-upstream-sync.mjs) 是同步 checker：不带参数时验证本地元数据和资源；传入已克隆的上游路径时，还会检查完整 skill inventory、调用模式和正文差异。checker 不会自行 clone 或 fetch。
 
 贡献者应运行：
 
 ```bash
-node packages/matt-pocock/scripts/check-upstream-sync.mjs
+node packages/matt-pocock/upstream/check-upstream-sync.mjs
 python3 -m pytest packages/matt-pocock/tests/ -q
 pnpm typecheck
 pnpm --dir packages/matt-pocock pack --dry-run
@@ -185,7 +185,7 @@ pnpm --dir packages/matt-pocock pack --dry-run
 需要核对上游 checkout 时再运行：
 
 ```bash
-node packages/matt-pocock/scripts/check-upstream-sync.mjs --upstream /path/to/mattpocock-skills
+node packages/matt-pocock/upstream/check-upstream-sync.mjs --upstream /path/to/mattpocock-skills
 ```
 
 实际 Pi v1.0 检查见 [`README.md`](README.md) 中的运行命令。目录矩阵从 manifest 派生所有 route、合法迁移和独立能力，通过真实 Pi agent loop 执行，并检查工具启停、持久化、重启、原生树切换与上下文压缩。压缩检查通过 `session_before_compact` 提供固定摘要；Pi 的压缩事件与会话写入仍实际执行，下一次模型上下文需包含恢复后的完整 procedure 来源。
@@ -225,7 +225,7 @@ node packages/matt-pocock/scripts/check-upstream-sync.mjs --upstream /path/to/ma
 - **原生交互体验**：
   1. **列表单选**：调用系统原生 `choose from list` 弹窗展示选项，支持上下键移动、回车选择；
   2. **自定义输入**：当用户选择“输入自定义回答...”时，自动唤起原生文本输入窗口（`display dialog` 带输入框），供用户直接打字；
-  3. **推荐超时自动采纳**：仅实际达到超时时间后采纳推荐选项；推荐必须属于候选项。取消、工具中断或流程切换均保持待定。需要授权的操作应省略推荐，不得以超时视为授权。
+  3. **推荐超时自动采纳**：`recommended` 为必填且必须属于候选项；每次提问都装填一个有界截止时间（默认 60 秒，上限 3600 秒），截止到达后同时关闭选择列表和自定义输入并采纳推荐选项，提问不会无限等待。仅实际达到截止时间后才采纳，取消、工具中断或流程切换均保持待定。需要授权的操作应把推荐设为不执行该操作的安全选项，因为截止时间会采纳它。
 
 原生对话框仅在配置 `useNativeDialog: true`（布尔值）时启用。取消信号会关闭 TUI 或终止并回收 osascript 子进程；进程启动、退出或解析失败会回退到 TUI。Catalog 在注册工具前校验别名冲突、重复路由位置和 requires 环；加载 reference 前校验累计上下文的 64 KiB 限额，失败不写入部分状态。独立能力在内存中保存当前披露链，可继续加载 reference 披露的下级资料，不创建持久流程状态；重启能力或跨会话上下文时清空。
 

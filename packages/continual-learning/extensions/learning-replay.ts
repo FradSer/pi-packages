@@ -19,8 +19,22 @@ export function learningReceiptComplete(receipt: LearningPipelineReceipt): boole
     || ["applied", "noop", "screened"].includes(final.get(phase) ?? ""));
 }
 
-interface ReplayAttempt { at: string; outcome: string; receipt?: LearningPipelineReceipt }
+type ReplaySourceBinding = Pick<LearningInputSource, "source" | "entryCount" | "sessionId" | "sourceDigest">;
+interface ReplayAttempt { at: string; outcome: string; receipt?: LearningPipelineReceipt; sourceBinding?: ReplaySourceBinding }
 interface ReplayState { attempts: ReplayAttempt[]; nextAttemptAt: number }
+
+function sourceBinding(input: LearningInputSource): ReplaySourceBinding {
+  return {source:input.source, entryCount:input.entryCount,
+    ...(input.sessionId !== undefined ? {sessionId:input.sessionId} : {}),
+    ...(input.sourceDigest !== undefined ? {sourceDigest:input.sourceDigest} : {})};
+}
+
+function receiptSourceMatches(receipt: LearningPipelineReceipt, binding?: ReplaySourceBinding): boolean {
+  if (!receipt.input?.backlogRange) return true;
+  // The parent writes this identity before learning. Compare the original source
+  // snapshot, not the legitimately appended session at crash recovery time.
+  return Boolean(binding && receipt.input && JSON.stringify(sourceBinding(receipt.input)) === JSON.stringify(binding));
+}
 
 function readReplayState(file: string): ReplayState {
   if (!fs.existsSync(file)) return {attempts:[], nextAttemptAt:0};
@@ -30,13 +44,21 @@ function readReplayState(file: string): ReplayState {
   return state;
 }
 
+function receiptOwnerRangeMatches(receipt: LearningPipelineReceipt, entry: BacklogEntry, id: string): boolean {
+  const range = receipt.input?.backlogRange;
+  // Older persisted receipts remain readable; a supplied trace cannot drift.
+  return range === undefined || receipt.input?.backlogId === id
+    && range.from === entry.from && range.to === entry.to && range.digest === entry.digest;
+}
+
 /** Acknowledge siblings first and the receipt-owning reference last. A crash
  * leaves that owner pending, so recovery can repeat the same exact receipt proof
  * without another model call or duplicate cost-bearing ledger rows. */
 function acknowledgeReplayCompletion(cwd: string, entry: BacklogEntry, receipt: LearningPipelineReceipt,
-  backlog: ReturnType<typeof readBacklog>, agentDir: string): boolean {
+  backlog: ReturnType<typeof readBacklog>, agentDir: string, binding?: ReplaySourceBinding): boolean {
   const paths = resolveMemoryPaths(cwd, agentDir);
   const id = backlogIdentity(paths.scopeKey, entry);
+  if (!receiptOwnerRangeMatches(receipt, entry, id) || !receiptSourceMatches(receipt, binding)) return false;
   const coverage = receipt.input?.backlogCoverage;
   const references = coverage ? coverage.map(item => backlog.entries.find(other =>
     backlogIdentity(paths.scopeKey, other) === item.id && other.sessionFile === entry.sessionFile
@@ -50,7 +72,7 @@ function acknowledgeReplayCompletion(cwd: string, entry: BacklogEntry, receipt: 
 }
 
 /** Write-ahead attempt marker. Caller must hold the project learning lease. */
-export function beginBacklogAttempt(cwd: string, entry: BacklogEntry, agentDir = getAgentDir()): boolean {
+export function beginBacklogAttempt(cwd: string, entry: BacklogEntry, agentDir = getAgentDir(), inputSource?: LearningInputSource): boolean {
   try {
     const paths = resolveMemoryPaths(cwd, agentDir);
     const id = backlogIdentity(paths.scopeKey, entry);
@@ -61,11 +83,11 @@ export function beginBacklogAttempt(cwd: string, entry: BacklogEntry, agentDir =
     const state = readReplayState(file);
     const last = state.attempts.at(-1);
     if (last?.outcome === "completed" && last.receipt && learningReceiptComplete(last.receipt)) {
-      acknowledgeReplayCompletion(cwd, entry, last.receipt, backlog, agentDir);
+      acknowledgeReplayCompletion(cwd, entry, last.receipt, backlog, agentDir, last.sourceBinding);
       return false;
     }
     if (state.attempts.length >= 16) return false;
-    state.attempts.push({at:new Date().toISOString(), outcome:"running"});
+    state.attempts.push({at:new Date().toISOString(), outcome:"running", ...(inputSource ? {sourceBinding:sourceBinding(inputSource)} : {})});
     const text = JSON.stringify(state);
     if (Buffer.byteLength(text) > 256_000) return false;
     const temporary = `${file}.${randomUUID()}.tmp`;
@@ -85,11 +107,15 @@ export function recordBacklogAttempt(cwd: string, entry: BacklogEntry, receipt: 
   try {
     if (!isLearningPipelineReceipt(receipt)) return false;
     const paths = resolveMemoryPaths(cwd, agentDir);
+    if (!receiptOwnerRangeMatches(receipt, entry, backlogIdentity(paths.scopeKey, entry))) return false;
     const file = path.join(paths.agentDir, "learning", paths.scopeKey, `replay-${backlogIdentity(paths.scopeKey, entry)}.json`);
     safeBacklogStorage(file, paths.agentDir, true);
     const state = readReplayState(file);
+    const binding = state.attempts.at(-1)?.sourceBinding;
+    if (!receiptSourceMatches(receipt, binding)) return false;
     if (state.attempts.length >= 16 && state.attempts.at(-1)?.outcome !== "running") return false;
-    const attempt = {at:new Date().toISOString(), outcome:learningReceiptComplete(receipt) ? "completed" : "failed", receipt};
+    const attempt = {at:new Date().toISOString(), outcome:learningReceiptComplete(receipt) ? "completed" : "failed", receipt,
+      ...(binding ? {sourceBinding:binding} : {})};
     if (state.attempts.at(-1)?.outcome === "running") state.attempts[state.attempts.length - 1] = attempt;
     else state.attempts.push(attempt);
     state.nextAttemptAt = Date.now() + Math.min(24 * 60 * 60_000, 60_000 * 2 ** state.attempts.length);
@@ -136,7 +162,7 @@ export function claimLearningLease(cwd: string, agentDir = getAgentDir()): (() =
 
 export async function replayLearningBacklog(input: {
   cwd: string; agentDir?: string; force?: boolean; limit?: number; signal?: AbortSignal;
-  learn: (input: { entries: unknown[]; id: string; sessionFile: string; sessionId: string; sourceDigest: string; memoryReplayFeedback?: MemoryReplayFeedback; backlogCoverage?: LearningInputSource["backlogCoverage"]; omittedEntries?: number; omittedEvidenceEntries?: number }) => Promise<LearningPipelineReceipt | undefined>;
+  learn: (input: { entries: unknown[]; id: string; sessionFile: string; sessionId: string; sourceDigest: string; memoryReplayFeedback?: MemoryReplayFeedback; backlogCoverage?: LearningInputSource["backlogCoverage"]; backlogRange?: LearningInputSource["backlogRange"]; omittedEntries?: number; omittedEvidenceEntries?: number }) => Promise<LearningPipelineReceipt | undefined>;
 }): Promise<{ outcomes: Array<{ id: string; outcome: string; reason?: "newer-slice-deferred" }>; busy?: boolean; error?: string }> {
   const agentDir = input.agentDir ?? getAgentDir();
   const paths = resolveMemoryPaths(input.cwd, agentDir);
@@ -161,7 +187,7 @@ export async function replayLearningBacklog(input: {
       safeBacklogStorage(file, paths.agentDir, true);
       const last = readReplayState(file).attempts.at(-1);
       if (last?.outcome !== "completed" || !last.receipt || !learningReceiptComplete(last.receipt)) continue;
-      if (!acknowledgeReplayCompletion(input.cwd, entry, last.receipt, backlog, agentDir)) throw new Error("Could not acknowledge replay");
+      if (!acknowledgeReplayCompletion(input.cwd, entry, last.receipt, backlog, agentDir, last.sourceBinding)) throw new Error("Could not acknowledge replay");
       (last.receipt.input?.backlogCoverage ?? [{id}]).forEach(row => attempted.add(row.id));
       outcomes.push({id,outcome:"completed"});
     }
@@ -277,7 +303,8 @@ export async function replayLearningBacklog(input: {
       }
       if (input.signal?.aborted) break;
       executed++;
-      const attempt: ReplayAttempt = {at:new Date().toISOString(), outcome:"running"};
+      const attempt: ReplayAttempt = {at:new Date().toISOString(), outcome:"running",
+        sourceBinding:{source:"backlog-session", entryCount:entries.length, sessionId:source.sessionId, sourceDigest:source.sourceDigest}};
       state.attempts.push(attempt);
       const save = async () => {
         safeBacklogStorage(file, paths.agentDir);
@@ -293,7 +320,8 @@ export async function replayLearningBacklog(input: {
         break;
       }
       try {
-        const receipt = await input.learn({entries, id, sessionFile:entry.sessionFile, sessionId:source.sessionId, sourceDigest:source.sourceDigest, ...(backlogCoverage ? {backlogCoverage} : {}),
+        const receipt = await input.learn({entries, id, sessionFile:entry.sessionFile, sessionId:source.sessionId, sourceDigest:source.sourceDigest,
+          backlogRange: {from: entry.from, to: entry.to, digest: entry.digest}, ...(backlogCoverage ? {backlogCoverage} : {}),
           ...(memoryReplayFeedback ? {memoryReplayFeedback} : {}),
           ...(!backlogCoverage && slice.omittedEntries ? {omittedEntries:slice.omittedEntries, omittedEvidenceEntries:slice.omittedEvidenceEntries ?? slice.omittedEntries} : {})});
         if (receipt && isLearningPipelineReceipt(receipt)) attempt.receipt = receipt;
@@ -301,13 +329,17 @@ export async function replayLearningBacklog(input: {
           && attempt.receipt.input.backlogId === id && attempt.receipt.input.sourceDigest === source.sourceDigest
           && attempt.receipt.input.entryCount === entries.length
           && JSON.stringify(attempt.receipt.input.backlogCoverage) === JSON.stringify(backlogCoverage);
-        attempt.outcome = attempt.receipt && !input.signal?.aborted && boundCoverage && learningReceiptComplete(attempt.receipt) ? "completed" : "failed";
+        const boundRange = attempt.receipt?.input?.backlogRange === undefined
+          || attempt.receipt.input.source === "backlog-session" && attempt.receipt.input.sessionId === source.sessionId
+            && attempt.receipt.input.sourceDigest === source.sourceDigest && attempt.receipt.input.entryCount === entries.length
+            && receiptOwnerRangeMatches(attempt.receipt, entry, id);
+        attempt.outcome = attempt.receipt && !input.signal?.aborted && boundCoverage && boundRange && learningReceiptComplete(attempt.receipt) ? "completed" : "failed";
       } catch { attempt.outcome = "failed"; }
       state.nextAttemptAt = Date.now() + Math.min(24 * 60 * 60_000, 60_000 * 2 ** state.attempts.length);
       await save();
       outcomes.push({id,outcome:attempt.outcome});
       if (attempt.outcome !== "completed") continue;
-      if (!acknowledgeReplayCompletion(input.cwd, entry, attempt.receipt!, backlog, agentDir)) throw new Error("Could not acknowledge replay");
+      if (!acknowledgeReplayCompletion(input.cwd, entry, attempt.receipt!, backlog, agentDir, attempt.sourceBinding)) throw new Error("Could not acknowledge replay");
     }
     return {outcomes};
   } catch { return {outcomes,error:"Learning replay could not complete safely"}; }

@@ -1,6 +1,8 @@
 /** Research-only syntax projection; parent identity is not user permission. */
 import fs from 'node:fs/promises';
 import {createHash} from 'node:crypto';
+import os from 'node:os';
+import path from 'node:path';
 import type {createJevJudge, JevJudge} from '../extensions/jev-learning';
 export interface BoundScopeContext {
  repoRoot:string; runId:string; scopeKey:string; evidenceDigest:string;
@@ -35,8 +37,9 @@ export interface JevJudge {`);
 }
 export async function loadBoundScopeJudge(transform:(source:string)=>string = boundScopeSource):Promise<{createJevJudge:BoundScopeFactory;baselineCreateJevJudge:typeof createJevJudge;sourceSha256:string;patchedSha256:string;directory:string;dispose():Promise<void>}> {
  const source=await fs.readFile(new URL('./fixtures/jev-learning-before-bound-scope.ts.txt',import.meta.url),'utf8');const patched=transform(source);
- const directory=await fs.mkdtemp(new URL('./.jev-bound-scope-',import.meta.url).pathname);const dispose=()=>fs.rm(directory,{recursive:true,force:true});
+ const directory=await fs.mkdtemp(path.join(os.tmpdir(),'jev-bound-scope-'));const dispose=()=>fs.rm(directory,{recursive:true,force:true});
  try {
+  await fs.symlink(await fs.realpath(new URL('../node_modules/',import.meta.url)),path.join(directory,'node_modules'),'dir');
   await fs.cp(new URL('../extensions/',import.meta.url),`${directory}/extensions`,{recursive:true});
   const file=`${directory}/extensions/jev-learning.ts`;await fs.writeFile(file,patched,'utf8');
   const baselineFile=`${directory}/extensions/baseline-jev-learning.ts`;await fs.writeFile(baselineFile,source);

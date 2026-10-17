@@ -25,6 +25,8 @@ export interface TaskSlice {
   kind: "learning-task-slice";
   version: 1;
   entries: unknown[];
+  /** Parent-bound current slash-command position, after older source evidence. */
+  memoryRequest?: { entryIndex: number };
   /** Whole original entries omitted to keep the serialized evidence bounded. */
   omittedEntries?: number;
   /** Omitted user/tool evidence or tool-call provenance, excluding plain assistant context. */
@@ -64,7 +66,7 @@ export interface LearningDossier {
   registeredSkills: string[];
   selection: MemorySelection;
   /** An explicit command request is the primary evidence; older entries are context. */
-  memoryRequest?: { entryIndex: 0 };
+  memoryRequest?: { entryIndex: number };
   /** Rejected historical proposals, not source evidence or mutation authority. */
   memoryReplayFeedback?: MemoryReplayFeedback;
 }
@@ -180,10 +182,11 @@ function currentTaskEntries(entries: readonly unknown[]): readonly unknown[] {
 
 /** Command arguments are human evidence even though Pi does not add slash commands to chat messages. */
 export function requestedMemoryTaskSlice(request: string, entries: readonly unknown[]): TaskSlice {
+  const context = projectLearningEvidence(currentTaskEntries(entries));
   return boundTaskSlice([
+    ...context,
     { type: "message", message: { role: "user", content: request } },
-    ...projectLearningEvidence(currentTaskEntries(entries)),
-  ]);
+  ], context.length);
 }
 
 /** Fresh scoped observations extend the requested task without dropping its evidence. */
@@ -195,19 +198,21 @@ export function appendMemorySourceObservations(slice: TaskSlice, observations: r
   return extended;
 }
 
-function boundTaskSlice(taskEntries: readonly unknown[]): TaskSlice {
-  const slice: TaskSlice = { kind: "learning-task-slice", version: 1, entries: [...taskEntries] };
+function boundTaskSlice(taskEntries: readonly unknown[], requestIndex?: number): TaskSlice {
+  const slice: TaskSlice = { kind: "learning-task-slice", version: 1, entries: [...taskEntries],
+    ...(requestIndex === undefined ? {} : { memoryRequest: { entryIndex: requestIndex } }) };
   if (taskEntries.length <= MAX_TASK_SLICE_ENTRIES && jsonBytes(slice) <= MAX_TASK_SLICE_BYTES) return slice;
 
   // Reserve the entire JSON envelope, including omission metadata. Preserve
   // source entries byte-for-byte: clipping their text could alter quote evidence.
   const envelopeBytes = jsonBytes({ ...slice, entries: [], omittedEntries: taskEntries.length,
     omittedEvidenceEntries: taskEntries.length });
-  let bytes = envelopeBytes + jsonBytes(taskEntries[0]);
+  const pinnedIndex = requestIndex ?? 0;
+  let bytes = envelopeBytes + jsonBytes(taskEntries[pinnedIndex]);
   if (bytes > MAX_TASK_SLICE_BYTES) {
     throw new Error(`Original task request exceeds the ${MAX_TASK_SLICE_BYTES}-byte learning evidence limit.`);
   }
-  const selected = new Set([0]);
+  const selected = new Set([pinnedIndex]);
   const add = (index: number): void => {
     if (selected.has(index) || selected.size >= MAX_TASK_SLICE_ENTRIES) return;
     const size = jsonBytes(taskEntries[index]) + 1; // Array separator.
@@ -227,7 +232,9 @@ function boundTaskSlice(taskEntries: readonly unknown[]): TaskSlice {
   };
   // Keep the final summary when bounded, then prioritize evidence and provenance
   // over plain assistant narration. Unknown roles remain conservative.
-  if (entryRole(taskEntries.at(-1)) === "assistant") add(taskEntries.length - 1);
+  if (requestIndex !== undefined) add(0);
+  const summaryIndex = requestIndex === undefined ? taskEntries.length - 1 : requestIndex - 1;
+  if (entryRole(taskEntries[summaryIndex]) === "assistant") add(summaryIndex);
   for (const evidence of [true, false]) {
     for (let index = taskEntries.length - 1; index > 0; index -= 1) {
       if (primary(taskEntries[index]) === evidence) add(index);
@@ -236,6 +243,9 @@ function boundTaskSlice(taskEntries: readonly unknown[]): TaskSlice {
   return {
     ...slice,
     entries: taskEntries.filter((_entry, index) => selected.has(index)),
+    ...(requestIndex === undefined ? {} : { memoryRequest: {
+      entryIndex: [...selected].filter(index => index < requestIndex).length,
+    } }),
     omittedEntries: taskEntries.length - selected.size,
     omittedEvidenceEntries: taskEntries.filter((entry, index) => !selected.has(index) && primary(entry)).length,
   };
@@ -359,6 +369,17 @@ async function indexMemoryCorpus(cwd: string): Promise<IndexedMemory[]> {
     indexed.set(key, { ...entry, readFiles: publicEntry ? [publicEntry.file, entry.file] : [entry.file] });
   }
   return [...indexed.values()].sort((left, right) => left.metadata.name.localeCompare(right.metadata.name));
+}
+
+/** Nomination only: use the same indexed aliases at screening and selection.
+ * No read body becomes source evidence or permission to write. */
+function indexedMemoryReadNames(entries: readonly unknown[], cwd: string, indexed: readonly IndexedMemory[]): string[] {
+  return observedMemoryReadNames(entries, cwd, indexed.flatMap(entry =>
+    (entry.readFiles ?? [entry.file]).map(file => ({name: entry.metadata.name, file}))));
+}
+
+export async function observedIndexedMemoryReadNames(cwd: string, entries: readonly unknown[]): Promise<string[]> {
+  return indexedMemoryReadNames(entries, cwd, await indexMemoryCorpus(cwd));
 }
 
 function balancedObjects(text: string): string[] {
@@ -512,7 +533,41 @@ function parseSelection(
   return parseSelectionObject(objects[0], contextDigest, available);
 }
 
-function taskSliceMetadata(taskSlice: TaskSlice): { touchedPaths: string[]; harnessEvents: string[] } {
+/** Parent-observed successful source writes nominate fresh reads, never facts. */
+export function taskSourceEditPaths(taskSlice: TaskSlice, cwd: string): string[] {
+  const record = (value: unknown): Record<string, unknown> | undefined =>
+    value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+  const calls = new Map<string, Record<string, unknown>[]>();
+  const results = new Map<string, Record<string, unknown>[]>();
+  for (const entry of taskSlice.entries) {
+    const row = record(entry);
+    const message = record(row?.message) ?? row;
+    if (message?.role === "assistant" && Array.isArray(message.content)) {
+      for (const value of message.content) {
+        const call = record(value);
+        if (call?.type === "toolCall" && typeof call.id === "string") calls.set(call.id, [...(calls.get(call.id) ?? []), call]);
+      }
+    } else if (message?.role === "toolResult" && typeof message.toolCallId === "string") {
+      results.set(message.toolCallId, [...(results.get(message.toolCallId) ?? []), message]);
+    }
+  }
+  const paths = new Set<string>();
+  for (const [id, matching] of calls) {
+    const result = results.get(id);
+    if (matching.length !== 1 || result?.length !== 1) continue;
+    const call = matching[0], args = record(call.arguments);
+    if (!["edit", "write"].includes(String(call.name)) || result[0].toolName !== call.name || result[0].isError !== false
+      || typeof args?.path !== "string" || args.path.includes("\0")) continue;
+    const relative = path.relative(path.resolve(cwd), path.resolve(cwd, args.path));
+    const parts = relative.split(/[\\/]/);
+    if (!relative || path.isAbsolute(relative) || parts.includes("..")
+      || parts.some(part => [".memory", ".pi", ".git", "node_modules"].includes(part.toLowerCase()))) continue;
+    paths.add(relative);
+  }
+  return [...paths];
+}
+
+export function taskSliceMetadata(taskSlice: TaskSlice, cwd?: string): { touchedPaths: string[]; harnessEvents: string[] } {
   const paths = new Set<string>();
   const visit = (value: unknown): void => {
     if (typeof value === "string") return;
@@ -524,7 +579,9 @@ function taskSliceMetadata(taskSlice: TaskSlice): { touchedPaths: string[]; harn
     const record = value as Record<string, unknown>;
     for (const key of ["path", "file", "filename"]) {
       const candidate = record[key];
-      if (typeof candidate === "string" && !path.isAbsolute(candidate) && !candidate.split(/[\\/]/).includes("..")) paths.add(candidate);
+      if (typeof candidate !== "string") continue;
+      const relative = path.isAbsolute(candidate) && cwd ? path.relative(cwd, candidate) : candidate;
+      if (relative && !path.isAbsolute(relative) && !relative.split(/[\\/]/).includes("..")) paths.add(relative);
     }
     Object.values(record).forEach(visit);
   };
@@ -567,7 +624,7 @@ async function buildDossier(
     harnessEvents: metadata.harnessEvents,
     registeredSkills: [...new Set(registeredSkills)].sort(),
     selection,
-    ...(memoryOnly ? { memoryRequest: { entryIndex: 0 as const } } : {}),
+    ...(memoryOnly && taskSlice.memoryRequest ? { memoryRequest: taskSlice.memoryRequest } : {}),
   };
 }
 
@@ -679,7 +736,7 @@ export async function selectIncrementalLearning(input: {
   const metadata = indexed.map((entry) => entry.metadata);
   const available = new Map(metadata.map((entry) => [entry.name.toLowerCase(), entry.name]));
   const delivered = (input.memoryOnly ? [] : [
-    ...observedMemoryReadNames(input.taskSlice.entries, input.cwd, indexed.flatMap(entry => (entry.readFiles ?? [entry.file]).map(file => ({ name: entry.metadata.name, file })))),
+    ...indexedMemoryReadNames(input.taskSlice.entries, input.cwd, indexed),
   ])
     .filter(name => available.get(name.toLowerCase()) === name);
   let selection: MemorySelection | undefined;

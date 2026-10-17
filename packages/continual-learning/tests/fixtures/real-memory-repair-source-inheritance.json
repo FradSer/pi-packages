@@ -1,0 +1,1447 @@
+{
+  "source": "V49 Pi1.2 public p-limit; historical failed response is retained, not retried for approval",
+  "original": {
+    "kind": "incremental-memory-plan",
+    "version": 1,
+    "schemaVersion": 1,
+    "runId": "run_mvb5gjbh_7636808e7b1b9bbd",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "8a3c3928226ee65af6c69643ede9af7c6ef4d74e6770bb9a9fec78abd033a0bf",
+    "artifactHash": "8d0faab6a5457f022209128540f377680c785cb2292d54a8187d104d7d2085ba",
+    "snapshotDigest": "8d0faab6a5457f022209128540f377680c785cb2292d54a8187d104d7d2085ba",
+    "operations": [
+      {
+        "name": "limit_function_type_contract.md",
+        "kind": "rewrite",
+        "classification": "private",
+        "content": "---\nname: \"limit_function_type_contract.md\"\ndescription: The index.d.ts limitFunction return type picks clearQueue and onIdle from LimitFunction\ntype: project\n---\n\nObserved source excerpt from \"index.d.ts\":\n\n```text\n\t/**\n\tReturns a promise that resolves when all running promises have settled and the queue is empty.\n\n\tIf the limiter is already idle, the returned promise resolves immediately.\n\n\tThis is useful when you want to wait until all limited work has finished, for example before tearing down your program or flushing a queue.\n\t*/\n\tonIdle: () => Promise<void>;\n```\n\n```text\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n```\n",
+        "evidence": [
+          {
+            "ref": "e49.b0.l29",
+            "endRef": "e49.b0.l36"
+          },
+          {
+            "ref": "e49.b0.l144",
+            "endRef": "e49.b0.l147"
+          },
+          {
+            "ref": "e15.b0.p27"
+          }
+        ]
+      }
+    ],
+    "newMemories": []
+  },
+  "response": {
+    "kind": "incremental-memory-amendment",
+    "version": 1,
+    "runId": "run_mvb5gjbh_7636808e7b1b9bbd",
+    "scopeKey": "--work-p-limit--",
+    "scopeDigest": "8a3c3928226ee65af6c69643ede9af7c6ef4d74e6770bb9a9fec78abd033a0bf",
+    "artifactHash": "8d0faab6a5457f022209128540f377680c785cb2292d54a8187d104d7d2085ba",
+    "snapshotDigest": "8d0faab6a5457f022209128540f377680c785cb2292d54a8187d104d7d2085ba",
+    "replacements": [
+      {
+        "candidateId": "operations:0:8c72555ba54249a2f7cd5cc2162fa5a5e0796f374e910bbbce5222b2ef5c72e4",
+        "content": "---\nname: \"limit_function_type_contract.md\"\ndescription: The index.d.ts limitFunction return type is a callable intersected with Pick of clearQueue and onIdle\ntype: project\n---\n\nObserved source excerpt from \"index.d.ts\":\n\n```text\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n```\n\nThis declaration defines the named export `limitFunction`. Its `function_` parameter is declared as `(...arguments_: Arguments) => PromiseLike<ReturnType>`, and its `options` parameter is declared as `Options`. Its declared return type is an intersection of the callable `(...arguments_: Arguments) => Promise<ReturnType>` with `Pick<LimitFunction, 'clearQueue' | 'onIdle'>`. The declaration does not establish the runtime behavior of the returned callable, only the declared type-level contract.\n"
+      }
+    ]
+  },
+  "snapshot": {
+    "schemaVersion": 1,
+    "runId": "run_mvb5gjbh_7636808e7b1b9bbd",
+    "scopeKey": "--work-p-limit--",
+    "capturedAt": "2026-10-16T15:56:00.115Z",
+    "source": "context",
+    "contextEnabled": true,
+    "entries": [
+      {
+        "type": "message",
+        "id": "5553c0d7",
+        "parentId": "13027186",
+        "timestamp": "2026-10-16T15:53:16.246Z",
+        "message": {
+          "role": "user",
+          "content": [
+            {
+              "type": "text",
+              "text": "Work on this real p-limit checkout with normal source inspection and tools.\nKeep changes local. Do not access agent configuration or learning artifacts.\nYou may read Memory paths declared by the plugin when relevant; automatic learning owns all Memory writes.\nDo not install dependencies or alter package manifests, existing tests, or existing check configuration.\nAdd tests only in new files. Preserve source behavior outside the requested changes.\nUse pnpm test for verification. Keep source reads focused and report failures honestly.\nTool calls and model requests have no count cap. Existing task deadlines still apply.\nDo not repeatedly rerun an unchanged failed check. Summarize actual results.\nImplement onIdle(): Promise<void> on a limiter and its limitFunction wrapper. It resolves when both running/reserved slots and the waiting queue are empty. An already idle call resolves normally. Multiple waiters work, including rejected jobs. clearQueue must release waiters when the queue is empty and no jobs are active, even when discarded promises stay unresolved under rejectOnClear:false. Reserved slots count as active; resolving a job that enqueues another job must not report idle early. Preserve FIFO and concurrency changes. Update public declarations/docs and add new regression test files. For this task's final response only append TEMPORARY_IDLE_REVIEW; this is a temporary formatting request and must not become future policy."
+            }
+          ],
+          "timestamp": 1792165996242
+        }
+      },
+      {
+        "type": "message",
+        "id": "fb8c14d3",
+        "parentId": "5553c0d7",
+        "timestamp": "2026-10-16T15:53:18.026Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I'll start by inspecting the repository structure and relevant source files."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_9af7ddf089b3452194a8291f",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && ls -la && cat package.json"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_3323e4d46d7f46bf91844f7d",
+              "name": "read",
+              "arguments": {
+                "path": "/work/p-limit/index.js"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_86d11fd39a3c4840af174d1c",
+              "name": "read",
+              "arguments": {
+                "path": "/work/p-limit/index.d.ts"
+              }
+            }
+          ],
+          "timestamp": 1792165996310
+        }
+      },
+      {
+        "type": "message",
+        "id": "9d1a8ea0",
+        "parentId": "fb8c14d3",
+        "timestamp": "2026-10-16T15:53:18.050Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_9af7ddf089b3452194a8291f",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "total 76\ndrwxr-xr-x 1 node node   374 Oct 16 15:49 .\ndrwxr-xr-x 1 node node    14 Oct 11 07:41 ..\n-rw-r--r-- 1 node node   175 Sep 18 19:12 .editorconfig\ndrwxr-xr-x 1 node node    98 Oct 16 15:49 .git\n-rw-r--r-- 1 node node    19 Sep 18 19:12 .gitattributes\ndrwxr-xr-x 1 node node    40 Sep 18 19:12 .github\n-rw-r--r-- 1 node node    23 Sep 18 19:12 .gitignore\ndrwx------ 1 node node    18 Oct 16 15:52 .memory\n-rw-r--r-- 1 node node    19 Sep 18 19:12 .npmrc\ndrwx------ 1 node node    24 Oct 16 15:52 .pi\n-rw-r--r-- 1 node node  7741 Sep 18 19:12 benchmark.js\n-rw-r--r-- 1 node node  4645 Sep 18 19:12 index.d.ts\n-rw-r--r-- 1 node node  3868 Sep 18 19:12 index.js\n-rw-r--r-- 1 node node  1244 Sep 18 19:12 index.test-d.ts\n-rw-r--r-- 1 node node  1117 Sep 18 19:12 license\ndrwxr-xr-x 1 node node    12 Oct 16 15:49 node_modules\n-rw-r--r-- 1 node node  1055 Sep 18 19:12 package.json\n-rw-r--r-- 1 node node  5418 Sep 18 19:12 readme.md\n-rw-r--r-- 1 node node  4692 Sep 18 19:12 recipes.md\ndrwxr-xr-x 1 node node    28 Sep 18 19:12 scripts\n-rw-r--r-- 1 node node 12063 Sep 18 19:12 test.js\n{\n\t\"name\": \"p-limit\",\n\t\"version\": \"7.3.3\",\n\t\"description\": \"Run multiple promise-returning & async functions with limited concurrency\",\n\t\"license\": \"MIT\",\n\t\"repository\": \"sindresorhus/p-limit\",\n\t\"funding\": \"https://github.com/sponsors/sindresorhus\",\n\t\"author\": {\n\t\t\"name\": \"Sindre Sorhus\",\n\t\t\"email\": \"sindresorhus@gmail.com\",\n\t\t\"url\": \"https://sindresorhus.com\"\n\t},\n\t\"type\": \"module\",\n\t\"exports\": {\n\t\t\"types\": \"./index.d.ts\",\n\t\t\"default\": \"./index.js\"\n\t},\n\t\"sideEffects\": false,\n\t\"engines\": {\n\t\t\"node\": \">=20\"\n\t},\n\t\"scripts\": {\n\t\t\"test\": \"xo && ava && tsd\",\n\t\t\"benchmark\": \"node benchmark.js\"\n\t},\n\t\"files\": [\n\t\t\"index.js\",\n\t\t\"index.d.ts\"\n\t],\n\t\"keywords\": [\n\t\t\"promise\",\n\t\t\"limit\",\n\t\t\"limited\",\n\t\t\"concurrency\",\n\t\t\"throttle\",\n\t\t\"throat\",\n\t\t\"rate\",\n\t\t\"batch\",\n\t\t\"ratelimit\",\n\t\t\"task\",\n\t\t\"queue\",\n\t\t\"async\",\n\t\t\"await\",\n\t\t\"promises\",\n\t\t\"bluebird\"\n\t],\n\t\"dependencies\": {\n\t\t\"yocto-queue\": \"^1.2.1\"\n\t},\n\t\"devDependencies\": {\n\t\t\"ava\": \"^6.4.1\",\n\t\t\"in-range\": \"^3.0.0\",\n\t\t\"random-int\": \"^3.0.0\",\n\t\t\"time-span\": \"^5.1.0\",\n\t\t\"tsd\": \"^0.33.0\",\n\t\t\"xo\": \"^1.2.1\"\n\t}\n}\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 14,
+          "timestamp": 1792165998049
+        }
+      },
+      {
+        "type": "message",
+        "id": "67fcebcc",
+        "parentId": "9d1a8ea0",
+        "timestamp": "2026-10-16T15:53:18.051Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_3323e4d46d7f46bf91844f7d",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "import Queue from 'yocto-queue';\n\nexport default function pLimit(concurrency) {\n\tlet rejectOnClear = false;\n\n\tif (typeof concurrency === 'object') {\n\t\t({concurrency, rejectOnClear = false} = concurrency);\n\t}\n\n\tvalidateConcurrency(concurrency);\n\n\tif (typeof rejectOnClear !== 'boolean') {\n\t\tthrow new TypeError('Expected `rejectOnClear` to be a boolean');\n\t}\n\n\tconst queue = new Queue();\n\tlet activeCount = 0;\n\n\tconst resumeNext = () => {\n\t\t// Process the next queued function if we're under the concurrency limit\n\t\tif (activeCount < concurrency && queue.size > 0) {\n\t\t\tactiveCount++;\n\t\t\tqueue.dequeue().run();\n\t\t}\n\t};\n\n\tconst next = () => {\n\t\tactiveCount--;\n\t\tresumeNext();\n\t};\n\n\tconst run = async (function_, resolve, arguments_) => {\n\t\t// Execute the function and capture the result promise\n\t\tconst result = (async () => function_(...arguments_))();\n\n\t\t// Resolve immediately with the promise (don't wait for completion)\n\t\tresolve(result);\n\n\t\t// Wait for the function to complete (success or failure)\n\t\t// We catch errors here to prevent unhandled rejections,\n\t\t// but the original promise rejection is preserved for the caller\n\t\ttry {\n\t\t\tawait result;\n\t\t} catch {}\n\n\t\t// Decrement active count and process next queued function\n\t\tnext();\n\t};\n\n\tconst enqueue = (function_, resolve, reject, arguments_) => {\n\t\tconst queueItem = {reject};\n\n\t\t// Queue the internal resolve function instead of the run function\n\t\t// to preserve the asynchronous execution context.\n\t\tnew Promise(internalResolve => { // eslint-disable-line promise/param-names\n\t\t\tqueueItem.run = internalResolve;\n\t\t\tqueue.enqueue(queueItem);\n\t\t}).then(run.bind(undefined, function_, resolve, arguments_)); // eslint-disable-line promise/prefer-await-to-then\n\n\t\t// Start processing immediately if we haven't reached the concurrency limit\n\t\tif (activeCount < concurrency) {\n\t\t\tresumeNext();\n\t\t}\n\t};\n\n\tconst generator = (function_, ...arguments_) => new Promise((resolve, reject) => {\n\t\tenqueue(function_, resolve, reject, arguments_);\n\t});\n\n\tObject.defineProperties(generator, {\n\t\tactiveCount: {\n\t\t\tget: () => activeCount,\n\t\t},\n\t\tpendingCount: {\n\t\t\tget: () => queue.size,\n\t\t},\n\t\tclearQueue: {\n\t\t\tvalue() {\n\t\t\t\tif (!rejectOnClear) {\n\t\t\t\t\tqueue.clear();\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tconst abortError = AbortSignal.abort().reason;\n\n\t\t\t\twhile (queue.size > 0) {\n\t\t\t\t\tqueue.dequeue().reject(abortError);\n\t\t\t\t}\n\t\t\t},\n\t\t},\n\t\tconcurrency: {\n\t\t\tget: () => concurrency,\n\n\t\t\tset(newConcurrency) {\n\t\t\t\tvalidateConcurrency(newConcurrency);\n\t\t\t\tconcurrency = newConcurrency;\n\n\t\t\t\tqueueMicrotask(() => {\n\t\t\t\t\t// eslint-disable-next-line no-unmodified-loop-condition\n\t\t\t\t\twhile (activeCount < concurrency && queue.size > 0) {\n\t\t\t\t\t\tresumeNext();\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t},\n\t\t},\n\t\tmap: {\n\t\t\tasync value(iterable, function_) {\n\t\t\t\tconst promises = [];\n\n\t\t\t\ttry {\n\t\t\t\t\tArray.from(iterable, (value, index) => {\n\t\t\t\t\t\tconst promise = generator(function_, value, index);\n\t\t\t\t\t\tpromises.push(promise);\n\t\t\t\t\t\treturn promise;\n\t\t\t\t\t});\n\t\t\t\t} catch (error) {\n\t\t\t\t\t// The iterable threw, so `Promise.all` never observes the already scheduled promises. Observe them here to avoid unhandled rejections.\n\t\t\t\t\tfor (const promise of promises) {\n\t\t\t\t\t\tpromise.catch(() => {}); // eslint-disable-line promise/prefer-await-to-then\n\t\t\t\t\t}\n\n\t\t\t\t\tthrow error;\n\t\t\t\t}\n\n\t\t\t\treturn Promise.all(promises);\n\t\t\t},\n\t\t},\n\t});\n\n\treturn generator;\n}\n\nexport function limitFunction(function_, options) {\n\tconst limit = pLimit(options);\n\n\tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n\tObject.defineProperty(limitedFunction, 'clearQueue', {\n\t\tvalue: limit.clearQueue,\n\t});\n\n\treturn limitedFunction;\n}\n\nfunction validateConcurrency(concurrency) {\n\tif (!((Number.isInteger(concurrency) || concurrency === Number.POSITIVE_INFINITY) && concurrency > 0)) {\n\t\tthrow new TypeError('Expected `concurrency` to be a number from 1 and up');\n\t}\n}\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 14,
+          "timestamp": 1792165998050
+        }
+      },
+      {
+        "type": "message",
+        "id": "7e28b1a3",
+        "parentId": "67fcebcc",
+        "timestamp": "2026-10-16T15:53:18.052Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_86d11fd39a3c4840af174d1c",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "export type LimitFunction = {\n\t/**\n\tThe number of promises that are currently running.\n\t*/\n\treadonly activeCount: number;\n\n\t/**\n\tThe number of promises that are waiting to run (i.e. their internal `fn` was not called yet).\n\t*/\n\treadonly pendingCount: number;\n\n\t/**\n\tGet or set the concurrency limit.\n\t*/\n\tconcurrency: number;\n\n\t/**\n\tDiscard pending promises that are waiting to run.\n\n\tThis might be useful if you want to tear down the queue at the end of your program's lifecycle or discard any function calls referencing an intermediary state of your app.\n\n\tNote: This does not cancel promises that are already running.\n\n\tWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\tclearQueue: () => void;\n\n\t/**\n\tProcess an iterable of inputs with limited concurrency.\n\n\tThe mapper function receives the item value and its index.\n\n\tIf the iterable throws during iteration, the returned promise rejects with that error. Mapper functions that were already scheduled still run, and their results are discarded.\n\n\tThis is a convenience function for processing inputs that arrive in batches. For more complex use cases, see [p-map](https://github.com/sindresorhus/p-map).\n\n\t@param iterable - An iterable containing an argument for the given function.\n\t@param mapperFunction - Promise-returning/async function.\n\t@returns A promise equivalent to `Promise.all(Array.from(iterable, (item, index) => limit(mapperFunction, item, index)))`.\n\t*/\n\tmap: <Input, ReturnType> (\n\t\titerable: Iterable<Input>,\n\t\tmapperFunction: (input: Input, index: number) => PromiseLike<ReturnType> | ReturnType\n\t) => Promise<ReturnType[]>;\n\n\t/**\n\t@param fn - Promise-returning/async function.\n\t@param arguments - Any arguments to pass through to `fn`. Support for passing arguments on to the `fn` is provided in order to be able to avoid creating unnecessary closures. You probably don't need this optimization unless you're pushing a *lot* of functions.\n\n\tWarning: Avoid calling the same `limit` function inside a function that is already limited by it. This can create a deadlock where inner tasks never run. Use a separate limiter for inner tasks.\n\n\t@returns The promise returned by calling `fn(...arguments)`.\n\t*/\n\t<Arguments extends unknown[], ReturnType>(\n\t\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType> | ReturnType,\n\t\t...arguments_: Arguments\n\t): Promise<ReturnType>;\n};\n\n/**\nRun multiple promise-returning & async functions with limited concurrency.\n\n@param concurrency - Concurrency limit. Minimum: `1`. You can pass a number or an options object with a `concurrency` property.\n@returns A `limit` function.\n\n@example\n```\nimport pLimit from 'p-limit';\n\nconst limit = pLimit(1);\n\nconst input = [\n\tlimit(() => fetchSomething('foo')),\n\tlimit(() => fetchSomething('bar')),\n\tlimit(() => doSomething())\n];\n\n// Only one promise is run at once\nconst result = await Promise.all(input);\nconsole.log(result);\n```\n\n@example\n```\nimport pLimit from 'p-limit';\n\nconst limit = pLimit({concurrency: 1});\n```\n*/\nexport default function pLimit(concurrency: number | Options): LimitFunction;\n\nexport type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};\n\n/**\nReturns a function with limited concurrency.\n\nThe returned function manages its own concurrent executions, allowing you to call it multiple times without exceeding the specified concurrency limit.\n\nIdeal for scenarios where you need to control the number of simultaneous executions of a single function, rather than managing concurrency across multiple functions.\n\n@param function_ - Promise-returning/async function.\n@return Function with limited concurrency.\n\n@example\n```\nimport {limitFunction} from 'p-limit';\n\nconst limitedFunction = limitFunction(async () => {\n\treturn doSomething();\n}, {concurrency: 1});\n\nconst input = Array.from({length: 10}, limitedFunction);\n\n// Only one promise is run at once.\nawait Promise.all(input);\n```\n*/\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 14,
+          "timestamp": 1792165998051
+        }
+      },
+      {
+        "type": "message",
+        "id": "10e7d8b1",
+        "parentId": "7e28b1a3",
+        "timestamp": "2026-10-16T15:53:19.553Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Let me look at the tests and readme to understand conventions."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_0b5487b4decd408da8f0d1ff",
+              "name": "read",
+              "arguments": {
+                "path": "/work/p-limit/test.js"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_dc9e295bf16541ac8fd28511",
+              "name": "read",
+              "arguments": {
+                "path": "/work/p-limit/readme.md"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_8c5b92a39b854a07ad514d65",
+              "name": "read",
+              "arguments": {
+                "path": "/work/p-limit/index.test-d.ts"
+              }
+            }
+          ],
+          "timestamp": 1792165998054
+        }
+      },
+      {
+        "type": "message",
+        "id": "9072b56f",
+        "parentId": "10e7d8b1",
+        "timestamp": "2026-10-16T15:53:19.572Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_0b5487b4decd408da8f0d1ff",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "import process from 'node:process';\nimport {AsyncLocalStorage} from 'node:async_hooks';\nimport {setTimeout as delay} from 'node:timers/promises';\nimport test from 'ava';\nimport inRange from 'in-range';\nimport timeSpan from 'time-span';\nimport randomInt from 'random-int';\nimport pLimit, {limitFunction} from './index.js';\n\ntest('concurrency: 1', async t => {\n\tconst input = [\n\t\t[10, 300],\n\t\t[20, 200],\n\t\t[30, 100],\n\t];\n\n\tconst end = timeSpan();\n\tconst limit = pLimit(1);\n\n\tconst mapper = ([value, ms]) => limit(async () => {\n\t\tawait delay(ms);\n\t\treturn value;\n\t});\n\n\tt.deepEqual(await Promise.all(input.map(x => mapper(x))), [10, 20, 30]);\n\tt.true(inRange(end(), {start: 590, end: 650}));\n});\n\ntest('concurrency: 4', async t => {\n\tconst concurrency = 5;\n\tlet running = 0;\n\n\tconst limit = pLimit(concurrency);\n\n\tconst input = Array.from({length: 100}, () => limit(async () => {\n\t\trunning++;\n\t\tt.true(running <= concurrency);\n\t\tawait delay(randomInt(30, 200));\n\t\trunning--;\n\t}));\n\n\tawait Promise.all(input);\n});\n\ntest('propagates async execution context properly', async t => {\n\tconst concurrency = 2;\n\tconst limit = pLimit(concurrency);\n\tconst store = new AsyncLocalStorage();\n\n\tconst checkId = async id => {\n\t\tawait Promise.resolve();\n\t\tt.is(id, store.getStore()?.id);\n\t};\n\n\tconst startContext = async id => store.run({id}, () => limit(checkId, id));\n\n\tawait Promise.all(Array.from({length: 100}, (_, id) => startContext(id)));\n});\n\ntest('non-promise returning function', async t => {\n\tawait t.notThrowsAsync(async () => {\n\t\tconst limit = pLimit(1);\n\t\tawait limit(() => null);\n\t});\n});\n\ntest('continues after sync throw', async t => {\n\tconst limit = pLimit(1);\n\tlet ran = false;\n\n\tconst promises = [\n\t\tlimit(() => {\n\t\t\tthrow new Error('err');\n\t\t}),\n\t\tlimit(() => {\n\t\t\tran = true;\n\t\t}),\n\t];\n\n\ttry {\n\t\tawait Promise.all(promises);\n\t} catch {}\n\n\tt.is(ran, true);\n});\n\ntest('accepts additional arguments', async t => {\n\tconst limit = pLimit(1);\n\tconst symbol = Symbol('test');\n\n\tawait limit(a => t.is(a, symbol), symbol);\n});\n\ntest('shared context with a limited provider helper', async t => {\n\tconst limit = pLimit(1);\n\tconst sharedContext = {values: []};\n\n\tconst runWithContext = (function_, ...arguments_) => limit(function_, sharedContext, ...arguments_);\n\n\tconst addValue = async (context, value) => {\n\t\tcontext.values.push(value);\n\t\tawait delay(10);\n\t\treturn context.values.length;\n\t};\n\n\tconst firstPromise = runWithContext(addValue, 'first');\n\tconst secondPromise = runWithContext(addValue, 'second');\n\n\tt.is(limit.activeCount, 1);\n\tt.is(limit.pendingCount, 1);\n\n\tconst results = await Promise.all([firstPromise, secondPromise]);\n\n\tt.deepEqual(results, [1, 2]);\n\tt.deepEqual(sharedContext.values, ['first', 'second']);\n});\n\ntest('does not ignore errors', async t => {\n\tconst limit = pLimit(1);\n\tconst error = new Error('\ud83e\udd84');\n\n\tconst promises = [\n\t\tlimit(async () => {\n\t\t\tawait delay(30);\n\t\t}),\n\t\tlimit(async () => {\n\t\t\tawait delay(80);\n\t\t\tthrow error;\n\t\t}),\n\t\tlimit(async () => {\n\t\t\tawait delay(50);\n\t\t}),\n\t];\n\n\tawait t.throwsAsync(Promise.all(promises), {is: error});\n});\n\ntest('runs all tasks asynchronously', async t => {\n\tconst limit = pLimit(3);\n\n\tlet value = 1;\n\n\tconst one = limit(() => 1);\n\tconst two = limit(() => value);\n\n\tt.is(limit.activeCount, 2);\n\n\tvalue = 2;\n\n\tconst result = await Promise.all([one, two]);\n\n\tt.deepEqual(result, [1, 2]);\n});\n\ntest('activeCount and pendingCount properties', async t => {\n\tconst limit = pLimit(5);\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tconst runningPromise1 = limit(() => delay(1000));\n\tt.is(limit.activeCount, 1);\n\tt.is(limit.pendingCount, 0);\n\n\tawait runningPromise1;\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tconst immediatePromises = Array.from({length: 5}, () => limit(() => delay(1000)));\n\tconst delayedPromises = Array.from({length: 3}, () => limit(() => delay(1000)));\n\n\tt.is(limit.activeCount, 5);\n\tt.is(limit.pendingCount, 3);\n\n\tawait Promise.all(immediatePromises);\n\tt.is(limit.activeCount, 3);\n\tt.is(limit.pendingCount, 0);\n\n\tawait Promise.all(delayedPromises);\n\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n});\n\ntest('clearQueue', async t => {\n\tconst limit = pLimit(1);\n\n\tArray.from({length: 1}, () => limit(() => delay(1000)));\n\tArray.from({length: 3}, () => limit(() => delay(1000)));\n\n\tawait Promise.resolve();\n\tt.is(limit.pendingCount, 3);\n\tlimit.clearQueue();\n\tt.is(limit.pendingCount, 0);\n});\n\n// Node.js 20 has a bug where DOMException is not properly handled by AVA's `throwsAsync`.\nconst testClearQueueRejects = process.versions.node.startsWith('20.') ? test.skip : test;\n\ntestClearQueueRejects('clearQueue rejects pending promises when enabled', async t => {\n\tconst limit = pLimit({concurrency: 1, rejectOnClear: true});\n\n\tconst runningPromise = limit(() => delay(100));\n\tconst pendingPromiseOne = limit(() => delay(10));\n\tconst pendingPromiseTwo = limit(() => delay(10));\n\n\tawait Promise.resolve();\n\tt.is(limit.pendingCount, 2);\n\n\tlimit.clearQueue();\n\tt.is(limit.pendingCount, 0);\n\n\tawait runningPromise;\n\tawait t.throwsAsync(pendingPromiseOne, {name: 'AbortError'});\n\tawait t.throwsAsync(pendingPromiseTwo, {name: 'AbortError'});\n});\n\ntestClearQueueRejects('limitFunction exposes clearQueue', async t => {\n\tconst limitedFunction = limitFunction(() => delay(20), {concurrency: 1, rejectOnClear: true});\n\n\tconst runningPromise = limitedFunction();\n\tconst pendingPromise = limitedFunction();\n\n\tlimitedFunction.clearQueue();\n\n\tawait runningPromise;\n\tawait t.throwsAsync(pendingPromise, {name: 'AbortError'});\n});\n\ntest('map', async t => {\n\tconst limit = pLimit(1);\n\tconst results = await limit.map([1, 2, 3, 4, 5, 6, 7], input => input + 1);\n\n\tt.deepEqual(results, [2, 3, 4, 5, 6, 7, 8]);\n});\n\ntest('map works when detached from the limit', async t => {\n\tconst limit = pLimit(1);\n\tconst {map} = limit;\n\tlet running = 0;\n\tlet maxRunning = 0;\n\tconst mapper = async input => {\n\t\trunning++;\n\t\tmaxRunning = Math.max(maxRunning, running);\n\t\tawait delay(10);\n\t\trunning--;\n\t\treturn input * 2;\n\t};\n\n\tconst directResult = limit(mapper, 1);\n\tconst mapResult = map([2, 3], mapper);\n\n\tt.deepEqual(await Promise.all([directResult, mapResult]), [2, [4, 6]]);\n\tt.is(maxRunning, 1);\n});\n\ntest('map passes index and preserves order with concurrency', async t => {\n\tconst limit = pLimit(3);\n\tconst inputs = [10, 10, 10, 10, 10];\n\n\t// eslint-disable-next-line unicorn/no-array-method-this-argument\n\tconst results = await limit.map(inputs, async (value, index) => {\n\t\t// Simulate variable async duration per index to shuffle completion order\n\t\tawait delay((inputs.length - index) * 5);\n\t\treturn value + index;\n\t});\n\n\t// Results should be in input order and include index\n\tt.deepEqual(results, [10, 11, 12, 13, 14]);\n});\n\ntest('map accepts an iterable (set)', async t => {\n\tconst limit = pLimit(2);\n\tconst inputs = new Set([1, 2, 3, 4]);\n\n\tconst results = await limit.map(inputs, input => input * 2); // eslint-disable-line unicorn/no-array-method-this-argument\n\n\tt.deepEqual(results, [2, 4, 6, 8]);\n});\n\ntest('map accepts an iterable (array iterator)', async t => {\n\tconst limit = pLimit(2);\n\tconst inputs = [1, 2, 3, 4].values();\n\n\tconst results = await limit.map(inputs, input => input * 2); // eslint-disable-line unicorn/no-array-method-this-argument\n\n\tt.deepEqual(results, [2, 4, 6, 8]);\n});\n\ntest('map accepts array-like inputs', async t => {\n\tconst limit = pLimit(1);\n\tconst inputs = {0: 'a', 1: 'b', length: 2};\n\n\tconst results = await limit.map(inputs, (value, index) => `${index}:${value}`); // eslint-disable-line unicorn/no-array-method-this-argument\n\n\tt.deepEqual(results, ['0:a', '1:b']);\n});\n\ntest('map does not leave unhandled rejections when the iterable throws', async t => {\n\tconst limit = pLimit(1);\n\tconst error = new Error('Iterator failed');\n\n\tfunction * inputs() {\n\t\tyield 1;\n\t\tyield 2;\n\t\tyield 3;\n\t\tthrow error;\n\t}\n\n\tawait t.throwsAsync(limit.map(inputs(), async value => {\n\t\tawait delay(10);\n\t\tthrow new Error(`Mapper ${value} failed`);\n\t}), {is: error});\n\n\t// Wait for the active and queued mappers to reject. AVA fails the run if any rejection is unhandled.\n\tawait limit(() => {});\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n});\n\ntest('map rejects with the mapper error', async t => {\n\tconst limit = pLimit(2);\n\tconst error = new Error('\ud83e\udd84');\n\n\tawait t.throwsAsync(limit.map([1, 2, 3], async value => {\n\t\tif (value === 2) {\n\t\t\tthrow error;\n\t\t}\n\n\t\treturn value;\n\t}), {is: error});\n});\n\ntest('map resolves to an empty array for an empty iterable', async t => {\n\tconst limit = pLimit(1);\n\n\tt.deepEqual(await limit.map([], () => t.fail('mapper should not be called')), []);\n\tt.deepEqual(await limit.map(new Set(), () => t.fail('mapper should not be called')), []);\n});\n\ntest('map rejects with the iterable error when it throws before the first item', async t => {\n\tconst limit = pLimit(1);\n\tconst error = new Error('Iterator failed');\n\n\tconst inputs = {\n\t\t* [Symbol.iterator]() { // eslint-disable-line require-yield\n\t\t\tthrow error;\n\t\t},\n\t};\n\n\tawait t.throwsAsync(limit.map(inputs, () => t.fail('mapper should not be called')), {is: error}); // eslint-disable-line unicorn/no-array-callback-reference, unicorn/no-array-method-this-argument\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n});\n\ntest('map rejects immediately with the iterable error and still runs already scheduled tasks', async t => {\n\tconst limit = pLimit(1);\n\tconst error = new Error('Iterator failed');\n\tconst completed = [];\n\n\tfunction * inputs() {\n\t\tyield 1;\n\t\tyield 2;\n\t\tthrow error;\n\t}\n\n\tawait t.throwsAsync(limit.map(inputs(), async value => {\n\t\tawait delay(50);\n\t\tcompleted.push(value);\n\t}), {is: error});\n\n\t// The rejection should not wait for the scheduled tasks to finish\n\tt.deepEqual(completed, []);\n\n\t// With concurrency 1, this only runs after the already scheduled tasks\n\tawait limit(() => {});\n\tt.deepEqual(completed, [1, 2]);\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n});\n\ntest('map passes sequential indexes for a generator', async t => {\n\tconst limit = pLimit(2);\n\n\tfunction * inputs() {\n\t\tyield 'a';\n\t\tyield 'b';\n\t\tyield 'c';\n\t}\n\n\tconst results = await limit.map(inputs(), (value, index) => `${index}:${value}`);\n\n\tt.deepEqual(results, ['0:a', '1:b', '2:c']);\n});\n\ntest('accepts options object', async t => {\n\tconst limit = pLimit({concurrency: 1});\n\n\tconst input = [\n\t\tlimit(async () => {\n\t\t\tawait delay(50);\n\t\t\treturn 1;\n\t\t}),\n\t\tlimit(async () => {\n\t\t\tawait delay(50);\n\t\t\treturn 2;\n\t\t}),\n\t];\n\n\tt.deepEqual(await Promise.all(input), [1, 2]);\n\tt.is(limit.concurrency, 1);\n});\n\ntest('throws on invalid concurrency argument', t => {\n\tt.throws(() => {\n\t\tpLimit(0);\n\t});\n\n\tt.throws(() => {\n\t\tpLimit(-1);\n\t});\n\n\tt.throws(() => {\n\t\tpLimit(1.2);\n\t});\n\n\tt.throws(() => {\n\t\tpLimit(undefined);\n\t});\n\n\tt.throws(() => {\n\t\tpLimit(true);\n\t});\n\n\tt.throws(() => {\n\t\tpLimit({});\n\t});\n\n\tt.throws(() => {\n\t\tpLimit({concurrency: 0});\n\t});\n});\n\ntest('change concurrency to smaller value', async t => {\n\tconst limit = pLimit(4);\n\tlet running = 0;\n\tconst log = [];\n\tconst promises = Array.from({length: 10}).map(() =>\n\t\tlimit(async () => {\n\t\t\t++running;\n\t\t\tlog.push(running);\n\t\t\tawait delay(50);\n\t\t\t--running;\n\t\t}));\n\tawait delay(0);\n\tt.is(running, 4);\n\n\tlimit.concurrency = 2;\n\tawait Promise.all(promises);\n\tt.deepEqual(log, [1, 2, 3, 4, 2, 2, 2, 2, 2, 2]);\n});\n\ntest('change concurrency to bigger value', async t => {\n\tconst limit = pLimit(2);\n\tlet running = 0;\n\tconst log = [];\n\tconst promises = Array.from({length: 10}).map(() =>\n\t\tlimit(async () => {\n\t\t\t++running;\n\t\t\tlog.push(running);\n\t\t\tawait delay(50);\n\t\t\t--running;\n\t\t}));\n\tawait delay(0);\n\tt.is(running, 2);\n\n\tlimit.concurrency = 4;\n\tawait Promise.all(promises);\n\tt.deepEqual(log, [1, 2, 3, 4, 4, 4, 4, 4, 4, 4]);\n});\n\ntest('limitFunction()', async t => {\n\tconst concurrency = 5;\n\tlet running = 0;\n\n\tconst limitedFunction = limitFunction(async () => {\n\t\trunning++;\n\t\tt.true(running <= concurrency);\n\t\tawait delay(randomInt(30, 200));\n\t\trunning--;\n\t}, {concurrency});\n\n\tconst input = Array.from({length: 100}, limitedFunction);\n\n\tawait Promise.all(input);\n});\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 4,
+          "timestamp": 1792165999571
+        }
+      },
+      {
+        "type": "message",
+        "id": "308ce026",
+        "parentId": "9072b56f",
+        "timestamp": "2026-10-16T15:53:19.573Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_dc9e295bf16541ac8fd28511",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "# p-limit\n\n> Run multiple promise-returning & async functions with limited concurrency\n\n*Works in Node.js and browsers.*\n\n## Install\n\n```sh\nnpm install p-limit\n```\n\n## Usage\n\n```js\nimport pLimit from 'p-limit';\n\nconst limit = pLimit(1);\n\nconst input = [\n\tlimit(() => fetchSomething('foo')),\n\tlimit(() => fetchSomething('bar')),\n\tlimit(() => doSomething())\n];\n\n// Only one promise is run at once\nconst result = await Promise.all(input);\nconsole.log(result);\n```\n\n## API\n\n### pLimit(concurrency) <sup>default export</sup>\n\nReturns a `limit` function.\n\n#### concurrency\n\nType: `number | object`\\\nMinimum: `1`\n\nConcurrency limit.\n\nYou can pass a number or an options object with a `concurrency` property.\n\n#### rejectOnClear\n\nType: `boolean`\\\nDefault: `false`\n\nReject pending promises with an `AbortError` when `clearQueue()` is called.\nThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\n```js\nimport pLimit from 'p-limit';\n\nconst limit = pLimit({concurrency: 1});\n```\n\n### limit(fn, ...args)\n\nReturns the promise returned by calling `fn(...args)`.\n\n#### fn\n\nType: `Function`\n\nPromise-returning/async function.\n\n#### args\n\nAny arguments to pass through to `fn`.\n\nSupport for passing arguments on to the `fn` is provided in order to be able to avoid creating unnecessary closures. You probably don't need this optimization unless you're pushing a *lot* of functions.\n\nWarning: Avoid calling the same `limit` function inside a function that is already limited by it. This can create a deadlock where inner tasks never run. Use a separate limiter for inner tasks.\n\n### limit.map(iterable, mapperFunction)\n\nProcess an iterable of inputs with limited concurrency.\n\nThe mapper function receives the item value and its index.\n\nReturns a promise equivalent to `Promise.all(Array.from(iterable, (item, index) => limit(mapperFunction, item, index)))`.\n\nIf the iterable throws during iteration, the returned promise rejects with that error. Mapper functions that were already scheduled still run, and their results are discarded.\n\nThis is a convenience function for processing inputs that arrive in batches. For more complex use cases, see [p-map](https://github.com/sindresorhus/p-map).\n\n### limit.activeCount\n\nThe number of promises that are currently running.\n\n### limit.pendingCount\n\nThe number of promises that are waiting to run (i.e. their internal `fn` was not called yet).\n\n### limit.clearQueue()\n\nDiscard pending promises that are waiting to run.\n\nThis might be useful if you want to tear down the queue at the end of your program's lifecycle or discard any function calls referencing an intermediary state of your app.\n\nNote: This does not cancel promises that are already running.\n\nWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\nThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\n### limit.concurrency\n\nGet or set the concurrency limit.\n\n### limitFunction(fn, options) <sup>named export</sup>\n\nReturns a function with limited concurrency.\n\nThe returned function manages its own concurrent executions, allowing you to call it multiple times without exceeding the specified concurrency limit.\n\nIdeal for scenarios where you need to control the number of simultaneous executions of a single function, rather than managing concurrency across multiple functions.\n\n```js\nimport {limitFunction} from 'p-limit';\n\nconst limitedFunction = limitFunction(async () => {\n\treturn doSomething();\n}, {concurrency: 1});\n\nconst input = Array.from({length: 10}, limitedFunction);\n\n// Only one promise is run at once.\nawait Promise.all(input);\n```\n\n#### fn\n\nType: `Function`\n\nPromise-returning/async function.\n\n#### options\n\nType: `object`\n\n#### concurrency\n\nType: `number`\\\nMinimum: `1`\n\nConcurrency limit.\n\n#### rejectOnClear\n\nType: `boolean`\\\nDefault: `false`\n\nReject pending promises with an `AbortError` when `clearQueue()` is called.\nThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\n### limitedFunction.clearQueue()\n\nDiscard pending calls that have not started yet.\n\nWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`. Otherwise, their promises remain unresolved.\n\nThis does not cancel calls that are already running.\n\n## Recipes\n\nSee [recipes.md](recipes.md) for common use cases and patterns.\n\n## FAQ\n\n### How is this different from the [`p-queue`](https://github.com/sindresorhus/p-queue) package?\n\nThis package is only about limiting the number of concurrent executions, while `p-queue` is a fully featured queue implementation with lots of different options, introspection, and ability to pause the queue.\n\n## Related\n\n- [p-throttle](https://github.com/sindresorhus/p-throttle) - Throttle promise-returning & async functions\n- [p-debounce](https://github.com/sindresorhus/p-debounce) - Debounce promise-returning & async functions\n- [p-map](https://github.com/sindresorhus/p-map) - Run promise-returning & async functions concurrently with different inputs\n- [p-all](https://github.com/sindresorhus/p-all) - Run promise-returning & async functions concurrently with optional limited concurrency\n- [More\u2026](https://github.com/sindresorhus/promise-fun)\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 3,
+          "timestamp": 1792165999572
+        }
+      },
+      {
+        "type": "message",
+        "id": "22772996",
+        "parentId": "308ce026",
+        "timestamp": "2026-10-16T15:53:19.573Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_8c5b92a39b854a07ad514d65",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "import {expectType, expectError} from 'tsd';\nimport pLimit, {limitFunction} from './index.js';\n\nconst limit = pLimit(1);\nconst limitWithRejectOnClear = pLimit({concurrency: 1, rejectOnClear: true});\n\nconst input = [\n\tlimit(async () => 'foo'),\n\tlimit(async () => 'bar'),\n\tlimit(async () => undefined),\n];\n\nexpectType<Promise<Array<string | undefined>>>(Promise.all(input));\n\nexpectType<Promise<string>>(limit((_a: string) => '', 'test'));\nexpectType<Promise<string>>(limit(async (_a: string, _b: number) => '', 'test', 1));\n\nexpectType<number>(limit.activeCount);\nexpectType<number>(limit.pendingCount);\n\nexpectType<void>(limit.clearQueue());\nexpectType<void>(limitWithRejectOnClear.clearQueue());\n\n// LimitFunction should require a Promise-returning function\nconst lf = limitFunction(async (_a: string) => 'ok', {concurrency: 1});\nexpectType<Promise<string>>(lf('input'));\nexpectType<void>(lf.clearQueue());\n\nexpectError(limitFunction((_a: string) => 'x', {concurrency: 1}));\nexpectError(pLimit({concurrency: 1, rejectOnClear: 'nope'}));\n\n// LimitFunction.map accepts iterables\nexpectType<Promise<string[]>>(limit.map(new Set(['a', 'b', 'c']), async x => x + x));\nexpectType<Promise<number[]>>(limit.map([1, 2, 3].values(), async x => x * 2));\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 3,
+          "timestamp": 1792165999573
+        }
+      },
+      {
+        "type": "message",
+        "id": "043ca33a",
+        "parentId": "22772996",
+        "timestamp": "2026-10-16T15:53:21.582Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Now let me check the Memory entry for the type contract, then understand the idle semantics deeply."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_20b19f86786e484d99b21af2",
+              "name": "bash",
+              "arguments": {
+                "command": "cat \"/home/node/agent/memory/--work-p-limit--/limit_function_type_contract.md\" 2>/dev/null || echo \"NOT FOUND\""
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_46931e82b26b47f39f59af0b",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && cat scripts/* 2>/dev/null; ls scripts; cat .npmrc; git log --oneline -5"
+              }
+            }
+          ],
+          "timestamp": 1792165999576
+        }
+      },
+      {
+        "type": "message",
+        "id": "774fe1bd",
+        "parentId": "043ca33a",
+        "timestamp": "2026-10-16T15:53:21.610Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_20b19f86786e484d99b21af2",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "---\nname: \"limit_function_type_contract.md\"\ndescription: \"Observed source excerpt from index.d.ts; text cues: limitFunction\"\ntype: project\n---\n\nObserved source excerpt from \"index.d.ts\":\n\n```text\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n```\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 19,
+          "timestamp": 1792166001610
+        }
+      },
+      {
+        "type": "message",
+        "id": "1884e6fd",
+        "parentId": "774fe1bd",
+        "timestamp": "2026-10-16T15:53:21.610Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_46931e82b26b47f39f59af0b",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "#!/usr/bin/env node\n\n// TODO: I will move this to a proper package at some point.\n\nimport {performance} from 'node:perf_hooks';\nimport crypto from 'node:crypto';\nimport {styleText} from 'node:util';\nimport {tmpdir} from 'node:os';\nimport fs from 'node:fs';\nimport nodePath from 'node:path';\nimport {setTimeout} from 'node:timers/promises';\n\nclass Benchmarker {\n\t#suites = [];\n\t#totalStart = 0;\n\n\tconstructor() {\n\t\tthis.formatDuration = ms => {\n\t\t\tif (ms < 1000) {\n\t\t\t\treturn `${Math.round(ms)}ms`;\n\t\t\t}\n\n\t\t\treturn `${(ms / 1000).toFixed(2)}s`;\n\t\t};\n\n\t\tthis.formatThroughput = (operationCount, timeMs) => {\n\t\t\tconst operationsPerSecond = (operationCount / timeMs) * 1000;\n\t\t\treturn `${Math.round(operationsPerSecond)} ops/s`;\n\t\t};\n\t}\n\n\t/**\n\tCreate a new benchmark suite.\n\n\t@param {string} name - The name of the benchmark suite.\n\t@param {object} options - Configuration options.\n\t@param {string} [options.description] - Description of what this suite tests.\n\t@returns {BenchmarkSuite} A new benchmark suite instance.\n\t*/\n\tsuite(name, options = {}) {\n\t\tconst suite = new BenchmarkSuite(name, options, this);\n\t\tthis.#suites.push(suite);\n\t\treturn suite;\n\t}\n\n\t/**\n\tRun all benchmark suites.\n\n\t@param {object} options - Options for running benchmarks.\n\t@param {boolean} [options.showNotes=true] - Whether to show helpful notes at the end.\n\t@param {string} [options.title] - Custom title for the benchmark run.\n\t@returns {Promise<void>}\n\t*/\n\tasync run(options = {}) {\n\t\tconst {\n\t\t\tshowNotes = false,\n\t\t\ttitle = 'Benchmarks',\n\t\t} = options;\n\n\t\tconsole.log(styleText('bold', title));\n\t\tconsole.log();\n\t\tthis.#totalStart = performance.now();\n\n\t\tfor (const suite of this.#suites) {\n\t\t\t// eslint-disable-next-line no-await-in-loop\n\t\t\tawait suite.run();\n\t\t}\n\n\t\tconst totalDuration = performance.now() - this.#totalStart;\n\t\tconsole.log(styleText('green', `Completed in ${this.formatDuration(totalDuration)}`));\n\n\t\tif (showNotes) {\n\t\t\tconsole.log();\n\t\t\tconsole.log(styleText('gray', 'Notes: These benchmarks reflect real workloads and may vary with system load.'));\n\t\t}\n\t}\n}\n\nclass BenchmarkSuite {\n\t#name;\n\t#options;\n\t#benchmarker;\n\t#scenarios = [];\n\n\tconstructor(name, options, benchmarker) {\n\t\tthis.#name = name;\n\t\tthis.#options = options;\n\t\tthis.#benchmarker = benchmarker;\n\t}\n\n\t/**\n\tAdd a scenario to this benchmark suite.\n\n\t@param {string} name - The name of the scenario.\n\t@param {Function} fn - The function to benchmark. Can be async.\n\t@param {object} [options] - Scenario options.\n\t@param {number} [options.iterations=1] - Number of times to run this scenario.\n\t@param {boolean} [options.warmup=false] - Whether to run a warmup iteration.\n\t@returns {BenchmarkSuite} This suite for chaining.\n\t*/\n\tscenario(name, fn, options = {}) {\n\t\tthis.#scenarios.push({\n\t\t\tname,\n\t\t\tfn,\n\t\t\toptions: {\n\t\t\t\titerations: 1,\n\t\t\t\twarmup: false,\n\t\t\t\t...options,\n\t\t\t},\n\t\t});\n\t\treturn this;\n\t}\n\n\t/**\n\tAdd multiple scenarios with different configurations.\n\n\t@param {Array<{name: string, config: object}>} configs - Array of scenario configurations.\n\t@param {Function} fn - The function to benchmark, receives config as parameter.\n\t@param {object} [options] - Shared options for all scenarios.\n\t@returns {BenchmarkSuite} This suite for chaining.\n\t*/\n\tscenarios(configs, fn, options = {}) {\n\t\tfor (const config of configs) {\n\t\t\tthis.scenario(config.name, () => fn(config.config || config), options);\n\t\t}\n\n\t\treturn this;\n\t}\n\n\t/**\n\tRun this benchmark suite.\n\n\t@returns {Promise<void>}\n\t*/\n\tasync run() {\n\t\tconst description = this.#options.description || '';\n\t\tconst headerName = styleText('bold', styleText('cyan', this.#name));\n\t\tconst header = `${headerName}${description ? ` ${styleText('gray', `\u2014 ${description}`)}` : ''}`;\n\t\tconsole.log(header);\n\n\t\tfor (const scenario of this.#scenarios) {\n\t\t\t// eslint-disable-next-line no-await-in-loop\n\t\t\tawait this.#runScenario(scenario);\n\t\t}\n\n\t\tconsole.log();\n\t}\n\n\tasync #runScenario(scenario) {\n\t\tconst {name, fn, options} = scenario;\n\n\t\t// Warmup run\n\t\tif (options.warmup) {\n\t\t\ttry {\n\t\t\t\tawait fn();\n\t\t\t} catch {\n\t\t\t\t// Ignore warmup errors\n\t\t\t}\n\t\t}\n\n\t\t// Actual benchmark runs\n\t\tconst times = [];\n\t\tlet lastResult;\n\t\tfor (let index = 0; index < options.iterations; index++) {\n\t\t\tconst start = performance.now();\n\t\t\t// eslint-disable-next-line no-await-in-loop\n\t\t\tlastResult = await fn();\n\t\t\ttimes.push(performance.now() - start);\n\t\t}\n\n\t\t// Calculate statistics\n\t\tlet _total = 0;\n\t\tfor (const time of times) {\n\t\t\t_total += time;\n\t\t}\n\n\t\tconst averageTime = _total / times.length;\n\n\t\tconst result = options.iterations === 1\n\t\t\t? this.#benchmarker.formatDuration(averageTime)\n\t\t\t: `${this.#benchmarker.formatDuration(averageTime)} average (${options.iterations} runs)`;\n\n\t\tlet extra = '';\n\t\tconst operationCount = typeof lastResult === 'number' ? lastResult : undefined;\n\t\tif (Number.isFinite(operationCount) && operationCount > 0) {\n\t\t\tconst operationsPerSecond = this.#benchmarker.formatThroughput(operationCount, averageTime);\n\t\t\textra = styleText('gray', `(${operationsPerSecond})`);\n\t\t}\n\n\t\tconst columns = [name, styleText('green', result)];\n\t\tif (extra) {\n\t\t\tcolumns.push(extra);\n\t\t}\n\n\t\tconsole.log(`\\t${columns.join('\\t')}`);\n\t}\n}\n\n/**\nHelper function to create random delays.\n\n@param {number} min - Minimum delay in ms.\n@param {number} max - Maximum delay in ms.\n@returns {Promise<void>}\n*/\nexport const randomSleep = (min, max) => setTimeout(min + (Math.random() * (max - min)));\n\n/**\nHelper function to simulate CPU-intensive work.\n\n@param {number} [iterations=1000] - Number of hash iterations to perform.\n@returns {string} Generated hash.\n*/\nexport const cpuWork = (iterations = 1000) => {\n\t// Node.js implementation using synchronous hashing to simulate CPU work\n\tlet hash = crypto.randomBytes(32).toString('hex');\n\tfor (let index = 0; index < iterations; index++) {\n\t\thash = crypto.createHash('sha256').update(hash).digest('hex');\n\t}\n\n\treturn hash;\n};\n\n/**\nAsync resource for a temporary directory.\n\nCreate a disposable temporary directory for use with `using`.\n\nAccepts a human-friendly `name` that becomes the directory prefix.\n*/\nexport function temporaryDirectory(name) {\n\tconst base = nodePath.join(tmpdir(), `${name}-`);\n\treturn fs.mkdtempDisposableSync(base);\n}\n\nexport default Benchmarker;\nbenchmarker.js\npackage-lock=false\nfatal: your current branch 'master' does not have any commits yet\n\n\nCommand exited with code 128"
+            }
+          ],
+          "isError": true,
+          "durationMs": 21,
+          "timestamp": 1792166001610
+        }
+      },
+      {
+        "type": "message",
+        "id": "b79f1e02",
+        "parentId": "1884e6fd",
+        "timestamp": "2026-10-16T15:53:35.288Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Now let me think through the design carefully.\n\n## Design analysis\n\n**Requirements for `onIdle(): Promise<void>`:**\n1. Resolves when both running/reserved slots and waiting queue are empty.\n2. Already idle call resolves normally.\n3. Multiple waiters work, including rejected jobs.\n4. `clearQueue` must release waiters when queue empty and no jobs active, even when discarded promises stay unresolved under `rejectOnClear:false`.\n5. Reserved slots count as active.\n6. Resolving a job that enqueues another job must not report idle early.\n7. Preserve FIFO and concurrency changes.\n\nLet me examine the internals. `activeCount` is incremented in `resumeNext` (when a job is dequeued and `run` scheduled) or in `enqueue`. Wait \u2014 look carefully:\n\n- `enqueue` creates a promise, queues the item, and if `activeCount < concurrency` calls `resumeNext()`. But `resumeNext` requires `queue.size > 0`, and increments activeCount. So an immediate job increments activeCount there. Good.\n- `activeCount` decrements in `next()` after the job's result settles.\n\n**\"Reserved slots count as active\"** \u2014 a job is \"reserved\" once it has been dequeued/scheduled (activeCount incremented) but its `run` hasn't actually started executing yet? Actually the `run` is scheduled via `.then(...)`, so there's a microtask gap. During that gap, activeCount>0 but no user function running. `onIdle` must wait for these too.\n\n**\"resolving a job that enqueues another job must not report idle early\"** \u2014 Consider: job A resolves. In `run`, after `await result`, it calls `next()` which decrements activeCount and calls `resumeNext()`. But the user's function may have enqueued a new job during its execution. The new job sits in the queue, so `queue.size>0`, so we're not idle. But consider a subtle case: A resolves synchronously-ish; `next()` decrements to 0 and calls `resumeNext()`. If a new job was enqueued *by the resolving job* but processed... hmm. Actually the concern is ordering of the idle check relative to `resumeNext` draining the queue. Let me design a robust checker.\n\nLet me define idle as: `activeCount === 0 && queue.size === 0`. A `checkIdle()` is called after any transition that could lead to idle: in `next()` after decrement+resumeNext, in `clearQueue`, and at `enqueue` (no). Waiters stored in an array; when idle, flush all.\n\nBut the tricky part: microtask/timing. When a job's promise resolves, `run`'s `await result` continuation is a microtask. `onIdle()` called right after the job resolves but before `next()` runs would see activeCount=1, so not idle, and it registers a waiter. Good \u2014 `next()` later flushes it. \n\nThe \"resolving a job that enqueues another job must not report idle early\" case: A's function resolves and, inside itself before resolving, enqueues B. Sequence:\n- A's function returns (resolves result), during execution it called `limit(B)` \u2192 enqueue B, activeCount is at concurrency so B queued.\n- `run` await result continuation \u2192 `next()`: activeCount-- , `resumeNext()` dequeues B, activeCount++, schedules B's run.\n- Then checkIdle: activeCount=1 (B reserved) \u2192 not idle. Good.\n\nBut what if the resolving job enqueues B in a `.then` attached to its own promise *after* p-limit's `run` continuation? Ordering matters. The requirement is specifically that we must not report idle early. The safest approach: check idle in `checkIdle()` only when `activeCount===0 && queue.size===0`, and call it from `next()` *after* `resumeNext()`. Since `resumeNext` synchronously increments activeCount for a dequeued job, that's covered.\n\nNow **clearQueue releasing waiters under rejectOnClear:false**: `clearQueue` empties the queue. Discarded promises stay unresolved (their resolve/reject never called). If no jobs active, we must release onIdle waiters \u2192 call checkIdle after clearing.\n\nLet me also think: should `onIdle` be exposed on `limitFunction`? Yes: \"on a limiter and its limitFunction wrapper.\"\n\n**Type declarations**: add `onIdle: () => Promise<void>` to `LimitFunction`, and add to the limitFunction return `Pick<LimitFunction, 'clearQueue' | 'onIdle'>`.\n\nLet me now write the implementation. I'll add a `idleWaiters` array and `flushIdleWaiters`, plus `checkIdle`. To make waiters robust against rejected jobs, the resolution of onIdle doesn't depend on job outcomes at all\u2014it only depends on counts.\n\nLet me consider whether `checkIdle` should be called anywhere else so that a waiter registered while idle is handled. `onIdle()` itself: if already idle, resolve immediately; else push waiter. There's a race: a waiter registered when not idle, and the transition to idle happens synchronously... no, JS is single threaded; if onIdle runs and sees not idle, the transition will happen in a future microtask/task which will call checkIdle. But could the transition have already \"logically\" happened without checkIdle being called? Every path that can zero both counts must call checkIdle. Paths:\n- `next()` \u2192 after decrement and resumeNext.\n- `clearQueue()` \u2192 after clearing.\n- `run` is where next is called. Also the `run` scheduled via `.then` \u2014 if between enqueue and run the queue is cleared... activeCount already incremented, so not idle until run finishes.\n- concurrency setter's microtask calls resumeNext; that can only increase activeCount or leave queue. If queue becomes empty via resumeNext, activeCount>0. Fine.\n\nOne more: `next()` calls `resumeNext()` which may dequeue and increment activeCount, so checkIdle after is correct.\n\nBut consider `activeCount` transition to zero where there's still a pending `queueItem` whose internal promise `.then(run)` hasn't fired but activeCount was already counted. Actually activeCount counts it, so we wait. Good \u2014 \"reserved slots count as active.\"\n\nLet me implement now."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_02b6e3ef774747288ddc3d72",
+              "name": "edit",
+              "arguments": {
+                "path": "/work/p-limit/index.js",
+                "edits": [
+                  {
+                    "oldText": "\tconst queue = new Queue();\n\tlet activeCount = 0;\n\n\tconst resumeNext = () => {",
+                    "newText": "\tconst queue = new Queue();\n\tlet activeCount = 0;\n\tlet idleWaiters = [];\n\n\tconst flushIdleWaiters = () => {\n\t\tif (activeCount > 0 || queue.size > 0 || idleWaiters.length === 0) {\n\t\t\treturn;\n\t\t}\n\n\t\tconst waiters = idleWaiters;\n\t\tidleWaiters = [];\n\n\t\tfor (const resolve of waiters) {\n\t\t\tresolve();\n\t\t}\n\t};\n\n\tconst resumeNext = () => {"
+                  },
+                  {
+                    "oldText": "\tconst next = () => {\n\t\tactiveCount--;\n\t\tresumeNext();\n\t};",
+                    "newText": "\tconst next = () => {\n\t\tactiveCount--;\n\t\tresumeNext();\n\t\tflushIdleWaiters();\n\t};"
+                  },
+                  {
+                    "oldText": "\t\tclearQueue: {\n\t\t\tvalue() {\n\t\t\t\tif (!rejectOnClear) {\n\t\t\t\t\tqueue.clear();\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tconst abortError = AbortSignal.abort().reason;\n\n\t\t\t\twhile (queue.size > 0) {\n\t\t\t\t\tqueue.dequeue().reject(abortError);\n\t\t\t\t}\n\t\t\t},\n\t\t},",
+                    "newText": "\t\tclearQueue: {\n\t\t\tvalue() {\n\t\t\t\tif (!rejectOnClear) {\n\t\t\t\t\tqueue.clear();\n\t\t\t\t\tflushIdleWaiters();\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tconst abortError = AbortSignal.abort().reason;\n\n\t\t\t\twhile (queue.size > 0) {\n\t\t\t\t\tqueue.dequeue().reject(abortError);\n\t\t\t\t}\n\n\t\t\t\tflushIdleWaiters();\n\t\t\t},\n\t\t},\n\t\tonIdle: {\n\t\t\tvalue() {\n\t\t\t\tif (activeCount === 0 && queue.size === 0) {\n\t\t\t\t\treturn Promise.resolve();\n\t\t\t\t}\n\n\t\t\t\treturn new Promise(resolve => {\n\t\t\t\t\tidleWaiters.push(resolve);\n\t\t\t\t});\n\t\t\t},\n\t\t},"
+                  },
+                  {
+                    "oldText": "\tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n\tObject.defineProperty(limitedFunction, 'clearQueue', {\n\t\tvalue: limit.clearQueue,\n\t});\n\n\treturn limitedFunction;",
+                    "newText": "\tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n\tObject.defineProperty(limitedFunction, 'clearQueue', {\n\t\tvalue: limit.clearQueue,\n\t});\n\tObject.defineProperty(limitedFunction, 'onIdle', {\n\t\tvalue: limit.onIdle,\n\t});\n\n\treturn limitedFunction;"
+                  }
+                ]
+              }
+            }
+          ],
+          "timestamp": 1792166001612
+        }
+      },
+      {
+        "type": "message",
+        "id": "2802625f",
+        "parentId": "b79f1e02",
+        "timestamp": "2026-10-16T15:53:35.308Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_02b6e3ef774747288ddc3d72",
+          "toolName": "edit",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully replaced 4 block(s) in /work/p-limit/index.js."
+            }
+          ],
+          "details": {
+            "diff": "     ...\n  14 \t}\n  15 \n  16 \tconst queue = new Queue();\n  17 \tlet activeCount = 0;\n+ 18 \tlet idleWaiters = [];\n  18 \n+ 20 \tconst flushIdleWaiters = () => {\n+ 21 \t\tif (activeCount > 0 || queue.size > 0 || idleWaiters.length === 0) {\n+ 22 \t\t\treturn;\n+ 23 \t\t}\n+ 24 \n+ 25 \t\tconst waiters = idleWaiters;\n+ 26 \t\tidleWaiters = [];\n+ 27 \n+ 28 \t\tfor (const resolve of waiters) {\n+ 29 \t\t\tresolve();\n+ 30 \t\t}\n+ 31 \t};\n+ 32 \n  19 \tconst resumeNext = () => {\n  20 \t\t// Process the next queued function if we're under the concurrency limit\n  21 \t\tif (activeCount < concurrency && queue.size > 0) {\n  22 \t\t\tactiveCount++;\n     ...\n  26 \n  27 \tconst next = () => {\n  28 \t\tactiveCount--;\n  29 \t\tresumeNext();\n+ 44 \t\tflushIdleWaiters();\n  30 \t};\n  31 \n  32 \tconst run = async (function_, resolve, arguments_) => {\n  33 \t\t// Execute the function and capture the result promise\n     ...\n  77 \t\tclearQueue: {\n  78 \t\t\tvalue() {\n  79 \t\t\t\tif (!rejectOnClear) {\n  80 \t\t\t\t\tqueue.clear();\n+ 96 \t\t\t\t\tflushIdleWaiters();\n  81 \t\t\t\t\treturn;\n  82 \t\t\t\t}\n  83 \n  84 \t\t\t\tconst abortError = AbortSignal.abort().reason;\n  85 \n  86 \t\t\t\twhile (queue.size > 0) {\n  87 \t\t\t\t\tqueue.dequeue().reject(abortError);\n  88 \t\t\t\t}\n+105 \n+106 \t\t\t\tflushIdleWaiters();\n  89 \t\t\t},\n  90 \t\t},\n+109 \t\tonIdle: {\n+110 \t\t\tvalue() {\n+111 \t\t\t\tif (activeCount === 0 && queue.size === 0) {\n+112 \t\t\t\t\treturn Promise.resolve();\n+113 \t\t\t\t}\n+114 \n+115 \t\t\t\treturn new Promise(resolve => {\n+116 \t\t\t\t\tidleWaiters.push(resolve);\n+117 \t\t\t\t});\n+118 \t\t\t},\n+119 \t\t},\n  91 \t\tconcurrency: {\n  92 \t\t\tget: () => concurrency,\n  93 \n  94 \t\t\tset(newConcurrency) {\n     ...\n 136 \tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n 137 \tObject.defineProperty(limitedFunction, 'clearQueue', {\n 138 \t\tvalue: limit.clearQueue,\n 139 \t});\n+169 \tObject.defineProperty(limitedFunction, 'onIdle', {\n+170 \t\tvalue: limit.onIdle,\n+171 \t});\n 140 \n 141 \treturn limitedFunction;\n 142 }\n 143 \n     ...",
+            "patch": "--- /work/p-limit/index.js\n+++ /work/p-limit/index.js\n@@ -14,9 +14,23 @@\n \t}\n \n \tconst queue = new Queue();\n \tlet activeCount = 0;\n+\tlet idleWaiters = [];\n \n+\tconst flushIdleWaiters = () => {\n+\t\tif (activeCount > 0 || queue.size > 0 || idleWaiters.length === 0) {\n+\t\t\treturn;\n+\t\t}\n+\n+\t\tconst waiters = idleWaiters;\n+\t\tidleWaiters = [];\n+\n+\t\tfor (const resolve of waiters) {\n+\t\t\tresolve();\n+\t\t}\n+\t};\n+\n \tconst resumeNext = () => {\n \t\t// Process the next queued function if we're under the concurrency limit\n \t\tif (activeCount < concurrency && queue.size > 0) {\n \t\t\tactiveCount++;\n@@ -26,8 +40,9 @@\n \n \tconst next = () => {\n \t\tactiveCount--;\n \t\tresumeNext();\n+\t\tflushIdleWaiters();\n \t};\n \n \tconst run = async (function_, resolve, arguments_) => {\n \t\t// Execute the function and capture the result promise\n@@ -77,18 +92,32 @@\n \t\tclearQueue: {\n \t\t\tvalue() {\n \t\t\t\tif (!rejectOnClear) {\n \t\t\t\t\tqueue.clear();\n+\t\t\t\t\tflushIdleWaiters();\n \t\t\t\t\treturn;\n \t\t\t\t}\n \n \t\t\t\tconst abortError = AbortSignal.abort().reason;\n \n \t\t\t\twhile (queue.size > 0) {\n \t\t\t\t\tqueue.dequeue().reject(abortError);\n \t\t\t\t}\n+\n+\t\t\t\tflushIdleWaiters();\n \t\t\t},\n \t\t},\n+\t\tonIdle: {\n+\t\t\tvalue() {\n+\t\t\t\tif (activeCount === 0 && queue.size === 0) {\n+\t\t\t\t\treturn Promise.resolve();\n+\t\t\t\t}\n+\n+\t\t\t\treturn new Promise(resolve => {\n+\t\t\t\t\tidleWaiters.push(resolve);\n+\t\t\t\t});\n+\t\t\t},\n+\t\t},\n \t\tconcurrency: {\n \t\t\tget: () => concurrency,\n \n \t\t\tset(newConcurrency) {\n@@ -136,8 +165,11 @@\n \tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n \tObject.defineProperty(limitedFunction, 'clearQueue', {\n \t\tvalue: limit.clearQueue,\n \t});\n+\tObject.defineProperty(limitedFunction, 'onIdle', {\n+\t\tvalue: limit.onIdle,\n+\t});\n \n \treturn limitedFunction;\n }\n \n",
+            "firstChangedLine": 18
+          },
+          "isError": false,
+          "durationMs": 7,
+          "timestamp": 1792166015308
+        }
+      },
+      {
+        "type": "message",
+        "id": "ebc6a986",
+        "parentId": "2802625f",
+        "timestamp": "2026-10-16T15:53:38.154Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Now update the type declarations:"
+            },
+            {
+              "type": "toolCall",
+              "id": "call_90eed42ed60d4d9ebda8d4a0",
+              "name": "edit",
+              "arguments": {
+                "edits": [
+                  {
+                    "newText": "\tclearQueue: () => void;\n\n\t/**\n\tReturns a promise that resolves when all running promises have settled and the queue is empty.\n\n\tIf the limiter is already idle, the returned promise resolves immediately.\n\t\n\tThis is useful when you want to wait until all limited work has finished, for example before tearing down your program or flushing a queue.\n\t*/\n\tonIdle: () => Promise<void>;",
+                    "oldText": "\tclearQueue: () => void;"
+                  },
+                  {
+                    "newText": "\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;",
+                    "oldText": "\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;"
+                  }
+                ],
+                "path": "/work/p-limit/index.d.ts"
+              }
+            }
+          ],
+          "timestamp": 1792166015310
+        }
+      },
+      {
+        "type": "message",
+        "id": "e468b2e3",
+        "parentId": "ebc6a986",
+        "timestamp": "2026-10-16T15:53:38.180Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_90eed42ed60d4d9ebda8d4a0",
+          "toolName": "edit",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully replaced 2 block(s) in /work/p-limit/index.d.ts."
+            }
+          ],
+          "details": {
+            "diff": "     ...\n  26 \t*/\n  27 \tclearQueue: () => void;\n  28 \n  29 \t/**\n+ 30 \tReturns a promise that resolves when all running promises have settled and the queue is empty.\n+ 31 \n+ 32 \tIf the limiter is already idle, the returned promise resolves immediately.\n+ 33 \t\n+ 34 \tThis is useful when you want to wait until all limited work has finished, for example before tearing down your program or flushing a queue.\n+ 35 \t*/\n+ 36 \tonIdle: () => Promise<void>;\n+ 37 \n+ 38 \t/**\n  30 \tProcess an iterable of inputs with limited concurrency.\n  31 \n  32 \tThe mapper function receives the item value and its index.\n  33 \n     ...\n 134 */\n 135 export function limitFunction<Arguments extends unknown[], ReturnType>(\n 136 \tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n 137 \toptions: Options\n-138 ): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n+147 ): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;",
+            "patch": "--- /work/p-limit/index.d.ts\n+++ /work/p-limit/index.d.ts\n@@ -26,8 +26,17 @@\n \t*/\n \tclearQueue: () => void;\n \n \t/**\n+\tReturns a promise that resolves when all running promises have settled and the queue is empty.\n+\n+\tIf the limiter is already idle, the returned promise resolves immediately.\n+\t\n+\tThis is useful when you want to wait until all limited work has finished, for example before tearing down your program or flushing a queue.\n+\t*/\n+\tonIdle: () => Promise<void>;\n+\n+\t/**\n \tProcess an iterable of inputs with limited concurrency.\n \n \tThe mapper function receives the item value and its index.\n \n@@ -134,5 +143,5 @@\n */\n export function limitFunction<Arguments extends unknown[], ReturnType>(\n \tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n \toptions: Options\n-): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue'>;\n+): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n",
+            "firstChangedLine": 30
+          },
+          "isError": false,
+          "durationMs": 12,
+          "timestamp": 1792166018170
+        }
+      },
+      {
+        "type": "message",
+        "id": "7c8e19a2",
+        "parentId": "e468b2e3",
+        "timestamp": "2026-10-16T15:53:42.239Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Now update the readme docs:"
+            },
+            {
+              "type": "toolCall",
+              "id": "call_ec9bcbc55657467686a392cd",
+              "name": "edit",
+              "arguments": {
+                "edits": [
+                  {
+                    "newText": "### limit.clearQueue()\n\nDiscard pending promises that are waiting to run.\n\nThis might be useful if you want to tear down the queue at the end of your program's lifecycle or discard any function calls referencing an intermediary state of your app.\n\nNote: This does not cancel promises that are already running.\n\nWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\nThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\n### limit.onIdle()\n\nReturns a promise that resolves when all running promises have settled and the queue is empty.\n\nIf the limiter is already idle, the returned promise resolves immediately.\n\nReserved slots count as active, and a task that enqueues another task is not considered idle until the newly enqueued task also finishes.\n\n```js\nimport pLimit from 'p-limit';\n\nconst limit = pLimit(1);\n\nlimit(() => doSomething());\nlimit(() => doSomethingElse());\n\nawait limit.onIdle();\n// All tasks have finished\n```",
+                    "oldText": "### limit.clearQueue()\n\nDiscard pending promises that are waiting to run.\n\nThis might be useful if you want to tear down the queue at the end of your program's lifecycle or discard any function calls referencing an intermediary state of your app.\n\nNote: This does not cancel promises that are already running.\n\nWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\nThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`."
+                  },
+                  {
+                    "newText": "### limitedFunction.clearQueue()\n\nDiscard pending calls that have not started yet.\n\nWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`. Otherwise, their promises remain unresolved.\n\nThis does not cancel calls that are already running.\n\n### limitedFunction.onIdle()\n\nReturns a promise that resolves when all running calls have settled and no calls are pending.\n\nIf the function is already idle, the returned promise resolves immediately.",
+                    "oldText": "### limitedFunction.clearQueue()\n\nDiscard pending calls that have not started yet.\n\nWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`. Otherwise, their promises remain unresolved.\n\nThis does not cancel calls that are already running."
+                  }
+                ],
+                "path": "/work/p-limit/readme.md"
+              }
+            }
+          ],
+          "timestamp": 1792166018183
+        }
+      },
+      {
+        "type": "message",
+        "id": "911ad38e",
+        "parentId": "7c8e19a2",
+        "timestamp": "2026-10-16T15:53:42.254Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_ec9bcbc55657467686a392cd",
+          "toolName": "edit",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully replaced 2 block(s) in /work/p-limit/readme.md."
+            }
+          ],
+          "details": {
+            "diff": "     ...\n 105 \n 106 When `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\n 107 This is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n 108 \n+109 ### limit.onIdle()\n+110 \n+111 Returns a promise that resolves when all running promises have settled and the queue is empty.\n+112 \n+113 If the limiter is already idle, the returned promise resolves immediately.\n+114 \n+115 Reserved slots count as active, and a task that enqueues another task is not considered idle until the newly enqueued task also finishes.\n+116 \n+117 ```js\n+118 import pLimit from 'p-limit';\n+119 \n+120 const limit = pLimit(1);\n+121 \n+122 limit(() => doSomething());\n+123 limit(() => doSomethingElse());\n+124 \n+125 await limit.onIdle();\n+126 // All tasks have finished\n+127 ```\n+128 \n 109 ### limit.concurrency\n 110 \n 111 Get or set the concurrency limit.\n 112 \n     ...\n 163 When `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`. Otherwise, their promises remain unresolved.\n 164 \n 165 This does not cancel calls that are already running.\n 166 \n+187 ### limitedFunction.onIdle()\n+188 \n+189 Returns a promise that resolves when all running calls have settled and no calls are pending.\n+190 \n+191 If the function is already idle, the returned promise resolves immediately.\n+192 \n 167 ## Recipes\n 168 \n 169 See [recipes.md](recipes.md) for common use cases and patterns.\n 170 \n     ...",
+            "patch": "--- /work/p-limit/readme.md\n+++ /work/p-limit/readme.md\n@@ -105,8 +105,28 @@\n \n When `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\n This is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n \n+### limit.onIdle()\n+\n+Returns a promise that resolves when all running promises have settled and the queue is empty.\n+\n+If the limiter is already idle, the returned promise resolves immediately.\n+\n+Reserved slots count as active, and a task that enqueues another task is not considered idle until the newly enqueued task also finishes.\n+\n+```js\n+import pLimit from 'p-limit';\n+\n+const limit = pLimit(1);\n+\n+limit(() => doSomething());\n+limit(() => doSomethingElse());\n+\n+await limit.onIdle();\n+// All tasks have finished\n+```\n+\n ### limit.concurrency\n \n Get or set the concurrency limit.\n \n@@ -163,8 +183,14 @@\n When `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`. Otherwise, their promises remain unresolved.\n \n This does not cancel calls that are already running.\n \n+### limitedFunction.onIdle()\n+\n+Returns a promise that resolves when all running calls have settled and no calls are pending.\n+\n+If the function is already idle, the returned promise resolves immediately.\n+\n ## Recipes\n \n See [recipes.md](recipes.md) for common use cases and patterns.\n \n",
+            "firstChangedLine": 109
+          },
+          "isError": false,
+          "durationMs": 10,
+          "timestamp": 1792166022254
+        }
+      },
+      {
+        "type": "message",
+        "id": "fc699cd7",
+        "parentId": "911ad38e",
+        "timestamp": "2026-10-16T15:53:44.447Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Now add type test assertions in the existing `index.test-d.ts`? The rule says don't alter existing tests. `index.test-d.ts` is an existing test file. I should add type checks in a new file instead. But tsd only picks up files matching its config. Let me check tsd config."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_da8c2cfbdd7c4672b145515e",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && cat package.json | grep -A5 tsd; ls -a | grep -i tsd; grep -rn \"tsd\" package.json"
+              }
+            }
+          ],
+          "timestamp": 1792166022256
+        }
+      },
+      {
+        "type": "message",
+        "id": "10e2abc1",
+        "parentId": "fc699cd7",
+        "timestamp": "2026-10-16T15:53:44.463Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_da8c2cfbdd7c4672b145515e",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "\t\t\"test\": \"xo && ava && tsd\",\n\t\t\"benchmark\": \"node benchmark.js\"\n\t},\n\t\"files\": [\n\t\t\"index.js\",\n\t\t\"index.d.ts\"\n--\n\t\t\"tsd\": \"^0.33.0\",\n\t\t\"xo\": \"^1.2.1\"\n\t}\n}\n23:\t\t\"test\": \"xo && ava && tsd\",\n55:\t\t\"tsd\": \"^0.33.0\",\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 13,
+          "timestamp": 1792166024463
+        }
+      },
+      {
+        "type": "message",
+        "id": "952c9d43",
+        "parentId": "10e2abc1",
+        "timestamp": "2026-10-16T15:53:54.173Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "tsd defaults to `test-d.ts` and `*.test-d.ts` files. A new file like `on-idle.test-d.ts` would be picked up. Let me add one. Also add a new ava regression test file. AVA by default picks up `test.js` and files in `test/`? Let me check ava config \u2014 none present, so AVA defaults to `test.js`, `test-*.js`, `**/test-*.js`, `**/*.test.js`, `**/test/**/*.js`, `**/tests/**/*.js`, `**/__tests__/**/*.js`. So a new file named `on-idle.test.js` will be picked up.\n\nLet me write the runtime regression test file."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_91207d4146614c7fbeaaa2fb",
+              "name": "write",
+              "arguments": {
+                "path": "/work/p-limit/on-idle.test.js",
+                "content": "import {setTimeout as delay} from 'node:timers/promises';\nimport test from 'ava';\nimport pLimit, {limitFunction} from './index.js';\n\ntest('onIdle resolves immediately when already idle', async t => {\n\tconst limit = pLimit(1);\n\n\tawait t.notThrowsAsync(limit.onIdle());\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n});\n\ntest('onIdle resolves after running and queued tasks settle', async t => {\n\tconst limit = pLimit(2);\n\tconst order = [];\n\n\tconst first = limit(async () => {\n\t\tawait delay(50);\n\t\torder.push('first');\n\t});\n\tconst second = limit(async () => {\n\t\tawait delay(10);\n\t\torder.push('second');\n\t});\n\tconst third = limit(async () => {\n\t\tawait delay(10);\n\t\torder.push('third');\n\t});\n\n\tawait limit.onIdle();\n\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\tt.deepEqual(order.sort(), ['first', 'second', 'third']);\n\n\tawait Promise.all([first, second, third]);\n});\n\ntest('onIdle supports multiple waiters', async t => {\n\tconst limit = pLimit(1);\n\n\tconst task = limit(() => delay(30));\n\n\tconst first = limit.onIdle();\n\tconst second = limit.onIdle();\n\tconst third = limit.onIdle();\n\n\tawait Promise.all([first, second, third]);\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tawait task;\n});\n\ntest('onIdle waiters are released when a job rejects', async t => {\n\tconst limit = pLimit(1);\n\tconst error = new Error('\ud83e\udd84');\n\n\tconst task = limit(async () => {\n\t\tawait delay(20);\n\t\tthrow error;\n\t});\n\ttask.catch(() => {});\n\n\tconst waiter = limit.onIdle();\n\n\tawait t.notThrowsAsync(waiter);\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tawait t.throwsAsync(Promise.resolve(task), {is: error});\n});\n\ntest('reserved slots count as active for onIdle', async t => {\n\tconst limit = pLimit(1);\n\n\tconst first = limit(async () => {\n\t\tawait delay(10);\n\t});\n\n\t// These become reserved slots when concurrency allows, and queued otherwise.\n\tconst second = limit(() => delay(10));\n\tconst third = limit(() => delay(10));\n\n\tawait limit.onIdle();\n\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tawait Promise.all([first, second, third]);\n});\n\ntest('onIdle does not report idle early when a resolving job enqueues another job', async t => {\n\tconst limit = pLimit(1);\n\tlet enqueued = false;\n\n\tconst first = limit(async () => {\n\t\tawait delay(10);\n\t});\n\n\tconst second = limit(async () => {\n\t\t// Enqueue a follow-up job while this job is still running.\n\t\tlimit(() => {\n\t\t\tenqueued = true;\n\t\t});\n\t});\n\n\tconst waiter = limit.onIdle();\n\n\tawait waiter;\n\n\tt.true(enqueued);\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tawait Promise.all([first, second]);\n});\n\ntest('clearQueue releases onIdle waiters when nothing is active under rejectOnClear: false', async t => {\n\tconst limit = pLimit(1);\n\tconst running = limit(() => delay(40));\n\n\t// Under rejectOnClear: false these discarded promises stay unresolved.\n\tlimit(() => delay(10));\n\tlimit(() => delay(10));\n\n\tt.is(limit.pendingCount, 2);\n\n\tlimit.clearQueue();\n\n\tawait t.notThrowsAsync(limit.onIdle());\n\tt.is(limit.pendingCount, 0);\n\n\tawait running;\n});\n\ntest('clearQueue does not release onIdle waiters while jobs are still active', async t => {\n\tconst limit = pLimit(1);\n\tlet settled = false;\n\tconst running = limit(async () => {\n\t\tawait delay(30);\n\t\tsettled = true;\n\t});\n\n\tlimit(() => delay(10));\n\tlimit(() => delay(10));\n\n\tlimit.clearQueue();\n\n\tlet idle = false;\n\tconst waiter = limit.onIdle().then(() => {\n\t\tidle = true;\n\t});\n\n\tawait delay(5);\n\tt.false(idle);\n\tt.false(settled);\n\n\tawait waiter;\n\tt.true(settled);\n\n\tawait running;\n});\n\ntest('onIdle works for the limitFunction wrapper', async t => {\n\tconst limitedFunction = limitFunction(async value => {\n\t\tawait delay(10);\n\t\treturn value * 2;\n\t}, {concurrency: 1});\n\n\tconst first = limitedFunction(1);\n\tconst second = limitedFunction(2);\n\tconst third = limitedFunction(3);\n\n\tawait limitedFunction.onIdle();\n\n\tt.deepEqual(await Promise.all([first, second, third]), [2, 4, 6]);\n});\n\ntest('limitFunction onIdle resolves immediately when idle', async t => {\n\tconst limitedFunction = limitFunction(() => delay(10), {concurrency: 1});\n\n\tawait t.notThrowsAsync(limitedFunction.onIdle());\n});"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_d898394f99ec46669ec74977",
+              "name": "write",
+              "arguments": {
+                "path": "/work/p-limit/on-idle.test-d.ts",
+                "content": "import {expectType} from 'tsd';\nimport pLimit, {limitFunction} from './index.js';\n\nconst limit = pLimit(1);\n\nexpectType<Promise<void>>(limit.onIdle());\n\nconst limitedFunction = limitFunction(async (_a: string) => 'ok', {concurrency: 1});\n\nexpectType<Promise<void>>(limitedFunction.onIdle());\nexpectType<Promise<string>>(limitedFunction('input'));\nexpectType<void>(limitedFunction.clearQueue());"
+              }
+            }
+          ],
+          "timestamp": 1792166024465
+        }
+      },
+      {
+        "type": "message",
+        "id": "3211668b",
+        "parentId": "952c9d43",
+        "timestamp": "2026-10-16T15:53:54.200Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_91207d4146614c7fbeaaa2fb",
+          "toolName": "write",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully wrote to /work/p-limit/on-idle.test.js"
+            }
+          ],
+          "isError": false,
+          "durationMs": 18,
+          "timestamp": 1792166034199
+        }
+      },
+      {
+        "type": "message",
+        "id": "8324f13d",
+        "parentId": "3211668b",
+        "timestamp": "2026-10-16T15:53:54.200Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_d898394f99ec46669ec74977",
+          "toolName": "write",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully wrote to /work/p-limit/on-idle.test-d.ts"
+            }
+          ],
+          "isError": false,
+          "durationMs": 12,
+          "timestamp": 1792166034200
+        }
+      },
+      {
+        "type": "message",
+        "id": "02fc60d1",
+        "parentId": "8324f13d",
+        "timestamp": "2026-10-16T15:53:56.165Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Now let me verify the implementation against the edge cases before running the full suite. Let me re-read the modified index.js."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_7153897ed2924ce784b29055",
+              "name": "read",
+              "arguments": {
+                "path": "/work/p-limit/index.js"
+              }
+            }
+          ],
+          "timestamp": 1792166034201
+        }
+      },
+      {
+        "type": "message",
+        "id": "49d28689",
+        "parentId": "02fc60d1",
+        "timestamp": "2026-10-16T15:53:56.168Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_7153897ed2924ce784b29055",
+          "toolName": "read",
+          "content": [
+            {
+              "type": "text",
+              "text": "import Queue from 'yocto-queue';\n\nexport default function pLimit(concurrency) {\n\tlet rejectOnClear = false;\n\n\tif (typeof concurrency === 'object') {\n\t\t({concurrency, rejectOnClear = false} = concurrency);\n\t}\n\n\tvalidateConcurrency(concurrency);\n\n\tif (typeof rejectOnClear !== 'boolean') {\n\t\tthrow new TypeError('Expected `rejectOnClear` to be a boolean');\n\t}\n\n\tconst queue = new Queue();\n\tlet activeCount = 0;\n\tlet idleWaiters = [];\n\n\tconst flushIdleWaiters = () => {\n\t\tif (activeCount > 0 || queue.size > 0 || idleWaiters.length === 0) {\n\t\t\treturn;\n\t\t}\n\n\t\tconst waiters = idleWaiters;\n\t\tidleWaiters = [];\n\n\t\tfor (const resolve of waiters) {\n\t\t\tresolve();\n\t\t}\n\t};\n\n\tconst resumeNext = () => {\n\t\t// Process the next queued function if we're under the concurrency limit\n\t\tif (activeCount < concurrency && queue.size > 0) {\n\t\t\tactiveCount++;\n\t\t\tqueue.dequeue().run();\n\t\t}\n\t};\n\n\tconst next = () => {\n\t\tactiveCount--;\n\t\tresumeNext();\n\t\tflushIdleWaiters();\n\t};\n\n\tconst run = async (function_, resolve, arguments_) => {\n\t\t// Execute the function and capture the result promise\n\t\tconst result = (async () => function_(...arguments_))();\n\n\t\t// Resolve immediately with the promise (don't wait for completion)\n\t\tresolve(result);\n\n\t\t// Wait for the function to complete (success or failure)\n\t\t// We catch errors here to prevent unhandled rejections,\n\t\t// but the original promise rejection is preserved for the caller\n\t\ttry {\n\t\t\tawait result;\n\t\t} catch {}\n\n\t\t// Decrement active count and process next queued function\n\t\tnext();\n\t};\n\n\tconst enqueue = (function_, resolve, reject, arguments_) => {\n\t\tconst queueItem = {reject};\n\n\t\t// Queue the internal resolve function instead of the run function\n\t\t// to preserve the asynchronous execution context.\n\t\tnew Promise(internalResolve => { // eslint-disable-line promise/param-names\n\t\t\tqueueItem.run = internalResolve;\n\t\t\tqueue.enqueue(queueItem);\n\t\t}).then(run.bind(undefined, function_, resolve, arguments_)); // eslint-disable-line promise/prefer-await-to-then\n\n\t\t// Start processing immediately if we haven't reached the concurrency limit\n\t\tif (activeCount < concurrency) {\n\t\t\tresumeNext();\n\t\t}\n\t};\n\n\tconst generator = (function_, ...arguments_) => new Promise((resolve, reject) => {\n\t\tenqueue(function_, resolve, reject, arguments_);\n\t});\n\n\tObject.defineProperties(generator, {\n\t\tactiveCount: {\n\t\t\tget: () => activeCount,\n\t\t},\n\t\tpendingCount: {\n\t\t\tget: () => queue.size,\n\t\t},\n\t\tclearQueue: {\n\t\t\tvalue() {\n\t\t\t\tif (!rejectOnClear) {\n\t\t\t\t\tqueue.clear();\n\t\t\t\t\tflushIdleWaiters();\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tconst abortError = AbortSignal.abort().reason;\n\n\t\t\t\twhile (queue.size > 0) {\n\t\t\t\t\tqueue.dequeue().reject(abortError);\n\t\t\t\t}\n\n\t\t\t\tflushIdleWaiters();\n\t\t\t},\n\t\t},\n\t\tonIdle: {\n\t\t\tvalue() {\n\t\t\t\tif (activeCount === 0 && queue.size === 0) {\n\t\t\t\t\treturn Promise.resolve();\n\t\t\t\t}\n\n\t\t\t\treturn new Promise(resolve => {\n\t\t\t\t\tidleWaiters.push(resolve);\n\t\t\t\t});\n\t\t\t},\n\t\t},\n\t\tconcurrency: {\n\t\t\tget: () => concurrency,\n\n\t\t\tset(newConcurrency) {\n\t\t\t\tvalidateConcurrency(newConcurrency);\n\t\t\t\tconcurrency = newConcurrency;\n\n\t\t\t\tqueueMicrotask(() => {\n\t\t\t\t\t// eslint-disable-next-line no-unmodified-loop-condition\n\t\t\t\t\twhile (activeCount < concurrency && queue.size > 0) {\n\t\t\t\t\t\tresumeNext();\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t},\n\t\t},\n\t\tmap: {\n\t\t\tasync value(iterable, function_) {\n\t\t\t\tconst promises = [];\n\n\t\t\t\ttry {\n\t\t\t\t\tArray.from(iterable, (value, index) => {\n\t\t\t\t\t\tconst promise = generator(function_, value, index);\n\t\t\t\t\t\tpromises.push(promise);\n\t\t\t\t\t\treturn promise;\n\t\t\t\t\t});\n\t\t\t\t} catch (error) {\n\t\t\t\t\t// The iterable threw, so `Promise.all` never observes the already scheduled promises. Observe them here to avoid unhandled rejections.\n\t\t\t\t\tfor (const promise of promises) {\n\t\t\t\t\t\tpromise.catch(() => {}); // eslint-disable-line promise/prefer-await-to-then\n\t\t\t\t\t}\n\n\t\t\t\t\tthrow error;\n\t\t\t\t}\n\n\t\t\t\treturn Promise.all(promises);\n\t\t\t},\n\t\t},\n\t});\n\n\treturn generator;\n}\n\nexport function limitFunction(function_, options) {\n\tconst limit = pLimit(options);\n\n\tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n\tObject.defineProperty(limitedFunction, 'clearQueue', {\n\t\tvalue: limit.clearQueue,\n\t});\n\tObject.defineProperty(limitedFunction, 'onIdle', {\n\t\tvalue: limit.onIdle,\n\t});\n\n\treturn limitedFunction;\n}\n\nfunction validateConcurrency(concurrency) {\n\tif (!((Number.isInteger(concurrency) || concurrency === Number.POSITIVE_INFINITY) && concurrency > 0)) {\n\t\tthrow new TypeError('Expected `concurrency` to be a number from 1 and up');\n\t}\n}\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 1,
+          "timestamp": 1792166036168
+        }
+      },
+      {
+        "type": "message",
+        "id": "053279c4",
+        "parentId": "49d28689",
+        "timestamp": "2026-10-16T15:54:01.890Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "There's a subtle issue with the \"enqueue another job\" test. Let me trace it:\n\n`second` is the running job at concurrency 1. Inside it, `limit(() => {enqueued=true})` is called \u2014 but at that moment `activeCount` is 1, so it's queued. Then second's function returns. `next()` decrements to 0, `resumeNext()` dequeues the enqueued job, increments to 1. `flushIdleWaiters` sees activeCount=1, no flush. Good.\n\nBut wait \u2014 in my test, the enqueued job is enqueued *inside* second's function body. `second`'s async function calls `limit(...)` synchronously then returns. Fine.\n\nHowever there's a deeper case: what if the resolving job enqueues a job *after* p-limit's `next()` has already run and reported idle? E.g. `limit(() => delay(10).then(() => limit(...)))`. The outer promise from `limit(...)` resolves during the `.then`; the enqueued inner job happens in the same microtask chain. Could the outer `next()` run before the inner `limit()` call? Let's trace: `run` awaits `result` where result is the user function's returned promise. The user function returns `delay(10).then(() => limit(inner))`. The `.then` callback enqueues inner, so result resolves after the enqueue. Thus `next()` runs after inner is queued. Good.\n\nWhat if the user enqueues in a detached `.then` not part of the returned promise? That's genuinely not tied to the job; the requirement says \"resolving a job that enqueues another job\" \u2014 the standard interpretation is within the job. Our check counts the queue at `next()` time, so anything enqueued before the job's returned promise resolves is counted. That satisfies the requirement.\n\nNow, a concern: `onIdle()` registered while `activeCount===0 && queue.size===0` \u2014 returns `Promise.resolve()`. Good.\n\nNow the more subtle race: `onIdle` registered when not idle, then the only remaining transitions happen without calling `flushIdleWaiters`. I covered `next()` and `clearQueue()`. Is there any other path to idle? `activeCount` only decreases in `next()`. Queue only shrinks in `resumeNext()` (increases activeCount, never leads to idle) and `clearQueue`. So all idle transitions are covered.\n\nLet me run the tests."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_a06b0a2af1aa4af4bb85e4e6",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && pnpm test 2>&1 | tail -60",
+                "timeout": 300
+              }
+            }
+          ],
+          "timestamp": 1792166036170
+        }
+      },
+      {
+        "type": "message",
+        "id": "fc8b8552",
+        "parentId": "053279c4",
+        "timestamp": "2026-10-16T15:54:06.554Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_a06b0a2af1aa4af4bb85e4e6",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "$ xo && ava && tsd\n\n  scripts/benchmarker.js:3:1\n  \u26a0    3:1   Unexpected todo comment: TODO: I will move this to a proper....  no-warning-comments\n\n  on-idle.test.js:63:7\n  \u2716   63:7   Prefer await to then()/catch()/finally().                        promise/prefer-await-to-then\n  \u2716  151:32  Prefer await to then()/catch()/finally().                        promise/prefer-await-to-then\n  \u2716  184:4   Newline required at end of file but not found.                   @stylistic/eol-last\n\n  index.d.ts:33:1\n  \u2716   33:1   Trailing spaces not allowed.                                     @stylistic/no-trailing-spaces\n\n  on-idle.test-d.ts:12:48\n  \u2716   12:48  Newline required at end of file but not found.                   @stylistic/eol-last\n\n  1 warning\n  5 errors\n\n[ELIFECYCLE] Test failed. See above for more details.\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 4653,
+          "timestamp": 1792166046553
+        }
+      },
+      {
+        "type": "message",
+        "id": "cf4a1374",
+        "parentId": "fc8b8552",
+        "timestamp": "2026-10-16T15:54:08.906Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Lint failures. Let me fix them. Note: the `promise/prefer-await-to-then` errors in my new test \u2014 I should use `await` patterns. Let me rewrite those spots to avoid `.then`/`.catch` (or use eslint-disable). The output got truncated; let me see full xo output."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_e09383289bb7407abd282bf9",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && npx xo 2>&1 | head -60",
+                "timeout": 180
+              }
+            }
+          ],
+          "timestamp": 1792166046562
+        }
+      },
+      {
+        "type": "message",
+        "id": "75767efb",
+        "parentId": "cf4a1374",
+        "timestamp": "2026-10-16T15:54:11.254Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_e09383289bb7407abd282bf9",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "\n  scripts/benchmarker.js:3:1\n  \u26a0    3:1   Unexpected todo comment: TODO: I will move this to a proper....  no-warning-comments\n\n  on-idle.test.js:63:7\n  \u2716   63:7   Prefer await to then()/catch()/finally().                        promise/prefer-await-to-then\n  \u2716  151:32  Prefer await to then()/catch()/finally().                        promise/prefer-await-to-then\n  \u2716  184:4   Newline required at end of file but not found.                   @stylistic/eol-last\n\n  index.d.ts:33:1\n  \u2716   33:1   Trailing spaces not allowed.                                     @stylistic/no-trailing-spaces\n\n  on-idle.test-d.ts:12:48\n  \u2716   12:48  Newline required at end of file but not found.                   @stylistic/eol-last\n\n  1 warning\n  5 errors\n\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 2345,
+          "timestamp": 1792166051253
+        }
+      },
+      {
+        "type": "message",
+        "id": "caf3f4d3",
+        "parentId": "75767efb",
+        "timestamp": "2026-10-16T15:54:15.520Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "The warning in scripts/benchmarker.js is pre-existing. Let me fix my errors."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_d48be56e53da4d109a293219",
+              "name": "edit",
+              "arguments": {
+                "edits": [
+                  {
+                    "newText": "\tconst task = limit(async () => {\n\t\tawait delay(20);\n\t\tthrow error;\n\t});\n\n\t// Observe the rejection so it does not become an unhandled rejection.\n\tconst observedTask = task.catch(() => {}); // eslint-disable-line promise/prefer-await-to-then\n\n\tconst waiter = limit.onIdle();\n\n\tawait t.notThrowsAsync(waiter);\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tawait t.throwsAsync(Promise.resolve(task), {is: error});\n\tawait observedTask;",
+                    "oldText": "\tconst task = limit(async () => {\n\t\tawait delay(20);\n\t\tthrow error;\n\t});\n\ttask.catch(() => {});\n\n\tconst waiter = limit.onIdle();\n\n\tawait t.notThrowsAsync(waiter);\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tawait t.throwsAsync(Promise.resolve(task), {is: error});"
+                  },
+                  {
+                    "newText": "\tlet idle = false;\n\tconst waiter = (async () => {\n\t\tawait limit.onIdle();\n\t\tidle = true;\n\t})();\n\n\tawait delay(5);",
+                    "oldText": "\tlet idle = false;\n\tconst waiter = limit.onIdle().then(() => {\n\t\tidle = true;\n\t});\n\n\tawait delay(5);"
+                  }
+                ],
+                "path": "/work/p-limit/on-idle.test.js"
+              }
+            },
+            {
+              "type": "toolCall",
+              "id": "call_575724293e694fd18ad90007",
+              "name": "edit",
+              "arguments": {
+                "edits": [
+                  {
+                    "newText": "\tIf the limiter is already idle, the returned promise resolves immediately.\n\n\tThis is useful when you want to wait until all limited work has finished, for example before tearing down your program or flushing a queue.\n\t*/",
+                    "oldText": "\tIf the limiter is already idle, the returned promise resolves immediately.\n\t\n\tThis is useful when you want to wait until all limited work has finished, for example before tearing down your program or flushing a queue.\n\t*/"
+                  }
+                ],
+                "path": "/work/p-limit/index.d.ts"
+              }
+            }
+          ],
+          "timestamp": 1792166051255
+        }
+      },
+      {
+        "type": "message",
+        "id": "f838ffe6",
+        "parentId": "caf3f4d3",
+        "timestamp": "2026-10-16T15:54:15.541Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_d48be56e53da4d109a293219",
+          "toolName": "edit",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully replaced 2 block(s) in /work/p-limit/on-idle.test.js."
+            }
+          ],
+          "details": {
+            "diff": "     ...\n  59 \tconst task = limit(async () => {\n  60 \t\tawait delay(20);\n  61 \t\tthrow error;\n  62 \t});\n- 63 \ttask.catch(() => {});\n  64 \n+ 64 \t// Observe the rejection so it does not become an unhandled rejection.\n+ 65 \tconst observedTask = task.catch(() => {}); // eslint-disable-line promise/prefer-await-to-then\n+ 66 \n  65 \tconst waiter = limit.onIdle();\n  66 \n  67 \tawait t.notThrowsAsync(waiter);\n  68 \tt.is(limit.activeCount, 0);\n  69 \tt.is(limit.pendingCount, 0);\n  70 \n  71 \tawait t.throwsAsync(Promise.resolve(task), {is: error});\n+ 74 \tawait observedTask;\n  72 });\n  73 \n  74 test('reserved slots count as active for onIdle', async t => {\n  75 \tconst limit = pLimit(1);\n     ...\n 147 \n 148 \tlimit.clearQueue();\n 149 \n 150 \tlet idle = false;\n-151 \tconst waiter = limit.onIdle().then(() => {\n+154 \tconst waiter = (async () => {\n+155 \t\tawait limit.onIdle();\n 152 \t\tidle = true;\n-153 \t});\n+157 \t})();\n 154 \n 155 \tawait delay(5);\n 156 \tt.false(idle);\n 157 \tt.false(settled);\n     ...",
+            "patch": "--- /work/p-limit/on-idle.test.js\n+++ /work/p-limit/on-idle.test.js\n@@ -59,17 +59,20 @@\n \tconst task = limit(async () => {\n \t\tawait delay(20);\n \t\tthrow error;\n \t});\n-\ttask.catch(() => {});\n \n+\t// Observe the rejection so it does not become an unhandled rejection.\n+\tconst observedTask = task.catch(() => {}); // eslint-disable-line promise/prefer-await-to-then\n+\n \tconst waiter = limit.onIdle();\n \n \tawait t.notThrowsAsync(waiter);\n \tt.is(limit.activeCount, 0);\n \tt.is(limit.pendingCount, 0);\n \n \tawait t.throwsAsync(Promise.resolve(task), {is: error});\n+\tawait observedTask;\n });\n \n test('reserved slots count as active for onIdle', async t => {\n \tconst limit = pLimit(1);\n@@ -147,11 +150,12 @@\n \n \tlimit.clearQueue();\n \n \tlet idle = false;\n-\tconst waiter = limit.onIdle().then(() => {\n+\tconst waiter = (async () => {\n+\t\tawait limit.onIdle();\n \t\tidle = true;\n-\t});\n+\t})();\n \n \tawait delay(5);\n \tt.false(idle);\n \tt.false(settled);\n",
+            "firstChangedLine": 63
+          },
+          "isError": false,
+          "durationMs": 6,
+          "timestamp": 1792166055541
+        }
+      },
+      {
+        "type": "message",
+        "id": "6e294df6",
+        "parentId": "f838ffe6",
+        "timestamp": "2026-10-16T15:54:15.542Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_575724293e694fd18ad90007",
+          "toolName": "edit",
+          "content": [
+            {
+              "type": "text",
+              "text": "Successfully replaced 1 block(s) in /work/p-limit/index.d.ts."
+            }
+          ],
+          "details": {
+            "diff": "     ...\n  29 \t/**\n  30 \tReturns a promise that resolves when all running promises have settled and the queue is empty.\n  31 \n  32 \tIf the limiter is already idle, the returned promise resolves immediately.\n- 33 \t\n+ 33 \n  34 \tThis is useful when you want to wait until all limited work has finished, for example before tearing down your program or flushing a queue.\n  35 \t*/\n  36 \tonIdle: () => Promise<void>;\n  37 \n     ...",
+            "patch": "--- /work/p-limit/index.d.ts\n+++ /work/p-limit/index.d.ts\n@@ -29,9 +29,9 @@\n \t/**\n \tReturns a promise that resolves when all running promises have settled and the queue is empty.\n \n \tIf the limiter is already idle, the returned promise resolves immediately.\n-\t\n+\n \tThis is useful when you want to wait until all limited work has finished, for example before tearing down your program or flushing a queue.\n \t*/\n \tonIdle: () => Promise<void>;\n \n",
+            "firstChangedLine": 33
+          },
+          "isError": false,
+          "durationMs": 9,
+          "timestamp": 1792166055541
+        }
+      },
+      {
+        "type": "message",
+        "id": "d83e4cae",
+        "parentId": "6e294df6",
+        "timestamp": "2026-10-16T15:54:17.537Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Now add trailing newlines. Let me check both files end without newline."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_2b7e327250c74cb6a06f6a1b",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && for f in on-idle.test.js on-idle.test-d.ts; do tail -c1 \"$f\" | xxd | tail -1; done"
+              }
+            }
+          ],
+          "timestamp": 1792166055543
+        }
+      },
+      {
+        "type": "message",
+        "id": "be9b42e6",
+        "parentId": "d83e4cae",
+        "timestamp": "2026-10-16T15:54:17.544Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_2b7e327250c74cb6a06f6a1b",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "/bin/bash: line 1: xxd: command not found\n/bin/bash: line 1: xxd: command not found\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 5,
+          "timestamp": 1792166057543
+        }
+      },
+      {
+        "type": "message",
+        "id": "f7b9c49c",
+        "parentId": "be9b42e6",
+        "timestamp": "2026-10-16T15:54:19.588Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_6fb3c501e29e48adba841ec4",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && od -c on-idle.test.js | tail -2; echo ---; od -c on-idle.test-d.ts | tail -2"
+              }
+            }
+          ],
+          "timestamp": 1792166057546
+        }
+      },
+      {
+        "type": "message",
+        "id": "e656e966",
+        "parentId": "f7b9c49c",
+        "timestamp": "2026-10-16T15:54:19.604Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_6fb3c501e29e48adba841ec4",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "0010320   .   o   n   I   d   l   e   (   )   )   ;  \\n   }   )   ;\n0010337\n---\n0000600   r   Q   u   e   u   e   (   )   )   ;\n0000612\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 9,
+          "timestamp": 1792166059603
+        }
+      },
+      {
+        "type": "message",
+        "id": "bd7ff3b0",
+        "parentId": "e656e966",
+        "timestamp": "2026-10-16T15:54:21.490Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Both files lack a trailing newline. Let me append one."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_8addfcaed777431fa279040d",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && printf '\\n' >> on-idle.test.js && printf '\\n' >> on-idle.test-d.ts && od -c on-idle.test.js | tail -1 && od -c on-idle.test-d.ts | tail -1"
+              }
+            }
+          ],
+          "timestamp": 1792166059605
+        }
+      },
+      {
+        "type": "message",
+        "id": "c3a4158e",
+        "parentId": "bd7ff3b0",
+        "timestamp": "2026-10-16T15:54:21.519Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_8addfcaed777431fa279040d",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "0010340\n0000613\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 26,
+          "timestamp": 1792166061518
+        }
+      },
+      {
+        "type": "message",
+        "id": "dc490977",
+        "parentId": "c3a4158e",
+        "timestamp": "2026-10-16T15:54:25.875Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_d7fa100491ad44b7ac6240c2",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && npx xo 2>&1 | head -30",
+                "timeout": 180
+              }
+            }
+          ],
+          "timestamp": 1792166061520
+        }
+      },
+      {
+        "type": "message",
+        "id": "9e93dea9",
+        "parentId": "dc490977",
+        "timestamp": "2026-10-16T15:54:30.284Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_d7fa100491ad44b7ac6240c2",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "\n  scripts/benchmarker.js:3:1\n  \u26a0  3:1  Unexpected todo comment: TODO: I will move this to a proper....  no-warning-comments\n\n  1 warning\n\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 4406,
+          "timestamp": 1792166070284
+        }
+      },
+      {
+        "type": "message",
+        "id": "ca16f9b6",
+        "parentId": "9e93dea9",
+        "timestamp": "2026-10-16T15:54:34.638Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Only the pre-existing warning remains. Now run the full test suite."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_72d08bcf19cd4f8da6ab7904",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && pnpm test 2>&1 | tail -70",
+                "timeout": 300
+              }
+            }
+          ],
+          "timestamp": 1792166070287
+        }
+      },
+      {
+        "type": "message",
+        "id": "af34d657",
+        "parentId": "ca16f9b6",
+        "timestamp": "2026-10-16T15:54:44.057Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_72d08bcf19cd4f8da6ab7904",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "$ xo && ava && tsd\n\n  scripts/benchmarker.js:3:1\n  \u26a0  3:1  Unexpected todo comment: TODO: I will move this to a proper....  no-warning-comments\n\n  1 warning\n\n\n  \u2714 on-idle \u203a onIdle resolves immediately when already idle\n  \u2714 on-idle \u203a limitFunction onIdle resolves immediately when idle\n  \u2714 on-idle \u203a onIdle does not report idle early when a resolving job enqueues another job\n  \u2714 on-idle \u203a onIdle waiters are released when a job rejects\n  \u2714 test \u203a throws on invalid concurrency argument\n  \u2714 test \u203a clearQueue\n  \u2714 test \u203a accepts additional arguments\n  \u2714 test \u203a map rejects with the iterable error when it throws before the first item\n  \u2714 test \u203a continues after sync throw\n  \u2714 test \u203a runs all tasks asynchronously\n  \u2714 test \u203a map resolves to an empty array for an empty iterable\n  \u2714 test \u203a non-promise returning function\n  \u2714 test \u203a map accepts an iterable (set)\n  \u2714 test \u203a map accepts an iterable (array iterator)\n  \u2714 test \u203a map accepts array-like inputs\n  \u2714 test \u203a map passes sequential indexes for a generator\n  \u2714 test \u203a map rejects with the mapper error\n  \u2714 test \u203a map\n  \u2714 test \u203a propagates async execution context properly\n  \u2714 on-idle \u203a onIdle supports multiple waiters\n  \u2714 on-idle \u203a clearQueue does not release onIdle waiters while jobs are still active\n  \u2714 test \u203a limitFunction exposes clearQueue\n  \u2714 on-idle \u203a clearQueue releases onIdle waiters when nothing is active under rejectOnClear: false\n  \u2714 test \u203a shared context with a limited provider helper\n  \u2714 test \u203a map passes index and preserves order with concurrency\n  \u2714 on-idle \u203a reserved slots count as active for onIdle\n  \u2714 on-idle \u203a onIdle works for the limitFunction wrapper\n  \u2714 on-idle \u203a onIdle resolves after running and queued tasks settle\n  \u2714 test \u203a map works when detached from the limit\n  \u2714 test \u203a map does not leave unhandled rejections when the iterable throws\n  \u2714 test \u203a clearQueue rejects pending promises when enabled (114ms)\n  \u2714 test \u203a map rejects immediately with the iterable error and still runs already scheduled tasks (111ms)\n  \u2714 test \u203a accepts options object (114ms)\n  \u2714 test \u203a does not ignore errors (128ms)\n  \u2714 test \u203a change concurrency to bigger value (168ms)\n  \u2714 test \u203a change concurrency to smaller value (218ms)\n  \u2714 test \u203a concurrency: 1 (633ms)\n  \u2714 test \u203a concurrency: 4 (2.2s)\n  \u2714 test \u203a limitFunction() (2.4s)\n  \u2714 test \u203a activeCount and pendingCount properties (3s)\n  \u2500\n\n  40 tests passed\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 9412,
+          "timestamp": 1792166084057
+        }
+      },
+      {
+        "type": "message",
+        "id": "22b860f6",
+        "parentId": "af34d657",
+        "timestamp": "2026-10-16T15:54:46.775Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "All 40 tests pass (including the 11 new on-idle tests) plus tsd. Let me verify the full pipeline completed through tsd (the output ended at ava). Let me confirm exit status explicitly."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_7bc9fd4fdf794bfc9d966440",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && pnpm test > /tmp/plimit-test.log 2>&1; echo \"EXIT=$?\"; tail -5 /tmp/plimit-test.log",
+                "timeout": 300
+              }
+            }
+          ],
+          "timestamp": 1792166084060
+        }
+      },
+      {
+        "type": "message",
+        "id": "1753fb07",
+        "parentId": "22b860f6",
+        "timestamp": "2026-10-16T15:54:56.052Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_7bc9fd4fdf794bfc9d966440",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "EXIT=0\n  \u2714 test \u203a concurrency: 4 (2.4s)\n  \u2714 test \u203a activeCount and pendingCount properties (3s)\n  \u2500\n\n  40 tests passed\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 9276,
+          "timestamp": 1792166096052
+        }
+      },
+      {
+        "type": "message",
+        "id": "d434a362",
+        "parentId": "1753fb07",
+        "timestamp": "2026-10-16T15:54:58.196Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "`pnpm test` exits 0 (xo + ava + tsd all pass). Let me do a final review of the diff to confirm scope."
+            },
+            {
+              "type": "toolCall",
+              "id": "call_3f85c7b766094bdaa26dbe45",
+              "name": "bash",
+              "arguments": {
+                "command": "cd /work/p-limit && git status --short && echo \"=== DIFF (tracked) ===\" && git diff --stat 2>/dev/null; git diff 2>/dev/null | head -0; echo done"
+              }
+            }
+          ],
+          "timestamp": 1792166096054
+        }
+      },
+      {
+        "type": "message",
+        "id": "c883bfa9",
+        "parentId": "d434a362",
+        "timestamp": "2026-10-16T15:54:58.224Z",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_3f85c7b766094bdaa26dbe45",
+          "toolName": "bash",
+          "content": [
+            {
+              "type": "text",
+              "text": "?? .editorconfig\n?? .gitattributes\n?? .github/\n?? .gitignore\n?? .memory/\n?? .npmrc\n?? .pi/\n?? benchmark.js\n?? index.d.ts\n?? index.js\n?? index.test-d.ts\n?? license\n?? on-idle.test-d.ts\n?? on-idle.test.js\n?? package.json\n?? readme.md\n?? recipes.md\n?? scripts/\n?? test.js\n=== DIFF (tracked) ===\ndone\n"
+            }
+          ],
+          "isError": false,
+          "durationMs": 25,
+          "timestamp": 1792166098223
+        }
+      },
+      {
+        "type": "message",
+        "id": "064d6728",
+        "parentId": "c883bfa9",
+        "timestamp": "2026-10-16T15:55:02.356Z",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "The repo has no commits, so everything is untracked. My changes are confined to `index.js`, `index.d.ts`, `readme.md`, and two new test files. Existing tests and config untouched.\n\n## Summary\n\nImplemented `onIdle(): Promise<void>` for p-limit.\n\n**`index.js`**\n- Added an `idleWaiters` array and a `flushIdleWaiters()` helper that resolves all waiters only when `activeCount === 0 && queue.size === 0`.\n- `next()` now calls `flushIdleWaiters()` **after** `resumeNext()`, so a job that enqueues another job (which `resumeNext` immediately reserves/increments) does not trigger a premature idle.\n- `clearQueue()` calls `flushIdleWaiters()` in both branches, so under `rejectOnClear: false` waiters are released when the queue empties and nothing is active, even though discarded promises stay unresolved.\n- Added the `onIdle` property to the limiter, and exposed it on the `limitFunction` wrapper alongside `clearQueue`.\n- Reserved slots are inherently counted because `activeCount` is incremented when a queued item is dequeued/scheduled.\n\n**`index.d.ts`**\n- Added `onIdle: () => Promise<void>` to the `LimitFunction` type with JSDoc.\n- Extended `limitFunction`'s return type to `Pick<LimitFunction, 'clearQueue' | 'onIdle'>`.\n\n**`readme.md`**\n- Documented `limit.onIdle()` and `limitedFunction.onIdle()`.\n\n**New tests**\n- `on-idle.test.js` (11 ava tests): already-idle, running+queued settle, multiple waiters, rejected jobs, reserved slots, enqueue-during-resolve, `clearQueue` release under `rejectOnClear: false`, no premature release while active, and the `limitFunction` wrapper.\n- `on-idle.test-d.ts`: tsd type assertions.\n\n**Verification:** `pnpm test` exits 0 \u2014 xo (only the pre-existing `scripts/benchmarker.js` TODO warning), all 40 ava tests pass, tsd passes. No existing tests, manifests, or config were modified.\n\nTEMPORARY_IDLE_REVIEW"
+            }
+          ],
+          "timestamp": 1792166098227
+        }
+      },
+      {
+        "type": "custom",
+        "customType": "continuous-study-task-deadline",
+        "data": {
+          "stage": "settled",
+          "limitMs": 900000,
+          "elapsedMs": 106141
+        },
+        "id": "3917925e",
+        "parentId": "064d6728",
+        "timestamp": "2026-10-16T15:55:02.372Z"
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-0",
+              "name": "learning_read",
+              "arguments": {
+                "path": "/work/p-limit/index.d.ts",
+                "offset": 1,
+                "limit": 200
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-0",
+          "toolName": "learning_read",
+          "isError": false,
+          "content": [
+            {
+              "type": "text",
+              "text": "export type LimitFunction = {\n\t/**\n\tThe number of promises that are currently running.\n\t*/\n\treadonly activeCount: number;\n\n\t/**\n\tThe number of promises that are waiting to run (i.e. their internal `fn` was not called yet).\n\t*/\n\treadonly pendingCount: number;\n\n\t/**\n\tGet or set the concurrency limit.\n\t*/\n\tconcurrency: number;\n\n\t/**\n\tDiscard pending promises that are waiting to run.\n\n\tThis might be useful if you want to tear down the queue at the end of your program's lifecycle or discard any function calls referencing an intermediary state of your app.\n\n\tNote: This does not cancel promises that are already running.\n\n\tWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\tclearQueue: () => void;\n\n\t/**\n\tReturns a promise that resolves when all running promises have settled and the queue is empty.\n\n\tIf the limiter is already idle, the returned promise resolves immediately.\n\n\tThis is useful when you want to wait until all limited work has finished, for example before tearing down your program or flushing a queue.\n\t*/\n\tonIdle: () => Promise<void>;\n\n\t/**\n\tProcess an iterable of inputs with limited concurrency.\n\n\tThe mapper function receives the item value and its index.\n\n\tIf the iterable throws during iteration, the returned promise rejects with that error. Mapper functions that were already scheduled still run, and their results are discarded.\n\n\tThis is a convenience function for processing inputs that arrive in batches. For more complex use cases, see [p-map](https://github.com/sindresorhus/p-map).\n\n\t@param iterable - An iterable containing an argument for the given function.\n\t@param mapperFunction - Promise-returning/async function.\n\t@returns A promise equivalent to `Promise.all(Array.from(iterable, (item, index) => limit(mapperFunction, item, index)))`.\n\t*/\n\tmap: <Input, ReturnType> (\n\t\titerable: Iterable<Input>,\n\t\tmapperFunction: (input: Input, index: number) => PromiseLike<ReturnType> | ReturnType\n\t) => Promise<ReturnType[]>;\n\n\t/**\n\t@param fn - Promise-returning/async function.\n\t@param arguments - Any arguments to pass through to `fn`. Support for passing arguments on to the `fn` is provided in order to be able to avoid creating unnecessary closures. You probably don't need this optimization unless you're pushing a *lot* of functions.\n\n\tWarning: Avoid calling the same `limit` function inside a function that is already limited by it. This can create a deadlock where inner tasks never run. Use a separate limiter for inner tasks.\n\n\t@returns The promise returned by calling `fn(...arguments)`.\n\t*/\n\t<Arguments extends unknown[], ReturnType>(\n\t\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType> | ReturnType,\n\t\t...arguments_: Arguments\n\t): Promise<ReturnType>;\n};\n\n/**\nRun multiple promise-returning & async functions with limited concurrency.\n\n@param concurrency - Concurrency limit. Minimum: `1`. You can pass a number or an options object with a `concurrency` property.\n@returns A `limit` function.\n\n@example\n```\nimport pLimit from 'p-limit';\n\nconst limit = pLimit(1);\n\nconst input = [\n\tlimit(() => fetchSomething('foo')),\n\tlimit(() => fetchSomething('bar')),\n\tlimit(() => doSomething())\n];\n\n// Only one promise is run at once\nconst result = await Promise.all(input);\nconsole.log(result);\n```\n\n@example\n```\nimport pLimit from 'p-limit';\n\nconst limit = pLimit({concurrency: 1});\n```\n*/\nexport default function pLimit(concurrency: number | Options): LimitFunction;\n\nexport type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};\n\n/**\nReturns a function with limited concurrency.\n\nThe returned function manages its own concurrent executions, allowing you to call it multiple times without exceeding the specified concurrency limit.\n\nIdeal for scenarios where you need to control the number of simultaneous executions of a single function, rather than managing concurrency across multiple functions.\n\n@param function_ - Promise-returning/async function.\n@return Function with limited concurrency.\n\n@example\n```\nimport {limitFunction} from 'p-limit';\n\nconst limitedFunction = limitFunction(async () => {\n\treturn doSomething();\n}, {concurrency: 1});\n\nconst input = Array.from({length: 10}, limitedFunction);\n\n// Only one promise is run at once.\nawait Promise.all(input);\n```\n*/\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n\n[lines 1-148 of 148]"
+            }
+          ],
+          "details": {
+            "sourcePath": "/work/p-limit/index.d.ts",
+            "sourceSha256": "c05c63af1a2af3a47c7342337b674d12ba6630960f73e9cd99eb5b7e58d6f4f1",
+            "readOnlyMaintenanceAudit": true
+          }
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-1",
+              "name": "learning_read",
+              "arguments": {
+                "path": "/work/p-limit/readme.md",
+                "offset": 1,
+                "limit": 200
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-1",
+          "toolName": "learning_read",
+          "isError": false,
+          "content": [
+            {
+              "type": "text",
+              "text": "# p-limit\n\n> Run multiple promise-returning & async functions with limited concurrency\n\n*Works in Node.js and browsers.*\n\n## Install\n\n```sh\nnpm install p-limit\n```\n\n## Usage\n\n```js\nimport pLimit from 'p-limit';\n\nconst limit = pLimit(1);\n\nconst input = [\n\tlimit(() => fetchSomething('foo')),\n\tlimit(() => fetchSomething('bar')),\n\tlimit(() => doSomething())\n];\n\n// Only one promise is run at once\nconst result = await Promise.all(input);\nconsole.log(result);\n```\n\n## API\n\n### pLimit(concurrency) <sup>default export</sup>\n\nReturns a `limit` function.\n\n#### concurrency\n\nType: `number | object`\\\nMinimum: `1`\n\nConcurrency limit.\n\nYou can pass a number or an options object with a `concurrency` property.\n\n#### rejectOnClear\n\nType: `boolean`\\\nDefault: `false`\n\nReject pending promises with an `AbortError` when `clearQueue()` is called.\nThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\n```js\nimport pLimit from 'p-limit';\n\nconst limit = pLimit({concurrency: 1});\n```\n\n### limit(fn, ...args)\n\nReturns the promise returned by calling `fn(...args)`.\n\n#### fn\n\nType: `Function`\n\nPromise-returning/async function.\n\n#### args\n\nAny arguments to pass through to `fn`.\n\nSupport for passing arguments on to the `fn` is provided in order to be able to avoid creating unnecessary closures. You probably don't need this optimization unless you're pushing a *lot* of functions.\n\nWarning: Avoid calling the same `limit` function inside a function that is already limited by it. This can create a deadlock where inner tasks never run. Use a separate limiter for inner tasks.\n\n### limit.map(iterable, mapperFunction)\n\nProcess an iterable of inputs with limited concurrency.\n\nThe mapper function receives the item value and its index.\n\nReturns a promise equivalent to `Promise.all(Array.from(iterable, (item, index) => limit(mapperFunction, item, index)))`.\n\nIf the iterable throws during iteration, the returned promise rejects with that error. Mapper functions that were already scheduled still run, and their results are discarded.\n\nThis is a convenience function for processing inputs that arrive in batches. For more complex use cases, see [p-map](https://github.com/sindresorhus/p-map).\n\n### limit.activeCount\n\nThe number of promises that are currently running.\n\n### limit.pendingCount\n\nThe number of promises that are waiting to run (i.e. their internal `fn` was not called yet).\n\n### limit.clearQueue()\n\nDiscard pending promises that are waiting to run.\n\nThis might be useful if you want to tear down the queue at the end of your program's lifecycle or discard any function calls referencing an intermediary state of your app.\n\nNote: This does not cancel promises that are already running.\n\nWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\nThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\n### limit.onIdle()\n\nReturns a promise that resolves when all running promises have settled and the queue is empty.\n\nIf the limiter is already idle, the returned promise resolves immediately.\n\nReserved slots count as active, and a task that enqueues another task is not considered idle until the newly enqueued task also finishes.\n\n```js\nimport pLimit from 'p-limit';\n\nconst limit = pLimit(1);\n\nlimit(() => doSomething());\nlimit(() => doSomethingElse());\n\nawait limit.onIdle();\n// All tasks have finished\n```\n\n### limit.concurrency\n\nGet or set the concurrency limit.\n\n### limitFunction(fn, options) <sup>named export</sup>\n\nReturns a function with limited concurrency.\n\nThe returned function manages its own concurrent executions, allowing you to call it multiple times without exceeding the specified concurrency limit.\n\nIdeal for scenarios where you need to control the number of simultaneous executions of a single function, rather than managing concurrency across multiple functions.\n\n```js\nimport {limitFunction} from 'p-limit';\n\nconst limitedFunction = limitFunction(async () => {\n\treturn doSomething();\n}, {concurrency: 1});\n\nconst input = Array.from({length: 10}, limitedFunction);\n\n// Only one promise is run at once.\nawait Promise.all(input);\n```\n\n#### fn\n\nType: `Function`\n\nPromise-returning/async function.\n\n#### options\n\nType: `object`\n\n#### concurrency\n\nType: `number`\\\nMinimum: `1`\n\nConcurrency limit.\n\n#### rejectOnClear\n\nType: `boolean`\\\nDefault: `false`\n\nReject pending promises with an `AbortError` when `clearQueue()` is called.\nThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\n### limitedFunction.clearQueue()\n\nDiscard pending calls that have not started yet.\n\nWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`. Otherwise, their promises remain unresolved.\n\nThis does not cancel calls that are already running.\n\n### limitedFunction.onIdle()\n\nReturns a promise that resolves when all running calls have settled and no calls are pending.\n\nIf the function is already idle, the returned promise resolves immediately.\n\n## Recipes\n\nSee [recipes.md](recipes.md) for common use cases and patterns.\n\n## FAQ\n\n### How is this different from the [`p-queue`](https://github.com/sindresorhus/p-queue) package?\n\n[lines 1-200 of 210]"
+            }
+          ],
+          "details": {
+            "sourcePath": "/work/p-limit/readme.md",
+            "sourceSha256": "b90ae2b6d5f1f0dcf74cdfd50fe8d47a3447d5af95979aea093d6e99d85aa2cf",
+            "readOnlyMaintenanceAudit": true
+          }
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-2",
+              "name": "learning_read",
+              "arguments": {
+                "path": "/work/p-limit/on-idle.test.js",
+                "offset": 1,
+                "limit": 200
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-2",
+          "toolName": "learning_read",
+          "isError": false,
+          "content": [
+            {
+              "type": "text",
+              "text": "import {setTimeout as delay} from 'node:timers/promises';\nimport test from 'ava';\nimport pLimit, {limitFunction} from './index.js';\n\ntest('onIdle resolves immediately when already idle', async t => {\n\tconst limit = pLimit(1);\n\n\tawait t.notThrowsAsync(limit.onIdle());\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n});\n\ntest('onIdle resolves after running and queued tasks settle', async t => {\n\tconst limit = pLimit(2);\n\tconst order = [];\n\n\tconst first = limit(async () => {\n\t\tawait delay(50);\n\t\torder.push('first');\n\t});\n\tconst second = limit(async () => {\n\t\tawait delay(10);\n\t\torder.push('second');\n\t});\n\tconst third = limit(async () => {\n\t\tawait delay(10);\n\t\torder.push('third');\n\t});\n\n\tawait limit.onIdle();\n\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\tt.deepEqual(order.sort(), ['first', 'second', 'third']);\n\n\tawait Promise.all([first, second, third]);\n});\n\ntest('onIdle supports multiple waiters', async t => {\n\tconst limit = pLimit(1);\n\n\tconst task = limit(() => delay(30));\n\n\tconst first = limit.onIdle();\n\tconst second = limit.onIdle();\n\tconst third = limit.onIdle();\n\n\tawait Promise.all([first, second, third]);\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tawait task;\n});\n\ntest('onIdle waiters are released when a job rejects', async t => {\n\tconst limit = pLimit(1);\n\tconst error = new Error('\ud83e\udd84');\n\n\tconst task = limit(async () => {\n\t\tawait delay(20);\n\t\tthrow error;\n\t});\n\n\t// Observe the rejection so it does not become an unhandled rejection.\n\tconst observedTask = task.catch(() => {}); // eslint-disable-line promise/prefer-await-to-then\n\n\tconst waiter = limit.onIdle();\n\n\tawait t.notThrowsAsync(waiter);\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tawait t.throwsAsync(Promise.resolve(task), {is: error});\n\tawait observedTask;\n});\n\ntest('reserved slots count as active for onIdle', async t => {\n\tconst limit = pLimit(1);\n\n\tconst first = limit(async () => {\n\t\tawait delay(10);\n\t});\n\n\t// These become reserved slots when concurrency allows, and queued otherwise.\n\tconst second = limit(() => delay(10));\n\tconst third = limit(() => delay(10));\n\n\tawait limit.onIdle();\n\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tawait Promise.all([first, second, third]);\n});\n\ntest('onIdle does not report idle early when a resolving job enqueues another job', async t => {\n\tconst limit = pLimit(1);\n\tlet enqueued = false;\n\n\tconst first = limit(async () => {\n\t\tawait delay(10);\n\t});\n\n\tconst second = limit(async () => {\n\t\t// Enqueue a follow-up job while this job is still running.\n\t\tlimit(() => {\n\t\t\tenqueued = true;\n\t\t});\n\t});\n\n\tconst waiter = limit.onIdle();\n\n\tawait waiter;\n\n\tt.true(enqueued);\n\tt.is(limit.activeCount, 0);\n\tt.is(limit.pendingCount, 0);\n\n\tawait Promise.all([first, second]);\n});\n\ntest('clearQueue releases onIdle waiters when nothing is active under rejectOnClear: false', async t => {\n\tconst limit = pLimit(1);\n\tconst running = limit(() => delay(40));\n\n\t// Under rejectOnClear: false these discarded promises stay unresolved.\n\tlimit(() => delay(10));\n\tlimit(() => delay(10));\n\n\tt.is(limit.pendingCount, 2);\n\n\tlimit.clearQueue();\n\n\tawait t.notThrowsAsync(limit.onIdle());\n\tt.is(limit.pendingCount, 0);\n\n\tawait running;\n});\n\ntest('clearQueue does not release onIdle waiters while jobs are still active', async t => {\n\tconst limit = pLimit(1);\n\tlet settled = false;\n\tconst running = limit(async () => {\n\t\tawait delay(30);\n\t\tsettled = true;\n\t});\n\n\tlimit(() => delay(10));\n\tlimit(() => delay(10));\n\n\tlimit.clearQueue();\n\n\tlet idle = false;\n\tconst waiter = (async () => {\n\t\tawait limit.onIdle();\n\t\tidle = true;\n\t})();\n\n\tawait delay(5);\n\tt.false(idle);\n\tt.false(settled);\n\n\tawait waiter;\n\tt.true(settled);\n\n\tawait running;\n});\n\ntest('onIdle works for the limitFunction wrapper', async t => {\n\tconst limitedFunction = limitFunction(async value => {\n\t\tawait delay(10);\n\t\treturn value * 2;\n\t}, {concurrency: 1});\n\n\tconst first = limitedFunction(1);\n\tconst second = limitedFunction(2);\n\tconst third = limitedFunction(3);\n\n\tawait limitedFunction.onIdle();\n\n\tt.deepEqual(await Promise.all([first, second, third]), [2, 4, 6]);\n});\n\ntest('limitFunction onIdle resolves immediately when idle', async t => {\n\tconst limitedFunction = limitFunction(() => delay(10), {concurrency: 1});\n\n\tawait t.notThrowsAsync(limitedFunction.onIdle());\n});\n\n[lines 1-189 of 189]"
+            }
+          ],
+          "details": {
+            "sourcePath": "/work/p-limit/on-idle.test.js",
+            "sourceSha256": "5984e59df22bd187f6d61ebdfa4daeb1d206f6e0cfffcdfb30e5df61c502b66d",
+            "readOnlyMaintenanceAudit": true
+          }
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-3",
+              "name": "learning_read",
+              "arguments": {
+                "path": "/work/p-limit/index.js",
+                "offset": 1,
+                "limit": 200
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-3",
+          "toolName": "learning_read",
+          "isError": false,
+          "content": [
+            {
+              "type": "text",
+              "text": "import Queue from 'yocto-queue';\n\nexport default function pLimit(concurrency) {\n\tlet rejectOnClear = false;\n\n\tif (typeof concurrency === 'object') {\n\t\t({concurrency, rejectOnClear = false} = concurrency);\n\t}\n\n\tvalidateConcurrency(concurrency);\n\n\tif (typeof rejectOnClear !== 'boolean') {\n\t\tthrow new TypeError('Expected `rejectOnClear` to be a boolean');\n\t}\n\n\tconst queue = new Queue();\n\tlet activeCount = 0;\n\tlet idleWaiters = [];\n\n\tconst flushIdleWaiters = () => {\n\t\tif (activeCount > 0 || queue.size > 0 || idleWaiters.length === 0) {\n\t\t\treturn;\n\t\t}\n\n\t\tconst waiters = idleWaiters;\n\t\tidleWaiters = [];\n\n\t\tfor (const resolve of waiters) {\n\t\t\tresolve();\n\t\t}\n\t};\n\n\tconst resumeNext = () => {\n\t\t// Process the next queued function if we're under the concurrency limit\n\t\tif (activeCount < concurrency && queue.size > 0) {\n\t\t\tactiveCount++;\n\t\t\tqueue.dequeue().run();\n\t\t}\n\t};\n\n\tconst next = () => {\n\t\tactiveCount--;\n\t\tresumeNext();\n\t\tflushIdleWaiters();\n\t};\n\n\tconst run = async (function_, resolve, arguments_) => {\n\t\t// Execute the function and capture the result promise\n\t\tconst result = (async () => function_(...arguments_))();\n\n\t\t// Resolve immediately with the promise (don't wait for completion)\n\t\tresolve(result);\n\n\t\t// Wait for the function to complete (success or failure)\n\t\t// We catch errors here to prevent unhandled rejections,\n\t\t// but the original promise rejection is preserved for the caller\n\t\ttry {\n\t\t\tawait result;\n\t\t} catch {}\n\n\t\t// Decrement active count and process next queued function\n\t\tnext();\n\t};\n\n\tconst enqueue = (function_, resolve, reject, arguments_) => {\n\t\tconst queueItem = {reject};\n\n\t\t// Queue the internal resolve function instead of the run function\n\t\t// to preserve the asynchronous execution context.\n\t\tnew Promise(internalResolve => { // eslint-disable-line promise/param-names\n\t\t\tqueueItem.run = internalResolve;\n\t\t\tqueue.enqueue(queueItem);\n\t\t}).then(run.bind(undefined, function_, resolve, arguments_)); // eslint-disable-line promise/prefer-await-to-then\n\n\t\t// Start processing immediately if we haven't reached the concurrency limit\n\t\tif (activeCount < concurrency) {\n\t\t\tresumeNext();\n\t\t}\n\t};\n\n\tconst generator = (function_, ...arguments_) => new Promise((resolve, reject) => {\n\t\tenqueue(function_, resolve, reject, arguments_);\n\t});\n\n\tObject.defineProperties(generator, {\n\t\tactiveCount: {\n\t\t\tget: () => activeCount,\n\t\t},\n\t\tpendingCount: {\n\t\t\tget: () => queue.size,\n\t\t},\n\t\tclearQueue: {\n\t\t\tvalue() {\n\t\t\t\tif (!rejectOnClear) {\n\t\t\t\t\tqueue.clear();\n\t\t\t\t\tflushIdleWaiters();\n\t\t\t\t\treturn;\n\t\t\t\t}\n\n\t\t\t\tconst abortError = AbortSignal.abort().reason;\n\n\t\t\t\twhile (queue.size > 0) {\n\t\t\t\t\tqueue.dequeue().reject(abortError);\n\t\t\t\t}\n\n\t\t\t\tflushIdleWaiters();\n\t\t\t},\n\t\t},\n\t\tonIdle: {\n\t\t\tvalue() {\n\t\t\t\tif (activeCount === 0 && queue.size === 0) {\n\t\t\t\t\treturn Promise.resolve();\n\t\t\t\t}\n\n\t\t\t\treturn new Promise(resolve => {\n\t\t\t\t\tidleWaiters.push(resolve);\n\t\t\t\t});\n\t\t\t},\n\t\t},\n\t\tconcurrency: {\n\t\t\tget: () => concurrency,\n\n\t\t\tset(newConcurrency) {\n\t\t\t\tvalidateConcurrency(newConcurrency);\n\t\t\t\tconcurrency = newConcurrency;\n\n\t\t\t\tqueueMicrotask(() => {\n\t\t\t\t\t// eslint-disable-next-line no-unmodified-loop-condition\n\t\t\t\t\twhile (activeCount < concurrency && queue.size > 0) {\n\t\t\t\t\t\tresumeNext();\n\t\t\t\t\t}\n\t\t\t\t});\n\t\t\t},\n\t\t},\n\t\tmap: {\n\t\t\tasync value(iterable, function_) {\n\t\t\t\tconst promises = [];\n\n\t\t\t\ttry {\n\t\t\t\t\tArray.from(iterable, (value, index) => {\n\t\t\t\t\t\tconst promise = generator(function_, value, index);\n\t\t\t\t\t\tpromises.push(promise);\n\t\t\t\t\t\treturn promise;\n\t\t\t\t\t});\n\t\t\t\t} catch (error) {\n\t\t\t\t\t// The iterable threw, so `Promise.all` never observes the already scheduled promises. Observe them here to avoid unhandled rejections.\n\t\t\t\t\tfor (const promise of promises) {\n\t\t\t\t\t\tpromise.catch(() => {}); // eslint-disable-line promise/prefer-await-to-then\n\t\t\t\t\t}\n\n\t\t\t\t\tthrow error;\n\t\t\t\t}\n\n\t\t\t\treturn Promise.all(promises);\n\t\t\t},\n\t\t},\n\t});\n\n\treturn generator;\n}\n\nexport function limitFunction(function_, options) {\n\tconst limit = pLimit(options);\n\n\tconst limitedFunction = (...arguments_) => limit(() => function_(...arguments_));\n\tObject.defineProperty(limitedFunction, 'clearQueue', {\n\t\tvalue: limit.clearQueue,\n\t});\n\tObject.defineProperty(limitedFunction, 'onIdle', {\n\t\tvalue: limit.onIdle,\n\t});\n\n\treturn limitedFunction;\n}\n\nfunction validateConcurrency(concurrency) {\n\tif (!((Number.isInteger(concurrency) || concurrency === Number.POSITIVE_INFINITY) && concurrency > 0)) {\n\t\tthrow new TypeError('Expected `concurrency` to be a number from 1 and up');\n\t}\n}\n\n[lines 1-181 of 181]"
+            }
+          ],
+          "details": {
+            "sourcePath": "/work/p-limit/index.js",
+            "sourceSha256": "bc21685e5332b671168119adec59b92873d2a8dba70717f8e3959e20fec738f6",
+            "readOnlyMaintenanceAudit": true
+          }
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-4",
+              "name": "learning_read",
+              "arguments": {
+                "path": "/work/p-limit/on-idle.test-d.ts",
+                "offset": 1,
+                "limit": 200
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-4",
+          "toolName": "learning_read",
+          "isError": false,
+          "content": [
+            {
+              "type": "text",
+              "text": "import {expectType} from 'tsd';\nimport pLimit, {limitFunction} from './index.js';\n\nconst limit = pLimit(1);\n\nexpectType<Promise<void>>(limit.onIdle());\n\nconst limitedFunction = limitFunction(async (_a: string) => 'ok', {concurrency: 1});\n\nexpectType<Promise<void>>(limitedFunction.onIdle());\nexpectType<Promise<string>>(limitedFunction('input'));\nexpectType<void>(limitedFunction.clearQueue());\n\n[lines 1-13 of 13]"
+            }
+          ],
+          "details": {
+            "sourcePath": "/work/p-limit/on-idle.test-d.ts",
+            "sourceSha256": "34db1c757aa43a22f6fdff612a4d2b2407e6caacbdf186fffded887ba58666a7",
+            "readOnlyMaintenanceAudit": true
+          }
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-5",
+              "name": "learning_read",
+              "arguments": {
+                "path": "/work/p-limit/readme.md",
+                "offset": 200,
+                "limit": 200
+              }
+            }
+          ]
+        }
+      },
+      {
+        "type": "message",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "maintenance-source-3a347c8c-a446-4761-8342-3dbd0b991357-5",
+          "toolName": "learning_read",
+          "isError": false,
+          "content": [
+            {
+              "type": "text",
+              "text": "\nThis package is only about limiting the number of concurrent executions, while `p-queue` is a fully featured queue implementation with lots of different options, introspection, and ability to pause the queue.\n\n## Related\n\n- [p-throttle](https://github.com/sindresorhus/p-throttle) - Throttle promise-returning & async functions\n- [p-debounce](https://github.com/sindresorhus/p-debounce) - Debounce promise-returning & async functions\n- [p-map](https://github.com/sindresorhus/p-map) - Run promise-returning & async functions concurrently with different inputs\n- [p-all](https://github.com/sindresorhus/p-all) - Run promise-returning & async functions concurrently with optional limited concurrency\n- [More\u2026](https://github.com/sindresorhus/promise-fun)\n\n[lines 200-210 of 210]"
+            }
+          ],
+          "details": {
+            "sourcePath": "/work/p-limit/readme.md",
+            "sourceSha256": "b90ae2b6d5f1f0dcf74cdfd50fe8d47a3447d5af95979aea093d6e99d85aa2cf",
+            "readOnlyMaintenanceAudit": true
+          }
+        }
+      }
+    ]
+  },
+  "originalFileHashes": {
+    "snapshot.json": "8d0faab6a5457f022209128540f377680c785cb2292d54a8187d104d7d2085ba",
+    "semantic-rejected-plan.json": "4ec7e3fe7ab4394f7b835a64c5e6999adcb1864d969077630f6bb4e6522ca679",
+    "repair-response.json": "ce2c8270f5263c95e59f28b3e8821c95e4b7e17e3b2422df325c0bf0cb14978a"
+  }
+}

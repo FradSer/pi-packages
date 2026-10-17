@@ -188,7 +188,7 @@ def run(output: Path, project: Path, *, preflight_only: bool, snapshot: Path | N
             pi = REPO / 'node_modules/@earendil-works/pi-coding-agent/dist/cli.js'
             node = shutil.which('node')
             version = subprocess.check_output([node, str(pi), '--version'], env=env, text=True).strip()
-            if version != '1.0.0':
+            if version != '1.2.0':
                 raise AssertionError('Pi compatibility baseline changed')
             report['piVersion'] = version
             command = [node, str(pi), '--offline', '--no-extensions', '--no-skills', '--no-prompt-templates',

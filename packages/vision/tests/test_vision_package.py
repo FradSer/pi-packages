@@ -89,7 +89,7 @@ def test_manifest_declares_native_pi_package() -> None:
 
 def test_native_image_attachment_is_intercepted_end_to_end(tmp_path: Path) -> None:
     original = '<file name="/tmp/native-image.png"></file>\nExplain the image'
-    result = run_input_harness(tmp_path, original, "iVBORw0KGgo=")
+    result = run_input_harness(tmp_path, original, "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==")
     assert result["visionCallCount"] == 1
     assert result["visionImageCount"] == 1
     assert result["sessionUserImageCount"] == 1  # original image remains on the persisted user message
@@ -104,7 +104,7 @@ def test_native_image_attachment_is_intercepted_end_to_end(tmp_path: Path) -> No
 
 def test_failed_analysis_preserves_original_provider_context(tmp_path: Path) -> None:
     original = "Explain the image"
-    result = run_input_harness(tmp_path, original, "iVBORw0KGgo=", scenario="failure")
+    result = run_input_harness(tmp_path, original, "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==", scenario="failure")
     assert result["visionCallCount"] == 1
     assert result["sessionUserImageCount"] == 1
     assert result["sessionUserPrompt"] == original
@@ -119,7 +119,7 @@ def test_analysis_is_retained_only_for_the_active_prompt_across_duplicate_contex
     result = run_input_harness(
         tmp_path,
         "First image",
-        "iVBORw0KGgo=",
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
         scenario="cache",
     )
     assert result["visionCallCount"] == 2  # one analysis per submitted prompt; the first prompt's tool turn reuses its analysis
@@ -136,7 +136,7 @@ def test_multimodal_main_model_receives_native_attachment_unchanged(tmp_path: Pa
     result = run_input_harness(
         tmp_path,
         "Explain the image",
-        "iVBORw0KGgo=",
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
         main_model="multimodal",
     )
     assert result["visionCallCount"] == 0

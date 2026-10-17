@@ -9,6 +9,8 @@ real Bash call.
 
 from __future__ import annotations
 
+from live_acceptance_support import workspace_pi
+
 import json
 import os
 from pathlib import Path
@@ -255,7 +257,7 @@ def verify() -> dict[str, object]:
         home = base / "home"
         home.mkdir()
         env = _runtime_env(agent, home)
-        pi = shutil.which("pi")
+        pi = workspace_pi(Path(__file__).resolve().parents[3])
         if not pi:
             raise RuntimeError("Pi CLI is required for native Harness authoring")
         tui = NativeTui([

@@ -52,7 +52,7 @@ def get(container: str, filename: str) -> bytes:
     return checked(['docker','exec',container,'cat',filename])
 
 
-def runtime_image(base_image: str = "cl-real-project-runtime:20261010-base") -> str:
+def runtime_image(base_image: str = "cl-real-project-runtime:20261011-rebuilt") -> str:
     # Only runtime source is transferred. Evaluation code/oracles are never in it.
     with tempfile.TemporaryDirectory(prefix='cl-real-runtime-') as temp:
         context=Path(temp)
@@ -62,7 +62,11 @@ def runtime_image(base_image: str = "cl-real-project-runtime:20261010-base") -> 
                 if item.name in {'tests','node_modules','features','.pytest_cache','__pycache__'}: continue
                 if item.is_dir(): shutil.copytree(item,dst/item.name)
                 elif item.suffix in {'.ts','.json','.md'}: shutil.copy2(item,dst/item.name)
-        (context/'Dockerfile').write_text('FROM '+base_image+'\nUSER root\nCOPY packages /opt/experiment/packages\nRUN chown -R node:node /home/node/.cache /home/node/.local\nUSER node\nWORKDIR /work\n')
+        # The historical cache pins transitive Pi dependencies to 1.0. A root
+        # install alone leaves the new CLI importing that old TUI. Replace the
+        # isolated workspace's dependency policy before installing the new pair.
+        (context/'pnpm-workspace.yaml').write_text('packages:\n  - packages/*\noverrides:\n  "@earendil-works/pi-coding-agent": 1.2.0\n  "@earendil-works/pi-ai": 1.2.0\n  "@earendil-works/pi-agent-core": 1.2.0\n  "@earendil-works/pi-codemode": 1.2.0\n  "@earendil-works/pi-mcp": 1.2.0\n  "@earendil-works/pi-telemetry": 1.2.0\n  "@earendil-works/pi-tui": 1.2.0\nallowBuilds:\n  esbuild: true\n  "@google/genai": true\n  protobufjs: true\n')
+        (context/'Dockerfile').write_text('FROM '+base_image+'\nUSER root\nWORKDIR /opt/experiment\nCOPY pnpm-workspace.yaml ./\nCOPY packages /opt/experiment/packages\nRUN pnpm add --workspace-root --save-exact @earendil-works/pi-coding-agent@1.2.0 @earendil-works/pi-tui@1.2.0\nRUN chown -R node:node /home/node/.cache /home/node/.local\nUSER node\nWORKDIR /work\n')
         tag='cl-real-runtime:'+uuid.uuid4().hex[:12]
         checked(['docker','build','-q','-t',tag,str(context)])
         return tag

@@ -115,6 +115,7 @@ class LoopbackProvider(BaseHTTPRequestHandler):
     responses: list[str] = []
     runtime_request_texts: list[str] = []
     runtime_calls: int = 0
+    raw_memory_json: bool = False
 
     def log_message(self, _format: str, *args: object) -> None:
         pass
@@ -161,7 +162,10 @@ class LoopbackProvider(BaseHTTPRequestHandler):
                     "evidence": [{"index": 0, "quote": MEMORY_QUOTE}],
                 }],
             }
-            stream_response(self, json.dumps(answer, separators=(",", ":")))
+            encoded = json.dumps(answer, separators=(",", ":"))
+            if self.raw_memory_json:
+                encoded = encoded.replace("\\n", "\n").replace("\\t", "\t")
+            stream_response(self, encoded)
             return
         if "harness-consolidation-plan" in text:
             self.responses.append("harness-plan")

@@ -1,3 +1,4 @@
+import pytest
 from support import isolated_run_bun
 
 
@@ -46,27 +47,34 @@ def test_incomplete_review_keeps_bound_holds_but_never_complete_permission() -> 
         assert 'fields' not in row
 
 
-def test_incomplete_feedback_does_not_replace_complete_field_proof() -> None:
+@pytest.mark.parametrize("model", ["jev-1.13.0", "jev-1.14.0"])
+def test_incomplete_feedback_does_not_replace_complete_field_proof(model: str) -> None:
     value = isolated_run_bun(r'''
-      import {incompleteMemoryRepairFields,semanticMemoryRepairFields} from './packages/continual-learning/extensions/inject-memory.ts';
+      import {incompleteMemoryRepairFields as rawIncomplete,semanticMemoryRepairFields} from './packages/continual-learning/extensions/inject-memory.ts';
       import {createHash} from 'node:crypto';const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
+      const incompleteMemoryRepairFields=(c,r,e,x)=>rawIncomplete(c,r,e,x,'__MODEL__');
       const evidence={entries:[]},existing=[],candidates=[{name:'note.md',content:'Full original body.'}];
-      const review={version:1,purpose:'diagnostic-only',complete:false,model:'jev-1.13.0',evidenceDigest:digest(evidence),existingDigest:digest(existing),candidatesDigest:digest(candidates),failures:[{candidateIndex:0,dimension:'support',reason:'uncertain',field:'description'}]};
+      const review={version:1,purpose:'diagnostic-only',complete:false,model:'__MODEL__',evidenceDigest:digest(evidence),existingDigest:digest(existing),candidatesDigest:digest(candidates),failures:[{candidateIndex:0,dimension:'support',reason:'uncertain',field:'description'}]};
       const fields=incompleteMemoryRepairFields(candidates,review,evidence,existing);
       const rejected=[];for(const patch of [{complete:true},{model:'wrong'},{candidatesDigest:'wrong'},{failures:[]},{failures:[{candidateIndex:9,dimension:'support',reason:'unsupported'}]},{failures:[{candidateIndex:0,dimension:'scope',reason:'scope-expansion'}]}])rejected.push(incompleteMemoryRepairFields(candidates,{...review,...patch},evidence,existing)===undefined);
-      console.log(JSON.stringify({fields,rejected,completeProof:semanticMemoryRepairFields(candidates,review)}));
-    ''')
+      const preservation=incompleteMemoryRepairFields(candidates,{...review,failures:[{candidateIndex:0,dimension:'preservation',reason:'uncertain'}]},evidence,existing);
+      const foreignExpected=rawIncomplete(candidates,review,evidence,existing,'jev-1.15.0');
+      console.log(JSON.stringify({fields,preservation,rejected,foreignExpected,completeProof:semanticMemoryRepairFields(candidates,review)}));
+    '''.replace('__MODEL__', model))
     assert value['fields'] == {'note.md': ['description']}
+    assert value['preservation'] == {'note.md': ['body']}
     assert all(value['rejected'])
     assert 'completeProof' not in value
+    assert 'foreignExpected' not in value
 
 
-def test_parent_uses_one_correction_slot_then_keeps_failed_recheck_and_costs() -> None:
+@pytest.mark.parametrize("model", ["jev-1.13.0", "jev-1.14.0"])
+def test_parent_uses_one_correction_slot_then_keeps_failed_recheck_and_costs(model: str) -> None:
     from pathlib import Path
     from support import run_bun_script
     fixture = Path(__file__).with_name('learning-policy-harness.ts')
     for mode, repairs in [('partial-review-held', 1), ('partial-review-stale', 0), ('partial-review-consistency', 1), ('partial-review-compatible', 1), ('partial-review-low-contradiction', 1)]:
-        value = run_bun_script(fixture, 'remember-shared', env={'CL_JEV_FIXTURE': mode})
+        value = run_bun_script(fixture, 'remember-shared', env={'CL_JEV_FIXTURE': mode, 'CL_JEV_MODEL': model})
         assert value['semanticRepairs'] == value['totalRepairs'] == repairs
         assert len(value['jevValidations']) == (1 if mode == 'partial-review-consistency' else repairs + 1)
         assert not value['memoryMirrored']

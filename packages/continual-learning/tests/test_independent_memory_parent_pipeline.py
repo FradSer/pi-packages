@@ -1,17 +1,19 @@
 from pathlib import Path
 import re
+import pytest
 from typing import Any
 from support import run_bun_script
 
 FIXTURE = Path(__file__).with_name('learning-policy-harness.ts')
 
 
-def run_case(reason: str) -> dict[str, Any]:
-    return run_bun_script(FIXTURE, 'remember-subset', env={'CL_JEV_FIXTURE': reason})
+def run_case(reason: str, model: str = 'jev-1.13.0') -> dict[str, Any]:
+    return run_bun_script(FIXTURE, 'remember-subset', env={'CL_JEV_FIXTURE': reason, 'CL_JEV_MODEL': model})
 
 
-def test_parent_applies_supported_original_subset_and_preserves_all_original_intent() -> None:
-    value = run_case('subset-independent')
+@pytest.mark.parametrize("model", ["jev-1.13.0", "jev-1.14.0"])
+def test_parent_applies_supported_original_subset_and_preserves_all_original_intent(model: str) -> None:
+    value = run_case('subset-independent', model)
     assert value['relationValidations'] == 1
     assert {'tools.md', 'license.md'} <= set(value['privateFiles'])
     assert {'tools.md', 'license.md'} <= set(value['publicFiles'])
@@ -138,8 +140,9 @@ def test_composed_proof_without_parent_gate_cannot_change_original_selection() -
     assert not value['harnessExists'] and value['agentsUnchanged']
 
 
-def test_production_pipeline_keeps_verified_independent_knowledge_available_to_next_task() -> None:
-    value = run_case('subset-production')
+@pytest.mark.parametrize("model", ["jev-1.13.0", "jev-1.14.0"])
+def test_production_pipeline_keeps_verified_independent_knowledge_available_to_next_task(model: str) -> None:
+    value = run_case('subset-production', model)
     assert value['registryReceipt']['operations'] == 2
     assert value['relationValidations'] == 1
     assert value['productionJudgeOptions']['independentMemoryApplication'] is True
@@ -158,10 +161,14 @@ def test_production_pipeline_keeps_verified_independent_knowledge_available_to_n
 
 
 def test_verified_repair_subset_is_applied_and_keeps_unresolved_work_pending() -> None:
+    # Given a source-backed npm-to-pnpm correction, When full review admits only a
+    # subset, Then apply that subset and preserve the still-held original work.
     value = run_case('subset-production-after-repair')
     assert value['registryReceipt']['operations'] == 2
     assert value['relationValidations'] == 1
     assert value['semanticRepairs'] == 1
+    assert value['repairableFieldsReceived']['fields']['tools.md'] == ['body', 'description']
+    assert 'tools.md' in value['repairableFieldsReceived']['names']
     assert {'tools.md', 'license.md'} <= set(value['privateFiles'])
     assert 'cache.md' not in value['privateFiles']
     assert any(a['attempt'] == 1 and a['outcome'] == 'applied' and a.get('pendingOperations') == 1
@@ -193,3 +200,20 @@ def test_whole_held_proposal_binds_diagnostics_to_its_exact_original_plan() -> N
     assert proposal['heldIndexes'] == list(range(len(proposal['originalPlan']['newMemories'])))
     assert isinstance(proposal['candidateFailures'], list)
     assert value['registryReceipt']['operations'] == 0
+
+
+def test_subset_audit_history_does_not_invalidate_selected_memory_origin() -> None:
+    value = run_bun_script(FIXTURE, 'remember-subset', env={'CL_JEV_FIXTURE': 'subset-independent', 'CL_MEMORY_ORIGIN': '1'})
+    assert value['registryReceipt']['operations'] == 2, value['registryReceipt']
+    assert {'known.md', 'tools.md', 'license.md'} <= set(value['privateFiles'])
+    assert 'cache.md' not in value['privateFiles']
+    preserved = [r['proposal'] for r in value['history'] if r.get('proposal', {}).get('kind') == 'independent-memory-review']
+    assert len(preserved) == 1
+    assert preserved[0]['eligibleIndexes'] == [0, 2] and preserved[0]['heldIndexes'] == [1]
+    assert not value['lock']
+
+
+def test_cancelled_deferred_history_failure_keeps_the_only_complete_audit() -> None:
+    value = run_bun_script(FIXTURE, 'remember-subset', env={'CL_JEV_FIXTURE': 'subset-independent', 'CL_MEMORY_ORIGIN': '1', 'CL_ORIGIN_AUDIT_FAIL': 'cancel'})
+    assert value['originAuditArtifacts'], value
+    assert not value['lock']

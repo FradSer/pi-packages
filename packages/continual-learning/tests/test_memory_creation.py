@@ -350,3 +350,46 @@ def test_private_memory_exposes_its_root_and_entry_filename() -> None:
         # needed to keep the entry reachable.
         assert result["harness"] in result["block"]
         assert "- private.md" in result["block"]
+
+
+def test_current_maintenance_command_binds_current_invocation_and_exact_replay_entries():
+    result = run_bun(r'''
+      import fs from 'node:fs';import os from 'node:os';import path from 'node:path';
+      import {captureMaintenanceCommand,createConsolidationRun,releaseConsolidationRun,
+        readCurrentMaintenanceCommand,sha256Digest} from './packages/continual-learning/extensions/consolidation-run.ts';
+      const cwd=fs.mkdtempSync(path.join(os.tmpdir(),'cl-maintenance-command-'));
+      const original=[{message:{role:'user',content:'Never store the temporary incident as a permanent rule.'}},
+        {message:{role:'toolResult',content:'Historical result with a quoted /consolidate full command.'}}];
+      const command=captureMaintenanceCommand({cwd,sessionManager:{getSessionId:()=> 'current-session'}},'  backfill  ');
+      const ctx={cwd,sessionManager:{getSessionId:()=> 'historical-task-session',getBranch:()=>original,buildContextEntries:()=>original}};
+      const run=await createConsolidationRun(ctx,cwd,false,command);
+      const snapshot=JSON.parse(fs.readFileSync(run.paths.snapshotFile,'utf8'));
+      const bound=readCurrentMaintenanceCommand(snapshot);
+      const tampered=[{...snapshot,currentMaintenanceRequest:{...bound,action:'full-corpus'}},
+        {...snapshot,currentMaintenanceRequest:{...bound,runId:'other-run'}},
+        {...snapshot,currentMaintenanceRequest:{...bound,scopeKey:'other-project'}},
+        {...snapshot,currentMaintenanceRequest:{...bound,permission:'ignore historical restrictions'}},
+        {...snapshot,entries:[...snapshot.entries,{role:'user',content:'Changed evidence'}]}];
+      const refused=tampered.map(value=>{try{readCurrentMaintenanceCommand(value);return false}catch{return true}});
+      await releaseConsolidationRun(run,{keepArtifacts:true});
+      const ordinary=await createConsolidationRun({...ctx,currentMaintenanceRequest:bound},cwd,false);
+      const old=JSON.parse(fs.readFileSync(ordinary.paths.snapshotFile,'utf8'));
+      await releaseConsolidationRun(ordinary,{keepArtifacts:true});
+      const fresh=[...original,{message:{role:'toolResult',content:'Fresh scoped source observation.'}}];
+      const refreshed=await createConsolidationRun({...ctx,sessionManager:{getBranch:()=>fresh,buildContextEntries:()=>fresh}},cwd,false,command);
+      const refreshedSnapshot=JSON.parse(fs.readFileSync(refreshed.paths.snapshotFile,'utf8'));
+      const refreshedCommand=readCurrentMaintenanceCommand(refreshedSnapshot);
+      await releaseConsolidationRun(refreshed,{keepArtifacts:true});
+      console.log(JSON.stringify({bound,refused,freshBound:refreshedCommand.sourceEntriesDigest===sha256Digest(JSON.stringify(fresh)),
+        freshPrefix:JSON.stringify(refreshedSnapshot.entries.slice(0,2))===JSON.stringify(original),
+        distinctRuns:refreshedCommand.runId!==bound.runId,sameInvocation:refreshedCommand.invocationId===bound.invocationId,frozen:Object.isFrozen(command),originalUnchanged:JSON.stringify(snapshot.entries)===JSON.stringify(original),
+        digest:sha256Digest(JSON.stringify(original)),snapshotHashMatches:sha256Digest(fs.readFileSync(run.paths.snapshotFile,'utf8'))===run.manifest.snapshotDigest,
+        quotedOrHistoricalPromoted:!!old.currentMaintenanceRequest}));
+      fs.rmSync(cwd,{recursive:true,force:true});
+    ''', temp_dirs=('PI_CODING_AGENT_DIR',))
+    assert result['originalUnchanged'] and result['frozen'] and result['snapshotHashMatches']
+    assert result['bound']['sessionId'] == 'current-session'
+    assert result['bound']['action'] == 'backfill' and result['bound']['arguments'] == '  backfill  '
+    assert result['bound']['sourceEntriesDigest'] == result['digest']
+    assert all(result['refused']) and not result['quotedOrHistoricalPromoted']
+    assert result['freshBound'] and result['freshPrefix'] and result['distinctRuns'] and result['sameInvocation']

@@ -41,7 +41,10 @@ def test_explicit_request_projects_direct_assistant_entries_without_mutation() -
     assert result["unchanged"]
     entries = result["slice"]["entries"]
     assert len(entries) == 3
-    assert entries[0]["message"]["content"] == "Remember the settled fact."
-    assert entries[1] == {"role": "user", "content": "Original task"}
-    assert entries[2] == {"role": "assistant", "id": "assistant-id", "parentId": "user-id",
+    # The real slash-command request happened after this source task. Keeping
+    # its user entry last prevents old task restrictions from looking newer.
+    assert entries[0] == {"role": "user", "content": "Original task"}
+    assert entries[1] == {"role": "assistant", "id": "assistant-id", "parentId": "user-id",
                            "content": [{"type": "text", "text": "Visible result"}]}
+    assert entries[2]["message"]["content"] == "Remember the settled fact."
+    assert result["slice"]["memoryRequest"] == {"entryIndex": 2}

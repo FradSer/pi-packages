@@ -17,8 +17,10 @@ export default function utilsExtension(pi: ExtensionAPI): void {
 	registerInit(pi);
 	registerLiveSessions(pi);
 	registerSessions(pi);
-	registerWorktree(pi);
+	// The session switcher registers first: it owns the transition barrier the
+	// redirect reserves when a bash command creates a worktree.
+	const worktreeEntry = registerWorktreeSession(pi);
+	registerWorktree(pi, worktreeEntry);
 	registerWorktreeCompletion(pi);
-	registerWorktreeSession(pi);
 	registerNpmPublishGuard(pi);
 }

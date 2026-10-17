@@ -969,13 +969,14 @@ def test_failed_runs_persist_bounded_diagnostics_and_retain_artifacts() -> None:
     assert "writeFileAtomic(run.paths.stdoutFile, completeJsonlSuffix(boundedStdout))" in content
     assert "writeFileAtomic(run.paths.stderrFile, tailBoundedUtf8Text(stderr))" in content
     assert "await persistRunDiagnostics();" in content
-    # Late events must not notify or retain: recheck ownership after every await.
+    # Late events must not notify: recheck ownership after every await.
     assert content.count("await persistRunDiagnostics();\n        if (!ownsCurrentRun()) return;") == 3
     assert "await persistRunDiagnostics();\n          if (!ownsCurrentRun()) return;" in content
     # Retention must be decided from ownership captured before state.run clears:
     # completed, failed, and no-op runs all keep their artifacts for inspection.
+    # Failed deferred audit publication also retains its sole evidence on cancel.
     assert "const ownedNow = generation === state.generation && !state.cancelled && state.run === run;" in content
-    assert "releaseConsolidationRun(run, { keepArtifacts: ownedNow })" in content
+    assert "releaseConsolidationRun(run, { keepArtifacts: ownedNow || deferredAuditFailed })" in content
     # Output-limit trips clear the capture before persistence; keep the reason.
     assert "outputLimitReason = reason;" in content
     assert "`\\n[truncated: ${outputLimitReason}]\\n`" in content
@@ -1128,10 +1129,12 @@ def test_memory_plan_expansion_checks_citations_before_any_judge_call() -> None:
     text = source()
     expansion = text.index("plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, rawPlan);")
     assert expansion < text.index('opts.jevJudge!.validate("memory"')
-    assert 'plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, repair.plan);' in text
-    corrected = text.index('const corrected = await expandCitedIncrementalMemoryPlan(run, selectedScope, distilled.plan);')
+    repair = text.index('rawPlan = await materializeSourceMemoryPlan(run, repair.plan);')
+    repaired_expansion = text.index('plan = await expandCitedIncrementalMemoryPlan(run, selectedScope, rawPlan);', repair)
+    assert repair < repaired_expansion < text.index('opts.jevJudge!.validate("memory"')
+    corrected = text.index('let corrected = await expandCitedIncrementalMemoryPlan(run, selectedScope, distilled.plan);')
     assert text.index('const distilled = distillReviewedNewMemory(repaired.plan, candidates, mutationReview?.candidateReview,') < corrected
-    assert corrected < text.index('const correctedVerdict = await validateKnowledge(correctedCandidates);')
+    assert corrected < text.index('let correctedVerdict = await validateKnowledge(correctedCandidates);')
 
 
 def test_screened_constraint_with_no_harness_rule_is_named_not_silent() -> None:
@@ -1233,11 +1236,11 @@ def test_automatic_truncated_pipeline_retains_valid_input_provenance(tmp_path) -
       await fs.mkdir(paths.harnessDir,{{recursive:true}});
       await fs.writeFile(paths.settingsFile,JSON.stringify({{autoMemory:true,automaticPhases:{{memory:'off',harness:'off',agents:'off'}}}}));
       const hooks=new Map();const notices=[];
-      register({{on:(n,f)=>hooks.set(n,f),registerCommand:()=>{{}},sendMessage:()=>{{}},appendEntry:()=>{{}},getCommands:()=>[],exec:async()=>({{stdout:'',stderr:'',code:0}})}});
+      register({{on:(n,f)=>hooks.set(n,[...(hooks.get(n)??[]),f]),registerCommand:()=>{{}},sendMessage:()=>{{}},appendEntry:()=>{{}},getCommands:()=>[],exec:async()=>({{stdout:'',stderr:'',code:0}})}});
       const entries=[{{message:{{role:'user',content:'Audit the actual source'}}}},...Array.from({{length:300}},(_,n)=>({{message:{{role:'toolResult',content:'source '+n}}}}))];
       const ctx={{cwd,hasUI:false,ui:{{notify:(x)=>notices.push(x)}},sessionManager:{{getBranch:()=>entries,buildContextEntries:()=>entries}}}};
-      await hooks.get('input')({{source:'interactive'}},ctx);
-      await hooks.get('agent_settled')({{}},ctx);
+      for (const hook of hooks.get('input')??[]) await hook({{source:'interactive',text:'Audit the actual source'}},ctx);
+      for (const hook of hooks.get('agent_settled')??[]) await hook({{}},ctx);
       const files=await fs.readdir(paths.runsDir,{{recursive:true}});
       const f=files.find(x=>x.endsWith('learning-pipeline-receipt.json'));
       const receipt=f?JSON.parse(await fs.readFile(paths.runsDir+'/'+f,'utf8')):null;

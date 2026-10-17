@@ -134,3 +134,53 @@ def test_documentation_updates_are_allowed_but_existing_type_tests_stay_protecte
     assert 'recipes.md' not in before
     assert 'AGENTS.md' in before and 'index.test-d.ts' in before
     assert 'recipes.md' in study.protected('disposable','p-limit',include_source=True)
+
+
+def test_runtime_image_upgrades_cached_dependencies_to_pi12_before_admission(monkeypatch):
+    # Given an old cached project image, When building a fresh cohort runtime,
+    # Then install the pinned requested Pi before the study's version guard.
+    from pathlib import Path
+    files=[]
+    def checked(args, **kwargs):
+        if args[:2] == ['docker','build']:
+            files.append({'dockerfile':(Path(args[-1])/'Dockerfile').read_text(), 'workspace':(Path(args[-1])/'pnpm-workspace.yaml').read_text()})
+        return b'fixture-image'
+    monkeypatch.setattr(study, 'checked', checked)
+    study.runtime_image('historical-pi10-cache')
+    assert len(files) == 1
+    assert 'pnpm add --workspace-root --save-exact @earendil-works/pi-coding-agent@1.2.0 @earendil-works/pi-tui@1.2.0' in files[0]['dockerfile']
+    assert files[0]['dockerfile'].index('COPY pnpm-workspace.yaml ./') < files[0]['dockerfile'].index('RUN pnpm add')
+    assert '"@earendil-works/pi-coding-agent": 1.2.0' in files[0]['workspace']
+    assert '"@earendil-works/pi-tui": 1.2.0' in files[0]['workspace']
+    assert '1.0.0' not in files[0]['workspace']
+    assert '"@earendil-works/pi-ai": 1.2.0' in files[0]['workspace']
+    for package in ('pi-agent-core', 'pi-codemode', 'pi-mcp', 'pi-telemetry'):
+        assert f'"@earendil-works/{package}": 1.2.0' in files[0]['workspace']
+    baseline = (Path(study.__file__).parent/'docker/real-task.Dockerfile').read_text()
+    assert '1.0.0' not in baseline
+    assert '"@earendil-works/pi-ai":"1.2.0"' in baseline
+    for package in ('pi-agent-core', 'pi-codemode', 'pi-mcp', 'pi-telemetry'):
+        assert f'\\"@earendil-works/{package}\\": 1.2.0' in baseline
+    import docker_experiment
+    builds=[]
+    def build(args, **kwargs):
+        builds.append({'manifest':json.loads((Path(args[-1])/'package.json').read_text()),
+                       'workspace':(Path(args[-1])/'pnpm-workspace.yaml').read_text()})
+    monkeypatch.setattr(docker_experiment, 'command', build)
+    original_copy = docker_experiment.shutil.copytree
+    scratch_ignored = []
+    def checked_copy(source, target, *args, **kwargs):
+        if Path(source).name in {'kit', 'continual-learning'}:
+            ignored = kwargs['ignore'](str(source), ['.jev-bound-scope-active', '.jev-description-active', 'jev-bound-scope-shadow.ts'])
+            scratch_ignored.append(set(ignored))
+        return original_copy(source, target, *args, **kwargs)
+    monkeypatch.setattr(docker_experiment.shutil, 'copytree', checked_copy)
+    docker_experiment.build_image()
+    assert scratch_ignored and all(ignored == {'.jev-bound-scope-active', '.jev-description-active'} for ignored in scratch_ignored)
+
+    for package in ('pi-coding-agent','pi-ai','pi-tui'):
+        name='@earendil-works/'+package
+        assert builds[0]['manifest']['dependencies'][name]=='1.2.0'
+        assert f'"{name}": 1.2.0' in builds[0]['workspace']
+    for package in ('pi-agent-core', 'pi-codemode', 'pi-mcp', 'pi-telemetry'):
+        assert f'"@earendil-works/{package}": 1.2.0' in builds[0]['workspace']

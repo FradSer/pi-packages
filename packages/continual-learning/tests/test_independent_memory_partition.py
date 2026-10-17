@@ -1,3 +1,4 @@
+import pytest
 from support import isolated_run_bun
 from test_jev_independent_subset_research import SETUP as LEGACY_SETUP
 
@@ -13,12 +14,17 @@ const relations={version:1,purpose:'diagnostic-only',complete:true,evidenceDiges
 '''
 
 
-def test_original_supported_indexes_are_partitioned_without_write_authority() -> None:
-    value = isolated_run_bun(BASE + r'''
-      console.log(JSON.stringify(partitionReviewedNewMemory(evidence,candidates,existing,review,relations)));
-    ''')
-    assert value['eligible'] == [0] and value['held'] == [1]
-    assert value['writeAuthorized'] is False
+@pytest.mark.parametrize("model", ["jev-1.13.0", "jev-1.14.0"])
+def test_original_supported_indexes_are_partitioned_without_write_authority(model: str) -> None:
+    value = isolated_run_bun(BASE.replace('jev-1.13.0', model) + r'''
+      console.log(JSON.stringify({bound:partitionReviewedNewMemory(evidence,candidates,existing,review,relations,undefined,'__MODEL__'),
+        legacy:partitionReviewedNewMemory(evidence,candidates,existing,review,relations),
+        foreign:partitionReviewedNewMemory(evidence,candidates,existing,review,relations,undefined,'jev-1.15.0')}));
+    '''.replace('__MODEL__', model))
+    assert value['bound']['eligible'] == [0] and value['bound']['held'] == [1]
+    assert value['legacy']['eligible'] == ([0] if model == 'jev-1.13.0' else [])
+    assert value['foreign']['eligible'] == []
+    assert all(row['writeAuthorized'] is False for row in value.values())
 
 
 def test_stale_missing_or_forged_checks_cannot_authorize_subset() -> None:

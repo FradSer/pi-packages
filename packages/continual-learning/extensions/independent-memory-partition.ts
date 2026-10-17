@@ -1,6 +1,6 @@
 import {interpretStandaloneMemory} from "./jev-memory-readiness";
 import {createHash} from "node:crypto";
-import {reviewedMemoryEvidence, memoryDescriptionClaim, type JevCandidateReview, type JevMemoryRelationsReview} from "./jev-learning";
+import {jevModelMatchesRequest, reviewedMemoryEvidence, memoryDescriptionClaim, type JevCandidateReview, type JevMemoryRelationsReview} from "./jev-learning";
 import {interpretMemoryPair} from "./jev-memory-relations";
 import type {SelectedMemory} from "./incremental-learning";
 
@@ -11,7 +11,7 @@ import type {SelectedMemory} from "./incremental-learning";
 export function partitionReviewedNewMemory(
   evidence: unknown, candidates: readonly unknown[], existing: readonly SelectedMemory[],
   review: JevCandidateReview | undefined, relations: JevMemoryRelationsReview | undefined,
-  readiness?: unknown,
+  readiness?: unknown, requestedModel = "jev-1.13.0",
 ): {eligible: number[]; held: number[]; writeAuthorized: false} {
   const all = candidates.map((_, index) => index);
   const denied = () => ({eligible: [], held: all, writeAuthorized: false as const});
@@ -20,7 +20,7 @@ export function partitionReviewedNewMemory(
   if (!prepared || typeof prepared === "string" || !review || !relations
     || review.version !== 1 || relations.version !== 1 || review.purpose !== "diagnostic-only" || relations.purpose !== "diagnostic-only"
     || review.complete !== true || relations.complete !== true || review.sameBatchIndependenceReviewed !== false
-    || review.model !== "jev-1.13.0" || relations.model !== review.model
+    || !jevModelMatchesRequest(requestedModel, review.model) || relations.model !== review.model
     || !Array.isArray(review.candidates) || review.candidates.length !== candidates.length
     || !Array.isArray(relations.pairs) || relations.pairs.length !== candidates.length * (candidates.length - 1) / 2) return denied();
   for (const proof of [review, relations]) {

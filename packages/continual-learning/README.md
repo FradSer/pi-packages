@@ -205,7 +205,7 @@ positive/negative evaluator cases are required. New identities cannot collide
 with other layers, disabled declarations, invalid declarations, or manual rules.
 `learnedRules` is parent-owned provenance binding each learned identity to its
 current revision; a manual edit invalidates automatic ownership. Updates cannot
-change the selector, re-enable a rule, or weaken its Bash action automatically.
+change the selector, re-enable a rule, or weaken its Bash action outside the reviewed correction contract.
 
 ### Guidance scope and delivery
 
@@ -294,6 +294,13 @@ Routine tasks launch no learning model. A metadata-only selector chooses the
 minimum sufficient existing Memory and relevant phases for the current Task
 Slice. Selected bodies and task evidence form one authoritative Learning Dossier.
 Only explicit full maintenance explores the whole corpus.
+After a complete ordinary task successfully edits or writes project source,
+automatic Memory learning first collects fresh source within the existing
+read-only scope. Original task observations remain intact. This extra collector
+call and its failures appear in the receipt; a source read is not itself a
+learned change. Existing citation, privacy, source-revision and semantic checks
+still control every write.
+
 An empty Memory index plus explicit human facts or preferences lets automatic
 learning route its already evidenced phases locally, without a selector model
 call. An initial `/memory <request>` likewise goes straight to Memory planning.
@@ -323,8 +330,11 @@ Package-owned `prompts/*.md` protocols are bound through typed builders. Planner
 are read-only, have resource discovery disabled, and return bounded deltas or a
 no-op. The parent owns identity, evidence, privacy, path and source-hash checks,
 mutation, rollback, indexes, and receipts. An assistant's success claim is not a
-receipt. Later planning can overlap; mutation remains sequential. A later phase
-failure does not undo an earlier verified phase.
+receipt. Harness and AGENTS planning can overlap after the Memory gate; mutation
+remains sequential. Saving a semantically held Memory proposal, including a partial
+application with pending records, does not unlock those later planners. A fully
+reviewed repair or an intentional validated proposal policy can pass the gate.
+A later phase failure does not undo an earlier verified phase.
 
 Real user tasks are coalesced while learning runs; extension continuations do not
 train themselves. Print/JSON sessions await completion and receipts. Turning
@@ -359,6 +369,11 @@ leases prevent duplicate concurrent learning, and attempt ledgers retain failure
 and known usage. Automatic retries stop after three attempts with backoff; explicit
 backfill still has a finite attempt cap. Missing or changed source stays unresolved.
 An interrupted provider call without returned usage has unknown cost, not zero cost.
+Pi 1.2 can remove an empty assistant error during retry. Exact replay accepts
+only this content-free null removal, strips the removed error metadata, and keeps
+the original source hash, task digest and evidence positions. Meaningful
+redactions remain refused. Replay eligibility does not clear the original task
+failure or authorize a Memory or Harness change.
 A latest phase with pending candidates cannot acknowledge its task as learned,
 even if other candidates applied or that phase returned noop. Summaries warn and
 show the latest unresolved count; a later completed phase supersedes its earlier
@@ -371,12 +386,22 @@ one-line descriptions. An unchanged index stays in place across user turns;
 changed indexes replace stale references and missing context restores discovery.
 Entry bodies are read on demand, never automatically injected. Metadata exposure
 is not proof of use or benefit; current evidence and instructions take precedence.
-Automatic correction revisits Memory actually read through unique successful read calls; failed or ambiguous reads do not nominate entries. Revisit is not factual evidence or permission to mutate. Explicit `/memory` requests retain their selected maintenance scope.
+Use the native `read` tool to consult relevant entries. Automatic correction revisits Memory actually read through unique successful read calls; failed or ambiguous reads do not nominate entries. Revisit is not factual evidence or permission to mutate. Explicit `/memory` requests retain their selected maintenance scope.
 
 An automatically learned project Harness rule may be revised or retired only with
 an exact predecessor revision, current user correction, positive/negative fixtures
 and approval of the exact replacement by semantic review. A retired rule remains
 as a disabled revision and in history. Manual or changed rules remain protected.
+With automatic Harness application and semantic review enabled, an explicit lasting
+correction in the current original user input is reviewed before task execution,
+so the persisted correction can govern that task. This conservative nomination
+requires the original input event to match the run prompt exactly; it grants no
+authority by itself. Only exact auto-owned revisions can be updated, under one
+230-second total deadline and the same complete semantic/fixture/transaction
+checks. A held or failed review preserves the old policy and every cost; it never
+acknowledges the unfinished task. Ordinary task `write` calls must preserve
+owned declarations and markers; explicit previewed `/harness` authoring remains
+available. This is a tool boundary, not a shell or filesystem sandbox.
 
 ### Phase policies and history
 
@@ -401,6 +426,15 @@ correction keeps its own receipt usage and cost, and only the final accepted
 attempt owns applied operations. Structural rejection metadata and screened
 structural response remain available even if later semantic correction succeeds.
 All original final validation and mutation gates remain mandatory. Citation-location rejection supplies up to eight parent-controlled candidate/citation positions and reasons to that same correction, including range and extracted-quote bounds; it never includes source text in diagnostics or raises the 2,000-character quote limit. Long encoded source lines are shown as complete numbered chunks; explicit offsets inside one line let the parent extract original characters without model transcription or decoding.
+
+For a held private project body, the semantic worker can select `sourceExcerpt`
+instead of generating `content` when the parent explicitly enables that candidate.
+The selection requires explicit original citations from the bound current-source
+audit. The parent checks the complete source hash and regular-file identity, then
+copies the selected bytes into a neutral excerpt. Locked metadata stays unchanged.
+This alternative uses the existing correction attempt. It grants no approval:
+complete predecessor preservation, body, source, privacy and transaction checks
+still govern writes. Ordinary historical reads cannot supply this correction.
 
 Harness also permits one read-only repair when structured output is missing or
 a parsed plan fails validation. It uses the original frozen evidence and model;
@@ -496,6 +530,25 @@ clean without echoing the matched bytes. Completed runs keep their run directory
 (identity, task, plan, receipts, snapshot) for inspection, like a failed run keeps
 its diagnostics.
 Older changes made before history was installed have no undo record.
+
+New applied Memory history can retain a parent-observed origin binding. It links
+the complete frozen task, plan, manifests and receipts by their exact hashes and
+records the file revisions before and after the mutation. This metadata stays in
+private history. Missing or inconsistent artifacts mark origin unavailable;
+legacy records gain no inferred origin. Undo still compares bytes and mode.
+A read-only local interface can recover the complete creation and rewrite tasks
+only through an unbroken, unique file-revision chain. It refuses incomplete or
+changed evidence, cancellation, and configured bounds instead of returning a
+partial history. It checks the complete captured inventory again before reuse.
+With explicit private review authorization, normal Memory review and its bounded
+correction worker receive complete relevant historical tasks in a separate
+`historicalMemoryOrigins` field. The parent screens the full history for sensitive
+data before projection and checks its binding again after asynchronous work.
+History explains predecessor purpose and conditions; it does not establish current
+facts, support citations, read access, permission to rewrite knowledge, or learning
+benefit. Current evidence and every semantic gate remain required. Legacy gaps
+gain no inferred context. Initial planning, CREATE-only review and historical
+byte-bounded requests do not acquire this context.
 
 ### Independent learning evaluation
 
@@ -816,6 +869,33 @@ while explicitly testing knowledge loss, requested historical results, privacy a
 exceptions. It is planned, not executed or adopted. The batch remains atomic. See
 @tests/jev-durable-core-research-plan.json.
 
+Normal unbounded Memory rewrites and deletions use separate required questions
+for factual evidence, permission for the parent-owned Memory operation, and
+predecessor preservation. Factual review includes original user preferences and
+policy corrections even when writing remains permitted. Source changes cannot
+grant permission or revoke those preferences. Every original window retains
+complete old and proposed knowledge, source observations and separate description
+review. Each component requires probability 0.9 and confidence 0.8. The parent also
+requires `max(0, pEvidence + pPermission + pPreservation - 2)` to
+reach 0.9. Missing, uncertain or conflicting checks hold the mutation. This changes
+the question protocol; it does not demonstrate calibrated joint reliability or
+learning benefit. Finite historical studies keep their original questions.
+Each normal rewrite/delete support and counter request also receives the complete
+original user statements, with original indexes and snapshot identity. This keeps
+scope, temporary-only requests, privacy limits and later revocations available
+when citations name only tool results. The parent derives this context from the
+original snapshot, after privacy screening; quoted user text in tools, assistant
+output, source and Memory cannot enter it. This context adds no support citation
+and proves no completed work. CREATE-only, retention and finite historical
+requests keep their existing context. Complete windows and all gates still apply.
+The context is copied once. If evidence, predecessor records or candidates change
+during service work, review stays proposed with an invalid-response diagnostic.
+Known usage remains available; changed inputs receive no complete or partial proof.
+Normal mutation diagnostics retain the first held location for each candidate,
+field and dimension. A held preservation or permission check can nominate its
+body for the one bounded amendment. All other fields remain locked, and the
+amended plan must pass fresh complete review before any write.
+
 Research acceptance is governed by @tests/jev-learning-quality-charter.md: reliable useful learning and preserved constraints, not a higher Jev allow rate. New phase-effect observations and unseen-project evaluation must be frozen separately; original cohort results remain unchanged. No positive outcome is required, and Jev stays optional with the existing default.
 
 
@@ -1068,8 +1148,8 @@ from scoring as success. Failures and ties remain results. These authored featur
 tasks on previously used public projects are a small experiment, not upstream
 issue acceptance or evidence of general model improvement.
 
-The study requires Docker, the isolated Pi 1.0 runtime image
-`cl-real-project-runtime:20261010-base`, pinned local source checkouts matching
+The study requires Docker and an isolated Pi 1.2.0 runtime. The historical cache image
+`cl-real-project-runtime:20261010-base` is upgraded before fresh study admission. Use pinned local source checkouts matching
 `tests/real_project_tasks.py`, configured inference, and `TYPESAFE_API_KEY`.
 Real keys stay in the host proxy. Do not mount host project or agent directories.
 Run the environment/oracle gate before incurring model usage:
@@ -1270,7 +1350,7 @@ malformed arrays still fail. This does not relax review bounds or remove candida
 
 When retained records and proposed knowledge both fail review, the parent completes both reviews before its single bounded correction. Their names and held fields remain separate: unflagged original content is preserved, and the combined plan must pass full review before any write.
 
-Semantic correction preserves every original citation while either claim field remains protected, and omits only new exact subquotes already contained at the same snapshot index and role. When complete review holds both body and description, their replacement uses its own citations at the unchanged bound; the rejected plan remains archived and the complete corrected plan requires fresh review. Unique indentation restoration is recorded separately from raw worker output. For new proposals only, a complete digest-bound review may supply its fully accepted description as a narrower replacement body when only the body was held; this derived candidate still requires full combined review and every mutation gate. Existing Memory rewrites never use this distillation.
+Semantic correction preserves every original citation while either claim field remains protected, and omits only new exact subquotes already contained at the same snapshot index and role. When complete review holds both body and description, their replacement uses its own citations at the unchanged bound; the rejected plan remains archived and the complete corrected plan requires fresh review. Unique indentation restoration is recorded separately from raw worker output. For new preference proposals only, a complete digest-bound review may supply its fully accepted description as a narrower replacement body when only the body was held; this derived candidate still requires full combined review and every mutation gate. Project knowledge and existing Memory rewrites never use this distillation: an index description must not replace a complete technical contract. A held project body requires full-body correction or backfill. Quoted descriptions are copied verbatim, without interpreting escapes. An unchanged proposal may use its original complete checklist; a corrected proposal must use its own fresh digest-bound checklist. At most one deterministic narrowing follows correction, with another complete plan/body/source review before any write. Repair feedback includes independent body and description holds; a first body failure cannot imply that the description passed.
 
 Semantic review sends structured JSON state directly to Jev instead of embedding
 serialized JSON inside another JSON string. Memory body and description questions
@@ -1368,6 +1448,13 @@ Explicitly opted-in Qwen structured output also covers these independent workers
 one required judgment property per complete target slot prevents repeated or omitted
 slots on the service wire. Legacy array responses still require exact coverage;
 neither contract establishes source truth or authorizes a mutation.
+
+Literal command-family review can prove optional leading ASCII spaces/tabs and
+an exact final command-separator class without asking Jev to interpret regex.
+A newline between `git` and `push` differs from a newline after `npm`: the latter
+still follows an npm invocation. Authorization and every counterevidence window
+remain mandatory. This prefix grammar does not cover all Bash syntax, and legacy
+stored rules are not rewritten automatically.
 Private response artifacts retain non-sensitive complete bounded output to separate
 framing/selection failures from wrong semantic judgments. A correctly bound model
 answer alone is not evidence that the knowledge is correct or useful.
@@ -1420,7 +1507,11 @@ General Memory organization requests target source-backed corrections, rather th
 rewriting every selected record into a shorter summary. The planner must identify
 the particular incorrect claim, preserve unrelated knowledge and conditions, and
 cite necessary original sources. Complete evidence review and semantic gates are
-unchanged; this prompt contract alone is not evidence of useful learning.
+unchanged; this prompt contract alone is not evidence of useful learning. When original task scope and successful paired source reads support it, the existing
+semantic repair may distinguish the current observation from a short earlier
+observation. It must cite both original sources, retain material conditions, and
+respect revocations, privacy and temporary restrictions. This optional wording
+adds no repair attempt or approval; uncertain records remain held.
 
 Citation generation preserves empty/whitespace source text and positions without
 offering those fragments as selectable evidence. Meaningful ranges retain their
@@ -1457,7 +1548,150 @@ stale or foreign patches and proposed records placed in retained operations fail
 Legacy full-plan replies keep their original validation, including rejection of
 new proposals regenerated as existing rewrites. Full semantic review still follows.
 
+Semantic workers can select an exact short `candidateRef` when the parent provides
+one. Before generation, the parent captures the complete proposal SHA256 and its
+reference-to-full-ID map. It checks that binding and the complete frozen snapshot
+again before resolving a reference. Mixed selectors, duplicate targets, changed
+proposals and foreign references fail. Full `candidateId` values remain exact;
+the parent never guesses a malformed ID. Citation-only workers cannot use these
+references. This interface avoids asking a knowledge correction worker to copy
+long digests; it does not approve the resulting claims.
+
 A low-confidence coherence judgment is uncertainty, even when its preferred label
 is contradictory. It cannot force changes to possibly correct knowledge. Such
 fields remain held and receive the same complete review before any application;
 removing an unjustified change requirement grants no semantic approval.
+
+For parent-proved literal command-family prohibitions, each complete counterevidence
+window receives two mandatory judgments: changes to permission in original user
+messages, and factual contradictions in the complete rule explanation. Both must
+pass the unchanged probability/confidence gates. Tool results and assistant text
+cannot grant permission; verified observations can still refute factual claims.
+Other regexes and correction candidates retain their existing review.
+
+Independent Memory consistency review explicitly compares the separately retrieved
+frontmatter description with the complete record, including declarations. A
+whole-record hold cannot certify an unquoted description as passed: the existing
+single correction may reconsider body and description, while names, privacy,
+observations and fresh source/citation/semantic gates remain bound. It may select
+new citations from the same complete frozen evidence. Prefer a complete supported
+body sentence for index descriptions to avoid introducing facts through compression.
+
+For durable source contracts, generation guidance favors the exact inspected
+declaration with brief attribution over multiple prose restatements. The index
+can identify the declared API and source file while the body preserves its full
+type structure. This changes generation guidance, not evidence or semantic gates.
+
+
+New private project proposals may select `sourceExcerpt: {ref, endRef?}` instead
+of generated `content`. The parent requires a successful original project `read`
+or complete added lines from a uniquely bound successful `edit`, matching
+candidate evidence and unchanged current source bytes. It copies the
+exact excerpt and supplies a neutral file description before ordinary expansion,
+complete-record review and semantic/privacy validation. Existing rewrites and
+preferences keep their current representation. Protected directories, symlinks,
+stale excerpts and source changes around application are rejected. This optional
+representation reduces opportunities for paraphrase errors; its availability
+alone does not establish effective learning or downstream task benefit.
+When original evidence supports a maintenance purpose or applicability condition,
+generation uses the existing `content` format instead. It retains the complete
+exact declaration and concise supported **Why** and **How to apply** sections.
+It must not invent a purpose, currentness guarantee or runtime behavior. This
+generation policy does not migrate old records or establish learning benefit.
+
+
+Operators may set `plannerThinkingLevel` in the agent's `continual-learning.json`
+to a Pi thinking level (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`).
+This explicit generation setting applies to isolated learning planners and repairs;
+absent configuration preserves the model default. Independent complete-record
+review retains its existing reasoning and deadlines, including an accuracy-focused
+contradiction repair override. Invalid or unsafe configuration refuses worker
+startup. A lower generation setting may reduce latency/cost but must still pass
+all source, privacy and semantic validation; it does not establish learning benefit.
+
+Memory source review distinguishes earlier inspected source from a later successful source edit, and still checks later reverts and failed edits. A failed compound command may contain individually evidenced configuration or lint observations; these never establish overall command success, a successful fix, or verified runtime behavior. These are review questions, not parent-granted semantic acceptance.
+
+For new private project Memory, `sourceExcerpt` also accepts complete contiguous added lines from an original successful `edit` patch. The parent checks its unique invocation, matching `newText` and current regular source file before removing `+` markers for the body; original patch evidence stays unchanged. Removed lines, headers, partial-line references, failed edits and source drift are rejected. This supplies a candidate only and retains every existing semantic and mutation gate.
+
+Complete manual `/consolidate backfill` now refreshes source observations for
+paths from the original task before Memory selection. This addresses tasks whose
+last complete source read preceded later edits. The collector is read-only,
+cannot read stored Memory or unrelated task files, and adds actual verified reads
+without replacing any original evidence. Collection failures remain failures;
+all source bindings, privacy and semantic gates still apply. Automatic and
+truncated replay retain their existing behavior. Additional collector usage is
+included in receipts, and successful collection does not establish a learned fix
+or better subsequent tasks.
+
+`jev.requestConcurrency` optionally limits each semantic-review batch to 1–4 concurrent requests (default 4). Use a lower value for a constrained service or unreliable concurrent transport; it does not drop source windows, lower probability gates, increase request bounds, or change per-request deadlines. Lower concurrency may increase total review time and does not by itself prove a transport fix or learning benefit.
+
+Semantic Memory amendment `content` is a complete replacement Markdown document, including name/description/type frontmatter and the full body. Its structured-output schema matches the parent document requirement; a body-only paragraph is not a complete amendment. Identity, protected metadata, source citations and fresh complete review remain mandatory. A content patch may omit unchanged evidence only when the parent explicitly grants original-source reuse for that candidate. The parent checks the exact candidate ID and frozen snapshot hash, run and scope, resolves the complete original citations again, and preserves locked fields. Explicit invalid evidence and an unchanged effective patch remain rejected. This supplies a candidate for fresh review, never a learned change or approval. Citation-only amendments still require evidence. When parent-bound source observations are available, correction generation receives the reviewer's validated same-path read-order links alongside the complete original evidence. The links establish provenance only. They do not establish semantic supersession, runtime success or user permission, and old Memory remains a correction target. Invalid source bindings stop generation before a model request. Fresh full review must still reject a repair that restores an obsolete declaration while citing newer source.
+
+Semantic Memory repair uses the same 230-second worker budget as independent
+body review, with parent cancellation propagated to the child process group.
+Timeout retains the rejected proposal, parent-controlled lifecycle and partial
+usage; it does not admit a mutation or trigger another planner retry. Failed
+continuous studies reconcile retained receipts and worker ledgers by identity,
+including body review and source collection. Known costs are lower bounds when
+calls were interrupted; receipt processing and writes do not establish learning
+benefit.
+
+Normal project Memory semantic reviews send complete values directly: knowledge
+bodies, exact predecessor bodies and original cited quotes remain inline, with
+separate description checks and complete Markdown in mutation context. Historical
+studies with an explicit request-byte bound retain their original lossless pointer
+encoding. Source coverage, privacy, preservation, thresholds and deadlines remain
+unchanged. This improves the review interface; a transport regression check does
+not establish semantic accuracy or downstream learning benefit.
+
+For normal unbounded Memory rewrites and deletions, every counterevidence window
+also receives relevant complete parent-bound current-source observations and
+their original invocations. Both predecessor and replacement text may nominate
+source paths; that match supplies comparison context only, never support,
+preservation or mutation authority. Retention already uses this comparison.
+Explicitly byte-bounded historical requests keep their original encoding. A
+coverage regression check does not explain an earlier uncertain judgment or
+establish that the corrected knowledge improves a later task.
+
+Normal rewrite/delete review also receives parent-computed exact quote comparisons
+for uniquely paired successful reads with the same supplied path. Code reports
+whether the full cited string occurs inside an individual original text block in
+each observed version. A missing match does not prove absence from the file.
+The facts stay scoped to the reviewed candidate; they do not establish source
+identity, meaning, supersession, runtime behavior or permission. Every original
+semantic gate remains required, even when the current quote matches exactly.
+Separate blocks are never joined to manufacture an exact match. Finite historical
+wires remain unchanged. This is comparison data, not demonstrated learning benefit.
+
+Normal rewrite review also includes exact unmatched line occurrences from the
+complete old and new Markdown. These comparisons count duplicate lines and keep
+line endings. They ignore order. Review must still judge whether changed wording
+is superseded or rephrased, and whether unchanged wording keeps its meaning in
+context. Complete records, original evidence and every semantic gate remain
+required. Historical byte-bounded requests keep their original wire.
+
+Source excerpts and quotations do not make comments or documentation true.
+Learning and correction compare that wording with current user requirements and
+complete source observations. Declared API knowledge should retain the complete
+supported declaration and its owning type without misleading commentary. A
+material documentation mismatch may remain an explicitly unresolved observation
+with its original evidence; it must not become a claim of verified behavior or
+a successful fix. Atomic submission and semantic thresholds remain unchanged.
+
+Normal source-comparison requests also name the original invocation/result indexes
+of earlier successful reads and later parent-bound reads with the exact same
+supplied path. The relationship records observed order only: it does not establish
+file identity, semantic supersession, truth or permission. Failed, ambiguous and
+different-path reads cannot supply this relationship. Complete original results,
+every evidence window and later corrections remain required. Historical requests
+with an explicit byte bound retain their original encoding.
+
+Candidate-bound semantic repairs require the complete amendment envelope: kind, version and every exact parent identity value remain mandatory alongside replacements. Patch-only field restrictions apply inside replacements, not to that envelope. Missing identity stays rejected; the parent never infers or attaches it, and corrected content still requires full source and semantic validation.
+
+Candidate-bound corrective generation disables extra reasoning only for known description-only patches after complete bodies passed independent consistency review. Body holds from source support, permission or predecessor preservation retain high reasoning even when internal consistency passed. Retained-record correction, unknown held fields and contradictory or uncertain bodies also retain high reasoning; structural planning keeps its configured setting. This changes generation effort, not validation: corrected documents still need fresh independent body review, full original-source semantic review and the same thresholds and deadline. Native wire delivery alone does not prove the service honored the setting or that learning improved.
+
+An amendment that reconstructs the complete rejected proposal without an effective change remains unresolved. The parent checks this after source selection, citation resolution and protected-field restoration, before another semantic review. It preserves the repair output and usage. Changed source or citations still need fresh review; uncertainty does not require arbitrary paraphrasing.
+
+Memory selection binds a canonical map of complete file hashes. Directory traversal order changes during mirror normalization do not invalidate unchanged files; changed, added or removed entries still reject the stale selection. Frozen dossier byte hashes remain exact.
+
+Normal Jev review requests `TypeSafe-Danger-Zone-Long-Context: true` on the first call so complete original entries can use the configured service's supported larger context. Set `jev.longContext: false` in `continual-learning.json` to keep the service default. Explicitly finite-byte historical studies keep their original context mode. This adds no retry, evidence trimming, threshold change or mutation authority. TypeSafe documents a 262k-token long context, with possible latency and accuracy costs; service acceptance still needs full semantic/body review and later real-task verification. See [TypeSafe models](https://docs.typesafe.ai/models). The V40 exact 132,837-byte rejected request was reconstructed by hash and independently diagnosed as `max_tokens_exceeded`; its failed plan and unknown service cost remain retained.

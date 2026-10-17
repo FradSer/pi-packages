@@ -1,3 +1,5 @@
+import hashlib
+
 from support import isolated_run_bun
 
 
@@ -51,17 +53,32 @@ def test_rewrite_excludes_only_its_predecessor_and_preserves_mutation_checks() -
       const original=requests.splice(0);mode='contradicts';const refused=await judge.validate('memory',snapshot,[candidate],existing);
       const relations=original.filter(r=>r.questions.relation_0).map(r=>({state:(typeof r.state === "string" ? JSON.parse(r.state) : r.state),names:r.questions.relation_0.instructions.comparisonNames}));
       const support=original.find(r=>r.questions.supported_0);const counters=original.filter(r=>Object.keys(r.questions).some(k=>k.startsWith('counter_')));
-      console.log(JSON.stringify({allowed:allowed.decision,refused:refused.decision,relations,original:existing,
+      console.log(JSON.stringify({allowed:allowed.decision,refused:refused.decision,relations,original:existing,candidate,
         support:(typeof support.state === "string" ? JSON.parse(support.state) : support.state),counterStates:counters.map(r=>(typeof r.state === "string" ? JSON.parse(r.state) : r.state)),review:allowed.candidateReview}));
     ''')
     assert value['allowed'] == 'allow' and value['refused'] == 'propose'
     assert value['relations'][0]['names'] == ['other.md']
     assert value['relations'][0]['state']['existingMemories'] == [value['original'][1]]
-    assert value['support']['existingMemories'] == [value['original'][0]]
-    assert len(value['support']['proposedMemoryOperations']) == 1
+    # Factual source support sees the full new record, not its old reference.
+    # Preservation and permission still review the exact predecessor below.
+    assert 'existingMemories' not in value['support']
+    assert 'mutationComparison' not in value['support']
+    assert 'historicalMemoryOrigins' not in value['support']
+    expected = {key: item for key, item in value['candidate'].items() if key != 'evidence'}
+    expected.update(candidateIndex=0, originalCitationSources=[
+        {'snapshotIndex': citation['index'], 'role': role,
+         'quoteSha256': hashlib.sha256(citation['quote'].encode()).hexdigest()}
+        for citation, role in zip(value['candidate']['evidence'], ['user', 'toolResult'], strict=True)
+    ])
+    assert value['support']['proposedMemoryOperations'] == [expected]
+    assert [{key: item[key] for key in ('index', 'quote', 'role')}
+            for item in value['support']['originalCitationsByCandidate']['0']] == [
+        {**citation, 'role': role}
+        for citation, role in zip(value['candidate']['evidence'], ['user', 'toolResult'], strict=True)
+    ]
     for state in value['counterStates']:
         assert state['existingMemories'] == [value['original'][0]]
-        assert len(state['proposedMemoryOperations']) == 1
+        assert state['proposedMemoryOperations'] == [expected]
     assert value['review']['complete']
 
 

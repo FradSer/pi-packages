@@ -6,6 +6,8 @@ No user authentication, remote model, built-in tools or project configuration is
 
 from __future__ import annotations
 
+from live_acceptance_support import workspace_pi
+
 from collections.abc import Callable
 import errno
 import fcntl
@@ -243,7 +245,7 @@ def verify_tui(command: list[str], env: dict[str, str], cwd: Path, output: Path)
 
 
 def main() -> None:
-    pi = shutil.which("pi")
+    pi = workspace_pi(Path(__file__).resolve().parents[3])
     assert pi, "pi CLI is required"
     with tempfile.TemporaryDirectory(prefix="learning-details-live-") as raw:
         cwd = Path(raw)

@@ -1,3 +1,4 @@
+import { createShadowSourceDirectory } from "./shadow-source-directory";
 /** Research-only owned copy; existing binary scope handling and gates retained. */
 import fs from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -13,7 +14,7 @@ export function scopeNoulSource(source:string):string {
 }
 export async function loadScopeNoulJudge():Promise<{createJevJudge:typeof createJevJudge;sourceSha256:string;patchedSha256:string;dispose():Promise<void>}> {
  const source=await fs.readFile(new URL('./fixtures/jev-learning-before-bound-scope.ts.txt',import.meta.url),'utf8');const patched=scopeNoulSource(source);
- const directory=await fs.mkdtemp(new URL('./.jev-scope-noul-',import.meta.url).pathname);const dispose=()=>fs.rm(directory,{recursive:true,force:true});
+ const directory=await createShadowSourceDirectory("jev-scope-noul-");const dispose=()=>fs.rm(directory,{recursive:true,force:true});
  try {
   await fs.cp(new URL('../extensions/',import.meta.url),`${directory}/extensions`,{recursive:true});
   const file=`${directory}/extensions/jev-learning.ts`;await fs.writeFile(file,patched,'utf8');

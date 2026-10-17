@@ -99,3 +99,109 @@ def retain_failure_container(
             report['cleanupError'] = 'container-removal-failed'
     write_report()
     return report
+
+
+def retained_learning_costs(target: Path) -> dict:
+    """Recover a known lower bound from retained parent-owned evidence.
+
+    Interrupted calls remain unknown. Receipt copies are keyed by batch, workers
+    by ledger identity; numeric equality alone never establishes call identity.
+    """
+    import math
+
+    def valid_usage(value: Any) -> bool:
+        return isinstance(value, dict) and all(
+            isinstance(value.get(key), (int, float)) and not isinstance(value[key], bool)
+            and math.isfinite(value[key]) and value[key] >= 0
+            for key in ('input', 'output', 'cacheRead', 'cacheWrite', 'totalTokens', 'cost'))
+
+    receipts: dict = {}
+    workers: dict = {}
+    legacy: list = []
+    errors: list = []
+
+    def collect(value: Any) -> None:
+        if not isinstance(value, dict) or value.get('kind') != 'learning-pipeline-receipt':
+            raise ValueError('Invalid parent receipt')
+        identity = value.get('batchId')
+        if not isinstance(identity, str) or not identity or not valid_usage(value.get('totals')):
+            raise ValueError('Invalid retained receipt')
+        if identity in receipts and receipts[identity] != value:
+            raise ValueError('Conflicting retained receipt identity')
+        receipts[identity] = value
+
+    paths = [*target.glob('memory/runs/*/*/*.json'), *target.glob('learning/*/replay-*.json')]
+    for path in sorted(paths):
+        relative = path.relative_to(target)
+        name = path.name
+        replay = relative.parts[0] == 'learning'
+        receipt = name == 'learning-pipeline-receipt.json'
+        worker = name.startswith(('memory-task-usage', 'memory-repair-usage', 'memory-body-usage',
+                                  'harness-task-usage', 'harness-repair-usage')) or name == 'source-audit-usage.json'
+        if not (replay or receipt or worker):
+            continue
+        if target.is_symlink() or any((target / Path(*relative.parts[:i])).is_symlink() for i in range(1, len(relative.parts) + 1)):
+            raise ValueError('Symlink in retained cost evidence')
+        try:
+            value = json.loads(path.read_text())
+        except (ValueError, UnicodeError):
+            errors.append(str(path.relative_to(target)))
+            continue
+        if receipt:
+            collect(value)
+        if replay:
+            if not isinstance(value, dict) or not isinstance(value.get('attempts'), list):
+                raise ValueError('Invalid parent replay ledger')
+            for attempt in value['attempts']:
+                if isinstance(attempt, dict) and attempt.get('receipt'):
+                    collect(attempt['receipt'])
+        if not isinstance(value, dict) or not valid_usage(value.get('knownUsage')):
+            continue
+        name = path.name
+        if not (name.startswith(('memory-task-usage', 'memory-repair-usage', 'memory-body-usage',
+                                 'harness-task-usage', 'harness-repair-usage')) or name == 'source-audit-usage.json'):
+            continue
+        row = {'path': str(path.relative_to(target)), **value}
+        identity = value.get('ledgerId')
+        if not isinstance(identity, str) or not identity:
+            if name == 'source-audit-usage.json':
+                legacy.append(row)
+            else:
+                errors.append(row['path'])
+            continue
+        if identity in workers and workers[identity]['knownUsage'] != value['knownUsage']:
+            raise ValueError('Conflicting worker usage ledger identity')
+        workers[identity] = row
+
+    included: dict = {}
+    unkeyed_receipt_usage = False
+    for batch, receipt in receipts.items():
+        for attempt in receipt.get('attempts', []):
+            if not valid_usage(attempt.get('usage')):
+                continue
+            identity = attempt.get('usageLedgerId')
+            if not identity:
+                unkeyed_receipt_usage = True
+                continue
+            if identity in included:
+                raise ValueError('Conflicting or duplicate receipt worker usage identity')
+            included[identity] = {'batch': batch, 'usage': attempt['usage']}
+    additional = []
+    for identity, row in workers.items():
+        if identity in included:
+            if included[identity]['usage'] != row['knownUsage']:
+                raise ValueError('Conflicting receipt and worker usage')
+        else:
+            additional.append(row)
+    # Historical collectors lacked IDs. Only absent unkeyed receipt usage
+    # rules out receipt inclusion; otherwise retain an unresolved lower bound.
+    unresolved = [row['path'] for row in legacy] if unkeyed_receipt_usage else []
+    if not unkeyed_receipt_usage:
+        additional.extend(legacy)
+    known = [r['totals'] for r in receipts.values()] + [r['knownUsage'] for r in additional]
+    return {'knownLearningCost': sum(row['cost'] for row in known),
+            'knownLearningTokens': sum(row['totalTokens'] for row in known),
+            'receiptBatches': sorted(receipts), 'additionalWorkerLedgers': additional,
+            'unresolvedLegacySourceAudits': unresolved, 'parseErrors': errors,
+            'unknownCosts': True, 'allLearningCostsPriced': False,
+            'basis': 'retained-interrupted-evidence; known lower bound, not completion'}

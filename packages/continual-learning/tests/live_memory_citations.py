@@ -29,7 +29,7 @@ def main() -> None:
         env.update(HOME=str(root), PI_CODING_AGENT_DIR=str(agent), PI_OFFLINE='1',
                    PI_CITATION_FIXTURE_AUTH=secrets.token_hex(16), PI_CITATION_FIXTURE_RESULT=str(result), PI_CITATION_FIXTURE_FILE=str(evidence_file))
         version = subprocess.check_output([node, str(pi), '--version'], env=env, text=True).strip()
-        assert version == '1.0.0', 'Pi compatibility baseline changed'
+        assert version == '1.2.0', 'Pi compatibility baseline changed'
         command = [node, str(pi), '--no-session', '--offline', '--no-extensions', '--no-skills', '--no-prompt-templates',
                    '--no-context-files', '--no-themes', '--no-approve', '--no-builtin-tools',
                    '--extension', str(tests / 'memory-citation-live-fixture.ts'), '--provider', 'memory-citation-fixture',

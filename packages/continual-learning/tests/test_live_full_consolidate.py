@@ -45,3 +45,12 @@ def test_missing_or_unrelated_read_call_map_is_rejected() -> None:
     assert readback_marker_ids(messages, MARKERS, {}, ROOT) == set()
     unrelated = {"read-1": "/unrelated/full_fact.md", "read-2": f"{ROOT}/full_second.md"}
     assert readback_marker_ids(messages, MARKERS, unrelated, ROOT) == set()
+
+
+def test_full_planner_readback_tracks_only_the_current_scoped_tool():
+    from live_full_consolidate import read_tool_call_paths
+    import json
+    def call(name, call_id):
+        return {"id": call_id, "type": "function", "function": {"name": name, "arguments": json.dumps({"path": "/fixture/fact.md"})}}
+    messages = [{"role": "assistant", "tool_calls": [call("learning_read", "scoped"), call("read", "unavailable-native"), call("bash", "unrelated")]}]
+    assert read_tool_call_paths(messages) == {"scoped": "/fixture/fact.md"}
