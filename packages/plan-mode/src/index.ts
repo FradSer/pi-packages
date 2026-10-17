@@ -730,7 +730,7 @@ export default function planMode(extensionApi: ExtensionAPI): void {
     const sections = options.sections;
     Reflect.deleteProperty(sections, "plan_mode");
     if (!planModeActive) return;
-    if (typeof event.prompt === "string") {
+    if ("prompt" in event && typeof event.prompt === "string") {
       if (awaitingPlanRequest) {
         activePlanRequest ??= event.prompt;
         awaitingPlanRequest = false;
