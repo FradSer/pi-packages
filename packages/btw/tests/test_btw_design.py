@@ -44,7 +44,7 @@ def test_focus_editing_and_small_layouts() -> None:
     """.replace("'\n'", "'\\n'").replace("'\x1b[H'", "'\\x1b[H'"))
     assert result['focusable'] is True
     assert result['unfocused'] is False
-    plain = re.sub(r'\x1b\[[0-9;]*m|\x1b_pi:c\x07', '', result['composer'])
+    plain = re.sub(r'\x1b\[[0-9;]*m|\x1b_pi:[^\x07]*\x07', '', result['composer'])
     assert 'yx' in plain
     for layout in result['layouts']:
         assert layout['height'] <= int(layout['rows'] * 0.8)
