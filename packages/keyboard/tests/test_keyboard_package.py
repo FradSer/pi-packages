@@ -17,6 +17,7 @@ GLOBAL_SESSIONS_URI = (SRC / "global-sessions.ts").as_uri()
 DRIVER_URI = (SRC / "driver.ts").as_uri()
 INDEX_URI = (SRC / "index.ts").as_uri()
 UTILS_SESSIONS_URI = (REPO / "packages" / "utils" / "extensions" / "sessions.ts").as_uri()
+KIT_INDEX_URI = (REPO / "packages" / "kit" / "src" / "index.ts").as_uri()
 
 
 def run_typescript(script: str) -> dict[str, object]:
@@ -353,7 +354,7 @@ def test_registry_directory_matches_every_other_writer() -> None:
     import fs from "node:fs";
     import path from "node:path";
     import {{ getRegistryDir }} from "{GLOBAL_SESSIONS_URI}";
-    import {{ directorySessionsDir, getDirectorySessionKey, isSameDirectory }} from "@fradser/pi-kit";
+    import {{ directorySessionsDir, getDirectorySessionKey, isSameDirectory }} from "{KIT_INDEX_URI}";
     import {{ getRegistryDir as utilsDir }} from "{UTILS_SESSIONS_URI}";
     console.log(JSON.stringify({{
       agentDir: getRegistryDir(),
