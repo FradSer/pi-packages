@@ -13,6 +13,8 @@ scopes:
       description: task data model, status machines, dependency-graph rules, and durable board persistence in packages/tasks/; does not cover processes
     - name: goal
       description: durable goal runtime, ledger storage, and completion auditing in packages/goal/; does not cover shared kit internals
+    - name: loop
+      description: scheduled self-prompting, decision-selected loop plans, and native user-turn delivery in packages/loop/; does not cover shared kit internals
     - name: odk
       description: remote session reporting and Pi-control events to Open DeskOS in packages/open-deskos/; does not cover shared kit internals
     - name: util
