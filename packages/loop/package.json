@@ -1,0 +1,46 @@
+{
+  "name": "@fradser/pi-loop",
+  "version": "0.1.0",
+  "description": "Scheduled self-prompting for Pi: /loop repeats one message into the session as a real user turn. Explicit flags cover fixed schedules; free natural language is resolved by TypeSafe Jev judgments.",
+  "keywords": [
+    "pi-package",
+    "loop",
+    "schedule",
+    "recurring",
+    "self-prompting",
+    "typesafe",
+    "jev"
+  ],
+  "author": "Frad LEE <fradser@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FradSer/pi-packages.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./index.ts"
+  },
+  "files": [
+    "index.ts",
+    "src",
+    "features",
+    "README.md",
+    "AGENTS.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "dependencies": {
+    "@fradser/pi-kit": "workspace:*"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
