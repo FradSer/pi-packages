@@ -36,6 +36,56 @@ def test_legacy_state_without_delivery_tracking_can_transition_and_deliver() -> 
     assert "implement" in result["delta"]["delivered"]
 
 
+def test_link_rewriting_covers_resource_paths_only() -> None:
+    """A resource link becomes a procedure link; a URL, a title and an unknown target survive.
+
+    The rewriter must not touch an external URL even when its tail names a resource,
+    because only catalogue resources are what the model can load.
+    """
+    result = run_typescript(
+        """
+        import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+        import { tmpdir } from "node:os";
+        import { join } from "node:path";
+        import { fileURLToPath, pathToFileURL } from "node:url";
+        const sourcePackage = fileURLToPath(new URL("./packages/matt-pocock/", import.meta.url));
+        const isolatedPackage = mkdtempSync(join(tmpdir(), "matt-link-rewrite-"));
+        cpSync(join(sourcePackage, "src"), join(isolatedPackage, "src"), { recursive: true });
+        for (const kind of ["procedures", "references", "assets"]) {
+          cpSync(join(sourcePackage, kind), join(isolatedPackage, kind), { recursive: true });
+        }
+        const { resolveProcedureBundle } = await import(
+          pathToFileURL(join(isolatedPackage, "src/resolver.ts")).href
+        );
+        try {
+          writeFileSync(join(isolatedPackage, "procedures/pr.md"), [
+            "# Link forms",
+            "",
+            "- external resource tail: [threat model](https://evil.example/DEEPENING.md)",
+            "- protocol-relative tail: [pr](//host.example/DEEPENING.md)",
+            "- bare host path: [doc](www.example.com/DEEPENING.md)",
+            '- titled cross-directory link: [glossary](../references/bdd.md "the title")',
+            "- anchored sibling link: [tests](tests.md#loop)",
+            "- unknown target: [missing](nope.md)",
+          ].join("\\n"));
+          console.log(JSON.stringify({ content: resolveProcedureBundle("pr").content }));
+        } finally {
+          rmSync(isolatedPackage, { recursive: true, force: true });
+        }
+        """
+    )
+    content = str(result["content"])
+    assert "](https://evil.example/DEEPENING.md)" in content
+    assert "](procedure:DEEPENING)" not in content
+    assert "](//host.example/DEEPENING.md)" in content
+    assert "](www.example.com/DEEPENING.md)" in content
+    assert '](procedure:bdd "the title")' in content
+    assert "](../references/bdd.md \"the title\")" not in content
+    assert "](procedure:tests#loop)" in content
+    assert "](nope.md)" in content
+    assert "](procedure:" in content
+
+
 def test_multibyte_bundle_limit_counts_utf8_bytes_and_rejects_overflow() -> None:
     result = run_typescript(
         """
@@ -46,7 +96,9 @@ def test_multibyte_bundle_limit_counts_utf8_bytes_and_rejects_overflow() -> None
         const sourcePackage = fileURLToPath(new URL("./packages/matt-pocock/", import.meta.url));
         const isolatedPackage = mkdtempSync(join(tmpdir(), "matt-boundary-package-"));
         cpSync(join(sourcePackage, "src"), join(isolatedPackage, "src"), { recursive: true });
-        cpSync(join(sourcePackage, "procedures"), join(isolatedPackage, "procedures"), { recursive: true });
+        for (const kind of ["procedures", "references", "assets"]) {
+          cpSync(join(sourcePackage, kind), join(isolatedPackage, kind), { recursive: true });
+        }
         const { MAX_PROCEDURE_BUNDLE_BYTES, resolveProcedureBundle } = await import(
           pathToFileURL(join(isolatedPackage, "src/resolver.ts")).href
         );

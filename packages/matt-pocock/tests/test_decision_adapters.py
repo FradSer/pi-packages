@@ -48,3 +48,42 @@ console.log(JSON.stringify(result));
     assert outcomes["blank"]["details"] == {"pending": True, "source": "custom_input_cancelled"}
     assert outcomes["failure"]["details"]["answer"] == "B"
     assert result["fallbackCalls"] == (1 if native else 5)
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="macOS adapter")
+def test_native_deadline_adopts_the_recommendation_without_a_fallback(tmp_path: Path) -> None:
+    """Both native dialogs report their own expiry, and the ask adopts the recommendation."""
+    config = tmp_path / "config.json"
+    config.write_text('{"useNativeDialog": true}')
+    binary = tmp_path / "osascript"
+    binary.write_text('''#!/usr/bin/env node
+const mode = process.env.MP_TEST_NATIVE_DEADLINE;
+if (process.argv.at(-1).includes("displayDialog")) {
+  console.log(JSON.stringify({ gaveUp: true }));
+  process.exit(0);
+}
+if (mode === "hang") { setTimeout(() => {}, 5000); return; }
+console.log(JSON.stringify(["Type custom answer..."]));
+''')
+    binary.chmod(0o755)
+    result = run_typescript(RUNTIME_HARNESS + f'''
+        process.env.PATH = {str(tmp_path)!r} + ":" + process.env.PATH;
+        process.env.PI_MATT_POCOCK_CONFIG_FILE = {str(config)!r};
+        process.env.PI_NO_NATIVE_DIALOG = "0";
+        for (const name of ["CI", "SSH_CONNECTION", "SSH_CLIENT", "SSH_TTY"]) delete process.env[name];
+        const r = runtime(); await r.start(); const results = {{}}; let fallbackCalls = 0;
+        r.ctx.ui.select = async () => {{ fallbackCalls++; return undefined; }};
+        r.ctx.ui.input = async () => {{ fallbackCalls++; return undefined; }};
+        const question = {{ question: "Scope?", options: ["A", "B"], recommended: "B" }};
+        process.env.MP_TEST_NATIVE_DEADLINE = "custom";
+        results.customExpiry = await r.call("matt_pocock_ask", {{ ...question, timeout_seconds: 30 }});
+        process.env.MP_TEST_NATIVE_DEADLINE = "hang";
+        results.selectorExpiry = await r.call("matt_pocock_ask", {{ ...question, timeout_seconds: 0.05 }});
+        console.log(JSON.stringify({{ results, fallbackCalls }}));
+    ''')
+    assert result["fallbackCalls"] == 0
+    for name in ("customExpiry", "selectorExpiry"):
+        assert result["results"][name]["details"] == {
+            "answer": "B", "is_custom": False, "timed_out": True,
+            "pending": False, "source": "timeout_recommended",
+        }

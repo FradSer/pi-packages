@@ -16,8 +16,9 @@ def test_capability_mode_targets_are_model_standalone() -> None:
         if definition.get("standalone") and definition.get("invocation") == "model"
     }
     procedures = PACKAGE / "procedures"
+    directories = {"workflow": "procedures", "utility": "procedures", "reference": "references", "asset": "assets"}
     for entry in catalog:
-        text = (procedures / entry["file"]).read_text()
+        text = (PACKAGE / directories[entry["kind"]] / entry["file"]).read_text()
         for lineno, line in enumerate(text.splitlines(), 1):
             if "mode `capability`" in line:
                 for target in re.findall(r"\[([A-Za-z0-9-]+)\]\(", line):
@@ -34,7 +35,7 @@ def test_manifest_declares_one_package_root_extension() -> None:
     assert manifest["pi"] == {"extensions": ["./index.ts"]}
     assert "@earendil-works/pi-coding-agent" in manifest["peerDependencies"]
     assert manifest["dependencies"] == {"@fradser/pi-kit": "workspace:*"}
-    assert {"index.ts", "src", "procedures", "TODO.md"} <= set(manifest["files"])
+    assert {"index.ts", "src", "procedures", "references", "assets", "TODO.md"} <= set(manifest["files"])
     assert "skills" not in manifest["pi"]
     assert (PACKAGE / "index.ts").is_file()
 
@@ -374,22 +375,24 @@ def test_matt_pocock_ask_selection_custom_input_pending_cases() -> None:
         let selectChoice = "Option A", inputChoice = "", lastTimeout;
         const select = async (_title, _choices, options) => { lastTimeout = options?.timeout ?? null; return selectChoice; };
         r.ctx.ui.select = select; r.ctx.ui.input = async () => inputChoice;
-        const question = { question: "Which scope?", options: ["Option A", "Option B"] };
-        const selected = await r.call("matt_pocock_ask", { ...question, recommended: "Option A", timeout_seconds: 30 });
+        const question = { question: "Which scope?", options: ["Option A", "Option B"], recommended: "Option A" };
+        const selected = await r.call("matt_pocock_ask", { ...question, timeout_seconds: 30 });
         const timeoutWithSec = lastTimeout;
         selectChoice = undefined;
-        await r.call("matt_pocock_ask", { ...question, recommended: "Option A" });
+        await r.call("matt_pocock_ask", question);
         const timeoutDefaultSec = lastTimeout;
         r.ctx.ui.select = (_title, _choices, { signal }) => new Promise(resolve => signal.addEventListener("abort", () => resolve(undefined), { once: true }));
-        const timeoutRecommended = await r.call("matt_pocock_ask", { ...question, recommended: "Option A", timeout_seconds: 0.01 });
+        const timeoutRecommended = await r.call("matt_pocock_ask", { ...question, timeout_seconds: 0.01 });
         r.ctx.ui.select = select;
-        const noRecommendedCancel = await r.call("matt_pocock_ask", question);
-        const noRecommendedTimeout = lastTimeout;
+        selectChoice = undefined;
+        const cancelled = await r.call("matt_pocock_ask", question);
         selectChoice = "Type custom answer..."; inputChoice = "Custom";
         const custom = await r.call("matt_pocock_ask", question);
+        inputChoice = "";
+        const blankCustom = await r.call("matt_pocock_ask", question);
         r.ctx.hasUI = false;
         const noUi = await r.call("matt_pocock_ask", question);
-        console.log(JSON.stringify({ selected, timeoutRecommended, noRecommendedCancel, custom, noUi, timeoutWithSec, timeoutDefaultSec, noRecommendedTimeout }));
+        console.log(JSON.stringify({ selected, timeoutRecommended, cancelled, custom, blankCustom, noUi, timeoutWithSec, timeoutDefaultSec }));
     """)
     assert result["selected"]["details"]["answer"] == "Option A"
     assert result["timeoutWithSec"] == 30000
@@ -399,11 +402,85 @@ def test_matt_pocock_ask_selection_custom_input_pending_cases() -> None:
     assert result["timeoutRecommended"]["details"]["timed_out"] is True
     assert result["timeoutRecommended"]["details"]["source"] == "timeout_recommended"
     assert result["timeoutRecommended"]["content"][0]["text"] == "Which scope?\n\n> Option A"
-    assert result["noRecommendedTimeout"] is None
-    assert result["noRecommendedCancel"]["details"]["pending"] is True
-    assert "Do not proceed" in result["noRecommendedCancel"]["content"][0]["text"]
+    assert result["cancelled"]["details"] == {"pending": True, "timed_out": False, "source": "cancelled"}
+    assert "Do not proceed" in result["cancelled"]["content"][0]["text"]
     assert result["custom"]["details"] == {"answer": "Custom", "is_custom": True, "source": "custom_input"}
+    assert result["blankCustom"]["details"] == {"pending": True, "source": "custom_input_cancelled"}
     assert result["noUi"]["details"] == {"pending": True, "source": "no_ui"}
+
+
+def test_every_ask_requires_a_recommendation_and_arms_a_default_deadline() -> None:
+    """A question with no recommendation cannot exist, so no ask can wait indefinitely."""
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(); await r.start();
+        const question = { question: "Which scope?", options: ["Option A", "Option B"] };
+        let opened = false, missingError = "";
+        r.ctx.ui.select = async () => { opened = true; return "Option A"; };
+        try { await r.call("matt_pocock_ask", question); } catch (error) { missingError = String(error); }
+        let selectorTimeout = null;
+        r.ctx.ui.select = (_title, _choices, options) => { selectorTimeout = options?.timeout ?? null; return Promise.resolve("Option A"); };
+        const answered = await r.call("matt_pocock_ask", { ...question, recommended: "Option A" });
+        r.ctx.ui.select = (_title, _choices, { signal }) => new Promise(resolve => signal.addEventListener("abort", () => resolve(undefined), { once: true }));
+        const adopted = await r.call("matt_pocock_ask", { ...question, recommended: "Option B", timeout_seconds: 0.01 });
+        console.log(JSON.stringify({ opened, missingError, selectorTimeout, answered, adopted }));
+    """)
+    assert result["opened"] is False
+    assert "must match an offered option" in result["missingError"]
+    assert result["selectorTimeout"] == 60000
+    assert result["answered"]["details"]["answer"] == "Option A"
+    assert result["adopted"]["details"] == {
+        "answer": "Option B", "is_custom": False, "timed_out": True,
+        "pending": False, "source": "timeout_recommended",
+    }
+
+
+def test_the_default_deadline_adopts_the_recommendation() -> None:
+    """A question with no explicit timeout still expires and adopts, exactly like an explicit one.
+
+    The stubbed clock only moves the armed timer's schedule: the verdict comes from that
+    timer, so a clock reading can never turn a cancellation into a recommendation.
+    """
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(); await r.start();
+        const base = Date.now(); let reads = 0;
+        Date.now = () => reads++ === 0 ? base : base + 61_000 * reads;
+        let selectorTimeout = null, aborted = false;
+        r.ctx.ui.select = (_title, _choices, options) => {
+          selectorTimeout = options?.timeout ?? null;
+          return new Promise(resolve => options.signal.addEventListener("abort", () => { aborted = true; resolve(undefined); }, { once: true }));
+        };
+        const adopted = await r.call("matt_pocock_ask", { question: "Which scope?", options: ["Option A", "Option B"], recommended: "Option B" });
+        console.log(JSON.stringify({ selectorTimeout, aborted, adopted }));
+    """)
+    assert result["selectorTimeout"] == 60000
+    assert result["aborted"] is True
+    assert result["adopted"]["details"] == {
+        "answer": "Option B", "is_custom": False, "timed_out": True,
+        "pending": False, "source": "timeout_recommended",
+    }
+    assert result["adopted"]["content"][0]["text"] == "Which scope?\n\n> Option B"
+
+
+def test_a_custom_answer_input_keeps_the_same_deadline() -> None:
+    """The custom-answer phase shares the ask deadline, so it cannot hang either."""
+    result = run_typescript(RUNTIME_HARNESS + """
+        const r = runtime(); await r.start();
+        r.ctx.ui.select = async () => "Type custom answer...";
+        let inputTimeout = null;
+        r.ctx.ui.input = (_question, _placeholder, options) => {
+          inputTimeout = options?.timeout ?? null;
+          return new Promise(resolve => options.signal.addEventListener("abort", () => resolve(undefined), { once: true }));
+        };
+        const adopted = await r.call("matt_pocock_ask", {
+          question: "Which scope?", options: ["Option A", "Option B"], recommended: "Option B", timeout_seconds: 0.05,
+        });
+        console.log(JSON.stringify({ inputTimeout, adopted }));
+    """)
+    assert result["inputTimeout"] is not None and result["inputTimeout"] <= 50
+    assert result["adopted"]["details"] == {
+        "answer": "Option B", "is_custom": False, "timed_out": True,
+        "pending": False, "source": "timeout_recommended",
+    }
 
 
 def test_tool_and_message_rendering_preserves_compact_lifecycle_rows() -> None:
@@ -558,7 +635,7 @@ def test_native_dialog_config_and_ask_integration(tmp_path: Path) -> None:
         const r = runtime(); await r.start(); let selectCalled = false;
         r.ctx.ui.select = async () => {{ selectCalled = true; return "Option A"; }};
         process.env.PI_MATT_POCOCK_CONFIG_FILE = "{cfg_false}";
-        const resTui = await r.call("matt_pocock_ask", {{ title: "Testing Title", question: "Which scope?", options: ["Option A", "Option B"] }});
+        const resTui = await r.call("matt_pocock_ask", {{ title: "Testing Title", question: "Which scope?", options: ["Option A", "Option B"], recommended: "Option A" }});
 
         console.log(JSON.stringify({{ c1, c2, c3, c4, overriddenFile, c5, homeFile, selectCalled, resTui }}));
     """)
@@ -603,11 +680,11 @@ def test_deslop_capability_and_ai_slop_baseline_are_bundled() -> None:
 
 def test_procedures_are_internal_linked_resources() -> None:
     assert not list(PACKAGE.rglob("SKILL.md"))
-    for procedure in PROCEDURES.glob("*.md"):
-        for target in re.findall(r"\]\(([^)]+)\)", procedure.read_text()):
+    for resource in [*PROCEDURES.glob("*.md"), *(PACKAGE / "references").glob("*.md")]:
+        for target in re.findall(r"\]\(([^)]+)\)", resource.read_text()):
             if "://" in target or target.startswith(("#", "./src/")) or target == "link":
                 continue
-            assert (procedure.parent / target).is_file(), f"{procedure.name}: {target}"
+            assert (resource.parent / target).is_file(), f"{resource.name}: {target}"
 
 
 def test_package_documents_installation_and_deferred_automation() -> None:

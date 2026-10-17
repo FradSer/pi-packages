@@ -47,7 +47,8 @@ def test_package_resolves_pi_v1_without_narrowing_published_peers() -> None:
 
 
 def test_live_fixtures_use_valid_pi_v1_api_signatures() -> None:
-    fixtures = sorted((PACKAGE / "tests").glob("*.ts"))
+    # Recursive: the real-Pi harnesses and their fixtures live in tests/live/.
+    fixtures = sorted((PACKAGE / "tests").rglob("*.ts"))
     assert fixtures
     process = subprocess.run(
         ["pnpm", "exec", "tsc", "--noEmit", "--strict", "--skipLibCheck",

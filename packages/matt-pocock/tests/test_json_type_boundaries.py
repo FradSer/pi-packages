@@ -28,7 +28,7 @@ def boundary_results() -> dict[str, object]:
                    Value.Check(active,{action:"load",reference:"LOGIC"}),
                    Value.Check(active,{action:"complete"}),
                    Value.Check(active,{action:"cancel",reason:"test"}),
-                   Value.Check(ask,{question:"Q",options:["A","B"]})]
+                   Value.Check(ask,{question:"Q",options:["A","B"],recommended:"A"})]
         }));
     ''')
 

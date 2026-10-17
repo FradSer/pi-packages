@@ -135,7 +135,7 @@ def test_question_literal_custom_option_and_whitespace_recommendation_are_preser
         r.ctx.ui.select = async () => "Type custom answer...";
         r.ctx.ui.input = async () => "must not be requested";
         const collision = await r.call("matt_pocock_ask", {
-          question: "Pick one", options: ["Type custom answer...", "B"], allow_custom: true,
+          question: "Pick one", options: ["Type custom answer...", "B"], recommended: "B", allow_custom: true,
         });
         r.ctx.ui.select = async () => " A ";
         let whitespaceError = "";

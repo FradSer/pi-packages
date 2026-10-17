@@ -216,7 +216,7 @@ def test_inflight_selector_is_dismissed_when_workflow_state_is_replaced(replacem
           openedResolve();
           signal.addEventListener("abort", () => {{ selectorAborted = true; resolve(undefined); }}, {{ once: true }});
         }});
-        const pending = r.call("matt_pocock_ask", {{ question: "Scope?", options: ["A", "B"] }});
+        const pending = r.call("matt_pocock_ask", {{ question: "Scope?", options: ["A", "B"], recommended: "A" }});
         await Promise.race([opened, new Promise(resolve => setTimeout(resolve, 100))]);
         if ({replacement!r} === "complete") {{
           await r.call("matt_pocock_active", {{ action: "complete" }});
@@ -248,7 +248,7 @@ def test_inflight_custom_input_is_dismissed_when_workflow_state_is_replaced(repl
           inputOpenedResolve();
           signal.addEventListener("abort", () => {{ inputAborted = true; resolve(undefined); }}, {{ once: true }});
         }});
-        const pending = r.call("matt_pocock_ask", {{ question: "Scope?", options: ["A", "B"] }});
+        const pending = r.call("matt_pocock_ask", {{ question: "Scope?", options: ["A", "B"], recommended: "A" }});
         await Promise.race([inputOpened, new Promise(resolve => setTimeout(resolve, 100))]);
         if ({replacement!r} === "complete") {{
           await r.call("matt_pocock_active", {{ action: "complete" }});

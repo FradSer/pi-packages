@@ -123,7 +123,7 @@ def test_question_answer_is_invalidated_after_branch_change() -> None:
     result = run_typescript(HARNESS + '''
         const a = runtime(); await a.start();
         a.ctx.ui.select = async () => { a.setBranch([]); await a.events.get("session_tree")({}, a.ctx); return "A"; };
-        const result = await a.call("matt_pocock_ask", { question: "Scope?", options: ["A", "B"] });
+        const result = await a.call("matt_pocock_ask", { question: "Scope?", options: ["A", "B"], recommended: "A" });
         console.log(JSON.stringify(result));
     ''')
     assert result["details"] == {"pending": True, "source": "aborted"}
@@ -187,12 +187,17 @@ def test_gateway_and_question_schemas_enforce_supported_shapes() -> None:
         console.log(JSON.stringify({
           gateway: Value.Check(gateway, { mode: "workflow", route: "hard-bug", bogus: true }),
           one: Value.Check(ask, { question: "Q", options: ["A"] }),
-          duplicate: Value.Check(ask, { question: "Q", options: ["A", "A"] }),
-          negative: Value.Check(ask, { question: "Q", options: ["A", "B"], timeout_seconds: -1 }),
-          valid: Value.Check(ask, { question: "Q", options: ["A", "B"], timeout_seconds: 30 }),
+          duplicate: Value.Check(ask, { question: "Q", options: ["A", "A"], recommended: "A" }),
+          negative: Value.Check(ask, { question: "Q", options: ["A", "B"], recommended: "A", timeout_seconds: -1 }),
+          missingRecommendation: Value.Check(ask, { question: "Q", options: ["A", "B"], timeout_seconds: 30 }),
+          valid: Value.Check(ask, { question: "Q", options: ["A", "B"], recommended: "A", timeout_seconds: 30 }),
         }));
     ''')
-    assert result == {"gateway": False, "one": False, "duplicate": False, "negative": False, "valid": True}
+    # `recommended` is required, so a question can never run without an answer to adopt.
+    assert result == {
+        "gateway": False, "one": False, "duplicate": False, "negative": False,
+        "missingRecommendation": False, "valid": True,
+    }
 
 
 def test_standalone_nested_references_are_reachable_without_workflow_state() -> None:
@@ -285,7 +290,7 @@ def test_disabling_custom_input_preserves_literal_option_labels() -> None:
         r.ctx.ui.select = async () => "Type custom answer...";
         r.ctx.ui.input = async () => { opened = true; return "unintended"; };
         const result = await r.call("matt_pocock_ask", {
-          question: "Scope?", options: ["Type custom answer...", "B"], allow_custom: false,
+          question: "Scope?", options: ["Type custom answer...", "B"], recommended: "B", allow_custom: false,
         });
         console.log(JSON.stringify({ result, opened }));
     ''')

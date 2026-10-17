@@ -7,8 +7,8 @@ import tarfile
 from pathlib import Path
 
 PACKAGE = Path(__file__).resolve().parents[1]
-CHECKER = PACKAGE / "scripts" / "check-upstream-sync.mjs"
-SELECTION = PACKAGE / "upstream-selection.json"
+CHECKER = PACKAGE / "upstream" / "check-upstream-sync.mjs"
+SELECTION = PACKAGE / "upstream" / "upstream-selection.json"
 
 
 def run_checker(*args: str) -> subprocess.CompletedProcess[str]:
@@ -49,8 +49,8 @@ def test_packed_package_includes_sync_metadata_and_checker(packed_package: Path)
     with tarfile.open(packed_package) as archive:
         names = set(archive.getnames())
     assert {
-        "package/UPSTREAM.md", "package/upstream-selection.json",
-        "package/scripts/check-upstream-sync.mjs",
+        "package/upstream/UPSTREAM.md", "package/upstream/upstream-selection.json",
+        "package/upstream/check-upstream-sync.mjs",
     } <= names
 
 

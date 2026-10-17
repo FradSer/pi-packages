@@ -35,6 +35,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_TESTS = ROOT / "packages" / "matt-pocock" / "tests"
+# The real-Pi acceptance harnesses and their shared PTY helper live in tests/live/.
+sys.path.insert(0, str(PACKAGE_TESTS / "live"))
 sys.path.insert(0, str(PACKAGE_TESTS))
 
 from live_pty import base_env  # noqa: E402

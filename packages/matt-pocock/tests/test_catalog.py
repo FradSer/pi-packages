@@ -8,14 +8,21 @@ from matt_pocock_helpers import PACKAGE, run_typescript
 
 def test_catalog_classifies_every_bundled_resource_and_resolves_all_edges() -> None:
     result = run_typescript("""
-        import { catalogFiles, findProcedure, procedureCatalog, validateProcedureCatalog } from "./packages/matt-pocock/src/catalog.ts";
+        import { catalogFiles, findProcedure, procedureCatalog, resourceDirectory, validateProcedureCatalog } from "./packages/matt-pocock/src/catalog.ts";
         import { readdirSync } from "node:fs";
-        import { fileURLToPath } from "node:url";
 
-        const directory = fileURLToPath(new URL("./packages/matt-pocock/procedures/", import.meta.url));
-        const bundled = readdirSync(directory).sort();
+        const byKind = {};
+        for (const kind of ["workflow", "utility", "reference", "asset"]) {
+          byKind[kind] = readdirSync(resourceDirectory(kind)).sort();
+        }
+        const bundled = [...new Set(Object.values(byKind).flat())].sort();
+        const misplaced = procedureCatalog
+          .filter((entry) => !byKind[entry.kind].includes(entry.file))
+          .map((entry) => `${entry.id}: ${entry.file} is not filed under ${entry.kind}`);
         console.log(JSON.stringify({
+          byKind,
           bundled,
+          misplaced,
           catalogFiles: catalogFiles().sort(),
           ids: procedureCatalog.map((entry) => entry.id),
           errors: validateProcedureCatalog(),
@@ -24,6 +31,15 @@ def test_catalog_classifies_every_bundled_resource_and_resolves_all_edges() -> N
     """)
     assert result["errors"] == []
     assert result["catalogFiles"] == result["bundled"]
+    # The catalogue's kind decides the directory, so a file cannot be filed elsewhere.
+    assert result["misplaced"] == []
+    assert result["byKind"]["workflow"] == [entry for entry in result["byKind"]["workflow"]]
+    assert all(name.endswith((".md", ".sh")) for name in result["bundled"])
+    assert set(result["byKind"]) == {"workflow", "utility", "reference", "asset"}
+    assert "code-review.md" in result["byKind"]["workflow"]
+    assert "DEEPENING.md" in result["byKind"]["reference"]
+    assert "code-review.md" not in result["byKind"]["reference"]
+    assert "template.sh" in result["byKind"]["asset"]
     assert len(result["ids"]) == len(set(result["ids"]))
     assert result["aliases"] == ["diagnosing-bugs", "wayfinder"]
 
@@ -67,6 +83,10 @@ def test_architecture_entry_loads_required_vocabulary_and_discloses_optional_ref
     assert "# Codebase Design" in result["content"]
     assert "](procedure:codebase-design)" in result["content"]
     assert "](codebase-design.md)" not in result["content"]
+    # Links crossing a kind directory resolve to the same procedure link.
+    assert "](../references/" not in result["content"]
+    assert "](procedure:DEEPENING)" in result["content"]
+    assert "](procedure:DESIGN-IT-TWICE)" in result["content"]
     assert 'source="procedure/improve-codebase-architecture"' in result["content"]
     assert 'source="procedure/codebase-design"' in result["content"]
     assert "Full HTML Report Scaffold" not in result["content"]
@@ -191,6 +211,21 @@ def test_required_dependencies_contribute_conditional_disclosures() -> None:
     assert 'source="procedure/DEEPENING"' in result["content"]
 
 
+def test_reference_loading_keeps_external_links_verbatim() -> None:
+    """Only catalogue resources rewrite; a URL is not a resource."""
+    result = run_typescript("""
+        import { resolveAccessibleReference } from "./packages/matt-pocock/src/resolver.ts";
+        const bundle = resolveAccessibleReference("setup-matt-pocock-skills", [], "issue-tracker-gitlab");
+        console.log(JSON.stringify({ content: bundle.content }));
+    """)
+    content = str(result["content"])
+    assert "](https://gitlab.com/gitlab-org/cli)" in content
+    assert "](procedure:issue-tracker-gitlab)" not in content
+    assert "](../procedures/" not in content
+    assert "](procedure:triage)" in content
+    assert "](procedure:wayfinder)" in content
+
+
 def test_restored_bundle_replays_loaded_reference_chain() -> None:
     result = run_typescript("""
         import { resolveWorkflowContext } from "./packages/matt-pocock/src/resolver.ts";
@@ -205,6 +240,7 @@ def test_restored_bundle_replays_loaded_reference_chain() -> None:
 
 def test_procedure_texts_route_agents_through_the_catalog_gateway() -> None:
     catalog = json.loads((PACKAGE / "src" / "catalog.json").read_text())
+    directories = {"workflow": "procedures", "utility": "procedures", "reference": "references", "asset": "assets"}
     patterns = {
         "catalog procedure called a skill": re.compile(r"\]\([^)]*\.md\) skills?\b"),
         "skill armed as loadable state": re.compile(r"skills? (loaded|active|together)\b"),
@@ -215,7 +251,7 @@ def test_procedure_texts_route_agents_through_the_catalog_gateway() -> None:
     }
     violations = []
     for entry in catalog:
-        lines = (PACKAGE / "procedures" / entry["file"]).read_text().splitlines()
+        lines = (PACKAGE / directories[entry["kind"]] / entry["file"]).read_text().splitlines()
         for number, line in enumerate(lines, start=1):
             for label, pattern in patterns.items():
                 if pattern.search(line):

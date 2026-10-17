@@ -9,7 +9,8 @@ def delivered_procedure_bundles() -> dict[str, str]:
     result = run_typescript(
         """
         import { resolveProcedureDelta } from "./packages/matt-pocock/src/resolver.ts";
-        const ids = ["domain-modeling", "code-review", "to-questionnaire", "prototype", "codebase-design", "deslop"];
+        const ids = ["domain-modeling", "code-review", "to-questionnaire", "prototype", "codebase-design", "deslop",
+          "grilling", "grill-me", "grill-with-docs", "pr", "retro", "to-tickets", "improve-codebase-architecture"];
         const delivered = Object.fromEntries(ids.map((id) => [
           id, resolveProcedureDelta(id, [], []).content,
         ]));
@@ -56,6 +57,28 @@ def test_prototype_delivery_limits_conclusions_to_measured_results() -> None:
     assert "proposed production choices" in bundle
     assert "unresolved policy" in bundle
     assert "not tested" in bundle
+
+
+def test_grilling_delivery_keeps_the_required_recommendation_policy() -> None:
+    """The question policy is a local contract: a sync must not drop it silently."""
+    for capability in ("grilling", "grill-me", "grill-with-docs"):
+        bundle = delivered_procedure_bundles()[capability]
+        assert "matt_pocock_ask" in bundle, capability
+        assert "recommended" in bundle, capability
+        assert "waits indefinitely" in bundle or "deadline" in bundle, capability
+
+    grilling = delivered_procedure_bundles()["grilling"]
+    assert "required `recommended` value" in grilling
+    assert "recommend the option that does not act" in grilling
+
+
+def test_delivered_procedures_keep_the_written_deliverable_policy() -> None:
+    """A procedure whose deliverable is a file must keep that requirement after a sync."""
+    bundles = delivered_procedure_bundles()
+
+    assert "do not end the turn until that file exists" in bundles["pr"]
+    assert "do not end the turn before it exists" in bundles["to-questionnaire"]
+    assert "writes the report and nothing else" in bundles["improve-codebase-architecture"]
 
 
 def test_design_delivery_separates_sourced_requirements_from_proposed_invariants() -> None:

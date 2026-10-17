@@ -12,7 +12,7 @@ from matt_pocock_helpers import PACKAGE
 
 @pytest.mark.parametrize("coincident", [False, True])
 def test_checker_reads_isolated_metadata_with_truthful_revision_roles(tmp_path: Path, coincident: bool) -> None:
-    source = PACKAGE / "upstream-selection.json"
+    source = PACKAGE / "upstream" / "upstream-selection.json"
     original = source.read_bytes()
     metadata = json.loads(original)
     if coincident:
@@ -21,7 +21,7 @@ def test_checker_reads_isolated_metadata_with_truthful_revision_roles(tmp_path: 
     selection = tmp_path / "selection.json"
     selection.write_text(json.dumps(metadata))
     result = subprocess.run(
-        ["node", str(PACKAGE / "scripts/check-upstream-sync.mjs"), "--selection", str(selection)],
+        ["node", str(PACKAGE / "upstream/check-upstream-sync.mjs"), "--selection", str(selection)],
         text=True, capture_output=True, timeout=30,
     )
     assert result.returncode == 0, result.stderr
@@ -31,7 +31,7 @@ def test_checker_reads_isolated_metadata_with_truthful_revision_roles(tmp_path: 
 
 def test_checker_rejects_duplicate_options() -> None:
     result = subprocess.run(
-        ["node", str(PACKAGE / "scripts/check-upstream-sync.mjs"), "--selection", "a", "--selection", "b"],
+        ["node", str(PACKAGE / "upstream/check-upstream-sync.mjs"), "--selection", "a", "--selection", "b"],
         text=True, capture_output=True, timeout=30,
     )
     assert result.returncode == 1
