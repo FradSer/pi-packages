@@ -76,7 +76,7 @@ export function registerGoalTools(core: GoalCore): void {
 /**
  * Re-assert which of this extension's tools are exposed.
  *
- * Creation and reading are always exposed; updates require an open uncapped goal.
+ * Creation and reading are always exposed; updates require an open goal.
  */
 export function refreshGoalToolSurface(core: GoalCore, _ctx: ExtensionContext): void {
   const goal = core.goal;
@@ -203,9 +203,8 @@ function goalGet(core: GoalCore) {
       const section = params.section ?? "summary";
       if (section === ("history" as GoalSection)) return result({ subject: "history", summary: "Goal lifecycle results are in this session's transcript. There is no separate Goal history." });
       if (section === ("research" as GoalSection)) return result({ subject: "research unavailable", summary: "Use ordinary read, grep, find and ls tools to investigate the work." });
-      return paged(goal.status.replace("_", " "), [
+      return paged(goal.status, [
         `Objective:\n${goal.objective}`,
-        goal.verificationContract ? `\nCompletion conditions:\n${goal.verificationContract}` : "",
         goal.pauseReason ? `\nPaused:\n${goal.pauseReason}` : "",
 
       ].filter(Boolean).join("\n"), params.cursor);
@@ -240,26 +239,25 @@ function paged(subject: string, body: string, cursor?: string, markdown = false)
 function goalCreate(core: GoalCore) {
   return defineTool({
     name: "create_goal", label: "Create Goal",
-    description: "Create this thread's objective and completion conditions when the user requests a Goal.",
+    description: "Create this thread's objective when the user requests a Goal.",
     parameters: Type.Object({
       objective: Type.String({ minLength: 1 }),
-      verification_contract: Type.Optional(Type.String()),
-      token_budget: Type.Optional(Type.Integer({ minimum: 1 })),
     }, { additionalProperties: false }),
+    promptGuidelines: [
+      "There is no spending cap and none can be set: a goal continues while it changes the workspace, and the user controls pause, resume and clear.",
+    ],
     renderShell, renderCall, renderResult: renderGoalResultFor(),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       core.bindUi(ctx);
       if (core.goal) return result({ subject: "creation not applied", summary: "This thread already has a goal. Revise it with update_goal, or clear it first." }, true);
       const objective = params.objective.trim();
       if (!objective) return result({ subject: "creation not applied", summary: "Choose a nonempty objective." }, true);
-      const created = core.store.create({ objective, contract: params.verification_contract?.trim(), tokenBudget: params.token_budget,
-        owner: ctx.sessionManager.getSessionId() || "unknown-session", id: core.newId(), initialTokens: core.pendingCreationTokens() });
+      const created = core.store.create({ objective,
+        owner: ctx.sessionManager.getSessionId() || "unknown-session", id: core.newId() });
       if (!created.ok) return result({ subject: "creation not applied", summary: created.message }, true);
-      core.clearCreationUsage();
       if (!core.focus(created.goal.id, ctx, "created")) return result({ subject: "creation not applied", summary: "The new goal could not be focused." }, true);
       refreshGoalToolSurface(core, ctx); core.refreshUi(ctx);
-      if (created.goal.status === "budget_limited") core.markTurnStopped();
-      return result({ subject: created.goal.status === "budget_limited" ? "budget reached" : "started", summary: goalBody(created.goal) });
+      return result({ subject: "started", summary: goalBody(created.goal) });
     },
   });
 }
@@ -271,33 +269,32 @@ function goalUpdate(core: GoalCore) {
     promptGuidelines: [
       "Request complete only after gathering the required evidence. Ordinary turns do not run completion checks.",
       "paused requires an explicit user request. Report blocked only when no defensible progress remains; the same blocker must recur on three consecutive turns.",
-      "A revision must preserve the user's existing requirements and completion conditions unless the user explicitly removes them.",
+      "A revision must preserve the user's existing requirements unless the user explicitly removes them.",
     ],
     parameters: Type.Object({
       status: Type.Optional(closedSet(GOAL_STATUSES)),
       reason: Type.Optional(Type.String({ minLength: 1 })),
       objective: Type.Optional(Type.String({ minLength: 1 })),
-      verification_contract: Type.Optional(Type.String()),
       completion_summary: Type.Optional(Type.String()),
     }, { additionalProperties: false, oneOf: [
-      { required: ["status"], not: { anyOf: [{required:["objective"]},{required:["verification_contract"]}] }, oneOf: [
+      { required: ["status"], not: { anyOf: [{required:["objective"]}] }, oneOf: [
         { properties: {status:{const:"complete"}}, not: {required:["reason"]} },
         { properties: {status:{enum:["paused","blocked"]}}, required:["reason"], not:{required:["completion_summary"]} },
       ] },
-      { anyOf:[{required:["objective"]},{required:["verification_contract"]}], not:{anyOf:["status","reason","completion_summary"].map(field=>({required:[field]}))} },
+      { required:["objective"], not:{anyOf:["status","reason","completion_summary"].map(field=>({required:[field]}))} },
     ] }),
     renderShell, renderCall, renderResult: renderGoalResultFor("update_goal"),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       core.bindUi(ctx);
       const goal = core.goal;
       if (!goal) return result({subject:"no active goal",summary:"Create a goal first."},true);
-      const revision = params.objective !== undefined || params.verification_contract !== undefined;
+      const revision = params.objective !== undefined;
       if ((!params.status && !revision) || (params.status && revision) ||
           (params.reason !== undefined && !["paused","blocked"].includes(params.status ?? "")) ||
           (params.completion_summary !== undefined && params.status !== "complete") || "next_action" in params) {
         return result({subject:"update not applied",summary:"Choose a status or a complete objective revision, and send only its fields."},true);
       }
-      if (revision) return revise(core,ctx,goal,params.objective,params.verification_contract);
+      if (revision) return revise(core,ctx,goal,params.objective);
       if (params.status === "complete") return completeGoal(core,ctx,goal,core.settings(ctx),params.completion_summary,_signal);
       if (!params.reason?.trim()) return result({subject:"update not applied",summary:"Provide the reason for this status."},true);
       if (params.status === "blocked") {
@@ -313,36 +310,32 @@ function goalUpdate(core: GoalCore) {
 }
 
 export function goalBody(goal: GoalRecord): string {
-  return [`Objective:\n${goal.objective}`, goal.verificationContract ? `\nCompletion conditions:\n${goal.verificationContract}` : "",
-    goal.pauseReason ? `\nReason:\n${goal.pauseReason}` : "", `\nTokens used: ${goal.usage.tokensUsed}`,
-    goal.tokenBudget ? `Token budget: ${goal.tokenBudget}` : ""].filter(Boolean).join("\n");
+  return [`Objective:\n${goal.objective}`,
+    goal.pauseReason ? `\nReason:\n${goal.pauseReason}` : "", `\nTokens used: ${goal.usage.tokensUsed}`].filter(Boolean).join("\n");
 }
 
 /**
  * The one way a goal's requirements change.
  *
- * A revision moves the objective, the completion contract and the start of the
- * evidence window together. Anything that writes only the objective keeps
- * observations collected under the old requirement admissible for the new one.
- * The `update_goal` tool and a `/goal <request>` that the model turns into a
- * revision both land here, so the two cannot drift apart.
+ * A revision moves the objective and the start of the evidence window together.
+ * Anything that writes only part of them keeps observations collected under the
+ * old requirement admissible for the new one. The `update_goal` tool and a
+ * `/goal <request>` that the model turns into a revision both land here, so the
+ * two cannot drift apart.
  */
 function applyRevision(
   store: GoalStore,
   goalId: string,
   objective: string,
-  contract?: string,
 ): { ok: true; goal: GoalRecord } | { ok: false; message: string } {
   return store.apply({
     expectedGoalId: goalId,
     mutate: (draft) => {
-      const nextContract = contract !== undefined ? contract.trim() || undefined : draft.verificationContract;
-      const changed = objective !== draft.objective || nextContract !== draft.verificationContract;
+      const changed = objective !== draft.objective;
       return {
         ...draft,
         ...(changed ? { evidenceSince: nowIso() } : {}),
         objective,
-        verificationContract: nextContract,
       };
     },
   });
@@ -353,19 +346,18 @@ function revise(
   ctx: ExtensionContext,
   goal: GoalRecord,
   objective: string | undefined,
-  contract: string | undefined,
 ) {
   const nextObjective = objective?.trim();
   if (nextObjective !== undefined && !nextObjective) {
     return result({ subject: "update not applied", summary: "Choose a nonempty objective." }, true);
   }
   // Lifecycle state is checked even though `update_goal` is withdrawn for these
-  // goals, because a call can arrive one transition late. A budget-limited goal
-  // has spent its lifetime tokens and a completed goal has ended; rewriting the
+  // goals, because a call can arrive one transition late. A goal that has spent
+  // its lifetime cap and a completed goal have both ended; rewriting the
   // requirements of either would revive work that stopped.
   if (goal.status !== "active" && goal.status !== "paused" && goal.status !== "blocked") {
     return result(
-      { subject: "update not applied", summary: `A ${goal.status.replace("_", " ")} goal cannot be revised. Use /goal clear, then /goal <objective and completion conditions> to start a new goal.` },
+      { subject: "update not applied", summary: `A ${goal.status} goal cannot be revised. Use /goal clear, then /goal <objective> to start a new goal.` },
       true,
     );
   }
@@ -373,10 +365,9 @@ function revise(
     core.store,
     goal.id,
     nextObjective ?? goal.objective,
-    contract,
   );
   if (!outcome.ok) return result({ subject: "update not applied", summary: outcome.message }, true);
-  if (outcome.goal.objective !== goal.objective || outcome.goal.verificationContract !== goal.verificationContract) core.requirementsChanged();
+  if (outcome.goal.objective !== goal.objective) core.requirementsChanged();
   const activated = core.activateRequestedRevision(goal.id, ctx);
   core.refreshUi(ctx);
   refreshGoalToolSurface(core, ctx);
@@ -390,8 +381,10 @@ async function completeGoal(core: GoalCore, ctx: ExtensionContext, goal: GoalRec
   const verdict = await core.check(ctx,goal,claim,settings,signal);
   if (!verdict.met) {
     refreshGoalToolSurface(core,ctx); core.refreshUi(ctx);
-    const subject = core.goal?.status === "budget_limited" ? "budget reached" : verdict.stale ? "check discarded" : verdict.cancelled ? "check cancelled" : verdict.error ? "check failed" : "not met";
-    return result({subject,summary:verdict.error ?? verdict.report},!!verdict.error && core.goal?.status !== "budget_limited");
+    const subject = verdict.stale ? "check discarded" : verdict.cancelled ? "check cancelled" : verdict.error ? "check failed" : "not met";
+    // The tool owns this result, so a check failure is reported here rather than as
+    // a second error row.
+    return result({subject,summary:verdict.error ?? verdict.report},!!verdict.error);
   }
   const outcome = core.completeCheckedGoal(ctx,goal);
   if (!outcome.ok) return result({subject:"check discarded",summary:outcome.message},true);

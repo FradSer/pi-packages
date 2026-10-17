@@ -16,7 +16,7 @@ import { collectGoalEvidence } from "./evidence.ts";
 import { GoalScheduler } from "./scheduler.ts";
 import { loadGoalSettings, type GoalSettings } from "./settings.ts";
 import { GoalStore, newGoalId, type GoalMutationOutcome } from "./store.ts";
-import { budgetReached, randomToken, type GoalRecord } from "./record.ts";
+import { randomToken, type GoalRecord } from "./record.ts";
 
 /** Session entry that records which goal this session is working on. Focus is
  * session-scoped on purpose: two sessions in one project can work different
@@ -36,6 +36,12 @@ export interface GoalCoreOptions {
    * process's real working directory. */
   projectRoot?: string;
 }
+
+/** Tools whose contract is to modify the workspace. Only one of these, with a
+ * change this goal has not seen before, is progress. Reading, searching,
+ * fetching and running commands can produce fresh output forever without moving
+ * the goal, so none of them can hold the automatic loop open. */
+const STATE_CHANGING_TOOLS = new Set(["edit", "write"]);
 
 export class GoalCore {
   readonly pi: ExtensionAPI;
@@ -139,6 +145,7 @@ export class GoalCore {
     const restored = this.goal;
     if (restored?.status === "active") this.scheduler.takeover(restored);
     this.seenWork.clear();
+    this.changedWork.clear();
     this.blocker = undefined;
     this.setUnmet(undefined);
     // Only this thread's persisted entries identify its goal.
@@ -146,13 +153,15 @@ export class GoalCore {
 
   focus(goalId: string, ctx: ExtensionContext, reason: GoalFocusEntry["reason"]): boolean {
     const record = this.store.readGoal(goalId);
-    if (!record || (record.threadId && record.threadId !== this.owner())) {
+    // A finished goal is not focusable: its record is kept as a record of what was
+    // asked and how it ended, not as work this session may pick up again.
+    if (!record || record.status === "complete" || (record.threadId && record.threadId !== this.owner())) {
       this.notify(ctx, "No goal is open.", "warning");
       return false;
     }
     if (this.focusedGoalId !== goalId || reason === "created") this.setUnmet(undefined);
     this.focusedGoalId = goalId;
-    if (reason === "created") { this.seenWork.clear(); this.blocker = undefined; }
+    if (reason === "created") { this.seenWork.clear(); this.changedWork.clear(); this.blocker = undefined; }
     this.appendFocusEntry(goalId, reason);
     this.store.apply({
       expectedGoalId: goalId,
@@ -345,7 +354,7 @@ export class GoalCore {
    * Ask a fresh model whether the objective is met.
    *
    * Deliberately not an inspector: the check gets no tools and no history, so it
-   * judges the stated contract against the stated evidence and nothing else. The
+   * judges the stated objective against the stated evidence and nothing else. The
    * goal stays in the open pool for the whole call, so an interrupted check can
    * never leave a half-finished goal marked complete.
    */
@@ -372,7 +381,6 @@ export class GoalCore {
       const result = await this.runCheck({
         objective: goal.objective,
         claim,
-        contract: goal.verificationContract,
         evidence,
         cwd: ctx.cwd,
         signal: abort.signal,
@@ -381,32 +389,32 @@ export class GoalCore {
       const current = this.goal;
       // Account the child even when it was cancelled or superseded. Charges
       // target the same goal id, never a replacement goal, and do not certify it.
+      // A goal that finished while this check ran is not charged at all: its
+      // record is terminal, and the result no longer applies to it.
       let charged = this.store.readGoal(goal.id);
+      if (charged?.status === "complete") {
+        return { met: false, report: "The goal finished while the check ran; its result was discarded.", stale: true };
+      }
       if (charged && result.usage?.totalTokens) {
         const usage = this.store.apply({ expectedGoalId: goal.id, mutate: draft => {
-          const charged = { ...draft, usage: { ...draft.usage, tokensUsed: draft.usage.tokensUsed + Math.max(0, result.usage!.totalTokens) } };
-          if (!budgetReached(charged)) return charged;
-          return { ...charged, status: "budget_limited", autoContinue: false,
-            pauseReason: `The lifetime token cap of ${charged.tokenBudget} tokens was reached.`,
-            scheduler: charged.scheduler ? { ...charged.scheduler, phase: "idle", dispatch: undefined } : undefined };
+          if (draft.status === "complete") return undefined;
+          // A charge records what was spent. Nothing here stops the goal: usage is
+          // a report, not a ceiling.
+          return { ...draft, usage: { ...draft.usage, tokensUsed: draft.usage.tokensUsed + Math.max(0, result.usage!.totalTokens) } };
         } });
-        if (!usage.ok) return { met: false, report: usage.message, error: usage.message };
+        if (!usage.ok) {
+          if (this.store.readGoal(goal.id)?.status === "complete") {
+            return { met: false, report: "The goal finished while the check ran; its result was discarded.", stale: true };
+          }
+          return { met: false, report: usage.message, error: usage.message };
+        }
         charged = usage.goal;
       }
-      if (current?.id === goal.id && charged && budgetReached(charged) &&
-          charged.objective === goal.objective && charged.verificationContract === goal.verificationContract) {
-        this.markBudgetLimited(ctx, charged, false);
-        return { met: false, report: "The goal budget was reached during the check.", error: "Budget reached." };
-      }
       const changed = current?.id !== goal.id || !charged || charged.id !== goal.id || charged.objective !== goal.objective ||
-        charged.verificationContract !== goal.verificationContract || charged.evidenceSince !== goal.evidenceSince ||
+        charged.evidenceSince !== goal.evidenceSince ||
         charged.status !== goal.status || charged.scheduler?.generation !== generation;
       if (changed) return { met: false, report: "The goal changed; the old check result was discarded.", stale: true };
       if (abort.signal.aborted || this.checkAbort !== abort) return { met: false, report: "The completion check was cancelled.", cancelled: true };
-      if (charged && budgetReached(charged)) {
-        this.markBudgetLimited(ctx, charged, false);
-        return { met: false, report: "The goal budget was reached during the check.", error: "Budget reached." };
-      }
       if (result.error) {
         if (!this.scheduler.pause(charged!, `Completion check failed: ${result.error}`, "agent", { requireRevision: charged!.revision, notifyFailure: false })) {
           return { met: false, report: "The goal changed; the old check result was discarded.", stale: true };
@@ -424,16 +432,20 @@ export class GoalCore {
     }
   }
 
-  /** Release only the requirements whose contract was checked. */
+  /** Write the verified outcome and detach the thread.
+   *
+   * A completed goal keeps its record with the terminal status instead of being
+   * deleted: what was asked for, and how it ended, stays readable under the agent
+   * directory, and nothing is left behind in the project it was started from. */
   completeCheckedGoal(ctx: ExtensionContext, checked: GoalRecord): GoalMutationOutcome {
     const outcome = this.store.apply({
       expectedGoalId: checked.id,
-      finish: true,
       mutate: draft => {
-        if (!this.scheduler.owns(draft) || budgetReached(draft) || draft.objective !== checked.objective || draft.verificationContract !== checked.verificationContract ||
+        if (!this.scheduler.owns(draft) || draft.objective !== checked.objective ||
             draft.evidenceSince !== checked.evidenceSince || draft.status !== checked.status ||
             draft.scheduler?.generation !== checked.scheduler?.generation) return undefined;
-        return { ...draft, status: "complete", autoContinue: false };
+        return { ...draft, status: "complete", autoContinue: false,
+          scheduler: draft.scheduler ? { ...draft.scheduler, phase: "idle", dispatch: undefined } : undefined };
       },
     });
     if (outcome.ok) {
@@ -447,21 +459,21 @@ export class GoalCore {
   }
 
   private runPerformedWork = false;
-  private creationTokens = 0;
-  recordCreationUsage(tokens: number, threadId?: string): void {
-    if (threadId && threadId !== this.owner()) return;
-    this.creationTokens += Math.max(0, tokens);
-  }
-  pendingCreationTokens(): number { return this.creationTokens; }
-  clearCreationUsage(): void { this.creationTokens = 0; }
+  /** Whether this run changed the workspace. A run that only explored did not. */
+  private changedThisRun = false;
 
   /** A provider run can contain several tool turns. Work belongs to the whole run. */
   beginRun(): void {
     this.runPerformedWork = false;
-    this.creationTokens = 0;
+    this.changedThisRun = false;
   }
 
   private readonly seenWork = new Set<string>();
+  /** Workspace changes this goal has already seen, remembered for the whole
+   * session and deliberately not cleared by a requirements change: a model that
+   * re-words the objective must not be able to make the same change count as new
+   * progress again, because that would reset the loop's only bound. */
+  private readonly changedWork = new Set<string>();
   noteWork(toolName: string, successful: boolean, details?: unknown, output?: unknown, args?: unknown): void {
     if (!successful || ["create_goal", "get_goal", "update_goal", "monitor_stop"].includes(toolName)) return;
     if (toolName === "monitor_start") {
@@ -476,9 +488,20 @@ export class GoalCore {
     this.seenWork.add(key);
     this.runPerformedWork = true;
     this.blocker = undefined;
+    if (!STATE_CHANGING_TOOLS.has(toolName)) return;
+    // The change is the call, not its output: rewriting the same content is the
+    // same state, however the tool chose to report it.
+    const change = createHash("sha256").update(JSON.stringify([toolName, args])).digest("hex");
+    if (this.changedWork.has(change)) return;
+    this.changedWork.add(change);
+    this.changedThisRun = true;
   }
 
   performedWork(): boolean { return this.runPerformedWork; }
+
+  /** Whether this run changed the workspace. That, not a fresh receipt, is the
+   * progress an automatic continuation is allowed to spend on. */
+  runChangedState(): boolean { return this.changedThisRun; }
 
   requirementsChanged(): void { this.blocker = undefined; this.seenWork.clear(); this.setUnmet(undefined); }
 
@@ -545,48 +568,19 @@ export class GoalCore {
     const outcome = this.store.apply({
       expectedGoalId: goal.id,
       mutate: (draft) => {
+        // A charge computed before the goal finished must not revive it.
+        if (draft.status === "complete") return undefined;
         if (!this.scheduler.owns(draft) && !(attributed && draft.threadId === goal.threadId)) return undefined;
         const charged = { ...draft, usage: {
           tokensUsed: draft.usage.tokensUsed + Math.max(0, tokens),
           activeSeconds: draft.usage.activeSeconds + Math.max(0, activeSeconds),
         } };
-        if (!budgetReached(charged)) return charged;
-        return { ...charged, status: "budget_limited", autoContinue: false,
-          pauseReason: `The lifetime token cap of ${charged.tokenBudget} tokens was reached.`,
-          scheduler: charged.scheduler ? { ...charged.scheduler, phase: "idle", dispatch: undefined } : undefined };
+        return charged;
       },
 
     });
-    if (outcome.ok && budgetReached(outcome.goal) && current?.id === goal.id) {
-      this.markBudgetLimited(ctx, outcome.goal);
-    }
     this.refreshUi(ctx);
     return outcome;
-  }
-
-  private markBudgetLimited(_ctx: ExtensionContext, goal: GoalRecord, announce = true): void {
-    const outcome = this.store.apply({
-      expectedGoalId: goal.id,
-      mutate: (draft) => {
-        // This write sets `status` directly rather than going through pause(),
-        // so it carries its own ownership guard. Ownership can rotate between
-        // the usage write that reaches the cap and this stop, and stopping a
-        // goal this session no longer owns is a real action taken on someone
-        // else's work.
-        if (!this.scheduler.owns(draft)) return undefined;
-        return {
-          ...draft,
-          status: "budget_limited",
-          autoContinue: false,
-          pauseReason: `The lifetime token cap of ${draft.tokenBudget} tokens was reached.`,
-        };
-      },
-
-    });
-    this.cancelContinuation(goal.id);
-    // Report what happened, not what was attempted: a stop declined because
-    // another session took the goal over must not tell this user it stopped.
-    if (outcome.ok) { this.markTurnStopped(); if (announce) emitGoalMessage(this.pi, "budget reached", outcome.goal.pauseReason ?? "Token budget reached."); }
   }
 
   notify(_ctx: ExtensionContext, message: string, level: "info" | "warning" | "error"): void {

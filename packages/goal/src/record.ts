@@ -12,10 +12,10 @@
  * what has been spent, and whether it is still running.
  */
 
-/** Goal lifecycle. `budget_limited` is distinct from `paused` because reaching
- * the spending cap stops work permanently, while a pause is a suspension the
- * user can lift. */
-export type GoalStatus = "active" | "paused" | "blocked" | "budget_limited" | "complete";
+/** Goal lifecycle. A status this version does not write — a cap-era
+ * `budget_limited` — normalizes to `paused`, the safe reading: stopped, not
+ * running, and still readable. */
+export type GoalStatus = "active" | "paused" | "blocked" | "complete";
 
 /** Why a goal stopped. Lets the dashboard and the transcript distinguish "the model
  * gave up" from "the user stopped it". */
@@ -80,11 +80,6 @@ export interface GoalRecord {
   activePath?: string;
   stopReason?: StopReason;
   pauseReason?: string;
-  /** Lifetime spending cap in whole tokens. */
-  tokenBudget?: number;
-  /** What evidence must exist before this goal may be considered met. The
-   * completion check is told about it and nothing else is. */
-  verificationContract?: string;
   /** Observations before the latest requirement revision are excluded. */
   evidenceSince?: string;
   scheduler?: GoalSchedulerState;
@@ -132,7 +127,7 @@ export function normalizeGoalRecord(raw: unknown): GoalRecord | undefined {
   const goal: GoalRecord = {
     id,
     objective,
-    status: oneOf(record.status, ["active", "paused", "blocked", "budget_limited", "complete"] as const) ?? "paused",
+    status: oneOf(record.status, ["active", "paused", "blocked", "complete"] as const) ?? "paused",
     autoContinue: record.autoContinue === true,
     usage: {
       tokensUsed: asWholeNumber(asRecord(record.usage)?.tokensUsed) ?? 0,
@@ -149,9 +144,11 @@ export function normalizeGoalRecord(raw: unknown): GoalRecord | undefined {
   const stopReason = oneOf(record.stopReason, ["user", "agent"] as const);
   if (stopReason) goal.stopReason = stopReason;
   if (asString(record.pauseReason)) goal.pauseReason = String(record.pauseReason);
-  const budget = asWholeNumber(record.tokenBudget);
-  if (budget !== undefined && budget > 0) goal.tokenBudget = budget;
-  if (asString(record.verificationContract)) goal.verificationContract = String(record.verificationContract);
+  // An earlier version's `tokenBudget` is not read: a spending ceiling means
+  // nothing here, and a goal is bounded by the work it does.
+  // An earlier version's `verificationContract` is not read either: the objective
+  // is the goal's only requirement text, so a second one would be judged by a
+  // check that no longer looks at it. The field is dropped rather than migrated.
   if (asString(record.evidenceSince)) goal.evidenceSince = String(record.evidenceSince);
   const scheduler = normalizeScheduler(asRecord(record.scheduler));
   if (scheduler) goal.scheduler = scheduler;
@@ -187,16 +184,6 @@ export function cloneGoal(goal: GoalRecord): GoalRecord {
       ? { ...goal.scheduler, dispatch: goal.scheduler.dispatch ? { ...goal.scheduler.dispatch } : undefined }
       : undefined,
   };
-}
-
-/** Whether the lifetime token cap has been reached. */
-export function budgetReached(goal: GoalRecord): boolean {
-  return goal.tokenBudget !== undefined && goal.usage.tokensUsed >= goal.tokenBudget;
-}
-
-export function remainingBudget(goal: GoalRecord): number | undefined {
-  if (goal.tokenBudget === undefined) return undefined;
-  return Math.max(0, goal.tokenBudget - goal.usage.tokensUsed);
 }
 
 export function newGoalScheduler(owner: string, generation: string): GoalSchedulerState {

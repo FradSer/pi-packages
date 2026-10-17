@@ -19,6 +19,20 @@ from goal_native_frames import TerminalFrames
 from goal_native_tui import terminate_fixture
 
 
+def goal_records(agent: Path) -> list[Path]:
+    """Every goal record this run wrote.
+
+    State lives at `<agent>/goals/<project key>/<goal id>/record.json`, so a probe
+    reads it by globbing rather than by rebuilding the project key, and a run that
+    never writes into its working directory is provable from the absence of one.
+    """
+    return sorted((agent / "goals").glob("*/*/record.json"))
+
+
+def goal_of(path: Path) -> dict:
+    return json.loads(path.read_text())["goal"]
+
+
 def assert_completion_frame(lines: list[str], mode: str) -> None:
     text = "\n".join(lines)
     targets = {"complete": "[goal] completed", "refuse": "[goal] not met", "empty": "Goal waiting", "error": "[goal] check failed", "blocked": "Goal blocked", "cancel": "Goal paused"}
@@ -93,18 +107,21 @@ def main() -> None:
                             os.write(master, b"/goal resume\r"); until(lambda: "[goal] resumed" in "\n".join(frames.display))
                             until(lambda: len([e for e in entries() if e["kind"] == "settled"]) >= 2)
                             os.write(master, b"/goal clear\r"); until(lambda: "[goal] cleared" in "\n".join(frames.display))
-                            assert not list((root / ".pi/goals").glob("*/record.json"))
+                            assert goal_of(goal_records(agent)[0])["status"] == "complete", "clearing keeps the record"
                     finally:
                         terminate_fixture(child); os.close(master)
                 rows = entries(); checks = [e for e in rows if e["kind"] == "check"]
                 assert len(checks) == {"complete":1,"refuse":3,"empty":0,"error":1,"blocked":0,"long":0,"cancel":1}[mode], (mode, rows)
-                assert not (root / ".pi/goals/archived").exists()
-                records = list((root / ".pi/goals").glob("*/record.json"))
+                # A goal's record is never deleted: a completed or cleared goal keeps it
+                # with its terminal status, and no state is written into the project.
+                assert not (root / ".pi").exists(), "no goal state is written into the working directory"
+                records = goal_records(agent)
                 if mode == "complete" or tui and mode in ("empty", "long"):
-                    assert not records, mode
+                    assert len(records) == 1, mode
+                    assert goal_of(records[0])["status"] == "complete", mode
                 else:
                     assert len(records) == 1, mode
-                    record = json.loads(records[0].read_text())["goal"]
+                    record = goal_of(records[0])
                     assert record["status"] == {"blocked":"blocked", "cancel":"paused"}.get(mode,"active"), record
                     if mode in ("empty","error","refuse","long"):
                         assert record["autoContinue"] is False, record

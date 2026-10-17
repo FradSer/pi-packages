@@ -9,17 +9,30 @@ Task tree, progress fraction, saved next-action workflow, dedicated research age
 independent user history, or Goal archive. Use ordinary tools for investigation.
 
 - `store.ts` is the sole record writer. One atomic record holds the objective,
-  completion conditions, usage and scheduler state. Mutation checks and final
-  release occur under the same exclusive lock. Preserve existing legacy files.
+  completion conditions, usage and scheduler state. Mutation checks and the final
+  write occur under the same exclusive lock, and no operation deletes a record.
+  Preserve existing legacy files.
+- State lives under Pi's own agent directory, keyed by project: a new goal writes
+  nothing into the working tree. A goal stored by an earlier version inside a
+  project is still read, locked and written where it lives.
+- A finished goal is terminal. The record is kept, and no later writer — a stale
+  charge, a check that finished after someone else completed the goal, or another
+  session's stop — may move it out of `complete`.
 - Only the thread's own focus entry restores its goal. A boundary drops queued
   continuation, live checks and revision activation. Restore is not authorization.
 - A timer, settled turn or queued message is an opportunity, never authorization.
-  Arm and claim separately; recheck identity, owner, generation, phase, dispatch
-  and budget. Accept a checkpoint once. Never replay unknown delivery.
+  Arm and claim separately; recheck identity, owner, generation, phase and dispatch.
+  Accept a checkpoint once. Never replay unknown delivery.
 - Continue only after successful effective work and without pending user input.
-  Repeated identical tool receipts and pending monitors cannot sustain the loop.
-  Unrelated background activity is not progress. Empty or failed work waits; only
-  the user pauses. Resume preserves lifetime usage and continuation count.
+  Progress means a workspace change: only an unseen successful `edit` or `write`
+  earns the next run, while reading, searching, fetching, commands and delegated
+  child work explore.
+  Three consecutive runs that change nothing stop the loop and name the window;
+  a requirement revision must not clear that memory, and a user's own turn does
+  not count against it. Repeated identical tool receipts and pending monitors
+  cannot sustain the loop. Unrelated background activity is not progress. Empty
+  or failed work waits; only the user pauses. Resume preserves lifetime usage,
+  continuation count and a fresh change window.
 - A recurring blocker requires three consecutive model turns. The same-turn
   report counts once; effective work, changed requirements and restore reset it.
 - Only an explicit completion request runs one fresh tool-less completion check.
@@ -28,11 +41,18 @@ independent user history, or Goal archive. Use ordinary tools for investigation.
   call, outcome and requirement-boundary provenance. Escape every untrusted payload.
 - A final marker decides MET/NOT MET. Missing markers, errors, cancellation and
   outdated results are distinct and never complete the Goal. Refusals do not pause.
-- Count completion-check usage, including cancelled/superseded results for the same
-  open Goal, against the lifetime budget. Budget is not completion.
+- Usage is a report, never a ceiling. Main-model and completion-check usage are
+  recorded against the open Goal, and every path that charges it — including a
+  cancelled or superseded check for the same open Goal — keeps the goal running. No
+  spending cap, budget field or cap verb exists, and none may be added: a goal is
+  bounded by the work it does, not by a number. A record an earlier version wrote
+  with a `tokenBudget` is read without it, and a cap-era status reads as `paused`.
+  An action verb applies only when typed alone, so `/goal clear my schedule` stays a
+  request.
 - `/goal <text>` queues a request, preserving the old record until a complete
   merged revision lands. Activation needs matching accepted delivery, not void
-  send success. Completion or clear releases current runtime state without archive.
+  send success. Completion and clear write the terminal status and keep the record
+  without an archive.
 
 ## TUI
 
@@ -52,7 +72,7 @@ That residual case is accepted, and the send-time check does not cover it.
 
 The passive below-editor footer is the explicit exception to transcript framing:
 `Pursuing goal · 2h 25m` during actual work or authorized continuation; accurate
-waiting, paused, blocked and budget-limited phrases otherwise. It owns no input.
+waiting, paused and blocked phrases otherwise. It owns no input.
 Checker status is neutral. Never intercept global terminal input.
 
 ## Verification

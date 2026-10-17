@@ -14,8 +14,10 @@ import { existsSync, readdirSync as importedDirectoryEntries, mkdtempSync, mkdir
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { GoalStore, newGoalId } from "../src/store.ts";
-import { goalPromptPath, goalRecordPath } from "../src/paths.ts";
+import { goalClaimDir, goalRecordPath, goalsRoot, isInside, legacyGoalPromptPath, legacyGoalRecordPath, safeGoalId } from "../src/paths.ts";
+import { isolatedAgentDir } from "./isolated-agent.mts";
 
+const agent = isolatedAgentDir();
 const repoRoot = resolve(import.meta.dirname, "..", "..", "..");
 const root = mkdtempSync(join(tmpdir(), "goal-store-"));
 const store = new GoalStore({ projectRoot: root });
@@ -42,16 +44,17 @@ await scenario("a created goal is durable before any work begins", () => {
   const fresh = new GoalStore({ projectRoot: root });
   assert.equal(fresh.readGoal(id)?.objective, objective);
   assert.equal(fresh.readObjective(id).trim(), objective);
-  assert.equal(existsSync(join(root,".pi/goals",id,"history.jsonl")),false);
+  assert.equal(existsSync(join(dirname(goalRecordPath(root, id)), "history.jsonl")), false);
 });
 
 await scenario("a failed record write leaves the directory untouched", () => {
   const id = newGoalId();
-  // Occupy the goals directory with a regular file so mkdir fails.
-  writeFileSync(join(root, ".pi", "goals", `${id}`), "occupied");
+  // Occupy this goal's directory with a regular file so creating it fails.
+  mkdirSync(goalsRoot(root), { recursive: true });
+  writeFileSync(dirname(goalRecordPath(root, id)), "occupied");
   const created = store.create({ objective, owner: "session-a", id });
   assert.equal(created.ok, false);
-  assert.equal(existsSync(join(root,".pi/goals",id,"history.jsonl")),false);
+  assert.equal(existsSync(join(dirname(goalRecordPath(root, id)), "history.jsonl")), false);
 });
 
 await scenario("the pool returns open goals deterministically and ignores junk", () => {
@@ -59,11 +62,11 @@ await scenario("the pool returns open goals deterministically and ignores junk",
   const a = dir.create({ objective: "first", owner: "s", id: "goal_pool_a" });
   const b = dir.create({ objective: "second", owner: "s", id: "goal_pool_b" });
   assert.ok(a.ok && b.ok);
-  mkdirSync(join(root, ".pi", "goals", "broken"), { recursive: true });
-  writeFileSync(join(root, ".pi", "goals", "broken", "record.json"), "{ not json");
+  mkdirSync(join(goalsRoot(root), "broken"), { recursive: true });
+  writeFileSync(join(goalsRoot(root), "broken", "record.json"), "{ not json");
   const outside = mkdtempSync(join(tmpdir(), "goal-outside-"));
   writeFileSync(join(outside, "record.json"), JSON.stringify({ version: 1, goal: { id: "linked", objective: "o" } }));
-  symlinkSync(outside, join(root, ".pi", "goals", "linked"), "dir");
+  symlinkSync(outside, join(goalsRoot(root), "linked"), "dir");
 
   const pool = new GoalStore({ projectRoot: root }).readPool().map((goal) => goal.id);
   assert.ok(pool.includes("goal_pool_a") && pool.includes("goal_pool_b"));
@@ -145,10 +148,12 @@ await scenario("a stale revision is refused and changes nothing", () => {
   assert.equal(store.readGoal(id)?.revision, before, "a refused write changes nothing");
 });
 
-await scenario("finishing releases runtime state without creating an archive", () => {
+await scenario("a finished goal keeps its terminal status and creates no archive", () => {
  const id="goal_end"; store.create({objective,owner:"session-a",id});
- const done=store.apply({expectedGoalId:id,finish:true,mutate:g=>({...g,status:"complete",autoContinue:false})});
- assert.ok(done.ok); assert.equal(store.readGoal(id),undefined); assert.equal(existsSync(join(root,".pi/goals/archived",id)),false);
+ const done=store.apply({expectedGoalId:id,mutate:g=>({...g,status:"complete",autoContinue:false})});
+ assert.ok(done.ok);
+ assert.equal(store.readGoal(id)?.status,"complete","the record stays with the outcome it reached");
+ assert.equal(existsSync(join(goalsRoot(root),"archived",id)),false);
 });
 
 await scenario("a writer whose lock was taken from it writes nothing", () => {
@@ -160,7 +165,7 @@ await scenario("a writer whose lock was taken from it writes nothing", () => {
   const id = "goal_displaced";
   store.create({ objective, owner: "session-a", id });
   const revision = store.readGoal(id)!.revision;
-  const lockFile = join(root, ".pi", "goals", id, "claims", "write-lock.json");
+  const lockFile = join(goalClaimDir(root, id), "write-lock.json");
 
   const outcome = store.apply({
     expectedGoalId: id,
@@ -213,16 +218,8 @@ await scenario("real processes racing for one goal produce exactly one winner", 
   assert.match(after.pauseReason ?? "", /^writer \d+$/, "and the surviving write is one of the racers");
 });
 
-
-
-
-
-
-
-
-
 await scenario("a record from a newer version is refused, not partially read", () => {
-  mkdirSync(join(root, ".pi", "goals", "goal_future"), { recursive: true });
+  mkdirSync(dirname(goalRecordPath(root, "goal_future")), { recursive: true });
   writeFileSync(goalRecordPath(root, "goal_future"), JSON.stringify({ version: 99, goal: { id: "goal_future", objective: "o", status: "complete" } }));
   assert.equal(new GoalStore({ projectRoot: root }).readGoal("goal_future"), undefined);
 });
@@ -231,12 +228,14 @@ await scenario("prose written directly by a user never overrides the record", ()
   const id = "goal_prose";
   store.create({ objective, owner: "session-a", id });
   const revision = store.readGoal(id)!.revision;
-  writeFileSync(goalPromptPath(root, id), "objective the user edited by hand\n");
+  // The prose file belongs to the layout an earlier version wrote.
+  mkdirSync(dirname(legacyGoalPromptPath(root, id)), { recursive: true });
+  writeFileSync(legacyGoalPromptPath(root, id), "objective the user edited by hand\n");
   const outcome = store.apply({ expectedGoalId: id, mutate: (goal) => goal });
   assert.ok(outcome.ok);
   assert.equal(outcome.goal.revision, revision + 1);
   assert.equal(new GoalStore({ projectRoot: root }).readObjective(id).trim(), objective, "legacy prose does not override the atomic record");
-  assert.equal(readFileSync(goalPromptPath(root,id), "utf8"), "objective the user edited by hand\n", "legacy files remain untouched");
+  assert.equal(readFileSync(legacyGoalPromptPath(root,id), "utf8"), "objective the user edited by hand\n", "legacy files remain untouched");
 });
 
 await scenario("one malformed record does not hide the valid ones", () => {
@@ -251,7 +250,6 @@ await scenario("one malformed record does not hide the valid ones", () => {
   assert.ok(!ids.includes(broken), "the malformed record is not offered as work");
   assert.ok(ids.includes(id), `the valid sibling must survive, saw ${ids.join(",")}`);
 });
-
 
 await scenario("filesystem errors never leak goal id or directory paths", () => {
   const id = "goal_leak_test_path";
@@ -269,70 +267,171 @@ await scenario("filesystem errors never leak goal id or directory paths", () => 
   }
 });
 
+await scenario("a completed goal cannot be moved out of its terminal status", () => {
+  // Everything that writes a record after completion — a late charge, a stop
+  // computed before another session's verdict, a rebuilt pause — reaches a
+  // completed record instead of finding nothing, because the record is kept.
+  // Completion is terminal, so none of those may land.
+  const id = "goal_terminal";
+  assert.ok(store.create({ objective, owner: "session-a", id }).ok);
+  assert.ok(store.apply({ expectedGoalId: id, mutate: (goal) => ({ ...goal, status: "complete", autoContinue: false }) }).ok);
+  const late = store.apply({ expectedGoalId: id, mutate: (goal) => ({ ...goal, status: "paused", autoContinue: false }) });
+  assert.equal(late.ok, false, "a late writer cannot revive a finished goal");
+  const after = new GoalStore({ projectRoot: root }).readGoal(id)!;
+  assert.equal(after.status, "complete", "the terminal status stands");
+  assert.equal(after.revision, 1, "and nothing was written");
+});
 
-
-
-await scenario("goals are refused inside Pi's own directories and left untouched there", () => {
-  // The real case: a session run from Pi's home writes to ~/.pi/.pi/goals, a
-  // second .pi inside Pi's own layout. HOME and the agent directory are set here
-  // rather than read from the machine, so the rule is what is measured.
-  const sandbox = mkdtempSync(join(tmpdir(), "goal-placement-"));
-  const previousHome = process.env.HOME;
-  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
-  // HOME is what pi's home directory is derived from, so the tree below is
-  // shaped exactly like the real one: <home>/.pi/agent.
-  const home = join(sandbox, "home");
-  const piHome = join(home, ".pi");
-  const agent = join(piHome, "agent");
-  mkdirSync(agent, { recursive: true });
-  process.env.HOME = home;
-  process.env.PI_CODING_AGENT_DIR = agent;
+await scenario("a project path keeps one key while its directory exists and after it is gone", () => {
+  // The key has to be the same in every process, including one whose project
+  // directory is already gone: resolving only the whole path would fall back to a
+  // lexical spelling the moment the directory disappeared, and a record stored
+  // under the resolved spelling would become unreachable.
+  const sandbox = mkdtempSync(join(tmpdir(), "goal-scope-"));
   try {
-    const refused: { label: string; projectRoot: string }[] = [
-      { label: "Pi's home itself", projectRoot: piHome },
-      { label: "a directory inside the agent directory", projectRoot: join(agent, "config") },
-      { label: "the home directory", projectRoot: home },
-      { label: "a directory inside Pi's home", projectRoot: join(piHome, "workspace") },
-    ];
-    for (const row of refused) {
-      const store = new GoalStore({ projectRoot: row.projectRoot });
-      const created = store.create({ objective, owner: "session-a", id: newGoalId() });
-      assert.equal(created.ok, false, `${row.label}: creation must be refused`);
-      assert.match(created.ok ? "" : created.message, /\.pi\/goals/, `${row.label}: the message must name the path it refused`);
-      // The refusal has to happen before the write, or the doubled directory
-      // survives the refusal and the next run adopts it.
-      assert.ok(!existsSync(join(row.projectRoot, ".pi", "goals")), `${row.label}: no goals directory may be left behind`);
-    }
-    // A goal stored before this rule existed is never stranded by it: reads and
-    // mutations still work in place.
-    const legacyRoot = join(piHome, "legacy");
-    const legacy = new GoalStore({ projectRoot: legacyRoot });
-    mkdirSync(join(legacyRoot, ".pi", "goals", "goal_legacy_nested"), { recursive: true });
-    writeFileSync(join(legacyRoot, ".pi", "goals", "goal_legacy_nested", "record.json"), JSON.stringify({
+    const real = join(sandbox, "real");
+    mkdirSync(real, { recursive: true });
+    const link = join(sandbox, "link");
+    symlinkSync(real, link, "dir");
+    assert.equal(goalRecordPath(link, "goal_scope"), goalRecordPath(real, "goal_scope"), "a symlinked spelling resolves to the same key");
+    const project = join(sandbox, "gone");
+    mkdirSync(project, { recursive: true });
+    const whileItExists = goalRecordPath(project, "goal_scope");
+    rmSync(project, { recursive: true, force: true });
+    assert.equal(goalRecordPath(project, "goal_scope"), whileItExists, "and the key survives its directory disappearing");
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+await scenario("a dot-only goal id never addresses a directory of its own", () => {
+  // `encodeURIComponent` leaves a dot alone, and `..` as one path segment names
+  // the directory above the goal directory.
+  assert.equal(safeGoalId(".."), "goal", "a dot-only id becomes one safe segment");
+  assert.ok(isInside(goalsRoot(root), goalRecordPath(root, "..")), "the record stays inside the project's goals root");
+  assert.ok(isInside(goalsRoot(root), goalClaimDir(root, "..")), "so does its claim directory");
+});
+
+await scenario("an unreadable current record never hides a readable legacy one", () => {
+  // One goal, two layouts, and the copy in the current one is unreadable: a newer
+  // record version. The goal is the readable one, and it is also the record a
+  // mutation must lock, so the lock area and the read cannot disagree.
+  const sandbox = mkdtempSync(join(tmpdir(), "goal-mixed-"));
+  const id = "goal_mixed_layout";
+  try {
+    mkdirSync(dirname(goalRecordPath(sandbox, id)), { recursive: true });
+    writeFileSync(goalRecordPath(sandbox, id), JSON.stringify({ version: 99, goal: { id, objective: "from a newer version" } }));
+    mkdirSync(dirname(legacyGoalRecordPath(sandbox, id)), { recursive: true });
+    writeFileSync(legacyGoalRecordPath(sandbox, id), JSON.stringify({
       version: 1,
       goal: {
-        id: "goal_legacy_nested", threadId: "session-a", objective, status: "active", autoContinue: true,
+        id, threadId: "session-a", objective, status: "active", autoContinue: true,
         usage: { tokensUsed: 0, activeSeconds: 0 }, createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(), revision: 0, scheduler: { owner: "session-a", phase: "idle", used: 0, idleRuns: 0, generation: "g" },
+        updatedAt: new Date().toISOString(), revision: 0,
+        scheduler: { owner: "session-a", phase: "idle", used: 0, generation: "g" },
       },
     }));
-    assert.equal(legacy.readGoal("goal_legacy_nested")?.objective, objective, "an existing goal is still readable where it lives");
-    const applied = legacy.apply({ expectedGoalId: "goal_legacy_nested", mutate: (draft) => ({ ...draft, autoContinue: false }) });
-    assert.equal(applied.ok, true, applied.ok ? "" : applied.message);
-    assert.equal(legacy.readGoal("goal_legacy_nested")?.autoContinue, false, "and it still accepts outcomes in place");
-    // A project directory is unaffected, which is the ordinary case this rule
-    // must never touch.
+    const mixed = new GoalStore({ projectRoot: sandbox });
+    assert.equal(mixed.readPool().length, 1, "the readable legacy goal is still offered");
+    assert.equal(mixed.apply({ expectedGoalId: id, mutate: (goal) => ({ ...goal, autoContinue: false }) }).ok, true, "and it is the record a mutation locks");
+    assert.equal(new GoalStore({ projectRoot: sandbox }).readGoal(id)?.autoContinue, false, "so the outcome landed on the goal");
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+await scenario("goal state is stored under the agent directory and never inside the project", () => {
+  // Goal state is runtime state for the sessions sharing a working directory, so
+  // it belongs where Pi keeps its own state. A `.pi/goals` tree inside the
+  // working tree survives the goal: it is left behind in every repository a goal
+  // was ever started in.
+  const sandbox = mkdtempSync(join(tmpdir(), "goal-placement-"));
+  try {
     const projectRoot = join(sandbox, "workspace-project");
     mkdirSync(projectRoot, { recursive: true });
     const project = new GoalStore({ projectRoot });
     const made = project.create({ objective, owner: "session-a", id: newGoalId() });
     assert.equal(made.ok, true, made.ok ? "" : made.message);
-    assert.ok(existsSync(goalRecordPath(projectRoot, made.ok ? made.goal.id : "missing")), "a project keeps its own .pi/goals");
+    const record = goalRecordPath(projectRoot, made.ok ? made.goal.id : "missing");
+    assert.ok(isInside(agent, record), "the record is written under the agent directory");
+    assert.ok(existsSync(record), "and a fresh store reads it there");
+    assert.ok(!existsSync(join(projectRoot, ".pi")), "the project gains no .pi tree");
+    // Two projects under one agent directory keep their own goals: a pool scan
+    // must never offer another project's goal as work.
+    const otherRoot = join(sandbox, "other-project");
+    mkdirSync(otherRoot, { recursive: true });
+    const other = new GoalStore({ projectRoot: otherRoot });
+    assert.deepEqual(other.readPool(), [], "another project sees no goals");
+    const otherMade = other.create({ objective, owner: "session-b", id: newGoalId() });
+    assert.equal(otherMade.ok, true, otherMade.ok ? "" : otherMade.message);
+    assert.equal(new GoalStore({ projectRoot }).readPool().length, 1, "and each project reads its own");
   } finally {
-    if (previousHome === undefined) delete process.env.HOME;
-    else process.env.HOME = previousHome;
-    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
-    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+await scenario("two lookalike project paths never share one goals directory", () => {
+  // Reduced to readable words, `/a-b/c` and `/a/b-c` are the same name, so the key
+  // carries a digest of the canonical path: a shared directory would let one
+  // project's pool offer the other's goal.
+  const sandbox = mkdtempSync(join(tmpdir(), "goal-lookalike-"));
+  try {
+    const left = join(sandbox, "a-b", "c");
+    const right = join(sandbox, "a", "b-c");
+    for (const dir of [left, right]) mkdirSync(dir, { recursive: true });
+    const created = new GoalStore({ projectRoot: left }).create({ objective, owner: "left", id: "goal_left" });
+    assert.equal(created.ok, true, created.ok ? "" : created.message);
+    assert.notEqual(goalRecordPath(left, "goal_left"), goalRecordPath(right, "goal_left"), "lookalike paths reduce to different keys");
+    assert.deepEqual(new GoalStore({ projectRoot: right }).readPool(), [], "and neither project reads the other's goal");
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+await scenario("a goal stored under the legacy layout is still read and mutated where it lives", () => {
+  // A goal created before the move is never stranded by it: it is read, locked
+  // and written in the project directory it already lives in, because a move
+  // would leave two processes locking different directories for one goal.
+  const sandbox = mkdtempSync(join(tmpdir(), "goal-legacy-"));
+  const projectRoot = join(sandbox, "legacy-project");
+  const id = "goal_legacy_in_project";
+  try {
+    mkdirSync(dirname(legacyGoalRecordPath(projectRoot, id)), { recursive: true });
+    writeFileSync(legacyGoalRecordPath(projectRoot, id), JSON.stringify({
+      version: 1,
+      goal: {
+        id, threadId: "session-a", objective, status: "active", autoContinue: true,
+        usage: { tokensUsed: 0, activeSeconds: 0 }, createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(), revision: 0,
+        scheduler: { owner: "session-a", phase: "idle", used: 0, generation: "g" },
+      },
+    }));
+    const legacy = new GoalStore({ projectRoot });
+    assert.equal(legacy.readGoal(id)?.objective, objective, "an existing goal is still readable where it lives");
+    const applied = legacy.apply({ expectedGoalId: id, mutate: (draft) => ({ ...draft, autoContinue: false }) });
+    assert.equal(applied.ok, true, applied.ok ? "" : applied.message);
+    assert.equal(legacy.readGoal(id)?.autoContinue, false, "and it still accepts outcomes in place");
+    assert.ok(existsSync(legacyGoalRecordPath(projectRoot, id)), "the legacy record stays where it is");
+    assert.ok(!existsSync(goalRecordPath(projectRoot, id)), "and nothing is written to the new location for it");
+    // A record an earlier version left at its spending cap keeps its reason and
+    // reads as a stopped goal: this version writes no capped status, and it does not
+    // read the ceiling the record carries.
+    const cappedId = "goal_legacy_capped";
+    mkdirSync(dirname(legacyGoalRecordPath(projectRoot, cappedId)), { recursive: true });
+    writeFileSync(legacyGoalRecordPath(projectRoot, cappedId), JSON.stringify({
+      version: 1,
+      goal: {
+        id: cappedId, threadId: "session-a", objective, status: "budget_limited", autoContinue: false,
+        usage: { tokensUsed: 500, activeSeconds: 120 }, tokenBudget: 500,
+        createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), revision: 2,
+        pauseReason: "The lifetime token cap of 500 tokens was reached.",
+      },
+    }));
+    const capped = legacy.readGoal(cappedId);
+    assert.equal(capped?.status, "paused", "a cap-era status still reads as a stopped goal");
+    assert.equal(capped?.autoContinue, false, "and cannot continue on its own");
+    assert.equal("tokenBudget" in (capped ?? {}), false, "its ceiling is ignored, not carried forward");
+  } finally {
     rmSync(sandbox, { recursive: true, force: true });
   }
 });

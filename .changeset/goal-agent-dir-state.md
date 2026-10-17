@@ -1,0 +1,9 @@
+---
+"@fradser/pi-goal": minor
+---
+
+Store goal state under Pi's own agent directory instead of the working tree: `~/.pi/agent/goals/<project key>/<id>/record.json`, where the project key is a readable Memory-style name for that project plus a short digest of its canonical path, so two lookalike paths never share one directory. Starting a goal no longer creates a `.pi/goals` tree in the repository, and a project's settings override moves next to that project's goals; an override an earlier version left in `<project>/.pi/goals/settings.json` is still read. A goal stored by an earlier version inside a project is still read, locked and written where it lives, because moving it would leave two processes locking different directories for one goal. The placement refusal for projects inside Pi's own directories is gone with the project-relative layout it protected.
+
+Completion and clear write the terminal `complete` status and keep the record instead of deleting it, so what was asked for and how it ended stay readable under the agent directory and no claims directory is left behind in a project. No archive is created. A finished record is terminal: a late charge from the run that was in flight, a completion check that returns after another session completed the goal, a second session's pause or stop, and every other stale-snapshot write are all refused rather than moving it out of `complete`.
+
+While an older installed version is still in use it cannot see a goal stored under the agent directory, and it still deletes the record it completes or clears, so the record-keeping guarantee covers this version's own writes.

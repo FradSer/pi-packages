@@ -60,7 +60,6 @@ export function clearDashboard(ctx: ExtensionContext): void {
 function goalPhrase(goal: GoalRecord, core: GoalCore): string {
   if (goal.status === "active") return goal.autoContinue && (core.scheduler?.isRunning() || core.scheduler?.isArmed() || goal.scheduler?.phase === "claimed") ? "Pursuing goal" : "Goal waiting";
   if (goal.status === "paused") return "Goal paused";
-  if (goal.status === "budget_limited") return "Goal budget limited";
   return "Goal blocked";
 }
 

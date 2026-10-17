@@ -30,6 +30,15 @@ MERGED = "Probe the live goal rows. Audit the export path."
 CONTRACT = "The revision keeps this contract."
 
 
+def goal_records(agent: Path) -> list[dict]:
+    """Every open goal record this run wrote, under its own agent directory.
+
+    State lives at `<agent>/goals/<project key>/<goal id>/record.json`; the probe
+    globs for it rather than rebuilding the project key.
+    """
+    return [json.loads(path.read_text())["goal"] for path in sorted((agent / "goals").glob("*/*/record.json"))]
+
+
 def main() -> None:
     repo = Path(os.environ.get("GOAL_VERIFY_ROOT", Path(__file__).resolve().parents[3]))
     fixture = repo / "packages/goal/tests/goal_completion_fixture.ts"
@@ -72,7 +81,7 @@ def main() -> None:
             return "\n".join(frames.display)
 
         def open_goals() -> list[dict]:
-            return [json.loads(path.read_text())["goal"] for path in (root / ".pi/goals").glob("*/record.json")]
+            return goal_records(agent)
 
         try:
             until(lambda: any(entry["kind"] == "ready" for entry in entries()) and frames.count > 0)
@@ -109,9 +118,9 @@ def main() -> None:
             assert goal["verificationContract"] == CONTRACT, "the revision kept the completion contract"
             assert goal["status"] == "active" and goal["autoContinue"] is True, goal
             assert phase in {"ready", "claimed", "running"}, phase
-            assert not list((root / ".pi/goals/archived").glob("*/record.json")), "no archive is written"
-            assert not list((root / ".pi/goals").rglob("ledger.jsonl")), "no ledger is written"
-            assert not list((root / ".pi/goals").rglob("research.md")), "no research file is written"
+            assert not (root / ".pi").exists(), "no goal state is written into the working directory"
+            assert not list((agent / "goals").rglob("ledger.jsonl")), "no ledger is written"
+            assert not list((agent / "goals").rglob("research.md")), "no research file is written"
             assert "Evaluating the objective and recorded evidence" not in screen(), "no completion check ran for a revision"
             # Rows this run produced scroll away under its own work, so they are read from the
             # frames that were composed while it ran: goal_native_request_row.py owns the

@@ -26,6 +26,11 @@ from goal_native_live import REQUEST_BODY_MARKERS, REQUEST_WORDS, assert_request
 from goal_native_tui import terminate_fixture
 
 
+def goal_records(agent: Path) -> list[Path]:
+    """Every goal record this run wrote, under its own agent directory."""
+    return sorted((agent / "goals").glob("*/*/record.json"))
+
+
 def main() -> None:
     repo = Path(os.environ.get("GOAL_VERIFY_ROOT", Path(__file__).resolve().parents[3]))
     fixture = repo / "packages/goal/tests/goal_completion_fixture.ts"
@@ -89,11 +94,12 @@ def main() -> None:
                 assert marker not in "\n".join(seen), f"the request body reached the terminal: {marker}"
                 assert marker not in raw_output.decode(errors="replace"), f"the request body reached the terminal: {marker}"
             # The same run created the goal and ran its completion check. The check trace line is
-            # written before the verdict, so wait for the release it causes rather than asserting
-            # between the two.
+            # written before the verdict, so wait for the outcome it produces rather than asserting
+            # between the two. A completed goal keeps its record with the terminal status.
             until(lambda: sum(1 for entry in entries() if entry["kind"] == "check") == 1)
             assert sum(1 for entry in entries() if entry["kind"] == "provider") >= 2, entries()
-            until(lambda: not list((root / ".pi/goals").glob("*/record.json")))
+            until(lambda: goal_records(agent) and json.loads(goal_records(agent)[0].read_text())["goal"]["status"] == "complete")
+            assert not (root / ".pi").exists(), "no goal state is written into the working directory"
         finally:
             terminate_fixture(child)
             os.close(master)

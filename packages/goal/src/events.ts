@@ -36,6 +36,10 @@ export function registerGoalEvents(core: GoalCore): void {
   pi.on("tool_execution_start", event => { toolArgs.set(event.toolCallId, event.args); });
   let usageSequence = 0;
   let elapsedCharged = 0;
+  /** Whether the run now settling was started by the user. The no-change window
+   * bounds autonomous work, so a user's own turn is a fresh opportunity rather
+   * than another run that changes nothing. */
+  let userRun = false;
 
   pi.on("session_start", async (_event, ctx) => {
     core.restore(ctx);
@@ -123,6 +127,7 @@ export function registerGoalEvents(core: GoalCore): void {
     }
     if (!isCheckpointMessage(message)) {
       if (message.role !== "user") return;
+      userRun = true;
       // Real user work supersedes an armed continuation: the user is here, so
       // the goal waits rather than interrupting.
       const goal = core.goal;
@@ -143,9 +148,10 @@ export function registerGoalEvents(core: GoalCore): void {
     const focused = core.goal;
     if (!attribution.goalId && focused?.threadId && focused.threadId !== attribution.threadId) { chargedMessages.add(message); return; }
     const goal = attribution.goalId ? core.store.readGoal(attribution.goalId) : focused;
-    // A released Goal's late usage must never migrate into the replacement.
-    if (attribution.goalId && !goal) { chargedMessages.add(message); return; }
-    if (!goal) { chargedMessages.add(message); core.recordCreationUsage(turnTokens(message.usage), attribution.threadId); return; }
+    // A released Goal's late usage must never migrate into the replacement, and a
+    // finished Goal is not charged: its record is kept, but nothing may revive it.
+    if (attribution.goalId && (!goal || goal.status === "complete")) { chargedMessages.add(message); return; }
+    if (!goal) { chargedMessages.add(message); return; }
     if (!attribution.goalId && !core.canChargeGoal(goal)) return;
     chargedMessages.add(message);
     const elapsed = core.currentTurnSeconds();
@@ -161,12 +167,14 @@ export function registerGoalEvents(core: GoalCore): void {
     // Unconsumed setting intent must not activate an unrelated later edit.
     core.cancelGoalActivation();
     const failed = event.outcome !== "completed";
+    const userInitiated = userRun;
+    userRun = false;
     const goal = core.goal;
     if (!goal) {
       refreshDashboard(core, ctx);
       return;
     }
-    core.scheduler.settled(core.goal, core.settings(ctx), !failed, core.performedWork());
+    core.scheduler.settled(core.goal, core.settings(ctx), !failed, core.performedWork(), core.runChangedState() || userInitiated);
     if (failed) {
       refreshGoalToolSurface(core, ctx);
       refreshDashboard(core, ctx);

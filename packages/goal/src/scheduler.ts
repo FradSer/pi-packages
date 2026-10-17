@@ -8,7 +8,7 @@
  * work would actually begin.
  *
  * That is why arming and claiming are separate. Between `schedule` and `claim`
- * the goal can be paused, refocused, revised, or run out of budget, and each of
+ * the goal can be paused, refocused, revised, or stopped, and each of
  * those has to invalidate the armed intent rather than be discovered by a model
  * turn that was already under way.
  *
@@ -16,8 +16,8 @@
  * explicit request and a separate tool-less check.
  */
 
-import { budgetReached, randomToken, type GoalRecord, type ResumeReason } from "./record.ts";
-import type { GoalSettings } from "./settings.ts";
+import { randomToken, type GoalRecord, type ResumeReason } from "./record.ts";
+import { NO_CHANGE_RUN_LIMIT, type GoalSettings } from "./settings.ts";
 import type { GoalMutationOutcome } from "./store.ts";
 
 /** What the scheduler needs from its host. Kept to this narrow surface so the
@@ -61,6 +61,9 @@ export class GoalScheduler {
   /** Set when a checkpoint was refused, so the turn that received it cannot do
    * work even if the model ignores the block. */
   private denied = false;
+  /** Runs since the last workspace change. The loop's bound: a goal that keeps
+   * exploring without changing anything stops itself. */
+  private noChangeRuns = 0;
 
   constructor(host: SchedulerHost) {
     this.host = host;
@@ -103,7 +106,6 @@ export class GoalScheduler {
    */
   private blocker(goal: GoalRecord, settings: GoalSettings): string | undefined {
     if (!this.owned(goal)) return "This goal is scheduled by another session. /goal resume takes it over.";
-    if (budgetReached(goal)) return "The lifetime token cap for this goal is spent.";
     if (!this.runsRemaining(goal, settings)) return this.allowanceReason(settings);
     return undefined;
   }
@@ -128,9 +130,11 @@ export class GoalScheduler {
    *
    * `successful` is false for a turn that errored or was aborted. A failed turn is
    * not completed work, and turning one into another run is how a provider
-   * outage becomes a retry storm.
+   * outage becomes a retry storm. `changedState` says whether the run changed the
+   * workspace: a run that only explored does not earn another one forever, so
+   * consecutive runs without a change stop the loop.
    */
-  settled(goal: GoalRecord | undefined, settings: GoalSettings, successful: boolean, performedWork = true): void {
+  settled(goal: GoalRecord | undefined, settings: GoalSettings, successful: boolean, performedWork = true, changedState = true): void {
     this.inRun = false;
     this.lastSettings = settings;
     if (this.denied || !goal || goal.status !== "active" || !goal.autoContinue) return;
@@ -145,6 +149,16 @@ export class GoalScheduler {
         : "Execution was interrupted or failed. Use /goal resume to continue.";
       if (this.pause(goal, reason, "agent", { requireRevision: goal.revision })) this.host.notify(reason, "warning");
       return;
+    }
+    if (!changedState) {
+      this.noChangeRuns += 1;
+      if (this.noChangeRuns >= NO_CHANGE_RUN_LIMIT) {
+        const reason = `${this.noChangeRuns} consecutive runs changed nothing observable. Use /goal resume to continue.`;
+        if (this.pause(goal, reason, "agent", { requireRevision: goal.revision })) this.host.notify(reason, "warning");
+        return;
+      }
+    } else {
+      this.noChangeRuns = 0;
     }
     this.implicitReady(goal, goal.revision);
 
@@ -181,8 +195,8 @@ export class GoalScheduler {
    * Authorize exactly one run.
    *
    * Every precondition is re-checked here rather than trusted from arming time,
-   * because between the two the goal can be paused, refocused, revised, or run
-   * out of budget. A failure means the decision can no longer authorize anything,
+   * because between the two the goal can be paused, refocused, revised, or stopped.
+   * A failure means the decision can no longer authorize anything,
    * so the goal stops rather than continuing on an intent nothing decided on.
    */
   claim(): { goalId: string; generation: string; dispatchId: string; run: number } | null {
@@ -228,7 +242,7 @@ export class GoalScheduler {
         }
         // Every precondition is judged again here, on the record the lock
         // protects. The check above read a snapshot, and a writer can pause,
-        // uncouple or cap this goal in the window before the lock was taken. A
+        // uncouple or stop this goal in the window before the lock was taken. A
         // claim on a stopped goal would spend a run and record a dispatch that
         // nothing is authorized to perform.
         const stopped = this.blocker(draft, this.lastSettings);
@@ -325,11 +339,8 @@ export class GoalScheduler {
         //
         // The run allowance is deliberately NOT rejudged here. The claim already
         // discharged it, so a goal on its last authorized run would refuse its
-        // own checkpoint and strand a run it was legitimately given. The
-        // lifetime token budget is a different condition: a goal that has spent
-        // its tokens stops, whatever run count its allowance has left.
+        // own checkpoint and strand a run it was legitimately given.
         if (
-          budgetReached(draft) ||
           current.owner !== this.host.readOwner() ||
           draft.status !== "active" ||
           !draft.autoContinue ||
@@ -389,7 +400,7 @@ export class GoalScheduler {
         }
         return {
           ...draft,
-          status: stopReason === "user" ? "paused" : budgetReached(draft) ? "budget_limited" : "active",
+          status: stopReason === "user" ? "paused" : "active",
           autoContinue: false,
           stopReason,
           pauseReason: reason,
@@ -418,18 +429,25 @@ export class GoalScheduler {
     this.lastSettings = settings;
     this.inRun = false;
     this.denied = false;
+    // A user resume is a fresh opportunity: the window starts again, or a goal
+    // stopped by it could never be resumed more than once.
+    this.noChangeRuns = 0;
     if (settings.maxAutonomousRuns === 0) {
       this.host.notify(this.allowanceReason(settings), "warning");
       return false;
     }
-    if (goal.status === "complete" || budgetReached(goal) || !this.runsRemaining(goal, settings)) {
-      this.host.notify("A completed or token-capped goal cannot resume.", "warning");
+    if (goal.status === "complete") {
+      this.host.notify("A completed goal cannot resume. Start a new goal.", "warning");
+      return false;
+    }
+    if (!this.runsRemaining(goal, settings)) {
+      this.host.notify(this.allowanceReason(settings), "warning");
       return false;
     }
     const outcome = this.host.apply({
       expectedGoalId: goal.id,
       expectedRevision: goal.revision,
-      mutate: (draft) => draft.status !== "complete" && !budgetReached(draft) && this.runsRemaining(draft, settings) ? ({
+      mutate: (draft) => draft.status !== "complete" && this.runsRemaining(draft, settings) ? ({
         ...draft,
         status: "active",
         autoContinue: true,

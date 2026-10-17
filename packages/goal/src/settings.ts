@@ -11,7 +11,12 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { nonEmpty, parseModelRef, writeJsonAtomic } from "@fradser/pi-kit";
-import { GOALS_DIR, agentDir, goalsPlacementRefusal } from "./paths.ts";
+import { SETTINGS_FILE, agentDir, goalsRoot, legacyGoalsRoot } from "./paths.ts";
+
+/** Consecutive runs that change nothing observable before autonomous
+ * continuation stops. Fixed rather than layered: this is the loop's bound, and it
+ * has to be the same everywhere. */
+export const NO_CHANGE_RUN_LIMIT = 3;
 
 export interface GoalSettings {
   /** Lifetime automatic continuation allowance. Undefined is
@@ -23,10 +28,16 @@ export interface GoalSettings {
 
 }
 
-/** Project override file, inside the goals directory so a project's goal state
- * and its goal settings live together and travel with the project. */
+/** Project override file, inside the project's goal directory under the agent
+ * directory so a project's goal state and its goal settings live together. */
 function projectSettingsPath(projectRoot: string): string {
-  return path.join(projectRoot, GOALS_DIR, "settings.json");
+  return path.join(goalsRoot(projectRoot), SETTINGS_FILE);
+}
+
+/** The override as an earlier version stored it, inside the project. It is read
+ * first so an existing preference keeps applying; nothing new is written there. */
+function legacyProjectSettingsPath(projectRoot: string): string {
+  return path.join(legacyGoalsRoot(projectRoot), SETTINGS_FILE);
 }
 
 /** Global defaults, under the agent directory so they apply everywhere. */
@@ -63,6 +74,7 @@ function sanitize(raw: Partial<GoalSettings>): Partial<GoalSettings> {
 export function loadGoalSettings(projectRoot: string): GoalSettings {
   const resolved: GoalSettings = {
     ...sanitize(readSettingsFile(globalSettingsPath())),
+    ...sanitize(readSettingsFile(legacyProjectSettingsPath(projectRoot))),
     ...sanitize(readSettingsFile(projectSettingsPath(projectRoot))),
   };
   const envModel = parseModelRef(process.env.PI_GOAL_MODEL);
@@ -78,14 +90,10 @@ export function loadGoalSettings(projectRoot: string): GoalSettings {
 /**
  * Write the project override.
  *
- * The refusal is returned rather than thrown: this writes into the goals
- * directory, so it refuses exactly when goal creation refuses, and a settings
- * save must not be the one path that recreates a directory goal creation
- * rejected.
+ * The file belongs next to this project's goals under the agent directory, so a
+ * saved preference never creates a directory inside the working tree.
  */
-export function writeProjectSettings(projectRoot: string, settings: GoalSettings): { ok: true } | { ok: false; message: string } {
-  const refusal = goalsPlacementRefusal(projectRoot);
-  if (refusal) return { ok: false, message: refusal };
+export function writeProjectSettings(projectRoot: string, settings: GoalSettings): { ok: true } {
   const file = projectSettingsPath(projectRoot);
   fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
   writeJsonAtomic(file, settings);

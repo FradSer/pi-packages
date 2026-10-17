@@ -1,5 +1,5 @@
 /** One mutation boundary: lock, reconcile, compare revision, atomically write
- * one Goal record or release it. Legacy history is never moved or removed. */
+ * one Goal record. Legacy history is never moved or removed. */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -9,11 +9,15 @@ import {
   writeJsonAtomic,
 } from "@fradser/pi-kit";
 import {
+  agentDir,
   goalClaimDir,
   goalRecordPath,
   goalsRoot,
-  goalsPlacementRefusal,
   isInside,
+  legacyGoalClaimDir,
+  legacyGoalRecordPath,
+  legacyGoalsRoot,
+  safeGoalId,
 } from "./paths.ts";
 import {
   GOAL_RECORD_VERSION,
@@ -40,15 +44,30 @@ export interface GoalMutationSpec {
    * cross-process lost-update guard. */
   expectedRevision?: number;
   /** Mutate a clone of the goal read from disk. Returning undefined aborts
-   * without a write. */
+   * without a write. A finished goal is written like any other change: its
+   * record keeps the terminal status, because nothing here deletes a record. */
   mutate: (goal: GoalRecord) => GoalRecord | undefined;
-  /** Release the authoritative runtime record after the guarded mutation. */
-  finish?: boolean;
 }
 
 export type GoalMutationOutcome =
   | { ok: true; goal: GoalRecord; diagnostics: string[] }
   | { ok: false; message: string; diagnostics: string[] };
+
+/**
+ * One place a goal can live: the trusted root it may not escape, and the two
+ * paths below it. The current layout is under the agent directory; the legacy
+ * layout is inside the project, and is still read and still written so a goal
+ * created before the move keeps running where it already is.
+ */
+interface GoalArea {
+  /** Directory holding every goal of this project, in this layout. */
+  root: string;
+  /** Trusted directory the record path is checked against, and walked for
+   * symbolic links. */
+  base: string;
+  record: string;
+  claims: string;
+}
 
 export interface GoalStoreOptions {
   projectRoot: string;
@@ -59,6 +78,33 @@ export class GoalStore {
 
   constructor(options: GoalStoreOptions) {
     this.projectRoot = path.resolve(options.projectRoot);
+  }
+
+  // ── locations ──────────────────────────────────────────────────────
+
+  /**
+   * The two places one goal can live, the current one first.
+   *
+   * Records are never migrated: a goal stored inside a project under the earlier
+   * layout is read, locked and written there, because a move would leave two
+   * processes locking different directories for the same goal.
+   */
+  private areas(goalId: string): GoalArea[] {
+    return [
+      this.area(goalsRoot(this.projectRoot), agentDir(), goalRecordPath(this.projectRoot, goalId), goalClaimDir(this.projectRoot, goalId)),
+      this.area(legacyGoalsRoot(this.projectRoot), this.projectRoot, legacyGoalRecordPath(this.projectRoot, goalId), legacyGoalClaimDir(this.projectRoot, goalId)),
+    ];
+  }
+
+  private area(root: string, base: string, record: string, claims: string): GoalArea {
+    return { root, base, record, claims };
+  }
+
+  /** The area holding this goal's record, or undefined when there is none.
+   * Readability decides, exactly as it does for `readGoal`, so the area that is
+   * locked is the area the record is read from. */
+  private locate(goalId: string): GoalArea | undefined {
+    return this.areas(goalId).find((area) => this.readRecordFile(area, area.record) !== undefined);
   }
 
   // ── reads ──────────────────────────────────────────────────────────
@@ -72,19 +118,26 @@ export class GoalStore {
    * record in from outside the project.
    */
   readPool(): GoalRecord[] {
-    const root = goalsRoot(this.projectRoot);
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(root, { withFileTypes: true });
-    } catch {
-      return [];
-    }
     const goals: GoalRecord[] = [];
-    for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
-      if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
-      const record = this.readGoal(entry.name);
-      // Completed legacy records do not authorize new work.
-      if (record && record.status !== "complete") goals.push(record);
+    const seen = new Set<string>();
+    for (const root of [goalsRoot(this.projectRoot), legacyGoalsRoot(this.projectRoot)]) {
+      let entries: fs.Dirent[];
+      try {
+        entries = fs.readdirSync(root, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const entry of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+        if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+        const record = this.readGoal(entry.name);
+        // One goal is offered once, even if both layouts hold a copy of it, and
+        // a completed record does not authorize new work. Only a record that was
+        // actually read counts as seen: an unreadable directory in the current
+        // layout must not hide a readable legacy record for the same id.
+        if (!record || seen.has(entry.name)) continue;
+        seen.add(entry.name);
+        if (record.status !== "complete") goals.push(record);
+      }
     }
     return goals;
   }
@@ -92,7 +145,11 @@ export class GoalStore {
   /** One goal by id, or undefined. Every read goes to disk: there is no cache,
    * so a mutation always starts from what is actually stored. */
   readGoal(goalId: string): GoalRecord | undefined {
-    return this.readRecordFile(goalRecordPath(this.projectRoot, goalId));
+    for (const area of this.areas(goalId)) {
+      const record = this.readRecordFile(area, area.record);
+      if (record) return record;
+    }
+    return undefined;
   }
 
   /** The objective. The name is kept from the version whose objective lived in
@@ -103,21 +160,14 @@ export class GoalStore {
 
   // ── writes ─────────────────────────────────────────────────────────
 
-  /** Create one authoritative record before work begins. */
+  /** Create one authoritative record before work begins. A new goal is written
+   * under the agent directory, so no project gains a goals tree. */
   create(input: {
     objective: string;
-    contract?: string;
-    tokenBudget?: number;
     owner: string;
     id: string;
-    initialTokens?: number;
   }): GoalMutationOutcome {
-    // Refused before anything is written, so a nested placement leaves no
-    // directory behind for a later run to adopt. Reads and an already stored
-    // goal are untouched, which is what keeps a goal created under an earlier
-    // version running where it already lives.
-    const refusal = goalsPlacementRefusal(this.projectRoot);
-    if (refusal) return { ok: false, message: refusal, diagnostics: [] };
+    const [area] = this.areas(input.id);
     const at = nowIso();
     const goal: GoalRecord = {
       id: input.id,
@@ -125,25 +175,21 @@ export class GoalStore {
       objective: input.objective,
       status: "active",
       autoContinue: true,
-      usage: { tokensUsed: input.initialTokens ?? 0, activeSeconds: 0 },
+      usage: { tokensUsed: 0, activeSeconds: 0 },
       createdAt: at,
       updatedAt: at,
       revision: 0,
       scheduler: newGoalScheduler(input.owner, randomToken()),
     };
-    if (input.contract) goal.verificationContract = input.contract;
-    if (input.tokenBudget !== undefined && input.tokenBudget > 0) goal.tokenBudget = input.tokenBudget;
-    if (goal.tokenBudget !== undefined && goal.usage.tokensUsed >= goal.tokenBudget) {
-      goal.status = "budget_limited"; goal.autoContinue = false;
-      goal.pauseReason = `The lifetime token cap of ${goal.tokenBudget} tokens was reached during creation.`;
-    }
+    // No spending cap exists. A goal is bounded by its work: three consecutive
+    // runs that change nothing stop it, and the user controls pause and clear.
     try {
       const locked: { ok: true; goal: GoalRecord } | { ok: false; message: string } =
-        this.withLock(input.id, (stillHeld) => {
+        this.withLock(area, (stillHeld) => {
           if (this.readGoal(input.id)) {
             return { ok: false as const, message: `A goal with that id already exists.` };
           }
-          this.writeGoalFiles(goal, stillHeld);
+          this.writeGoalFiles(area, goal, stillHeld);
           return { ok: true as const, goal };
         });
       if (!locked.ok) return { ...locked, diagnostics: [] };
@@ -161,10 +207,14 @@ export class GoalStore {
     const goalId = spec.expectedGoalId;
     if (!goalId) return { ok: false, message: "No goal to mutate.", diagnostics: [] };
     try {
+      // Located before the lock, because the lock has to be the one the goal's
+      // own directory uses: a goal under the earlier layout is locked there.
+      const area = this.locate(goalId);
+      if (!area) return { ok: false, message: `The goal no longer exists.`, diagnostics: [] };
       const locked: { ok: true; goal: GoalRecord } | { ok: false; message: string } =
-        this.withLock(goalId, (stillHeld) => {
+        this.withLock(area, (stillHeld) => {
           // 1. Reconcile: disk is authoritative.
-          const current = this.readGoal(goalId);
+          const current = this.readRecordFile(area, area.record);
           if (!current) return { ok: false as const, message: `The goal no longer exists.` };
           // 2. Identity checks against the record just read.
           if (spec.expectedRevision !== undefined && current.revision !== spec.expectedRevision) {
@@ -179,25 +229,22 @@ export class GoalStore {
           if (!next) {
             return { ok: false as const, message: `The change to the goal was declined; nothing was written.` };
           }
+          // 4. A finished goal is terminal. Every stale-snapshot writer — a late
+          // charge, a pause or a stop computed before someone else's completion —
+          // would otherwise revive a goal the user already saw finish.
+          if (current.status === "complete" && next.status !== "complete") {
+            return { ok: false as const, message: `The goal already finished; nothing was written.` };
+          }
           next.revision = current.revision + 1;
           next.updatedAt = nowIso();
-          // 4. Write or release under the same lock.
-          let written: GoalRecord;
+          // 5. Write under the same lock. A finished goal is written like any
+          // other change: the record keeps its terminal status, and legacy
+          // research, history and prose are neither moved nor removed.
           // Verified last: if the lock was taken from us while we computed the
           // mutation, the revision we based it on is no longer the truth.
           stillHeld();
-          if (spec.finish) {
-            // Release only runtime files. Existing research and history are user
-            // data and remain untouched; no archive directory is ever written.
-            const record = goalRecordPath(this.projectRoot, goalId);
-            this.assertSafePath(record);
-            fs.unlinkSync(record);
-            written = next;
-          } else {
-            this.writeGoalFiles(next, stillHeld);
-            written = next;
-          }
-          return { ok: true as const, goal: written };
+          this.writeGoalFiles(area, next, stillHeld);
+          return { ok: true as const, goal: next };
         });
       if (!locked.ok) return { ...locked, diagnostics: [] };
       const written = locked.goal;
@@ -210,12 +257,12 @@ export class GoalStore {
 
   // ── internals ──────────────────────────────────────────────────────
 
-  /** Reject existing links below the trusted project root before file access.
+  /** Reject existing links below a trusted root before file access.
    * This check does not provide a sandbox against concurrent directory replacement. */
-  private assertSafePath(file: string): void {
-    if (!isInside(this.projectRoot, file)) throw new Error("Goal path is outside the project.");
-    const segments = path.relative(this.projectRoot, file).split(path.sep);
-    let current = this.projectRoot;
+  private assertSafePath(base: string, file: string): void {
+    if (!isInside(base, file)) throw new Error("Goal path is outside its runtime directory.");
+    const segments = path.relative(base, file).split(path.sep);
+    let current = base;
     for (const segment of segments) {
       current = path.join(current, segment);
       const stats = fs.lstatSync(current, { throwIfNoEntry: false });
@@ -223,10 +270,11 @@ export class GoalStore {
     }
   }
 
-  private readRecordFile(file: string): GoalRecord | undefined {
+  private readRecordFile(area: GoalArea, file: string): GoalRecord | undefined {
     let raw: string;
     try {
-      this.assertSafePath(file);
+      if (!isInside(area.root, file)) return undefined;
+      this.assertSafePath(area.base, file);
       const stats = fs.lstatSync(file);
       if (stats.isSymbolicLink() || !stats.isFile()) return undefined;
       raw = fs.readFileSync(file, "utf-8");
@@ -252,10 +300,10 @@ export class GoalStore {
     return normalizeGoalRecord((parsed as { goal?: unknown }).goal ?? parsed);
   }
 
-  private writeGoalFiles(goal: GoalRecord, stillHeld: () => void): void {
-    const file = goalRecordPath(this.projectRoot, goal.id);
-    if (!isInside(goalsRoot(this.projectRoot), file)) throw new Error("Goal path is outside its runtime directory.");
-    this.assertSafePath(file);
+  private writeGoalFiles(area: GoalArea, goal: GoalRecord, stillHeld: () => void): void {
+    const file = path.join(area.root, safeGoalId(goal.id), "record.json");
+    if (!isInside(area.root, file)) throw new Error("Goal path is outside its runtime directory.");
+    this.assertSafePath(area.base, file);
     stillHeld();
     writeJsonAtomic(file, { version: GOAL_RECORD_VERSION, goal });
   }
@@ -276,15 +324,14 @@ export class GoalStore {
    * would both believe they advanced the goal from the same revision. The
    * guard makes the loss visible: the displaced holder writes nothing.
    */
-  private withLock<T>(goalId: string, body: (stillHeld: () => void) => T): T {
-    const dir = goalClaimDir(this.projectRoot, goalId);
+  private withLock<T>(area: GoalArea, body: (stillHeld: () => void) => T): T {
     const name = "write-lock";
-    const file = path.join(dir, `${safeFileName(name)}.json`);
-    this.assertSafePath(file);
+    const file = path.join(area.claims, `${safeFileName(name)}.json`);
+    this.assertSafePath(area.base, file);
     const token = randomToken();
     const deadline = Date.now() + LOCK_TIMEOUT_MS;
     for (;;) {
-      if (createExclusiveJsonFile(dir, name, { token, at: Date.now() }, { label: "Goal write lock" })) break;
+      if (createExclusiveJsonFile(area.claims, name, { token, at: Date.now() }, { label: "Goal write lock" })) break;
       // pi-kit's exclusive create returns false only on EEXIST, so the lock file
       // exists here and a genuinely abandoned lock can be taken over. Reporting a
       // missing file as stale would instead let a create that failed for an
@@ -364,4 +411,3 @@ function describe(error: unknown): string {
 export function newGoalId(): string {
   return `goal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
-

@@ -62,7 +62,6 @@ await scenario("the status row never carries the goal tag", () => {
     [goalWith({ autoContinue: false }), "Goal waiting"],
     [goalWith({ status: "paused", autoContinue: false }), "Goal paused"],
     [goalWith({ status: "blocked", autoContinue: false }), "Goal blocked"],
-    [goalWith({ status: "budget_limited", autoContinue: false }), "Goal budget limited"],
   ];
   for (const [goal, expected] of cases) {
     const text = row(goal);
@@ -135,9 +134,9 @@ await scenario("narrow status widgets wrap instead of dropping their ending", ()
   const ctx = { mode: "tui", ui: { setWidget: (_key: string, factory: Function | undefined) => {
     if (factory) component = factory({ requestRender() {} });
   } } };
-  refreshDashboard({ goal: goalWith({ status: "budget_limited" }) } as never, ctx as never);
+  refreshDashboard({ goal: goalWith({ status: "paused", autoContinue: false }) } as never, ctx as never);
   const text = component!.render(10).join("\n");
-  assert.equal(text.replace(/\s/g, ""), "Goalbudgetlimited·0m");
+  assert.equal(text.replace(/\s/g, ""), "Goalpaused·0m");
   assert.doesNotMatch(text, /…/);
 });
 

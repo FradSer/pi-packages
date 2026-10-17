@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { GoalCore, GOAL_FOCUS_ENTRY } from '../src/core.ts';
 import { registerGoalCommands } from '../src/commands.ts';
 import { registerGoalTools } from '../src/tools.ts';
+import { isolatedAgentDir } from './isolated-agent.mts';
+
+isolatedAgentDir();
 
 const results: string[] = [];
 async function scenario(name: string, body: () => unknown) {
@@ -90,8 +93,17 @@ await scenario('thread ownership, exact actions, pause and clear remain consiste
   f.ctx.hasUI = true;
   await handler('clear', f.ctx);
   assert.equal(f.core.goal, undefined);
-  assert.equal(Boolean(f.core.store.readGoal('owned')), false);
+  assert.equal(f.core.store.readGoal('owned')?.status, 'complete', 'clearing keeps the record with its outcome');
   assert.equal(f.core.scheduler.isArmed(), false);
+  f.core.shutdown();
+});
+
+await scenario('focus refuses a goal that already finished', () => {
+  const f = fixture(); registerGoalCommands(f.core);
+  f.core.store.create({ id: 'finished', owner: 'thread-a', objective: 'A goal that finished.' });
+  assert.ok(f.core.store.apply({ expectedGoalId: 'finished', mutate: goal => ({ ...goal, status: 'complete', autoContinue: false }) }).ok);
+  assert.equal(f.core.focus('finished', f.ctx as never, 'selected'), false, 'a finished goal is not focused again');
+  assert.equal(f.core.goal, undefined, 'and nothing is focused');
   f.core.shutdown();
 });
 

@@ -2,23 +2,49 @@
 
 ## Current work
 
-Audit of `packages/goal` against its own written contracts and the fixes it produced. The two
-TUI fixes it started from are recorded in `.changeset/goal-request-row-visibility.md`; the
-audit itself, the contract guard and the Pi cohort move are in `.changeset/goal-audit-fixes.md`
-and `.changeset/pi-core-cohort-1-2.md`. Older narrative lives in this file's git history.
+Automatic continuation bounds itself by the work a run does. Progress is a workspace change: only an
+unseen successful `edit` or `write` earns the next run, and three consecutive runs that change
+nothing pause the goal with `3 consecutive runs changed nothing observable. Use /goal resume to
+continue.` The change memory lives in `GoalCore.changedWork` and `GoalScheduler.noChangeRuns`; it is
+session-scoped, deliberately not cleared by a requirements revision (a re-worded objective must not
+reset the loop's only bound), reset by a user resume, and a user-initiated run counts as a fresh
+opportunity rather than as a no-change run. There is no budget concept at all. `GoalStatus` has no
+capped state, `GoalRecord` has no `tokenBudget`, and no path stops, refuses or resumes on a number:
+usage is recorded and reported, and the three-run no-change window is the loop's bound with
+`maxAutonomousRuns` as the only optional ceiling. A cap-era record is tolerated rather than migrated: a
+`budget_limited` status reads as `paused`, and a `tokenBudget` field is dropped by normalization, so a
+goal that stopped under a cap resumes and completes normally. Docs and features no longer describe a
+cap; reasoning is in `.changeset/goal-no-change-loop-bound.md`.
+
+Goal state moved out of the working tree. It now lives at
+`~/.pi/agent/goals/<project key>/<id>/record.json`, keyed by a readable Memory-style project name
+plus a digest of the canonical path, and completion or clear writes the terminal `complete` status
+instead of deleting the record. The change and its reasoning are in
+`.changeset/goal-agent-dir-state.md`; the previous
+work, the audit against the written contracts and the Pi 1.2.0 cohort move, is in
+`.changeset/goal-audit-fixes.md` and `.changeset/pi-core-cohort-1-2.md`. Older narrative lives in
+this file's git history.
 
 ## Audit inventory
 
 Every `src/` module was read in full; the documented surfaces were matched to the code that
 produces them. Fixed items are named in place.
 
-- `paths.ts` — path safety runs before every write. Fixed: comments describing an append-only
-  ledger, a live prose file and ledger appends.
-- `record.ts` — normalization, budget helpers, elapsed format. Fixed: an orphaned comment for a
+- `paths.ts` — path safety runs before every write. Now owns placement too: the agent-directory
+  goals root, the readable project key (Memory-style words plus a short digest of the canonical
+  path, so punctuation-colliding paths never share a directory, cut to fit when a path is too long
+  for one name) and the legacy project-relative paths that keep a goal stored by an earlier version
+  readable. Fixed earlier: comments describing an append-only ledger, a live prose file and ledger
+  appends. The placement refusal was removed with the project-relative layout it protected.
+- `record.ts` — normalization, elapsed format. Fixed: an orphaned comment for a
   removed next-action field. Legacy `activePath` is preserved on read, never fabricated.
-- `store.ts` — one writer, lock ownership guard, release under the same lock. Fixed: a duplicate
-  reader, the misleading `readPrompt` name (now `readObjective`) and the fabricated `activePath`.
-- `scheduler.ts` — arm and claim are separate; a claim is spent once and never replayed. No
+- `store.ts` — one writer, lock ownership guard, every write under the same lock. Creation seeds
+  its own usage counters, so the run that created a goal is never charged to it. One record can
+  now live in either layout, so the store locates the record before locking and mutates it where
+  it lives; nothing is migrated and nothing is deleted. Fixed earlier: a duplicate reader, the
+  misleading `readPrompt` name (now `readObjective`) and the fabricated `activePath`.
+- `scheduler.ts` — arm and claim are separate; a claim is spent once and never replayed, and the
+  no-change window (`NO_CHANGE_RUN_LIMIT`) is what stops a loop that keeps exploring. No
   defect; the delivery-failure path had no test, so two scenarios were added.
 - `prompt.ts` — bounded, escaped, prefix-stable blocks. Fixed: `statusLabel` was exported with no
   reader.
@@ -26,16 +52,20 @@ produces them. Fixed items are named in place.
   never set or read, and their comment.
 - `evidence.ts` — bounded, redacted observations. `research_goal` stays excluded as a retired
   tool, now with a comment. No defect.
-- `core.ts` — focus and owner rules, activation handshake, budget accounting, stop guard. Fixed:
+- `core.ts` — focus and owner rules, activation handshake, usage accounting, stop guard, and the
+  change memory the loop's bound reads. Fixed:
   `currentTurnSeq` and `focusedId` had no reader.
 - `tools.ts` — three tools, validation, stop guard, paging. Fixed: comments describing a removed
   refusal count and a dead prose file; two exports with no external reader.
 - `commands.ts`, `procedure.ts`, `dashboard.ts` — one request row, one check row, one footer line.
-  No defect after the two TUI fixes above.
+  `/goal clear` now writes the terminal `complete` status with `stopReason: "user"` instead of
+  releasing the record. No other TUI defect after the two request-row and check-row fixes.
 - `events.ts` — handler order is the runtime; checkpoint messages stay hidden and are accepted
   once. Fixed: `event.prompt` was read directly, which Pi 1.2.0 types as a union — see the
   cohort section.
-- `settings.ts` — layer order, sanitizing, refusal on save. Fixed: two path helpers with no
+- `settings.ts` — layer order, sanitizing, no refusal on save. The project override now sits next
+  to that project's goals under the agent directory, and the legacy project-relative override is
+  read first so an existing preference keeps applying. Fixed earlier: two path helpers with no
   external reader.
 - `index.ts` — installer wiring only. No defect.
 - `AGENTS.md`, `TUI.zh-CN.md`, `README.md` — every rule and trigger entry matched to its emit
@@ -45,6 +75,10 @@ produces them. Fixed items are named in place.
   readable form of eight rules executed under the `Goal monitor evidence` names.
 - `goal_native_frames.py`, `goal_native_live.py`, `goal_native_tui.py` — shared decoder, frame
   assertions, process-group teardown. No defect.
+- `isolated-agent.mts` — every harness that builds a store or runs the extension redirects
+  `PI_CODING_AGENT_DIR` to a throwaway directory first, because goal state now lives there. The
+  native probes read records by globbing `<agent>/goals/*/*/record.json` instead of rebuilding the
+  project key.
 - `goal_native_completion.py` — the scripted full-path acceptance. No defect.
 - `goal_native_request_row.py` — the composed-screen proof of the request row. No defect.
 - `goal_native_revision.py` — the revision contract, replacing a stale probe that asserted
@@ -146,3 +180,34 @@ Audit and test infrastructure: `366d812b`, `3d03b7c9`, `8f5ccb2a`, `1eb39a75`, `
 `34187d40`, `213dcc63`. Code Terrier review `58abc864...` found one low-severity dead local, which
 is fixed, and a continuation of that session was refused three times (HTTP 409); a fresh review of
 the full change, `19021f95...`, finished with no findings. The cohort move is this commit.
+
+## Independent review of the state move
+
+A fresh agent read the diff and the changed files, ran the suite, the two type checks and three
+scratch probes, and found seven issues. Fixed here, with the same review's sound verdicts kept
+below them.
+
+- Kept records were still writable by accounting paths that guard on existence, not status: a late
+  charge could revive a completed goal. Completion is now terminal in the store
+  itself — a write may only keep `complete` — and the accounting writers (`chargeUsage`, the check
+  charge, the `message_end` attribution) skip a finished goal instead of being refused. A check
+  that returns after another session completed the goal is reported stale, not charged.
+- `projectScopeKey` resolved only the whole path, so a path whose directory disappeared fell back to
+  a lexical spelling and the key changed under a stored goal. The deepest existing ancestor is
+  resolved now and the rest appended. Boundary: a project reached through a symbolic link that is
+  later removed keeps the spelling it is passed as; a session started there runs in the resolved
+  directory, so both sides use the resolved key.
+- `safeGoalId("..")` returned `..`, so a dot-only id addressed a file above the project's goals
+  root. Writes were already refused; reads are now impossible too, and `readRecordFile` checks
+  containment in the goal root as well as the symlink walk.
+- `readPool` marked an id seen before reading it, so an unreadable current record hid a readable
+  legacy one; `locate` accepted any file while `readGoal` demanded a readable one, so a mutation
+  could lock the wrong layout. Both now decide on the readable record. `focus` refuses a completed
+  goal, which its own `goal` getter already treated as absent.
+- Docs that claimed nothing is ever written into the working tree now say a new goal is not.
+
+Sound per the same review: stale-lock takeover and the displaced-writer guard; project separation by
+the digest (only a 32-bit collision remains); separator traversal and symlink rejection; readers of a
+retained completed record (`core.goal`, restore, tool surface, dashboard, scheduler); harness
+isolation; and the removed placement refusal, which nests nothing because the project root no
+longer contributes path segments. A mixed-version window is recorded in the changeset.

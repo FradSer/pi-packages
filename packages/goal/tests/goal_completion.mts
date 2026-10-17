@@ -11,6 +11,9 @@ import { normalizeGoalRecord } from "../src/record.ts";
 import { registerGoalTools } from "../src/tools.ts";
 import { collectGoalEvidence, type GoalEvidence } from "../src/evidence.ts";
 import { buildCheckPrompt, type RunCheckOptions } from "../src/check.ts";
+import { isolatedAgentDir } from "./isolated-agent.mts";
+
+isolatedAgentDir();
 
 const outcomes: string[] = [];
 async function scenario(name: string, body: () => Promise<void>) {
@@ -109,14 +112,14 @@ await scenario("an explicitly empty contract clears it while an empty objective 
 
 
 
-await scenario("late revisions of token-capped goals offer a valid recovery path", async () => {
+await scenario("late revisions of a stopped goal offer a valid recovery path", async () => {
   const f = fixture(async () => ({ met: false, report: "Not yet." }));
-  f.core.store.apply({ expectedGoalId: "completion-goal", mutate: draft => ({ ...draft, status: "budget_limited", autoContinue: false }) });
+  f.core.store.apply({ expectedGoalId: "completion-goal", mutate: draft => ({ ...draft, autoContinue: false, pauseReason: "No effective work was recorded. Use /goal resume to continue." }) });
   const value = await f.tools.get("update_goal")!.execute("late-revision", { objective: "Revised objective" }, undefined, undefined, f.ctx);
   const text = value.content.map((part: { text?: string }) => part.text ?? "").join("\n");
-  assert.match(text, /\/goal clear/);
-  assert.doesNotMatch(text, /\/goal resume/);
-  assert.equal(f.core.goal?.objective, "Export CSV and pass its E2E test.");
+  assert.equal(value.details.subject, "updated", "a stopped goal's requirements can still be revised");
+  assert.match(text, /Revised objective/);
+  assert.equal(f.core.goal?.objective, "Revised objective");
 });
 
 
@@ -191,17 +194,17 @@ await scenario("three malformed checker answers never spend a valid refusal", as
 });
 
 await scenario("usage cannot charge a goal whose owner changed before the accounting lock", async () => {
-  // markBudgetLimited writes `status` directly rather than through pause(), so
-  // it must carry its own ownership guard. Ownership can rotate between the
-  // usage write that reaches the cap and the stop that follows it.
+  // A charge belongs to the owner that decided to make it. Ownership can rotate
+  // between the read that decided to charge and the write that records it, and the
+  // write declines rather than spending another session's goal.
   const f = fixture(async () => ({ met: true, report: "Met." }));
   const store = f.core.store as unknown as { apply: (spec: unknown) => unknown };
   const original = store.apply.bind(store);
   const owner = f.core.goal?.scheduler?.owner ?? "";
-  let writes = 0;
+  let rotated = false;
   store.apply = (spec: unknown) => {
-    writes += 1;
-    if (writes === 1) {
+    if (!rotated) {
+      rotated = true;
       original({
         expectedGoalId: "completion-goal",
         mutate: (draft: GoalRecord) => ({ ...draft, scheduler: draft.scheduler ? { ...draft.scheduler, owner: `${owner}-other` } : undefined }),
@@ -210,21 +213,10 @@ await scenario("usage cannot charge a goal whose owner changed before the accoun
     return original(spec);
   };
   const goal = f.core.goal!;
-  // Capture what the user is actually told. A declined stop must not claim the
-  // goal stopped, because the new owner's work is still running.
-  const notifications: string[] = [];
-  const ui = f.ctx.ui as unknown as { notify: (line: string) => void };
-  const reported = ui.notify.bind(ui);
-  ui.notify = (line: string) => { notifications.push(line); reported(line); };
-  original({ expectedGoalId: "completion-goal", mutate: (draft: GoalRecord) => ({ ...draft, tokenBudget: 100 }) });
   // The fixture supplies a minimal context double, so it is cast once at this
   // seam rather than given a fake that pretends to be the whole interface.
   f.core.chargeUsage(f.ctx as unknown as Parameters<typeof f.core.chargeUsage>[0], goal, 1, 100, 0);
-  assert.equal(f.core.goal?.status, "active", "the new owner's goal is never stopped");
-  assert.ok(
-    !notifications.some((line) => line.includes("reached its token cap and stopped")),
-    `a declined stop must not be reported as a stop: ${JSON.stringify(notifications)}`,
-  );
+  assert.equal(f.core.store.readGoal("completion-goal")?.usage.tokensUsed, 0, "another owner's goal is not charged");
   assert.notEqual(f.core.goal?.scheduler?.owner, owner, "ownership really rotated");
   f.core.shutdown();
 });
@@ -264,17 +256,17 @@ await scenario("completion cannot release requirements revised after verdict val
   f.core.shutdown();
 });
 
-await scenario("a stopped goal refuses a late revision", async () => {
-  // `update_goal` is withdrawn for a budget-limited goal, but a call can still
-  // arrive one transition late. Revising it would rewrite the objective, move the
-  // evidence window of work that has stopped.
+await scenario("a finished goal refuses a late revision", async () => {
+  // `update_goal` is withdrawn for a finished goal, but a call can still arrive one
+  // transition late. Revising it would rewrite the objective, move the evidence
+  // window of work that has ended.
   const f = fixture(async () => ({ met: false, report: "Missing independent review." }));
-  const before = f.core.goal!;
+  const before = f.core.store.readGoal("completion-goal")!;
   f.core.store.apply({
     expectedGoalId: "completion-goal",
     mutate: (draft) => ({
       ...draft,
-      status: "budget_limited",
+      status: "complete",
       autoContinue: false,
       evidenceSince: "2020-01-01T00:00:00.000Z",
     }),
@@ -286,8 +278,8 @@ await scenario("a stopped goal refuses a late revision", async () => {
     undefined,
     f.ctx,
   );
-  assert.equal(outcome.isError, true, `a stopped goal must refuse the revision: ${JSON.stringify(outcome)}`);
-  const after = f.core.goal!;
+  assert.equal(outcome.isError, true, `a finished goal must refuse the revision: ${JSON.stringify(outcome)}`);
+  const after = f.core.store.readGoal("completion-goal")!;
   assert.equal(after.objective, before.objective, "the objective is untouched");
   assert.equal(after.evidenceSince, "2020-01-01T00:00:00.000Z", "the evidence window did not move");
   const objective = f.core.store.readObjective(before.id);
@@ -441,6 +433,23 @@ await scenario("a configured check model is used instead of the session's", asyn
 
 
 
+
+await scenario("a late charge after completion never revives the finished goal", async () => {
+  // A run's remaining assistant messages arrive after the goal finished, and the
+  // charge is attributed from the run that started while the goal was open. The
+  // record is kept now, so this write reaches a completed goal instead of finding
+  // nothing: it must not charge it, and it must not write anything at all.
+  const f = fixture(async () => ({ met: true, report: "Met." }));
+  f.events.get("agent_start")?.({}, f.ctx);
+  assert.ok(f.core.store.apply({ expectedGoalId: "completion-goal", mutate: (goal) => ({ ...goal, status: "complete", autoContinue: false }) }).ok);
+  const before = f.core.store.readGoal("completion-goal")!;
+  await f.events.get("message_end")?.({ message: { role: "assistant", usage: { totalTokens: 9 } } }, f.ctx);
+  const after = f.core.store.readGoal("completion-goal")!;
+  assert.equal(after.status, "complete", "the finished goal stays finished");
+  assert.equal(after.usage.tokensUsed, before.usage.tokensUsed, "and the late usage is not charged to it");
+  assert.equal(after.revision, before.revision, "nothing was written after the goal finished");
+  f.core.shutdown();
+});
 
 console.log(JSON.stringify(outcomes));
 

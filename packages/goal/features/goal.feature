@@ -22,13 +22,13 @@ Feature: Goal records
     Then the predicate assert.equal(created.ok, true, JSON.stringify(created)) holds for every observed invocation
     And the predicate assert.equal(fresh.readGoal(id)?.objective, objective) holds for every observed invocation
     And the predicate assert.equal(fresh.readObjective(id).trim(), objective) holds for every observed invocation
-    And the predicate assert.equal(existsSync(join(root,".pi/goals",id,"history.jsonl")),false) holds for every observed invocation
+    And the predicate assert.equal(existsSync(join(dirname(goalRecordPath(root, id)), "history.jsonl")), false) holds for every observed invocation
 
   Scenario: Goal records: a failed record write leaves the directory untouched
     Given the isolated fixtures for a failed record write leaves the directory untouched
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(created.ok, false) holds for every observed invocation
-    And the predicate assert.equal(existsSync(join(root,".pi/goals",id,"history.jsonl")),false) holds for every observed invocation
+    And the predicate assert.equal(existsSync(join(dirname(goalRecordPath(root, id)), "history.jsonl")), false) holds for every observed invocation
 
   Scenario: Goal records: the pool returns open goals deterministically and ignores junk
     Given the isolated fixtures for the pool returns open goals deterministically and ignores junk
@@ -69,12 +69,41 @@ Feature: Goal records
     And the predicate assert.match(outcome.message, /changed underneath this write/) holds for every observed invocation
     And the predicate assert.equal(store.readGoal(id)?.revision, before, "a refused write changes nothing") holds for every observed invocation
 
-  Scenario: Goal records: finishing releases runtime state without creating an archive
-    Given the isolated fixtures for finishing releases runtime state without creating an archive
+  Scenario: Goal records: a finished goal keeps its terminal status and creates no archive
+    Given the isolated fixtures for a finished goal keeps its terminal status and creates no archive
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(done.ok) holds for every observed invocation
-    And the predicate assert.equal(store.readGoal(id),undefined) holds for every observed invocation
-    And the predicate assert.equal(existsSync(join(root,".pi/goals/archived",id)),false) holds for every observed invocation
+    And the predicate assert.equal(store.readGoal(id)?.status,"complete","the record stays with the outcome it reached") holds for every observed invocation
+    And the predicate assert.equal(existsSync(join(goalsRoot(root),"archived",id)),false) holds for every observed invocation
+
+  Scenario: Goal records: a completed goal cannot be moved out of its terminal status
+    Given the isolated fixtures for a completed goal cannot be moved out of its terminal status
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.ok(store.create({ objective, owner: "session-a", id }).ok) holds for every observed invocation
+    And the predicate assert.ok(store.apply({ expectedGoalId: id, mutate: (goal) => ({ ...goal, status: "complete", autoContinue: false }) }).ok) holds for every observed invocation
+    And the predicate assert.equal(late.ok, false, "a late writer cannot revive a finished goal") holds for every observed invocation
+    And the predicate assert.equal(after.status, "complete", "the terminal status stands") holds for every observed invocation
+    And the predicate assert.equal(after.revision, 1, "and nothing was written") holds for every observed invocation
+
+  Scenario: Goal records: a project path keeps one key while its directory exists and after it is gone
+    Given the isolated fixtures for a project path keeps one key while its directory exists and after it is gone
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(goalRecordPath(link, "goal_scope"), goalRecordPath(real, "goal_scope"), "a symlinked spelling resolves to the same key") holds for every observed invocation
+    And the predicate assert.equal(goalRecordPath(project, "goal_scope"), whileItExists, "and the key survives its directory disappearing") holds for every observed invocation
+
+  Scenario: Goal records: a dot-only goal id never addresses a directory of its own
+    Given the isolated fixtures for a dot-only goal id never addresses a directory of its own
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(safeGoalId(".."), "goal", "a dot-only id becomes one safe segment") holds for every observed invocation
+    And the predicate assert.ok(isInside(goalsRoot(root), goalRecordPath(root, "..")), "the record stays inside the project's goals root") holds for every observed invocation
+    And the predicate assert.ok(isInside(goalsRoot(root), goalClaimDir(root, "..")), "so does its claim directory") holds for every observed invocation
+
+  Scenario: Goal records: an unreadable current record never hides a readable legacy one
+    Given the isolated fixtures for an unreadable current record never hides a readable legacy one
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(mixed.readPool().length, 1, "the readable legacy goal is still offered") holds for every observed invocation
+    And the predicate assert.equal(mixed.apply({ expectedGoalId: id, mutate: (goal) => ({ ...goal, autoContinue: false }) }).ok, true, "and it is the record a mutation locks") holds for every observed invocation
+    And the predicate assert.equal(new GoalStore({ projectRoot: sandbox }).readGoal(id)?.autoContinue, false, "so the outcome landed on the goal") holds for every observed invocation
 
   Scenario: Goal records: a writer whose lock was taken from it writes nothing
     Given the isolated fixtures for a writer whose lock was taken from it writes nothing
@@ -103,7 +132,7 @@ Feature: Goal records
     Then the predicate assert.ok(outcome.ok) holds for every observed invocation
     And the predicate assert.equal(outcome.goal.revision, revision + 1) holds for every observed invocation
     And the predicate assert.equal(new GoalStore({ projectRoot: root }).readObjective(id).trim(), objective, "legacy prose does not override the atomic record") holds for every observed invocation
-    And the predicate assert.equal(readFileSync(goalPromptPath(root,id), "utf8"), "objective the user edited by hand\n", "legacy files remain untouched") holds for every observed invocation
+    And the predicate assert.equal(readFileSync(legacyGoalPromptPath(root,id), "utf8"), "objective the user edited by hand\n", "legacy files remain untouched") holds for every observed invocation
 
   Scenario: Goal records: one malformed record does not hide the valid ones
     Given the isolated fixtures for one malformed record does not hide the valid ones
@@ -120,17 +149,35 @@ Feature: Goal records
     And the predicate assert.doesNotMatch(outcome.message, /->/) holds for every observed invocation
     And the predicate assert.equal(outcome.message, "EXDEV: cross-device link not permitted") holds for every observed invocation
 
-  Scenario: Goal records: goals are refused inside Pi's own directories and left untouched there
-    Given the isolated fixtures for goals are refused inside Pi's own directories and left untouched there
+  Scenario: Goal records: goal state is stored under the agent directory and never inside the project
+    Given the isolated fixtures for goal state is stored under the agent directory and never inside the project
     When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(created.ok, false, `${row.label}: creation must be refused`) holds for every observed invocation
-    And the predicate assert.match(created.ok ? "" : created.message, /\.pi\/goals/, `${row.label}: the message must name the path it refused`) holds for every observed invocation
-    And the predicate assert.ok(!existsSync(join(row.projectRoot, ".pi", "goals")), `${row.label}: no goals directory may be left behind`) holds for every observed invocation
-    And the predicate assert.equal(legacy.readGoal("goal_legacy_nested")?.objective, objective, "an existing goal is still readable where it lives") holds for every observed invocation
+    Then the predicate assert.equal(made.ok, true, made.ok ? "" : made.message) holds for every observed invocation
+    And the predicate assert.ok(isInside(agent, record), "the record is written under the agent directory") holds for every observed invocation
+    And the predicate assert.ok(existsSync(record), "and a fresh store reads it there") holds for every observed invocation
+    And the predicate assert.ok(!existsSync(join(projectRoot, ".pi")), "the project gains no .pi tree") holds for every observed invocation
+    And the predicate assert.deepEqual(other.readPool(), [], "another project sees no goals") holds for every observed invocation
+    And the predicate assert.equal(otherMade.ok, true, otherMade.ok ? "" : otherMade.message) holds for every observed invocation
+    And the predicate assert.equal(new GoalStore({ projectRoot }).readPool().length, 1, "and each project reads its own") holds for every observed invocation
+
+  Scenario: Goal records: two lookalike project paths never share one goals directory
+    Given the isolated fixtures for two lookalike project paths never share one goals directory
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(created.ok, true, created.ok ? "" : created.message) holds for every observed invocation
+    And the predicate assert.notEqual(goalRecordPath(left, "goal_left"), goalRecordPath(right, "goal_left"), "lookalike paths reduce to different keys") holds for every observed invocation
+    And the predicate assert.deepEqual(new GoalStore({ projectRoot: right }).readPool(), [], "and neither project reads the other's goal") holds for every observed invocation
+
+  Scenario: Goal records: a goal stored under the legacy layout is still read and mutated where it lives
+    Given the isolated fixtures for a goal stored under the legacy layout is still read and mutated where it lives
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(legacy.readGoal(id)?.objective, objective, "an existing goal is still readable where it lives") holds for every observed invocation
     And the predicate assert.equal(applied.ok, true, applied.ok ? "" : applied.message) holds for every observed invocation
-    And the predicate assert.equal(legacy.readGoal("goal_legacy_nested")?.autoContinue, false, "and it still accepts outcomes in place") holds for every observed invocation
-    And the predicate assert.equal(made.ok, true, made.ok ? "" : made.message) holds for every observed invocation
-    And the predicate assert.ok(existsSync(goalRecordPath(projectRoot, made.ok ? made.goal.id : "missing")), "a project keeps its own .pi/goals") holds for every observed invocation
+    And the predicate assert.equal(legacy.readGoal(id)?.autoContinue, false, "and it still accepts outcomes in place") holds for every observed invocation
+    And the predicate assert.ok(existsSync(legacyGoalRecordPath(projectRoot, id)), "the legacy record stays where it is") holds for every observed invocation
+    And the predicate assert.ok(!existsSync(goalRecordPath(projectRoot, id)), "and nothing is written to the new location for it") holds for every observed invocation
+    And the predicate assert.equal(capped?.status, "paused", "a cap-era status still reads as a stopped goal") holds for every observed invocation
+    And the predicate assert.equal(capped?.autoContinue, false, "and cannot continue on its own") holds for every observed invocation
+    And the predicate assert.equal("tokenBudget" in (capped ?? {}), false, "its ceiling is ignored, not carried forward") holds for every observed invocation
 
 Feature: Goal scheduling
 
@@ -157,6 +204,7 @@ Feature: Goal scheduling
     And the predicate assert.notEqual(first.counters, second.counters, "counters must reflect usage") holds for every observed invocation
     And the predicate assert.match(second.counters, /5000 tokens/) holds for every observed invocation
     And the predicate assert.match(second.counters, /Autonomous runs used: 3/) holds for every observed invocation
+    And the predicate assert.match(stopped.state, /Status: waiting/, "a stopped goal is not reported as running") holds for every observed invocation
 
   Scenario: Goal scheduling: continuation is unlimited by default
     Given the isolated fixtures for continuation is unlimited by default
@@ -230,11 +278,11 @@ Feature: Goal scheduling
     Given the isolated fixtures for a goal stopped after the pre-lock read claims nothing
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(created.ok, JSON.stringify(created)) holds for every observed invocation
-    And the predicate assert.ok(budgeted.ok, JSON.stringify(budgeted)) holds for every observed invocation
+    And the predicate assert.ok(prepared.ok, JSON.stringify(prepared)) holds for every observed invocation
     And the predicate assert.ok(stopped.ok, JSON.stringify(stopped)) holds for every observed invocation
     And the predicate assert.equal(racing.claim(), null, "a goal stopped since the read cannot be claimed into a run") holds for every observed invocation
     And the predicate assert.equal(read(goal.id)?.scheduler?.used ?? 0, 0, "no run was consumed") holds for every observed invocation
-    And the predicate assert.equal(read(goal.id)?.status, "budget_limited", "the goal keeps its own reason for stopping") holds for every observed invocation
+    And the predicate assert.match(read(goal.id)?.pauseReason ?? "", /interrupted/, "the goal keeps its own reason for stopping") holds for every observed invocation
 
   Scenario: Goal scheduling: a checkpoint is refused after the goal is paused mid-flight
     Given the isolated fixtures for a checkpoint is refused after the goal is paused mid-flight
@@ -318,14 +366,14 @@ Feature: Goal scheduling
     And the predicate assert.equal(racing.acceptCheckpoint(claimed).ok, false, "a superseded dispatch must not start") holds for every observed invocation
     And the predicate assert.notEqual(read(goal.id)?.scheduler?.phase, "running") holds for every observed invocation
 
-  Scenario: Goal scheduling: a checkpoint is refused when the token budget is spent
-    Given the isolated fixtures for a checkpoint is refused when the token budget is spent
+  Scenario: Goal scheduling: a checkpoint is refused when the goal stopped mid-flight
+    Given the isolated fixtures for a checkpoint is refused when the goal stopped mid-flight
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(created.ok, JSON.stringify(created)) holds for every observed invocation
     And the predicate assert.ok(outcome.ok, JSON.stringify(outcome)) holds for every observed invocation
     And the predicate assert.ok(claimed, "the armed decision is claimed") holds for every observed invocation
-    And the predicate assert.ok(spent.ok, JSON.stringify(spent)) holds for every observed invocation
-    And the predicate assert.equal(racing.acceptCheckpoint(claimed).ok, false, "a budget-spent goal must not start a run") holds for every observed invocation
+    And the predicate assert.ok(stopped.ok, JSON.stringify(stopped)) holds for every observed invocation
+    And the predicate assert.equal(racing.acceptCheckpoint(claimed).ok, false, "a stopped goal must not start a run") holds for every observed invocation
     And the predicate assert.notEqual(read(goal.id)?.scheduler?.phase, "running") holds for every observed invocation
 
   Scenario: Goal scheduling: a claim is refused when its decision is no longer ready
@@ -430,14 +478,6 @@ Feature: Goal scheduling
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(created.ok, JSON.stringify(created)) holds for every observed invocation
     And the predicate assert.equal(scheduler.resume(read(goal.id)!, noSettings, "user"), false) holds for every observed invocation
-
-  Scenario: Goal scheduling: a token-capped goal stops rather than continuing
-    Given the isolated fixtures for a token-capped goal stops rather than continuing
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.ok(created.ok, JSON.stringify(created)) holds for every observed invocation
-    And the predicate assert.ok(outcome.ok, JSON.stringify(outcome)) holds for every observed invocation
-    And the predicate assert.equal(scheduler.claim(), null) holds for every observed invocation
-    And the predicate assert.match(read(goal.id)?.pauseReason ?? "", /token cap/) holds for every observed invocation
 
   Scenario: Goal scheduling: goal prompts carry the unmet line when the check deferred one
     Given the isolated fixtures for goal prompts carry the unmet line when the check deferred one
@@ -573,8 +613,8 @@ Feature: Goal native sessions
     And the predicate assert.ok(!outcome.archived, "nothing was archived") holds for every observed invocation
     And the predicate assert.ok(!outcome.events.includes("goal_completed"), "completion was not committed") holds for every observed invocation
 
-  Scenario: Goal native sessions: a met verdict releases the goal without archiving
-    Given the isolated fixtures for a met verdict releases the goal without archiving
+  Scenario: Goal native sessions: a met verdict completes the goal without archiving
+    Given the isolated fixtures for a met verdict completes the goal without archiving
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(outcome.archived, false, "completion never archives") holds for every observed invocation
     And the predicate assert.equal(outcome.stillOpen, false, "and left the open pool") holds for every observed invocation
@@ -731,13 +771,13 @@ Feature: Goal completion evidence
     And the predicate assert.equal(f.core.goal?.verificationContract, undefined) holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.objective, before?.objective) holds for every observed invocation
 
-  Scenario: Goal completion evidence: late revisions of token-capped goals offer a valid recovery path
-    Given the isolated fixtures for late revisions of token-capped goals offer a valid recovery path
+  Scenario: Goal completion evidence: late revisions of a stopped goal offer a valid recovery path
+    Given the isolated fixtures for late revisions of a stopped goal offer a valid recovery path
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
-    And the predicate assert.match(text, /\/goal clear/) holds for every observed invocation
-    And the predicate assert.doesNotMatch(text, /\/goal resume/) holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.objective, "Export CSV and pass its E2E test.") holds for every observed invocation
+    And the predicate assert.equal(value.details.subject, "updated", "a stopped goal's requirements can still be revised") holds for every observed invocation
+    And the predicate assert.match(text, /Revised objective/) holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.objective, "Revised objective") holds for every observed invocation
 
   Scenario: Goal completion evidence: completion receives recorded executions and review separately from the executor claim
     Given the isolated fixtures for completion receives recorded executions and review separately from the executor claim
@@ -775,8 +815,7 @@ Feature: Goal completion evidence
     Given the isolated fixtures for usage cannot charge a goal whose owner changed before the accounting lock
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.status, "active", "the new owner's goal is never stopped") holds for every observed invocation
-    And the predicate assert.ok( !notifications.some((line) => line.includes("reached its token cap and stopped")), `a declined stop must not be reported as a stop: ${JSON.stringify(notifications)}`, ) holds for every observed invocation
+    And the predicate assert.equal(f.core.store.readGoal("completion-goal")?.usage.tokensUsed, 0, "another owner's goal is not charged") holds for every observed invocation
     And the predicate assert.notEqual(f.core.goal?.scheduler?.owner, owner, "ownership really rotated") holds for every observed invocation
 
   Scenario: Goal completion evidence: observations cannot relabel old or edited executions as fresh verification
@@ -794,11 +833,11 @@ Feature: Goal completion evidence
     And the predicate assert.equal(f.core.goal?.objective, "New requirements needing verification.") holds for every observed invocation
     And the predicate assert.equal(existsSync(join(f.cwd,".pi/goals/archived/completion-goal")), false) holds for every observed invocation
 
-  Scenario: Goal completion evidence: a stopped goal refuses a late revision
-    Given the isolated fixtures for a stopped goal refuses a late revision
+  Scenario: Goal completion evidence: a finished goal refuses a late revision
+    Given the isolated fixtures for a finished goal refuses a late revision
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
-    And the predicate assert.equal(outcome.isError, true, `a stopped goal must refuse the revision: ${JSON.stringify(outcome)}`) holds for every observed invocation
+    And the predicate assert.equal(outcome.isError, true, `a finished goal must refuse the revision: ${JSON.stringify(outcome)}`) holds for every observed invocation
     And the predicate assert.equal(after.objective, before.objective, "the objective is untouched") holds for every observed invocation
     And the predicate assert.equal(after.evidenceSince, "2020-01-01T00:00:00.000Z", "the evidence window did not move") holds for every observed invocation
     And the predicate assert.doesNotMatch(objective, /PDF/, "and the objective was not rewritten") holds for every observed invocation
@@ -857,6 +896,15 @@ Feature: Goal completion evidence
     Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
     And the predicate assert.deepEqual(seen, ["anthropic/claude-haiku"], "the configured model wins over the session's") holds for every observed invocation
 
+  Scenario: Goal completion evidence: a late charge after completion never revives the finished goal
+    Given the isolated fixtures for a late charge after completion never revives the finished goal
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
+    And the predicate assert.ok(f.core.store.apply({ expectedGoalId: "completion-goal", mutate: (goal) => ({ ...goal, status: "complete", autoContinue: false }) }).ok) holds for every observed invocation
+    And the predicate assert.equal(after.status, "complete", "the finished goal stays finished") holds for every observed invocation
+    And the predicate assert.equal(after.usage.tokensUsed, before.usage.tokensUsed, "and the late usage is not charged to it") holds for every observed invocation
+    And the predicate assert.equal(after.revision, before.revision, "nothing was written after the goal finished") holds for every observed invocation
+
 Feature: Goal thread lifecycle
 
   Scenario: Goal thread lifecycle: only /goal is registered and bare /goal never starts work
@@ -883,6 +931,13 @@ Feature: Goal thread lifecycle
     And the predicate assert.equal(f.core.goal?.status, 'paused') holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.usage.tokensUsed, 0) holds for every observed invocation
 
+  Scenario: Goal thread lifecycle: focus refuses a goal that already finished
+    Given the isolated fixtures for focus refuses a goal that already finished
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.ok(f.core.store.apply({ expectedGoalId: 'finished', mutate: goal => ({ ...goal, status: 'complete', autoContinue: false }) }).ok) holds for every observed invocation
+    And the predicate assert.equal(f.core.focus('finished', f.ctx as never, 'selected'), false, 'a finished goal is not focused again') holds for every observed invocation
+    And the predicate assert.equal(f.core.goal, undefined, 'and nothing is focused') holds for every observed invocation
+
   Scenario: Goal thread lifecycle: thread ownership, exact actions, pause and clear remain consistent
     Given the isolated fixtures for thread ownership, exact actions, pause and clear remain consistent
     When the real Goal modules execute this behavior case
@@ -894,7 +949,7 @@ Feature: Goal thread lifecycle
     And the predicate assert.equal(f.core.goal, undefined, 'even a copied entry cannot attach an owned goal') holds for every observed invocation
     And the predicate assert.match(JSON.stringify(f.sent.at(-1)), /no active goal/) holds for every observed invocation
     And the predicate assert.equal(f.core.goal, undefined) holds for every observed invocation
-    And the predicate assert.equal(Boolean(f.core.store.readGoal('owned')), false) holds for every observed invocation
+    And the predicate assert.equal(f.core.store.readGoal('owned')?.status, 'complete', 'clearing keeps the record with its outcome') holds for every observed invocation
     And the predicate assert.equal(f.core.scheduler.isArmed(), false) holds for every observed invocation
 
   Scenario: Goal thread lifecycle: explicit goal text activates revision but ordinary edits preserve pause
@@ -939,13 +994,15 @@ Feature: Simplified thread Goal lifecycle
     Then the predicate assert.equal(checks, 0) holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.status, "active") holds for every observed invocation
 
-  Scenario: Simplified thread Goal lifecycle: Given valid completion When accepted Then release runtime record without creating archives
-    Given the isolated fixtures for Given valid completion When accepted Then release runtime record without creating archives
+  Scenario: Simplified thread Goal lifecycle: Given valid completion When accepted Then keep the terminal record without creating archives
+    Given the isolated fixtures for Given valid completion When accepted Then keep the terminal record without creating archives
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(result.isError, false) holds for every observed invocation
     And the predicate assert.equal(result.details.subject, "completed") holds for every observed invocation
     And the predicate assert.equal(f.core.goal, undefined) holds for every observed invocation
-    And the predicate assert.equal(existsSync(join(f.cwd, ".pi/goals/simple-goal/record.json")), false) holds for every observed invocation
+    And the predicate assert.equal(f.core.store.readGoal("simple-goal")?.status, "complete", "the finished record keeps its outcome") holds for every observed invocation
+    And the predicate assert.ok(existsSync(goalRecordPath(f.cwd, "simple-goal")), "and is kept under the agent directory") holds for every observed invocation
+    And the predicate assert.equal(existsSync(join(f.cwd, ".pi/goals/simple-goal/record.json")), false, "never inside the project") holds for every observed invocation
     And the predicate assert.equal(existsSync(join(f.cwd, ".pi/goals/archived/simple-goal")), false) holds for every observed invocation
     And the predicate assert.equal(readFileSync(join(archive, "history.jsonl"), "utf8"), "legacy\n") holds for every observed invocation
     And the predicate assert.doesNotMatch(result.content[0].text, /archiv/i) holds for every observed invocation
@@ -954,8 +1011,9 @@ Feature: Simplified thread Goal lifecycle
     Given the isolated fixtures for Given a current goal When cleared Then end without completion or archive
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(f.core.goal, undefined) holds for every observed invocation
-    And the predicate assert.equal(existsSync(join(f.cwd, ".pi/goals/simple-goal/record.json")), false) holds for every observed invocation
-    And the predicate assert.equal(existsSync(join(f.cwd, ".pi/goals/archived")), false) holds for every observed invocation
+    And the predicate assert.equal(f.core.store.readGoal("simple-goal")?.status, "complete", "clearing keeps the record") holds for every observed invocation
+    And the predicate assert.ok(existsSync(goalRecordPath(f.cwd, "simple-goal")), "under the agent directory") holds for every observed invocation
+    And the predicate assert.equal(existsSync(join(f.cwd, ".pi/goals")), false, "and writes nothing into the project") holds for every observed invocation
     And the predicate assert.ok(f.sent.some(m => m.details?.subject === "cleared")) holds for every observed invocation
     And the predicate assert.ok(!f.sent.some(m => /completed|archived/.test(m.content ?? ""))) holds for every observed invocation
 
@@ -986,8 +1044,8 @@ Feature: Simplified thread Goal lifecycle
     And the predicate assert.equal(f.core.goal?.status,"active") holds for every observed invocation
     And the predicate assert.match(f.row(), /Goal waiting/) holds for every observed invocation
 
-  Scenario: Simplified thread Goal lifecycle: Given checker usage When result returns Then charge the Goal budget
-    Given the isolated fixtures for Given checker usage When result returns Then charge the Goal budget
+  Scenario: Simplified thread Goal lifecycle: Given checker usage When result returns Then charge the Goal usage
+    Given the isolated fixtures for Given checker usage When result returns Then charge the Goal usage
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(f.core.goal?.usage.tokensUsed,1234) holds for every observed invocation
 
@@ -1013,6 +1071,44 @@ Feature: Simplified thread Goal lifecycle
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(f.core.scheduler.isArmed(),false) holds for every observed invocation
     And the predicate assert.match(f.row(),/Goal waiting/) holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given novel reads When the change window fills Then stop autonomous continuation
+    Given the isolated fixtures for Given novel reads When the change window fills Then stop autonomous continuation
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,true,"two read-only runs are inside the window") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,true) holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,false,"the third no-change run stops the loop") holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs changed nothing observable/) holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.scheduler?.phase,"idle","the stop drops any dispatch") holds for every observed invocation
+    And the predicate assert.match(f.row(),/Goal waiting/) holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,true,"resume starts the window again") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,false) holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a workspace change each run When the window fills Then keep continuing
+    Given the isolated fixtures for Given a workspace change each run When the window fills Then keep continuing
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,true,"every run changed the workspace") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.pauseReason,undefined) holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.scheduler?.used,5,"every changed run was authorized") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a reworded objective between repeated reads When the window fills Then stop
+    Given the isolated fixtures for Given a reworded objective between repeated reads When the window fills Then stop
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,false,"a revision does not reset the change window") holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/3 consecutive runs changed nothing observable/) holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.scheduler?.phase,"idle") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a repeated edit after each objective revision When the window fills Then stop
+    Given the isolated fixtures for Given a repeated edit after each objective revision When the window fills Then stop
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,false,"rewriting the same content is not progress") holds for every observed invocation
+    And the predicate assert.match(f.core.goal?.pauseReason ?? "",/changed nothing observable/) holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a user turn that only reads When it settles Then keep the change window
+    Given the isolated fixtures for Given a user turn that only reads When it settles Then keep the change window
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,true,"a user turn does not advance the window") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.scheduler?.used,4,"every user turn kept the loop") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given a pause command When received Then abort current work and enforce the tool stop
     Given the isolated fixtures for Given a pause command When received Then abort current work and enforce the tool stop
@@ -1092,13 +1188,12 @@ Feature: Simplified thread Goal lifecycle
     Then the predicate assert.equal(f.core.performedWork(),index < 2) holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.autoContinue,false) holds for every observed invocation
 
-  Scenario: Simplified thread Goal lifecycle: Given a checker exhausting budget When it returns MET Then stop by budget with one result
-    Given the isolated fixtures for Given a checker exhausting budget When it returns MET Then stop by budget with one result
+  Scenario: Simplified thread Goal lifecycle: Given a checker's usage When it returns MET Then charge it and complete
+    Given the isolated fixtures for Given a checker's usage When it returns MET Then charge it and complete
     When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(r.details.subject,"budget reached") holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.status,"budget_limited") holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.usage.tokensUsed,1234) holds for every observed invocation
-    And the predicate assert.equal(f.sent.length,before,"the tool owns this budget result, so no duplicate custom message is sent") holds for every observed invocation
+    Then the predicate assert.equal(r.details.subject,"completed") holds for every observed invocation
+    And the predicate assert.equal(f.core.store.readGoal("simple-goal")?.usage.tokensUsed,1234,"the checker's own spend is charged") holds for every observed invocation
+    And the predicate assert.equal(f.sent.length,before,"the tool owns this result, so no duplicate custom message is sent") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given a command result When rendering narrow Then use the same full band as tool results
     Given the isolated fixtures for Given a command result When rendering narrow Then use the same full band as tool results
@@ -1120,13 +1215,28 @@ Feature: Simplified thread Goal lifecycle
     Then the predicate assert.rejects(()=>f.command("Also validate Windows.")) holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.status,"paused") holds for every observed invocation
 
-  Scenario: Simplified thread Goal lifecycle: Given pre-creation model usage When a Goal starts Then include it in the budget
-    Given the isolated fixtures for Given pre-creation model usage When a Goal starts Then include it in the budget
+  Scenario: Simplified thread Goal lifecycle: Given pre-creation model usage When a Goal starts Then only its own usage counts
+    Given the isolated fixtures for Given pre-creation model usage When a Goal starts Then only its own usage counts
     When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(f.core.goal?.usage.tokensUsed,37) holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.status,"budget_limited") holds for every observed invocation
-    And the predicate assert.equal(r.details.subject,"budget reached") holds for every observed invocation
-    And the predicate assert.equal((await f.fire("tool_call",{toolName:"bash"}))?.block,true) holds for every observed invocation
+    Then the predicate assert.equal(f.core.goal?.usage.tokensUsed,0,"the creating run's earlier turns are not charged to the new goal") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.status,"active") holds for every observed invocation
+    And the predicate assert.equal(r.details.subject,"started") holds for every observed invocation
+    And the predicate assert.equal((await f.fire("tool_call",{toolName:"bash"})),undefined,"the creating turn keeps working") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given an injected budget When a Goal starts Then no ceiling exists
+    Given the isolated fixtures for Given an injected budget When a Goal starts Then no ceiling exists
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(Object.keys(f.tools.get("create_goal").parameters.properties).includes("token_budget"),false,"the model has no way to ask for a spending limit") holds for every observed invocation
+    And the predicate assert.equal(r.details.subject,"started") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.status,"active","and an injected limit is ignored") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,true,"spending far past any earlier ceiling keeps the goal running") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a record an earlier version capped When it is read Then the ceiling is ignored
+    Given the isolated fixtures for Given a record an earlier version capped When it is read Then the ceiling is ignored
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.status,"active","a cap-era record still reads as this goal") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.usage.tokensUsed,10,"with its usage kept") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.autoContinue,true,"and it resumes: nothing caps it") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given accepted completion When returning Then terminate the run without another model call
     Given the isolated fixtures for Given accepted completion When returning Then terminate the run without another model call
@@ -1149,17 +1259,11 @@ Feature: Simplified thread Goal lifecycle
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(f.core.currentUnmet(),undefined) holds for every observed invocation
 
-  Scenario: Simplified thread Goal lifecycle: Given stale resume snapshot When budget is exhausted Then refuse resume
-    Given the isolated fixtures for Given stale resume snapshot When budget is exhausted Then refuse resume
+  Scenario: Simplified thread Goal lifecycle: Given an old-thread checker When cancelled usage returns Then charge its original Goal
+    Given the isolated fixtures for Given an old-thread checker When cancelled usage returns Then charge its original Goal
     When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(f.core.scheduler.resume(old,f.core.settings(f.ctx as never),"user"),false) holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.autoContinue,false) holds for every observed invocation
-
-  Scenario: Simplified thread Goal lifecycle: Given an old-thread checker exceeding cap When cancelled usage returns Then stop its original Goal
-    Given the isolated fixtures for Given an old-thread checker exceeding cap When cancelled usage returns Then stop its original Goal
-    When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(old.status,"budget_limited") holds for every observed invocation
-    And the predicate assert.equal(old.autoContinue,false) holds for every observed invocation
+    Then the predicate assert.equal(old.usage.tokensUsed,110) holds for every observed invocation
+    And the predicate assert.equal(old.autoContinue,true,"and usage never stops it") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given requirements revised before an error stop lock When old check fails Then discard without stopping new work
     Given the isolated fixtures for Given requirements revised before an error stop lock When old check fails Then discard without stopping new work
@@ -1334,7 +1438,7 @@ Feature: Goal footer
   Scenario: Goal footer: narrow status widgets wrap instead of dropping their ending
     Given the isolated fixtures for narrow status widgets wrap instead of dropping their ending
     When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(text.replace(/\s/g, ""), "Goalbudgetlimited·0m") holds for every observed invocation
+    Then the predicate assert.equal(text.replace(/\s/g, ""), "Goalpaused·0m") holds for every observed invocation
     And the predicate assert.doesNotMatch(text, /…/) holds for every observed invocation
 
 Feature: Goal monitor evidence

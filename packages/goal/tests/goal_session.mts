@@ -31,7 +31,13 @@ import {
 import type { GoalRecord } from "../src/record.ts";
 import { GoalStore, newGoalId } from "../src/store.ts";
 import { goalRequest } from "../src/prompt.ts";
-import { goalRecordPath } from "../src/paths.ts";
+import { goalRecordPath, goalsRoot } from "../src/paths.ts";
+import { isolatedAgentDir } from "./isolated-agent.mts";
+
+// Bind a throwaway agent directory before anything runs, so the harness that
+// restores the environment restores one that keeps goal state out of the
+// machine's own agent directory.
+isolatedAgentDir();
 import { registerGoalTools, refreshGoalToolSurface } from "../src/tools.ts";
 import type { GoalCore } from "../src/core.ts";
 
@@ -264,16 +270,15 @@ export default function (pi: Parameters<typeof goal>[0]) {
   } finally {
     unsubscribeDecision();
     runtime.session.dispose();
-    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
-    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
   }
 
-  // Read the outcome before anything is cleaned up: an archived goal has left
-  // the open pool, so a reader that only looks at open goals sees nothing.
-  const goalsDir = join(cwd, ".pi", "goals");
-  const openIds = fs.existsSync(goalsDir)
-    ? fs.readdirSync(goalsDir).filter((name) => fs.existsSync(goalRecordPath(cwd, name)))
+  // Read the outcome before anything is cleaned up: the agent directory stays
+  // bound until every path below has been resolved.
+  const goalsDir = goalsRoot(cwd);
+  const recordIds = fs.existsSync(goalsDir)
+    ? fs.readdirSync(goalsDir).filter((name) => fs.existsSync(join(goalsDir, name, "record.json")))
     : [];
+  const openIds = recordIds.filter((name) => readRecord(cwd, name)?.status !== "complete");
   const archivedRoot = join(goalsDir, "archived");
   const archivedIds = fs.existsSync(archivedRoot) ? fs.readdirSync(archivedRoot) : [];
   const goalId = openIds[0] ?? archivedIds[0];
@@ -299,9 +304,7 @@ export default function (pi: Parameters<typeof goal>[0]) {
     toolSets,
     errors,
     prompt: receivedPrompt,
-    goalIds: fs.existsSync(join(cwd, ".pi", "goals"))
-      ? fs.readdirSync(join(cwd, ".pi", "goals")).filter((name) => fs.existsSync(join(cwd, ".pi", "goals", name, "record.json")))
-      : [],
+    goalIds: recordIds,
     events: allEvents,
     stillOpen: readFrom !== undefined,
     research,
@@ -314,6 +317,8 @@ export default function (pi: Parameters<typeof goal>[0]) {
   };
   fs.rmSync(agentDir, { recursive: true, force: true });
   fs.rmSync(cwd, { recursive: true, force: true });
+  if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+  else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
   return outcome;
 }
 
@@ -370,7 +375,7 @@ await (async () => {
     assert.ok(!outcome.events.includes("goal_completed"), "completion was not committed");
   });
 
-  await scenario("a met verdict releases the goal without archiving", async () => {
+  await scenario("a met verdict completes the goal without archiving", async () => {
     const outcome = await run({
       plan: { checks: [{ met: true, report: "Export implemented, documented, and tested.\n<approved/>" }] },
       responses: script(["update_goal", { status: "complete", completion_summary: "Done." }]),
@@ -664,9 +669,6 @@ await (async () => {
       { label: "active", goal: { ...record, status: "active" }, reads: true, outcomes: true },
       { label: "paused", goal: { ...record, status: "paused" }, reads: true, outcomes: true },
       { label: "blocked", goal: { ...record, status: "blocked" }, reads: true, outcomes: true },
-      // Stopped by its spending cap, not detached: the model still has to be
-      // able to read why it stopped.
-      { label: "budget limited", goal: { ...record, status: "budget_limited" }, reads: true, outcomes: false },
     ];
     for (const row of table) {
       const surface = surfaceFor(row.goal);

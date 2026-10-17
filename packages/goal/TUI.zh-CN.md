@@ -18,11 +18,14 @@ Pursuing goal · 2h 25m
 | `Goal waiting · <elapsed>` | active，但无有效运行/继续授权，包括恢复旧会话、无新工作、检查失败或运行失败 |
 | `Goal paused · <elapsed>` | 用户明确暂停 |
 | `Goal blocked · <elapsed>` | 同一阻塞连续三个 Goal 工具轮次出现，期间没有有效进展 |
-| `Goal budget limited · <elapsed>` | 生命周期 token 上限已达到 |
 | `Evaluating the objective and recorded evidence...` | 显式完成请求正在执行一次无工具检查；用一行中性说明暂时替换普通状态行。该行不加 `[goal]` 前缀，因为行位置已经属于这个目标 |
 | 无 Goal 状态行 | 当前线程无开放目标，目标已完成或已清除 |
 
 时间是已记账的运行时间，恢复时不归零。静止 waiting 状态不会增加时间。后台检查的 token 计入目标；检查中断或线程切换不免除已返回的用量。
+
+自动继续的进度只认工作区变更：只有目标尚未见过的成功 `edit` 或 `write` 才换来下一次运行。读取、搜索、抓取、跑命令以及把工作交给子进程都属于探索，不能无限维持循环；连续三轮没有任何可观察变更时自动继续停止并说明原因，`/goal resume` 重新开始这个窗口。修订目标不会清空这个记忆，所以换一种说法不能把同一次变更重新算成进度。用户自己的一轮算新机会，不计入窗口。
+
+目标没有预算，也不能被设置预算：它由自己的工作量界定。用量只是报告，不是闸门 —— 模型与完成检查的 token 都记在目标上，但没有任何数字太大会让目标停下。旧记录里的 `tokenBudget` 字段被忽略。
 
 ## 工具结果
 
@@ -30,7 +33,7 @@ Pursuing goal · 2h 25m
 | --- | --- |
 | `[goal] started` | 成功创建目标，正文包含完整目标及完成条件 |
 | `[goal] creation not applied` | 已有目标、空目标或存储/聚焦失败；目标没有被替换 |
-| `[goal] active` / `paused` / `blocked` / `budget limited` | `get_goal` 返回当前状态及完整正文；`section: objective` 返回目标正文 |
+| `[goal] active` / `paused` / `blocked` | `get_goal` 返回当前状态及完整正文；`section: objective` 返回目标正文 |
 | `[goal] no active goal` | 当前线程没有开放目标；不会借用其他线程的目标 |
 | `[goal] read not applied` | 无效或已过期的分页 cursor；重新从第一页读取 |
 | `[goal] updated` | 原子提交完整修订目标及其完成条件；已接受的 `/goal <text>` 请求可授权恢复，普通修订保留暂停状态 |
@@ -42,8 +45,7 @@ Pursuing goal · 2h 25m
 | `[goal] check failed` | 检查调用、解析或用量记账失败；显示完整原因，等待后续明确操作 |
 | `[goal] check cancelled` | 本次检查被取消，且要求未变化；不会完成目标 |
 | `[goal] check discarded` | 检查过程中目标要求、状态、调度 generation、线程聚焦发生变化，或结束提交失去竞争；旧结果不结束新要求 |
-| `[goal] budget reached` | 创建前的模型调用、主模型或检查用量达到上限；撤销继续授权，不完成目标 |
-| `[goal] completed` | 显式完成请求的单次检查返回 MET，且提交时目标仍有效、属于本会话且未封顶；删除开放记录并结束当前运行 |
+| `[goal] completed` | 显式完成请求的单次检查返回 MET，且提交时目标仍有效、属于本会话；删除开放记录并结束当前运行 |
 
 SDK 参数验证失败也使用 Goal 的同一结果样式，正文显示参数错误。非 Goal 工具被停止守卫拒绝时，宿主仍使用该工具原有错误显示，不另发重复 Goal 事件。
 
@@ -52,17 +54,17 @@ SDK 参数验证失败也使用 Goal 的同一结果样式，正文显示参数�
 | 操作/显示 | 触发条件 |
 | --- | --- |
 | `/goal` → 当前状态与完整正文 | 只读取当前线程目标；不调用模型检查 |
-| `/goal <text>` → `[goal] requesting` 与原话 | 向模型递交完整请求；transcript 只显示一行 `[goal] requesting` 及其下方的用户原话，共享 band 会剥离原话里的控制字节；完整请求正文不进入终端 transcript，但模型仍读取它，会话记录也保留它。实际创建或修订结果显示在自己的行。追加要求先保留旧目标，模型提交合并后的完整修订 |
+| `/goal <text>` → `[goal] requesting` 与原话 | 向模型递交完整请求；transcript 只显示一行 `[goal] requesting` 及其下方的用户原话，共享 band 会剥离原话里的控制字节；完整请求正文不进入终端 transcript，但模型仍读取它，会话记录也保留它。实际创建或修订结果显示在自己的行。追加要求先保留旧目标，模型提交合并后的完整修订。只有单独一个管理动词才是命令：`/goal clear my schedule` 是请求，不是清除 |
 | `[goal] request not sent` | 请求递交失败，撤销未接受的激活意图 |
 | `/goal pause` → `[goal] paused` | 显式用户暂停；中断检查、当前运行及排队继续 |
-| `/goal resume` → `[goal] resumed` | 当前记录仍有效且有剩余预算及 run allowance；保留累计 token、时间及运行次数 |
-| `/goal clear` → `[goal] cleared` | 撤销授权并删除开放记录；不宣称完成，不写归档 |
+| `/goal resume` → `[goal] resumed` | 当前记录仍有效且有 run allowance；保留累计 token、时间及运行次数 |
+| `/goal clear` → `[goal] cleared` | 撤销授权并把记录标为终态完成；不宣称目标已完成，不写归档，也不删除记录 |
 | `[goal] clear not applied` | 清除时修订号变化或存储写入失败 |
-| `[goal] waiting` | 本轮运行失败、没有新的有效工作、run allowance 用尽、继续递交失败、恢复被拒绝或 checkpoint 被拒绝；正文给出原因 |
+| `[goal] waiting` | 本轮运行失败、没有新的有效工作、连续三轮没有可观察变更、run allowance 用尽、继续递交失败、恢复被拒绝或 checkpoint 被拒绝；正文给出原因 |
 | `[goal] failed` | 后台路径报告异常；正文给出具体原因 |
-| 自动继续（无额外日志行） | 成功完成了新工作，宿主空闲且没有用户排队消息，所有权/generation/预算/次数均有效；一次授权只消费一次 |
+| 自动继续（无额外日志行） | 成功完成了新的工作区变更（或用户自己的一轮），宿主空闲且没有用户排队消息，所有权/generation/次数均有效；一次授权只消费一次 |
 
-相同工具、参数及输出的重复读取只算一次工作；输出发生变化可成为新工作。Goal 自身的读取和更新不算工作。用户排队输入优先于自动继续。没有逐轮自动验收模型调用。
+相同工具、参数及输出的重复读取只算一次工作；输出发生变化可成为新工作，但只有 `edit`/`write` 的未见过变更才延长自动继续。Goal 自身的读取和更新不算工作。用户排队输入优先于自动继续。没有逐轮自动验收模型调用。
 
 ## 已删除的分支
 

@@ -16,6 +16,9 @@ pi install npm:@fradser/pi-goal
 | `/goal resume` | Authorize continuation, preserving accumulated tokens, elapsed time and run count. |
 | `/goal clear` | End the current Goal without claiming completion. |
 
+An action verb is one only by itself: `/goal clear my schedule` is a request for the
+model, not a command that clears the goal.
+
 A goal belongs to its thread. A fresh thread never adopts another thread's goal.
 The command queues the user's request; it does not create a second goal or overwrite
 an existing objective with a raw additive fragment. The accepted model revision
@@ -23,9 +26,9 @@ commits the complete objective and conditions together.
 
 ## Tools
 
-- `create_goal({objective, verification_contract?, token_budget?})` starts one goal.
-  Another unfinished goal must be revised or explicitly cleared first. A budget
-  is set only when requested by the user.
+- `create_goal({objective, verification_contract?})` starts one goal. Another
+  unfinished goal must be revised or explicitly cleared first. A goal has no
+  spending cap and none can be set: it is bounded by its work, not by a ceiling.
 - `get_goal({section?, cursor?})` reads the goal. `summary` and the compatibility
   alias `objective` return the same view. Long model responses include a
   content-bound continuation cursor; the initial TUI result displays the full body.
@@ -46,9 +49,15 @@ Pi 1.2 `before_agent_start` contributes Goal capability and current state throug
 
 A normal settled turn does not invoke a checker. The runtime authorizes another
 run only after successful effective work, within the configured limits, with no
-queued user input. New successful tool receipts count as work; repeating the same
-call and output cannot keep the loop alive. Pending monitor acknowledgements are
-not completed work. Unrelated background agents do not count as Goal progress.
+queued user input. **Progress means a workspace change**: only a successful
+`edit` or `write` this goal has not already seen earns the next run. Reading,
+searching, fetching, running commands and delegating work to another process
+explore, and exploration does not hold the loop open. Three consecutive runs that change nothing stop automatic
+continuation and say so; `/goal resume` starts the window again. A requirement
+revision does not clear that memory, so re-wording the objective cannot make the
+same change count twice. A user's own turn is a fresh opportunity rather than a
+run that changed nothing. Pending monitor acknowledgements are not completed
+work. Unrelated background agents do not count as Goal progress.
 
 Generation and dispatch checks authorize each continuation exactly once. User
 input invalidates a queued continuation. Failed, interrupted, empty or repeated
@@ -67,8 +76,12 @@ The same reported blocker must recur on three consecutive model turns with no ne
 work before the goal becomes blocked. Repeated reports in one turn count once;
 new work, requirement revisions and a session boundary reset the streak.
 
-Main-model usage and completion-check usage count against the goal budget. Reaching
-the budget stops work and reports the limit; it never means completion.
+Usage is a report, not a ceiling. Main-model usage and completion-check usage are
+recorded against the goal, and nothing stops because a number got large: with no
+spending cap anywhere, the three-run no-change window above is the bound, and
+`maxAutonomousRuns` is the only optional ceiling. A record an earlier version wrote
+with a `tokenBudget` is read without it, so a goal that stopped under one continues
+as any stopped goal does.
 
 ## Display
 
@@ -87,21 +100,29 @@ custom-message rendering.
 
 The passive footer keeps the Codex-style `Pursuing goal · 2h 25m` while work is
 running or continuation is authorized. Otherwise it reads `Goal waiting`,
-`Goal paused`, `Goal blocked`, or `Goal budget limited`, followed by elapsed time.
+`Goal paused` or `Goal blocked`, followed by elapsed time.
 A running check temporarily replaces that row with one neutral activity line, without a `[goal]` prefix.
 
 [All TUI cases and trigger conditions](TUI.zh-CN.md).
 
 ## Storage and settings
 
-Active state is an atomic `.pi/goals/<id>/record.json`. A write lock protects
+Active state is an atomic record under Pi's own agent directory:
+`~/.pi/agent/goals/<project key>/<id>/record.json`. Goal state belongs to the
+sessions that share a working directory, and the project key keeps two projects
+apart, so a new goal writes nothing into the working tree. A write lock protects
 revision checks, requirement changes and continuation claims. Completion and clear
-release that record and detach the thread. **No Goal archive is created.** Existing
-legacy archive, prose, research and history files are left untouched; they do not
-reactivate finished goals. The normal Pi transcript retains the result.
+write the terminal `complete` status and detach the thread: the record is kept, so
+what was asked for and how it ended stay readable. **No Goal archive is created.**
+A goal stored by an earlier version in `<project>/.pi/goals` is still read, locked
+and written where it lives, and its legacy prose, research and history files are
+left untouched; they do not reactivate finished goals. The normal Pi transcript
+retains the result.
 
-Global settings are `~/.pi/agent/goal.json`; project overrides are
-`.pi/goals/settings.json`. Supported settings are `maxAutonomousRuns`, `provider`
+Global settings are `~/.pi/agent/goal.json`; a project's overrides are
+`settings.json` inside that project's goal directory. An override stored by an
+earlier version in `<project>/.pi/goals/settings.json` is still read. Supported
+settings are `maxAutonomousRuns`, `provider`
 and `model`. The check defaults to the current session model. `PI_GOAL_MODEL`,
 `PI_GOAL_PROVIDER` and `PI_GOAL_MAX_RUNS` provide temporary overrides.
 `maxAutonomousRuns` is a lifetime continuation allowance; unset is unlimited and

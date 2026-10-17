@@ -2,7 +2,7 @@
  * The loop's authorization contracts.
  *
  * Two steps do all the work: `schedule` arms, and `claim` authorizes. Between them
- * the goal can be paused, refocused, revised, or run out of budget, and every one
+ * the goal can be paused, refocused, revised, or stopped, and every one
  * of those invalidates the armed intent rather than being discovered by a turn
  * that was already under way.
  *
@@ -21,7 +21,9 @@ import { GoalScheduler, type SchedulerHost } from "../src/scheduler.ts";
 import { goalPromptParts, untrustedObjectiveBlock, verificationContractBlock } from "../src/prompt.ts";
 import { randomToken, type GoalRecord } from "../src/record.ts";
 import type { GoalSettings } from "../src/settings.ts";
+import { isolatedAgentDir } from "./isolated-agent.mts";
 
+isolatedAgentDir();
 const root = mkdtempSync(join(tmpdir(), "goal-sched-"));
 const store = new GoalStore({ projectRoot: root });
 const results: string[] = [];
@@ -115,6 +117,8 @@ await scenario("stable policy is byte-identical across turns while counters chan
   assert.notEqual(first.counters, second.counters, "counters must reflect usage");
   assert.match(second.counters, /5000 tokens/);
   assert.match(second.counters, /Autonomous runs used: 3/);
+  const stopped = goalPromptParts({ ...goal, autoContinue: false }, noSettings);
+  assert.match(stopped.state, /Status: waiting/, "a stopped goal is not reported as running");
 });
 
 await scenario("continuation is unlimited by default", () => {
@@ -213,12 +217,12 @@ await scenario("a goal stopped after the pre-lock read claims nothing", () => {
   const owner = "session-a";
   const session = makeHost(owner);
   const goal = focusNewGoal(session, owner);
-  // A budgeted goal with a ready decision is what arming sees.
-  const budgeted = store.apply({
+  // A live goal with a ready decision is what arming sees.
+  const prepared = store.apply({
     expectedGoalId: goal.id,
-    mutate: (draft) => ({ ...draft, tokenBudget: 100, scheduler: draft.scheduler ? { ...draft.scheduler, phase: "ready" } : undefined }),
+    mutate: (draft) => ({ ...draft, scheduler: draft.scheduler ? { ...draft.scheduler, phase: "ready" } : undefined }),
   });
-  assert.ok(budgeted.ok, JSON.stringify(budgeted));
+  assert.ok(prepared.ok, JSON.stringify(prepared));
   // The claim reads a healthy record and passes every precondition. Another
   // writer then takes the lock first and stops the goal, which is the whole
   // window the pre-lock check cannot see.
@@ -229,10 +233,10 @@ await scenario("a goal stopped after the pre-lock read claims nothing", () => {
         expectedGoalId: goal.id,
         mutate: (draft) => ({
           ...draft,
-          status: "budget_limited",
           autoContinue: false,
+          pauseReason: "Execution was interrupted or failed. Use /goal resume to continue.",
           usage: { ...draft.usage, tokensUsed: 100 },
-          scheduler: draft.scheduler ? { ...draft.scheduler, phase: "ready" } : undefined,
+          scheduler: draft.scheduler ? { ...draft.scheduler, phase: "idle" } : undefined,
         }),
       });
       assert.ok(stopped.ok, JSON.stringify(stopped));
@@ -242,7 +246,7 @@ await scenario("a goal stopped after the pre-lock read claims nothing", () => {
   racing.schedule(read(goal.id)!, noSettings);
   assert.equal(racing.claim(), null, "a goal stopped since the read cannot be claimed into a run");
   assert.equal(read(goal.id)?.scheduler?.used ?? 0, 0, "no run was consumed");
-  assert.equal(read(goal.id)?.status, "budget_limited", "the goal keeps its own reason for stopping");
+  assert.match(read(goal.id)?.pauseReason ?? "", /interrupted/, "the goal keeps its own reason for stopping");
 
 });
 
@@ -305,7 +309,7 @@ await scenario("a losing claimant never pauses the goal another owner resumed", 
 
 await scenario("a goal on its last authorized run still accepts its checkpoint", () => {
   // The claim spends the allowance, not the checkpoint. Re-judging the run
-  // budget when the checkpoint arrives refuses the final run's own turn and
+  // allowance when the checkpoint arrives refuses the final run's own turn and
   // strands a run the goal was legitimately given.
   const session = makeHost("session-a");
   const scheduler = new GoalScheduler(session.host);
@@ -468,10 +472,9 @@ await scenario("a checkpoint is refused when only its dispatch id was replaced",
   assert.notEqual(read(goal.id)?.scheduler?.phase, "running");
 });
 
-await scenario("a checkpoint is refused when the token budget is spent", () => {
+await scenario("a checkpoint is refused when the goal stopped mid-flight", () => {
   // The run allowance is discharged by the claim and must not be rejudged here.
-  // The token budget is different: a goal that has spent its lifetime tokens
-  // stops, whatever run count its allowance has left.
+  // A goal that stopped after the claim, however, must not start a run.
   const session = makeHost("session-a");
   const scheduler = new GoalScheduler(session.host);
   const goal = focusNewGoal(session, "session-a");
@@ -481,15 +484,15 @@ await scenario("a checkpoint is refused when the token budget is spent", () => {
   const racing = new GoalScheduler({
     ...session.host,
     apply: (spec) => {
-      const spent = store.apply({
+      const stopped = store.apply({
         expectedGoalId: goal.id,
-        mutate: (draft) => ({ ...draft, tokenBudget: 100, usage: { ...draft.usage, tokensUsed: 100 } }),
+        mutate: (draft) => ({ ...draft, autoContinue: false, pauseReason: "No effective work was recorded. Use /goal resume to continue." }),
       });
-      assert.ok(spent.ok, JSON.stringify(spent));
+      assert.ok(stopped.ok, JSON.stringify(stopped));
       return store.apply({ ...spec });
     },
   });
-  assert.equal(racing.acceptCheckpoint(claimed).ok, false, "a budget-spent goal must not start a run");
+  assert.equal(racing.acceptCheckpoint(claimed).ok, false, "a stopped goal must not start a run");
   assert.notEqual(read(goal.id)?.scheduler?.phase, "running");
 });
 
@@ -720,16 +723,6 @@ await scenario("a completed goal cannot resume", () => {
   const goal = focusNewGoal(session, "session-a");
   store.apply({ expectedGoalId: goal.id, mutate: (draft) => ({ ...draft, status: "complete", autoContinue: false }) });
   assert.equal(scheduler.resume(read(goal.id)!, noSettings, "user"), false);
-});
-
-await scenario("a token-capped goal stops rather than continuing", () => {
-  const session = makeHost("session-a");
-  const scheduler = new GoalScheduler(session.host);
-  const goal = focusNewGoal(session, "session-a");
-  store.apply({ expectedGoalId: goal.id, mutate: (draft) => ({ ...draft, tokenBudget: 100, usage: { tokensUsed: 100, activeSeconds: 0 } }) });
-  scheduler.schedule(arm(goal.id), noSettings);
-  assert.equal(scheduler.claim(), null);
-  assert.match(read(goal.id)?.pauseReason ?? "", /token cap/);
 });
 
 await scenario("goal prompts carry the unmet line when the check deferred one", () => {
