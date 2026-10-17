@@ -21,7 +21,7 @@ def test_real_pi_tui_followups_cancel_scroll_resize_and_close(tmp_path: Path) ->
     fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 100, 0, 0))
     process = subprocess.Popen(
         ["pi", "--offline", "--no-session", "--no-extensions", "--no-skills",
-         "--no-context-files", "--extension", str(PACKAGE / "index.ts"),
+         "--no-context-files", "--no-approve", "--extension", str(PACKAGE / "index.ts"),
          "--extension", str(PACKAGE / "tests/tui-fixture.ts"), "--tui-mode", "fullscreen"],
         cwd=REPO, stdin=slave, stdout=slave, stderr=slave,
         env={**os.environ, "TERM": "xterm-256color", "BTW_TUI_RECORD": str(record)},
