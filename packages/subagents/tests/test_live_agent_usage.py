@@ -165,9 +165,12 @@ def test_native_tui_shows_activity_resizes_retains_idle_and_clears_on_shutdown(n
             assert re.search(r'to expand$', visible[0]), visible
             assert not any(line in row for line in answer_lines), 'the answer waits for expansion'
         marker = max((token for line in answer_lines for token in line.split()), key=len)
+        # One press asks Pi to expand its newest tool output. Asking twice, before
+        # the first render arrives, toggles that same row straight back closed; the
+        # terminal is the authority for the expanded body, so the press is awaited
+        # here instead of rechecked immediately. Which row the snapshot records is
+        # the race, not which row the key reaches.
         tui.send(b'\x0f')
-        if marker not in tui.screen():
-            tui.send(b'\x0f')
         tui.wait_for(lambda: marker in tui.screen())
         # The terminal is the authority for the expanded body: a steer row and a
         # reported row share one expand key, so which snapshot records it is a race.
