@@ -14,7 +14,7 @@
  *
  * The trade is explicit. A reader who inspects can catch work that is merely
  * described; this cannot. What it can do is judge consistently against the stated
- * contract without being talked into it by the transcript that produced the
+ * objective without being talked into it by the transcript that produced the
  * shortfall. If a goal needs inspection to verify, the executor must gather that
  * evidence and record it before asking to close.
  */

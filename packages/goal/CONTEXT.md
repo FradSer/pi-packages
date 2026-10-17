@@ -2,6 +2,23 @@
 
 ## Current work
 
+A goal has one requirement text: its objective. The verification contract is deleted, not
+repositioned. `GoalRecord` has no `verificationContract`, neither Goal tool accepts
+`verification_contract`, `goalBody`/`get_goal` print the objective alone, `prompt.ts` has no
+`verificationContractBlock` and no contract part in `policyKey`/`policyChars`, `check.ts` builds its
+prompt from the objective, the claim and the observations, and `core.ts` compares objective, evidence
+window, status and generation when it decides whether a verdict is stale. `applyRevision` moves the
+objective and the evidence window together, so the observations collected under the old requirement
+stay inadmissible. A legacy record keeps its objective and drops the field during normalization,
+pinned by `goal_store.mts` and by `goal_completion.mts`; the reasoning is in
+`.changeset/goal-objective-only.md`. `goal_native_live.py` now asserts the settled frame carries no
+`Completion conditions` block, so the deletion cannot come back unnoticed. Both tools also declare their
+parameters and refuse a call carrying anything else (`undeclaredKeys` in `tools.ts`, with
+`CREATE_GOAL_PARAMS`/`UPDATE_GOAL_PARAMS` as the declared sets): a stale schema is refused as an
+unapplied update rather than having the removed field dropped silently from a revision that lands, and
+the injected-budget case in `goal_simplified.mts` now pins that refusal instead of an ignored
+`token_budget`.
+
 Automatic continuation bounds itself by the work a run does. Progress is a workspace change: only an
 unseen successful `edit` or `write` earns the next run, and three consecutive runs that change
 nothing pause the goal with `3 consecutive runs changed nothing observable. Use /goal resume to

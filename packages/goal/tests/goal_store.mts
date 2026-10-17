@@ -36,6 +36,27 @@ async function scenario(name: string, body: () => Promise<void> | void): Promise
 
 const objective = "Add CSV export to the reports page, with documentation and tests.";
 
+await scenario("a legacy contract field is dropped while its objective survives", () => {
+  // An earlier version stored a second requirement text beside the objective. This
+  // version judges the objective alone, so the field must not survive
+  // normalization: leaving it reachable would keep a requirement no check reads.
+  const id = "goal_legacy_contract";
+  mkdirSync(dirname(goalRecordPath(root, id)), { recursive: true });
+  writeFileSync(goalRecordPath(root, id), JSON.stringify({
+    version: 1,
+    goal: {
+      id, threadId: "session-a", objective, status: "active", autoContinue: true,
+      usage: { tokensUsed: 0, activeSeconds: 0 }, createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(), revision: 1,
+      verificationContract: "The download holds only the filtered rows.",
+      scheduler: { owner: "session-a", phase: "idle", used: 0, generation: "g" },
+    },
+  }));
+  const read = store.readGoal(id);
+  assert.equal(read?.objective, objective, "the objective still reads unchanged");
+  assert.equal("verificationContract" in (read ?? {}), false, "the dropped field is not carried forward");
+});
+
 await scenario("a created goal is durable before any work begins", () => {
   const id = newGoalId();
   const created = store.create({ objective, owner: "session-a", id });

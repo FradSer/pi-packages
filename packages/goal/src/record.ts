@@ -5,11 +5,11 @@
  * normalization a persisted record needs before it can be trusted. Storage
  * belongs to ./store.ts; lifecycle history belongs to the session transcript.
  *
- * There is deliberately no task tree. A goal is one objective plus one exit
- * condition, and a second opinion about that exit condition — a list the agent
- * ticks off — can contradict the first and leaves the model deciding which one to
- * believe. What remains here is the objective, its optional completion contract,
- * what has been spent, and whether it is still running.
+ * There is deliberately no task tree. A goal is one objective, and its only exit
+ * condition is whether that objective is met, so a second opinion — a list the
+ * agent ticks off — can contradict the first and leave the model deciding which
+ * one to believe. What remains here is the objective, what has been spent, and
+ * whether it is still running.
  */
 
 /** Goal lifecycle. A status this version does not write — a cap-era

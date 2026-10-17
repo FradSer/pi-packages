@@ -311,8 +311,14 @@ await scenario("Given pre-creation model usage When a Goal starts Then only its 
 await scenario("Given an injected budget When a Goal starts Then no ceiling exists", () => use(async f=>{
   await f.command("clear");
   assert.equal(Object.keys(f.tools.get("create_goal").parameters.properties).includes("token_budget"),false,"the model has no way to ask for a spending limit");
-  const r=await f.call("create_goal",{objective:"Run the CSV verification.",token_budget:250000});
-  assert.equal(r.details.subject,"started"); assert.equal(f.core.goal?.status,"active","and an injected limit is ignored");
+  // A stale prompt can still send one. It is refused rather than honoured or
+  // half-applied: the goal starts only from the objective it declares.
+  const smuggled=await f.call("create_goal",{objective:"Run the CSV verification.",token_budget:250000});
+  assert.equal(smuggled.details.subject,"creation not applied");
+  const afterSmuggled=f.core.goal;
+  assert.equal(afterSmuggled,undefined,"and no goal is created from it");
+  const r=await f.call("create_goal",{objective:"Run the CSV verification."});
+  assert.equal(r.details.subject,"started"); assert.equal(f.core.goal?.status,"active");
   await f.fire("agent_start"); await f.fire("message_end",{message:{role:"assistant",usage:{totalTokens:900000}}});
   assert.equal(f.core.goal?.autoContinue,true,"spending far past any earlier ceiling keeps the goal running");
 }));

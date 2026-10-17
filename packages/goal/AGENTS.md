@@ -4,12 +4,12 @@ Applies to `packages/goal/` (`@fradser/pi-goal`). User instructions take precede
 
 ## Runtime boundaries
 
-A Goal is one thread-scoped objective and one completion condition. Do not add a
+A Goal is one thread-scoped objective. Do not add a second requirement text, a
 Task tree, progress fraction, saved next-action workflow, dedicated research agent,
 independent user history, or Goal archive. Use ordinary tools for investigation.
 
 - `store.ts` is the sole record writer. One atomic record holds the objective,
-  completion conditions, usage and scheduler state. Mutation checks and the final
+  usage and scheduler state. Mutation checks and the final
   write occur under the same exclusive lock, and no operation deletes a record.
   Preserve existing legacy files.
 - State lives under Pi's own agent directory, keyed by project: a new goal writes
@@ -36,8 +36,8 @@ independent user history, or Goal archive. Use ordinary tools for investigation.
 - A recurring blocker requires three consecutive model turns. The same-turn
   report counts once; effective work, changed requirements and restore reset it.
 - Only an explicit completion request runs one fresh tool-less completion check.
-  No inspecting reviewer and no shell grant. Pass the complete objective and
-  conditions; do not approve a truncated prefix. Runtime observations have thread,
+  No inspecting reviewer and no shell grant. Pass the complete objective; do not
+  approve a truncated prefix. Runtime observations have thread,
   call, outcome and requirement-boundary provenance. Escape every untrusted payload.
 - A final marker decides MET/NOT MET. Missing markers, errors, cancellation and
   outdated results are distinct and never complete the Goal. Refusals do not pause.
@@ -47,12 +47,18 @@ independent user history, or Goal archive. Use ordinary tools for investigation.
   spending cap, budget field or cap verb exists, and none may be added: a goal is
   bounded by the work it does, not by a number. A record an earlier version wrote
   with a `tokenBudget` is read without it, and a cap-era status reads as `paused`.
+  A record an earlier version wrote with a `verificationContract` is read without
+  that field too, because the objective is the only requirement a check judges.
   An action verb applies only when typed alone, so `/goal clear my schedule` stays a
   request.
 - `/goal <text>` queues a request, preserving the old record until a complete
   merged revision lands. Activation needs matching accepted delivery, not void
   send success. Completion and clear write the terminal status and keep the record
   without an archive.
+- Every Goal tool declares its parameters and refuses a call that carries any
+  other field, even when the declared part would be valid. A stale schema or a
+  hand-built call cannot resurrect a removed field, and cannot have it silently
+  dropped from a revision the user meant.
 
 ## TUI
 

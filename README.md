@@ -171,7 +171,7 @@ pi install npm:@fradser/pi-tasks
 
 Thread-scoped goal runtime with three tools, authorized continuation and an explicit tool-less completion check. Full TUI bodies and a Codex-style elapsed footer; finished goals are released without archiving.
 
-**Command:** `/goal <objective and completion conditions>`; bare `/goal` shows this thread’s goal. Manage it with `/goal pause`, `/goal resume`, and `/goal clear`.
+**Command:** `/goal <objective>`; bare `/goal` shows this thread’s goal. Manage it with `/goal pause`, `/goal resume`, and `/goal clear`.
 
 [TUI rows and trigger conditions](packages/goal/TUI.zh-CN.md) document the complete display lifecycle.
 

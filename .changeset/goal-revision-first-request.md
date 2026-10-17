@@ -12,7 +12,7 @@ The command keys one activation token to the focused goal id, and only `update_g
 
 **What changed**
 
-- The seeded request keeps the existing objective and completion conditions, adds the new request to them, and revises that goal in place with `update_goal`. It names why: a revision is the only path the command can activate.
-- `supersedes: true` remains the route for a goal that stopped for good, because it completed or spent its token budget, and the request is new work. `create_goal` and its bookkeeping are unchanged.
+- The seeded request keeps the existing objective, adds the new request to it, and revises that goal in place with `update_goal`. It names why: a revision is the only path the command can activate.
+- `/goal <text>` never asks the model to supersede: the seeded body revises the focused goal in place, and new work after a finished goal follows an explicit clear.
 - The research step still runs first when repository facts are missing; the final paragraph now says to record the objective with `update_goal` or `create_goal` rather than naming creation alone.
-- `tests/goal_session.mts` pins the three invariants: the body asks for `update_goal`, it does not forbid an in-place revision, and the supersede escape hatch survives.
+- `tests/goal_session.mts` pins the invariants: the body asks for `update_goal`, it does not forbid an in-place revision, and it never names `supersedes`.

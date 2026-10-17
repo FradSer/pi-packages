@@ -39,7 +39,7 @@ function fixture(runCheck: GoalCoreOptions["runCheck"], options: { sessionModel?
     ...(options.sessionModel ? { model: options.sessionModel } : {}),
     sessionManager: { getSessionId: () => "completion-thread", getBranch: () => branch } };
   const core = new GoalCore(pi as never, cwd, { runCheck });
-  core.store.create({ id: "completion-goal", owner: "completion-thread", objective: "Export CSV and pass its E2E test.", contract: "The executed E2E passes and independent review has no blocker." });
+  core.store.create({ id: "completion-goal", owner: "completion-thread", objective: "Export CSV and pass its E2E test." });
   branch.push({ type: "custom", customType: GOAL_FOCUS_ENTRY, data: { focusedGoalId: "completion-goal" } });
   core.restore(ctx as never);
   registerGoalEvents(core); registerGoalTools(core);
@@ -96,17 +96,30 @@ await scenario("long goal reads share one view and preserve all text through pag
 
 
 
-await scenario("an explicitly empty contract clears it while an empty objective is rejected", async () => {
+await scenario("an empty objective is rejected and a removed contract field is refused", async () => {
   const f = fixture(async () => ({ met: false, report: "Not yet." }));
   const before = f.core.goal;
   const invalid = await f.tools.get("update_goal")!.execute("empty-objective", { objective: "" }, undefined, undefined, f.ctx);
   assert.equal(invalid.details.subject, "update not applied");
   assert.deepEqual(f.core.goal, before);
-  const value = await f.tools.get("update_goal")!.execute("clear-contract", { verification_contract: "" }, undefined, undefined, f.ctx);
-  assert.equal(value.isError, false);
-  assert.equal(value.details.subject, "updated");
-  assert.equal(f.core.goal?.verificationContract, undefined);
-  assert.equal(f.core.goal?.objective, before?.objective);
+  // The old field is gone from the record, from the host schema and from the
+  // executors. A call that still sends it is refused; one that smuggles it beside
+  // an objective is refused too, because the schema is not the only way in.
+  const tool = f.tools.get("update_goal") as unknown as { parameters?: { properties?: Record<string, unknown> } } | undefined;
+  assert.ok(tool, "update_goal is registered");
+  assert.equal("verification_contract" in (tool.parameters?.properties ?? {}), false, "the host schema exposes no contract field");
+  const removed = await f.tools.get("update_goal")!.execute("clear-contract", { verification_contract: "" }, undefined, undefined, f.ctx);
+  assert.equal(removed.isError, true);
+  assert.equal(removed.details.subject, "update not applied");
+  const mixed = await f.tools.get("update_goal")!.execute("mixed", { objective: "Smuggled objective.", verification_contract: "second" }, undefined, undefined, f.ctx);
+  assert.equal(mixed.isError, true, "a smuggled field cannot ride along a revision");
+  assert.equal(mixed.details.subject, "update not applied");
+  assert.deepEqual(f.core.goal, before, "a removed field cannot change the goal");
+  assert.equal("verificationContract" in (f.core.goal ?? {}), false, "the record carries the objective alone");
+  const created = await f.tools.get("create_goal")!.execute("smuggled-create", { objective: "Another goal.", verification_contract: "second" }, undefined, undefined, f.ctx);
+  assert.equal(created.isError, true, "creation refuses a second requirement field too");
+  assert.equal(created.details.subject, "creation not applied");
+  assert.match(created.details.summary ?? "", /second requirement field/, "and names the field rather than the thread state");
   f.core.shutdown();
 });
 
@@ -166,7 +179,7 @@ await scenario("failing, omitted, edited, and credential-bearing observations st
   const visible = collectGoalEvidence(entries.slice(0, 2) as never, f.core.goal!, "completion-thread");
   assert.equal(visible.observations[0]?.outcome, "failure");
   assert.ok(!JSON.stringify(visible).includes("private-credential"));
-  const prompt = buildCheckPrompt({ objective: "Tests pass.", contract: undefined, claim: "done", evidence: visible });
+  const prompt = buildCheckPrompt({ objective: "Tests pass.", claim: "done", evidence: visible });
   assert.equal(prompt.split("</observations>").length - 1, 1);
   assert.match(prompt, /&lt;\/observations&gt;/);
   const omitted = collectGoalEvidence(entries as never, f.core.goal!, "completion-thread");
@@ -287,9 +300,9 @@ await scenario("a finished goal refuses a late revision", async () => {
   f.core.shutdown();
 });
 
-await scenario("a tool revision moves the objective, the evidence window and the contract together", async () => {
-  // The command path pins these three. The tool path shares the writer, but a
-  // shared writer is a structure, not a test, so it is pinned here too.
+await scenario("a tool revision moves the objective and the evidence window together", async () => {
+  // The command path pins both. The tool path shares the writer, but a shared
+  // writer is a structure, not a test, so it is pinned here too.
   const f = fixture(async () => ({ met: false, report: "Missing independent review." }));
   const before = f.core.goal!;
   f.core.store.apply({

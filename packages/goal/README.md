@@ -10,8 +10,8 @@ pi install npm:@fradser/pi-goal
 
 | Command | Behavior |
 | --- | --- |
-| `/goal <objective and completion conditions>` | Show one `[goal] requesting` row with the typed words, and ask the model to create a complete objective or merge this request into the current objective. |
-| `/goal` | Show the complete current objective, conditions, reason, and usage. |
+| `/goal <objective>` | Show one `[goal] requesting` row with the typed words, and ask the model to create a complete objective or merge this request into the current objective. |
+| `/goal` | Show the complete current objective, reason, and usage. |
 | `/goal pause` | Stop current Goal work and pending continuation. |
 | `/goal resume` | Authorize continuation, preserving accumulated tokens, elapsed time and run count. |
 | `/goal clear` | End the current Goal without claiming completion. |
@@ -22,11 +22,13 @@ model, not a command that clears the goal.
 A goal belongs to its thread. A fresh thread never adopts another thread's goal.
 The command queues the user's request; it does not create a second goal or overwrite
 an existing objective with a raw additive fragment. The accepted model revision
-commits the complete objective and conditions together.
+commits the complete revised objective.
 
 ## Tools
 
-- `create_goal({objective, verification_contract?})` starts one goal. Another
+- `create_goal({objective})` starts one goal. The objective is the goal's only
+  requirement text: there is no second verification field and no completion
+  condition beside it. Another
   unfinished goal must be revised or explicitly cleared first. A goal has no
   spending cap and none can be set: it is bounded by its work, not by a ceiling.
 - `get_goal({section?, cursor?})` reads the goal. `summary` and the compatibility
@@ -35,11 +37,13 @@ commits the complete objective and conditions together.
 - `update_goal(...)` performs exactly one operation: request `status: "complete"`
   with an optional `completion_summary`, report `status: "blocked"` with a reason,
   carry out an explicit user pause with `status: "paused"` and a reason, or commit
-  a complete `objective`/`verification_contract` revision.
+  a complete `objective` revision.
 
 Use ordinary work tools for research. There is no `research_goal`, saved
 `next_action`, or separate Goal history tool. Old history reads direct the caller
-to the thread transcript. Empty updates and mixed operations are rejected.
+to the thread transcript. Empty updates and mixed operations are rejected, and so
+is a call that carries a field this version does not declare: a removed field
+cannot be silently dropped from a revision that is applied.
 
 ## Run-start context
 
@@ -65,7 +69,7 @@ runs wait for explicit recovery rather than fabricating a user pause. Restoring 
 session restores its objective but grants no continuation by itself.
 
 Only an explicit completion request invokes one fresh tool-less check. The check
-receives the **complete** objective and conditions plus bounded, attributed
+receives the **complete** objective plus bounded, attributed
 observations from this thread. Executor claims are escaped untrusted data. The
 checker cannot inspect files or run tests: the executor must collect concrete
 verification first. A final `MET` accepts completion; `NOT MET` leaves the goal
@@ -81,14 +85,16 @@ recorded against the goal, and nothing stops because a number got large: with no
 spending cap anywhere, the three-run no-change window above is the bound, and
 `maxAutonomousRuns` is the only optional ceiling. A record an earlier version wrote
 with a `tokenBudget` is read without it, so a goal that stopped under one continues
-as any stopped goal does.
+as any stopped goal does. A record that carries a `verificationContract` from an
+earlier version is read without it too: the objective is the only requirement the
+check judges.
 
 ## Display
 
 Transcript results use the shared pi-kit `[goal] <action or state>` band. Command
 and automatic results are durable custom session messages, not replaceable info
-notifications. Each event has one result. Settled objectives, conditions, reasons
-and reports wrap in full without `ctrl+o` expansion.
+notifications. Each event has one result. Settled objectives, reasons and reports
+wrap in full without `ctrl+o` expansion.
 
 `/goal <request>` keeps its own row: one `[goal] requesting` line with the typed
 words under it. The shared band strips control bytes from those words. The complete
@@ -127,7 +133,7 @@ and `model`. The check defaults to the current session model. `PI_GOAL_MODEL`,
 `PI_GOAL_PROVIDER` and `PI_GOAL_MAX_RUNS` provide temporary overrides.
 `maxAutonomousRuns` is a lifetime continuation allowance; unset is unlimited and
 `0` disables continuation. Resume does not replenish the allowance. Legacy research
-and check-bypass settings are ignored; completion conditions cannot be bypassed.
+and check-bypass settings are ignored; the completion check cannot be bypassed.
 
 ## Verification
 

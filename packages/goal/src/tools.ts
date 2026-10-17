@@ -61,6 +61,18 @@ const rows = bindLifecycleRenderers({
 const GOAL_SECTIONS = ["summary", "objective"] as const;
 const GOAL_STATUSES = ["complete", "blocked", "paused"] as const;
 
+/** Every parameter each tool declares. A call carrying anything else asks for a
+ * surface this version does not have — a stale prompt, a schema an older session
+ * cached, or a hand-built call — so the executor refuses it rather than applying
+ * the declared part and ignoring the rest. Without this, a call that smuggled a
+ * removed field past the schema would still be applied. */
+const CREATE_GOAL_PARAMS = ["objective"] as const;
+const UPDATE_GOAL_PARAMS = ["status", "reason", "objective", "completion_summary"] as const;
+
+function undeclaredKeys(params: object, declared: readonly string[]): string[] {
+  return Object.keys(params).filter((key) => !declared.includes(key));
+}
+
 type GoalSection = (typeof GOAL_SECTIONS)[number];
 
 function closedSet<const T extends readonly string[]>(values: T) {
@@ -186,7 +198,7 @@ function goalGet(core: GoalCore) {
     name: "get_goal",
     label: "Get Goal",
     description:
-      "Read the focused goal and complete requirements. Summary and objective read the same view; objective is a compatibility alias. Follow the returned cursor for long model-facing pages; the TUI retains the full body.",
+      "Read the focused goal and its complete objective. Summary and objective read the same view; objective is a compatibility alias. Follow the returned cursor for long model-facing pages; the TUI retains the full body.",
     promptSnippet: "Read the focused goal, or retrieve a requirement the current prompt omitted.",
     promptGuidelines: ["Read only when requirements or current state are missing from context; ordinary continuation needs no get_goal or update_goal acknowledgement."],
     parameters: Type.Object({
@@ -249,6 +261,9 @@ function goalCreate(core: GoalCore) {
     renderShell, renderCall, renderResult: renderGoalResultFor(),
     async execute(_id, params, _signal, _onUpdate, ctx) {
       core.bindUi(ctx);
+      if (undeclaredKeys(params, CREATE_GOAL_PARAMS).length > 0) {
+        return result({ subject: "creation not applied", summary: "Send the objective alone; a goal has no second requirement field." }, true);
+      }
       if (core.goal) return result({ subject: "creation not applied", summary: "This thread already has a goal. Revise it with update_goal, or clear it first." }, true);
       const objective = params.objective.trim();
       if (!objective) return result({ subject: "creation not applied", summary: "Choose a nonempty objective." }, true);
@@ -291,7 +306,8 @@ function goalUpdate(core: GoalCore) {
       const revision = params.objective !== undefined;
       if ((!params.status && !revision) || (params.status && revision) ||
           (params.reason !== undefined && !["paused","blocked"].includes(params.status ?? "")) ||
-          (params.completion_summary !== undefined && params.status !== "complete") || "next_action" in params) {
+          (params.completion_summary !== undefined && params.status !== "complete") ||
+          undeclaredKeys(params, UPDATE_GOAL_PARAMS).length > 0) {
         return result({subject:"update not applied",summary:"Choose a status or a complete objective revision, and send only its fields."},true);
       }
       if (revision) return revise(core,ctx,goal,params.objective);

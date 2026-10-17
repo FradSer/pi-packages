@@ -37,14 +37,14 @@ export default function (pi: ExtensionAPI): void {
       let content:AssistantMessage["content"];
       // The revision case needs two runs: one creates the goal and stops, and the later
       // /goal request is the run that merges into it and records work.
-      if(mode === "revision" && index === 0) content=call("create_goal",{objective:"Probe the live goal rows.",verification_contract:"The revision keeps this contract."});
+      if(mode === "revision" && index === 0) content=call("create_goal",{objective:"Probe the live goal rows."});
       else if(mode === "revision" && index === 1) content=[{type:"text",text:"Native fixture turn finished."}];
       else if(mode === "revision" && index === 2) content=call("update_goal",{objective:"Probe the live goal rows. Audit the export path."});
       // From here the revision case keeps recording work, so the goal keeps pursuing and the
       // probe can read that state instead of racing a pause. Each receipt differs, because a
       // repeated identical receipt is not new work.
       else if(mode === "revision" && index >= 3 && index <= 60) content=call("bash",{command:"printf 'PROBE_REVISION_WORK "+String(index)+"\\n'"});
-      else if(index === 0) content=call("create_goal",{objective:mode === "long" ? "Preserve every requirement, including 中文字符. ".repeat(100)+"GOAL_REQUIREMENT_END" : "Run a command printing NATIVE_COMPLETION_E2E_PASS.",verification_contract:mode === "long" ? "Keep all completion conditions. ".repeat(25)+"GOAL_CONTRACT_END" : "The recorded command succeeds and prints NATIVE_COMPLETION_E2E_PASS."});
+      else if(index === 0) content=call("create_goal",{objective:mode === "long" ? "Preserve every requirement, including 中文字符. ".repeat(100)+"GOAL_REQUIREMENT_END" : "Run a command printing NATIVE_COMPLETION_E2E_PASS."});
       else if(mode === "long" && index === 1) content=call("get_goal",{});
       else if(mode === "blocked" && index <= 3) content=call("update_goal",{status:"blocked",reason:"Required fixture input is unavailable."});
       else if(["complete","error","cancel"].includes(mode) && index === 1) content=call("bash",{command:"printf 'NATIVE_COMPLETION_E2E_PASS\\n'"});

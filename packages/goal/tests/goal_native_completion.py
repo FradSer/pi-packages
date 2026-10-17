@@ -92,11 +92,11 @@ def main() -> None:
                         else:
                             until(lambda: any(e["kind"] == "settled" for e in entries()))
                         if mode == "long":
-                            until(lambda: all(marker in "\n".join(frames.display) for marker in ("GOAL_REQUIREMENT_END", "GOAL_CONTRACT_END")))
+                            until(lambda: "GOAL_REQUIREMENT_END" in "\n".join(frames.display))
                             assert "ctrl+o to expand" not in "\n".join(frames.display)
                             fcntl.ioctl(master, termios.TIOCSWINSZ, struct.pack("HHHH", 360, 40, 0, 0)); frames.resize(40, 360)
                             os.kill(child.pid, __import__("signal").SIGWINCH)
-                            until(lambda: all(marker in "\n".join(frames.display) for marker in ("GOAL_REQUIREMENT_END", "GOAL_CONTRACT_END")))
+                            until(lambda: "GOAL_REQUIREMENT_END" in "\n".join(frames.display))
                         else:
                             target = {"complete":"[goal] completed", "refuse":"[goal] not met", "empty":"Goal waiting", "error":"[goal] check failed", "blocked":"Goal blocked", "cancel":"Goal paused"}[mode]
                             until(lambda: target in "\n".join(frames.display)); assert_completion_frame(frames.display, mode)

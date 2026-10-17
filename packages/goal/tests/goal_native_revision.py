@@ -5,8 +5,8 @@ Run: uv run --no-project --with pyte python packages/goal/tests/goal_native_revi
 Real Pi CLI, real Goal extension, deterministic scripted provider, disposable project and agent
 directory. The probe creates one goal, lets it stop for lack of work, then sends one /goal request
 with a goal already in place. It asserts what the runtime owes the user: the accepted request lands
-as a revision of that one goal, the earlier requirement and the completion contract survive, the
-goal pursues again, and no archive or ledger appears.
+as a revision of that one goal, the earlier requirement survives inside the objective, the goal
+pursues again, and no archive or ledger appears.
 """
 from __future__ import annotations
 import fcntl
@@ -27,7 +27,6 @@ from goal_native_tui import terminate_fixture
 REQUEST = "Audit the export path."
 EARLIER = "Probe the live goal rows."
 MERGED = "Probe the live goal rows. Audit the export path."
-CONTRACT = "The revision keeps this contract."
 
 
 def goal_records(agent: Path) -> list[dict]:
@@ -115,7 +114,7 @@ def main() -> None:
             phase = (goal.get("scheduler") or {}).get("phase")
             goal_id = goal["id"]
             assert goal_id == seeded["id"], "the request revised the open goal instead of replacing it"
-            assert goal["verificationContract"] == CONTRACT, "the revision kept the completion contract"
+            assert "verificationContract" not in goal, "the objective is the record's only requirement text"
             assert goal["status"] == "active" and goal["autoContinue"] is True, goal
             assert phase in {"ready", "claimed", "running"}, phase
             assert not (root / ".pi").exists(), "no goal state is written into the working directory"
@@ -130,7 +129,7 @@ def main() -> None:
             assert "[goal] requesting" in painted, "the request row was never painted"
             assert "[goal] updated" in painted, "the revision result was never painted"
             print("PASS native revision: " + str(frames.count) + " composed frames · one goal " + goal_id
-                  + " · objective carries the earlier requirement and the request · contract kept · pursuing again", flush=True)
+                  + " · objective carries the earlier requirement and the request · pursuing again", flush=True)
         finally:
             terminate_fixture(child)
             os.close(master)

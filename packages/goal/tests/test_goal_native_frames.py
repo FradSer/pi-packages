@@ -3,13 +3,13 @@ import pytest
 from goal_native_live import REQUEST_WORDS, assert_progress_frame, assert_request_frame, assert_settled_frame
 from goal_native_completion import assert_completion_frame
 
-SETTLED = ["[goal] started", "Objective: Export CSV", "GOAL_REQUIREMENT_END", "[goal] active", "Completion conditions:", "GOAL_CONTRACT_END"]
+SETTLED = ["[goal] started", "Objective: Export CSV", "GOAL_REQUIREMENT_END", "[goal] active"]
 REQUEST = ["[goal] requesting", REQUEST_WORDS, "[goal] started", "Objective: Export CSV"]
 
 
 def test_complete_authored_bodies_require_both_tails() -> None:
     assert_settled_frame(SETTLED)
-    for missing in ("[goal] started", "[goal] active", "GOAL_REQUIREMENT_END", "GOAL_CONTRACT_END"):
+    for missing in ("[goal] started", "[goal] active", "GOAL_REQUIREMENT_END"):
         with pytest.raises(AssertionError):
             assert_settled_frame([line for line in SETTLED if missing not in line])
 
@@ -19,6 +19,8 @@ def test_repaint_duplicates_and_expansion_requirements_are_failures() -> None:
         assert_settled_frame(SETTLED + SETTLED)
     with pytest.raises(AssertionError):
         assert_settled_frame(SETTLED + ["ctrl+o to expand"])
+    with pytest.raises(AssertionError):
+        assert_settled_frame(SETTLED + ["Completion conditions:"])
 
 
 def test_checker_progress_is_neutral_and_present() -> None:
@@ -58,5 +60,5 @@ def test_request_row_shows_the_words_before_the_creation_result() -> None:
     with pytest.raises(AssertionError):
         assert_request_frame(REQUEST + REQUEST)
     with pytest.raises(AssertionError):
-        assert_request_frame(REQUEST + ["Preserve all acceptance conditions and scope constraints."])
+        assert_request_frame(REQUEST + ["Preserve all existing requirements and scope constraints."])
 

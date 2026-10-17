@@ -4,7 +4,7 @@ Goal 是当前线程的一个持续目标。公开工具只有 `create_goal`、`
 
 ## 显示规则
 
-所有 Goal 的工具结果、命令结果和自动状态消息使用 pi-kit 的同一 `[goal]` 样式。工具调用头为空，由结果负责显示一次。目标、完成条件、原因及检查报告默认完整显示，按终端宽度换行；不使用省略号，也不要求 `ctrl+o` 才能读取正文。给模型的 `get_goal` 内容可分页，但首个 TUI 结果保留完整正文。
+所有 Goal 的工具结果、命令结果和自动状态消息使用 pi-kit 的同一 `[goal]` 样式。工具调用头为空，由结果负责显示一次。目标、原因及检查报告默认完整显示，按终端宽度换行；不使用省略号，也不要求 `ctrl+o` 才能读取正文。给模型的 `get_goal` 内容可分页，但首个 TUI 结果保留完整正文。目标正文是目标唯一的验收文本：没有第二个验收字段，完成检查只读目标。
 
 底部是被动状态行，不接管输入。实际运行或已获得继续授权时显示：
 
@@ -31,12 +31,12 @@ Pursuing goal · 2h 25m
 
 | 显示头 | 触发条件与后续行为 |
 | --- | --- |
-| `[goal] started` | 成功创建目标，正文包含完整目标及完成条件 |
+| `[goal] started` | 成功创建目标，正文包含完整目标 |
 | `[goal] creation not applied` | 已有目标、空目标或存储/聚焦失败；目标没有被替换 |
 | `[goal] active` / `paused` / `blocked` | `get_goal` 返回当前状态及完整正文；`section: objective` 返回目标正文 |
 | `[goal] no active goal` | 当前线程没有开放目标；不会借用其他线程的目标 |
 | `[goal] read not applied` | 无效或已过期的分页 cursor；重新从第一页读取 |
-| `[goal] updated` | 原子提交完整修订目标及其完成条件；已接受的 `/goal <text>` 请求可授权恢复，普通修订保留暂停状态 |
+| `[goal] updated` | 原子提交完整修订目标；已接受的 `/goal <text>` 请求可授权恢复，普通修订保留暂停状态 |
 | `[goal] update not applied` | 空更新、混合状态与修订字段、缺少原因、空目标、已封顶目标修订或存储竞争；正文说明具体原因 |
 | `[goal] paused` | 用户明确要求暂停，通过命令或工具统一中止当前运行与检查，撤销继续授权 |
 | `[goal] blocker reported` | 同一阻塞的第 1 或第 2 个连续轮次；同一轮重复报告只计一次 |
@@ -70,10 +70,10 @@ SDK 参数验证失败也使用 Goal 的同一结果样式，正文显示参数�
 
 没有 `research_goal`、`next_action`、独立 Goal history、`2 ledger events`、三次完成拒绝自动暂停、`Nothing to record` 或 `Archived under .pi/goals/archived/.`。旧 history/research 读取请求只返回迁移说明；旧字段不获得调度权。历史归档、旧 ledger 和其他既存文件不删除，也不再写入。
 
-新目标仅维护一个原子开放记录。完成和清除都释放运行状态；会话 transcript 保留可读事件历史。完成检查使用完整目标、完成条件及有来源的会话证据；检查报告按不可信数据注入且不会跨目标、线程或修订残留。
+新目标仅维护一个原子开放记录。完成和清除都释放运行状态；会话 transcript 保留可读事件历史。完成检查使用完整目标及有来源的会话证据；检查报告按不可信数据注入且不会跨目标、线程或修订残留。
 
 ## 可重复验收
 
-`python3 -m pytest packages/goal/tests/ -q` 运行行为、存储竞争、真实 SDK 脚本会话与渲染测试。`python3 packages/goal/tests/goal_native_completion.py` 使用真实 Pi CLI、PTY 与同步终端帧，覆盖完成、拒绝、失败、取消、阻塞、长中文换行、暂停/恢复/清除。`uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py` 输入一次 `/goal <text>`，断言屏幕上只有一行 `[goal] requesting` 与原话、窄宽度换行后仍可读，并断言请求正文从未到达终端。`uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py` 先建立一个目标并让它因无有效工作而停下，再输入一次 `/goal <text>`，断言这个目标就地被修订：原要求与完成条件都保留、目标重新处于 pursuit、且不写归档或 ledger。
+`python3 -m pytest packages/goal/tests/ -q` 运行行为、存储竞争、真实 SDK 脚本会话与渲染测试。`python3 packages/goal/tests/goal_native_completion.py` 使用真实 Pi CLI、PTY 与同步终端帧，覆盖完成、拒绝、失败、取消、阻塞、长中文换行、暂停/恢复/清除。`uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py` 输入一次 `/goal <text>`，断言屏幕上只有一行 `[goal] requesting` 与原话、窄宽度换行后仍可读，并断言请求正文从未到达终端。`uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py` 先建立一个目标并让它因无有效工作而停下，再输入一次 `/goal <text>`，断言这个目标就地被修订：原要求保留在目标正文中、目标重新处于 pursuit、且不写归档或 ledger。
 
 `sh packages/goal/tests/goal_docker.sh` 打包当前 Goal 和必需依赖 pi-kit，在 Docker 中安装**最新的 Pi**（运行时从 registry 解析，并把它依赖的每个 `@earendil-works/*` 一并固定到该版本；需要复现旧基线时用 `PI_VERSION=x.y.z`）；Pi 的 package 配置仅加载 Goal。测试同时覆盖打包源码及正常自动加载路径。模型为确定性脚本 provider，完成检查为注入式 stand-in；这些证据验证宿主集成和 TUI，不宣称真实远程模型的判断质量。

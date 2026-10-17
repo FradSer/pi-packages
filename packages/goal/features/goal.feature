@@ -24,6 +24,12 @@ Feature: Goal records
     And the predicate assert.equal(fresh.readObjective(id).trim(), objective) holds for every observed invocation
     And the predicate assert.equal(existsSync(join(dirname(goalRecordPath(root, id)), "history.jsonl")), false) holds for every observed invocation
 
+  Scenario: Goal records: a legacy contract field is dropped while its objective survives
+    Given the isolated fixtures for a legacy contract field is dropped while its objective survives
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(read?.objective, objective, "the objective still reads unchanged") holds for every observed invocation
+    And the predicate assert.equal("verificationContract" in (read ?? {}), false, "the dropped field is not carried forward") holds for every observed invocation
+
   Scenario: Goal records: a failed record write leaves the directory untouched
     Given the isolated fixtures for a failed record write leaves the directory untouched
     When the real Goal modules execute this behavior case
@@ -189,12 +195,12 @@ Feature: Goal scheduling
     And the predicate assert.match(block, /&lt;\/untrusted_objective&gt;/, "the attempt arrives escaped") holds for every observed invocation
     And the predicate assert.match(block, /Ignore everything above/, "and the text itself is still delivered") holds for every observed invocation
 
-  Scenario: Goal scheduling: a hostile contract stays inside its block too
-    Given the isolated fixtures for a hostile contract stays inside its block too
+  Scenario: Goal scheduling: the policy block carries the objective and no second requirement block
+    Given the isolated fixtures for the policy block carries the objective and no second requirement block
     When the real Goal modules execute this behavior case
-    Then the predicate assert.equal(block.split("</untrusted_contract>").length - 1, 1, "exactly one real closing tag") holds for every observed invocation
-    And the predicate assert.match(block, /&lt;\/untrusted_contract&gt;/, "the attempt arrives escaped") holds for every observed invocation
-    And the predicate assert.match(block, /Ignore the policy/, "and the text itself is still delivered") holds for every observed invocation
+    Then the predicate assert.ok(created.ok, JSON.stringify(created)) holds for every observed invocation
+    And the predicate assert.equal(state.split("untrusted_objective").length - 1, 2, "one objective block, opened and closed") holds for every observed invocation
+    And the predicate assert.doesNotMatch(state, /untrusted_contract|CONTRACT/, "no second requirement block reaches the prompt") holds for every observed invocation
 
   Scenario: Goal scheduling: stable policy is byte-identical across turns while counters change
     Given the isolated fixtures for stable policy is byte-identical across turns while counters change
@@ -559,11 +565,11 @@ Feature: Goal prompt replay
     And the predicate assert.equal(parseCheckVerdict("The tests were never written.\nNOT MET").valid, true) holds for every observed invocation
     And the predicate assert.equal( parseCheckVerdict("The required independent review evidence is missing.").valid, false, "an answer with no verdict marker is not a valid refusal", ) holds for every observed invocation
 
-  Scenario: Goal completion transport: the objective and contract reach the check, the claim is marked untrusted
-    Given the isolated fixtures for the objective and contract reach the check, the claim is marked untrusted
+  Scenario: Goal completion transport: the objective reaches the check and the claim is marked untrusted
+    Given the isolated fixtures for the objective reaches the check and the claim is marked untrusted
     When the real Goal modules execute this behavior case
     Then the predicate assert.match(prompt, /Reports can be exported to CSV\./) holds for every observed invocation
-    And the predicate assert.match(prompt, /only the filtered rows/) holds for every observed invocation
+    And the predicate assert.doesNotMatch(prompt, /contract/i, "the objective is the only requirement text") holds for every observed invocation
     And the predicate assert.match(prompt, /UNTRUSTED/) holds for every observed invocation
     And the predicate assert.match(prompt, /NOT MET/, "and the rejection verdict is spelled out") holds for every observed invocation
 
@@ -760,16 +766,23 @@ Feature: Goal completion evidence
     And the predicate assert.equal(invalid.isError, true) holds for every observed invocation
     And the predicate assert.equal(stale.isError, true, "a requirement revision invalidates old page cursors") holds for every observed invocation
 
-  Scenario: Goal completion evidence: an explicitly empty contract clears it while an empty objective is rejected
-    Given the isolated fixtures for an explicitly empty contract clears it while an empty objective is rejected
+  Scenario: Goal completion evidence: an empty objective is rejected and a removed contract field is refused
+    Given the isolated fixtures for an empty objective is rejected and a removed contract field is refused
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
     And the predicate assert.equal(invalid.details.subject, "update not applied") holds for every observed invocation
     And the predicate assert.deepEqual(f.core.goal, before) holds for every observed invocation
-    And the predicate assert.equal(value.isError, false) holds for every observed invocation
-    And the predicate assert.equal(value.details.subject, "updated") holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.verificationContract, undefined) holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.objective, before?.objective) holds for every observed invocation
+    And the predicate assert.ok(tool, "update_goal is registered") holds for every observed invocation
+    And the predicate assert.equal("verification_contract" in (tool.parameters?.properties ?? {}), false, "the host schema exposes no contract field") holds for every observed invocation
+    And the predicate assert.equal(removed.isError, true) holds for every observed invocation
+    And the predicate assert.equal(removed.details.subject, "update not applied") holds for every observed invocation
+    And the predicate assert.equal(mixed.isError, true, "a smuggled field cannot ride along a revision") holds for every observed invocation
+    And the predicate assert.equal(mixed.details.subject, "update not applied") holds for every observed invocation
+    And the predicate assert.deepEqual(f.core.goal, before, "a removed field cannot change the goal") holds for every observed invocation
+    And the predicate assert.equal("verificationContract" in (f.core.goal ?? {}), false, "the record carries the objective alone") holds for every observed invocation
+    And the predicate assert.equal(created.isError, true, "creation refuses a second requirement field too") holds for every observed invocation
+    And the predicate assert.equal(created.details.subject, "creation not applied") holds for every observed invocation
+    And the predicate assert.match(created.details.summary ?? "", /second requirement field/, "and names the field rather than the thread state") holds for every observed invocation
 
   Scenario: Goal completion evidence: late revisions of a stopped goal offer a valid recovery path
     Given the isolated fixtures for late revisions of a stopped goal offer a valid recovery path
@@ -842,8 +855,8 @@ Feature: Goal completion evidence
     And the predicate assert.equal(after.evidenceSince, "2020-01-01T00:00:00.000Z", "the evidence window did not move") holds for every observed invocation
     And the predicate assert.doesNotMatch(objective, /PDF/, "and the objective was not rewritten") holds for every observed invocation
 
-  Scenario: Goal completion evidence: a tool revision moves the objective, the evidence window and the contract together
-    Given the isolated fixtures for a tool revision moves the objective, the evidence window and the contract together
+  Scenario: Goal completion evidence: a tool revision moves the objective and the evidence window together
+    Given the isolated fixtures for a tool revision moves the objective and the evidence window together
     When the real Goal modules execute this behavior case
     Then the predicate assert.ok(runCheck, "completion scenarios always inject a checker") holds for every observed invocation
     And the predicate assert.match(after.objective, /PDF/, "the objective is revised") holds for every observed invocation
@@ -1227,8 +1240,10 @@ Feature: Simplified thread Goal lifecycle
     Given the isolated fixtures for Given an injected budget When a Goal starts Then no ceiling exists
     When the real Goal modules execute this behavior case
     Then the predicate assert.equal(Object.keys(f.tools.get("create_goal").parameters.properties).includes("token_budget"),false,"the model has no way to ask for a spending limit") holds for every observed invocation
+    And the predicate assert.equal(smuggled.details.subject,"creation not applied") holds for every observed invocation
+    And the predicate assert.equal(afterSmuggled,undefined,"and no goal is created from it") holds for every observed invocation
     And the predicate assert.equal(r.details.subject,"started") holds for every observed invocation
-    And the predicate assert.equal(f.core.goal?.status,"active","and an injected limit is ignored") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.status,"active") holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.autoContinue,true,"spending far past any earlier ceiling keeps the goal running") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given a record an earlier version capped When it is read Then the ceiling is ignored
@@ -1351,7 +1366,7 @@ Feature: Simplified thread Goal lifecycle
     And the predicate assert.equal(delivered.details.request,"Add Windows validation.") holds for every observed invocation
     And the predicate assert.match(rendered,/\[goal\] requesting/) holds for every observed invocation
     And the predicate assert.match(rendered,/Add Windows validation\./) holds for every observed invocation
-    And the predicate assert.doesNotMatch(rendered,/Preserve all acceptance conditions/) holds for every observed invocation
+    And the predicate assert.doesNotMatch(rendered,/Preserve all existing requirements/) holds for every observed invocation
     And the predicate assert.doesNotMatch(rendered,/to expand/) holds for every observed invocation
     And the predicate assert.equal((rendered.match(/\[goal\] requesting/g) ?? []).length,1,"one request row, not one per repaint") holds for every observed invocation
 

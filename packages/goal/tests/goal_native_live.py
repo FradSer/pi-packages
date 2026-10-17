@@ -21,14 +21,15 @@ def assert_settled_frame(lines: Sequence[str], expanded: bool = False) -> None:
     text = "\n".join(lines)
     assert text.count("[goal] started") == 1
     assert "[goal] active" in text
-    assert "GOAL_REQUIREMENT_END" in text and "GOAL_CONTRACT_END" in text
+    assert "GOAL_REQUIREMENT_END" in text
+    assert "Completion conditions" not in text, "the objective is the only requirement block"
     assert "ctrl+o to expand" not in text
     assert "research ready" not in text and "archived" not in text
 
 
 REQUEST_WORDS = "Add Windows CSV export."
 REQUEST_BODY_MARKERS = (
-    "Preserve all acceptance conditions",
+    "Preserve all existing requirements",
     "higher-priority instructions",
     "Read the conversation for what they actually mean",
 )
