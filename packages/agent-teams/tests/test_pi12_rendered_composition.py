@@ -1,21 +1,19 @@
 """Use the installed Pi 1.2 renderer, not a string-concatenation surrogate."""
 import json
-import subprocess
 from pathlib import Path
 
 import pytest
 
-from test_agent_package import SRC, run_node
+from test_agent_package import REPO, SRC, run_node
 from test_worker_attempt_lifecycle import attempt_case
 
 
 @pytest.mark.parametrize("custom", [False, True])
 @pytest.mark.parametrize("worker", [False, True])
 def test_pi12_renders_owned_guidance_with_default_and_custom_prompt(tmp_path, custom, worker):
-    cli = Path(subprocess.check_output(["which", "pi"], text=True).strip()).resolve()
-    install = cli.parent.parent / "install"
-    version = (install / "current-version").read_text().strip()
-    sdk = install / "releases" / version / "node_modules/@earendil-works/pi-coding-agent"
+    # The root development cohort is the renderer of record: the pinned 1.2
+    # package this checkout resolves, not a machine's global Pi install.
+    sdk = REPO / "node_modules" / "@earendil-works" / "pi-coding-agent"
     manifest = json.loads((sdk / "package.json").read_text())
     assert manifest["version"].startswith("1.2."), manifest["version"]
     script = '''
