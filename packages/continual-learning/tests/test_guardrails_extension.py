@@ -128,6 +128,19 @@ def test_incomplete_evaluation_names_the_unreadable_layer_file_and_error(tmp_pat
     assert not (result.get('read') or {}).get('block')
     events = [entry for entry in result['entries'] if entry['t'] == 'harness-event']
     assert events and events[-1]['d']['file'] == str(broken), events
+    # The diagnostics the block message points at name the same file and reason.
+    diagnostics = run_bun(f'''
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path/'agent'))};
+      const {{default:register}}=await import('./packages/continual-learning/extensions/guardrails.ts');
+      const commands={{}},notices=[];
+      register({{on(){{}},appendEntry(){{}},registerEntryRenderer(){{}},getCommands:()=>[],registerCommand:(name,def)=>commands[name]=def}});
+      await commands.harness.handler('', {{cwd:{json.dumps(str(project))},mode:'tui',ui:{{notify:text=>notices.push(text)}}}});
+      console.log(JSON.stringify({{notices}}));
+    ''')
+    rendered = '\n'.join(diagnostics['notices'])
+    assert 'config read incomplete' in rendered, rendered
+    assert str(broken) in rendered and 'invalid JSON' in rendered, rendered
+    assert 'execution held' in rendered, rendered
     # Authorized repair stays available: a complete validated replacement is
     # confirmed, written, and the repaired layer then evaluates normally.
     repaired = json.dumps({'rules': [{'id': 'probe', 'bash': 'probe-command', 'action': 'block', 'message': 'probe rule'}]})
