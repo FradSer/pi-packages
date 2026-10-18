@@ -27,6 +27,9 @@ export type SessionEventKind = "user" | "thinking" | "tool" | "result" | "assist
 export interface SessionEvent {
   kind: SessionEventKind;
   text: string;
+  /** The actual persisted assistant SessionMessageEntry ID. */
+  eventId?: string;
+  stopReason?: "stop" | "toolUse" | "length" | "error" | "aborted";
   /** Result-only label, kept outside the Markdown body. */
   toolName?: string;
   /** Tool and result only: the call identity Pi wrote, which pairs the two. */

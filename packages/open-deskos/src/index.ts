@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { open } from "node:fs/promises";
 import { readOdkLinkConfigs } from "./config.ts";
 import { registerConsoleExtension } from "./console-extension.ts";
@@ -60,8 +60,8 @@ async function durableSessionEvents(sessionFile: string | undefined): Promise<Re
       return lines.flatMap((line) => {
         if (!line.trim()) return [];
         try {
-          const entry = JSON.parse(line) as { type?: unknown; message?: unknown };
-          return entry.type === "message" && entry.message !== undefined ? eventsFromMessage(entry.message) : [];
+          const entry = JSON.parse(line) as { type?: unknown; id?: unknown; message?: unknown };
+          return entry.type === "message" && entry.message !== undefined ? eventsFromMessage(entry.message, entry.id) : [];
         } catch {
           return [];
         }
@@ -106,6 +106,8 @@ export default function (pi: ExtensionAPI): void {
   const sessionHostEnabled = (process.env.ODK_SESSION_HOST_SOCKET ?? "").length > 0;
   let currentSessionId = "";
   let sessionGeneration = 0;
+  let pendingTurn: { generation: number; sessionId: string; previousMessageId: string | undefined } | null = null;
+  const lastMessage = (ctx: ExtensionContext) => ctx.sessionManager.getBranch().filter(entry => entry.type === "message").at(-1);
   let hostRefusal = "";
 
   if (reporters.length > 0 || sessionHostEnabled) {
@@ -113,6 +115,7 @@ export default function (pi: ExtensionAPI): void {
       if (currentSessionId.length > 0 && currentSessionId !== ctx.sessionManager.getSessionId()) {
         each((reporter) => reporter.markStatus(currentSessionId, "exited"));
       }
+      pendingTurn = null;
       currentSessionId = ctx.sessionManager.getSessionId();
       const name = ctx.sessionManager.getSessionName();
       const timestamp = ctx.sessionManager.getHeader()?.timestamp;
@@ -156,13 +159,24 @@ export default function (pi: ExtensionAPI): void {
     pi.on("session_info_changed", (event) => {
       if (currentSessionId.length > 0) each((reporter) => reporter.renameSession(currentSessionId, event.name));
     });
-    pi.on("agent_start", () => {
+    pi.on("agent_start", (_event, ctx) => {
+      pendingTurn = { generation: sessionGeneration, sessionId: ctx.sessionManager.getSessionId(), previousMessageId: lastMessage(ctx)?.id };
       sessionHost.markRunning();
       each((reporter) => reporter.markStatus(currentSessionId, "running"));
     });
-    pi.on("agent_settled", () => {
+    pi.on("agent_settled", (event, ctx) => {
+      const turn = pendingTurn;
+      pendingTurn = null;
       sessionHost.markSettled();
       each((reporter) => reporter.markStatus(currentSessionId, "settled"));
+      if (!turn || event.aborted || turn.generation !== sessionGeneration || turn.sessionId !== currentSessionId
+        || ctx.sessionManager.getSessionId() !== currentSessionId) return;
+      // message_end runs before appendMessage. Only settled exposes this turn's
+      // persisted identity, never the preceding leaf or a text-derived surrogate.
+      const entry = lastMessage(ctx);
+      if (!entry || entry.id === turn.previousMessageId || entry.message.role !== "assistant" || entry.message.stopReason !== "stop") return;
+      const completed = eventsFromMessage(entry.message, entry.id).filter(value => value.kind === "assistant");
+      replay?.append(currentSessionId, completed, (id, fresh) => each(reporter => reporter.recordEvents(id, fresh)));
     });
     // A turn runs several tools before its message ends, and until that message
     // the card would keep showing the prompt that started the turn. The tool that
@@ -184,6 +198,7 @@ export default function (pi: ExtensionAPI): void {
     });
     pi.on("session_shutdown", async () => {
       sessionGeneration += 1;
+      pendingTurn = null;
       replay?.invalidate();
       discovery?.stop();
       each((reporter) => reporter.markStatus(currentSessionId, "exited"));

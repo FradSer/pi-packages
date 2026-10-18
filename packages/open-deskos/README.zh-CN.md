@@ -60,8 +60,10 @@ export ODK_LINK_CONTROL_TOKEN="<control credential>"   # 可选：使本机成�
 - 当前会话的实时身份、目标、activity 与事件，以及本机注册在 `directory-sessions` 元数据中的其他会话（由 `pi-utils` 与 `pi-keyboard` 写入）。resumed、reload 或 fork 后上报端启动时会先回放当前会话自己的有界 durable JSONL 尾部，再转发后续实时消息，避免 resumed Pi 被 Open DeskOS Link 显示为运行中却没有事件。UUID 与带时间戳前缀的 UUID 别名会合并为同一会话。
 - 会话状态：元数据表示工作中、Pi 进程存活、时间戳匹配该进程生命周期时才为 `running`；存活的 idle/settled 会话为 `settled`。已结束、无效、被复用、无法核实的 PID 或明确退出的记录为 `exited`。每次扫描只读取一次有界进程表（1 MiB；Unix 截止时间为 2 秒，Windows CIM 为 5 秒），同一 PID 只有最新且无歧义的会话可视为存活。Windows 启动路径中的空格按引号规则保留；查询失败或系统命令挂起不会让发现流程无限等待。当前会话以 Pi 自身的 idle/agent 事件为准。
 - 原始元数据的 start/update 时间、可选会话名、目标与 activity/recap。扫描不会凭空发明新的 activity 时间戳，也不读取会话历史。
-- 有界会话事件：每会话最多保留最新连续的 300 条事件与 1,048,576 UTF-8 字节（计入正文与工具名）。正文保留换行并按类型限长：user 8 KiB、thinking 4 KiB、tool-call 4 KiB、assistant 16 KiB、tool result 64 KiB。
+- 有界会话事件：每会话最多保留最新连续的 300 条事件与 1,048,576 UTF-8 字节（计入正文、工具名、完成事件身份与停止原因）。正文保留换行并按类型限长：user 8 KiB、thinking 4 KiB、tool-call 4 KiB、assistant 16 KiB、tool result 64 KiB。
 - 工具结果保留完整的多行 Markdown，包括表格、代码围栏和空白，每条正文最多 65,536 UTF-8 字节。所有文本块以两个换行连接；图片与任意结果元数据不上报。任一类型的正文超过自身字节上限时会带 `truncated: true`，且不会截断 Unicode 码点。可选 `toolName` 为独立的 200 字符摘要，不再作为前缀插入 Markdown 正文。工具调用与回应它的结果都携带 Pi 为该次调用写下的可选 `toolCallId`，被 Pi 记为错误的结果携带 `isError: true`，因此消费端能把结果与它自己的调用配对，并从 Pi 的记录而非事件顺序读出结果状态。工具调用事件的文本说明该调用在做什么，而不只是它在哪里查找：`bash: <command>`、内容或文件名搜索的 `search: <pattern>`，其他工具为 `<tool>: <path|query|subject>`。会话 activity 仍为简短的首行摘要。
+
+已完成的 assistant 事件使用实际持久化消息条目的 ID 作为 `eventId`，并保留 Pi 的有界 `stopReason`。实时完成元数据只在 `agent_settled` 后发送，此时当前分支上已存在新条目。`message_end` 仍为临时事件，因为 Pi 在该回调之后才持久化消息。重放使用同一条目 ID。中止、重复 settled 与非终态消息不会产生完成身份。上报完成不代表任务已经独立验证。
 
 会话开始时以及每次扫描后每 5 秒刷新一次清单，链路离线期间同样刷新。刷新只替换被发现的条目：当前会话的身份与事件不会被陈旧元数据删除或覆盖。关闭/重载会取消刷新调度，并使待处理结果与重连失效。
 
