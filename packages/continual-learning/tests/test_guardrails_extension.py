@@ -101,3 +101,30 @@ def test_tool_gate_rejects_symlinked_target_or_parent(tmp_path: Path, symlink_pa
       console.log(JSON.stringify(await hooks.tool_call({{toolName:'write',input:{{path:{json.dumps(str(target))},content:'{{"rules":[]}}'}}}},{{cwd:{json.dumps(str(project))}}})));
     ''')
     assert result['block'] and 'Unsafe' in result['reason']
+
+
+def test_incomplete_evaluation_names_the_unreadable_layer_file_and_error(tmp_path: Path) -> None:
+    project = tmp_path / 'project'; (project / '.pi').mkdir(parents=True)
+    # No snapshot exists in this process, so the layer cannot be evaluated at all.
+    broken = project / '.pi/harness.local.json'
+    broken.write_text('{broken')
+    result = run_bun(f'''
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path/'agent'))};
+      const {{default:register}}=await import('./packages/continual-learning/extensions/guardrails.ts');
+      const hooks={{}},entries=[];
+      register({{on:(n,f)=>hooks[n]=f,appendEntry:(t,d)=>entries.push({{t,d}}),registerEntryRenderer(){{}},registerCommand(){{}},getCommands:()=>[]}});
+      const ctx={{cwd:{json.dumps(str(project))},ui:{{notify(){{}},confirm:async()=>false}}}};
+      const blocked=await hooks.tool_call({{toolName:'bash',input:{{command:'pnpm test'}}}},ctx);
+      const read=await hooks.tool_call({{toolName:'read',input:{{path:{json.dumps(str(broken))}}}}},ctx);
+      console.log(JSON.stringify({{blocked,read,entries}}));
+    ''')
+    assert result['blocked']['block']
+    reason = result['blocked']['reason']
+    # The blocked call must say which file could not be read and why; a generic
+    # "unreadable configuration" leaves the user and the model without a repair.
+    assert str(broken) in reason, reason
+    assert 'invalid JSON' in reason, reason
+    # Diagnosing that file stays possible while execution remains unexecuted.
+    assert not (result.get('read') or {}).get('block')
+    events = [entry for entry in result['entries'] if entry['t'] == 'harness-event']
+    assert events and events[-1]['d']['file'] == str(broken), events

@@ -44,7 +44,7 @@ import {
 import { compareHarnessLayers, configPaths, loadLayers, resolveHarnessConfig } from "./guardrail-config.ts";
 import { HARNESS_BASH_NOTE_PREFIX, HARNESS_CONFIG_NOTE_PREFIX } from "./harness-guidance-planner.ts";
 import { evaluateLegacyTools, LEGACY_FIELDS } from "./legacy-harness.ts";
-import type { RuleLayer } from "./guardrail-types.ts";
+import type { LayerReadIssue, RuleLayer } from "./guardrail-types.ts";
 import { runHarnessMenu, type HarnessMenuScope } from "./harness-menu.ts";
 
 interface HarnessPolicyEvent {
@@ -77,6 +77,21 @@ function harnessSourcePath(source: string | undefined, paths: ReturnType<typeof 
     default:
       return "(unknown)";
   }
+}
+
+/** Name the file and the exact reason for each layer whose current bytes could
+ *  not be interpreted. The blocked tool result and /harness diagnostics share
+ *  one wording, so the reader can identify the bytes that need repair instead of
+ *  being told only that evaluation is incomplete. Text stays bounded: at most
+ *  four layers, each reason truncated to a fixed width. */
+function harnessReadIssueLines(issues: readonly LayerReadIssue[], paths: ReturnType<typeof configPaths>): string[] {
+  return issues.slice(0, 4).map(issue => {
+    const file = harnessSourcePath(issue.source, paths);
+    const reason = safeDisplayText(issue.errors.join("; ") || "unreadable layer")
+      // The layer error already carries the file; the reader needs it once.
+      .split(`${file}: `).join("").slice(0, 240);
+    return `${issue.source} (${file}): ${reason}`;
+  });
 }
 
 function withinRoot(root: string, candidate: string): boolean {
@@ -515,6 +530,9 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       reason: match.message, outcome: "observed", source: match.source ?? "unknown", file: harnessSourcePath(match.source, paths),
     } satisfies HarnessPolicyEvent);
     {
+      const readIssueLines = harnessReadIssueLines(config.layerReadIssues, paths);
+      const unreadableFiles = config.layerReadIssues.filter(issue => issue.unavailable)
+        .map(issue => harnessSourcePath(issue.source, paths));
       const bashEval = {
         decision: flat?.decision === "incomplete" || legacy.incomplete.length ? "incomplete"
           : matches.some(match => match.action === "block") ? "block"
@@ -522,7 +540,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
         matchedRules: matches,
         messages: matches.filter(match => match.action !== "observe").map(match => match.message),
         incompleteRuleIds: [...(flat?.incompleteRuleIds ?? []), ...legacy.incomplete],
-        reason: legacy.incomplete.length ? `Harness evaluation is incomplete for ${event.toolName}: ${legacy.incomplete.join(", ")}. Use /harness to inspect diagnostics, read the affected config, and submit a complete validated native write for authorized repair; no protection needs to be disabled.` : flat?.reason,
+        reason: legacy.incomplete.length ? `Harness evaluation is incomplete for ${event.toolName}: ${legacy.incomplete.join(", ")}${readIssueLines.length ? ` — ${readIssueLines.join("; ")}` : ""}. Use /harness to inspect diagnostics, read the affected config, and submit a complete validated native write for authorized repair; no protection needs to be disabled.` : flat?.reason,
       };
 
       if (bashEval.decision === "incomplete") {
@@ -534,7 +552,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
           reason: bashEval.reason ?? "Bash evaluation incomplete",
           outcome: "blocked by rule",
           source: "unknown",
-          file: harnessSourcePath(undefined, paths),
+          file: unreadableFiles.join(", ") || harnessSourcePath(undefined, paths),
         });
         return { block: true, reason: bashEval.reason ?? "Bash evaluation incomplete" };
       }
@@ -728,6 +746,7 @@ export default function registerGuardrails(pi: ExtensionAPI) {
       }
       if (config.configReadIncomplete) {
         lines.push("config read incomplete: a layer used its previous valid snapshot or failed to read; missing rules are indeterminate, not removed");
+        for (const issue of harnessReadIssueLines(config.layerReadIssues, paths)) lines.push(`  - ${issue}${config.layerReadIssues.find(entry => issue.startsWith(entry.source))?.unavailable ? " [execution held: no trustworthy snapshot]" : " [previous valid snapshot in use]"}`);
       }
       lines.push(
         "built-in defaults are active unless overridden by id",

@@ -80,4 +80,16 @@ export interface ResolvedHarnessConfig {
   invalidRules: InvalidRuleInfo[];
   bashEvaluationComplete: boolean;
   configReadIncomplete: boolean;
+  /** One entry per layer whose current bytes could not be interpreted, so a
+   *  reader can name the affected file and the exact reason. */
+  layerReadIssues: LayerReadIssue[];
+}
+
+export interface LayerReadIssue {
+  source: string;
+  /** A previous identity-unambiguous snapshot may still participate. */
+  stale: boolean;
+  /** No trustworthy snapshot exists: execution must remain incomplete. */
+  unavailable: boolean;
+  errors: string[];
 }

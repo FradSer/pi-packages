@@ -67,7 +67,9 @@ function staleFallback(source: string, file: string, reason: string): RuleLayer 
   return {
     ...snapshot,
     source, stale: true, unavailable: !snapshot,
-    errors: [`${reason}${snapshot ? " (using previous valid snapshot; current file not verified)" : " (no previous valid snapshot; layer unavailable)"}`],
+    // The file is named here, so every consumer of the diagnostic can point at
+    // the bytes that need repair instead of reporting an anonymous layer failure.
+    errors: [`${file}: ${reason}${snapshot ? " (using previous valid snapshot; current file not verified)" : " (no previous valid snapshot; layer unavailable)"}`],
   };
 }
 
@@ -103,7 +105,7 @@ export function loadLayers(cwd: string, agentDir?: string): RuleLayer[] {
         try { assertProjectScopeOwner(cwd, agentDir); }
         catch (error) {
           // Never reuse a cached scoped layer from a different canonical owner.
-          return [{source, unavailable:true, errors:[error instanceof Error ? error.message : String(error)]}];
+          return [{source, unavailable:true, errors:[`${file}: ${error instanceof Error ? error.message : String(error)}`]}];
         }
       }
       const layer = readLayer(source, file);

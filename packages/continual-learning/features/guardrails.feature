@@ -20,6 +20,7 @@ Feature: Flat layered Harness rules with installed-policy compatibility
     Then it diagnoses the unsupported structure without modifying any bytes
     And a previously unambiguous snapshot may be reused with an explicit stale diagnostic
     And without a snapshot execution remains incomplete
+    And an incomplete evaluation names the affected layer file and its exact error
     And exact configuration diagnosis and authorized repair remain available subject to valid policies
 
   Scenario: Invalid identity winners do not revive outer definitions

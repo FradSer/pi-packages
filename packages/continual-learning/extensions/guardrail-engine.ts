@@ -2,7 +2,7 @@
  * No command execution or Pi imports. */
 import { createHash } from "node:crypto";
 import { LEGACY_FIELDS, legacyContainerErrors, resolveLegacy } from "./legacy-harness.ts";
-import type { BashEvaluationResult, BashRule, InvalidRuleInfo, ResolvedHarnessConfig, Rule, RuleLayer, SkillRule, TextRule } from "./guardrail-types.ts";
+import type { BashEvaluationResult, BashRule, InvalidRuleInfo, LayerReadIssue, ResolvedHarnessConfig, Rule, RuleLayer, SkillRule, TextRule } from "./guardrail-types.ts";
 
 export const DEFAULT_RULES: Rule[] = [
   {
@@ -125,11 +125,16 @@ export function mergeLayers(layers: RuleLayer[], availableSkills?: ReadonlySet<s
   const errors: string[] = [];
   let configReadIncomplete = false;
   let unavailable = false;
+  const layerReadIssues: LayerReadIssue[] = [];
   const readableLayers: RuleLayer[] = [];
   for (const layer of layers) {
     if (layer.stale) configReadIncomplete = true;
     if (layer.unavailable) unavailable = true;
     for (const error of layer.errors ?? []) errors.push(`${layer.source}: ${error}`);
+    const readIssue: LayerReadIssue | undefined = layer.stale || layer.unavailable
+      ? { source: layer.source, stale: !!layer.stale, unavailable: !!layer.unavailable, errors: [...(layer.errors ?? [])] }
+      : undefined;
+    if (readIssue) layerReadIssues.push(readIssue);
     const raw = layer as unknown as Record<string, unknown>;
     const container = Object.fromEntries(Object.entries(raw).filter(([key]) => !["source", "errors", "stale", "unavailable"].includes(key)));
     if (layer.rules === undefined && layer.stale && !Object.keys(container).length) continue;
@@ -138,6 +143,8 @@ export function mergeLayers(layers: RuleLayer[], availableSkills?: ReadonlySet<s
       errors.push(...structure.map(error => `${layer.source}: ${error}`));
       configReadIncomplete = true;
       unavailable = true;
+      if (readIssue) { readIssue.unavailable = true; readIssue.errors.push(...structure); }
+      else layerReadIssues.push({ source: layer.source, stale: false, unavailable: true, errors: structure });
       continue;
     }
     readableLayers.push(layer);
@@ -167,7 +174,7 @@ export function mergeLayers(layers: RuleLayer[], availableSkills?: ReadonlySet<s
   const ordered = [...byId].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([, entry]) => entry);
   const rules = ordered.flatMap(entry => entry.rule ? [entry.rule] : []);
   const invalidRules = ordered.flatMap(entry => entry.invalid ? [entry.invalid] : []);
-  return { rules, errors, notices, legacy, invalidRules, bashEvaluationComplete: !unavailable && !invalidRules.some(info => info.hasBash || info.ambiguous), configReadIncomplete };
+  return { rules, errors, notices, legacy, invalidRules, bashEvaluationComplete: !unavailable && !invalidRules.some(info => info.hasBash || info.ambiguous), configReadIncomplete, layerReadIssues };
 }
 
 export function evaluateBash(config: ResolvedHarnessConfig, command: string): BashEvaluationResult {
