@@ -128,3 +128,22 @@ def test_incomplete_evaluation_names_the_unreadable_layer_file_and_error(tmp_pat
     assert not (result.get('read') or {}).get('block')
     events = [entry for entry in result['entries'] if entry['t'] == 'harness-event']
     assert events and events[-1]['d']['file'] == str(broken), events
+    # Authorized repair stays available: a complete validated replacement is
+    # confirmed, written, and the repaired layer then evaluates normally.
+    repaired = json.dumps({'rules': [{'id': 'probe', 'bash': 'probe-command', 'action': 'block', 'message': 'probe rule'}]})
+    recovery = run_bun(f'''
+      import fs from 'node:fs';
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path/'agent'))};
+      const {{default:register}}=await import('./packages/continual-learning/extensions/guardrails.ts');
+      const hooks={{}};register({{on:(n,f)=>hooks[n]=f,appendEntry(){{}},registerEntryRenderer(){{}},registerCommand(){{}},getCommands:()=>[]}});
+      const ctx={{cwd:{json.dumps(str(project))},hasUI:true,ui:{{notify(){{}},confirm:async()=>true}}}};
+      const target={json.dumps(str(broken))}, content={json.dumps(repaired)};
+      const write=await hooks.tool_call({{toolName:'write',input:{{path:target,content}}}},ctx);
+      fs.writeFileSync(target, content);
+      const plain=await hooks.tool_call({{toolName:'bash',input:{{command:'pnpm test'}}}},ctx);
+      const matched=await hooks.tool_call({{toolName:'bash',input:{{command:'probe-command'}}}},ctx);
+      console.log(JSON.stringify({{writeAllowed:!write?.block,plainBlocked:!!plain?.block,matchedReason:matched?.reason}}));
+    ''')
+    assert recovery['writeAllowed'], recovery
+    assert not recovery['plainBlocked'], recovery
+    assert recovery['matchedReason'] == 'probe rule', recovery
