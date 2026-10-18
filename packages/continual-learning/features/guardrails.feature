@@ -14,6 +14,13 @@ Feature: Flat layered Harness rules with installed-policy compatibility
     And compatible format notices do not block unrelated tools
     And all configuration bytes remain unchanged
 
+  Scenario: No harness configuration needs no repair
+    Given no harness file, or one whose content is empty, whitespace or null
+    When tool calls are evaluated
+    Then they execute unless a built-in default matches
+    And no incomplete evaluation or unreadable-layer diagnostic is reported
+    And malformed content that claims declarations is still held for repair
+
   Scenario: Structurally ambiguous files retain conservative diagnostics
     Given unknown roots, malformed containers, duplicate flat ids or missing flat identities
     When the runtime loads that file

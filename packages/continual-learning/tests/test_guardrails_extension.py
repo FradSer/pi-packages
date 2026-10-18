@@ -103,6 +103,29 @@ def test_tool_gate_rejects_symlinked_target_or_parent(tmp_path: Path, symlink_pa
     assert result['block'] and 'Unsafe' in result['reason']
 
 
+@pytest.mark.parametrize('content', [None, '', '   \n\t\n', '\n', 'null', '{}', '{"rules":[]}'])
+def test_absent_or_empty_configuration_executes_by_default(tmp_path: Path, content: str | None) -> None:
+    # Given no declarations at all, When tools are evaluated, Then nothing holds:
+    # an absent configuration is the default state, not an unreadable one.
+    project = tmp_path / 'project'; project.mkdir()
+    if content is not None:
+        (project / '.pi').mkdir()
+        (project / '.pi/harness.local.json').write_text(content)
+    result = run_bun(f'''
+      process.env.PI_CODING_AGENT_DIR={json.dumps(str(tmp_path/'agent'))};
+      const {{default:register}}=await import('./packages/continual-learning/extensions/guardrails.ts');
+      const hooks={{}},entries=[];
+      register({{on:(n,f)=>hooks[n]=f,appendEntry:(t,d)=>entries.push({{t,d}}),registerEntryRenderer(){{}},registerCommand(){{}},getCommands:()=>[]}});
+      const ctx={{cwd:{json.dumps(str(project))},hasUI:false,ui:{{notify(){{}},confirm:async()=>false}}}};
+      const bash=await hooks.tool_call({{toolName:'bash',input:{{command:'pnpm test'}}}},ctx);
+      const read=await hooks.tool_call({{toolName:'read',input:{{path:'README.md'}}}},ctx);
+      console.log(JSON.stringify({{bash:bash??null,read:read??null,emptyNotices:entries.filter(e=>e.t==='harness-event').length}}));
+    ''')
+    assert result['bash'] is None, result
+    assert result['read'] is None, result
+    assert result['emptyNotices'] == 0, result
+
+
 def test_incomplete_evaluation_names_the_unreadable_layer_file_and_error(tmp_path: Path) -> None:
     project = tmp_path / 'project'; (project / '.pi').mkdir(parents=True)
     # No snapshot exists in this process, so the layer cannot be evaluated at all.

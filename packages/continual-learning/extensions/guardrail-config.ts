@@ -80,6 +80,11 @@ function readLayer(source: string, file: string): RuleLayer | undefined {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") { snapshots.delete(file); return undefined; }
     return staleFallback(source, file, `could not read harness file: ${(error as Error).message}`);
   }
+  // No harness configuration is the default state, and it must execute. An
+  // empty, whitespace-only or null file declares nothing, exactly like a missing
+  // file: there is no protection to preserve and nothing to hold. Only content
+  // that claims declarations while staying unreadable is held for repair.
+  if (!raw.trim() || raw.trim() === "null") { snapshots.delete(file); return undefined; }
   let parsed: unknown;
   try { parsed = JSON.parse(raw); }
   catch (error) { return staleFallback(source, file, `invalid JSON: ${(error as Error).message}`); }
@@ -101,14 +106,17 @@ export function loadLayers(cwd: string, agentDir?: string): RuleLayer[] {
     ['project.local', paths.projectLocal],
   ] as const)
     .flatMap(([source, file]) => {
-      if (source === "user.scoped" && fs.existsSync(file)) {
+      const layer = readLayer(source, file);
+      // Ownership is verified for every layer that declares something. An empty
+      // scoped file declares nothing, and an absent configuration must execute:
+      // reading no declarations needs no owner check.
+      if (source === "user.scoped" && layer) {
         try { assertProjectScopeOwner(cwd, agentDir); }
         catch (error) {
           // Never reuse a cached scoped layer from a different canonical owner.
           return [{source, unavailable:true, errors:[`${file}: ${error instanceof Error ? error.message : String(error)}`]}];
         }
       }
-      const layer = readLayer(source, file);
       return layer ? [layer] : [];
     });
 }
