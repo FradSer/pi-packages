@@ -65,6 +65,14 @@ const BODY_BYTES: Record<SessionEvent["kind"], number> = {
   tool: MAX_TOOL_BYTES,
 };
 
+const STOP_REASONS = new Set(["stop", "toolUse", "length", "error", "aborted"]);
+
+function assistantMetadata(entryId: unknown, stopReason: unknown): Pick<SessionEvent, "eventId" | "stopReason"> {
+  if (typeof entryId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(entryId)) return {};
+  return { eventId: entryId, ...(typeof stopReason === "string" && STOP_REASONS.has(stopReason)
+    ? { stopReason: stopReason as SessionEvent["stopReason"] } : {}) };
+}
+
 /**
  * Apply the body bound without flattening or prefixing its Markdown. Every kind
  * keeps its line structure so the desk can render it the way Pi does: a bash
@@ -90,6 +98,7 @@ export function boundSessionEvent(event: SessionEvent): SessionEvent | null {
   return {
     kind: event.kind,
     text,
+    ...(event.kind === "assistant" ? assistantMetadata(event.eventId, event.stopReason) : {}),
     ...(toolName ? { toolName } : {}),
     ...(toolCallId ? { toolCallId } : {}),
     ...(event.kind === "result" && event.isError === true ? { isError: true } : {}),
@@ -103,7 +112,8 @@ export function retainEvents(events: readonly SessionEvent[]): SessionEvent[] {
   let bytes = 0;
   for (let index = events.length - 1; index >= 0 && retained.length < MAX_EVENTS_PER_SESSION; index -= 1) {
     const event = events[index]!;
-    const size = Buffer.byteLength(event.text) + Buffer.byteLength(event.toolName ?? "");
+    const size = Buffer.byteLength(event.text) + Buffer.byteLength(event.toolName ?? "")
+      + Buffer.byteLength(event.eventId ?? "") + Buffer.byteLength(event.stopReason ?? "");
     if (bytes + size > MAX_SESSION_EVENT_BYTES) break;
     retained.push(event);
     bytes += size;
@@ -154,6 +164,7 @@ interface MessageView {
   toolName?: string;
   toolCallId?: string;
   isError?: boolean;
+  stopReason?: unknown;
   content?: unknown;
 }
 
@@ -177,7 +188,7 @@ export function promptFromMessage(message: unknown): string {
  * The Session Events one finalized message contributes. A tool result joins
  * all text parts into one bounded Markdown body; other events stay summaries.
  */
-export function eventsFromMessage(message: unknown): SessionEvent[] {
+export function eventsFromMessage(message: unknown, persistedEntryId?: unknown): SessionEvent[] {
   const view = asMessage(message);
   if (!view) return [];
   // A user message may carry plain text rather than parts.
@@ -221,7 +232,8 @@ export function eventsFromMessage(message: unknown): SessionEvent[] {
   if (view.role === "assistant") {
     // One reply may stream as several text parts; Pi reads them as one body.
     const said = parts.filter((part): part is TextPart => isText(part) && part.text.trim().length > 0);
-    if (said.length > 0) events.push({ kind: "assistant", text: said.map((part) => part.text).join("\n\n") });
+    if (said.length > 0) events.push({ kind: "assistant", text: said.map((part) => part.text).join("\n\n"),
+      ...assistantMetadata(persistedEntryId, view.stopReason) });
   }
   return events;
 }

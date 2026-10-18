@@ -215,3 +215,11 @@ Feature: Report this machine's Pi sessions to Open DeskOS, and drive a hosted Pi
     Given the package is installed from its packed manifest
     When a desk invokes the session-control launcher
     Then the launcher and its source relay are present in the installed package
+
+  Scenario: Completion events use the persisted assistant entry identity
+    Given Pi emits message_end before it persists the completed message
+    When the agent settles with a new terminal assistant entry on its current branch
+    Then the reporter sends that persisted entry ID and its bounded stop reason
+    And replay preserves the same entry ID and stop reason
+    And repeated settlement, aborted runs, and nonterminal messages do not create a completion identity
+    And separate turns with the same text retain different persisted identities
