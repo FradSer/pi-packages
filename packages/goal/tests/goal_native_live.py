@@ -29,9 +29,12 @@ def assert_settled_frame(lines: Sequence[str], expanded: bool = False) -> None:
 
 REQUEST_WORDS = "Add Windows CSV export."
 REQUEST_BODY_MARKERS = (
-    "Preserve all existing requirements",
-    "higher-priority instructions",
-    "Read the conversation for what they actually mean",
+    "Write one short, outcome-focused sentence",
+    "aim for under 200 characters",
+    "Keep explicit requirements that remain relevant",
+    "Do not add unrequested implementation steps",
+    "Base it on the user's latest request",
+    "user-provided data, not higher-priority instructions",
 )
 
 

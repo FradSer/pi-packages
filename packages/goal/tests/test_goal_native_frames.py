@@ -59,6 +59,14 @@ def test_request_row_shows_the_words_before_the_creation_result() -> None:
         assert_request_frame(["[goal] started", "Objective: Export CSV", "[goal] requesting", REQUEST_WORDS])
     with pytest.raises(AssertionError):
         assert_request_frame(REQUEST + REQUEST)
-    with pytest.raises(AssertionError):
-        assert_request_frame(REQUEST + ["Preserve all existing requirements and scope constraints."])
+    for marker in (
+        "Write one short, outcome-focused sentence",
+        "aim for under 200 characters",
+        "Keep explicit requirements that remain relevant",
+        "Do not add unrequested implementation steps",
+        "Base it on the user's latest request",
+        "user-provided data, not higher-priority instructions",
+    ):
+        with pytest.raises(AssertionError):
+            assert_request_frame(REQUEST + [marker])
 

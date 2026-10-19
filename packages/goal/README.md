@@ -10,7 +10,7 @@ pi install npm:@fradser/pi-goal
 
 | Command | Behavior |
 | --- | --- |
-| `/goal <objective>` | Show one `[goal] requesting` row with the typed words, and ask the model to create a complete objective or merge this request into the current objective. |
+| `/goal <objective>` | Show one `[goal] requesting` row with the typed words, and ask the model to create or revise one concise, outcome-focused objective. |
 | `/goal` | Show the complete current objective, reason, and usage. |
 | `/goal pause` | Stop current Goal work and pending continuation. |
 | `/goal resume` | Authorize continuation, preserving accumulated tokens, elapsed time and run count. |
@@ -22,7 +22,8 @@ model, not a command that clears the goal.
 A goal belongs to its thread. A fresh thread never adopts another thread's goal.
 The command queues the user's request; it does not create a second goal or overwrite
 an existing objective with a raw additive fragment. The accepted model revision
-commits the complete revised objective.
+commits one concise objective that preserves explicit requirements, without adding
+unrequested implementation details or inferred scope.
 
 ## Tools
 
