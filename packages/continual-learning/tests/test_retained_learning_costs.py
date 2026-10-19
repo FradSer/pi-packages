@@ -127,6 +127,43 @@ def test_receipt_total_cannot_hide_matching_known_worker_usage():
         learning_cost_summary([receipt],[],[dict(ledgerId='worker',knownUsage=u,complete=True)])
 
 
+def test_real_javascript_receipt_uses_exact_ordered_cost_addition(tmp_path):
+    # Given the five costs from the failed V96 replay, When the actual parent
+    # builds a receipt, Then both readers match its ordered IEEE-754 additions.
+    # Even a one-ULP alteration must still fail; this is not a tolerance policy.
+    import copy
+    import math
+    from support import run_bun
+    from continuous_failure_retention import learning_cost_summary
+    receipt = run_bun("""
+      import {buildLearningReceipt} from './packages/continual-learning/extensions/learning-efficiency.ts';
+      const costs=[.00390408,.001186044,.011972244,.019071071999999998,.039030828];
+      const attempts=costs.map((cost,index)=>({phase:'memory',attempt:index===4?1:0,
+        outcome:'proposed',operations:0,durationMs:1,usageLedgerId:'worker-'+index,
+        usage:{input:2,output:3,cacheRead:0,cacheWrite:0,totalTokens:5,cost}}));
+      console.log(JSON.stringify(buildLearningReceipt('automatic',
+        {memory:true,harness:false,agents:false,reasons:[]},attempts,undefined,
+        'batch_00000000000000000000000000000096')));
+    """)
+    assert receipt['totals']['cost'] == .075164268
+    workers = [dict(ledgerId=a['usageLedgerId'],knownUsage=a['usage'],complete=True)
+               for a in receipt['attempts']]
+    result = learning_cost_summary([receipt],[],workers)
+    assert result['knownLearningCost'] == receipt['totals']['cost']
+    assert result['knownLearningTokens'] == 25
+    assert result['actualLearningOperations'] == 0
+    put(tmp_path,'memory/runs/scope/run/learning-pipeline-receipt.json',receipt)
+    assert retained_learning_costs(tmp_path)['knownLearningCost'] == receipt['totals']['cost']
+    for direction in (0.0,math.inf):
+        changed = copy.deepcopy(receipt)
+        changed['totals']['cost'] = math.nextafter(receipt['totals']['cost'],direction)
+        with pytest.raises(ValueError,match='totals'):
+            learning_cost_summary([changed],[],workers)
+        put(tmp_path,'memory/runs/scope/run/learning-pipeline-receipt.json',changed)
+        with pytest.raises(ValueError,match='totals'):
+            retained_learning_costs(tmp_path)
+
+
 
 def test_replay_link_does_not_erase_a_failed_phase_before_repair():
     from continuous_failure_retention import learning_cost_summary

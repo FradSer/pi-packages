@@ -12,6 +12,10 @@ TypeScript directly.
   and @docs/adr/0003-auto-memory-index-injection.md.
 - Learning changes: the matching package-owned `prompts/*.md`, its typed builder
   in `extensions/planner-prompts.ts`, and the corresponding `features/` contract.
+- Declaration-role changes: `tests/test_planner_json_output.py` and its complete
+  real declaration fixture. A callback parameter's type and its call-signature
+  return annotation have different owners. Offline syntax and prompt delivery
+  prove no semantic acceptance or later task benefit.
 - AGENTS extraction or recovery: `extensions/agents-md-consolidation.ts` and
   @packages/continual-learning/features/consolidate-agents.feature.
 
@@ -823,3 +827,6 @@ from early current-user Harness correction as well as replay jobs. Missing worke
 ledgers do not erase receipt costs, failures, operations or unknown usage. Deduplicate
 by exact batch and worker identities; conflicting snapshots stop accounting.
 Never infer call identity from equal numeric totals or mark partial costs complete.
+Validate totals with the parent's ordered JavaScript Number additions. Python's
+compensated `sum` can differ by one ULP. Keep exact equality and reject even a
+one-ULP alteration; do not add a tolerance or rewrite historical receipts.

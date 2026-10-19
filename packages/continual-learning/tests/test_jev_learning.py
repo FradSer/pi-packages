@@ -1215,7 +1215,11 @@ def test_documentation_placeholders_in_text_are_allowed_while_quoted_real_values
         escapedQuoteValue:both('Config: {"password": "ab\\"cd,efgh"}'),
         equalsQuotedValue:both('token = "Xq7b//N2mP4kL9vR3s"'),
         quotedUrlValue:both('Auth: "https://login.example.com/oauth"'),
+        unquotedUrlUnderKey:both('Auth: https://login.example.com/oauth'),
         plainUrlMember:both('{"authorization": "https://login.example.com/oauth"}'),
+        urlShapedSecret:both('{"password": "https://Xq7bN2mP4kL9vR3s"}'),
+        urlUserinfoSecret:both('{"password": "https://Xq7bN2mP4kL9vR3s@host"}'),
+        urlWebhookSecret:both('{"password": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"}'),
         credentialUrlWithoutScheme:both('{"password": "://Xq7bN2mP4kL9vR3s"}'),
         credentialUserinfoUrl:both('{"password": "mongodb+srv://user:Xq7bN2mP4kL9vR3s@h/db"}'),
         unknownSchemeSecret:both('{"password": "Xq7bN2mP4kL9vR3s://x"}'),
@@ -1255,9 +1259,15 @@ def test_documentation_placeholders_in_text_are_allowed_while_quoted_real_values
     assert value['escapedQuoteValue'] == [True, True]
     assert value['equalsQuotedValue'] == [True, True]
     assert value['providerKey'] == [True, True]
-    # A real URL is still not a credential, in either key form.
-    assert value['quotedUrlValue'] == [False, False]
-    assert value['plainUrlMember'] == [False, False]
+    # A credential-named key has NO URL exemption: a URL under such a key can
+    # itself be the credential, so it is refused in both key forms and in both
+    # detectors, matching the pre-change preflight on the quoted forms.
+    assert value['quotedUrlValue'] == [True, True]
+    assert value['unquotedUrlUnderKey'] == [True, True]
+    assert value['plainUrlMember'] == [True, True]
+    assert value['urlShapedSecret'] == [True, True]
+    assert value['urlUserinfoSecret'] == [True, True]
+    assert value['urlWebhookSecret'] == [True, True]
     # A value that merely starts with or contains `://` is not a URL: a secret
     # with no scheme, a credential-bearing connection string and an unknown
     # scheme are all refused, matching the pre-change preflight.

@@ -78,7 +78,11 @@ def run(parent: Path) -> dict:
             assert wire_observation['memoryProtocolOnWire']
             assert wire_observation['memoryDiscoveryOnWire'] is (i != 3)
             assert 'use the read tool to inspect relevant indexed Memory entries' in text, 'Relevant Memory use protocol was not delivered'
-            assert "Respect the task's write scope" in text, 'Read-only task boundary was not delivered'
+            assert "Respect the task's read and write scope" in text, 'Task access boundary was not delivered'
+            assert 'these are Pi input commands, not shell tools' in text
+            assert 'The parent performs automatic maintenance when enabled' in text
+            assert 'Memory retrieval alone does not authorize configuration discovery or launching another agent' in text
+            assert 'those need separate task authorization' in text
             assert 'BODY_MUST_NOT_BE_INJECTED' not in text
             assert '(harness)' not in text and '(public)' not in text
             assert text.count('# Project memories') == (0 if i == 3 else 1)
@@ -123,12 +127,34 @@ def run(parent: Path) -> dict:
             assert not any('BODY_ON_DEMAND' in json.dumps(row) or 'BODY_MUST_NOT_BE_INJECTED' in json.dumps(row) for row in observed)
             read_cases.append({'mode': mode, 'fullBodyObservations': len(reads), 'revision': reads[0]['data']['revision'] if reads else None,
                                'wireFullBodyVerified': mode != 'partial', 'efficacyEstablished': False})
+        # Given explicit user authorization, configuration diagnosis remains
+        # possible. Retrieval guidance grants no such authority by itself.
+        configuration = agent / 'memory/settings.json'
+        before_configuration = configuration.read_bytes()
+        Provider.read_path = str(configuration); Provider.read_limit = 100
+        start = len(Provider.requests)
+        session = root / 'authorized-configuration.jsonl'
+        completed = run_pi(project, agent, session,
+            f'I authorize reading only this isolated fixture configuration: {configuration}. Read it, make no changes, then reply DONE.',
+            server.server_port)
+        (root / 'authorized-configuration.stdout.jsonl').write_text(completed.stdout)
+        (root / 'authorized-configuration.stderr').write_text(completed.stderr)
+        assert completed.returncode == 0, completed.stderr
+        assert len(Provider.requests) - start == 2
+        results = [message for message in Provider.requests[-1]['messages'] if message.get('role') == 'tool']
+        assert len(results) == 1 and results[0]['content'].encode() == before_configuration
+        assert configuration.read_bytes() == before_configuration
+        branch = [json.loads(line) for line in session.read_text().splitlines()]
+        assert not any(row.get('customType') == 'memory-use-observation'
+                       and row.get('data', {}).get('phase') == 'full-body-result-observed' for row in branch)
         Provider.read_path = None
         assert read_cases[0]['revision'] != read_cases[2]['revision']
         assert source_hashes() == initial_hashes, 'Sources changed during verification'
         report.update(status='passed', providerRequests=len(Provider.requests), unchangedReferenceCount=0, structuredDiscoveryPerPayload=1,
                       changedReferenceReplaced=True, deletedReferenceRemoved=True, freshSessionRestored=True,
-                      bodyInjected=False, nativeReadCases=read_cases, modelWireMetadata=[model_prompt_observation(payload) for payload in Provider.requests], evidence='actual Pi CLI with deterministic loopback provider; no model learning claim')
+                      bodyInjected=False, nativeReadCases=read_cases, authorizedConfigurationRead=True,
+                      maintenanceActorOnWire=True, modelScopeComplianceEstablished=False,
+                      modelWireMetadata=[model_prompt_observation(payload) for payload in Provider.requests], evidence='actual Pi CLI with deterministic loopback provider; no model learning claim')
         return report
     except BaseException as error:
         report['error'] = f'{type(error).__name__}: {error}'

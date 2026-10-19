@@ -1,6 +1,6 @@
 {
   "kind": "preflight-false-positive-verification",
-  "version": 4,
+  "version": 5,
   "recordedAt": "2026-10-19",
   "supersedesNothing": "tests/preflight-false-positive-measurement-2026-10-07.json is preserved unchanged as the pre-fix measurement. Version 1 of this file recorded a fix that an independent review then falsified; version 2 records the repaired state and the review outcome.",
   "method": "read-only offline run of the exported guards over every retained incremental-learning dossier under ~/.cache/pi-continual-learning/docker. No model, service or network call. Only counts, masked shapes and synthetic fixtures are stored.",
@@ -51,6 +51,18 @@
       "falsified6": "The text path used a scheme-shaped URL exclusion while the structured path used a bare `includes(\"://\")`, so the same secret was refused as text and allowed as a parsed member, and any secret could be hidden behind a fake scheme prefix.",
       "falsified5": "The artifact said the corpus gained eleven sensitive entries (twelve at the time) and CONTEXT.md still said no pattern class was widened.",
       "repair": "One shared URL rule now serves both detectors and the packed validator: a value is exempted as a URL only when it starts with a well-known scheme (http, https, ftp, ftps, ssh, git, git+ssh, svn, ws, wss, file) and carries no userinfo. The regex lookaheads were removed from both patterns so the rule is applied in one place. The artifact counts and the widening wording were corrected."
+    },
+    "reviewRoundTrip4": {
+      "review": "A fourth independent review (after a provider-timeout retry) falsified requirement 3 again and required one more repair.",
+      "falsified": "The URL exemption itself was the smuggling channel. All three implementations allowed credential-bearing URL values that the pre-change preflight refused, for example {\"password\": \"https://hooks.slack.com/services/T00000000/B00000000/XXXX\"}, {\"password\": \"https://Xq7bN2mP4kL9vR3s@host\"} and {\"password\": \"https://Xq7bN2mP4kL9vR3s\"}. Every scheme list and userinfo test was bypassed in review.",
+      "repair": "The URL exemption was removed for credential-named assignments in all three implementations. The documented placeholder rule is the only exemption, and it still covers code, env and expression references. A credential-named key whose value is a plain URL is now refused: that is the fail-closed direction and a deliberate false-positive cost, because no shape test can separate a token-bearing URL from an ordinary one.",
+      "artifactFix": "Corpus entries for credential-named URL values moved from benign to sensitive, the invariant text was corrected, and the round-2 repair note below is superseded: the URL exemption described there was removed in round 4."
+    },
+    "reviewRoundTrip5": {
+      "review": "A fifth independent review found no behavioral contradiction and no bypass of the current rules. It reported only stale comments left by superseded rounds.",
+      "finding": "Stale comments still described a URL exemption in extensions/consolidation-run.ts, scripts/validate-consolidate.py, CONTEXT.md and this artifact's round-2 note. Two bounded smuggles it found in prose text (a parenthesised value and a sample-prefixed value) are the pre-existing documented placeholder rule, are allowed by the pre-change code too, and are refused on the structured-key path.",
+      "repair": "The stale comments were corrected to state that a credential-named assignment has no URL exemption and that the placeholder rule is the only exemption.",
+      "verdict": "PAID RUN: MAY PROCEED - no regression versus the pre-change preflight and no remaining behavioral claim contradicted."
     }
   },
   "fix": {
@@ -60,9 +72,9 @@
       "the Jev preflight no longer applies the placeholder rule to a credential-named structured object key",
       "scripts/validate-consolidate.py mirrors both patterns and the placeholder rule",
       "the delimited pattern accepts either key form and both quote types with escapes, and the credential-key class accepts optional surrounding quotes (detection widening only)",
-      "credentialValueIsPlainUrl is the single URL rule for both detectors, both patterns and the packed validator"
+      "the URL exemption was removed: a credential-named key with an assigned value is refused, URL or not, and only the documented placeholder rule exempts"
     ],
-    "invariant": "No placeholder allowlist entry was added and no secret value class was loosened. The only widening is the plain pattern's credential-key class accepting optional surrounding quotes, which widens detection and never sensitivity, because every matched assignment still passes through the placeholder rule. A value is exempted as a URL only when it starts with a well-known scheme and carries no userinfo; a value that merely contains or starts with `://`, an unknown scheme, or a `scheme://user:pass@host` connection string is refused. A credential-named structured member or object key is strict in both detectors."
+    "invariant": "No placeholder allowlist entry was added and no secret value class was loosened. A credential-named assignment has no URL exemption in any of the three implementations, so a scheme-less value, an unknown scheme, a userinfo-bearing value, a webhook URL and an ordinary URL under such a key are all refused. The only widening is the plain pattern's credential-key class accepting optional surrounding quotes, which widens detection and never sensitivity, because every matched assignment still passes through the placeholder rule. A credential-named structured member or object key is strict in both detectors."
   },
   "reproduction": "bun /tmp/cl-preflight-verify.mjs /tmp/dossiers-all.txt  (probe: read-only walk of every taskSlice entry through containsSensitiveMemoryMaterial; /tmp/dossiers-all.txt is the find output over ~/.cache/pi-continual-learning/docker)",
   "afterFix": {
@@ -76,10 +88,10 @@
       "entries": 1155,
       "trippingEntries": 0
     },
-    "regression": "tests/test_jev_learning.py::test_documentation_placeholders_in_text_are_allowed_while_quoted_real_values_refuse covers the placeholder positives, the punctuation/quote-type/escape delimiters, the no-scheme, userinfo-URL and unknown-scheme secrets, mid-string slashes, both URL key forms and the strict structured member",
-    "corpusPin": "tests/sensitive_memory_corpus.json gained sixteen sensitive and seven benign entries (15->31 sensitive, 19->26 benign); tests/test_learning_controls.py pins the TypeScript guard and tests/test_validate_consolidate.py pins the Python validator against the same corpus, which agrees on every entry",
+    "regression": "tests/test_jev_learning.py::test_documentation_placeholders_in_text_are_allowed_while_quoted_real_values_refuse covers the placeholder positives, the punctuation/quote/escape delimiters, the scheme-less, userinfo, webhook and unknown-scheme secrets, mid-string slashes, URL values under a credential key in both key forms, and the strict structured member",
+    "corpusPin": "tests/sensitive_memory_corpus.json is now 37 sensitive and 23 benign (was 31 and 26); URL-under-credential-key entries moved to sensitive. tests/test_learning_controls.py pins the TypeScript guard and tests/test_validate_consolidate.py pins the Python validator against the same corpus, which agrees on every entry",
     "targetedSuite": "python3 -m pytest packages/continual-learning/tests/test_jev_learning.py packages/continual-learning/tests/test_jev_memory_pair.py packages/continual-learning/tests/test_learning_controls.py packages/continual-learning/tests/test_validate_consolidate.py -q => 138 passed before the round-2 repairs; the same selection passes after them"
   },
   "sampleLimit": "Zero trips over 169 dossiers and 4677 entries does not give a false-positive rate, and it cannot prove that no other placeholder shape trips either detector. The retained dossiers are one public-project corpus. No live cohort was re-run for this verification.",
-  "boundary": "This proves the two detectors and the packed validator judge a documented text placeholder identically, refuse the tested realistic values including scheme-less and credential-bearing URL shapes, and exempt a real URL. It does not establish a false-positive rate, does not cover every placeholder shape, and does not replace the paid cohort."
+  "boundary": "This proves the two detectors and the packed validator judge a documented text placeholder identically and refuse every tested realistic value, including URL-shaped and scheme-less credentials, at the cost of also refusing an ordinary URL that appears under a credential-named key. It does not establish a false-positive rate, does not cover every placeholder shape, and does not replace the paid cohort."
 }

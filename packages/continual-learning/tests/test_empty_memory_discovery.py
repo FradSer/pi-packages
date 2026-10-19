@@ -27,6 +27,13 @@ def test_empty_memory_discovery_is_explicit_with_or_without_an_empty_index(tmp_p
         assert 'If no established entries are available' in ' '.join(result[state]['guidance'])
         assert 'use the read tool to inspect relevant indexed Memory entries' in result[state]['sections']['project_memory_protocol']
         assert 'do not search guessed or alternative Memory locations' in ' '.join(result[state]['guidance'])
+        protocol = result[state]['sections']['project_memory_protocol']
+        assert "Respect the task's read and write scope" in protocol
+        assert 'these are Pi input commands, not shell tools' in protocol
+        assert 'The parent performs automatic maintenance when enabled' in protocol
+        assert 'Memory retrieval alone does not authorize configuration discovery or launching another agent' in protocol
+        assert 'those need separate task authorization' in protocol
+        assert 'Maintain knowledge through /memory or /consolidate.' not in protocol
     assert result['missing'] == result['emptyIndex']
 
 
@@ -47,4 +54,5 @@ def test_automatic_learning_owns_durable_writes_and_remember_does_not_expand_tas
     assert '"remember" does not authorize writing Memory, Harness, AGENTS.md' in guidance
     assert 'PI.md or agent configuration, or probing enforcement' in guidance
     assert 'explicit authoring requests take precedence' in guidance
-    assert "Respect the task's write scope" in result['project_memory_protocol']
+    assert "Respect the task's read and write scope" in result['project_memory_protocol']
+    assert 'these are Pi input commands, not shell tools' in result['project_memory_protocol']

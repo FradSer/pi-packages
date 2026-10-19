@@ -132,7 +132,13 @@ def validate_receipt_usage_totals(receipt: dict) -> None:
     usage_rows = [a['usage'] for a in receipt.get('attempts', []) if a.get('usage') is not None]
     if any(not valid_learning_usage(row) for row in usage_rows):
         raise ValueError('Invalid receipt attempt usage')
-    expected = {key: sum(row[key] for row in usage_rows) for key in receipt['totals']}
+    # Match totalLearningUsage's ordered JavaScript Number additions exactly.
+    # Python's compensated sum can differ by one ULP from a genuine receipt.
+    # Keep exact equality below; do not admit altered totals with a tolerance.
+    expected = {key: 0.0 for key in receipt['totals']}
+    for row in usage_rows:
+        for key in expected:
+            expected[key] += float(row[key])
     if expected != receipt['totals']:
         raise ValueError('Receipt totals do not match known attempt usage')
 

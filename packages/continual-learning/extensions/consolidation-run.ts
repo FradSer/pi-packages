@@ -1515,29 +1515,24 @@ const SENSITIVE_MEMORY_PATTERNS: readonly RegExp[] = [
 ];
 
 /** An assigned value must be long enough to be a credential: prose ("token is
- * short-lived") assigns nothing, and URLs are not secrets. */
+ * short-lived") assigns nothing. A credential-named assignment has no URL
+ * exemption: a URL under such a key can itself be the credential. */
 const ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)["']?)\s*(?::|=)\s*(?<value>[^\s,;]{8,})/gi;
 
 /** A delimited value hides punctuation the plain pattern stops at, so a quoted
  * value under either a quoted or an unquoted credential key is matched here
  * with a quote-aware value class and judged by the same placeholder rule. The
- * value admits the other quote type and backslash escapes, and excludes only a
- * real URL scheme, so a secret containing `,`, `;`, `?`, `'` or `//` cannot stop
- * matching early and be allowed. */
+ * value admits the other quote type and backslash escapes, so a secret containing
+ * `,`, `;`, `?`, `'` or `//` cannot stop matching early and be allowed. There is
+ * no URL exemption; the placeholder rule is the only exemption. */
 const QUOTED_ASSIGNED_CREDENTIAL_PATTERN = /(?<![A-Za-z])(?<key>["']?(?:api[_ -]?(?:key|token|secret)|access[_ -]?token|auth(?:orization)?|bearer|client[_ -]?secret|credential|password|passwd|secret|token)["']?)\s*(?::|=)\s*(?<value>"(?:[^"\\\r\n]|\\.){7,}"|'(?:[^'\\\r\n]|\\.){7,}')/gi;
 
-/** Ordinary URL schemes are not credentials. The list is deliberately a set of
- * well-known schemes rather than "anything containing `://`", so a secret that
- * merely starts with or contains `://` is still refused. A URL that carries
- * userinfo (`scheme://user:pass@host`) is a credential-bearing connection string
- * and is refused as well. Shared by both detectors and mirrored in the packed
- * validator. */
-const PLAIN_URL_SCHEMES = /^(?:https?|ftps?|ssh|git|git\+ssh|svn|ws|wss|file):\/\//i;
-export function credentialValueIsPlainUrl(assigned: string): boolean {
-  const text = assigned.trim().replace(/^["'`]+|["'`]+$/g, "");
-  if (!PLAIN_URL_SCHEMES.test(text)) return false;
-  return !/^[^@]*:[^/@\s]*@/.test(text.slice(text.indexOf("://") + 3));
-}
+/** A credential-named key with an assigned value has no URL exemption. A URL
+ * under such a key can itself be the credential (a webhook, a connection string,
+ * a token-bearing link), and no shape test separates that from an ordinary URL:
+ * every scheme list and userinfo test was bypassed in review. The documented
+ * placeholder rule stays the only exemption, and it covers code, env and
+ * expression references. */
 
 /** A credential-named structured key with an assigned value is refused without
  * the documentation-placeholder exemption that applies to prose text. A parsed
@@ -1547,7 +1542,7 @@ export function credentialValueIsPlainUrl(assigned: string): boolean {
 const CREDENTIAL_KEY_PATTERN = /^(?:api(?:key|token|secret)|accesstoken|auth(?:orization)?|bearer|clientsecret|credentials?|password|passwd|secret|token)$/i;
 export function credentialNamedKeyAssignsValue(key: string, assigned: string): boolean {
   const text = assigned.trim();
-  return text.length >= 8 && !credentialValueIsPlainUrl(text) && CREDENTIAL_KEY_PATTERN.test(key.replace(/[_ -]/g, ""));
+  return text.length >= 8 && CREDENTIAL_KEY_PATTERN.test(key.replace(/[_ -]/g, ""));
 }
 
 /** Documentation-style placeholders, so a tracked source sample or doc snippet
@@ -1605,13 +1600,10 @@ function containsAssignedCredentialMaterial(value: string, depth = 0): boolean {
       if (depth < MAX_CREDENTIAL_LITERAL_DEPTH && containsAssignedCredentialMaterial(snippetOf(value, start), depth + 1)) return true;
       continue;
     }
-    if (credentialValueIsPlainUrl(assigned)) continue;
     if (!placeholderCredentialValue(match.groups?.key ?? "", assigned)) return true;
   }
   for (const match of value.matchAll(QUOTED_ASSIGNED_CREDENTIAL_PATTERN)) {
-    const assigned = match.groups?.value ?? "";
-    if (credentialValueIsPlainUrl(assigned)) continue;
-    if (!placeholderCredentialValue(match.groups?.key ?? "", assigned)) return true;
+    if (!placeholderCredentialValue(match.groups?.key ?? "", match.groups?.value ?? "")) return true;
   }
   return false;
 }

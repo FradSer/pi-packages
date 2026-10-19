@@ -635,4 +635,6 @@ Distinguish complete raw Memory snapshots from truncated metadata. Record hash-o
 
 Let retained Memory corrections add original-source evidence without retyping unchanged knowledge. Copy exact parent-frozen Markdown only for an omitted body under complete identity and source bindings. Reject empty bodies, changed repair context and unchanged text that requires correction. Preserve complete semantic review and failed learning outcomes.
 
-Clarify the outer and inner return annotations of a function that returns a callable. Keep the exact observed declaration, declared members and invocation result distinct. Retain the rejected real proposal and all source, consistency and correction checks.
+Clarify the outer and inner return annotations of a function that returns a callable. Keep the exact observed declaration, declared members and invocation result distinct. A function-typed input parameter keeps its callable type separate from its call-signature return annotation. Retain the rejected real proposals and all source, consistency and correction checks.
+
+Name the Memory maintenance actors in the fixed retrieval protocol. The user enters maintenance commands; the parent owns automatic maintenance. Indexed reads do not authorize configuration discovery or agent launches. Keep separately authorized diagnostics possible, and retain all privacy, source and mutation checks.

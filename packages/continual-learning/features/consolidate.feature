@@ -220,7 +220,7 @@ Feature: Memory management with automatic learning and manual consolidation
     When the Memory guard and the Jev preflight judge the same text
     Then both treat that placeholder as non-sensitive
     And a realistic assigned value, a provider key, or a delimited value containing punctuation, the other quote type or an escape is refused by both
-    And a quoted URL is not a credential in either detector
+    And a credential-named assignment has no URL exemption, so a webhook, a token-bearing link or a connection string under such a key is refused too
     And a credential-named structured member or object key is strict in both detectors
     And no placeholder allowlist entry is added and no secret value class is loosened
 

@@ -5,7 +5,6 @@
     "- Keep `contents: write`, `pull-requests: write`, and `id-token: write` in the release job.",
     "- Auth is delegated to the gateway; never store secrets in memory.",
     "The access token is stored in the system keychain and rotated quarterly.",
-    "Auth: https://login.example.com/oauth",
     "# Cross-host skill pool: `~/.agents/skills/`",
     "Use `git-agent` with `--no-stage`; the credential helper handles sign-in.",
     "Token refresh is handled by the provider SDK.",
@@ -23,9 +22,7 @@
     "passwd: <password>",
     "password: \"<password>\"",
     "apiKey: process.env.API_KEY",
-    "secret: a ? b : c",
-    "{\"authorization\": \"https://login.example.com/oauth\"}",
-    "Auth: \"https://login.example.com/oauth\""
+    "secret: a ? b : c"
   ],
   "sensitive": [
     "token: sk-test-secret",
@@ -58,6 +55,12 @@
     "{\"password\": \"://Xq7bN2mP4kL9vR3s\"}",
     "{\"password\": \"mongodb+srv://user:Xq7bN2mP4kL9vR3s@h/db\"}",
     "{\"password\": \"Xq7bN2mP4kL9vR3s://x\"}",
-    "token: abc//defgh"
+    "token: abc//defgh",
+    "Auth: https://login.example.com/oauth",
+    "Auth: \"https://login.example.com/oauth\"",
+    "{\"authorization\": \"https://login.example.com/oauth\"}",
+    "{\"password\": \"https://Xq7bN2mP4kL9vR3s\"}",
+    "{\"password\": \"https://Xq7bN2mP4kL9vR3s@host\"}",
+    "{\"password\": \"https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX\"}"
   ]
 }

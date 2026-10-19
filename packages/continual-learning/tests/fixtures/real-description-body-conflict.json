@@ -138,5 +138,96 @@
       ]
     },
     "ambiguousGenerationRule": "A return-type annotation describes the invocation result, not the callable itself."
+  },
+  "inputParameterRoleCase": {
+    "provenance": {
+      "cohort": "/Users/FradSer/.codex/visualizations/2026/10/08/01a11d01-ec97-7620-923c-0ce430ba8fb3/continuous-learning-recovery-20261011/continuous-reviewed-deepseek-pi13-failure-label-state-v96/cohort/20261019T060522Z-ee56888cbf4a",
+      "runId": "run_mveva25h_b2f773dc7066f042",
+      "snapshotSha256": "9ddf75137c6be47ec029c639e2367c2af9199ecc5f84ec6612392e4c1c67c85f",
+      "originalPlanSha256": "f38afeae70c6957f9c596872556ef0cfe69040b871aea6e91c9c222bfb38e297",
+      "repairPlanSha256": "c7a0025e6b17a6fc45cd3e373d8040a0a66eb693f8f667b3da9077ede48581b1",
+      "sourceSha256": "2a85759f61460c418604d7c41fb5c3cf54074dd1ed2e92663f99ebe8f94cbad0",
+      "independentReviewSha256": "8f2c313302f9febc076ee9bcd21eeabbbe6ff28d87e00db7bcb1db91d190cea6"
+    },
+    "sourceFile": "index.d.ts",
+    "sourceText": "export type LimitFunction = {\n\t/**\n\tThe number of promises that are currently running.\n\t*/\n\treadonly activeCount: number;\n\n\t/**\n\tThe number of promises that are waiting to run (i.e. their internal `fn` was not called yet).\n\t*/\n\treadonly pendingCount: number;\n\n\t/**\n\tGet or set the concurrency limit.\n\t*/\n\tconcurrency: number;\n\n\t/**\n\tDiscard pending promises that are waiting to run.\n\n\tThis might be useful if you want to tear down the queue at the end of your program's lifecycle or discard any function calls referencing an intermediary state of your app.\n\n\tNote: This does not cancel promises that are already running.\n\n\tWhen `rejectOnClear` is enabled, pending promises are rejected with an `AbortError`.\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\tclearQueue: () => void;\n\n\t/**\n\tReturns a promise that resolves when the limiter becomes idle.\n\n\tThe limiter is idle when both running/reserved slots and the waiting queue are empty.\n\tCalling `onIdle()` on an already idle limiter resolves normally.\n\n\tWhen multiple `onIdle()` calls are pending, all of them resolve once the limiter becomes idle.\n\n\tNote: If `clearQueue()` is called with `rejectOnClear: false`, the discarded promises remain unresolved, but any pending `onIdle()` calls still resolve once no jobs are active.\n\t*/\n\tonIdle: () => Promise<void>;\n\n\t/**\n\tProcess an iterable of inputs with limited concurrency.\n\n\tThe mapper function receives the item value and its index.\n\n\tIf the iterable throws during iteration, the returned promise rejects with that error. Mapper functions that were already scheduled still run, and their results are discarded.\n\n\tThis is a convenience function for processing inputs that arrive in batches. For more complex use cases, see [p-map](https://github.com/sindresorhus/p-map).\n\n\t@param iterable - An iterable containing an argument for the given function.\n\t@param mapperFunction - Promise-returning/async function.\n\t@returns A promise equivalent to `Promise.all(Array.from(iterable, (item, index) => limit(mapperFunction, item, index)))`.\n\t*/\n\tmap: <Input, ReturnType> (\n\t\titerable: Iterable<Input>,\n\t\tmapperFunction: (input: Input, index: number) => PromiseLike<ReturnType> | ReturnType\n\t) => Promise<ReturnType[]>;\n\n\t/**\n\t@param fn - Promise-returning/async function.\n\t@param arguments - Any arguments to pass through to `fn`. Support for passing arguments on to the `fn` is provided in order to be able to avoid creating unnecessary closures. You probably don't need this optimization unless you're pushing a *lot* of functions.\n\n\tWarning: Avoid calling the same `limit` function inside a function that is already limited by it. This can create a deadlock where inner tasks never run. Use a separate limiter for inner tasks.\n\n\t@returns The promise returned by calling `fn(...arguments)`.\n\t*/\n\t<Arguments extends unknown[], ReturnType>(\n\t\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType> | ReturnType,\n\t\t...arguments_: Arguments\n\t): Promise<ReturnType>;\n};\n\n/**\nRun multiple promise-returning & async functions with limited concurrency.\n\n@param concurrency - Concurrency limit. Minimum: `1`. You can pass a number or an options object with a `concurrency` property.\n@returns A `limit` function.\n\n@example\n```\nimport pLimit from 'p-limit';\n\nconst limit = pLimit(1);\n\nconst input = [\n\tlimit(() => fetchSomething('foo')),\n\tlimit(() => fetchSomething('bar')),\n\tlimit(() => doSomething())\n];\n\n// Only one promise is run at once\nconst result = await Promise.all(input);\nconsole.log(result);\n```\n\n@example\n```\nimport pLimit from 'p-limit';\n\nconst limit = pLimit({concurrency: 1});\n```\n*/\nexport default function pLimit(concurrency: number | Options): LimitFunction;\n\nexport type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};\n\n/**\nReturns a function with limited concurrency.\n\nThe returned function manages its own concurrent executions, allowing you to call it multiple times without exceeding the specified concurrency limit.\n\nIdeal for scenarios where you need to control the number of simultaneous executions of a single function, rather than managing concurrency across multiple functions.\n\n@param function_ - Promise-returning/async function.\n@return Function with limited concurrency.\n\n@example\n```\nimport {limitFunction} from 'p-limit';\n\nconst limitedFunction = limitFunction(async () => {\n\treturn doSomething();\n}, {concurrency: 1});\n\nconst input = Array.from({length: 10}, limitedFunction);\n\n// Only one promise is run at once.\nawait Promise.all(input);\n```\n*/\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n",
+    "original": {
+      "name": "plimit_limitfunction_type_contract.md",
+      "kind": "project",
+      "classification": "safe",
+      "content": "---\ndescription: The declared limitFunction input is a function returning PromiseLike<ReturnType>\ntype: project\n---\n\nIn the inspected `index.d.ts` (p-limit), the public declaration is:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n```\n\n`options` is the required `Options` type: `{readonly concurrency: number; readonly rejectOnClear?: boolean}`. The outer function's return annotation describes the returned callable: its own call signature is `(...arguments_: Arguments) => Promise<ReturnType>` (invoking the returned callable yields `Promise<ReturnType>`), intersected with `Pick<LimitFunction, 'clearQueue' | 'onIdle'>`, i.e. the members `clearQueue: () => void` and `onIdle: () => Promise<void>`.\n\nThese are declared, type-level contracts from `index.d.ts`. The input parameter is declared `PromiseLike<ReturnType>`; that is a structural input contract and does not exclude a compatible `Promise` return. The declaration alone does not establish runtime behavior.\n\n**Why:** The task asked to remember the currently inspected `limitFunction` public input/output type contract, grounded in the actual declarations.\n\n**How to apply:** Use this declared contract when reasoning about or maintaining `limitFunction`'s public types.\n",
+      "evidence": [
+        {
+          "index": 7,
+          "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "export type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "\tclearQueue: () => void;",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "\tonIdle: () => Promise<void>;",
+          "role": "toolResult"
+        },
+        {
+          "index": 13,
+          "quote": "expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));",
+          "role": "toolResult"
+        },
+        {
+          "index": 0,
+          "quote": "Read index.js, public declarations, observed-idle-failure.mjs and selected existing tests. Do not edit files. Run exactly node observed-idle-failure.mjs once as a standalone Bash command, then run pnpm test once. The public reproducer is expected to fail; report its actual outcome separately from the existing checks. Diagnose the observed conditions; do not infer its cause from a source comment or invent a repair. Remember useful knowledge about this unresolved failure, its current source scope and necessary limits for future maintenance. Also remember the currently inspected limitFunction public input/output type contract, grounded in the actual declarations. Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.",
+          "role": "user"
+        }
+      ]
+    },
+    "repair": {
+      "name": "plimit_limitfunction_type_contract.md",
+      "kind": "project",
+      "classification": "safe",
+      "content": "---\ndescription: The declared limitFunction input is a function returning PromiseLike<ReturnType>\ntype: project\n---\n\nIn the inspected `index.d.ts` (p-limit), the public declaration is:\n\n```ts\nexport function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;\n```\n\n`options` is the required `Options` type: `{readonly concurrency: number; readonly rejectOnClear?: boolean}`. The outer function's return annotation describes the returned callable: its own call signature is `(...arguments_: Arguments) => Promise<ReturnType>` (invoking the returned callable yields `Promise<ReturnType>`), intersected with the declared members `Pick<LimitFunction, 'clearQueue' | 'onIdle'>` - `clearQueue: () => void` and `onIdle: () => Promise<void>`.\n\nThe input parameter is declared `PromiseLike<ReturnType>`, a structural input type; a compatible `Promise` is not excluded at the type level. These are declared, type-level contracts from `index.d.ts`; the declaration alone does not establish runtime behavior.\n\n**Why:** The task asked to remember the currently inspected `limitFunction` public input/output type contract, grounded in the actual declarations.\n\n**How to apply:** Use this declared contract when reasoning about or maintaining `limitFunction`'s public types.",
+      "evidence": [
+        {
+          "index": 7,
+          "quote": "export function limitFunction<Arguments extends unknown[], ReturnType>(\n\tfunction_: (...arguments_: Arguments) => PromiseLike<ReturnType>,\n\toptions: Options\n): ((...arguments_: Arguments) => Promise<ReturnType>) & Pick<LimitFunction, 'clearQueue' | 'onIdle'>;",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "export type Options = {\n\t/**\n\tConcurrency limit.\n\n\tMinimum: `1`.\n\t*/\n\treadonly concurrency: number;\n\n\t/**\n\tReject pending promises with an `AbortError` when `clearQueue()` is called.\n\n\tDefault: `false`.\n\n\tThis is recommended if you await the returned promises, for example with `Promise.all`, so pending tasks do not remain unresolved after `clearQueue()`.\n\t*/\n\treadonly rejectOnClear?: boolean;\n};",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "\tclearQueue: () => void;",
+          "role": "toolResult"
+        },
+        {
+          "index": 7,
+          "quote": "\tonIdle: () => Promise<void>;",
+          "role": "toolResult"
+        },
+        {
+          "index": 13,
+          "quote": "expectError(limitFunction((_a: string) => 'x', {concurrency: 1}));",
+          "role": "toolResult"
+        },
+        {
+          "index": 0,
+          "quote": "Read index.js, public declarations, observed-idle-failure.mjs and selected existing tests. Do not edit files. Run exactly node observed-idle-failure.mjs once as a standalone Bash command, then run pnpm test once. The public reproducer is expected to fail; report its actual outcome separately from the existing checks. Diagnose the observed conditions; do not infer its cause from a source comment or invent a repair. Remember useful knowledge about this unresolved failure, its current source scope and necessary limits for future maintenance. Also remember the currently inspected limitFunction public input/output type contract, grounded in the actual declarations. Permanent project constraint: Bash commands whose first executable is npm must be blocked; use pnpm instead. This is a durable rule for subsequent tasks, not a one-turn preference.",
+          "role": "user"
+        }
+      ]
+    },
+    "rejectedParaphrase": "The input parameter is declared `PromiseLike<ReturnType>`",
+    "scope": "Exact rejected actual drafts and complete declaration file. This offline role regression grants no mutation authority and does not reinterpret semantic holds or establish learning benefit."
   }
 }

@@ -1155,6 +1155,9 @@ Feature: Learn, use, correct and recover across real tasks
     Then the trusted protocol requests reading those relevant regular entry files first
     And Memory remains fallible reference data checked against current evidence
     And current user instructions win without injected bodies or forced adoption
+    And indexed retrieval does not authorize configuration discovery or another agent
+    And maintenance commands belong to user input while automatic maintenance belongs to the parent
+    And separately authorized configuration diagnostics remain possible
 
   Scenario: Source excerpt discovery preserves literal retrieval cues
     Given the parent verified the exact cited excerpt against current source bytes
@@ -1183,6 +1186,7 @@ Feature: Learn, use, correct and recover across real tasks
     Then a shared source-level precision contract precedes the frozen evidence
     And distinguish an outer function return annotation from the returned callable signature
     And the outer annotation describes the returned callable while its inner annotation describes its invocation result
+    And a function-typed input parameter keeps its callable type separate from its call-signature return annotation
     And ambiguous paraphrases yield the exact attributed declaration rather than additional claims
     And no runtime verification, citation support or semantic acceptance is inferred
 
@@ -1757,3 +1761,5 @@ Feature: Learn, use, correct and recover across real tasks
     Then it counts the receipt cost, tokens and operations once
     And it preserves failed attempts and unknown usage
     And duplicate identities with different evidence stop accounting
+    And exact totals use the parent's ordered JavaScript Number additions
+    And a one-ULP change to a reported total still stops accounting

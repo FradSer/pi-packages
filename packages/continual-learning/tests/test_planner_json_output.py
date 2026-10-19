@@ -66,6 +66,28 @@ def test_incremental_knowledge_contract_precedes_untrusted_dossier() -> None:
     assert roles['ambiguousRule'] not in value['contract']
     assert "The outer function's return annotation describes what that function returns" in value['contract']
     assert "The return annotation inside that callable's signature describes what invoking it returns" in value['contract']
+    # Given V96's real callback-parameter error, parse the complete actual
+    # declaration. Its parameter owns a function type; that function owns the
+    # nested return annotation. This proves syntax roles, not runtime identity.
+    inputs = isolated_run_bun(r'''
+      import fs from 'node:fs';
+      import {createHash} from 'node:crypto';
+      import {parse} from '@babel/parser';
+      const fixture=JSON.parse(fs.readFileSync('packages/continual-learning/tests/fixtures/real-description-body-conflict.json','utf8')).inputParameterRoleCase;
+      const ast=parse(fixture.sourceText,{sourceType:'module',plugins:['typescript']});
+      const decl=ast.program.body.find(node=>node.type==='ExportNamedDeclaration' && node.declaration?.id?.name==='limitFunction').declaration;
+      const parameterType=decl.params[0].typeAnnotation.typeAnnotation;
+      console.log(JSON.stringify({sourceMatches:createHash('sha256').update(fixture.sourceText).digest('hex')===fixture.provenance.sourceSha256,
+        parameterType:parameterType.type,callbackReturn:parameterType.typeAnnotation.typeAnnotation.typeName.name,
+        originalWrongRole:fixture.original.content.includes(fixture.rejectedParaphrase),
+        repairedWrongRole:fixture.repair.content.includes(fixture.rejectedParaphrase)}));
+    ''')
+    assert inputs == {'sourceMatches': True, 'parameterType': 'TSFunctionType',
+                      'callbackReturn': 'PromiseLike', 'originalWrongRole': True,
+                      'repairedWrongRole': True}
+    assert "A function-typed input parameter has a callable type" in value['contract']
+    assert "the return annotation inside that parameter's call signature describes its invocation result" in value['contract']
+    assert "Do not replace the parameter's own type with its callback return annotation" in value['contract']
 
 
 def test_known_json_capable_no_tool_planners_request_structured_output() -> None:
