@@ -53,3 +53,5 @@ scopes:
       description: all core and extension packages in packages/; does not cover root scripts or docs
     - name: scripts
       description: build, publish, and utility automation scripts in scripts/; does not cover source packages
+    - name: examples
+      description: sample scripts and usage implementations in examples/; does not cover package source code

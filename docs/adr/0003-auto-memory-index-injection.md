@@ -54,3 +54,24 @@ branching or compaction restores a missing current reference. Empty discovery
 removes obsolete references. This avoids redundant session entries and preserves
 the unchanged prefix. Actual body reads, correction, and downstream benefit still
 require separate evidence; listing metadata does not establish Memory use.
+
+## 2026-10-19 structured sections and maintenance authority
+
+This supersedes the retained-message placement above. The current implementation
+sets separate named run-start sections for the fixed retrieval protocol,
+escaped untrusted discovery metadata, and enabled automatic-learning guidance.
+The context hook removes legacy reference messages and adds none. Discovery
+still contains only deduplicated filenames, descriptions and required roots or
+bounded discovery pointers. Bodies remain on demand. A named section does not
+make its untrusted metadata an instruction or prove model use.
+
+The fixed protocol now names the actors. `/memory` and `/consolidate` are
+user-entered Pi commands, not shell tools. The parent performs automatic
+maintenance when enabled. Indexed retrieval alone grants no authority to search
+agent configuration or launch another agent. Separate task authorization can
+still permit configuration diagnosis or agent work. Both reads and writes must
+respect the task scope. Disabled automatic learning still permits indexed reads.
+
+This clarifies instruction authority; it is not a filesystem or process sandbox.
+Native delivery, authorized reads and user command tests do not prove model
+compliance, correct knowledge or later task benefit.
