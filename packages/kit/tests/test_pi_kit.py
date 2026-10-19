@@ -550,7 +550,7 @@ def test_pi_cli_resolver_rejects_unrelated_process_entry() -> None:
         """
     )
     assert result["unrelated"] is False
-    assert result["cli"]["args"][-1].endswith("dist/cli.js")
+    assert result["cli"]["args"][-1].endswith("dist/bundle/cli.js")
 
 
 def test_shared_termination_escalates_after_close_grace_period() -> None:

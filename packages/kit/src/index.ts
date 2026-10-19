@@ -1589,7 +1589,7 @@ export function spawnPiChild(command: string, args: string[], options: SpawnOpti
  * Resolution order:
  *   1. `process.argv[1]` — the current Pi process entry, verified against the
  *      exact coding-agent package manifest.
- *   2. The installed coding-agent package's `dist/cli.js`.
+ *   2. The installed coding-agent package's declared `bin.pi` entry.
  *   3. A `pi` binary on PATH (best effort).
  */
 export function resolvePiCli(): PiCliResolution {
@@ -1626,9 +1626,24 @@ function isPiPackageScript(filePath: string): boolean {
 function resolveInstalledPiCli(): PiCliResolution | undefined {
   try {
     const entry = fileURLToPath(import.meta.resolve("@earendil-works/pi-coding-agent"));
-    const packageRoot = path.dirname(path.dirname(entry));
-    const cliPath = path.join(packageRoot, "dist", "cli.js");
-    if (fs.existsSync(cliPath)) return { command: process.execPath, args: [cliPath] };
+    let packageRoot = path.dirname(entry);
+    while (packageRoot !== path.dirname(packageRoot)) {
+      const manifestPath = path.join(packageRoot, "package.json");
+      if (fs.existsSync(manifestPath)) {
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+        if (manifest.name !== "@earendil-works/pi-coding-agent") return undefined;
+        const bin = typeof manifest.bin === "string" ? manifest.bin : manifest.bin?.pi;
+        if (typeof bin !== "string") return undefined;
+        packageRoot = fs.realpathSync(packageRoot);
+        const cliPath = fs.realpathSync(path.resolve(packageRoot, bin));
+        const relative = path.relative(packageRoot, cliPath);
+        if (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative) && fs.statSync(cliPath).isFile()) {
+          return {command: process.execPath, args: [cliPath]};
+        }
+        return undefined;
+      }
+      packageRoot = path.dirname(packageRoot);
+    }
   } catch {
     // Package resolution is best-effort; fall through to PATH.
   }
