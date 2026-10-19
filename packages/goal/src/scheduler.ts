@@ -133,8 +133,15 @@ export class GoalScheduler {
    * outage becomes a retry storm. `changedState` says whether the run changed the
    * workspace: a run that only explored does not earn another one forever, so
    * consecutive runs without a change stop the loop.
+   *
+   * `userInitiated` says the user's own words started this run — a typed prompt
+   * or a `/goal <text>` request the command delivered. Their turn is an
+   * opportunity, not empty autonomous work: a model that only recorded the
+   * objective in it earns exactly one real run instead of stopping the goal
+   * before anything ran. The run after it is judged normally, so one unproductive
+   * turn cannot hold the loop open.
    */
-  settled(goal: GoalRecord | undefined, settings: GoalSettings, successful: boolean, performedWork = true, changedState = true): void {
+  settled(goal: GoalRecord | undefined, settings: GoalSettings, successful: boolean, performedWork = true, changedState = true, userInitiated = false): void {
     this.inRun = false;
     this.lastSettings = settings;
     if (this.denied || !goal || goal.status !== "active" || !goal.autoContinue) return;
@@ -143,7 +150,7 @@ export class GoalScheduler {
       this.pause(goal, reason, "agent", { requireRevision: goal.revision });
       return;
     }
-    if (!successful || !performedWork) {
+    if (!successful || (!performedWork && !userInitiated)) {
       const reason = successful
         ? "No effective work was recorded. Use /goal resume to continue."
         : "Execution was interrupted or failed. Use /goal resume to continue.";

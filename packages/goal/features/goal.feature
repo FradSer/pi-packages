@@ -1130,6 +1130,14 @@ Feature: Simplified thread Goal lifecycle
     Then the predicate assert.equal(f.core.goal?.autoContinue,true,"a user turn does not advance the window") holds for every observed invocation
     And the predicate assert.equal(f.core.goal?.scheduler?.used,4,"every user turn kept the loop") holds for every observed invocation
 
+  Scenario: Simplified thread Goal lifecycle: Given a /goal request run that only creates the goal When it settles Then pursue instead of waiting
+    Given the isolated fixtures for Given a /goal request run that only creates the goal When it settles Then pursue instead of waiting
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.equal(f.core.goal?.autoContinue,true,"the request run does not wait for a manual resume") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.pauseReason,undefined,"no effective-work stop is written for the user's own request") holds for every observed invocation
+    And the predicate assert.equal(f.core.goal?.scheduler?.used,1,"the request run authorizes exactly one continuation") holds for every observed invocation
+    And the predicate assert.equal(continuation?.continue,true,"the boundary carries that continuation into the run") holds for every observed invocation
+
   Scenario: Simplified thread Goal lifecycle: Given a pause command When received Then abort current work and enforce the tool stop
     Given the isolated fixtures for Given a pause command When received Then abort current work and enforce the tool stop
     When the real Goal modules execute this behavior case
@@ -1326,6 +1334,14 @@ Feature: Simplified thread Goal lifecycle
     And the predicate assert.doesNotMatch(rendered, /\[goal\] Goal/) holds for every observed invocation
     And the predicate assert.equal(result.details.subject, "Goal updated") holds for every observed invocation
     And the predicate assert.equal(result.content[0].text, "Goal updated\n\nFull report.") holds for every observed invocation
+
+  Scenario: Simplified thread Goal lifecycle: Given a created goal When its row renders Then the objective is the whole body
+    Given the isolated fixtures for Given a created goal When its row renders Then the objective is the whole body
+    When the real Goal modules execute this behavior case
+    Then the predicate assert.match(rendered,/\[goal\] started/) holds for every observed invocation
+    And the predicate assert.match(rendered,/Export CSV\./) holds for every observed invocation
+    And the predicate assert.doesNotMatch(rendered,/Tokens used/,"usage is a report, not a line on the transcript row") holds for every observed invocation
+    And the predicate assert.equal(result.details.summary,"Objective:\nExport CSV.","the row body is the objective alone") holds for every observed invocation
 
   Scenario: Simplified thread Goal lifecycle: Given successful transitions When delivering outcomes Then each has one visible result
     Given the isolated fixtures for Given successful transitions When delivering outcomes Then each has one visible result

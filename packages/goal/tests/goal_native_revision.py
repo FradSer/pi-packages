@@ -3,10 +3,10 @@
 Run: uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py
 
 Real Pi CLI, real Goal extension, deterministic scripted provider, disposable project and agent
-directory. The probe creates one goal, lets it stop for lack of work, then sends one /goal request
-with a goal already in place. It asserts what the runtime owes the user: the accepted request lands
-as a revision of that one goal, the earlier requirement survives inside the objective, the goal
-pursues again, and no archive or ledger appears.
+directory. The probe creates one goal, lets three runs that change nothing stop it, then sends one
+/goal request with a goal already in place. It asserts what the runtime owes the user: the accepted
+request lands as a revision of that one goal, the earlier requirement survives inside the objective,
+the goal pursues again, and no archive or ledger appears.
 """
 from __future__ import annotations
 import fcntl
@@ -84,20 +84,30 @@ def main() -> None:
 
         try:
             until(lambda: any(entry["kind"] == "ready" for entry in entries()) and frames.count > 0)
-            # One goal, created by the real create_goal tool, then stopped for lack of work.
+            # One goal, created by the real create_goal tool, then stopped because three
+            # runs in a row changed nothing observable.
             os.write(master, b"Start the goal.\r")
+
+            def stopped_for_no_change() -> dict | None:
+                goals = open_goals()
+                if len(goals) != 1 or goals[0].get("objective") != EARLIER:
+                    return None
+                if goals[0].get("autoContinue") is not False:
+                    return None
+                return goals[0]
+
+            until(lambda: stopped_for_no_change() is not None)
             until(lambda: "[goal] waiting" in screen())
             drain()
-            assert len(open_goals()) == 1, open_goals()
-            seeded = open_goals()[0]
-            assert seeded["objective"] == EARLIER, seeded
-            assert seeded["autoContinue"] is False, "the created goal stopped for lack of work"
+            seeded = stopped_for_no_change()
+            assert seeded is not None, open_goals()
+            assert "changed nothing observable" in (seeded.get("pauseReason") or ""), seeded
 
             # One real /goal request with that goal in place.
             os.write(master, ("/goal " + REQUEST + "\r").encode())
             # The revision is the transition to observe: the accepted request lifts the stop on
-            # this one goal, so the record turns active and pursuing again. The state is live only
-            # while the run continues, because the next run that records no work stops it again.
+            # this one goal, so the record turns active and pursuing again, and every later run
+            # changes the workspace, so it stays that way.
             def revised_and_pursuing() -> bool:
                 goals = open_goals()
                 if len(goals) != 1:

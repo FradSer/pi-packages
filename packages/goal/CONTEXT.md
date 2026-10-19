@@ -19,6 +19,18 @@ unapplied update rather than having the removed field dropped silently from a re
 the injected-budget case in `goal_simplified.mts` now pins that refusal instead of an ignored
 `token_budget`.
 
+A `/goal <text>` request is the user's own turn, and `settled` now says so explicitly. The command
+delivers the request as a custom message, so `events.ts` used to see role `custom` and never mark the
+run user-initiated: a model that only recorded the objective in that run produced no tool receipt,
+hit the `!performedWork` stop and paused the goal with `No effective work was recorded. Use /goal
+resume to continue.` before any work ran — the exact wait the user reported. `events.ts` now treats
+the `goal-procedure` message as that user turn, and `GoalScheduler.settled` takes `userInitiated` and
+skips the no-work stop for it, so the request earns exactly one real run; the run after it is judged
+normally, so an unproductive turn cannot hold the loop open. `goalBody` also stopped appending
+`Tokens used:`, which is a record field, not a transcript line. Reasoning is in
+`.changeset/goal-request-run-continuation.md`; the pinned contract is the `/goal` scenario in
+`goal_simplified.mts` and the scripted native probe `goal_native_request_continuation.py`.
+
 Automatic continuation bounds itself by the work a run does. Progress is a workspace change: only an
 unseen successful `edit` or `write` earns the next run, and three consecutive runs that change
 nothing pause the goal with `3 consecutive runs changed nothing observable. Use /goal resume to
@@ -61,8 +73,9 @@ produces them. Fixed items are named in place.
   it lives; nothing is migrated and nothing is deleted. Fixed earlier: a duplicate reader, the
   misleading `readPrompt` name (now `readObjective`) and the fabricated `activePath`.
 - `scheduler.ts` — arm and claim are separate; a claim is spent once and never replayed, and the
-  no-change window (`NO_CHANGE_RUN_LIMIT`) is what stops a loop that keeps exploring. No
-  defect; the delivery-failure path had no test, so two scenarios were added.
+  no-change window (`NO_CHANGE_RUN_LIMIT`) is what stops a loop that keeps exploring. The delivery
+  failure path had no test, so two scenarios were added. Fixed: `settled` stopped a user-initiated
+  run with no tool receipt, which ended a goal in the turn that created it.
 - `prompt.ts` — bounded, escaped, prefix-stable blocks. Fixed: `statusLabel` was exported with no
   reader.
 - `check.ts` — tool-less child, final-line marker only. Fixed: three verdict fields that were
@@ -73,13 +86,15 @@ produces them. Fixed items are named in place.
   change memory the loop's bound reads. Fixed:
   `currentTurnSeq` and `focusedId` had no reader.
 - `tools.ts` — three tools, validation, stop guard, paging. Fixed: comments describing a removed
-  refusal count and a dead prose file; two exports with no external reader.
+  refusal count and a dead prose file; two exports with no external reader. Fixed: `goalBody`
+  repeated `Tokens used:` on every creation, revision and status row.
 - `commands.ts`, `procedure.ts`, `dashboard.ts` — one request row, one check row, one footer line.
   `/goal clear` now writes the terminal `complete` status with `stopReason: "user"` instead of
   releasing the record. No other TUI defect after the two request-row and check-row fixes.
 - `events.ts` — handler order is the runtime; checkpoint messages stay hidden and are accepted
   once. Fixed: `event.prompt` was read directly, which Pi 1.2.0 types as a union — see the
-  cohort section.
+  cohort section. Fixed: the `goal-procedure` request message was not recognised as the user's own
+  turn, so a create-only request run stopped the goal.
 - `settings.ts` — layer order, sanitizing, no refusal on save. The project override now sits next
   to that project's goals under the agent directory, and the legacy project-relative override is
   read first so an existing preference keeps applying. Fixed earlier: two path helpers with no
@@ -98,6 +113,8 @@ produces them. Fixed items are named in place.
   project key.
 - `goal_native_completion.py` — the scripted full-path acceptance. No defect.
 - `goal_native_request_row.py` — the composed-screen proof of the request row. No defect.
+- `goal_native_request_continuation.py` — the composed-screen proof that a create-only `/goal`
+  request keeps pursuing and runs its continuation. No defect.
 - `goal_native_revision.py` — the revision contract, replacing a stale probe that asserted
   removed archive, ledger and research behaviour. No defect.
 - `goal_native_rejection.mts` — SDK-level preflight refusal; now driven by `test_goal.py`. No
@@ -170,8 +187,11 @@ package gate (`pytest packages/goal/tests/`) plus every PTY probe. Verified `GOA
   35 passed.
 - `pnpm exec tsc --noEmit -p packages/goal/tsconfig.tests.json`, `pnpm typecheck` (0 errors),
   `pnpm --dir packages/goal pack --dry-run` and `pnpm pack:check` (18 manifests) pass.
-- Native: `goal_native_completion.py`, `goal_native_request_row.py` and `goal_native_revision.py`
-  pass on the workspace Pi and inside the container.
+- Native: `goal_native_completion.py`, `goal_native_request_row.py`, `goal_native_revision.py`
+  and `goal_native_request_continuation.py` pass on the workspace Pi and inside the container. The
+  last one is the reproduction of the reported wait: reverting the `events.ts` recognition makes it
+  fail with `No effective work was recorded. Use /goal resume to continue.` on a real CLI screen,
+  and restoring the line makes it pass.
 - The repository suite was run in two halves for the cohort change: 2318 passed and 1 skipped,
   then 1602 passed with two load-sensitive native tests, both of which pass in isolation or after
   the timeout fix above.

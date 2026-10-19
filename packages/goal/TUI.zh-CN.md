@@ -4,7 +4,7 @@ Goal 是当前线程的一个持续目标。公开工具只有 `create_goal`、`
 
 ## 显示规则
 
-所有 Goal 的工具结果、命令结果和自动状态消息使用 pi-kit 的同一 `[goal]` 样式。工具调用头为空，由结果负责显示一次。目标、原因及检查报告默认完整显示，按终端宽度换行；不使用省略号，也不要求 `ctrl+o` 才能读取正文。给模型的 `get_goal` 内容可分页，但首个 TUI 结果保留完整正文。目标正文是目标唯一的验收文本：没有第二个验收字段，完成检查只读目标。
+所有 Goal 的工具结果、命令结果和自动状态消息使用 pi-kit 的同一 `[goal]` 样式。工具调用头为空，由结果负责显示一次。目标、原因及检查报告默认完整显示，按终端宽度换行；不使用省略号，也不要求 `ctrl+o` 才能读取正文。给模型的 `get_goal` 内容可分页，但首个 TUI 结果保留完整正文。目标正文是目标唯一的验收文本：没有第二个验收字段，完成检查只读目标。行正文只有目标与原因：token 用量是记录字段，不在任何行内重复。
 
 底部是被动状态行，不接管输入。实际运行或已获得继续授权时显示：
 
@@ -23,7 +23,7 @@ Pursuing goal · 2h 25m
 
 时间是已记账的运行时间，恢复时不归零。静止 waiting 状态不会增加时间。后台检查的 token 计入目标；检查中断或线程切换不免除已返回的用量。
 
-自动继续的进度只认工作区变更：只有目标尚未见过的成功 `edit` 或 `write` 才换来下一次运行。读取、搜索、抓取、跑命令以及把工作交给子进程都属于探索，不能无限维持循环；连续三轮没有任何可观察变更时自动继续停止并说明原因，`/goal resume` 重新开始这个窗口。修订目标不会清空这个记忆，所以换一种说法不能把同一次变更重新算成进度。用户自己的一轮算新机会，不计入窗口。
+自动继续的进度只认工作区变更：只有目标尚未见过的成功 `edit` 或 `write` 才换来下一次运行。读取、搜索、抓取、跑命令以及把工作交给子进程都属于探索，不能无限维持循环；连续三轮没有任何可观察变更时自动继续停止并说明原因，`/goal resume` 重新开始这个窗口。修订目标不会清空这个记忆，所以换一种说法不能把同一次变更重新算成进度。用户自己的一轮算新机会，不计入窗口；`/goal <text>` 更是一轮属于用户自己的运行 —— 即使该轮只记录了目标、没有任何工具回执，也换来恰好一次真实运行，之后的运行按普通规则判定。
 
 目标没有预算，也不能被设置预算：它由自己的工作量界定。用量只是报告，不是闸门 —— 模型与完成检查的 token 都记在目标上，但没有任何数字太大会让目标停下。旧记录里的 `tokenBudget` 字段被忽略。
 
@@ -74,6 +74,6 @@ SDK 参数验证失败也使用 Goal 的同一结果样式，正文显示参数�
 
 ## 可重复验收
 
-`python3 -m pytest packages/goal/tests/ -q` 运行行为、存储竞争、真实 SDK 脚本会话与渲染测试。`python3 packages/goal/tests/goal_native_completion.py` 使用真实 Pi CLI、PTY 与同步终端帧，覆盖完成、拒绝、失败、取消、阻塞、长中文换行、暂停/恢复/清除。`uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py` 输入一次 `/goal <text>`，断言屏幕上只有一行 `[goal] requesting` 与原话、窄宽度换行后仍可读，并断言请求正文从未到达终端。`uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py` 先建立一个目标并让它因无有效工作而停下，再输入一次 `/goal <text>`，断言这个目标就地被修订：原要求保留在目标正文中、目标重新处于 pursuit、且不写归档或 ledger。
+`python3 -m pytest packages/goal/tests/ -q` 运行行为、存储竞争、真实 SDK 脚本会话与渲染测试。`python3 packages/goal/tests/goal_native_completion.py` 使用真实 Pi CLI、PTY 与同步终端帧，覆盖完成、拒绝、失败、取消、阻塞、长中文换行、暂停/恢复/清除。`uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py` 输入一次 `/goal <text>`，断言屏幕上只有一行 `[goal] requesting` 与原话、窄宽度换行后仍可读，并断言请求正文从未到达终端。`uv run --no-project --with pyte python packages/goal/tests/goal_native_request_continuation.py` 在没有任何目标时输入一次 `/goal <text>`，脚本模型只创建目标并结束该轮；它断言目标继续 pursuit、恰好多运行一次并产生真实工作区变更，且 `No effective work was recorded. Use /goal resume to continue.` 从未写入或绘制。`uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py` 先建立一个目标并让它因连续三轮无变更而停下，再输入一次 `/goal <text>`，断言这个目标就地被修订：原要求保留在目标正文中、目标重新处于 pursuit、且不写归档或 ledger。
 
 `sh packages/goal/tests/goal_docker.sh` 打包当前 Goal 和必需依赖 pi-kit，在 Docker 中安装**最新的 Pi**（运行时从 registry 解析，并把它依赖的每个 `@earendil-works/*` 一并固定到该版本；需要复现旧基线时用 `PI_VERSION=x.y.z`）；Pi 的 package 配置仅加载 Goal。测试同时覆盖打包源码及正常自动加载路径。模型为确定性脚本 provider，完成检查为注入式 stand-in；这些证据验证宿主集成和 TUI，不宣称真实远程模型的判断质量。

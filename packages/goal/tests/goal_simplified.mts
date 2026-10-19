@@ -207,6 +207,20 @@ await scenario("Given a user turn that only reads When it settles Then keep the 
   assert.equal(f.core.goal?.autoContinue,true,"a user turn does not advance the window");
   assert.equal(f.core.goal?.scheduler?.used,4,"every user turn kept the loop");
 }));
+await scenario("Given a /goal request run that only creates the goal When it settles Then pursue instead of waiting", () => use(async f=>{
+  await f.command("Add Windows validation.");
+  const delivered=f.sent.at(-1);
+  // The command hands the model the request as a custom message, so its role is
+  // not `user`; the run that creates the goal still belongs to the user who typed
+  // `/goal`, and a run that has not yet changed anything must not end the goal.
+  await f.fire("message_start",{message:{role:"custom",...delivered}});
+  await f.fire("agent_start");
+  const continuation=await f.fire("agent_before_settle",{outcome:"completed"});
+  assert.equal(f.core.goal?.autoContinue,true,"the request run does not wait for a manual resume");
+  assert.equal(f.core.goal?.pauseReason,undefined,"no effective-work stop is written for the user's own request");
+  assert.equal(f.core.goal?.scheduler?.used,1,"the request run authorizes exactly one continuation");
+  assert.equal(continuation?.continue,true,"the boundary carries that continuation into the run");
+}));
 await scenario("Given a pause command When received Then abort current work and enforce the tool stop", () => use(async f => {
   await f.fire("turn_start"); await f.command("pause");
   assert.equal(f.aborted(),1); assert.equal(f.core.goal?.status,"paused");
@@ -413,6 +427,15 @@ await scenario("Given a Goal-prefixed subject When rendering Then normalize only
   assert.doesNotMatch(rendered, /\[goal\] Goal/);
   assert.equal(result.details.subject, "Goal updated");
   assert.equal(result.content[0].text, "Goal updated\n\nFull report.");
+}));
+await scenario("Given a created goal When its row renders Then the objective is the whole body", () => use(async f => {
+  await f.command("clear");
+  const result = await f.call("create_goal",{objective:"Export CSV."});
+  const rendered = f.tools.get("create_goal").renderResult(result,{expanded:false},theme,{}).render(60).join("\n");
+  assert.match(rendered,/\[goal\] started/);
+  assert.match(rendered,/Export CSV\./);
+  assert.doesNotMatch(rendered,/Tokens used/,"usage is a report, not a line on the transcript row");
+  assert.equal(result.details.summary,"Objective:\nExport CSV.","the row body is the objective alone");
 }));
 await scenario("Given successful transitions When delivering outcomes Then each has one visible result", () => use(async f => {
   const visible = () => f.sent.filter(message => message.display === true).length;

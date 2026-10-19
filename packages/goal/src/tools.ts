@@ -326,8 +326,11 @@ function goalUpdate(core: GoalCore) {
 }
 
 export function goalBody(goal: GoalRecord): string {
+  // Usage is a report the record keeps, never a figure this row repeats: the
+  // transcript answers what the goal is, and `Tokens used:` was noise on every
+  // creation, revision and status row.
   return [`Objective:\n${goal.objective}`,
-    goal.pauseReason ? `\nReason:\n${goal.pauseReason}` : "", `\nTokens used: ${goal.usage.tokensUsed}`].filter(Boolean).join("\n");
+    goal.pauseReason ? `\nReason:\n${goal.pauseReason}` : ""].filter(Boolean).join("\n");
 }
 
 /**

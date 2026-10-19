@@ -122,11 +122,17 @@ export function registerGoalEvents(core: GoalCore): void {
     }
     // The custom startup event has no prompt. Accept the /goal procedure body here. The match is the same stored prompt
     // against the delivered body; a mismatch still drops the intent silently.
-    if (message.customType === GOAL_PROCEDURE_ENTRY && typeof message.content === "string") {
-      core.acceptGoalSetting(message.content);
-    }
+    const requestBody = typeof message.content === "string" ? message.content : undefined;
+    const goalRequest = message.customType === GOAL_PROCEDURE_ENTRY && requestBody !== undefined;
+    if (goalRequest) core.acceptGoalSetting(requestBody);
     if (!isCheckpointMessage(message)) {
-      if (message.role !== "user") return;
+      // The `/goal <text>` request is the user's own turn. The command delivers
+      // it as a custom message, so its role is not `user`, but the words are the
+      // user's and the run must be judged like one they typed: a model that only
+      // records the objective in that turn earns its first real run instead of
+      // stopping the goal before any work happens. A checkpoint is never a user
+      // turn; it is the continuation the loop already authorized.
+      if (message.role !== "user" && !goalRequest) return;
       userRun = true;
       // Real user work supersedes an armed continuation: the user is here, so
       // the goal waits rather than interrupting.
@@ -174,7 +180,7 @@ export function registerGoalEvents(core: GoalCore): void {
       refreshDashboard(core, ctx);
       return;
     }
-    core.scheduler.settled(core.goal, core.settings(ctx), !failed, core.performedWork(), core.runChangedState() || userInitiated);
+    core.scheduler.settled(core.goal, core.settings(ctx), !failed, core.performedWork(), core.runChangedState() || userInitiated, userInitiated);
     if (failed) {
       refreshGoalToolSurface(core, ctx);
       refreshDashboard(core, ctx);

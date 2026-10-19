@@ -11,7 +11,7 @@ pi install npm:@fradser/pi-goal
 | Command | Behavior |
 | --- | --- |
 | `/goal <objective>` | Show one `[goal] requesting` row with the typed words, and ask the model to create or revise one concise, outcome-focused objective. |
-| `/goal` | Show the complete current objective, reason, and usage. |
+| `/goal` | Show the complete current objective and reason. |
 | `/goal pause` | Stop current Goal work and pending continuation. |
 | `/goal resume` | Authorize continuation, preserving accumulated tokens, elapsed time and run count. |
 | `/goal clear` | End the current Goal without claiming completion. |
@@ -61,7 +61,10 @@ explore, and exploration does not hold the loop open. Three consecutive runs tha
 continuation and say so; `/goal resume` starts the window again. A requirement
 revision does not clear that memory, so re-wording the objective cannot make the
 same change count twice. A user's own turn is a fresh opportunity rather than a
-run that changed nothing. Pending monitor acknowledgements are not completed
+run that changed nothing, and `/goal <text>` is that user's turn even though the
+command delivers it as a custom message: a run that only records the objective
+still earns exactly one real run, and the run after it is judged normally.
+Pending monitor acknowledgements are not completed
 work. Unrelated background agents do not count as Goal progress.
 
 Generation and dispatch checks authorize each continuation exactly once. User
@@ -95,7 +98,9 @@ check judges.
 Transcript results use the shared pi-kit `[goal] <action or state>` band. Command
 and automatic results are durable custom session messages, not replaceable info
 notifications. Each event has one result. Settled objectives, reasons and reports
-wrap in full without `ctrl+o` expansion.
+wrap in full without `ctrl+o` expansion. A row's body is the objective and any stop
+reason; usage stays on the record and in the run-start counters, so no row repeats
+a token count.
 
 `/goal <request>` keeps its own row: one `[goal] requesting` line with the typed
 words under it. The shared band strips control bytes from those words. The complete
@@ -145,6 +150,7 @@ pnpm typecheck
 pnpm --dir packages/goal pack --dry-run
 uv run --no-project --with pyte python packages/goal/tests/goal_native_completion.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py
+uv run --no-project --with pyte python packages/goal/tests/goal_native_request_continuation.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py
 ```
 

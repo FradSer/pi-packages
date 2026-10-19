@@ -29,7 +29,10 @@ independent user history, or Goal archive. Use ordinary tools for investigation.
   child work explore.
   Three consecutive runs that change nothing stop the loop and name the window;
   a requirement revision must not clear that memory, and a user's own turn does
-  not count against it. Repeated identical tool receipts and pending monitors
+  not count against it. A `/goal <text>` request is the user's own turn even though
+  the command delivers it as a custom message, so a run that only records the
+  objective still earns exactly one real run instead of stopping the goal.
+  Repeated identical tool receipts and pending monitors
   cannot sustain the loop. Unrelated background activity is not progress. Empty
   or failed work waits; only the user pauses. Resume preserves lifetime usage,
   continuation count and a fresh change window.
@@ -79,6 +82,8 @@ That residual case is accepted, and the send-time check does not cover it.
 The passive below-editor footer is the explicit exception to transcript framing:
 `Pursuing goal · 2h 25m` during actual work or authorized continuation; accurate
 waiting, paused and blocked phrases otherwise. It owns no input.
+A lifecycle row's body is the objective and any stop reason; usage is a record field,
+so no row repeats a token count.
 Checker status is neutral. Never intercept global terminal input.
 
 ## Verification
@@ -94,6 +99,7 @@ pnpm typecheck
 pnpm --dir packages/goal pack --dry-run
 uv run --no-project --with pyte python packages/goal/tests/goal_native_completion.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_request_row.py
+uv run --no-project --with pyte python packages/goal/tests/goal_native_request_continuation.py
 uv run --no-project --with pyte python packages/goal/tests/goal_native_revision.py
 sh packages/goal/tests/goal_docker.sh
 ```
