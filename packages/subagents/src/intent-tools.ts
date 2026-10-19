@@ -1,4 +1,4 @@
-/** Five model operations with explicit identity and input intent. */
+/** Four model operations with explicit identity and input intent. */
 import { randomUUID } from "node:crypto";
 import type { ExtensionAPI, AgentToolResult, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { emptyToolCall, safeDisplayText, type ToolLifecycleSpec } from "@fradser/pi-kit";
@@ -430,8 +430,8 @@ export async function executeIntentTool(operation: IntentToolName, params: unkno
 }
 
 const DESCRIPTIONS: Record<IntentToolName, string> = {
-  agent_start: "Start one child with work. identity selects an existing disk role; label only names the display. Temporary instructions cannot replace a saved role. The receipt confirms accepted input only: the child's answer arrives automatically and asynchronously in a later turn, so continue independent work or end the turn for automatic resumption. Never poll this child with agent_inspect or agent_list to wait for its answer, never sleep, and never start a duplicate child for the same work.",
-  agent_input: "Continue or guide the same exact child. delivery next starts after current work and can queue bounded input. delivery steer changes active work without abort or a new sequence. A receipt is not a final answer: the child's answer arrives automatically and asynchronously in a later turn, so do not poll with agent_inspect or agent_list to wait for it, and never repeat uncertain input.",
+  agent_start: "Start one child with work. identity selects an existing disk role; label only names the display. Temporary instructions cannot replace a saved role. The receipt confirms accepted input only: the child's answer arrives automatically and asynchronously in a later turn, so continue independent work or end the turn for automatic resumption. Never poll this child with agent_list to wait for its answer, never sleep, and never start a duplicate child for the same work.",
+  agent_input: "Continue or guide the same exact child. delivery next starts after current work and can queue bounded input. delivery steer changes active work without abort or a new sequence. A receipt is not a final answer: the child's answer arrives automatically and asynchronously in a later turn, so do not poll with agent_list to wait for it, and never repeat uncertain input.",
   agent_stop: "Close one exact child. Pending inputs receive cancellation notices. Confirmed closure does not undo file changes or establish task completion. Caller cancellation ends waiting, not the close operation. A closed child's answer is still delivered when it settles, so a stop is not a way to skip a result.",
   agent_list: "List bounded session summaries and offline saved identities when you need the roster or an exact handle. Follow page.nextOffset for more entries. Discovery creates no identity, storage, or process. Use returned exact session handles for controls, and do not re-list a child whose answer is on its way.",
 };

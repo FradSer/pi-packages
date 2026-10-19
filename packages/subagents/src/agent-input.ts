@@ -1,7 +1,7 @@
 /** Pure input validation for the flat child-execution boundary.
  * Definition discovery, tool grants and exact-incarnation lookup belong to the
  * handler. Validating an input never creates an identity or starts a child.
- * The boundary mirrors the five intent tools, so `agent_input` arrives as one
+ * The boundary mirrors the four intent tools, so `agent_input` arrives as one
  * operation with its delivery rather than as two verbs.
  */
 

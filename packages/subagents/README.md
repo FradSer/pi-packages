@@ -17,7 +17,7 @@ agent_input({ session: "session:reviewer:<incarnation>", prompt: "Check the edge
 
 ## Intent tools
 
-The five intent tools are the only child tool surface: `agent_start`, `agent_input`,
+The four intent tools are the only child tool surface: `agent_start`, `agent_input`,
 `agent_stop`, and `agent_list`. An explicit intent host selection
 remains selected, whether partial or complete. The loader cannot add excluded
 tools. Startup requires a prompt. `identity` selects an existing disk definition;
@@ -200,9 +200,11 @@ readbacks in `agent_list` are sanitized and limited to 1000 preview
 characters with an explicit truncation marker; the raw roster error is unchanged.
 
 Each settled turn delivers one Session Result: final UTF-8 text verbatim inside an
-`<agent-result from=… session=… turn=…>` envelope. Intent inputs also carry input IDs. Preview limits never shorten the
-delivered answer; hard transport limits fail explicitly. A result is execution
-evidence, not another workflow's acceptance. A published coordinator owns its
+`<agent-result from=… session=… turn=…>` envelope. The envelope opens with one line
+the child's words cannot carry: that child is still IDLE and takes a dependent
+follow-up through `agent_input` on that exact session, and that the result is
+execution evidence rather than acceptance. Intent inputs also carry input IDs. Preview limits never shorten the
+delivered answer; hard transport limits fail explicitly. A published coordinator owns its
 hosted deliveries; standalone durable execution keeps its private history and
 result owner. Library callers provide their own delivery callback.
 
@@ -409,7 +411,7 @@ leakage; it does not confine disk access. See `src/child-env.ts`.
 | `src/spawner.ts` | Native RPC child transport, readiness, input acknowledgement and termination |
 | `src/agent-tools.ts` | Grantable Pi built-in tool ids and drift checks |
 | `src/child-execution.ts` | Shared child execution, intent operations and standalone result delivery |
-| `src/intent-tools.ts`, `src/input-sequences.ts` | Five model tools, input reservations and FIFO sequencing |
+| `src/intent-tools.ts`, `src/input-sequences.ts` | Four model tools, input reservations and FIFO sequencing |
 | `src/roster.ts`, `src/session-route.ts` | Incarnation facts and exact handles |
 | `src/session-result.ts`, `src/leader-reports.ts` | Results, provenance and delivery records |
 | `src/parent-message.ts`, `src/parent-message-extension.ts` | Explicit child-to-parent intermediate messages and bounded validation |

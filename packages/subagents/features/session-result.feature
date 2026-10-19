@@ -14,6 +14,14 @@ Feature: A standalone child returns its Session Result to the Leader session
       And it carries the child's final text verbatim
       And it names the child, its incarnation, and the turn
 
+    Scenario: A delivered result names the child as continuable
+      Given a child started with a prompt and no coordinator host
+      When its turn settles with a final answer
+      Then the envelope names the exact session that produced the answer
+      And one envelope line states the child is IDLE and takes a dependent follow-up through agent_input
+      And the child's own words remain the body of the envelope
+      And the envelope claims no acceptance
+
     Scenario: A second settle of the same turn delivers nothing
       Given a Session Result already delivered for a child's first settled turn
       When that child settles again without a new turn

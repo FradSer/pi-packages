@@ -309,6 +309,12 @@ def assert_result(events: list[dict[str, Any]], text: str) -> dict[str, Any]:
     start = next(event for event in selected(events, "receipt") if event["action"] == "agent_start")
     assert result["details"]["session"] == start["details"]["session"], result
     assert result["content"].endswith(text + "\n</agent-result>"), result
+    # A settled child stays addressable, and this envelope is the only delivery that
+    # says so. A Leader that reads no such line spends a whole new process on a
+    # follow-up the child it already holds could have taken.
+    continuation = [line for line in result["content"].splitlines() if "agent_input" in line]
+    assert len(continuation) == 1, result
+    assert "IDLE" in continuation[0] and "not acceptance" in continuation[0], result
     return result
 
 

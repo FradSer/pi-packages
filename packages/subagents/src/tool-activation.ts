@@ -134,7 +134,7 @@ export function registerSubagentToolActivation(pi: ExtensionAPI, options: Pick<C
   });
   const restore = (_event: unknown, ctx: ExtensionContext) => {
     const available = new Set(pi.getAllTools().map(tool => tool.name));
-    // The family is all five tools or nothing: a host that excludes one member
+    // The family is all four tools or nothing: a host that excludes one member
     // cannot be offered a half family, because every member addresses the same
     // exact sessions and a caller would have to guess which controls survived.
     const selectable = INTENT_TOOL_NAMES.filter(name => available.has(name));

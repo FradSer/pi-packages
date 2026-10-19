@@ -110,7 +110,10 @@ def test_it_registers_only_the_surviving_intent_tools() -> None:
     result = run(
         """
         const names = [...tools.keys()];
-        console.log(JSON.stringify({ names, count: tools.size }));
+        // Model-facing text is where a retired name does its damage: a description
+        // that names a tool no host registers teaches a model to call it.
+        const descriptions = names.map((name) => tools.get(name).description ?? "").join(" ");
+        console.log(JSON.stringify({ names, count: tools.size, descriptions }));
         """
     )
     # ADR-0008 retired the combined `agent` tool and `agent_inspect`, and their
@@ -120,6 +123,9 @@ def test_it_registers_only_the_surviving_intent_tools() -> None:
     assert result["names"] == ["agent_start", "agent_input", "agent_stop", "agent_list"]
     assert "agent" not in result["names"]
     assert "agent_inspect" not in result["names"]
+    assert "agent_inspect" not in result["descriptions"], (
+        "a registered tool must not name the retired inspect tool"
+    )
 
 
 # ── Resident input completes the process lifecycle without coordination ──

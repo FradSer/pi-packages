@@ -169,6 +169,15 @@ function validTimestamp(value: unknown): value is number {
  * says which Agent and incarnation produced them. Nothing summarises, annotates,
  * or reorders what the child wrote.
  *
+ * The envelope opens with one fact the child's words cannot carry: that it is
+ * still IDLE and addressable. A settled turn is not a closed process, and the
+ * Leader is the only actor that can act on it — without this line the cheapest
+ * reading of a result is that the work is over and the next step needs a new
+ * child, which is one whole process spent on an incarnation that was still up.
+ * It stays inside the envelope, ahead of the body, so the child's bytes remain
+ * the tail of the message and the two live delivery tests that assert exactly
+ * that keep holding.
+ *
  * Verbatim means verbatim: a child's text containing a closing envelope tag
  * ends the envelope early. Fencing that would rewrite the child's words, which
  * is the one thing this delivery must not do, so the risk is recorded here
@@ -177,6 +186,7 @@ function validTimestamp(value: unknown): value is number {
 export function formatSessionResult(notice: SessionResultNotice): string {
   return [
     `<agent-result from="${escapeAttribute(notice.name)}" session="${escapeAttribute(notice.session)}" turn="${notice.turn}"${inputAttribute(notice)}${timestampAttribute(notice.deliveredAt)}>`,
+    "This child is still IDLE at the session above: continue dependent work with agent_input on that exact session. This result is execution evidence, not acceptance.",
     notice.text,
     "</agent-result>",
   ].join("\n");

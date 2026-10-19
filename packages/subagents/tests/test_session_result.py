@@ -126,6 +126,15 @@ def test_a_prompted_childs_answer_is_delivered_verbatim_with_its_provenance() ->
         assert.match(message.details.session, /^session:/);
         assert.equal(message.details.label ?? message.details.name, "solo", "the intent family names the child by its label, not by its generated name");
         assert.equal(message.details.turn, 1);
+        // A settled child stays resident and addressable, and this delivery is the
+        // only place that says so. A Leader that reads no such line spends a whole
+        // new process on a follow-up the child it already holds could have taken.
+        const continuation = message.content.split("\\n").find((line) => line.includes("agent_input"));
+        assert.ok(continuation, `the delivery never says the child can be continued: ${message.content}`);
+        assert.match(continuation, /IDLE/);
+        assert.match(continuation, /not acceptance/);
+        // The child's words stay the body: the guidance is envelope text above it.
+        assert.ok(message.content.endsWith("2\\n</agent-result>"), message.content);
         console.log(JSON.stringify({ ok: true }));
         """
     )
