@@ -1,7 +1,7 @@
 # @fradser/pi-agent-teams
 
 Agent Teams combines subagent execution, the task set, and point-to-point messages.
-The five intent tools are the only child tool surface:
+The four intent tools are the only child tool surface:
 
 ```ts
 agent_start({ identity: "reviewer", prompt: "Audit authentication" });

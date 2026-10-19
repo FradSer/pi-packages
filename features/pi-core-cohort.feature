@@ -2,7 +2,7 @@ Feature: Development checks use one Pi core cohort across the split chain
 
   Scenario: Host-provided Pi peers resolve to the root development version
     Given kit, subagents, tasks and agent-teams publish Pi core as wildcard peers
-    And the user selected Pi 1.2.0 as the locked development cohort
+    And the user selected Pi 1.3.0 as the locked development cohort
     And the root has that locked Pi development cohort
     When package-level verification resolves coding-agent or pi-tui
     Then each split package uses the same version as the root

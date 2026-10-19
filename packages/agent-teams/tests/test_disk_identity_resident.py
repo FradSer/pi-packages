@@ -29,7 +29,7 @@ def test_team_resident_contract(tmp_path: Path, mode: str) -> None:
 
 def test_team_guidance_names_only_the_intent_tool_family() -> None:
     """The intent family replaces the retired `agent` surface, and the guidance
-    must say so by naming the five tools and nothing else.
+    must say so by naming the four tools and nothing else.
 
     ADR-0008 removed the legacy branch and its in-transcript notice: a recorded
     branch that named `agent` moves silently, so a "Legacy branches" line would
@@ -41,11 +41,14 @@ def test_team_guidance_names_only_the_intent_tool_family() -> None:
       console.log(JSON.stringify({{ idle: buildIdleLeaderGuidance(), active: buildTeamLeaderGuidance() }}));
     ''')
     for text in payload.values():
-        # The adopted fresh-session contract replaces six model actions with five intent tools.
+        # The adopted fresh-session contract replaces six model actions with four intent tools.
         for tool in ("agent_start", "agent_input", "agent_list", "agent_stop"):
             assert f"`{tool}`" in text
         assert "Legacy branches" not in text, "The retired legacy branch has no selectable surface"
         assert "`agent`" not in text, "The retired agent tool must not appear as a surface"
+        # `agent_inspect` was retired with the legacy tool, so guidance that still
+        # names it teaches a model to call a tool no transport registers.
+        assert "agent_inspect" not in text, "The retired inspect tool must not appear as a surface"
         assert "next" in text and "steer" in text
         for obsolete in ("persist: true", "persistent:", "memory: true", "worktree: true", "promot"):
             assert obsolete not in text.lower()

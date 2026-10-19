@@ -8,7 +8,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 CHAIN = ("kit", "subagents", "tasks", "agent-teams")
 CORE = ("@earendil-works/pi-coding-agent", "@earendil-works/pi-tui")
-EXPECTED_PI_VERSION = "1.2.0"
+EXPECTED_PI_VERSION = "1.3.0"
 
 
 def test_split_packages_resolve_root_development_core() -> None:
@@ -49,7 +49,7 @@ def test_development_core_does_not_change_published_peer_contracts() -> None:
         for core in CORE:
             assert manifest["peerDependencies"][core] == "*"
             assert core not in manifest.get("dependencies", {})
-            assert manifest.get("devDependencies", {}).get(core) == f"^{EXPECTED_PI_VERSION}", (package, core)
+            assert manifest.get("devDependencies", {}).get(core) == EXPECTED_PI_VERSION, (package, core)
     root = json.loads((REPO / "package.json").read_text())
     for core in (*CORE, "@earendil-works/pi-ai"):
-        assert root["devDependencies"][core] == f"^{EXPECTED_PI_VERSION}", core
+        assert root["devDependencies"][core] == EXPECTED_PI_VERSION, core

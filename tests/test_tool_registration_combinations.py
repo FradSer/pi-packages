@@ -85,7 +85,7 @@ CHILD_REGISTRATION_MODULES = {
 TASK_HOLDER_BINDING =  "TASK_HOLDER_ENV"
 
 TOOL_OWNER: dict[str, str] = {}
-# pi-subagents registers its five intent tools from one exported list and its
+# pi-subagents registers its four intent tools from one exported list and its
 # loader from one exported constant, so a scan for a `name: "tool"` literal alone
 # would report that package as registering nothing. Both shapes are read here,
 # which is what keeps this test unable to drift by being edited alongside the code.

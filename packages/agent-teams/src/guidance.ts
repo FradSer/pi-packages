@@ -73,9 +73,9 @@ completion or repeat unchanged findings.
 export function buildIdleLeaderGuidance(cwd?: string): string {
   return `## Agent Teams
 
-Use the selected subagent interface. The five intent tools are the only child
+Use the selected subagent interface. The four intent tools are the only child
 tool surface: \`agent_start\` with a prompt, \`agent_input\` with delivery next or steer,
-\`agent_inspect\`/\`agent_list\` for Presence, and \`agent_stop\` for exact-session close.
+\`agent_list\` for Presence, and \`agent_stop\` for exact-session close.
 Identity selects saved \`agent.md\`; label is display only, as one lowercase hyphenated token. Temporary instructions stay in memory. Role reference: \`${AGENT_REFERENCE_PATH}\`.
 
 Choose minimal canonical tools: ${AGENT_BUILTIN_TOOLS.join(", ")}.
@@ -94,7 +94,7 @@ export function buildTeamLeaderGuidance(cwd?: string): string {
   return `## Agent Teams Orchestration
 
 The current session coordinates through three tool families:
-- Subagents: \`agent_start\`, \`agent_input\` (delivery next or steer), \`agent_stop\`, \`agent_inspect\`, and \`agent_list\`. Disk \`agent.md\` supplies identity. Use exact sessions and reuse them for dependent follow-ups.
+- Subagents: \`agent_start\`, \`agent_input\` (delivery next or steer), \`agent_stop\`, and \`agent_list\`. Disk \`agent.md\` supplies identity. Use exact sessions and reuse them for dependent follow-ups.
 - \`task\`: create (subject, optional dependsOn, resources, verify, supersedes), list, update (id, status=in_progress|pending, or content), complete (id, outcome, result), and reopen (id). One vocabulary for every participant.
 - \`message\`: \`inform\` or \`request\` messages.
 
