@@ -209,6 +209,33 @@ def test_a_free_request_is_decided_and_injected_as_a_native_user_turn() -> None:
 
 
 @pytest.mark.skipif(shutil.which("pi") is None, reason="the pi CLI is not installed")
+def test_a_reported_chinese_cadence_reaches_the_session() -> None:
+    """The reported request: 每 2 个小时，清理一次非必要的文档、代码。
+
+    It planned the 1h cadence and repeated the schedule phrase. The cadence is now
+    one of the listed intervals and the phrase is code-matched metadata, so the real
+    CLI asks one question set and injects the task alone.
+    """
+    server, seen = start_decision_server(lambda _ids: envelope({"interval": choice("2h"), "runs": choice("1"),
+                                                               "stop": choice("none")}))
+    try:
+        base = "http://127.0.0.1:%d" % server.server_address[1]
+        rows, starts, _output = run_native(
+            "/loop 每 2 个小时，清理一次非必要的文档、代码。",
+            ["清理非必要的文档、代码"],
+            {"TYPESAFE_API_KEY": "loop-fixture-key", "TYPESAFE_BASE_URL": base},
+            quiet=1.0,
+            timeout=120,
+        )
+    finally:
+        server.shutdown()
+    assert_user_turns(starts, ["清理非必要的文档、代码"])
+    assert [ids for ids in seen] == [["interval", "runs", "stop"]], seen
+    assert not [r for r in rows if isinstance(r.get("prompt"), str) and r["prompt"].startswith("/loop ")], \
+        "the command was sent to the model instead of being dispatched"
+
+
+@pytest.mark.skipif(shutil.which("pi") is None, reason="the pi CLI is not installed")
 def test_a_met_stop_condition_ends_the_loop_after_one_turn() -> None:
     """Above the threshold the loop stops, and it stops after the first turn."""
     server, seen = start_decision_server(lambda ids: envelope({"met": {"type": "noul", "noul": 0.95}}))

@@ -49,7 +49,12 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   never come back as a choice: offering the untouched request asked the service to
   repeat a decision code had already made, and a low-confidence answer to it
   refused the whole command (`/loop say hi * 3` failed with 0.22 < 0.30 against the
-  live service). One question set per free request, and no paid question where the
+  live service). A count stated as its own segment took the same path whenever the
+  service named no stopping condition: `/loop watch the logs every minute, 10 times`
+  failed with 0.27 < 0.30, because dropping that segment left the raw request among
+  the candidates. `messageCandidates` therefore returns the metadata-free text alone
+  when `stopSegment` is undefined, and offers its candidates only for the answer the
+  service gave. One question set per free request, and no paid question where the
   answer is already known.
 - **Closed questions only**: use `askSystemOne` from pi-kit. Its question types are
   `noul`, `choice` and `score`; a generative answer is unrepresentable. Keep the
@@ -108,7 +113,16 @@ a harness import that Bun erases at runtime is invisible to every other gate.
   repetition runs at start, so the line appears with it rather than an interval
   later.
 - **Bounds**: keep the interval between 1s and 1d, and bound the text sent for one
-  stopping judgment.
+  stopping judgment. Keep the listed interval set continuous enough that a stated
+  cadence is never off by more than its neighbour: with only 1h and 1d listed,
+  `/loop 每 2 个小时，清理一次非必要的文档、代码。` planned every 1h, half the cadence
+  the user asked for. The sub-hour steps already allow a factor of five, so fill a
+  wider hour gap rather than refusing the request: 2h, 4h, 6h, 8h and 12h are listed
+  beside 1h and 1d today. A Chinese schedule phrase may carry a measure word (每 2 个
+  小时) or 隔 (每隔2个小时): `schedulePattern` in `src/candidates.ts` owns that set, and
+  a form it misses stays inside the repeated message. Every listed cadence must also
+  parse as a duration, so the free form can never plan a loop the flag form cannot
+  state (`tests/loop-core-fixture.ts` scenario `duration`).
 
 ## Testing Guidelines
 
@@ -125,7 +139,7 @@ defaulted cadence on the wire, and scenario `only-the-repetition-is-judged` in
 
 `tests/live_delivery_refusal.py` is the explicit-run probe for the delivery refusal. It drives RPC mode, so an extension `notify` arrives as a structured record: run `uv run --no-project python packages/loop/tests/live_delivery_refusal.py`. It measures that all four replacements — `ctx.reload()`, `ctx.newSession()`, `ctx.fork()` and `ctx.switchSession()` — stop the loop through `session_shutdown` before any tick can call an invalidated API, and it keeps the control case that must still deliver turns. It does not measure whether some other host path could invalidate a captured API without that shutdown.
 
-`tests/real-jev-accuracy.ts` is the explicit-run **paid** probe for accuracy, usage and cost: run `bun packages/loop/tests/real-jev-accuracy.ts` with `TYPESAFE_API_KEY` set. It spends real credits, resolves twelve labelled requests plus one `met` judgment, and reports per-question accuracy and tokens per case. `--from <saved run>` recomputes the summary without spending.
+`tests/real-jev-accuracy.ts` is the explicit-run **paid** probe for accuracy, usage and cost: run `bun packages/loop/tests/real-jev-accuracy.ts` with `TYPESAFE_API_KEY` set. It spends real credits, resolves the labelled requests plus one `met` judgment, and reports per-question accuracy and tokens per case. One label is the reported Chinese request, so a listed-cadence regression shows up there as an interval mismatch. `--from <saved run>` recomputes the summary without spending.
 `tests/live_terminal_accessibility.py` is the explicit-run probe for real terminal rendering and assistive text. It needs macOS, Accessibility permission and Screen Recording permission, and it opens real Terminal.app windows: run `uv run --no-project python packages/loop/tests/live_terminal_accessibility.py`. It records OS screenshots of the window content and the terminal's accessibility text area at 120x40, 48x24, 48x12 and a fresh 48x12 window, excluding the title bar because this host's Terminal profile prints credentials there. VoiceOver speech output stays unverified.
 
 ## Safety

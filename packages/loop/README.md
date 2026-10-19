@@ -70,9 +70,9 @@ Write the request in your own words. The extension then asks TypeSafe Jev to
 choose among candidates that it builds:
 
 - `interval`: which listed interval is closest to the requested cadence. The
-  listed intervals are 30s, 1m, 5m, 15m, 30m, 1h and 1d. `unspecified` is always
-  accepted: the plan takes the default cadence of five minutes, and the start
-  notice says the cadence was assumed.
+  listed intervals are 30s, 1m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h and 1d.
+  `unspecified` is always accepted: the plan takes the default cadence of five
+  minutes, and the start notice says the cadence was assumed.
 - `runs`: the total count, or `unbounded`. The listed values are 1, 3, 5, 10, 20
   and `unbounded`.
 - `stop`: which candidate segment states a stopping condition, or `none`. A
@@ -94,8 +94,13 @@ own words, and the model selects one. Code owns the interval arithmetic, the
 placeholder expansion, the timers and the delivery.
 
 A count is scheduling metadata wherever it appears, so it leaves the message:
-`/loop 输入3次Hi` repeats `输入Hi` three times, and the start line says so. The flag
-form is the opposite: text you state yourself is injected verbatim, so
+`/loop 输入3次Hi` repeats `输入Hi` three times, and the start line says so. A
+schedule phrase leaves the message too, in Chinese as well as English: the measure
+word and the 隔 form are the same cadence, so
+`/loop 每 2 个小时，清理一次非必要的文档、代码。` repeats `清理非必要的文档、代码`
+every two hours.
+
+The flag form is the opposite: text you state yourself is injected verbatim, so
 `/loop --every 5m --times 3 --message "say hi * 3"` repeats `say hi * 3` exactly as
 written.
 
@@ -181,20 +186,26 @@ pi install npm:@fradser/pi-loop
 
 ## Measured
 
-Recorded on 2026-10-15 against the live decision service (`jev-1.13.0`) with
-twelve labelled requests, and in a real terminal. Reproduce with
+Recorded on 2026-10-19 against the live decision service (`jev-1.13.0`) with
+thirteen labelled requests, and in a real terminal. Reproduce with
 `tests/real-jev-accuracy.ts` (paid), `tests/live_delivery_refusal.py` and
 `tests/live_terminal_accessibility.py`.
 
-- **Free-request accuracy**: of the twelve labelled requests, ten were resolved
-  and two were refused. The interval was right 10 of 10, the stopping condition
-  10 of 10 and the message 10 of 10. The run limit was right 4 of 4, because only
-  four requests state a count. One refusal names no cadence and one was below the
-  confidence threshold; the probe excludes the second from every denominator.
-- **Cost**: a plan costs one or two decision requests and 1,058-1,611 input
-  tokens, in about 0.8 seconds. One `met` judgment costs 394 input tokens. An
+- **Free-request accuracy**: of the thirteen labelled requests, twelve were decided
+  as labelled and one was planned where the label says a request that names no
+  cadence must be refused. The interval was right 11 of 11, the stopping condition
+  11 of 11, the run limit 4 of 4 and the message 11 of 11. One label accepts a
+  refusal as the honest answer, because the request is genuinely ambiguous; the
+  probe excludes it from every denominator above. A decision the live service scores
+  just under the confidence threshold is not stable between runs: `watch the logs
+  every minute, 10 times` was refused at 0.27 < 0.30 in one run and decided in the
+  next. Its count is code-matched metadata, so it needs no message question. Of the
+  thirteen, one is the reported Chinese request: 每 2 个小时 resolves to the listed
+  2h cadence and the message is 清理非必要的文档、代码.
+- **Cost**: a plan costs one or two decision requests and 1,259-1,813 input
+  tokens, in about 0.5-0.8 seconds. One `met` judgment costs 394 input tokens. An
   eight-hour five-minute loop is 96 repetitions: 96 x 394 tokens plus one plan of
-  at most 1,611 tokens, which is about **$0.0165** at the vendor's published rate
+  at most 1,813 tokens, which is about **$0.017** at the vendor's published rate
   of $0.42 per million input tokens ($0.0098 at the bulk rate; output tokens are
   not charged). Without a stopping condition, a loop costs nothing after its
   plan.
@@ -209,7 +220,7 @@ twelve labelled requests, and in a real terminal. Reproduce with
 
 ## Unverified
 
-- Requests other than the twelve measured ones: they are self-selected, not a
+- Requests other than the thirteen measured ones: they are self-selected, not a
   distribution, so your own requests can resolve differently.
 - Currency cost, which follows the vendor's published rate rather than an
   invoice from this account.

@@ -101,6 +101,30 @@ def test_a_count_with_no_cadence_takes_the_default_interval() -> None:
     assert sorted(first["questions"]) == ["interval", "runs", "stop"], first["questions"]
 
 
+def test_a_chinese_hour_cadence_is_listed_and_leaves_the_message() -> None:
+    """The reported request: "每 2 个小时，清理一次非必要的文档、代码。"
+
+    It planned every 1h with the cadence still inside the repeated message. Two
+    causes, one per assertion: the listed intervals held nothing between 1h and 1d,
+    so "2 个小时" resolved to the closest listed cadence, and the schedule pattern
+    required the unit to follow the number, so "每 2 个小时" was never stripped.
+    """
+    case = run("chinese-hour-cadence")
+    assert case["ok"] is True, case
+    assert case["plan"] == {"message": "清理非必要的文档、代码", "intervalMs": 7200000}, case["plan"]
+    assert case["intervalAssumed"] is None, case
+    assert case["messageStripped"] is True, case
+    # The metadata is code-matched, so the message is not a judgment: one request set.
+    assert case["mode"] == "semantic" and case["hits"] == 1, case
+    interval_criteria = case["requests"][0]["questions"]["interval"]["criteria"]
+    assert "2h" in interval_criteria, interval_criteria
+    assert case["requests"][0]["state"]["listed_intervals"] == [
+        {"key": key, "seconds": seconds} for key, seconds in
+        (("30s", 30), ("1m", 60), ("5m", 300), ("15m", 900), ("30m", 1800), ("1h", 3600),
+         ("2h", 7200), ("4h", 14400), ("6h", 21600), ("8h", 28800), ("12h", 43200), ("1d", 86400))], \
+        case["requests"][0]["state"]["listed_intervals"]
+
+
 def test_a_count_segment_is_never_offered_as_a_stopping_condition() -> None:
     """The stop question must not see a segment that only states the run count.
 
@@ -117,8 +141,10 @@ def test_a_count_segment_is_never_offered_as_a_stopping_condition() -> None:
     assert set(stop_criteria) == {"none", "segment_0"}, stop_criteria
     assert set(first["state"]["segments"][key]["text"] for key in range(len(first["state"]["segments"]))) == {
         "check the build every 5 minutes", "3 times"}, first["state"]["segments"]
-    message_criteria = case["requests"][1]["questions"]["message"]["criteria"]
-    assert "check the build" in message_criteria.values(), message_criteria
+    # The count is metadata code matched itself and no stopping condition came back,
+    # so the message needs no judgment: one request set and no low-confidence refusal.
+    assert case["hits"] == 1, case
+    assert "message" not in first["questions"], first["questions"]
 
 
 def test_a_count_segment_does_not_renumber_the_stop_keys() -> None:

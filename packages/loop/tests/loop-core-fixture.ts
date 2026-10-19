@@ -4,7 +4,7 @@
  * One scenario per line of JSON. Pytest asserts the values, so a rule that
  * changes without a changed expectation fails here.
  */
-import { isRunCountSegment, messageCandidates, stripSchedulePhrase } from "../src/candidates.ts";
+import { INTERVAL_OPTIONS, isRunCountSegment, messageCandidates, stripSchedulePhrase } from "../src/candidates.ts";
 import { formatDuration, MAX_INTERVAL_MS, MIN_INTERVAL_MS, parseDuration } from "../src/duration.ts";
 import { parseParameterized } from "../src/params.ts";
 import { LoopRunner } from "../src/scheduler.ts";
@@ -73,7 +73,10 @@ const scenarios: Record<string, () => unknown> = {
       const values = pair as [number, string];
       return { input: values[0], expected: values[1], actual: formatDuration(values[0]) };
     });
-    return { parsed, formatted, min: MIN_INTERVAL_MS, max: MAX_INTERVAL_MS };
+    // Every listed cadence must be a duration the flag form accepts, or a free
+    // request could plan a loop the user cannot state with flags.
+    const listed = INTERVAL_OPTIONS.map((option) => ({ key: option.key, ms: option.ms, parsed: parseDuration(option.key) }));
+    return { parsed, formatted, listed, min: MIN_INTERVAL_MS, max: MAX_INTERVAL_MS };
   },
 
   template() {
@@ -142,6 +145,12 @@ const scenarios: Record<string, () => unknown> = {
       "check the deploy every 10 minutes",
       "每5分钟检查部署",
       "每小时汇报一次",
+      // The measure word and the 隔 form are the same cadence as 每5分钟, so the
+      // cadence must leave the message in each of them.
+      "每 2 个小时，清理一次非必要的文档、代码。",
+      "每2个小时，清理非必要的文档、代码",
+      "每隔2个小时跑一次",
+      "每两个小时检查",
       "check the build",
       "report once a minute",
     ].map((input) => ({ input, stripped: stripSchedulePhrase(input) ?? null }));
@@ -168,7 +177,8 @@ const scenarios: Record<string, () => unknown> = {
                                             "stop when green", countedFirst.filter(isRunCountSegment)),
       // A count inside a segment is the run limit too, so the message keeps the
       // user's own words and drops the count metadata.
-      inlineCount: ["输入3次Hi", "check the build 3 times", "check the build", "say hi * 3"]
+      inlineCount: ["输入3次Hi", "check the build 3 times", "check the build", "say hi * 3",
+                    "每 2 个小时，清理一次非必要的文档、代码。", "watch the logs every minute, 10 times"]
         .map((input) => ({ input, candidates: messageCandidates(input, undefined) })),
     };
   },

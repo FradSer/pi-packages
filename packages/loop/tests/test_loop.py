@@ -32,6 +32,13 @@ def test_duration_parsing_and_bounds() -> None:
         assert row.get("actual") == expected, row
     for row in data["formatted"]:  # type: ignore[union-attr]
         assert row["actual"] == row["expected"], row
+    # A listed cadence the free form can plan must be a cadence the flag form can
+    # state, and the two must agree on its length.
+    listed = data["listed"]  # type: ignore[union-attr]
+    assert [row["key"] for row in listed] == ["30s", "1m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d"], listed
+    for row in listed:
+        assert row["parsed"] == row["ms"], row
+        assert 1000 <= row["ms"] <= 86400000, row
 
 
 def test_template_expansion_and_unknown_placeholder() -> None:
@@ -85,6 +92,13 @@ def test_segmentation_and_schedule_phrase_stripping() -> None:
     assert stripped["每小时汇报一次"] == "汇报一次"
     assert stripped["check the build"] is None
     assert stripped["report once a minute"] == "report"
+    # A Chinese cadence is not always 每<number><unit>: the measure word and the 隔
+    # form are the same cadence, and a pattern that missed them left the cadence
+    # inside the repeated message.
+    assert stripped["每 2 个小时，清理一次非必要的文档、代码。"] == "清理一次非必要的文档、代码"
+    assert stripped["每2个小时，清理非必要的文档、代码"] == "清理非必要的文档、代码"
+    assert stripped["每隔2个小时跑一次"] == "跑一次"
+    assert stripped["每两个小时检查"] == "检查"
     assert data["segments"] == ["check the deploy every 10 minutes", "stop when it is green"]
     keys = [row["key"] for row in data["withoutStop"]]  # type: ignore[union-attr]
     assert "without_schedule_and_stop" in keys
@@ -109,10 +123,11 @@ def test_a_run_count_is_not_a_stopping_condition() -> None:
         assert counts[text] is False, (text, counts)
     assert data["counted"] == ["check the build every 5 minutes", "3 times"], data["counted"]
     # The count is stripped from the message, and a candidate is never the bare count
-    # itself: the first candidate is the task alone.
+    # itself: the count segment is code-matched metadata, so it leaves one candidate
+    # and no message question.
     texts = [row["text"] for row in data["withoutCount"]]  # type: ignore[union-attr]
-    assert texts == ["check the build", "check the build every 5 minutes",
-                     "check the build every 5 minutes, 3 times"], texts
+    assert texts == ["check the build"], texts
+    assert [row["key"] for row in data["withoutCount"]] == ["without_count"], data["withoutCount"]
     # A count that is not last must be dropped just the same, and the stop segment
     # it precedes must still be identifiable by its position in the full list.
     assert data["countedFirst"] == ["3 times", "check the deploy every 5 minutes", "stop when green"], data["countedFirst"]
@@ -140,6 +155,16 @@ def test_a_count_with_no_cadence_still_runs() -> None:
     assert inline["check the build"] == [{"key": "full", "text": "check the build"}], inline["check the build"]
     # A multiplier states the count too: "say hi * 3" repeats "say hi".
     assert inline["say hi * 3"] == [{"key": "without_count", "text": "say hi"}], inline["say hi * 3"]
+    # A cadence and a count in one request both leave: the message is the task.
+    assert inline["每 2 个小时，清理一次非必要的文档、代码。"] == [
+        {"key": "without_count", "text": "清理非必要的文档、代码"}], \
+        inline["每 2 个小时，清理一次非必要的文档、代码。"]
+    # The measured request behind that rule: a schedule phrase and a count segment,
+    # and no stopping condition. It was refused at 0.27 < 0.30 against the live
+    # service, because the count segment put the raw request back as a choice.
+    assert inline["watch the logs every minute, 10 times"] == [
+        {"key": "without_count", "text": "watch the logs"}], \
+        inline["watch the logs every minute, 10 times"]
 
     cases = {row["input"]: row["result"] for row in value(run("params"), "params")["cases"]}
     assert cases["--times 3 Hi"]["plan"] == {"message": "Hi", "intervalMs": 300000, "maxRuns": 3}, cases["--times 3 Hi"]

@@ -54,6 +54,12 @@ Feature: /loop repeats one message into the session as a real user turn
     Then the extension asks one bounded set of decision questions
     And the loop injects "say hi" through the native user-input path
 
+  Scenario: A count segment needs no message question
+    Given the decision service is configured
+    When the user runs "/loop watch the logs every minute, 10 times"
+    Then the extension asks one bounded set of decision questions
+    And the loop injects "watch the logs" through the native user-input path
+
   Scenario: A stopping-condition segment makes the message a judgment
     Given the decision service is configured
     When the user runs "/loop check the deploy every 10 minutes. stop when it is green"
@@ -74,6 +80,13 @@ Feature: /loop repeats one message into the session as a real user turn
     And the plan takes the default cadence of 5 minutes
     And the start notice says the cadence was assumed
     And the injected message is "输入Hi"
+
+  Scenario: A Chinese cadence is listed and leaves the message
+    Given the decision service is configured
+    When the user runs "/loop 每 2 个小时，清理一次非必要的文档、代码。"
+    Then the interval question offers the listed cadence 2h
+    And the plan repeats every 2 hours
+    And the injected message is "清理非必要的文档、代码"
 
   Scenario: Flags may state a run count without a cadence
     When the user runs "/loop --times 3 Hi"

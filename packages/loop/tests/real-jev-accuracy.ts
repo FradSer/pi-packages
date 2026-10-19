@@ -43,6 +43,9 @@ const CASES: Labelled[] = [
   { request: "watch the logs every minute, 10 times", interval: "1m", runs: 10, stop: false, message: "watch the logs" },
   { request: "review the backlog every 30 minutes. stop when it is empty", interval: "30m", stop: true, message: "review the backlog" },
   { request: "keep the build green", refusal: true },
+  // The reported defect: "每 2 个小时" planned every 1h, because no listed interval
+  // sat between 1h and 1d, and the cadence stayed inside the message.
+  { request: "每 2 个小时，清理一次非必要的文档、代码。", interval: "2h", stop: false, message: "清理非必要的文档、代码" },
   { request: "check the deploy every 5 minutes when it is green", interval: "5m", stop: false,
     message: "check the deploy when it is green", refusalOk: true },
 ];

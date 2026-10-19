@@ -16,7 +16,15 @@ export interface TextCandidate {
   text: string;
 }
 
-/** The listed repeating intervals a semantic request can select. */
+/**
+ * The listed repeating intervals a semantic request can select.
+ *
+ * The interval question answers with the closest listed cadence, so the set must not
+ * leave a gap that a stated cadence falls into: with only 1h and 1d listed, the
+ * request "每 2 个小时" resolved to 1h, half the cadence the user asked for. The hour
+ * steps here stay within a factor of two of each other. The sub-hour steps allow up
+ * to five, which bounds the whole set.
+ */
 export const INTERVAL_OPTIONS: readonly IntervalOption[] = [
   { key: "30s", ms: 30000 },
   { key: "1m", ms: 60000 },
@@ -24,6 +32,11 @@ export const INTERVAL_OPTIONS: readonly IntervalOption[] = [
   { key: "15m", ms: 900000 },
   { key: "30m", ms: 1800000 },
   { key: "1h", ms: 3600000 },
+  { key: "2h", ms: 7200000 },
+  { key: "4h", ms: 14400000 },
+  { key: "6h", ms: 21600000 },
+  { key: "8h", ms: 28800000 },
+  { key: "12h", ms: 43200000 },
   { key: "1d", ms: 86400000 },
 ];
 
@@ -37,7 +50,11 @@ function schedulePattern(): RegExp {
       "\\bevery\\s+(?:second|minute|hour|day)\\b",
       "\\bonce\\s+(?:a|per)\\s+(?:second|minute|hour|day)\\b",
       "\\bevery\\s+[a-z-]+\\s+(?:seconds?|minutes?|hours?|days?)\\b",
-      "每\\s*(?:[0-9]+|[零一二三四五六七八九十百]+|半)\\s*(?:毫秒|秒钟|秒|分钟|分|小时|钟头|天)",
+      // The measure word is optional and common: "每 2 个小时" is the same cadence
+      // as "每 2 小时", and "每隔2个小时" is the same cadence again. A pattern that
+      // required the unit to follow the number matched none of them, so the
+      // cadence stayed inside the repeated message.
+      "每(?:隔)?\\s*(?:[0-9]+|[零一二三四五六七八九十百两]+|半)\\s*(?:个|個)?\\s*(?:毫秒|秒钟|秒|分钟|分|小时|钟头|天)",
       "(?:每小时|每分钟|每天|每秒)",
     ].join("|"),
     "gi",
@@ -144,6 +161,11 @@ function reduceMetadata(text: string): { text: string; count: boolean } | undefi
  * identical strings. A degenerate set of one candidate needs no judgment. Every
  * schedule phrase, every run count and the segment that states the stopping
  * condition are removed, so the message repeats the task alone.
+ *
+ * The service's own answer is the only text-shaping judgment: the segment it named
+ * as the stopping condition. A dropped count segment and a schedule phrase are
+ * metadata this module matched itself, so when the service named no stopping
+ * condition the metadata-free text is the message and no question is asked.
  */
 export function messageCandidates(
   request: string,
@@ -151,14 +173,11 @@ export function messageCandidates(
   dropSegments: readonly string[] = [],
 ): TextCandidate[] {
   const full = request.trim();
-  let withoutStop = full;
-  for (const segment of stopSegment === undefined ? [] : [stopSegment]) {
-    withoutStop = stripSegment(withoutStop, segment) ?? withoutStop;
-  }
+  /** The request without the segments code matched as a run count. */
+  let withoutCounts = full;
   for (const segment of dropSegments) {
-    withoutStop = stripSegment(withoutStop, segment) ?? withoutStop;
+    withoutCounts = stripSegment(withoutCounts, segment) ?? withoutCounts;
   }
-  const stripped = withoutStop === full ? undefined : withoutStop;
   const candidates: TextCandidate[] = [];
   const push = (key: string, text: string | undefined): void => {
     if (text === undefined) return;
@@ -166,23 +185,29 @@ export function messageCandidates(
     if (!value || candidates.some((candidate) => candidate.text === value)) return;
     candidates.push({ key, text: value });
   };
-  if (stripped === undefined) {
-    // No segment was filtered, so only code-matched metadata can leave: a
-    // schedule phrase or a count phrase, both found by a pattern this module owns.
-    // There is nothing to judge, so the metadata-free text is the message. Offering
-    // the request back as well asked the service to make a choice code had already
-    // made, and a low-confidence answer to that choice refused the whole command.
-    const reduced = reduceMetadata(full);
+  if (stopSegment === undefined) {
+    // Nothing the service answered shaped the text, so there is nothing to judge:
+    // the metadata-free text is the message. Offering the request back asked the
+    // service to repeat a decision code had already made, and a low-confidence
+    // answer to that choice refused a command whose message was never in doubt:
+    // "watch the logs every minute, 10 times" failed at 0.27 < 0.30 against the
+    // live service (tests/real-jev-accuracy.ts).
+    const reduced = reduceMetadata(withoutCounts);
     if (reduced === undefined) {
       push("full", full);
       return candidates;
     }
-    push(reduced.count ? "without_count" : "without_schedule", reduced.text);
+    push(withoutCounts !== full || reduced.count ? "without_count" : "without_schedule", reduced.text);
     return candidates;
   }
-  const deep = reduceMetadata(stripped);
+  // The service named the stopping-condition segment, so its own answer shaped the
+  // text: the candidates differ in how much of the request they keep.
+  const withoutStop = stripSegment(withoutCounts, stopSegment) ?? withoutCounts;
+  const deep = reduceMetadata(withoutStop);
   push(deep?.count === true ? "without_count" : "without_schedule_and_stop", deep?.text);
-  push("without_stop", stripped);
+  // The key names what happened: a request the answer did not change stays the full
+  // text, so a degenerate candidate set is still reported as the request itself.
+  push(withoutStop === full ? "full" : "without_stop", withoutStop);
   push("full", full);
   return candidates;
 }

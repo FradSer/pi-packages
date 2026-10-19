@@ -45,6 +45,15 @@ function answer(body: Record<string, unknown>): Record<string, unknown> {
           usage: { input_tokens: 11, output_tokens: 4 },
         };
   }
+  if (scenario === "chinese-hour-cadence") {
+    // The reported request: "每 2 个小时" planned every 1h, because the listed
+    // intervals held no cadence between 1h and 1d.
+    return {
+      model: "jev-1.13.0",
+      answers: { interval: choice("2h", 0.9), runs: choice("unbounded", 0.9), stop: choice("none", 0.9) },
+      usage: { input_tokens: 11, output_tokens: 4 },
+    };
+  }
   if (ids.includes("message")) {
     return { model: "jev-1.13.0", answers: { message: choice("without_schedule_and_stop", 0.7) }, usage: { input_tokens: 7, output_tokens: 2 } };
   }
@@ -132,6 +141,7 @@ async function main(): Promise<unknown> {
       : scenario === "count-segment" ? "check the build every 5 minutes, 3 times"
       : scenario === "count-not-last" ? "3 times, check the deploy every 5 minutes, stop when green"
       : scenario === "count-without-cadence" ? "输入3次Hi"
+      : scenario === "chinese-hour-cadence" ? "每 2 个小时，清理一次非必要的文档、代码。"
       : scenario === "no-cadence-no-count" ? "检查项目修改，总结"
       : REQUEST,
     { config, now: new Date(2026, 0, 2, 3, 4, 5) },
